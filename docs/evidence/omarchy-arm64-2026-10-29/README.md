@@ -1,5 +1,9 @@
 # Native Omarchy ARM64 evidence — 2026-10-29
 
+**HOLD: failed-restart cleanup acceptance is invalidated and awaits a corrected real rerun.**
+The old KGFCvN cleanup JSON falsely reports success; it is retained only as explicitly superseded evidence.
+See the [operator correction](https://github.com/alexandru-savinov/agterm-omarchy/issues/22#issuecomment-6507865378).
+
 This bundle preserves selected native VM evidence for [task #22](https://github.com/alexandru-savinov/agterm-omarchy/issues/22).
 It covers an isolated ARM64 Omarchy/Hyprland desktop, including a relocated release payload.
 The root operator executed the runtime tests; the test_plan agent independently inspected retained files and compared current VM source/binary hashes.
@@ -12,8 +16,8 @@ It is not a GitHub-hosted build attestation or a claim that every graphics drive
 |---|---|---|
 | [Debug result](results/debug.json) | Seven checks passed | Operator's debug run; result file inspected independently |
 | [Relocated release result](results/relocated-release.json) | Seven checks passed | Relocated payload; result file and selected screenshots inspected independently |
-| [Final Live result](results/live-final.json) and [cleanup](results/live-final-cleanup.json) | Nine checks passed; cleanup passed with three tracked test daemons | Final run `wayland-live-final.v7lL10`; files independently fetched from the VM |
-| [Intentional failed-restart result](results/failed-restart.json) and [cleanup](results/failed-restart-cleanup.json) | Expected `passed=false` after two initial checks; cleanup passed with one tracked daemon | Fixture run `wayland-failed-restart.KGFCvN`; files independently fetched from the VM |
+| [Live result](results/live-final.json) and [cleanup record](results/live-final-cleanup.json) | Nine checks reported passed; cleanup JSON reports three tracked daemons, but used the parser later found defective | Run `wayland-live-final.v7lL10`; files inspected; operator reports normal teardown closed its daemons, corrected rerun pending |
+| [Superseded failed-restart records](superseded/failed-restart-KGFCvN/) | **Invalid for cleanup acceptance:** original `passed=true` cleanup assertion was false | Later operator process audit found the tracked daemon; exact original bytes retained with STATUS.json |
 | Native shared core tests | 4,025 tests in 175 suites passed | [Operator report](https://github.com/alexandru-savinov/agterm-omarchy/issues/5#issuecomment-6506869967); not rerun for this documentation change |
 | Native Linux frontend tests | 553 tests in 81 suites passed | [Operator report](https://github.com/alexandru-savinov/agterm-omarchy/issues/15#issuecomment-6507348032) |
 | Installer fixtures and relocation | Eight fixtures passed; ELF/resource checks passed with original source/prefix/toolchain absent | [Packaging report](https://github.com/alexandru-savinov/agterm-omarchy/issues/15#issuecomment-6507277255) and [test report](https://github.com/alexandru-savinov/agterm-omarchy/issues/15#issuecomment-6507348032) |
@@ -29,12 +33,18 @@ The release run invoked the installed wrappers after unsetting `LD_LIBRARY_PATH`
 
 ## Live restart and failure cleanup
 
-The [final Live handoff](https://github.com/alexandru-savinov/agterm-omarchy/issues/22#issuecomment-6507668460)
-reports the cleanup-reviewed harness run, superseding the earlier Live run for teardown acceptance.
-The retained result records a zmx-backed shell and matching shell PID across application shutdown/relaunch.
-The [harness](https://github.com/alexandru-savinov/agterm-omarchy/blob/7a8d4b71/scripts/test-omarchy.sh)
-compares PID marker files before recording that check; those temporary files are removed during successful cleanup.
+The [original Live handoff](https://github.com/alexandru-savinov/agterm-omarchy/issues/22#issuecomment-6507668460)
+was later corrected after a process audit found a remaining daemon from the intentional failed restart.
+The pinned zmx output prefixes detached rows with two spaces; the old parser skipped those rows and treated the missing names as an empty set.
+The original failed-restart cleanup record is therefore invalid for acceptance, despite its `passed=true` value.
+Matching SHA256 values prove the retained bytes, not the truth of the recorded assertion.
+
+The old normal Live result records a zmx-backed shell and matching shell PID across application shutdown/relaunch.
+The [original harness](https://github.com/alexandru-savinov/agterm-omarchy/blob/7a8d4b71/scripts/test-omarchy.sh)
+compares PID marker files before recording that check; those temporary files were removed during the run.
 Their numeric values are not independently recoverable from this retained result alone.
+The operator reports that normal Live teardown closed its daemons, but the old cleanup JSON used the same defective parser and is not sufficient independent proof.
+Corrected parser execution and process/endpoint verification will be recorded separately before acceptance.
 
 Live mode requires a supported login shell.
 The VM account's real login shell was bash, so the operator used the repository's `login_shell_zsh_fixture.c`
@@ -42,10 +52,11 @@ to supply a process-local password-database fixture selecting zsh.
 No account/login-shell configuration was changed.
 The unsupported-bash attempt is not counted as a Live success; see the [operator report](https://github.com/alexandru-savinov/agterm-omarchy/issues/5#issuecomment-6507505647).
 
-The intentional failed-restart result is deliberately unsuccessful.
-Its separate successful cleanup record demonstrates that the captured test daemon was removed even when frontend restart failed.
-The cleanup count measures tracked test-owned daemon names, not every process on the machine.
-The successful final run tracked three names; the failure fixture tracked one.
+The intentional failed-restart test result is deliberately unsuccessful.
+Its old separate cleanup assertion is also invalidated, rather than being evidence of successful teardown.
+[superseded/failed-restart-KGFCvN/STATUS.json](superseded/failed-restart-KGFCvN/STATUS.json)
+provides the explicit validity marker and correction link while retaining the original result bytes unchanged.
+Replacement failure-path evidence is pending from the root operator.
 
 ## Unmodified isolated screenshots
 
