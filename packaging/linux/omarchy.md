@@ -4,7 +4,7 @@ Build agterm natively on `x86_64` or `aarch64` using the GTK4 Linux frontend.
 The architecture is selected from the machine running the build; an x86_64 release archive cannot run
 in an ARM64 VM.
 
-From a checkout of the `linux-port` branch:
+From a checkout of this repository:
 
 ```bash
 scripts/setup-omarchy.sh
@@ -43,7 +43,14 @@ Launch **agterm** from Omarchy's application launcher, or run:
 
 GTK selects native Wayland in a Hyprland session.
 No Hyprland configuration or default terminal selection is changed by installation.
-For an optional dedicated shortcut, add this to `~/.config/hypr/bindings.conf` and reload Hyprland:
+For an optional dedicated shortcut on Lua-based Hyprland (0.55 and later), add this to the user
+bindings file loaded by your configuration and reload Hyprland:
+
+```lua
+hl.bind("SUPER + SHIFT + Return", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/agterm-linux"))
+```
+
+Older Hyprland configurations use the following in `~/.config/hypr/bindings.conf`:
 
 ```ini
 bind = SUPER SHIFT, Return, exec, ~/.local/bin/agterm-linux
@@ -69,6 +76,19 @@ The accessibility suite uses an isolated X11 display and state directory.
 `test-omarchy.sh` uses the current Hyprland desktop with separate app state and socket, and writes its
 control transcript and screenshots under `artifacts/`.
 Run it from a terminal in that desktop so the Wayland and Hyprland environment is available.
+The runner supports both legacy and Lua-based compositor dispatch commands.
+If an accelerated UTM guest reports `No EGL configuration available`, use Mesa software rendering for
+the agterm process:
+
+```bash
+LIBGL_ALWAYS_SOFTWARE=1 ~/.local/bin/agterm-linux
+# Or for the isolated acceptance test:
+LIBGL_ALWAYS_SOFTWARE=1 scripts/test-omarchy.sh
+```
+
+The ARM64 UTM VM passed terminal rendering, shell input, splits, and program/HTML overlays with this
+process-local setting on Hyprland 0.56.1, GTK 4.22.4, and GLib 2.88.3.
+Hardware rendering on other machines remains dependent on their Mesa/driver configuration.
 For a development launch, isolate its state and control socket from an installed instance:
 
 ```bash

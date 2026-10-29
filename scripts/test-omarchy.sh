@@ -11,6 +11,7 @@ exec python3 - <<'PY'
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import shutil
 import subprocess
@@ -55,6 +56,7 @@ for key in ("AGTERM_GHOSTTY_RESOURCES", "AGTERM_RESOURCE_ROOT", "AGTERM_ZMX_PATH
 app = None
 checks = []
 transcript = artifacts / "control.jsonl"
+lua_dispatch = False
 
 
 def command(argv, **kwargs):
@@ -62,11 +64,13 @@ def command(argv, **kwargs):
 
 
 def ctl(*args):
-    result = json.loads(command([os.environ["AGTERM_TEST_CTL"], *args,
-                                "--socket", env["AGTERM_CONTROL_SOCKET"], "--json"], env=env))
+    response = subprocess.run([os.environ["AGTERM_TEST_CTL"], *args,
+                               "--socket", env["AGTERM_CONTROL_SOCKET"], "--json"],
+                              env=env, text=True, capture_output=True, timeout=15)
+    result = json.loads(response.stdout)
     with transcript.open("a") as out:
         out.write(json.dumps({"args": args, "response": result}) + "\n")
-    if not result.get("ok"):
+    if response.returncode or not result.get("ok"):
         raise AssertionError(f"control command failed: {args}: {result}")
     return result.get("result", {})
 
@@ -105,11 +109,22 @@ def client():
 
 
 def capture(name):
+    global lua_dispatch
     window = wait_for(client, "test window mapped in Hyprland")
     if window.get("xwayland"):
         raise AssertionError("test window is using XWayland, not native Wayland")
     address = window["address"]
-    command(["hyprctl", "dispatch", "focuswindow", f"address:{address}"])
+    if not re.fullmatch(r"0x[0-9a-fA-F]+", address):
+        raise AssertionError(f"invalid compositor window address: {address}")
+    if not lua_dispatch:
+        focus = subprocess.run(["hyprctl", "dispatch", "focuswindow", f"address:{address}"],
+                               text=True, capture_output=True, timeout=15)
+        if focus.returncode:
+            if "dispatch in lua" not in focus.stdout + focus.stderr:
+                raise AssertionError(f"focus failed: {focus.stdout}{focus.stderr}")
+            lua_dispatch = True
+    if lua_dispatch:
+        command(["hyprctl", "dispatch", f'hl.dsp.focus({{ window = "address:{address}" }})'])
     wait_for(lambda: json.loads(command(["hyprctl", "activewindow", "-j"])).get("pid") == app.pid,
              "test window focused for capture")
     x, y = window["at"]
@@ -145,6 +160,7 @@ try:
     wait_for(lambda: Path(env["AGTERM_CONTROL_SOCKET"]).is_socket(), "isolated control socket")
     wait_for(client, "Hyprland window")
     initial = wait_for(sessions, "initial terminal session")[0]["id"]
+    wait_for(lambda: session(initial).get("realized"), "initial terminal GL surface ready")
     # An execution marker proves PTY input reached a shell, not just its echoed command line.
     shell(initial, "printf 'OMARCHY_PRIMARY_OK\\n'")
     assert "OMARCHY_PRIMARY_OK" in ctl("session", "text", "--target", initial)["text"]
@@ -164,7 +180,7 @@ try:
     workspace = ctl("workspace", "new", "Omarchy smoke")["id"]
     second = ctl("session", "new", "--workspace", workspace, "--name", "Omarchy split", "--cwd", str(home))["id"]
     ctl("session", "split", "on", "--target", second)
-    wait_for(lambda: session(second).get("hasSplit"), "split state read-back")
+    wait_for(lambda: session(second).get("split"), "split state read-back")
     shell(second, "printf 'OMARCHY_SPLIT_OK\\n'", "right")
     assert "OMARCHY_SPLIT_OK" in ctl("session", "text", "--target", second, "--pane", "right")["text"]
     capture("split")
