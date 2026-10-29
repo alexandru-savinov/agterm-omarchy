@@ -44,7 +44,7 @@ jobs:
         run: python3 scripts/tests/test_linux_install.py
       - name: Failed Live restart cleanup regression tests
         run: python3 scripts/tests/test_omarchy_cleanup.py
-      - name: Zig TLS fallback regression tests
+      - name: Zig transport fallback regression tests
         run: scripts/test-zig-build-linux.sh
       - name: Whitespace
         run: git diff --check
