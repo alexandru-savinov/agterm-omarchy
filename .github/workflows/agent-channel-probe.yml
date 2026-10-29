@@ -1,0 +1,38 @@
+name: Agent channel probe
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/agent-channel*.yml
+      - scripts/github/channel_probe.py
+      - scripts/github/test_channel_probe.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-channel-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    name: Channel and queue tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: python3 scripts/github/test_queue.py
+      - run: python3 scripts/github/test_channel_probe.py
+  probe:
+    if: github.event_name == 'workflow_dispatch'
+    needs: tests
+    uses: ./.github/workflows/agent-channel.yml
+    with:
+      channel: ${{ vars.AGTERM_PROBE_CHANNEL }}
+      expected-sha256: ${{ vars.AGTERM_PROBE_SHA256 }}
+    secrets:
+      probe: ${{ secrets.AGTERM_PROBE_SECRET }}

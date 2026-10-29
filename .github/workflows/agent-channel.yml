@@ -1,0 +1,41 @@
+name: Reusable agent channel verification
+
+on:
+  workflow_call:
+    inputs:
+      channel:
+        required: true
+        type: string
+      expected-sha256:
+        required: true
+        type: string
+    secrets:
+      probe:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify probe delivery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify configuration and dedicated probe
+        env:
+          AGTERM_PROBE_CHANNEL: ${{ inputs.channel }}
+          AGTERM_PROBE_SHA256: ${{ inputs.expected-sha256 }}
+          AGTERM_PROBE_VALUE: ${{ secrets.probe }}
+        run: python3 scripts/github/channel_probe.py
+      - name: Preserve comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: agent-channel-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/agent-channel/result.json
+          if-no-files-found: error
+          retention-days: 30
