@@ -19,17 +19,19 @@ def snapshot(issues, comments):
         tasks[-1]["labels"] = [item["name"] for item in issue.get("labels", [])]
         tasks[-1]["assignees"] = [item["login"] for item in issue.get("assignees", [])]
         for comment in comments.get(issue["number"], []):
-            match = re.search(r"(?im)^Agent:\s*\*{0,2}([a-z0-9_-]+)", comment.get("body", ""))
+            header = next((line.strip() for line in comment.get("body", "").splitlines() if line.strip()), "")
+            match = re.fullmatch(r"Agent:\s*(?:\*\*([a-z0-9_-]+)\*\*|([a-z0-9_-]+))", header, re.I)
             if not match:
                 continue
-            name = match.group(1)
+            name = (match.group(1) or match.group(2)).lower()
+            identity = (comment["user"]["login"].lower(), name)
             record = {"name": name, "account": comment["user"]["login"],
                       "issue": issue["number"], "url": comment["html_url"],
                       "updated_at": comment["updated_at"]}
-            if name not in agents or record["updated_at"] > agents[name]["updated_at"]:
-                agents[name] = record
+            if identity not in agents or record["updated_at"] > agents[identity]["updated_at"]:
+                agents[identity] = record
     return {"tasks": sorted(tasks, key=lambda item: item["number"]),
-            "agents": sorted(agents.values(), key=lambda item: item["name"])}
+            "agents": sorted(agents.values(), key=lambda item: (item["account"].lower(), item["name"]))}
 
 
 def pages(repository, endpoint, token):
@@ -57,7 +59,8 @@ def markdown(data):
     for task in data["tasks"]:
         lines.append(f"| [#{task['number']} {escape(task['title'])}]({task['html_url']}) | "
                      f"{task['state']} | {escape(', '.join(task['labels']))} |")
-    lines += ["", "## Latest named check-ins", "", "| Agent | Account | Last message |", "|---|---|---|"]
+    lines += ["", "## Latest named check-ins (self-reported names)", "",
+              "| Agent | Account | Last message |", "|---|---|---|"]
     for agent in data["agents"]:
         lines.append(f"| {escape(agent['name'])} | {escape(agent['account'])} | "
                      f"[{agent['updated_at']}]({agent['url']}) |")

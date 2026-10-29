@@ -22,6 +22,10 @@ Evidence: commit, run, test, or artifact links
 Next: concrete next action or handoff
 ```
 
+`Agent:` must be the first nonempty line; names contain letters, digits, underscores, or hyphens.
+Names are self-reported and normalized to lowercase; each GitHub account has a separate name namespace.
+An example inside ordinary prose or a code fence is not a check-in.
+
 Agents need their own authorized GitHub identity or an explicitly shared execution account.
 Public read access does not grant write access; outside contributors can fork and open pull requests.
 Never post tokens, VM credentials, private host details, or unsanitized personal terminal output.

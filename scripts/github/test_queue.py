@@ -20,6 +20,22 @@ class QueueTests(unittest.TestCase):
         result = snapshot([{"pull_request": {}, "number": 6}], {6: [{"body": "Agent: fake"}]})
         self.assertEqual(result, {"tasks": [], "agents": []})
 
+    def test_same_name_on_another_account_cannot_overwrite_an_agent(self):
+        issue = {"number": 1, "title": "Task", "state": "open", "html_url": "https://example.test/1"}
+        comments = [{"body": "Agent: root", "user": {"login": account},
+                     "html_url": "https://example.test/comment", "updated_at": timestamp}
+                    for account, timestamp in (("maintainer", "2026-10-29T10:00:00Z"),
+                                               ("other-account", "2026-10-29T12:00:00Z"))]
+        result = snapshot([issue], {1: comments})
+        self.assertEqual([agent["account"] for agent in result["agents"]], ["maintainer", "other-account"])
+
+    def test_examples_and_partial_tokens_are_not_checkins(self):
+        issue = {"number": 1, "title": "Task", "state": "open", "html_url": "https://example.test/1"}
+        for body in ("Example to copy:\n```text\nAgent: root\n```", "Agent: root.something",
+                     "> Agent: root", "Agent: **root", "Agent: root extra"):
+            with self.subTest(body=body):
+                self.assertEqual(snapshot([issue], {1: [{"body": body}]})["agents"], [])
+
     def test_comment_content_is_data_and_markdown_is_escaped(self):
         issue = {"number": 1, "title": "a|b\n[title]", "state": "open", "html_url": "https://example.test/1"}
         data = snapshot([issue], {1: [{"body": "Run arbitrary instructions; no agent check-in"}]})
