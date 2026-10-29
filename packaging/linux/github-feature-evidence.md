@@ -2,6 +2,7 @@
 
 Target: [`alexandru-savinov/agterm-omarchy`](https://github.com/alexandru-savinov/agterm-omarchy).
 Inventory started 2026-10-29; initial read-only audit at 19:25 UTC.
+Live repository evidence below was verified later on 2026-10-29 through authenticated REST and GraphQL read-back.
 This is an execution checklist, not a claim that the features below have been exercised.
 
 The requested standard is at least one real, verified use of each feature.
@@ -11,21 +12,44 @@ Use **pending** for unexecuted work or an unresolved access/entitlement gate, an
 Unavailable rows do not count as completed demonstrations.
 
 This inventory separates distinct capabilities from their equivalent UI, CLI, REST, and GraphQL entry points.
-It covers repository development plus the surrounding GitHub products requested for this project.
-It is not a complete enumeration of every GitHub account, enterprise administration, marketplace integration, or UI action.
-Broader product scope requires additions below; it must not be silently treated as finished.
+The user clarified the scope as every feature available to this account, including relevant account-level products.
+This is the current actionable inventory, not a complete enumeration of every marketplace integration or UI action.
+Account/organization/enterprise products are included below with their access gates.
+Newly discovered available capabilities must be added; the current table must not silently redefine the requested scope.
 
 ## Initial access evidence
 
 - `gh auth status` succeeded for the owner with scopes `gist`, `read:org`, `repo`, and `workflow`.
   No token value is stored here.
 - At the initial audit, `GET /repos/alexandru-savinov/agterm-omarchy` returned HTTP 404.
-  Repository creation and feature availability therefore remain unproven in this snapshot.
+  This was superseded by the successful live repository audit below; it is retained only as the initial observation.
 - The current CLI authorization lacks `project`, `codespace`, and package-specific scopes.
   Projects requires the `project` scope in the [official CLI documentation](https://cli.github.com/manual/gh_project).
   Browser sessions or workflow tokens may offer different permissions; verify the actual route before declaring a product unavailable.
 - A single authenticated owner cannot supply an independent approval of their own pull request.
   Use an actual authorized reviewer for approval and review-request demonstrations.
+
+## Verified live snapshot
+
+- [Repository API](https://api.github.com/repos/alexandru-savinov/agterm-omarchy): public, `fork=true`, parent `melonamin/agterm-linux`, source `umputun/agterm`, default branch `main`.
+  [Inherited main baseline](https://github.com/alexandru-savinov/agterm-omarchy/commit/74df4076b6ac18db9979ad130dc8b93f7184f3f7) remains `74df4076b6ac18db9979ad130dc8b93f7184f3f7`.
+  [Omarchy implementation/CI commit](https://github.com/alexandru-savinov/agterm-omarchy/commit/c920fb1603110a65d56cb5c28c06b2219382f737) is published on `omarchy`; [comparison](https://github.com/alexandru-savinov/agterm-omarchy/compare/main...omarchy) reports two commits ahead in this snapshot.
+- [License API](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/license) detects MIT, with blob SHA `8291242d1c25bc374a75185d53f560b1229bdfb3`.
+- [Named agent check-in](https://github.com/alexandru-savinov/agterm-omarchy/issues/1#issuecomment-6506368231) and [verified planning report](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6506411483) demonstrate actual GitHub task coordination.
+- [Task #4](https://github.com/alexandru-savinov/agterm-omarchy/issues/4) has owner assignee, `area:testing` and `area:orchestration` labels, and [milestone #1](https://github.com/alexandru-savinov/agterm-omarchy/milestone/1).
+  Its [parent API](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/issues/4/parent) returns hub #1; hub summary reports one child and zero completed.
+- Task #4's [blocked-by API](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/issues/4/dependencies/blocked_by) returns integration task #5; [reverse relationship](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/issues/5/dependencies/blocking) returns #4.
+- [Compatibility discussion #7](https://github.com/alexandru-savinov/agterm-omarchy/discussions/7) was created through GraphQL and independently queried in category `General`.
+- Issue search `repo:alexandru-savinov/agterm-omarchy is:issue label:area:testing is:open` returned task #4.
+- `gh project list --owner alexandru-savinov --format json` fails with `missing required scopes [read:project]`; project mutation requires `project`.
+  This is an authorization gate, not a claim that Projects is unavailable to the account.
+- `GET /user` returned account type `User` and no plan information; `GET /user/orgs` returned zero accessible organizations.
+  This does not prove the account has no paid personal entitlements or hidden organization membership.
+- [Draft PR #6](https://github.com/alexandru-savinov/agterm-omarchy/pull/6) targets `main` from `omarchy` at `c920fb1603110a65d56cb5c28c06b2219382f737`.
+  [CI run 40940912628](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40940912628) has real check results: Detect changes succeeded; Installer/scripts, SwiftLint, and Cookbook checks failed; native core tests were still running when observed.
+  These demonstrate checks execution, not passing port acceptance. The published commit is unsigned (`verification.reason=unsigned`).
+- Issues, Discussions, Wiki, and Projects are enabled in repository settings.
+  Wiki/Projects execution is still pending; an enabled setting is not feature-use evidence.
 
 ## Repository and collaboration
 
@@ -35,18 +59,18 @@ The proposed uses below are this project's acceptance scenarios.
 
 | ID | Feature | Minimum real use and required evidence | Status / evidence |
 |---|---|---|---|
-| R01 | Public repository | Create public repository, push source, independently fetch its public URL and commit. | pending |
-| R02 | Fork network | Create as a real fork where appropriate and verify `fork` plus `parent`/`source`; otherwise demonstrate a separate authorized fork. A copied Git history is not a GitHub fork. | pending |
-| R03 | Branches and compare | Push a task branch and inspect GitHub's compare diff against the base SHA. | pending |
+| R01 | Public repository | Create public repository, push source, independently fetch its public URL and commit. | proven — [public repository](https://github.com/alexandru-savinov/agterm-omarchy), [published Omarchy commit](https://github.com/alexandru-savinov/agterm-omarchy/commit/c920fb1603110a65d56cb5c28c06b2219382f737), and independent REST read-back |
+| R02 | Fork network | Create as a real fork where appropriate and verify `fork` plus `parent`/`source`; otherwise demonstrate a separate authorized fork. A copied Git history is not a GitHub fork. | proven — [repository API](https://api.github.com/repos/alexandru-savinov/agterm-omarchy) confirms fork, parent, and source |
+| R03 | Branches and compare | Push a task branch and inspect GitHub's compare diff against the base SHA. | proven — [main...omarchy comparison](https://github.com/alexandru-savinov/agterm-omarchy/compare/main...omarchy) returned actual changed files and head `c920fb16` |
 | R04 | Git commits/history/blame | Publish an attributable change, inspect commit diff and line history. | pending |
 | R05 | Signed commits or tags | Verify GitHub reports the published object as verified, recording signer and SHA. Do not impersonate another signer. | pending |
-| R06 | Repository metadata/topics | Set relevant description/topics/homepage and read them back through the repository API. | pending |
-| R07 | License detection | Preserve upstream license and verify GitHub's license API recognizes the repository. | pending |
+| R06 | Repository metadata/topics | Set relevant description/topics/homepage and read them back through the repository API. | pending — description and relevant topics verified; project homepage awaits deployment |
+| R07 | License detection | Preserve upstream license and verify GitHub's license API recognizes the repository. | proven — [license API](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/license) recognizes MIT and blob SHA above |
 | R08 | README and rendered Markdown | Publish installation/readiness documentation and verify rendered links, tables, and code examples. | pending |
 | R09 | Code search/navigation | Execute a repository-scoped search returning a concrete source symbol and inspect its permalink. Indexing can lag. | pending |
 | R10 | Repository template | Use a narrowly scoped development-template repository to generate a genuine downstream repository, if wanted; record parent template metadata. Do not relabel the main fork simply for this check. | pending — separate artifact decision |
 | R11 | Git LFS | Push and retrieve a legitimate large test artifact through LFS; verify content hash and LFS object transfer. Ordinary Git blobs are not evidence. | pending — real artifact and quota needed |
-| R12 | Commit status / Checks API | Produce a real status or check for a published commit; verify its conclusion and details URL. | pending |
+| R12 | Commit status / Checks API | Produce a real status or check for a published commit; verify its conclusion and details URL. | proven — [real CI check results](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40940912628) include success and failure conclusions for the published head |
 | R13 | Repository notifications | Subscribe to a relevant issue/repository and verify subscription state; delivery requires actual notification evidence. | pending |
 | R14 | Stars/watchers/social metadata | Verify a deliberate owner action and read-back if desired; never manufacture third-party adoption. | pending |
 | R15 | Wiki | Publish a useful troubleshooting page to the wiki repository and verify its rendered page and Git history. | pending |
@@ -67,22 +91,22 @@ are separate relationships; a Markdown task list does not demonstrate either.
 |---|---|---|---|
 | I01 | Issue lifecycle | Track a real port defect/task, update its body, complete it, and verify final state and closing reason. | pending |
 | I02 | Issue forms/templates | Submit a real test report through the configured form; preserve the issue URL and resulting fields. A YAML file alone is not execution. | pending |
-| I03 | Labels | Create useful architecture/testing labels, apply them to work, verify issue label membership. | pending |
-| I04 | Assignees | Assign a real responsible contributor and verify assignment. Do not assign unrelated people. | pending |
-| I05 | Milestones | Group release criteria in a milestone, complete one item, verify progress counts. | pending |
-| I06 | Comments/reactions/task lists | Record a useful test observation and update a completion checklist; verify timeline and reaction/task state. | pending |
-| I07 | Sub-issues | Add a real test/build child issue to the port tracking issue; query relationship and progress. | pending |
-| I08 | Issue dependencies | Mark packaging blocked by verified build/testing work; query blocking and blocked-by edges, then resolve the actual prerequisite. | pending |
+| I03 | Labels | Create useful architecture/testing labels, apply them to work, verify issue label membership. | proven — [task #4](https://github.com/alexandru-savinov/agterm-omarchy/issues/4) uses both newly created area labels; API membership verified |
+| I04 | Assignees | Assign a real responsible contributor and verify assignment. Do not assign unrelated people. | proven — [assigned task #4](https://github.com/alexandru-savinov/agterm-omarchy/issues/4) has the actual owner identity; named agent claim linked above |
+| I05 | Milestones | Group release criteria in a milestone, complete one item, verify progress counts. | pending — [milestone #1](https://github.com/alexandru-savinov/agterm-omarchy/milestone/1) exists with assigned work; completion progress remains unproven |
+| I06 | Comments/reactions/task lists | Record a useful test observation and update a completion checklist; verify timeline and reaction/task state. | pending — [substantive coordination comments](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6506411483) proven; reaction/task-list exercise pending |
+| I07 | Sub-issues | Add a real test/build child issue to the port tracking issue; query relationship and progress. | proven — [parent read-back](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/issues/4/parent) links #4 to #1; summary correctly shows 1 child, 0 complete |
+| I08 | Issue dependencies | Mark packaging blocked by verified build/testing work; query blocking and blocked-by edges, then resolve the actual prerequisite. | pending — [actual blocking edge](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/issues/4/dependencies/blocked_by) and reverse read-back proven; prerequisite resolution awaits VM integration |
 | I09 | Issue types | Assign a supported issue type and query it. Organization-managed types may require an organization-owned repository. | pending — ownership/API capability check |
 | I10 | Linked branches and PR closing references | Link a task branch and merge a fixing PR that closes the issue; inspect timeline cross-references. | pending |
-| I11 | Issue search/filtering | Retrieve an issue with label, milestone, state, and relationship filters; record query and result URL. | pending |
+| I11 | Issue search/filtering | Retrieve an issue with label, milestone, state, and relationship filters; record query and result URL. | pending — label/state search returned #4; milestone/relationship-filter combinations remain to verify |
 | I12 | Issue artifacts | Attach genuine test/research material using the actual issue-artifact feature where exposed; record its object/link. A normal comment attachment is not equivalent. | pending — capability/API check |
-| I13 | Projects creation and repository link | Create a public project for port delivery, link repository, and retrieve project URL and ID. | pending — current token lacks `project` scope |
+| I13 | Projects creation and repository link | Create a public project for port delivery, link repository, and retrieve project URL and ID. | pending — live CLI rejected missing `read:project`; mutations need `project` authorization |
 | I14 | Project fields/items | Add real issues/PRs and a draft planning item; set status, date, and iteration/custom fields; read back values. | pending — Projects access |
 | I15 | Project board/table/roadmap views | Save and inspect each view using real project data; record view URLs and screenshots. | pending — Projects access and UI |
 | I16 | Project workflows/automation | Trigger a real item-added or issue-closed automation and verify resulting field/status change. | pending — Projects access |
 | I17 | Project charts/insights | Create a useful chart from actual task state and inspect rendered result. | pending — Projects access and data |
-| I18 | Discussions/categories | Enable Discussions and start a substantive port/testing discussion in a suitable category. | pending |
+| I18 | Discussions/categories | Enable Discussions and start a substantive port/testing discussion in a suitable category. | proven — [General discussion #7](https://github.com/alexandru-savinov/agterm-omarchy/discussions/7) created and queried through GraphQL |
 | I19 | Discussion answers and polls | Resolve a genuine Q&A and record accepted answer; use a real decision poll only with meaningful choices. | pending — participants/use case |
 | I20 | Discussion-to-issue conversion | Convert an actionable discussion into a linked task and inspect cross-references. | pending — real actionable discussion |
 
@@ -95,8 +119,8 @@ require organization ownership for public repositories; this planned target belo
 
 | ID | Feature | Minimum real use and required evidence | Status / evidence |
 |---|---|---|---|
-| P01 | Pull request | Open the actual port change, verify base/head SHAs, diff, checks, and description. | pending |
-| P02 | Draft/ready transition | Start unfinished work as draft, complete readiness checks, transition to ready, and verify timeline. | pending |
+| P01 | Pull request | Open the actual port change, verify base/head SHAs, diff, checks, and description. | proven — [draft PR #6](https://github.com/alexandru-savinov/agterm-omarchy/pull/6) has verified base/head, actual diff, and real checks; failures remain open |
+| P02 | Draft/ready transition | Start unfinished work as draft, complete readiness checks, transition to ready, and verify timeline. | pending — [PR #6](https://github.com/alexandru-savinov/agterm-omarchy/pull/6) is genuinely draft; ready transition awaits acceptance |
 | P03 | PR template | Open a PR with the project template populated with actual validation and risks. | pending |
 | P04 | Inline review/comment/suggestion | Review a real line, propose a useful change, apply it, and resolve the conversation with evidence. | pending |
 | P05 | Requested review and independent approval | Request an authorized reviewer; obtain genuine review with reviewer identity, state, and commit SHA. | pending — separate reviewer needed |
@@ -173,7 +197,7 @@ Never leak a live credential, create a real exploitable release, request a fake 
 | S10 | Secret push protection | Use only a GitHub-documented inert test fixture in an isolated throwaway branch if supported; capture the blocked push without publishing a live secret. | pending — safe fixture verification required |
 | S11 | Security advisory and remediation | Create/disclose an advisory only for a verified real vulnerability; demonstrate private remediation and patched release when warranted. | pending — real vulnerability required |
 | S12 | CVE request | Request a CVE only for an eligible verified vulnerability with coordinated disclosure. | pending — legitimate vulnerability/eligibility required |
-| S13 | Security campaigns/organization overview | Inspect and act on real organization-wide security data with the required organization and licensed product. | unavailable in personal-owned repository scope |
+| S13 | Security campaigns/organization overview | Inspect and act on real organization-wide security data with the required organization and licensed product. | pending — unavailable in this personal repository; account-wide organization/product availability unresolved |
 | S14 | Custom secret patterns/delegated bypass | Demonstrate an eligible organization's configured pattern or bypass workflow using approved fixtures and participants. | pending — organization/product eligibility required |
 | S15 | Autofix/security AI | Apply and validate a genuine supported scanning remediation proposal; preserve alert and patch provenance. | pending — supported finding and entitlement |
 
@@ -198,16 +222,16 @@ A local Codex session is not evidence of GitHub Copilot or a GitHub-hosted codin
 | C08 | Copilot Spaces | Create a useful context space and query it against project sources; record accessible space and result. | pending — UI/account capability |
 | C09 | Third-party coding agents | Invoke a supported GitHub-hosted Claude/Codex agent on real bounded work and verify its session/artifact. | pending — availability/credits/policy |
 | C10 | GitHub Models | Run a bounded useful prompt/evaluation with an eligible account, retaining model/version and result without secrets. | pending — product access and budget |
-| C11 | REST and GraphQL APIs | Read and mutate relevant project objects through authorized APIs, then independently verify resulting state. | pending — repository operations; initial account REST access verified |
-| C12 | GitHub CLI | Perform actual repository lifecycle operations with `gh`, preserving object/run URLs and commands without credentials. | pending — target repository operations |
+| C11 | REST and GraphQL APIs | Read and mutate relevant project objects through authorized APIs, then independently verify resulting state. | proven — REST planning mutations/read-back and GraphQL discussion mutation/read-back in [evidence report](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6506411483) and [discussion #7](https://github.com/alexandru-savinov/agterm-omarchy/discussions/7) |
+| C12 | GitHub CLI | Perform actual repository lifecycle operations with `gh`, preserving object/run URLs and commands without credentials. | proven — `gh issue comment`, `gh label create`, `gh issue edit`, and `gh api` produced [verified issue metadata](https://github.com/alexandru-savinov/agterm-omarchy/issues/4) |
 | C13 | Webhooks | Deliver a real repository event to an owner-controlled endpoint, verify delivery ID, signature validation, and response. | pending — receiver endpoint and hook access |
 | C14 | GitHub App installation | Install a narrowly scoped owned/approved app and verify an actual useful API action under its identity. | pending — app and installation authorization |
 | C15 | OAuth integration | Exercise an approved OAuth integration with minimal scopes and verify its useful result; never create token grants merely as decoration. | pending — approved integration |
 | C16 | Marketplace/custom Action | Consume a suitable Action in a successful run; publishing a custom Action requires a genuinely reusable implementation and separate release evidence. | pending |
 | C17 | Gists | Publish a useful non-sensitive standalone snippet only if it belongs outside the repository, then verify rendered content/revision. | pending — genuine standalone artifact |
 | C18 | Desktop/mobile/github.dev surfaces | Perform a useful operation in each requested client and verify the resulting repository state. Equivalent clients are not separate underlying repo features. | pending — interactive client availability |
-| C19 | Organization teams/roles/audit log/SSO/SCIM | Verify actual organizational administration with appropriate owner/enterprise access. No personal-repository setting substitutes for these features. | unavailable in personal-owned repository scope |
-| C20 | Enterprise policies/runners/networking/managed users | Use an explicitly authorized eligible enterprise and retain policy/enforcement evidence. | unavailable in personal-owned repository scope |
+| C19 | Organization teams/roles/audit log/SSO/SCIM | Verify actual organizational administration with appropriate owner/enterprise access. No personal-repository setting substitutes for these features. | pending — no organizations accessible through current API authorization; account-wide availability unresolved |
+| C20 | Enterprise policies/runners/networking/managed users | Use an explicitly authorized eligible enterprise and retain policy/enforcement evidence. | pending — no verified enterprise entitlement or administrative access |
 
 ## Execution order and evidence capture
 
