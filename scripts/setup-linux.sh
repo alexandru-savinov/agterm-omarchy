@@ -79,7 +79,7 @@ if $need_ghostty; then
     export ZIG_GLOBAL_CACHE_DIR="$GHOSTTY_BUILD/.zig-global-cache"
     export ZIG_LOCAL_CACHE_DIR="$GHOSTTY_BUILD/.zig-cache"
     export XDG_CACHE_HOME="$BUILD_DIR/xdg-cache"
-    "$ZIG" build -Doptimize=ReleaseFast -Dapp-runtime=none -Dtarget="$ZIG_TARGET" \
+    ZIG="$ZIG" "$ROOT/scripts/zig-build-linux.sh" -Doptimize=ReleaseFast -Dapp-runtime=none -Dtarget="$ZIG_TARGET" \
       -Demit-themes=false -Demit-terminfo=true
   )
 
@@ -134,7 +134,7 @@ if $need_zmx; then
     export ZIG_GLOBAL_CACHE_DIR="$ZMX_BUILD/.zig-global-cache"
     export ZIG_LOCAL_CACHE_DIR="$ZMX_BUILD/.zig-cache"
     export XDG_CACHE_HOME="$BUILD_DIR/xdg-cache"
-    "$ZIG" build -Doptimize=ReleaseSafe
+    ZIG="$ZIG" "$ROOT/scripts/zig-build-linux.sh" -Doptimize=ReleaseSafe
   )
   mkdir -p "$ZMX_STAGE"
   install -m0755 "$ZMX_BUILD/zig-out/bin/zmx" "$ZMX_STAGE/zmx"

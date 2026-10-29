@@ -45,9 +45,14 @@ cp -R "$APP_RESOURCES" "$DEST/bin/"
 
 # Bundle the non-system libraries that make the Swift app portable. GTK, libadwaita, and glibc remain
 # host dependencies in tar/DEB/RPM.
-{ ldd "$BIN"; ldd "$CTL"; } \
+DEPENDENCIES="$(ldd "$BIN" && ldd "$CTL")"
+if grep -q '=> not found' <<< "$DEPENDENCIES"; then
+  printf 'cannot stage unresolved shared libraries:\n%s\n' "$DEPENDENCIES" >&2
+  exit 1
+fi
+printf '%s\n' "$DEPENDENCIES" \
   | awk '/=> \// {print $3}' \
-  | grep -E '/(swift|ghostty)|libghostty|swift-linux-compat' \
+  | grep -E '/(swift|ghostty)|libghostty|swift-linux-compat|swift-compat' \
   | sort -u \
   | while read -r lib; do
       [[ -f "$lib" ]] && cp -L "$lib" "$DEST/lib/"
