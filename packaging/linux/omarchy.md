@@ -21,6 +21,9 @@ Setup installs Swift 6.3.2 from the official Ubuntu 24.04 toolchain through mise
 is available, then builds pinned libghostty and zmx with `scripts/setup-linux.sh`.
 If Zig cannot negotiate a dependency server's TLS handshake, the build helper retries that archive with
 curl's certificate verification; Zig still hashes it and the original manifest still selects the package.
+Runtime source, compiler caches, and fallback downloads use `/var/tmp` by default because Omarchy's
+`/tmp` is usually backed by RAM; an explicit `TMPDIR` overrides that choice.
+Ghostty and zmx share a content-addressed dependency cache during setup.
 The Swift platform is explicit because older mise releases construct a nonexistent `archarm` download URL.
 Arch's `libxml2-legacy` supplies Swift's required `libxml2.so.2` ABI.
 Only ncurses aliases live in `~/.local/share/agterm/swift-compat` (or under `XDG_DATA_HOME`);

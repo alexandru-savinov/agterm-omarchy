@@ -50,7 +50,8 @@ fi
 [[ -x "$ZIG" ]] || { echo "zig 0.16.0 is required to build Linux runtimes" >&2; exit 1; }
 [[ "$($ZIG version)" == "0.16.0" ]] || { echo "setup-linux.sh requires zig 0.16.0" >&2; exit 1; }
 
-BUILD_DIR="$(mktemp -d)"
+# Omarchy mounts /tmp as tmpfs; source and compiler caches should not consume guest RAM.
+BUILD_DIR="$(mktemp -d "${TMPDIR:-/var/tmp}/agterm-linux-build.XXXXXX")"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 mkdir -p "$BUILD_DIR/xdg-cache"
 
@@ -76,7 +77,7 @@ if $need_ghostty; then
   # Zig defaults to Debug, whose terminal integrity checks make sustained PTY output unusably slow.
   (
     cd "$GHOSTTY_BUILD"
-    export ZIG_GLOBAL_CACHE_DIR="$GHOSTTY_BUILD/.zig-global-cache"
+    export ZIG_GLOBAL_CACHE_DIR="$BUILD_DIR/zig-global-cache"
     export ZIG_LOCAL_CACHE_DIR="$GHOSTTY_BUILD/.zig-cache"
     export XDG_CACHE_HOME="$BUILD_DIR/xdg-cache"
     ZIG="$ZIG" "$ROOT/scripts/zig-build-linux.sh" -Doptimize=ReleaseFast -Dapp-runtime=none -Dtarget="$ZIG_TARGET" \
@@ -131,7 +132,7 @@ if $need_zmx; then
   echo "building zmx with zig..."
   (
     cd "$ZMX_BUILD"
-    export ZIG_GLOBAL_CACHE_DIR="$ZMX_BUILD/.zig-global-cache"
+    export ZIG_GLOBAL_CACHE_DIR="$BUILD_DIR/zig-global-cache"
     export ZIG_LOCAL_CACHE_DIR="$ZMX_BUILD/.zig-cache"
     export XDG_CACHE_HOME="$BUILD_DIR/xdg-cache"
     ZIG="$ZIG" "$ROOT/scripts/zig-build-linux.sh" -Doptimize=ReleaseSafe
