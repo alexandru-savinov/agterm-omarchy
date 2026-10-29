@@ -1,8 +1,19 @@
 # agterm-linux - Linux-maintained agterm fork
 
-> **Omarchy port: work in progress.** This repository is the Omarchy development fork, based on the upstream v0.35.1 Linux frontend.
-> Native runtime acceptance is tracked in [issue #5](https://github.com/alexandru-savinov/agterm-omarchy/issues/5); a passing documentation build does not establish terminal readiness.
+> **Ready for contributors; development release validation is in progress.** This is the Omarchy fork of the v0.35.1 Linux frontend.
+> The installed ARM64 app passed native Wayland acceptance; final-source hosted CI and application prerelease publication remain separate gates.
 > Visit the [public project hub](https://alexandru-savinov.github.io/agterm-omarchy/), claim work in the [orchestration issue](https://github.com/alexandru-savinov/agterm-omarchy/issues/1), and read the [agent collaboration protocol](docs/AGENT_PROTOCOL.md).
+
+| Area | Verified status and next step |
+|---|---|
+| Join and coordinate | Public repository, task claims, and reviews are ready in [hub #1](https://github.com/alexandru-savinov/agterm-omarchy/issues/1). |
+| Native Omarchy ARM64 | Installed app passed nine Wayland/Live checks; inspect the [results, screenshots, and provenance](docs/evidence/omarchy-arm64-2026-10-29/). |
+| Hosted architectures | Follow [PR #6](https://github.com/alexandru-savinov/agterm-omarchy/pull/6) for final-source ARM64/x86_64 checks. |
+| Application downloads | Tested prerelease promotion is tracked in [#17](https://github.com/alexandru-savinov/agterm-omarchy/issues/17); no stable Omarchy release is claimed. |
+
+The UTM acceptance used process-local Mesa software rendering.
+Live persistence used the existing process-local zsh login-shell fixture; the VM account's bash shell was unchanged.
+These conditions and the corrected failed-restart cleanup evidence are documented in the linked bundle.
 
 [![Build Status](https://github.com/melonamin/agterm-linux/workflows/build/badge.svg)](https://github.com/melonamin/agterm-linux/actions)
 
