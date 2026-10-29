@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "restore_mode": "live",
+  "checks": [
+    "primary PTY execution and screen read-back",
+    "Live mode shell execution through bundled zmx",
+    "Live session preserves shell PID across application restart",
+    "native Wayland rendering: red-to-green PTY pixel change",
+    "workspace/session creation and split PTY execution",
+    "overlay output, dismissal, and restored split input",
+    "WebKitGTK HTML overlay load",
+    "split/session/workspace teardown",
+    "no terminal GL-context or app CSS failures"
+  ]
+}
