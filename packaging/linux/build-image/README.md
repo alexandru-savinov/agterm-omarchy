@@ -27,6 +27,14 @@ A second fresh job repeats the pull and probes with an empty Docker config and n
 Only that second successful pull proves public consumption.
 The image receives GitHub's signed build provenance linked to its OCI digest.
 
+If the image push succeeds but a later registry attachment fails, preserve the digest and tag.
+`verify-build-image.yml` accepts that existing `digest` and original `source_sha` after review.
+It has only read permissions: it pulls the existing image, verifies the original GitHub-hosted signed attestation
+against its exact source/workflow/ref, and runs authenticated and anonymous probes on separate fresh runners.
+It does not rebuild, push an image/tag, or create replacement provenance.
+The registry client used by `actions/attest` expects the standard `$HOME/.docker/config.json` credential path;
+the publisher uses that path and logs out when finished.
+
 GitHub defaults new GHCR packages to **private**, even when the linked repository is public.
 The anonymous job deliberately fails with its registry error until public access works.
 Use the package settings page to change this new package's visibility to public when authorized.
