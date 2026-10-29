@@ -187,10 +187,21 @@ def cleanup_live_daemons():
         return subprocess.run([live_endpoint["executable"], *args], env=cleanup_env,
                               text=True, capture_output=True, timeout=5, check=True)
     def present():
-        return set(re.findall(r"(?:^|\t)(?:→ )?name=([^\t\n]+)", invoke("list").stdout, re.MULTILINE))
+        names = set()
+        for line in invoke("list").stdout.splitlines():
+            line = line.strip().removeprefix("→ ")
+            fields = line.split("\t")
+            matches = [field.removeprefix("name=") for field in fields if field.startswith("name=")]
+            if len(matches) != 1 or not matches[0]:
+                raise RuntimeError("unrecognized zmx list row; refusing to assume cleanup succeeded")
+            names.add(matches[0])
+        return names
     try:
         for name in sorted(live_daemons & present()):
-            invoke("kill", name, "--force")
+            killed = invoke("kill", name, "--force")
+            lines = (killed.stdout + killed.stderr).splitlines()
+            if f"killed session {name}" not in (line.strip() for line in lines):
+                raise RuntimeError("zmx did not confirm the test daemon was killed")
         if live_daemons & present():
             raise RuntimeError("test-owned zmx daemons remain after cleanup")
         return True
