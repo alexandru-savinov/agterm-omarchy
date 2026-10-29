@@ -1,5 +1,29 @@
 # Contributing to agterm
 
+## Contributing to the Omarchy port
+
+This repository is [alexandru-savinov/agterm-omarchy](https://github.com/alexandru-savinov/agterm-omarchy).
+Send Omarchy changes to `main` here; the inherited macOS contribution notes below remain upstream guidance.
+Report reproducible problems with the issue form and discuss wider feature changes before implementing them.
+Keep portable controller fixes compatible with upstream and Omarchy integration in Linux scripts, packaging,
+or the GTK platform adapter.
+
+Start with [the Omarchy build guide](packaging/linux/omarchy.md).
+For script changes, run `python3 scripts/tests/test_linux_install.py`, shell syntax checks, and ShellCheck.
+For Swift changes, run shared core tests and Linux frontend tests with Swift 6.3.2.
+For rendering/input changes, also run `scripts/test-omarchy.sh` on a real Omarchy Hyprland desktop.
+Keep test state isolated; never target a user's default control socket.
+
+The **Omarchy CI** workflow runs on pushes and pull requests to `main`, and supports **Run workflow**.
+It runs installer checks, SwiftLint, native x86_64/ARM64 core tests and GTK builds, and Xvfb accessibility tests.
+Architecture-specific runtime caches speed rebuilds, and successful GTK jobs upload complete runtime tarballs
+for 14 days. Failed GUI tests upload diagnostics. Job summaries distinguish hosted X11 tests from native
+Hyprland validation; a green hosted build does not claim that Wayland was tested.
+Use the aggregate **CI** check as the required status check.
+Dependabot opens grouped Actions updates and limited Swift dependency updates; changes still need review.
+The inherited tag-driven Linux release workflow verifies tags against `main` and currently packages x86_64.
+CI artifacts are test builds, not published releases.
+
 ## Before you start
 
 If this is your first pull request to agterm, open a [Discussion](https://github.com/umputun/agterm/discussions) describing what you plan to build and why, then wait for a reply before writing code. Some ideas do not fit the project's direction, and finding that out early costs less than finding it out after a finished PR.

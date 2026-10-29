@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Upstream macOS agterm
+    url: https://github.com/umputun/agterm
+    about: macOS issues belong in the upstream project.
+  - name: Shared GTK Linux frontend
+    url: https://github.com/melonamin/agterm-linux
+    about: Check whether a general Linux frontend issue is already tracked here.

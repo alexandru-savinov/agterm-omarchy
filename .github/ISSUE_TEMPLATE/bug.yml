@@ -1,0 +1,34 @@
+name: Omarchy bug
+description: Report a reproducible build, packaging, or desktop failure.
+title: "[Omarchy] "
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Omarchy version, uname -m, GTK version, Hyprland version, agterm commit or artifact name.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Exact steps or commands, expected result, and actual result. State whether you used an isolated test instance.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs and screenshots
+      description: Attach relevant build output or scripts/test-omarchy.sh artifacts after removing private terminal text and host details.
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Display backend
+      options:
+        - Native Wayland / Hyprland
+        - XWayland / X11
+        - Build or packaging only
+        - Unknown
+    validations:
+      required: true

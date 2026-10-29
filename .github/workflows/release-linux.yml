@@ -59,11 +59,11 @@ jobs:
           fi
 
           git fetch --force origin \
-            "+refs/heads/linux-port:refs/remotes/origin/linux-port" \
+            "+refs/heads/main:refs/remotes/origin/main" \
             "+refs/tags/$TAG:refs/tags/$TAG"
           COMMIT="$(git rev-parse "$TAG^{commit}")"
-          if ! git merge-base --is-ancestor "$COMMIT" origin/linux-port; then
-            echo "$TAG does not point to a commit on origin/linux-port" >&2
+          if ! git merge-base --is-ancestor "$COMMIT" origin/main; then
+            echo "$TAG does not point to a commit on origin/main" >&2
             exit 1
           fi
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
