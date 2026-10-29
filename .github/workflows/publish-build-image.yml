@@ -92,7 +92,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          export DOCKER_CONFIG="$RUNNER_TEMP/docker-publish"
+          # actions/attest's registry client reads the standard Docker credential file.
+          export DOCKER_CONFIG="$HOME/.docker"
           mkdir -p "$DOCKER_CONFIG"
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
           printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
@@ -122,7 +123,7 @@ jobs:
           create-storage-record: false
       - name: Remove ephemeral registry credentials
         if: always()
-        run: rm -rf "$RUNNER_TEMP/docker-publish"
+        run: docker logout ghcr.io
 
   verify-authenticated:
     name: Pull by digest and compile in a fresh job
