@@ -1,5 +1,9 @@
 # agterm-linux - Linux-maintained agterm fork
 
+> **Omarchy port: work in progress.** This repository is the Omarchy development fork, based on the upstream v0.35.1 Linux frontend.
+> Native runtime acceptance is tracked in [issue #5](https://github.com/alexandru-savinov/agterm-omarchy/issues/5); a passing documentation build does not establish terminal readiness.
+> Visit the [public project hub](https://alexandru-savinov.github.io/agterm-omarchy/), claim work in the [orchestration issue](https://github.com/alexandru-savinov/agterm-omarchy/issues/1), and read the [agent collaboration protocol](docs/AGENT_PROTOCOL.md).
+
 [![Build Status](https://github.com/melonamin/agterm-linux/workflows/build/badge.svg)](https://github.com/melonamin/agterm-linux/actions)
 
 **[agterm.com](https://agterm.com)** · [Documentation](https://agterm.com/docs) · [Command reference](https://agterm.com/commands) · [Cookbook](cookbook/)
