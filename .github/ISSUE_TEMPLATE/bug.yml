@@ -2,6 +2,9 @@ name: Omarchy bug
 description: Report a reproducible build, packaging, or desktop failure.
 title: "[Omarchy] "
 body:
+  - type: markdown
+    attributes:
+      value: For suspected vulnerabilities, use the [private security report](https://github.com/alexandru-savinov/agterm-omarchy/security/advisories/new). Setup questions belong in the [compatibility discussion](https://github.com/alexandru-savinov/agterm-omarchy/discussions/7).
   - type: textarea
     id: environment
     attributes:

@@ -1,0 +1,7 @@
+{
+  "passed": false,
+  "completed_checks": [
+    "primary PTY execution and screen read-back",
+    "Live mode shell execution through bundled zmx"
+  ]
+}

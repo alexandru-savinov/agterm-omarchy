@@ -1,0 +1,31 @@
+{
+  "observed_at": "2026-10-29T20:53:52.696263+00:00",
+  "observer": "test_plan",
+  "installation": "personal prefix",
+  "metadata": {
+    "COMMIT": "5e37cb75ce3d4879ca8b7c74ed28d0548780163a",
+    "VERSION": "0.35.1-omarchy.dev"
+  },
+  "binaries": [
+    {
+      "component": "app",
+      "sha256": "8415f48320458bd92079a1ebad3aa32b976b15e2c1057980febbf484b9d33cfa"
+    },
+    {
+      "component": "cli",
+      "sha256": "fbe2be61e4f303196e48b635d4559cb04395c7cd6e73e9b874a11e07bad1fb25"
+    },
+    {
+      "component": "zmx",
+      "sha256": "8119cc72875587a1609bea6e67475a1c30ae59394a35294430165a9cc46047d9"
+    },
+    {
+      "component": "libghostty",
+      "sha256": "1d4fda15970e7e2a21b5869ca63236b48c1297b9d6b3438ddfb81c296df170c7"
+    }
+  ],
+  "current_vm_harness_sha256": "c051a4d2c74f7df3f6a2d9c93eabe0001ba481c254e4454cd5380b8f8b9c3c19",
+  "binaries_match_original_verified_payloads": true,
+  "harness_source_commit": "b41fe05dc7a8ee5b345644ecd1dfe17e499218aa",
+  "current_vm_harness_matches_committed_source": true
+}

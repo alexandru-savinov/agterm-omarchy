@@ -1,0 +1,86 @@
+name: Verify existing Omarchy build image
+
+on:
+  workflow_dispatch:
+    inputs:
+      digest:
+        description: Existing image digest (sha256 plus 64 hexadecimal characters)
+        type: string
+        required: true
+      source_sha:
+        description: Original build source commit (40 hexadecimal characters)
+        type: string
+        required: true
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  IMAGE: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64
+
+jobs:
+  verify-authenticated:
+    name: Verify original attestation and compile from existing digest
+    if: github.repository == 'alexandru-savinov/agterm-omarchy' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+    steps:
+      - name: Pull, verify original build provenance, and run compiler probes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ inputs.digest }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          # gh attestation and Docker share the standard credential path in this fresh job.
+          export DOCKER_CONFIG="$HOME/.docker"
+          trap 'docker logout ghcr.io' EXIT
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker pull "$IMAGE@$DIGEST"
+          test "$(docker image inspect --format '{{.Architecture}}' "$IMAGE@$DIGEST")" = amd64
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$IMAGE@$DIGEST")" = "$SOURCE_SHA"
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$IMAGE@$DIGEST")" = "https://github.com/$GITHUB_REPOSITORY"
+          # The original action stored genuine build provenance on GitHub before its OCI attachment failed.
+          # Fetch from GitHub (the default), not from the registry; do not create replacement provenance.
+          gh attestation verify "oci://$IMAGE@$DIGEST" --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish-build-image.yml" \
+            --source-digest "$SOURCE_SHA" --source-ref refs/heads/main
+          docker run --rm --network none --read-only --tmpfs /tmp:exec,size=1g \
+            "$IMAGE@$DIGEST" agterm-build-image-probe
+          {
+            echo "Existing image verified without rebuilding or publishing: $IMAGE@$DIGEST"
+            echo "Original source: https://github.com/$GITHUB_REPOSITORY/commit/$SOURCE_SHA"
+            echo 'Original signed provenance, authenticated digest pull, and actual compiler probes passed.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  verify-public:
+    name: Prove existing image is publicly consumable
+    needs: verify-authenticated
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions: {}
+    steps:
+      - name: Pull the same digest anonymously on a fresh runner
+        env:
+          DIGEST: ${{ inputs.digest }}
+        run: |
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-anonymous"
+          mkdir -p "$DOCKER_CONFIG"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          if ! docker pull "$IMAGE@$DIGEST"; then
+            echo '::error::Unauthenticated pull failed; public consumption is not proven. Inspect this package visibility and the exact registry error.'
+            echo 'After authorized package visibility correction, rerun only this failed job.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          docker run --rm --network none --read-only --tmpfs /tmp:exec,size=1g \
+            "$IMAGE@$DIGEST" agterm-build-image-probe
+          echo "Anonymous fresh digest pull and compiler probes passed: $IMAGE@$DIGEST" >> "$GITHUB_STEP_SUMMARY"

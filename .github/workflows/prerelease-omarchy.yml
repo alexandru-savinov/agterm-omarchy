@@ -1,0 +1,121 @@
+name: Omarchy prerelease promotion
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/prerelease-omarchy.yml
+      - scripts/prepare-omarchy-prerelease.py
+      - scripts/tests/test_omarchy_prerelease.py
+      - packaging/linux/prerelease-omarchy.md
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Successful Omarchy CI push/manual run ID (not a PR run)
+        required: true
+        type: string
+      source_sha:
+        description: Full 40-character commit SHA of the tested current main/omarchy head
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omarchy-prerelease-${{ inputs.source_run || github.run_id }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    name: Promotion validation tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: python3 scripts/tests/test_omarchy_prerelease.py
+      - run: git diff --check
+
+  prepare:
+    name: Verify existing CI artifacts
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tag: ${{ steps.prepare.outputs.tag }}
+      sha: ${{ steps.prepare.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Validate source, gates, artifacts, metadata and ELF architecture
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA" "$RUNNER_TEMP/promotion"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: verified-prerelease-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/promotion/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Attest and publish development prerelease
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: verified-prerelease-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist
+          digest-mismatch: error
+      - name: Verify transfer checksums
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS
+      - name: Attest the promotion workflow provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+            dist/promotion.json
+      - name: Sign the original build identity and promotion evidence
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/*.tar.gz
+          predicate-type: https://github.com/alexandru-savinov/agterm-omarchy/attestations/promotion/v1
+          predicate-path: dist/promotion.json
+      - name: Create new tag and prerelease without replacing anything
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          # Creating a new ref fails if a tag already exists, even if its target matches.
+          gh api --method POST "repos/$GH_REPO/git/refs" \
+            -f "ref=refs/tags/$TAG" -f "sha=$SOURCE_SHA"
+          gh release create "$TAG" --repo "$GH_REPO" --verify-tag \
+            --prerelease --latest=false --title "agterm Omarchy development $TAG" \
+            --notes-file dist/release-notes.md \
+            dist/*.tar.gz dist/SHA256SUMS dist/promotion.json
+          printf 'Published prerelease: https://github.com/%s/releases/tag/%s\n' "$GH_REPO" "$TAG" >> "$GITHUB_STEP_SUMMARY"

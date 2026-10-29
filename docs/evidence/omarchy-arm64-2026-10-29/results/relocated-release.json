@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "checks": [
+    "primary PTY execution and screen read-back",
+    "native Wayland rendering: red-to-green PTY pixel change",
+    "workspace/session creation and split PTY execution",
+    "overlay output, dismissal, and restored split input",
+    "WebKitGTK HTML overlay load",
+    "split/session/workspace teardown",
+    "no terminal GL-context or app CSS failures"
+  ]
+}

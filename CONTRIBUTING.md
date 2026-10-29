@@ -2,27 +2,42 @@
 
 ## Contributing to the Omarchy port
 
-This repository is [alexandru-savinov/agterm-omarchy](https://github.com/alexandru-savinov/agterm-omarchy).
-Send Omarchy changes to `main` here; the inherited macOS contribution notes below remain upstream guidance.
-Report reproducible problems with the issue form and discuss wider feature changes before implementing them.
-Keep portable controller fixes compatible with upstream and Omarchy integration in Linux scripts, packaging,
-or the GTK platform adapter.
+This repository is [alexandru-savinov/agterm-omarchy](https://github.com/alexandru-savinov/agterm-omarchy),
+built on the [maintained GTK Linux fork](https://github.com/melonamin/agterm-linux) of [upstream agterm](https://github.com/umputun/agterm).
+Target `main` here from a task branch or personal fork; `omarchy` currently carries the integration work in [PR #6](https://github.com/alexandru-savinov/agterm-omarchy/pull/6).
+The inherited `master` / `linux-port` model in [AGENTS.md](AGENTS.md) describes upstream tracking; send macOS changes upstream on a separate branch.
+The macOS contribution notes below remain upstream guidance; Linux-specific rules in AGENTS.md take precedence for this port.
 
-Start with [the Omarchy build guide](packaging/linux/omarchy.md).
-For script changes, run `python3 scripts/tests/test_linux_install.py`, shell syntax checks, and ShellCheck.
-For Swift changes, run shared core tests and Linux frontend tests with Swift 6.3.2.
-For rendering/input changes, also run `scripts/test-omarchy.sh` on a real Omarchy Hyprland desktop.
-Keep test state isolated; never target a user's default control socket.
+For questions and compatibility reports, start with [SUPPORT.md](SUPPORT.md).
+For suspected vulnerabilities, use [SECURITY.md](SECURITY.md), not a public bug report.
+Before implementation, claim a concrete task in the [orchestration hub](https://github.com/alexandru-savinov/agterm-omarchy/issues/1)
+and follow the [collaboration protocol](docs/AGENT_PROTOCOL.md): name your owned paths, coordinate overlaps, and post evidence on the task.
+Discuss broader feature proposals in this fork's [Discussions](https://github.com/alexandru-savinov/agterm-omarchy/discussions).
+
+Keep `agtermCore/` host-free and compatible with upstream.
+Put GTK behavior in `agterm-linux/`, and Omarchy integration in Linux scripts or packaging.
+Read the matching `.claude/rules/` notes before changing a subsystem; Linux main-loop dispatch uses its GLib adapter.
+Keep GUI and control API behavior aligned, update the bundled agent skill for protocol changes, and leave CHANGELOG.md to the release flow.
+
+Open a draft PR using the [template](.github/pull_request_template.md), linked to the task.
+Run the checks appropriate to the change: installer/script fixtures for packaging, core and Linux frontend tests for Swift,
+and isolated native Hyprland acceptance for rendering or input.
+The [Omarchy build guide](packaging/linux/omarchy.md) records commands and prerequisites.
+Never target a user's default control socket during tests.
+Report the tested commit, architecture, display backend, actual commands/results, and sanitized artifact links; identify skipped or failing checks.
+Hosted X11 tests do not establish native Wayland acceptance, and CI artifacts do not establish a stable release.
+Request maintainer review before merge and distinguish same-account agent review from independent approval.
 
 The **Omarchy CI** workflow runs on pushes and pull requests to `main`, and supports **Run workflow**.
 It runs installer checks, SwiftLint, native x86_64/ARM64 core tests and GTK builds, and Xvfb accessibility tests.
 Architecture-specific runtime caches speed rebuilds, and successful GTK jobs upload complete runtime tarballs
-for 14 days. Failed GUI tests upload diagnostics. Job summaries distinguish hosted X11 tests from native
-Hyprland validation; a green hosted build does not claim that Wayland was tested.
+for 14 days.
+Failed GUI tests upload diagnostics.
+Job summaries distinguish hosted X11 tests from native Hyprland validation.
 Use the aggregate **CI** check as the required status check.
 Dependabot opens grouped Actions updates and limited Swift dependency updates; changes still need review.
 The inherited tag-driven Linux release workflow verifies tags against `main` and currently packages x86_64.
-CI artifacts are test builds, not published releases.
+The [Omarchy prerelease workflow](packaging/linux/prerelease-omarchy.md) promotes verified native-architecture CI artifacts.
 
 ## Before you start
 
