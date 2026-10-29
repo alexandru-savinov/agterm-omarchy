@@ -1,0 +1,25 @@
+{
+  "observed_at": "2026-10-29T20:53:09.560380+00:00",
+  "observer": "test_plan",
+  "method": "Read original test inventories; invoke bundled zmx list with only the saved isolated ZMX_DIR; require raw stdout empty and every recorded shell leader PID absent from /proc. No names, paths, or PIDs are published. No kill or application command was executed.",
+  "runs": [
+    {
+      "run": "wayland-failed-restart-fixed.FJbnJA",
+      "passed": true,
+      "fresh_direct_zmx_stdout_empty": true,
+      "recorded_shell_processes_absent": true,
+      "tracked_daemon_count": 1,
+      "recorded_shell_pid_count": 1,
+      "zmx_binary_sha256": "8119cc72875587a1609bea6e67475a1c30ae59394a35294430165a9cc46047d9"
+    },
+    {
+      "run": "wayland-installed.jntN10",
+      "passed": true,
+      "fresh_direct_zmx_stdout_empty": true,
+      "recorded_shell_processes_absent": true,
+      "tracked_daemon_count": 3,
+      "recorded_shell_pid_count": 3,
+      "zmx_binary_sha256": "8119cc72875587a1609bea6e67475a1c30ae59394a35294430165a9cc46047d9"
+    }
+  ]
+}

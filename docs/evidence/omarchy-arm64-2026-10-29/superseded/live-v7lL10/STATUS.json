@@ -1,0 +1,9 @@
+{
+  "status": "superseded-cleanup-parser",
+  "valid_as_current_cleanup_proof": false,
+  "run": "wayland-live-final.v7lL10",
+  "reason": "The normal teardown was reported successful, but its cleanup JSON used the same parser that falsely passed the intentional-failure run. Corrected installed run jntN10 replaces it for cleanup acceptance.",
+  "replacement_result": "../../results/installed-result.json",
+  "replacement_audit": "../../results/fresh-audit.json",
+  "original_json_preserved_unmodified": true
+}

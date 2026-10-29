@@ -5,5 +5,7 @@
   "reason": "The harness missed indented detached rows in zmx list output and falsely reported successful cleanup; the operator later found the tracked test daemon still present.",
   "correction_url": "https://github.com/alexandru-savinov/agterm-omarchy/issues/22#issuecomment-6507865378",
   "original_json_preserved_unmodified": true,
-  "replacement_evidence": "pending"
+  "replacement_evidence": "../../results/failed-restart-fixed-independent-cleanup.json",
+  "replacement_run": "wayland-failed-restart-fixed.FJbnJA",
+  "fresh_observer_audit": "../../results/fresh-audit.json"
 }

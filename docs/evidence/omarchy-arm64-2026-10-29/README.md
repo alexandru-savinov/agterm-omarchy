@@ -1,8 +1,9 @@
 # Native Omarchy ARM64 evidence — 2026-10-29
 
-**HOLD: failed-restart cleanup acceptance is invalidated and awaits a corrected real rerun.**
-The old KGFCvN cleanup JSON falsely reports success; it is retained only as explicitly superseded evidence.
-See the [operator correction](https://github.com/alexandru-savinov/agterm-omarchy/issues/22#issuecomment-6507865378).
+**Cleanup correction retained:** the old KGFCvN cleanup assertion was false and remains explicitly invalidated.
+The corrected failure run FJbnJA and actual-installed run jntN10 now have fresh endpoint/PID verification.
+See the [operator correction](https://github.com/alexandru-savinov/agterm-omarchy/issues/22#issuecomment-6507865378)
+and [replacement evidence](https://github.com/alexandru-savinov/agterm-omarchy/issues/22#issuecomment-6507940755).
 
 This bundle preserves selected native VM evidence for [task #22](https://github.com/alexandru-savinov/agterm-omarchy/issues/22).
 It covers an isolated ARM64 Omarchy/Hyprland desktop, including a relocated release payload.
@@ -16,7 +17,8 @@ It is not a GitHub-hosted build attestation or a claim that every graphics drive
 |---|---|---|
 | [Debug result](results/debug.json) | Seven checks passed | Operator's debug run; result file inspected independently |
 | [Relocated release result](results/relocated-release.json) | Seven checks passed | Relocated payload; result file and selected screenshots inspected independently |
-| [Live result](results/live-final.json) and [cleanup record](results/live-final-cleanup.json) | Nine checks reported passed; cleanup JSON reports three tracked daemons, but used the parser later found defective | Run `wayland-live-final.v7lL10`; files inspected; operator reports normal teardown closed its daemons, corrected rerun pending |
+| [Actual-installed Live result](results/installed-result.json) and [cleanup](results/installed-cleanup.json) | Nine checks passed; three tracked daemon names | Corrected run `wayland-installed.jntN10`; [fresh direct endpoint/PID audit](results/fresh-audit.json) independently repeated |
+| [Corrected failed-restart result](results/failed-restart-fixed-result.json), [cleanup](results/failed-restart-fixed-cleanup.json), and [operator audit](results/failed-restart-fixed-independent-cleanup.json) | Intentional test failure; one tracked daemon cleaned; fresh backend inventory empty and recorded shell absent | Corrected run `wayland-failed-restart-fixed.FJbnJA`; [fresh direct endpoint/PID audit](results/fresh-audit.json) independently repeated |
 | [Superseded failed-restart records](superseded/failed-restart-KGFCvN/) | **Invalid for cleanup acceptance:** original `passed=true` cleanup assertion was false | Later operator process audit found the tracked daemon; exact original bytes retained with STATUS.json |
 | Native shared core tests | 4,025 tests in 175 suites passed | [Operator report](https://github.com/alexandru-savinov/agterm-omarchy/issues/5#issuecomment-6506869967); not rerun for this documentation change |
 | Native Linux frontend tests | 553 tests in 81 suites passed | [Operator report](https://github.com/alexandru-savinov/agterm-omarchy/issues/15#issuecomment-6507348032) |
@@ -39,12 +41,24 @@ The pinned zmx output prefixes detached rows with two spaces; the old parser ski
 The original failed-restart cleanup record is therefore invalid for acceptance, despite its `passed=true` value.
 Matching SHA256 values prove the retained bytes, not the truth of the recorded assertion.
 
-The old normal Live result records a zmx-backed shell and matching shell PID across application shutdown/relaunch.
-The [original harness](https://github.com/alexandru-savinov/agterm-omarchy/blob/7a8d4b71/scripts/test-omarchy.sh)
-compares PID marker files before recording that check; those temporary files were removed during the run.
-Their numeric values are not independently recoverable from this retained result alone.
-The operator reports that normal Live teardown closed its daemons, but the old cleanup JSON used the same defective parser and is not sufficient independent proof.
-Corrected parser execution and process/endpoint verification will be recorded separately before acceptance.
+The corrected parser strips detached-row indentation and rejects unknown rows instead of treating them as empty inventory.
+The kill path requires the exact confirmation message.
+The retained failure-run [operator audit](results/failed-restart-fixed-independent-cleanup.json) is separate from the harness cleanup flag.
+The test_plan observer then repeated a fresh read-only audit for **both** replacement runs at the time recorded in [fresh-audit.json](results/fresh-audit.json):
+
+- Read the original test-specific endpoint and claimed daemon/shell identities from the private control transcript.
+- Invoke the known bundled `zmx list` with only that isolated `ZMX_DIR` and require the raw stdout to be empty, without using the defective row parser.
+- Require every recorded shell leader PID to be absent from `/proc`: one for FJbnJA and three for jntN10.
+
+No process was killed and no application/control command was launched during this observer audit.
+The operator separately reports explicit cleanup of the old KGFCvN orphan; that historical cleanup is not substituted for the replacement-run proof.
+The old normal Live files are retained under [superseded/live-v7lL10](superseded/live-v7lL10/) with an explicit status marker.
+
+The actual-installed result records a zmx-backed shell with the same PID across frontend shutdown/relaunch.
+The [corrected harness](https://github.com/alexandru-savinov/agterm-omarchy/blob/b41fe05dc7a8ee5b345644ecd1dfe17e499218aa/scripts/test-omarchy.sh)
+compares PID marker files before recording that check; successful cleanup removes those temporary files.
+Their numeric values are not independently recoverable from the retained result alone.
+The fresh endpoint audit validates post-test shell absence, not the earlier before/after equality assertion itself.
 
 Live mode requires a supported login shell.
 The VM account's real login shell was bash, so the operator used the repository's `login_shell_zsh_fixture.c`
@@ -56,7 +70,7 @@ The intentional failed-restart test result is deliberately unsuccessful.
 Its old separate cleanup assertion is also invalidated, rather than being evidence of successful teardown.
 [superseded/failed-restart-KGFCvN/STATUS.json](superseded/failed-restart-KGFCvN/STATUS.json)
 provides the explicit validity marker and correction link while retaining the original result bytes unchanged.
-Replacement failure-path evidence is pending from the root operator.
+The replacement FJbnJA records and fresh observer audit above provide current failure-path cleanup acceptance; the old assertion remains invalid.
 
 ## Unmodified isolated screenshots
 
@@ -86,6 +100,12 @@ the relocated payload, and the development archive.
 All four identify AArch64 (`e_machine=183`).
 The 371 tracked files in the current VM checkout all match their exact committed bytes; no mismatches were found.
 These comparisons establish the stated equivalence without changing either artifact's metadata.
+
+[installed-provenance.json](installed-provenance.json) records an additional direct check of the actual personal installation.
+Its COMMIT is the full `5e37cb75ce3d4879ca8b7c74ed28d0548780163a`, and all four component hashes match the original verified payloads.
+The current VM harness matches committed `b41fe05dc7a8ee5b345644ecd1dfe17e499218aa`; that is a test-harness identity, not a new application binary identity.
+The [operator installation report](https://github.com/alexandru-savinov/agterm-omarchy/issues/22#issuecomment-6508022858)
+records the previously absent destination, entrypoint help, desktop validation, and actual-installed nine-check run.
 
 [compilation-inputs.sha256](compilation-inputs.sha256) enumerates the 371 tracked files under both packages' `Sources` trees plus tracked package manifests/lockfiles at `5e37cb75`.
 It includes package resources and some platform-conditional sources; it is not a list limited to the files compiled by one Swift target.
