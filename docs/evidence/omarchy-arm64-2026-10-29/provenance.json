@@ -1,0 +1,61 @@
+{
+  "observed_at": "2026-10-29T20:38:15.943787+00:00",
+  "source_commit": "5e37cb75ce3d4879ca8b7c74ed28d0548780163a",
+  "source_comparison": {
+    "tracked_files": 371,
+    "all_match": true,
+    "manifest_sha256": "03a60d4a4483a6186d86db36c415a88776d8f8b6b1f3b90d0f13f7c417aa295d",
+    "scope": "Tracked Sources trees, resources, Package.swift and tracked Package.resolved files from both Swift packages; compared against current VM checkout after build."
+  },
+  "relocated_metadata": {
+    "COMMIT": "c7b53503-dirty",
+    "VERSION": "0.35.1-omarchy.dev"
+  },
+  "development_archive": {
+    "filename": "agterm-omarchy-0.35.1-dev-aarch64.tar.gz",
+    "sha256": "44cd72f71993a46fd991101e065b361c87c40cb01835b2c259def52057ae7cb7",
+    "metadata": {
+      "VERSION": "0.35.1-omarchy.dev",
+      "COMMIT": "5e37cb75"
+    }
+  },
+  "binaries": [
+    {
+      "component": "app",
+      "archive_member": "agterm-linux/bin/agterm-linux.bin",
+      "sha256": "8415f48320458bd92079a1ebad3aa32b976b15e2c1057980febbf484b9d33cfa",
+      "native_build_equals_relocated_equals_archive": true,
+      "elf_machine": 183,
+      "architecture": "aarch64"
+    },
+    {
+      "component": "cli",
+      "archive_member": "agterm-linux/bin/agtermctl.bin",
+      "sha256": "fbe2be61e4f303196e48b635d4559cb04395c7cd6e73e9b874a11e07bad1fb25",
+      "native_build_equals_relocated_equals_archive": true,
+      "elf_machine": 183,
+      "architecture": "aarch64"
+    },
+    {
+      "component": "zmx",
+      "archive_member": "agterm-linux/bin/zmx",
+      "sha256": "8119cc72875587a1609bea6e67475a1c30ae59394a35294430165a9cc46047d9",
+      "native_build_equals_relocated_equals_archive": true,
+      "elf_machine": 183,
+      "architecture": "aarch64"
+    },
+    {
+      "component": "libghostty",
+      "archive_member": "agterm-linux/lib/libghostty.so",
+      "sha256": "1d4fda15970e7e2a21b5869ca63236b48c1297b9d6b3438ddfb81c296df170c7",
+      "native_build_equals_relocated_equals_archive": true,
+      "elf_machine": 183,
+      "architecture": "aarch64"
+    }
+  ],
+  "limitations": [
+    "Post-build source comparison, not signed compiler-input provenance.",
+    "External dependency checkout contents and system/toolchain libraries are outside the tracked-source comparison.",
+    "Artifact metadata is retained unchanged; no attribution to a later source commit."
+  ]
+}
