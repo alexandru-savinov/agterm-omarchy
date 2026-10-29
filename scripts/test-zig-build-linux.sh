@@ -17,10 +17,23 @@ fi
 [[ "$1" == build && "$2" == -Doptimize=ReleaseFast ]]
 case "$TEST_ZIG_CASE" in
   ordinary) echo 'compile error'; exit 23 ;;
+  unrelated-reset)
+    echo 'build.zig:27:20: error: expected type, found error.ConnectionResetByPeer'
+    echo '    .url = "https://example.test/package.tar.gz",'
+    exit 23 ;;
   success) exit 0 ;;
-  tls|multi)
+  tls|multi|reset)
     [[ ! -e "$TEST_ZIG_WORK/fetched" ]] || exit 0 ;;
 esac
+if [[ "$TEST_ZIG_CASE" == reset* ]]; then
+  # Exact diagnostic and manifest shape from failed ARM64 job 123719308427.
+  echo '/var/tmp/agterm-linux-build.fixture/ghostty/build.zig.zon:27:20: error: HTTP response read failure: ConnectionResetByPeer'
+  if [[ "$TEST_ZIG_CASE" != reset-missing-url ]]; then
+    echo '            .url = "https://deps.files.ghostty.org/vaxis-1dbbe575dff4586fe51e3217aa5c3fecdcbb6089.tar.gz",'
+    echo '                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+  fi
+  exit 1
+fi
 echo 'error: unable to connect to server: TlsInitializationFailed'
 if [[ "$TEST_ZIG_CASE" != missing-url ]]; then
   echo '    .url = "https://example.test/package.tar.gz",'
@@ -61,6 +74,15 @@ run_case success 0
 [[ ! -e "$WORK/curl-args" ]]
 run_case ordinary 23
 [[ ! -e "$WORK/curl-args" ]]
+run_case unrelated-reset 23
+[[ ! -e "$WORK/curl-args" ]]
+run_case reset-missing-url 1
+[[ ! -e "$WORK/curl-args" ]]
+run_case reset 0
+[[ -e "$WORK/fetched" && "$(wc -l < "$WORK/curl-args")" -eq 1 ]]
+grep -q -- '--proto =https --proto-redir =https' "$WORK/curl-args"
+run_case reset-repeat 1
+[[ "$(wc -l < "$WORK/curl-args")" -eq 1 ]]
 run_case missing-url 17
 [[ ! -e "$WORK/curl-args" ]]
 run_case tls 0
@@ -79,4 +101,4 @@ if [[ "$(uname -s)" == Linux ]]; then
   run_case tls 0
   [[ "$(cat "$WORK/archive-path")" == /var/tmp/agterm-zig-fetch.* ]]
 fi
-echo 'Zig TLS fallback passes: build/error routing, multiple dependencies, repeated-URL guard, and temporary-directory policy.'
+echo 'Zig transport fallback passes: TLS/reset routing, compiler-error rejection, multiple dependencies, retry bounds, and temporary-directory policy.'

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Retain Zig package hashes while falling back to curl for unsupported TLS handshakes.
+# Retain Zig package hashes while falling back to curl for recognized dependency transport failures.
 set -euo pipefail
 ZIG="${ZIG:-zig}"
 WORK="$(mktemp -d "${TMPDIR:-/var/tmp}/agterm-zig-fetch.XXXXXX")"
@@ -12,7 +12,9 @@ for ((attempt = 0; attempt < 8; attempt++)); do
   else
     status=$?
   fi
-  grep -q 'TlsInitializationFailed' "$WORK/build.log" || exit "$status"
+  # Match the observed Zig HTTP-read diagnostic, not arbitrary compiler errors mentioning a reset.
+  grep -Eq 'TlsInitializationFailed|: error: HTTP response read failure: ConnectionResetByPeer$' \
+    "$WORK/build.log" || exit "$status"
   urls=()
   while IFS= read -r url; do urls+=("$url"); done < <(
     sed -n 's/.*\.url = "\(https:\/\/[^" ]*\)".*/\1/p' "$WORK/build.log" | sort -u
@@ -24,7 +26,7 @@ for ((attempt = 0; attempt < 8; attempt++)); do
     done
     seen_urls+=("$url")
     archive="$WORK/$(basename "${url%%\?*}")"
-    echo "Zig TLS failed; fetching dependency with certificate-verified curl: $url" >&2
+    echo "Zig dependency transport failed; fetching with certificate-verified curl: $url" >&2
     curl --fail --location --proto '=https' --proto-redir '=https' \
       --show-error --silent --retry 3 --connect-timeout 20 --max-time 300 \
       --output "$archive" "$url"
@@ -32,5 +34,5 @@ for ((attempt = 0; attempt < 8; attempt++)); do
     "$ZIG" fetch "$archive"
   done
 done
-echo "too many Zig TLS dependency failures" >&2
+echo "too many Zig dependency transport failures" >&2
 exit 1
