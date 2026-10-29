@@ -61,6 +61,8 @@ app = None
 checks = []
 transcript = artifacts / "control.jsonl"
 lua_dispatch = False
+live_endpoint = None
+live_daemons = set()
 
 
 def command(argv, **kwargs):
@@ -151,10 +153,50 @@ def pixels(path):
 
 
 def shell(session_id, text, pane="left"):
+    if restore_mode == "live":
+        remember_live_daemons()
     marker = run / ("executed-" + uuid.uuid4().hex)
     ctl("session", "type", text + "; printf done > " + shlex.quote(str(marker)) + "\n",
         "--target", session_id, "--pane", pane)
     wait_for(marker.exists, f"shell executed input in {pane} pane")
+
+
+def remember_live_daemons():
+    global live_endpoint
+    inventory = ctl("zmx", "list")["zmx"]
+    endpoint = inventory["endpoint"]
+    assert re.fullmatch(r"/tmp/agterm-zmx-[0-9a-f]{16}", endpoint["socketDirectory"])
+    assert Path(endpoint["executable"]).is_absolute()
+    assert live_endpoint is None or live_endpoint == endpoint, "test zmx endpoint changed"
+    live_endpoint = endpoint
+    for entry in inventory["entries"]:
+        if entry["state"] == "claimed":
+            name = entry["daemon"]
+            assert re.fullmatch(r"agterm-[0-9a-f]{32}", name)
+            live_daemons.add(name)
+
+
+def cleanup_live_daemons():
+    """Use the saved isolated endpoint even if restarting the frontend failed."""
+    if not live_endpoint or not live_daemons:
+        return True
+    cleanup_env = dict(env, ZMX_DIR=live_endpoint["socketDirectory"])
+    for key in ("ZMX_SESSION", "ZMX_SESSION_PREFIX"):
+        cleanup_env.pop(key, None)
+    def invoke(*args):
+        return subprocess.run([live_endpoint["executable"], *args], env=cleanup_env,
+                              text=True, capture_output=True, timeout=5, check=True)
+    def present():
+        return set(re.findall(r"(?:^|\t)(?:→ )?name=([^\t\n]+)", invoke("list").stdout, re.MULTILINE))
+    try:
+        for name in sorted(live_daemons & present()):
+            invoke("kill", name, "--force")
+        if live_daemons & present():
+            raise RuntimeError("test-owned zmx daemons remain after cleanup")
+        return True
+    except (OSError, subprocess.SubprocessError, RuntimeError) as error:
+        print(f"isolated zmx cleanup failed: {error}")
+        return False
 
 
 try:
@@ -252,10 +294,23 @@ finally:
         except subprocess.TimeoutExpired:
             app.kill()
             app.wait(timeout=5)
-    if not (artifacts / "result.json").exists():
+    cleanup_ok = cleanup_live_daemons()
+    (artifacts / "cleanup.json").write_text(json.dumps({
+        "passed": cleanup_ok, "tracked_daemon_count": len(live_daemons),
+    }, indent=2))
+    if not cleanup_ok:
+        (artifacts / "result.json").write_text(json.dumps({
+            "passed": False, "cleanup_passed": False, "completed_checks": checks,
+        }, indent=2))
+    elif not (artifacts / "result.json").exists():
         (artifacts / "result.json").write_text(json.dumps({"passed": False, "completed_checks": checks}, indent=2))
     shutil.copytree(state, artifacts / "state", dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns("*.sock", "*.lock"))
-    shutil.rmtree(run)
+    if cleanup_ok:
+        shutil.rmtree(run)
+    else:
+        print(f"Retained test state for recovery: {run}")
     print(f"Artifacts: {artifacts}")
+    if not cleanup_ok:
+        raise AssertionError("isolated Live-session cleanup failed; state retained")
 PY

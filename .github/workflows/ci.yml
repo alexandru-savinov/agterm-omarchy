@@ -42,6 +42,8 @@ jobs:
           shellcheck -x -P SCRIPTDIR scripts/setup-omarchy.sh scripts/test-omarchy.sh scripts/install-linux.sh scripts/run-linux.sh scripts/stage-linux.sh scripts/zig-build-linux.sh scripts/test-zig-build-linux.sh linux/swift-env.sh
       - name: Installer and runtime packaging regression tests
         run: python3 scripts/tests/test_linux_install.py
+      - name: Failed Live restart cleanup regression tests
+        run: python3 scripts/tests/test_omarchy_cleanup.py
       - name: Zig TLS fallback regression tests
         run: scripts/test-zig-build-linux.sh
       - name: Whitespace
