@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2034 # SWIFT_COMMAND is consumed by sourcing build helpers.
 # Source from Linux build helpers; compatibility libraries are prepared by setup-omarchy.sh.
 SWIFT_COMPAT="${XDG_DATA_HOME:-$HOME/.local/share}/agterm/swift-compat"
 if [[ -d "$SWIFT_COMPAT" ]]; then
