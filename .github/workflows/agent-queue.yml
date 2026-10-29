@@ -1,0 +1,43 @@
+name: Agent queue
+
+on:
+  issues:
+    types: [opened, edited, closed, reopened, assigned, unassigned, labeled, unlabeled]
+  issue_comment:
+    types: [created, edited]
+  pull_request:
+    branches: [main]
+    paths: [scripts/github/**, .github/workflows/agent-queue.yml, docs/AGENT_PROTOCOL.md]
+  workflow_dispatch:
+  repository_dispatch:
+    types: [agent-checkin]
+  schedule:
+    - cron: '17 * * * *'
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: agent-queue-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    name: Queue snapshot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test queue interpretation
+        run: python3 scripts/github/test_queue.py
+      - name: Read tasks and named check-ins
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/github/queue.py
+      - uses: actions/upload-artifact@v6
+        with:
+          name: agent-queue-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/agent-queue
+          if-no-files-found: error
+          retention-days: 30
