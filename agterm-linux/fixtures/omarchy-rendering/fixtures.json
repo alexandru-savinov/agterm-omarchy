@@ -1,0 +1,23 @@
+{
+  "purpose": "Existing isolated terminal color reference images; LFS transfer fixture, not new runtime acceptance.",
+  "source_run": "wayland-release.edzrnW",
+  "source_evidence_commit": "634f667684a16bebb4c14b7f1ccce87d7edabde9",
+  "source_directory": "docs/evidence/omarchy-arm64-2026-10-29/screenshots/",
+  "application_source_commit": "5e37cb75ce3d4879ca8b7c74ed28d0548780163a",
+  "original_relocated_metadata": "c7b53503-dirty",
+  "total_fixture_bytes": 603409,
+  "files": [
+    {
+      "path": "terminal-red.png",
+      "bytes": 257475,
+      "sha256": "116641d6854c192a0875fadb77790f16e8aa9a0a4595bc66418297ced7e9f48c",
+      "lfs_oid": "sha256:116641d6854c192a0875fadb77790f16e8aa9a0a4595bc66418297ced7e9f48c"
+    },
+    {
+      "path": "terminal-green.png",
+      "bytes": 345934,
+      "sha256": "cb7cbddf18864ec4d110f0301c4cfe6fdcde53483e198458de2bc50ab7fd3f48",
+      "lfs_oid": "sha256:cb7cbddf18864ec4d110f0301c4cfe6fdcde53483e198458de2bc50ab7fd3f48"
+    }
+  ]
+}
