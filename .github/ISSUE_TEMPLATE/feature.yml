@@ -1,0 +1,22 @@
+name: Omarchy integration proposal
+description: Propose an improvement to the Omarchy port.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is difficult or missing in your current workflow?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Include GUI and control API behavior where relevant, and alternatives you considered.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Platform scope
+      description: Is this specific to Omarchy, shared with the GTK Linux frontend, or shared with upstream agterm?

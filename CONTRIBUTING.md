@@ -1,5 +1,33 @@
 # Contributing to agterm
 
+## Contributing to the Omarchy port
+
+This repository is [alexandru-savinov/agterm-omarchy](https://github.com/alexandru-savinov/agterm-omarchy),
+built on the [maintained GTK Linux fork](https://github.com/melonamin/agterm-linux) of [upstream agterm](https://github.com/umputun/agterm).
+Target `main` here from a task branch or personal fork; `omarchy` currently carries the integration work in [PR #6](https://github.com/alexandru-savinov/agterm-omarchy/pull/6).
+The inherited `master` / `linux-port` model in [AGENTS.md](AGENTS.md) describes upstream tracking; send macOS changes upstream on a separate branch.
+The macOS contribution notes below remain upstream guidance; Linux-specific rules in AGENTS.md take precedence for this port.
+
+For questions and compatibility reports, start with [SUPPORT.md](SUPPORT.md).
+For suspected vulnerabilities, use [SECURITY.md](SECURITY.md), not a public bug report.
+Before implementation, claim a concrete task in the [orchestration hub](https://github.com/alexandru-savinov/agterm-omarchy/issues/1)
+and follow the [collaboration protocol](docs/AGENT_PROTOCOL.md): name your owned paths, coordinate overlaps, and post evidence on the task.
+Discuss broader feature proposals in this fork's [Discussions](https://github.com/alexandru-savinov/agterm-omarchy/discussions).
+
+Keep `agtermCore/` host-free and compatible with upstream.
+Put GTK behavior in `agterm-linux/`, and Omarchy integration in Linux scripts or packaging.
+Read the matching `.claude/rules/` notes before changing a subsystem; Linux main-loop dispatch uses its GLib adapter.
+Keep GUI and control API behavior aligned, update the bundled agent skill for protocol changes, and leave CHANGELOG.md to the release flow.
+
+Open a draft PR using the [template](.github/pull_request_template.md), linked to the task.
+Run the checks appropriate to the change: installer/script fixtures for packaging, core and Linux frontend tests for Swift,
+and isolated native Hyprland acceptance for rendering or input.
+The [Omarchy build guide on the integration branch](https://github.com/alexandru-savinov/agterm-omarchy/blob/omarchy/packaging/linux/omarchy.md) records commands and prerequisites.
+Never target a user's default control socket during tests.
+Report the tested commit, architecture, display backend, actual commands/results, and sanitized artifact links; identify skipped or failing checks.
+Hosted X11 tests do not establish native Wayland acceptance, and CI artifacts do not establish a stable release.
+Request maintainer review before merge and distinguish same-account agent review from independent approval.
+
 ## Before you start
 
 If this is your first pull request to agterm, open a [Discussion](https://github.com/umputun/agterm/discussions) describing what you plan to build and why, then wait for a reply before writing code. Some ideas do not fit the project's direction, and finding that out early costs less than finding it out after a finished PR.
