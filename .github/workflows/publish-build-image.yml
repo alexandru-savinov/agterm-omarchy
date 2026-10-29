@@ -1,0 +1,172 @@
+name: Publish Omarchy build image
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-build-image.yml
+      - packaging/linux/build-image/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omarchy-build-image
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  IMAGE: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64
+
+jobs:
+  validate:
+    name: Validate build-image scripts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: |
+          bash -n packaging/linux/build-image/probe.sh
+          shellcheck packaging/linux/build-image/probe.sh
+          git diff --check
+
+  publish:
+    name: Build and publish x86_64 toolchain
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'alexandru-savinov/agterm-omarchy' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      tag: ${{ steps.identity.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Select a new immutable version
+        id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="sha-$GITHUB_SHA-run-$GITHUB_RUN_ID-attempt-$GITHUB_RUN_ATTEMPT"
+          export TAG
+          # Fail closed on API errors; a new package legitimately returns 404.
+          python3 - <<'PY'
+          import json, os, urllib.error, urllib.request
+          url = 'https://api.github.com/users/alexandru-savinov/packages/container/agterm-omarchy-build-x86_64/versions?per_page=100'
+          while url:
+              request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+              try:
+                  response = urllib.request.urlopen(request, timeout=30)
+              except urllib.error.HTTPError as error:
+                  if error.code == 404:
+                      break
+                  raise
+              versions = json.load(response)
+              if any(os.environ['TAG'] in item['metadata']['container']['tags'] for item in versions):
+                  raise SystemExit('Refusing to overwrite an existing package version')
+              links = response.headers.get('Link', '').split(',')
+              url = next((part.split(';')[0].strip()[1:-1] for part in links if 'rel="next"' in part), None)
+          PY
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - name: Build the isolated context and run compiler probes
+        env:
+          TAG: ${{ steps.identity.outputs.tag }}
+        run: |
+          docker build --pull --platform linux/amd64 \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.version=$TAG" \
+            --tag "$IMAGE:$TAG" packaging/linux/build-image
+      - name: Authenticate with the repository token
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-publish"
+          mkdir -p "$DOCKER_CONFIG"
+          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Push the new image and record its digest
+        id: push
+        env:
+          TAG: ${{ steps.identity.outputs.tag }}
+        run: |
+          docker push "$IMAGE:$TAG"
+          REF="$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$TAG")"
+          [[ "$REF" =~ ^${IMAGE}@sha256:[0-9a-f]{64}$ ]]
+          DIGEST="${REF##*@}"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          {
+            echo "Image: $IMAGE:$TAG"
+            echo "Digest reference: $REF"
+            echo "Source: https://github.com/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
+            echo 'Package: https://github.com/users/alexandru-savinov/packages/container/package/agterm-omarchy-build-x86_64'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Attest the OCI image
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+          # Storage records are for organization-owned repositories; this is a personal repository.
+          create-storage-record: false
+      - name: Remove ephemeral registry credentials
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/docker-publish"
+
+  verify-authenticated:
+    name: Pull by digest and compile in a fresh job
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      packages: read
+    steps:
+      - name: Pull by digest with the repository token and run actual compiler probes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ needs.publish.outputs.digest }}
+        run: |
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-verify"
+          mkdir -p "$DOCKER_CONFIG"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker pull "$IMAGE@$DIGEST"
+          test "$(docker image inspect --format '{{.Architecture}}' "$IMAGE@$DIGEST")" = amd64
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$IMAGE@$DIGEST")" = "$GITHUB_SHA"
+          docker run --rm --network none --read-only --tmpfs /tmp:exec,size=1g \
+            "$IMAGE@$DIGEST" agterm-build-image-probe
+          echo "Authenticated digest pull and compiler/dependency probes passed: $IMAGE@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+
+  verify-public:
+    name: Prove unauthenticated public consumption
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions: {}
+    steps:
+      - name: Pull on a fresh runner with an empty Docker config
+        env:
+          DIGEST: ${{ needs.publish.outputs.digest }}
+        run: |
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-anonymous"
+          mkdir -p "$DOCKER_CONFIG"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          if ! docker pull "$IMAGE@$DIGEST"; then
+            echo '::error::Unauthenticated pull failed. New GHCR packages default to private; inspect package visibility and the registry error. Public consumption is not proven.'
+            echo 'Visibility gate: unauthenticated pull failed. After authorized visibility change, rerun only this failed job.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          docker run --rm --network none --read-only --tmpfs /tmp:exec,size=1g \
+            "$IMAGE@$DIGEST" agterm-build-image-probe
+          echo "Public consumption proven by an unauthenticated fresh pull and compiler probes: $IMAGE@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
