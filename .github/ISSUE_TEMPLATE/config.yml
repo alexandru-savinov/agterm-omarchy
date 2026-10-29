@@ -1,0 +1,17 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Omarchy questions and compatibility
+    url: https://github.com/alexandru-savinov/agterm-omarchy/discussions/7
+    about: Ask setup questions or share tested architecture and desktop compatibility.
+  - name: Private security report
+    url: https://github.com/alexandru-savinov/agterm-omarchy/security/advisories/new
+    about: Report suspected vulnerabilities privately; do not put vulnerability details in a public issue.
+  - name: Contribution and task ownership
+    url: https://github.com/alexandru-savinov/agterm-omarchy/blob/main/CONTRIBUTING.md
+    about: Read the fork guidance and claim an owned task before implementation.
+  - name: Upstream macOS agterm
+    url: https://github.com/umputun/agterm
+    about: macOS issues belong in the upstream project.
+  - name: Shared GTK Linux frontend
+    url: https://github.com/melonamin/agterm-linux
+    about: Check whether a general Linux frontend issue is already tracked here.
