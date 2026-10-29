@@ -1,0 +1,10 @@
+{
+  "fixture_only": true,
+  "application_acceptance": false,
+  "scope": "validation/governance-33",
+  "source_revision": "63ff1aae",
+  "architectures": [
+    "aarch64",
+    "x86_64"
+  ]
+}
