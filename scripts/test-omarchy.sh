@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export AGTERM_TEST_BIN="${AGTERM_TEST_BIN:-$ROOT/agterm-linux/.build/debug/AgtermLinux}"
 export AGTERM_TEST_CTL="${AGTERM_TEST_CTL:-$ROOT/agterm-linux/.build/debug/agtermctl-linux}"
 export AGTERM_GHOSTTY_RESOURCES="${AGTERM_GHOSTTY_RESOURCES:-$ROOT/agterm-linux/vendor/ghostty/share/ghostty}"
+export AGTERM_TEST_RESTORE_MODE="${AGTERM_TEST_RESTORE_MODE:-none}"
 export AGTERM_OMARCHY_ARTIFACTS="${AGTERM_OMARCHY_ARTIFACTS:-$ROOT/artifacts/omarchy-$(date +%Y%m%d-%H%M%S)}"
 exec python3 - <<'PY'
 import json
@@ -32,13 +33,16 @@ artifacts = Path(os.environ["AGTERM_OMARCHY_ARTIFACTS"]).resolve()
 if artifacts.exists() and any(artifacts.iterdir()):
     raise SystemExit(f"artifact directory must be empty: {artifacts}")
 artifacts.mkdir(parents=True, exist_ok=True)
+restore_mode = os.environ["AGTERM_TEST_RESTORE_MODE"]
+if restore_mode not in ("none", "live"):
+    raise SystemExit("AGTERM_TEST_RESTORE_MODE must be none or live")
 run = Path(tempfile.mkdtemp(prefix="agt-wl-", dir="/tmp"))
 state = run / "state"
 home = run / "home"
 state.mkdir()
 home.mkdir()
 (state / "settings.json").write_text(json.dumps({
-    "welcomeShown": True, "restoreMode": "none", "closeGraceUndoEnabled": False,
+    "welcomeShown": True, "restoreMode": restore_mode, "closeGraceUndoEnabled": False,
     "notificationsEnabled": False,
 }))
 env = {key: value for key, value in os.environ.items()
@@ -165,6 +169,25 @@ try:
     shell(initial, "printf 'OMARCHY_PRIMARY_OK\\n'")
     assert "OMARCHY_PRIMARY_OK" in ctl("session", "text", "--target", initial)["text"]
     checks.append("primary PTY execution and screen read-back")
+    if restore_mode == "live":
+        assert session(initial).get("backedByZmx"), (
+            "Live mode did not launch a zmx-backed shell: " + json.dumps(ctl("restore", "mode"))
+        )
+        checks.append("Live mode shell execution through bundled zmx")
+        before = run / "shell-pid-before"
+        after = run / "shell-pid-after"
+        shell(initial, "printf '%s' \"$$\" > " + shlex.quote(str(before)))
+        # SIGTERM is the app's clean shutdown path; Live mode must preserve the shell daemon.
+        app.terminate()
+        app.wait(timeout=15)
+        with (artifacts / "app.log").open("a") as log:
+            app = subprocess.Popen([os.environ["AGTERM_TEST_BIN"]], env=env, stdout=log, stderr=log,
+                                   start_new_session=True)
+        wait_for(lambda: Path(env["AGTERM_CONTROL_SOCKET"]).is_socket(), "restarted control socket")
+        wait_for(lambda: session(initial).get("realized"), "restored Live terminal GL surface ready")
+        shell(initial, "printf '%s' \"$$\" > " + shlex.quote(str(after)))
+        assert before.read_text() == after.read_text(), "Live restart replaced the shell process"
+        checks.append("Live session preserves shell PID across application restart")
     for name, color in (("red", "230;20;30"), ("green", "20;230;30")):
         shell(initial, "printf '\\033[2J\\033[H\\033[48;2;" + color +
               "m'; for i in {1..8}; do printf '%60s\\n' ' '; done; printf '\\033[0m'")
@@ -211,7 +234,9 @@ try:
                     "Theme parser error: <data>", "Theme parser warning: <data>"):
         assert failure not in log, failure
     checks.append("no terminal GL-context or app CSS failures")
-    (artifacts / "result.json").write_text(json.dumps({"passed": True, "checks": checks}, indent=2))
+    (artifacts / "result.json").write_text(json.dumps({
+        "passed": True, "restore_mode": restore_mode, "checks": checks,
+    }, indent=2))
     print("PASS: " + "; ".join(checks))
 finally:
     if app and app.poll() is None:

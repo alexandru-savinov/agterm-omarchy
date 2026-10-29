@@ -89,6 +89,18 @@ LIBGL_ALWAYS_SOFTWARE=1 scripts/test-omarchy.sh
 The ARM64 UTM VM passed terminal rendering, shell input, splits, and program/HTML overlays with this
 process-local setting on Hyprland 0.56.1, GTK 4.22.4, and GLib 2.88.3.
 Hardware rendering on other machines remains dependent on their Mesa/driver configuration.
+
+Live sessions retain upstream's requirement that the account's login shell is **zsh** (as reported by
+the password database). Installing zsh or setting `SHELL` alone does not select it; the installer does
+not change the account's login shell. On Omarchy's default bash account, fresh shells and command
+restore work, while Live mode reports its zsh prerequisite and falls back to fresh shells.
+For an account already configured with zsh, exercise persistence as well as rendering with:
+
+```bash
+AGTERM_TEST_RESTORE_MODE=live scripts/test-omarchy.sh
+```
+
+This variant verifies that the shell PID survives a clean application restart.
 For a development launch, isolate its state and control socket from an installed instance:
 
 ```bash
