@@ -1,0 +1,114 @@
+name: Omarchy hub Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ['docs/omarchy-pages/**', '.github/workflows/pages.yml']
+  pull_request:
+    branches: [main]
+    paths: ['docs/omarchy-pages/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+    inputs:
+      task_limit:
+        description: Number of tasks to show in the refreshed issue snapshot
+        type: choice
+        options: ['10', '25', '50']
+        default: '25'
+      deploy:
+        description: Deploy after building (main branch only); otherwise upload a preview
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and test hub
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test escaping, readiness, and issue selection
+        run: python3 docs/omarchy-pages/test_build.py
+      - name: Snapshot the public task queue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" > "$RUNNER_TEMP/issues.json"
+      - name: Build static site
+        env:
+          TASK_LIMIT: ${{ inputs.task_limit || '25' }}
+        run: |
+          python3 docs/omarchy-pages/build.py --issues "$RUNNER_TEMP/issues.json" \
+            --output _site --commit "$GITHUB_SHA" --limit "$TASK_LIMIT"
+      - name: Upload downloadable preview
+        uses: actions/upload-artifact@v6
+        with:
+          name: omarchy-hub-preview-${{ github.sha }}
+          path: _site
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: error
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - name: Build summary
+        run: |
+          {
+            printf '### Omarchy hub preview\nSource: %s\n\nReadiness: **work in progress**.\n' "$GITHUB_SHA"
+            echo 'The preview artifact contains index.html, style.css, and the task snapshot status.json.'
+            echo 'This documentation build does not certify native terminal readiness.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy public hub
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.deploy)
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy reviewed artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Verify public deployment content
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.request
+          url = os.environ['PAGE_URL'].rstrip('/') + '/status.json?commit=' + os.environ['GITHUB_SHA']
+          for attempt in range(12):
+              try:
+                  with urllib.request.urlopen(url, timeout=10) as response:
+                      status = json.load(response)
+                  assert status['repository'] == os.environ['GITHUB_REPOSITORY']
+                  assert status['commit'] == os.environ['GITHUB_SHA']
+                  assert status['readiness'] == 'work-in-progress'
+                  break
+              except (OSError, ValueError, AssertionError):
+                  if attempt == 11:
+                      raise
+                  time.sleep(5)
+          print('Verified public HTTPS snapshot:', url)
+          PY
+      - name: Deployment summary
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: printf '### Published hub\n[%s](%s)\n\nThe public snapshot matches %s.\n' "$PAGE_URL" "$PAGE_URL" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
