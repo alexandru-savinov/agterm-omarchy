@@ -141,6 +141,51 @@ class PagesTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 build.write_site(temporary, {}, "123abcd")
 
+    def queue(self, roster, observed_at=None, extra=True):
+        from datetime import datetime, timezone
+        first = roster["agents"][0]
+        claims = [{"account": first["account"], "name": first["name"], "task": 999,
+                   "latest": {"state": "working", "url": build.BASE + "/issues/999#issuecomment-1",
+                              "created_at": "2026-10-30T01:00:00Z", "age_seconds": 36000, "stale": True}}]
+        if extra:
+            claims.append({"account": "shared", "name": "newcomer", "task": 7,
+                           "latest": {"state": "ready-for-review", "url": build.BASE + "/issues/7#issuecomment-2",
+                                      "created_at": "2026-10-30T02:00:00Z", "age_seconds": 100, "stale": False}})
+        claims.append({"account": "shared", "name": "evil", "task": 8,
+                       "latest": {"state": "working", "url": "https://evil.example/x",
+                                  "created_at": "2026-10-30T03:00:00Z", "age_seconds": 1, "stale": False}})
+        now = observed_at or datetime.now(timezone.utc).isoformat()
+        return {"observed_at": now, "claims": claims}
+
+    def build_team(self, queue):
+        with tempfile.TemporaryDirectory() as temporary:
+            build.write_site(temporary, [], "a" * 40, roster=self.roster(), queue=queue)
+            return (Path(temporary) / "team.html").read_text(), json.loads((Path(temporary) / "status.json").read_text())
+
+    def test_queue_overlays_newest_claim_and_marks_stale(self):
+        roster = self.roster()
+        team, data = self.build_team(self.queue(roster))
+        self.assertIn(build.BASE + "/issues/999#issuecomment-1", team)
+        self.assertIn("stale: no check-in for over 4h", team)
+        self.assertEqual(team.count('<li class="roster-card"'), len(roster["agents"]))
+
+    def test_queue_only_agent_is_listed_and_foreign_links_are_dropped(self):
+        team, data = self.build_team(self.queue(self.roster()))
+        self.assertIn('<li class="roster-card queue-only" data-phase="awaiting-review"', team)
+        self.assertIn("newcomer", team)
+        self.assertNotIn("evil", team)
+        self.assertEqual([entry["name"] for entry in data["queue"]["queue_only"]], ["newcomer"])
+
+    def test_old_queue_snapshot_is_flagged(self):
+        team, data = self.build_team(self.queue(self.roster(), observed_at="2026-01-01T00:00:00+00:00"))
+        self.assertIn("Queue snapshot is", team)
+        self.assertIsNotNone(data["queue"]["note"])
+
+    def test_without_queue_the_page_is_unchanged(self):
+        team, data = self.build_team(None)
+        self.assertNotIn('class="queue', team)
+        self.assertIsNone(data["queue"])
+
 
 if __name__ == "__main__":
     unittest.main()

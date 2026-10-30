@@ -78,6 +78,57 @@ def tasks_from_pages(pages, limit):
     return sorted(tasks, key=lambda task: (task["state"] != "open", task["number"]))[:limit]
 
 
+QUEUE_STATE_PHASE = {"working": "working", "blocked": "awaiting-review",
+                     "ready-for-review": "awaiting-review", "complete": "completed"}
+QUEUE_MAX_AGE_SECONDS = 2 * 3600
+
+
+def hours(seconds):
+    whole, rest = divmod(int(seconds), 3600)
+    return f"{whole}h{rest // 60:02d}m"
+
+
+def queue_overlay(roster, queue, now):
+    """Overlay the automatic queue snapshot on the reviewed roster.
+
+    The roster keeps its reviewed prose (role, workstream, work summary). The queue
+    supplies the newest self-reported task, state, age and stale flag per account/name.
+    Returns (agents, queue-only agents, freshness note or None)."""
+    latest = {}
+    for claim in queue.get("claims", []):
+        record = claim.get("latest") or {}
+        url = record.get("url") or ""
+        if not url.startswith(BASE + "/issues/") or record.get("created_at") is None:
+            continue  # only this repository's issue comments, never remote links
+        key = (str(claim.get("account", "")).lower(), str(claim.get("name", "")))
+        entry = {"task": claim.get("task"), "state": record.get("state"), "url": url,
+                 "created_at": record["created_at"], "age_seconds": record.get("age_seconds"),
+                 "stale": bool(record.get("stale"))}
+        if key not in latest or entry["created_at"] > latest[key]["created_at"]:
+            latest[key] = entry
+    agents, seen = [], set()
+    for agent in roster["agents"]:
+        key = (agent["account"].lower(), agent["name"])
+        seen.add(key)
+        agents.append({**agent, "queue": latest.get(key)})
+    extras = [{"account": account, "name": name, **entry}
+              for (account, name), entry in sorted(latest.items()) if (account, name) not in seen]
+    observed = datetime.fromisoformat(queue["observed_at"].replace("Z", "+00:00"))
+    age = (now - observed).total_seconds()
+    note = (f"Queue snapshot is {hours(age)} old; claim ages may be behind."
+            if age > QUEUE_MAX_AGE_SECONDS else None)
+    return agents, extras, note
+
+
+def queue_line(entry):
+    if entry is None:
+        return '<p class="queue muted">No check-in for this name in the queue snapshot.</p>'
+    age = "" if entry["age_seconds"] is None else f' · {hours(entry["age_seconds"])} since check-in'
+    stale = ' · <strong class="stale">stale: no check-in for over 4h</strong>' if entry["stale"] else ""
+    return (f'<p class="queue">Queue: <a href="{escape(entry["url"], quote=True)}">#{int(entry["task"])}</a>'
+            f' · {escape(entry["state"] or "unknown")}{age}{stale}</p>')
+
+
 def team_page(roster, rows, commit):
     phases = "".join(f'<option value="{key}">{label}</option>' for key, label in PHASES.items())
     streams = "".join(f'<option value="{key}">{label}</option>' for key, label in STREAMS.items())
@@ -109,7 +160,7 @@ def team_page(roster, rows, commit):
 </main><footer><a class="wordmark" href="./">agterm<span>/omarchy</span></a><p>Source <a href="{BASE}/commit/{commit}">{commit[:8]}</a> · <a href="status.json">Machine-readable snapshot</a> · <a href="{BASE}/issues/53">Page task #53</a></p></footer></body></html>'''
 
 
-def write_site(destination, pages, commit, limit=25, roster=None):
+def write_site(destination, pages, commit, limit=25, roster=None, queue=None):
     if not re.fullmatch(r"[0-9a-f]{7,40}", commit):
         raise ValueError("commit must be a hexadecimal Git commit ID")
     if limit not in (10, 25, 50):
@@ -117,6 +168,11 @@ def write_site(destination, pages, commit, limit=25, roster=None):
     tasks = tasks_from_pages(pages, limit)
     roster = roster_snapshot(roster if roster is not None else
                              json.loads(Path(__file__).with_name("roster.json").read_text()))
+    generated_at = datetime.now(timezone.utc)
+    queue_note, extras = None, []
+    if queue is not None:
+        agents, extras, queue_note = queue_overlay(roster, queue, generated_at)
+        roster = {**roster, "agents": agents}
     roster_rows = "\n".join(
         f'<li class="roster-card" data-phase="{agent["phase"]}" data-stream="{agent["workstream"]}">'
         f'<p class="stream">{STREAMS[agent["workstream"]]} / {escape(agent["role"])}</p>'
@@ -125,12 +181,21 @@ def write_site(destination, pages, commit, limit=25, roster=None):
         f'<p><a href="{agent["task_url"]}">{"PR" if agent["task_kind"] == "pull" else "Task"} '
         f'#{agent["task"]}</a> · Last reported state: '
         f'<strong>{escape(agent["reported_state"] or "not reported")}</strong></p>'
-        f'<p>{escape(agent["work"])}</p><p class="muted">'
+        + (queue_line(agent["queue"]) if queue is not None else "")
+        + f'<p>{escape(agent["work"])}</p><p class="muted">'
         f'<a href="{agent["source_url"]}">Source report / assignment</a> · '
         f'<time datetime="{escape(agent["reported_at"], quote=True)}">{escape(agent["reported_at"])}</time>'
         f'<br>GitHub account: {escape(agent["account"])}</p></li>'
         for agent in roster["agents"])
-    generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    roster_rows += "".join(
+        f'\n<li class="roster-card queue-only" data-phase="{QUEUE_STATE_PHASE.get(entry["state"], "coordination")}" data-stream="">'
+        f'<p class="stream">Queue only / not in the reviewed roster</p>'
+        f'<div class="roster-heading"><h3>{escape(entry["name"])}</h3></div>{queue_line(entry)}'
+        f'<p class="muted">GitHub account: {escape(entry["account"])}</p></li>'
+        for entry in extras)
+    if queue_note:
+        roster_rows = f'<li class="queue-note">{escape(queue_note)}</li>\n' + roster_rows
+    generated = generated_at.isoformat(timespec="seconds")
     rows = "\n".join(
         f'<li><a href="{BASE}/issues/{task["number"]}"><span class="number">#{task["number"]}</span>'
         f'<span>{escape(task["title"])}</span></a><span class="state {task["state"]}">{task["state"]}</span></li>'
@@ -171,6 +236,8 @@ Next: &lt;concrete action&gt;</code></pre><p>Post progress, blockers, test comma
     (destination / "status.json").write_text(json.dumps({
         "repository": REPOSITORY, "readiness": "work-in-progress", "upstream_baseline": "v0.35.1",
         "commit": commit, "generated_at": generated, "tasks": tasks, "roster": roster,
+        "queue": None if queue is None else {"observed_at": queue["observed_at"], "note": queue_note,
+                                            "queue_only": extras},
     }, indent=2) + "\n")
 
 
@@ -180,8 +247,10 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--limit", type=int, choices=(10, 25, 50), default=25)
+    parser.add_argument("--queue", type=Path, help="queue.json from scripts/github/queue.py (optional)")
     args = parser.parse_args()
-    write_site(args.output, json.loads(args.issues.read_text()), args.commit, args.limit)
+    queue = json.loads(args.queue.read_text()) if args.queue and args.queue.exists() else None
+    write_site(args.output, json.loads(args.issues.read_text()), args.commit, args.limit, queue=queue)
 
 
 if __name__ == "__main__":
