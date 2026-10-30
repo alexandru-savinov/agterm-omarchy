@@ -14,8 +14,15 @@ uname -a | tee "$OUT/container-uname.txt"
 echo "== install packages"
 pacman -Syu --noconfirm --needed \
   hyprland grim imagemagick python zsh dbus mesa mesa-utils gtk4 libadwaita webkitgtk-6.0 \
-  fontconfig ttf-dejavu file procps-ng which libseat >"$OUT/pacman-install.log" 2>&1
-echo "pacman exit: $?" | tee -a "$OUT/pacman-install.log"
+  fontconfig ttf-dejavu file procps-ng which seatd >"$OUT/pacman-install.log" 2>&1
+prc=$?
+echo "pacman exit: $prc" | tee -a "$OUT/pacman-install.log"
+if [[ $prc -ne 0 ]]; then
+  tail -n 20 "$OUT/pacman-install.log"
+  echo "package-install-failed" >"$OUT/compositor-status.txt"
+  chown -R "${HOST_UID:-1001}:${HOST_GID:-1001}" "$OUT"
+  exit 2
+fi
 pacman -Q hyprland aquamarine gtk4 glib2 fontconfig mesa libadwaita webkitgtk-6.0 grim imagemagick \
   python zsh wayland libglvnd libepoxy 2>&1 | tee "$OUT/packages.txt"
 
@@ -37,14 +44,16 @@ echo "$zrc" >"$OUT/zmx-probe-exit.txt"
 
 echo "== DRM devices visible in the container"
 for card in /sys/class/drm/card[0-9]; do
+  # Kernel 7.x registers vkms as a faux device (driver faux_driver, device name vkms).
   drv=$(basename "$(readlink -f "$card/device/driver")" 2>/dev/null)
-  echo "$(basename "$card") driver=$drv"
+  dev=$(basename "$(readlink -f "$card/device")" 2>/dev/null)
+  echo "$(basename "$card") driver=$drv device=$dev"
 done | tee "$OUT/container-drm.txt"
-VKMS_CARD=$(awk '$2 == "driver=vkms" {print "/dev/dri/" $1; exit}' "$OUT/container-drm.txt")
+VKMS_CARD=$(awk '$2 == "driver=vkms" || $3 == "device=vkms" {print "/dev/dri/" $1; exit}' "$OUT/container-drm.txt")
 echo "vkms card: ${VKMS_CARD:-none}" | tee -a "$OUT/container-drm.txt"
 # Device nodes carry the host's video GID; open only the vkms node to the container test user.
 [[ -n "$VKMS_CARD" ]] && chmod 0666 "$VKMS_CARD"
-ls -l /dev/dri | tee -a "$OUT/container-drm.txt"
+find /dev/dri -mindepth 1 -ls | tee -a "$OUT/container-drm.txt"
 
 echo "== unprivileged test account (login shell zsh; disposable container account)"
 useradd -m -s /usr/bin/zsh -G video tester
