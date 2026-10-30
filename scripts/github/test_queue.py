@@ -18,7 +18,8 @@ class QueueTests(unittest.TestCase):
 
     def test_prs_and_unnamed_comments_do_not_become_agent_tasks(self):
         result = snapshot([{"pull_request": {}, "number": 6}], {6: [{"body": "Agent: fake"}]})
-        self.assertEqual(result, {"tasks": [], "agents": [], "claims": [], "uncertain_observations": []})
+        self.assertEqual(result, {"headcount": 0, "active_posters": 0, "tasks": [], "agents": [],
+                                  "claims": [], "uncertain_observations": []})
 
     def test_same_name_on_another_account_cannot_overwrite_an_agent(self):
         issue = {"number": 1, "title": "Task", "state": "open", "html_url": "https://example.test/1"}
@@ -373,6 +374,56 @@ class FetchTests(unittest.TestCase):
         self.assertTrue(all(len(grouped[n]) == 3 for n in grouped))
         self.assertEqual([c["id"] for c in grouped[7]], [70, 71, 72])  # order preserved
         self.assertEqual(len(snapshot(got_issues, grouped)["claims"]), 1)
+
+
+class TeamTests(unittest.TestCase):
+    def _snapshot(self, reports, now="2026-10-30T12:00:00+00:00"):
+        """reports: (task, name, state, extra field lines, created_at)."""
+        import datetime
+        issues = [{"number": n, "title": "Task", "state": "open", "html_url": f"https://example.test/{n}"}
+                  for n in (7, 8)]
+        comments = {7: [], 8: []}
+        for order, (task, name, state, extra, created) in enumerate(reports):
+            body = f"Agent: {name}\nTask: #{task}\nOwned paths: docs/x.md\nState: {state}{extra}\nNext: x"
+            comments[task].append({"body": body, "user": {"login": "shared"},
+                                   "html_url": f"https://example.test/c{order}",
+                                   "created_at": created, "updated_at": created})
+        return snapshot(issues, comments, datetime.datetime.fromisoformat(now))
+
+    def test_leads_report_team_size_and_headcount_sums_it(self):
+        result = self._snapshot([(7, "lead-a", "working", "\nTeam: 12", "2026-10-30T11:00:00Z"),
+                                 (8, "lead-b", "working", "\nTeam: 30\nSession: abcd", "2026-10-30T11:00:00Z"),
+                                 (8, "solo", "blocked", "", "2026-10-30T11:00:00Z")])
+        self.assertEqual((result["headcount"], result["active_posters"]), (43, 3))
+        self.assertEqual(result["claims"][0]["latest"]["team"], 12)
+
+    def test_stale_complete_and_malformed_teams_do_not_count(self):
+        result = self._snapshot([(7, "old", "working", "\nTeam: 50", "2026-10-30T02:00:00Z"),
+                                 (7, "done", "complete", "\nTeam: 50", "2026-10-30T11:00:00Z"),
+                                 (8, "bad", "working", "\nTeam: 0", "2026-10-30T11:00:00Z"),
+                                 (8, "big", "working", "\nTeam: 10000", "2026-10-30T11:00:00Z")])
+        self.assertEqual((result["headcount"], result["active_posters"]), (0, 0))
+        self.assertEqual(len(result["uncertain_observations"]), 2)
+
+    def test_team_after_session_is_out_of_order(self):
+        self.assertIsNone(checkin("Agent: a\nTask: #7\nOwned paths: x.md\nState: working\n"
+                                  "Session: abcd\nTeam: 3")["task"])
+
+    def test_fetch_passes_the_comment_window(self):
+        import datetime
+        seen = []
+        def fake_pages(repository, endpoint, token):
+            seen.append(endpoint)
+            return []
+        fetch("o/r", "t", fake_pages, since=datetime.datetime(2026, 10, 16, 12, 0, tzinfo=datetime.timezone.utc))
+        self.assertEqual(seen[1], "issues/comments?sort=created&direction=asc&since=2026-10-16T12:00:00Z")
+
+    def test_markdown_shows_headcount_and_window(self):
+        data = self._snapshot([(7, "lead-a", "working", "\nTeam: 12", "2026-10-30T11:00:00Z")])
+        data.update(observed_at="x", comments_since="2026-10-16T12:00:00+00:00")
+        output = markdown(data)
+        self.assertIn("Active headcount: 12 across 1 posting agents", output)
+        self.assertIn("Comments loaded since 2026-10-16", output)
 
 
 if __name__ == "__main__":

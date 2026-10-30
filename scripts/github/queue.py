@@ -21,13 +21,13 @@ def checkin(body):
                          lines[header_index].rstrip(" "), re.IGNORECASE)
     if not match:
         return None
-    labels = {"task": "Task", "owned paths": "Owned paths", "state": "State", "session": "Session"}
+    labels = {"task": "Task", "owned paths": "Owned paths", "state": "State", "team": "Team", "session": "Session"}
     fields = {key: [] for key in labels}
     sequence, uncertainties = [], []
     # Parse a small data format, not Markdown. Only the immediate, canonical
     # field block can advance a claim; keep rejected raw fields for diagnosis.
     for line in lines[header_index + 1:]:
-        field = re.fullmatch(r"(Task|Owned paths|State|Session): ?(.*)", line, re.IGNORECASE)
+        field = re.fullmatch(r"(Task|Owned paths|State|Team|Session): ?(.*)", line, re.IGNORECASE)
         if not field:
             break
         key, value = field[1].lower(), field[2]
@@ -36,12 +36,13 @@ def checkin(body):
         if line != f"{labels[key]}: {value}":
             uncertainties.append("field block: use exact labels followed by one space")
     required = ["task", "owned paths", "state"]
-    if sequence not in (required, required + ["session"]):
+    allowed = (required, required + ["team"], required + ["session"], required + ["team", "session"])
+    if sequence not in allowed:
         uncertainties.append("field block: expected exactly Task, Owned paths, State in that order, "
-                             "optionally followed by Session")
+                             "optionally followed by Team, then Session")
     values = {}
     for key, entries in fields.items():
-        if key == "session" and not entries:
+        if key in ("team", "session") and not entries:
             values[key] = None
         elif len(entries) != 1 or not entries[0]:
             uncertainties.append(f"{key}: {'duplicate' if len(entries) > 1 else 'missing or empty'} field")
@@ -62,6 +63,9 @@ def checkin(body):
     if state is not None and state not in ("working", "blocked", "ready-for-review", "complete"):
         uncertainties.append("state: unrecognized value")
         state = None
+    team = values["team"]
+    if team is not None and not re.fullmatch(r"[1-9][0-9]{0,3}", team):
+        uncertainties.append("team: expected a team size from 1 to 9999")
     session = values["session"]
     if session is not None and not re.fullmatch(r"[a-z0-9]{4,16}", session):
         uncertainties.append("session: expected 4-16 lowercase letters or digits")
@@ -71,6 +75,7 @@ def checkin(body):
         task = state = None
     return {"name": (match[1] or match[2]).lower(), "task": int(task[1:]) if task else None,
             "owned_paths": values["owned paths"], "state": state, "session": session,
+            "team": int(team) if team and re.fullmatch(r"[1-9][0-9]{0,3}", team) else None,
             "field_values": fields, "uncertainties": uncertainties}
 
 
@@ -172,7 +177,15 @@ def snapshot(issues, comments, now=None):
         elif not active:
             notes.append("Only complete states observed; availability is not established")
         task["coordination"] = notes
-    return {"tasks": sorted(tasks, key=lambda item: item["number"]), "agents": latest_agents,
+    # Real headcount: a lead posts for its whole team (docs/HIVE_WAVES.md); workers never post.
+    teams = {}
+    for claim in claims:
+        latest = claim["latest"]
+        if latest["state"] not in (None, "complete") and not latest["stale"]:
+            identity = (claim["account"].lower(), claim["name"])
+            teams[identity] = max(teams.get(identity, 1), latest["team"] or 1)
+    return {"headcount": sum(teams.values()), "active_posters": len(teams),
+            "tasks": sorted(tasks, key=lambda item: item["number"]), "agents": latest_agents,
             "claims": claims, "uncertain_observations": sorted(uncertain, key=observation_order)}
 
 
@@ -203,11 +216,19 @@ def group_comments(issues, comments):
     return grouped
 
 
-def fetch(repository, token, fetch_pages=pages):
+COMMENT_WINDOW_DAYS = 14
+
+
+def fetch(repository, token, fetch_pages=pages, since=None):
     issues = fetch_pages(repository, "issues?state=all", token)
     # One paginated stream for every comment in the repository: ceil(n/100) requests,
     # not one per issue, so a wave of agents does not exhaust the job token's budget.
-    comments = fetch_pages(repository, "issues/comments?sort=created&direction=asc", token)
+    # A bounded window keeps it under the pagination ceiling as waves accumulate history;
+    # claims older than the window are long stale (4 h) anyway.
+    endpoint = "issues/comments?sort=created&direction=asc"
+    if since is not None:
+        endpoint += "&since=" + since.strftime("%Y-%m-%dT%H:%M:%SZ")
+    comments = fetch_pages(repository, endpoint, token)
     return issues, group_comments(issues, comments)
 
 
@@ -230,6 +251,10 @@ def markdown(data):
                 f"{escape('; '.join(record['uncertainties']) or 'explicit fields')} | "
                 f"{link(record['updated_at'], record['url'])}")
     lines = ["# Agent task queue", "", f"Observed: {data['observed_at']}", "",
+             f"Active headcount: {data.get('headcount', 0)} across {data.get('active_posters', 0)} posting "
+             "agents (leads report team size with Team:)", "",
+             *([f"Comments loaded since {data['comments_since']}; older observations are not shown.", ""]
+               if data.get("comments_since") else []),
              "Check-ins are self-reported observations, not permission, ownership guarantees, liveness, or availability.",
              "Read the task and coordinate before editing. Paths are literal reports, not enforced locks.", "",
              "| Task | Issue state | Labels | GitHub assignees | Observed claims | Coordination |",
@@ -276,11 +301,13 @@ def main():
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
         raise SystemExit("invalid repository name")
     token = os.environ["GITHUB_TOKEN"]
-    issues, comments = fetch(repository, token)
+    window_start = (datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=COMMENT_WINDOW_DAYS))
+    issues, comments = fetch(repository, token, since=window_start)
     # One clock read after the fetch; published as observed_at so every age can be recomputed.
     now = datetime.datetime.now(datetime.timezone.utc)
     data = snapshot(issues, comments, now)
-    data.update(repository=repository, observed_at=now.isoformat(),
+    data.update(repository=repository, observed_at=now.isoformat(), comments_since=window_start.isoformat(),
                 source_commit=os.environ.get("GITHUB_SHA"), event=os.environ.get("GITHUB_EVENT_NAME"))
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "queue.json").write_text(json.dumps(data, indent=2) + "\n")
