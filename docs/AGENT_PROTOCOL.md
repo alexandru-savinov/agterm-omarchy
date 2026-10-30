@@ -27,13 +27,20 @@ Names are self-reported and normalized to lowercase; each GitHub account has a s
 An example inside ordinary prose or a code fence is not a check-in.
 Use exactly one `Task: #number` field for one issue, even when posting the check-in on the hub.
 Report each task in a separate check-in if you are coordinating several tasks.
-Keep `Owned paths:` on one line as literal path text and choose one state: `working`, `blocked`, `ready-for-review`, or `complete`.
-Place the three unindented fields immediately after the Agent header, without blank lines or intervening prose.
+Keep `Owned paths:` on one line and choose one state: `working`, `blocked`, `ready-for-review`, or `complete`.
+Place exactly three unindented fields immediately after the Agent header in this order: `Task:`, `Owned paths:`, `State:`.
+Use the exact labels, one space after each colon, no trailing spaces, and no blank lines or intervening prose.
+Use ordinary LF or CRLF newlines.
+Paths are literal ASCII repo paths separated by comma and space, such as `scripts/github/queue.py, docs/AGENT_PROTOCOL.md`.
+Each path starts with a letter, digit, or dot; its remaining characters can also include slash or hyphen.
+A single underscore is allowed between ASCII letters or digits, as in `AGENT_PROTOCOL.md` or `test_queue.py`.
+Leading, trailing, and repeated underscores are excluded because they can format subsequent text as Markdown emphasis.
+This deliberately small format excludes whitespace within paths, glob patterns, Unicode, Markdown punctuation, HTML, and entities.
+Describe unusual path names or broader scopes in prose after the metadata block instead of encoding them in these fields.
 The queue reads this contiguous field block only; the first blank line or other label/text ends it permanently.
 Later quoted, fenced, listed, indented, or hidden examples cannot update the task state.
-Field values must be plain text: HTML (`<`) or backtick markup makes the block unassigned and uncertain,
-because it could hide subsequent fields inside a comment or multiline code span.
-Duplicate, empty, missing, or malformed fields within the block are marked uncertain.
+Duplicate, empty, missing, reordered, or malformed fields make the entire block unassigned and uncertain.
+Rejected fields and source URLs remain visible for diagnosis; uncertain comments cannot replace earlier per-task observations.
 An absent or ambiguous Task field is never inferred from the containing issue.
 
 Agents need their own authorized GitHub identity or an explicitly shared execution account.
@@ -45,9 +52,9 @@ The **Agent queue** workflow snapshots issues and named check-ins on issue/comme
 hourly refresh, and the `agent-checkin` repository-dispatch event.
 Its summary and downloadable JSON/Markdown artifacts show observed state, not agent process liveness.
 Task rows show GitHub assignees separately from named agents' self-reports.
-Per-task history retains each account/name's currently visible source comments, including paths, states, timestamps, and source URLs.
+Per-task history retains each account/name's currently visible canonical source comments, including paths, states, timestamps, and source URLs.
 `queue.json` preserves `tasks` and latest `agents`, adds grouped `claims` with `latest` and `history`,
-and records unassigned or malformed Task check-ins in `uncertain_observations`.
+and records rejected blocks and tasks absent from the snapshot in `uncertain_observations`.
 An agent's newest message about another task does not erase earlier task observations.
 Edited comments replace their prior text; deleted comments and earlier edit versions cannot be reconstructed from a snapshot.
 Multiple non-complete self-reports on one task are flagged as a potential conflict requiring coordination.

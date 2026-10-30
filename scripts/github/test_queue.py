@@ -118,13 +118,19 @@ class ClaimHistoryTests(unittest.TestCase):
         for field, key in (("State: complete\nState: working", "state"),
                            ("Owned paths: one\nOwned paths: two", "owned_paths")):
             data = snapshot([self.issue(1)], {1: [self.comment(f"Agent: a\nTask: #1\n{field}")]})
-            self.assertIsNone(data["claims"][0]["latest"][key])
-            self.assertTrue(any("duplicate" in note for note in data["claims"][0]["latest"]["uncertainties"]))
+            self.assertEqual(data["claims"], [])
+            rejected = data["uncertain_observations"][0]
+            self.assertIsNone(rejected[key])
+            self.assertEqual(rejected["field_values"]["task"], ["#1"])
+            self.assertTrue(any("duplicate" in note for note in rejected["uncertainties"]))
         data = snapshot([self.issue(1)], {1: [self.claim(task=99, state="available")]})
         self.assertEqual(len(data["tasks"]), 1)
         self.assertEqual(data["tasks"][0]["observed_claims"], [])
-        self.assertIsNone(data["claims"][0]["latest"]["state"])
-        self.assertIn("task: issue absent from this task snapshot", data["claims"][0]["latest"]["uncertainties"])
+        self.assertEqual(data["claims"], [])
+        self.assertIsNone(data["uncertain_observations"][0]["state"])
+        data = snapshot([self.issue(1)], {1: [self.claim(task=99)]})
+        self.assertEqual(data["claims"], [])
+        self.assertIn("task: issue absent from this task snapshot", data["uncertain_observations"][0]["uncertainties"])
 
     def test_fields_in_fences_quotes_and_indented_examples_are_not_claims(self):
         body = ("\nAgent: **Alpha**\n```text\nTask: #99\nState: complete\n```\n"
@@ -146,7 +152,10 @@ class ClaimHistoryTests(unittest.TestCase):
                     "Agent: agent\n<pre>\n" + fields + "\n</pre>",
                     "Agent: agent\n\n" + fields,
                     "Agent: agent\nTask: #1\nOwned paths: <!--\nState: complete\n-->",
-                    "Agent: agent\nTask: #1\nOwned paths: `\nState: complete\n`"]
+                    "Agent: agent\nTask: #1\nOwned paths: `\nState: complete\n`",
+                    "Agent: agent\nOwned paths: ![Example only\nTask: #1\nState: complete\n](https://example.test/x.png)",
+                    "Agent: agent\nTask: #1\nOwned paths: ![Example only\nState: complete\n](https://example.test/x.png)",
+                    "Agent: agent\nTask: #1\nOwned paths: scripts/<span hidden>\nState: complete\n</span>"]
         for body in examples:
             with self.subTest(body=body):
                 comments = [self.claim(order=1), self.claim(order=2, account="other"),
@@ -159,6 +168,45 @@ class ClaimHistoryTests(unittest.TestCase):
                 notes = data["tasks"][0]["coordination"]
                 self.assertTrue(any("Potential conflict" in note for note in notes))
                 self.assertTrue(any("Closed issue" in note for note in notes))
+
+    def test_uncertain_blocks_never_replace_a_prior_certain_observation(self):
+        canonical = "Agent: agent\nTask: #1\nOwned paths: scripts/a.py\nState: complete"
+        malformed = [canonical.replace("State: complete", "State: complete\nState: working"),
+                     canonical.replace("Owned paths: scripts/a.py\n", ""),
+                     canonical.replace("Owned paths: scripts/a.py", "Owned paths: "),
+                     canonical.replace("State: complete", "State: unknown"),
+                     canonical.replace("Task: #1\n", "Task: #1\nTask: #1\n"),
+                     canonical.replace("Task: #1\nOwned paths: scripts/a.py", "Owned paths: scripts/a.py\nTask: #1")]
+        for body in malformed:
+            with self.subTest(body=body):
+                data = snapshot([self.issue(1)], {1: [self.claim(), self.comment(body, order=2)]})
+                self.assertEqual(data["claims"][0]["latest"]["state"], "working")
+                self.assertEqual(len(data["claims"][0]["history"]), 1)
+                self.assertEqual(len(data["uncertain_observations"]), 1)
+                self.assertTrue(data["uncertain_observations"][0]["uncertainties"])
+
+    def test_path_list_grammar_accepts_literal_paths_only(self):
+        for paths in ("scripts/a.py", ".github/workflows/agent-queue.yml, docs/AGENT_PROTOCOL.md", "docs/"):
+            parsed = checkin(f"Agent: a\nTask: #1\nOwned paths: {paths}\nState: working")
+            self.assertEqual(parsed["uncertainties"], [])
+            self.assertEqual(parsed["owned_paths"], paths)
+        for paths in ("![example", "[link", "a&NewLine;b", "scripts/*", "a`b", "<span>",
+                      "a|b", "a\\b", "a\tb", "a\x00b", "a\x1bb", "a\u202eb", "a b", "__", "a/__init__.py"):
+            with self.subTest(paths=paths):
+                parsed = checkin(f"Agent: a\nTask: #1\nOwned paths: {paths}\nState: complete")
+                self.assertIsNone(parsed["task"])
+                self.assertTrue(parsed["uncertainties"])
+
+    def test_canonical_spacing_and_newline_boundaries(self):
+        canonical = "Agent: a\nTask: #1\nOwned paths: docs/a.md\nState: working"
+        self.assertEqual(checkin(canonical.replace("\n", "\r\n"))["task"], 1)
+        for body in (canonical.replace("Task:", "task:"), canonical.replace("#1", " #1"),
+                     canonical.replace("a.md", "a.md "), canonical.replace("working", "working\t"),
+                     canonical.replace("\n", "\v"), canonical.replace("\n", "\r"),
+                     canonical.replace("\n", "\u2028"), canonical.replace("Agent: a", "Agent:\ta")):
+            with self.subTest(body=body):
+                parsed = checkin(body)
+                self.assertTrue(parsed is None or parsed["task"] is None)
 
     def test_only_the_immediate_plain_field_block_is_interpreted(self):
         body = ("Agent: **Alpha**\nTask: #1\nOwned paths: scripts/a.py\nState: blocked\n"

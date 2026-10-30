@@ -13,25 +13,30 @@ from pathlib import Path
 
 def checkin(body):
     """Parse data fields without treating a check-in as an ownership grant."""
-    lines = body.splitlines()
-    header_index = next((i for i, line in enumerate(lines) if line.strip()), None)
+    lines = body.replace("\r\n", "\n").split("\n")
+    header_index = next((i for i, line in enumerate(lines) if line.strip(" \t")), None)
     if header_index is None:
         return None
-    match = re.fullmatch(r"Agent:\s*(?:\*\*([a-z0-9_-]+)\*\*|([a-z0-9_-]+))",
-                         lines[header_index].rstrip(), re.IGNORECASE)
+    match = re.fullmatch(r"Agent: *(?:\*\*([a-z0-9_-]+)\*\*|([a-z0-9_-]+))",
+                         lines[header_index].rstrip(" "), re.IGNORECASE)
     if not match:
         return None
-    fields = {key: [] for key in ("task", "owned paths", "state")}
-    # Only the immediate field block is metadata. Scanning later prose mistakes
-    # lazy blockquote/list continuations and hidden HTML for real state updates.
-    markup = False
+    labels = {"task": "Task", "owned paths": "Owned paths", "state": "State"}
+    fields = {key: [] for key in labels}
+    sequence, uncertainties = [], []
+    # Parse a small data format, not Markdown. Only the immediate, canonical
+    # field block can advance a claim; keep rejected raw fields for diagnosis.
     for line in lines[header_index + 1:]:
-        field = re.fullmatch(r"(Task|Owned paths|State):\s*(.*)", line, re.IGNORECASE)
+        field = re.fullmatch(r"(Task|Owned paths|State): ?(.*)", line, re.IGNORECASE)
         if not field:
             break
-        fields[field[1].lower()].append(field[2].strip())
-        markup |= "<" in line or "`" in line
-    uncertainties = []
+        key, value = field[1].lower(), field[2]
+        fields[key].append(value)
+        sequence.append(key)
+        if line != f"{labels[key]}: {value}":
+            uncertainties.append("field block: use exact labels followed by one space")
+    if sequence != list(labels):
+        uncertainties.append("field block: expected exactly Task, Owned paths, State in that order")
     values = {}
     for key, entries in fields.items():
         if len(entries) != 1 or not entries[0]:
@@ -43,13 +48,19 @@ def checkin(body):
     if task is not None and not re.fullmatch(r"#[1-9][0-9]{0,9}", task):
         uncertainties.append("task: expected exactly one #issue-number")
         task = None
+    paths = values["owned paths"]
+    # Intraword underscores are literal in Markdown; leading/trailing ones can
+    # start emphasis that spans fields. Keep the accepted path alphabet explicit.
+    path = r"[A-Za-z0-9.](?:[A-Za-z0-9./-]|(?<=[A-Za-z0-9])_(?=[A-Za-z0-9]))*"
+    if paths is not None and not re.fullmatch(rf"{path}(?:, {path})*", paths):
+        uncertainties.append("owned paths: expected literal ASCII paths separated by comma and space")
     state = values["state"]
     if state is not None and state not in ("working", "blocked", "ready-for-review", "complete"):
         uncertainties.append("state: unrecognized value")
         state = None
-    if markup:
-        # An HTML comment or multiline code span can start inside a field value.
-        uncertainties.append("field block: HTML or backtick markup is unsupported; use plain text")
+    if uncertainties:
+        # Even a syntactically valid Task cannot let an ambiguous later comment
+        # replace an earlier observation. Raw fields remain in the report.
         task = state = None
     return {"name": (match[1] or match[2]).lower(), "task": int(task[1:]) if task else None,
             "owned_paths": values["owned paths"], "state": state,
@@ -91,6 +102,8 @@ def snapshot(issues, comments):
                 continue
             if record["task"] not in task_index:
                 record["uncertainties"].append("task: issue absent from this task snapshot")
+                uncertain.append(record)
+                continue
             by_task.setdefault(record["task"], []).append(record)
         latest_agents.append(records[-1])
         for number, history in sorted(by_task.items()):
