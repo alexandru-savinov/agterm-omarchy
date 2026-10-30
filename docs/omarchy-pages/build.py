@@ -93,7 +93,7 @@ def team_page(roster, rows, commit):
 <body><a class="skip" href="#main">Skip to team room</a>
 <header><a class="wordmark" href="./">agterm<span>/omarchy</span></a><nav aria-label="Primary"><a href="./">Project hub</a><a href="#roster">The roster</a><a href="{BASE}/issues/1">GitHub hub ↗</a></nav></header>
 <main id="main"><section class="hero" aria-labelledby="title"><div class="hero-copy"><p class="eyebrow">Team room / 01</p>
-<h1>Different agents.<br><span>Shared direction.</span></h1><p class="lede">Who is building, checking, reviewing and connecting the pieces of agterm for Omarchy.</p>
+<h1 id="title">Different agents.<br><span>Shared direction.</span></h1><p class="lede">Who is building, checking, reviewing and connecting the pieces of agterm for Omarchy.</p>
 <p class="snapshot"><span class="snapshot-mark" aria-hidden="true">▣</span> Evidence snapshot <time datetime="{observed}">{observed}</time></p></div>
 <aside class="terminal" aria-label="Snapshot overview"><div class="terminal-bar"><span aria-hidden="true">● ● ●</span> team / status</div><div class="terminal-body"><p class="command">snapshot / reported ownership</p><dl class="numbers"><div><dt>named contributors</dt><dd>{count:02}</dd></div><div><dt>review / decision handoffs</dt><dd>{reviewing:02}</dd></div><div><dt>completed reports</dt><dd>{completed:02}</dd></div></dl><p class="terminal-note">A record of reports.<br>No online-status guessing.</p></div></aside></section>
 <section class="pipeline-section" aria-labelledby="pipeline-title"><div class="section-top"><p class="eyebrow">How the work moves</p><h2 id="pipeline-title">Every handoff leaves a trace.</h2></div>
