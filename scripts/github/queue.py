@@ -18,23 +18,19 @@ def checkin(body):
     if header_index is None:
         return None
     match = re.fullmatch(r"Agent:\s*(?:\*\*([a-z0-9_-]+)\*\*|([a-z0-9_-]+))",
-                         lines[header_index].strip(), re.IGNORECASE)
+                         lines[header_index].rstrip(), re.IGNORECASE)
     if not match:
         return None
     fields = {key: [] for key in ("task", "owned paths", "state")}
-    fence = None
+    # Only the immediate field block is metadata. Scanning later prose mistakes
+    # lazy blockquote/list continuations and hidden HTML for real state updates.
+    markup = False
     for line in lines[header_index + 1:]:
-        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
-        if fence:
-            if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence) and not marker[2].strip():
-                fence = None
-            continue
-        if marker:
-            fence = marker[1]
-            continue
         field = re.fullmatch(r"(Task|Owned paths|State):\s*(.*)", line, re.IGNORECASE)
-        if field:
-            fields[field[1].lower()].append(field[2].strip())
+        if not field:
+            break
+        fields[field[1].lower()].append(field[2].strip())
+        markup |= "<" in line or "`" in line
     uncertainties = []
     values = {}
     for key, entries in fields.items():
@@ -51,6 +47,10 @@ def checkin(body):
     if state is not None and state not in ("working", "blocked", "ready-for-review", "complete"):
         uncertainties.append("state: unrecognized value")
         state = None
+    if markup:
+        # An HTML comment or multiline code span can start inside a field value.
+        uncertainties.append("field block: HTML or backtick markup is unsupported; use plain text")
+        task = state = None
     return {"name": (match[1] or match[2]).lower(), "task": int(task[1:]) if task else None,
             "owned_paths": values["owned paths"], "state": state,
             "field_values": fields, "uncertainties": uncertainties}

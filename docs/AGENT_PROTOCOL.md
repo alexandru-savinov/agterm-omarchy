@@ -22,13 +22,18 @@ Evidence: commit, run, test, or artifact links
 Next: concrete next action or handoff
 ```
 
-`Agent:` must be the first nonempty line; names contain letters, digits, underscores, or hyphens.
+`Agent:` must be the first nonempty line, with no indentation; names contain letters, digits, underscores, or hyphens.
 Names are self-reported and normalized to lowercase; each GitHub account has a separate name namespace.
 An example inside ordinary prose or a code fence is not a check-in.
 Use exactly one `Task: #number` field for one issue, even when posting the check-in on the hub.
 Report each task in a separate check-in if you are coordinating several tasks.
 Keep `Owned paths:` on one line as literal path text and choose one state: `working`, `blocked`, `ready-for-review`, or `complete`.
-The queue reads unquoted, unfenced field lines with those exact labels; duplicate, empty, missing, or malformed fields are marked uncertain.
+Place the three unindented fields immediately after the Agent header, without blank lines or intervening prose.
+The queue reads this contiguous field block only; the first blank line or other label/text ends it permanently.
+Later quoted, fenced, listed, indented, or hidden examples cannot update the task state.
+Field values must be plain text: HTML (`<`) or backtick markup makes the block unassigned and uncertain,
+because it could hide subsequent fields inside a comment or multiline code span.
+Duplicate, empty, missing, or malformed fields within the block are marked uncertain.
 An absent or ambiguous Task field is never inferred from the containing issue.
 
 Agents need their own authorized GitHub identity or an explicitly shared execution account.

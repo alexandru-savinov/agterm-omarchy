@@ -132,8 +132,39 @@ class ClaimHistoryTests(unittest.TestCase):
                 "Task: #1\nOwned paths: scripts/a.py\nState: blocked")
         parsed = checkin(body)
         self.assertEqual(parsed["name"], "alpha")
-        self.assertEqual(parsed["task"], 1)
-        self.assertEqual(parsed["state"], "blocked")
+        self.assertIsNone(parsed["task"])
+        self.assertIsNone(parsed["state"])
+        self.assertTrue(parsed["uncertainties"])
+
+    def test_markdown_examples_cannot_advance_or_hide_prior_task_observations(self):
+        fields = "Task: #1\nOwned paths: scripts/a.py\nState: complete"
+        examples = ["Agent: agent\n\n> Example only:\n" + fields,
+                    "Agent: agent\n<!--\n" + fields + "\n-->",
+                    "    Agent: agent\n" + fields,
+                    "\tAgent: agent\n" + fields,
+                    "Agent: agent\n- Example only:\n" + fields,
+                    "Agent: agent\n<pre>\n" + fields + "\n</pre>",
+                    "Agent: agent\n\n" + fields,
+                    "Agent: agent\nTask: #1\nOwned paths: <!--\nState: complete\n-->",
+                    "Agent: agent\nTask: #1\nOwned paths: `\nState: complete\n`"]
+        for body in examples:
+            with self.subTest(body=body):
+                comments = [self.claim(order=1), self.claim(order=2, account="other"),
+                            self.comment(body, order=3)]
+                data = snapshot([self.issue(1, state="closed")], {1: comments})
+                claims = data["tasks"][0]["observed_claims"]
+                self.assertEqual(len(claims), 2)
+                self.assertTrue(all(record["state"] == "working" for record in claims))
+                self.assertTrue(all(len(group["history"]) == 1 for group in data["claims"]))
+                notes = data["tasks"][0]["coordination"]
+                self.assertTrue(any("Potential conflict" in note for note in notes))
+                self.assertTrue(any("Closed issue" in note for note in notes))
+
+    def test_only_the_immediate_plain_field_block_is_interpreted(self):
+        body = ("Agent: **Alpha**\nTask: #1\nOwned paths: scripts/a.py\nState: blocked\n"
+                "Evidence: example below\nTask: #99\nOwned paths: example\nState: complete")
+        parsed = checkin(body)
+        self.assertEqual((parsed["name"], parsed["task"], parsed["state"]), ("alpha", 1, "blocked"))
         self.assertEqual(parsed["uncertainties"], [])
 
     def test_equal_timestamps_have_stable_source_order_and_closed_issue_discrepancy(self):
