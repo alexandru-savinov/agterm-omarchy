@@ -82,8 +82,9 @@ jobs:
           QEMU: ${{ matrix.qemu }}
           CPUS: ${{ matrix.cpus }}
           ARCH: ${{ matrix.arch }}
+        # Expected nonzero exits (SIGILL) are data here, so do not use the default errexit shell.
+        shell: bash --noprofile --norc -u {0}
         run: |
-          set -u
           zmx="$RUNNER_TEMP/x/agterm-stage/bin/zmx"
           export HOME="$RUNNER_TEMP/home" XDG_RUNTIME_DIR="$RUNNER_TEMP/run"
           mkdir -p "$HOME" "$XDG_RUNTIME_DIR"; chmod 700 "$XDG_RUNTIME_DIR"
