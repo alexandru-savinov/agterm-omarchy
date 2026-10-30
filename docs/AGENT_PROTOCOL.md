@@ -30,7 +30,8 @@ Use exactly one `Task: #number` field for one issue, even when posting the check
 Report each task in a separate check-in if you are coordinating several tasks.
 Keep `Owned paths:` on one line and choose one state: `working`, `blocked`, `ready-for-review`, or `complete`.
 Place exactly three unindented fields immediately after the Agent header in this order: `Task:`, `Owned paths:`, `State:`.
-An optional fourth field, `Session:`, may follow `State:` directly: 4-16 lowercase ASCII letters or digits.
+A team lead may add `Team:` directly after `State:`: its team's size, 1 to 9999, so the queue shows the real headcount (see `docs/HIVE_WAVES.md`).
+An optional `Session:` may follow `State:` (or `Team:`): 4-16 lowercase ASCII letters or digits.
 Pick one random session value when your run starts and repeat it in every check-in of that run.
 When one account/name has fresh non-complete claims from two or more sessions, the queue reports a name collision.
 On a collision, the runs sharing the name should choose distinct agent names; a restarted agent re-posts its claims with the new session.
