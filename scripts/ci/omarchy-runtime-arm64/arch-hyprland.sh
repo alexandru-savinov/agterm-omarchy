@@ -98,7 +98,7 @@ if [[ -n "$sig" ]]; then
   login_shell /usr/bin/zsh
   run_harness live "$stage" live
   if [[ -n "$qemu" ]]; then
-    for model in ${QEMU_LIVE_MODELS:-max max,sve=off}; do
+    for model in ${QEMU_LIVE_MODELS:-max max,sve=off neoverse-n1 cortex-a72}; do
       safe="${model//[^a-z0-9]/-}"
       copy="/tmp/stage-qemu-$safe"
       if bash "$probe/make-qemu-copy.sh" "$stage" "$copy" "$model" "$qemu" >> "$out/copies.log" 2>&1; then

@@ -27,12 +27,18 @@ export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 if [[ ! -d "$XDG_RUNTIME_DIR" || ! -w "$XDG_RUNTIME_DIR" ]]; then
   export XDG_RUNTIME_DIR="$RUNNER_TEMP/xdg"; mkdir -p "$XDG_RUNTIME_DIR"; chmod 700 "$XDG_RUNTIME_DIR"
 fi
-weston --backend=headless --renderer=pixman --socket=wayland-weston --width=1280 --height=800 \
-  --idle-time=0 --shell=kiosk > "$out/weston.log" 2>&1 &
-weston_pid=$!
-for _ in $(seq 1 30); do [[ -S "$XDG_RUNTIME_DIR/wayland-weston" ]] && break; sleep 1; done
-if [[ ! -S "$XDG_RUNTIME_DIR/wayland-weston" ]]; then
-  record weston FAIL "socket not created; $(tail -3 "$out/weston.log" | tr '\n' ' ' | cut -c1-200)"
+weston_n=0
+start_weston() {
+  weston_n=$((weston_n + 1))
+  rm -f "$XDG_RUNTIME_DIR/wayland-weston" "$XDG_RUNTIME_DIR/wayland-weston.lock"
+  weston --backend=headless --renderer=pixman --socket=wayland-weston --width=1280 --height=800 \
+    --idle-time=0 --shell=kiosk > "$out/weston-$weston_n.log" 2>&1 &
+  weston_pid=$!
+  for _ in $(seq 1 30); do [[ -S "$XDG_RUNTIME_DIR/wayland-weston" ]] && return 0; sleep 1; done
+  return 1
+}
+if ! start_weston; then
+  record weston FAIL "socket not created; $(tail -3 "$out/weston-$weston_n.log" | tr '\n' ' ' | cut -c1-200)"
   exit 0
 fi
 record weston ok "$(weston --version 2>&1)"
@@ -47,18 +53,37 @@ run_probe() {  # run_probe <label> <stage> <mode>
   local passed; passed="$(jq -r '.passed' "$out/probe-$label/result.json" 2>/dev/null || echo missing)"
   record "probe-$label" "$([[ $passed == true ]] && echo PASS || echo FAIL)" \
     "$(jq -c '{checks, failure}' "$out/probe-$label/result.json" 2>/dev/null | cut -c1-300)"
+  # Compositor liveness after each probe: a dead weston would fail the next probe for reasons
+  # unrelated to the payload, so record it, restart it, and say so.
+  if kill -0 "$weston_pid" 2>/dev/null; then
+    record "weston-after-$label" alive "pid=$weston_pid instance=$weston_n"
+  else
+    wait "$weston_pid"; local rc=$?
+    record "weston-after-$label" DEAD "pid=$weston_pid instance=$weston_n exit=$rc log tail: $(tail -3 "$out/weston-$weston_n.log" | tr '\n' ' ' | cut -c1-200)"
+    start_weston || { record weston FAIL "restart failed"; exit 0; }
+    record weston restarted "instance=$weston_n"
+  fi
+}
+run_probe_retry() {  # rerun once on a fresh compositor if the first attempt failed
+  run_probe "$@"
+  if [[ "$(jq -r '.passed' "$out/probe-$1/result.json" 2>/dev/null)" != true ]]; then
+    kill "$weston_pid" 2>/dev/null; wait "$weston_pid" 2>/dev/null
+    start_weston || { record weston FAIL "restart failed"; exit 0; }
+    record weston restarted "instance=$weston_n (fresh compositor for retry of $1)"
+    run_probe "$1-retry" "$2" "$3"
+  fi
 }
 
-run_probe ubuntu-weston-none "$stage" none
-run_probe ubuntu-weston-live "$stage" live
+run_probe_retry ubuntu-weston-none "$stage" none
+run_probe_retry ubuntu-weston-live "$stage" live
 
 copies="$RUNNER_TEMP/diagnostic-copies"
 mkdir -p "$copies"
 here="$(dirname "$(readlink -f "$0")")"
-for model in ${QEMU_LIVE_MODELS:-max max,sve=off neoverse-n1}; do
+for model in ${QEMU_LIVE_MODELS:-neoverse-n1 max max,sve=off cortex-a72}; do
   safe="${model//[^a-z0-9]/-}"
   if bash "$here/make-qemu-copy.sh" "$stage" "$copies/stage-qemu-$safe" "$model" "$(command -v qemu-aarch64)" >> "$out/copies.log" 2>&1; then
-    run_probe "ubuntu-weston-live-qemu-$safe" "$copies/stage-qemu-$safe" live
+    run_probe_retry "ubuntu-weston-live-qemu-$safe" "$copies/stage-qemu-$safe" live
   else
     record "copy-$safe" FAIL "diagnostic copy failed; see copies.log"
   fi
