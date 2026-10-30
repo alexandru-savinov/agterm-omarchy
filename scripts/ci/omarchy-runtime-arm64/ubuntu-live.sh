@@ -36,6 +36,8 @@ if [[ ! -S "$XDG_RUNTIME_DIR/wayland-weston" ]]; then
   exit 0
 fi
 record weston ok "$(weston --version 2>&1)"
+# Live mode requires zsh as the password-database login shell (README; ZmxSupport.swift).
+record login-shell "$(getent passwd "$(id -un)" | cut -d: -f7)" "$(id -un)"
 
 run_probe() {  # run_probe <label> <stage> <mode>
   local label="$1" st="$2" mode="$3"
@@ -52,19 +54,14 @@ run_probe ubuntu-weston-live "$stage" live
 
 copies="$RUNNER_TEMP/diagnostic-copies"
 mkdir -p "$copies"
-for model in ${QEMU_LIVE_MODELS:-max neoverse-n1}; do
+here="$(dirname "$(readlink -f "$0")")"
+for model in ${QEMU_LIVE_MODELS:-max max,sve=off neoverse-n1}; do
   safe="${model//[^a-z0-9]/-}"
-  copy="$copies/stage-qemu-$safe"
-  cp -a "$stage" "$copy"
-  mv "$copy/bin/zmx" "$copy/bin/zmx.real"
-  cat > "$copy/bin/zmx" <<EOF
-#!/bin/sh
-# Diagnostic wrapper (ultra_arm64_runtime #64): unchanged zmx bytes under qemu-aarch64 -cpu $model.
-exec qemu-aarch64 -cpu $model "\$(dirname "\$(readlink -f "\$0")")/zmx.real" "\$@"
-EOF
-  chmod 755 "$copy/bin/zmx"
-  cmp -s "$copy/bin/zmx.real" "$stage/bin/zmx" || record "copy-$safe" FAIL "zmx.real differs from the payload zmx"
-  run_probe "ubuntu-weston-live-qemu-$safe" "$copy" live
+  if bash "$here/make-qemu-copy.sh" "$stage" "$copies/stage-qemu-$safe" "$model" "$(command -v qemu-aarch64)" >> "$out/copies.log" 2>&1; then
+    run_probe "ubuntu-weston-live-qemu-$safe" "$copies/stage-qemu-$safe" live
+  else
+    record "copy-$safe" FAIL "diagnostic copy failed; see copies.log"
+  fi
 done
 
 kill "$weston_pid" 2>/dev/null || true

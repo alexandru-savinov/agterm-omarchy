@@ -133,7 +133,11 @@ jobs:
           sudo apt-get install -y -q --no-install-recommends \
             libgtk-4-1 libadwaita-1-0 libwebkitgtk-6.0-4 libjavascriptcoregtk-6.0-1 libsoup-3.0-0 \
             libvulkan1 libepoxy0 libgraphene-1.0-0 libgl1-mesa-dri libegl1 libegl-mesa0 libglx-mesa0 \
-            weston dbus dbus-user-session fonts-dejavu-core qemu-user jq
+            weston dbus dbus-user-session fonts-dejavu-core qemu-user jq zsh
+      - name: Make zsh the runner user's login shell (Live mode requires it)
+        run: |
+          sudo usermod -s /usr/bin/zsh "$(id -un)"
+          getent passwd "$(id -un)" | cut -d: -f1,7
       - name: Run probes
         run: |
           out="$RUNNER_TEMP/results/live-ubuntu"
@@ -203,6 +207,14 @@ jobs:
             ls -la /dev/dri 2>&1 || echo "no /dev/dri"
           } > "$out/host-drm.txt" 2>&1 || true
           cat "$out/host-drm.txt"
+      - name: Allow unprivileged user namespaces for WebKit's bwrap sandbox; host qemu for diagnostic copies
+        run: |
+          # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor; WebKitGTK's bubblewrap
+          # sandbox in the container then fails with "setting up uid map: Permission denied".
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends qemu-user-static
+          qemu-aarch64-static --version | head -1 | tee -a "$RUNNER_TEMP/identity.txt"
       - name: Fetch and verify the Arch Linux ARM aarch64 rootfs
         env:
           # Arch Linux ARM Build System <builder@archlinuxarm.org>
@@ -226,7 +238,8 @@ jobs:
           docker run --rm --privileged --network host \
             -v "$RUNNER_TEMP/payload:/payload:ro" -v "$PWD/harness:/harness:ro" \
             -v "$PWD/scripts/ci/omarchy-runtime-arm64:/probe:ro" -v "$out:/out" \
-            ultra-alarm:rootfs bash -c 'cp -a /payload/agterm-stage /tmp/stage && cp -a /harness /tmp/harness && cp -a /probe /tmp/probe && bash /tmp/probe/arch-hyprland.sh /tmp/stage /tmp/harness /tmp/probe /out'
+            -v /usr/bin/qemu-aarch64-static:/opt/qemu/qemu-aarch64:ro \
+            ultra-alarm:rootfs bash -c 'cp -a /payload/agterm-stage /tmp/stage && cp -a /harness /tmp/harness && cp -a /probe /tmp/probe && bash /tmp/probe/arch-hyprland.sh /tmp/stage /tmp/harness /tmp/probe /out /opt/qemu/qemu-aarch64'
       - name: Job summary
         if: always()
         run: |
