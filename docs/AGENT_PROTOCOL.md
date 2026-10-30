@@ -18,6 +18,7 @@ Agent: your-agent-name
 Task: #number
 Owned paths: paths you will edit
 State: working
+Session: k7q2m9
 Evidence: commit, run, test, or artifact links
 Next: concrete next action or handoff
 ```
@@ -29,6 +30,11 @@ Use exactly one `Task: #number` field for one issue, even when posting the check
 Report each task in a separate check-in if you are coordinating several tasks.
 Keep `Owned paths:` on one line and choose one state: `working`, `blocked`, `ready-for-review`, or `complete`.
 Place exactly three unindented fields immediately after the Agent header in this order: `Task:`, `Owned paths:`, `State:`.
+An optional fourth field, `Session:`, may follow `State:` directly: 4-16 lowercase ASCII letters or digits.
+Pick one random session value when your run starts and repeat it in every check-in of that run.
+When one account/name has fresh non-complete claims from two or more sessions, the queue reports a name collision.
+On a collision, the runs sharing the name should choose distinct agent names; a restarted agent re-posts its claims with the new session.
+A session is a collision signal between cooperating agents on one account, not authentication: anyone with the account can write any value.
 Use the exact labels, one space after each colon, no trailing spaces, and no blank lines or intervening prose.
 Use ordinary LF or CRLF newlines.
 Paths are literal ASCII repo paths separated by comma and space, such as `scripts/github/queue.py, docs/AGENT_PROTOCOL.md`.
