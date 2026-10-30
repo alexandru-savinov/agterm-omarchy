@@ -1,0 +1,38 @@
+--- a/agtermCore/Sources/agtermCore/CommandRestore.swift
++++ b/agtermCore/Sources/agtermCore/CommandRestore.swift
+@@ -228,7 +228,7 @@
+     /// the whole source (seeded with the terminal multiplexers on first launch).
+     public static func parseDenylist(_ text: String) -> Set<String> {
+         var result: Set<String> = []
+-        for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
++        for raw in text.split(whereSeparator: \.isNewline) {
+             let line = raw.trimmingCharacters(in: .whitespaces)
+             if line.isEmpty || line.hasPrefix("#") { continue }
+             result.insert(line)
+--- a/agtermCore/Tests/agtermCoreTests/CommandRestoreTests.swift
++++ b/agtermCore/Tests/agtermCoreTests/CommandRestoreTests.swift
+@@ -203,6 +203,24 @@
+         #expect(CommandRestore.parseDenylist("# only comments\n\n").isEmpty)
+     }
+
++    @Test func denylistLineEndingsDoNotPermitDeniedRestores() {
++        for newline in ["\n", "\r\n", "\r"] {
++            let text = ["# programs not to restore", "", " tmux ", "screen", "# ignored", "zellij", ""]
++                .joined(separator: newline)
++            let denied = CommandRestore.parseDenylist(text)
++            #expect(denied == ["tmux", "screen", "zellij"])
++            #expect(!CommandRestore.shouldRestore(argv: ["/usr/bin/tmux", "new"], denylist: denied))
++            #expect(!CommandRestore.shouldRestore(argv: ["screen"], denylist: denied))
++            #expect(CommandRestore.shouldRestore(argv: ["top"], denylist: denied))
++        }
++        // Without an initial comment, CRLF must not combine several basenames into one entry.
++        let denied = CommandRestore.parseDenylist("tmux\r\nscreen\r\n")
++        #expect(denied == ["tmux", "screen"])
++        #expect(!CommandRestore.shouldRestore(argv: ["tmux"], denylist: denied))
++        #expect(CommandRestore.parseDenylist("# comments only\r\n\r\n").isEmpty)
++        #expect(CommandRestore.parseDenylist("tmux\r\nscreen\nzellij\r") == ["tmux", "screen", "zellij"])
++    }
++
+     @Test func parseProcArgsRejectsImplausibleArgc() {
+         #expect(CommandRestore.parseProcArgs(blob(argc: 0, execPath: "/bin/sh", padding: 0, args: [])) == nil)
+         #expect(CommandRestore.parseProcArgs(blob(argc: -1, execPath: "/bin/sh", padding: 1, args: ["sh"])) == nil)

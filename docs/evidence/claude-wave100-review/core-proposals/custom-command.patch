@@ -1,0 +1,21 @@
+--- a/agtermCore/Sources/agtermCore/CustomCommand.swift
++++ b/agtermCore/Sources/agtermCore/CustomCommand.swift
+@@ -161,12 +161,15 @@
+                 return result
+             }
+             let name = String(rest[afterOpen..<close])
+-            if let value = table[name] {
++            let shellParameter = open > rest.startIndex && rest[rest.index(before: open)] == "$"
++            if !shellParameter, let value = table[name] {
+                 result += value
++                rest = rest[rest.index(after: close)...]
+             } else {
+-                result += rest[open...close]
++                // Preserve shell parameter syntax and keep scanning after literal opening braces.
++                result += "{"
++                rest = rest[afterOpen...]
+             }
+-            rest = rest[rest.index(after: close)...]
+         }
+         result += rest
+         return result

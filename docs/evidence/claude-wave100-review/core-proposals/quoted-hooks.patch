@@ -1,0 +1,82 @@
+--- a/agtermCore/Sources/agtermCore/AgentHooksInstall.swift
++++ b/agtermCore/Sources/agtermCore/AgentHooksInstall.swift
+@@ -507,7 +507,10 @@
+     // would be posted twice. Its owner keeps the setup they edited, unguarded by their own choice — the same
+     // answer this probe has always given.
+     private static func entryUsesWrapper(_ entry: [String: Any], scriptDir: String) -> Bool {
+-        let probes = [claudeWrapperPath(scriptDir: scriptDir), wrapperPath(scriptDir: scriptDir)]
++        let paths = [claudeWrapperPath(scriptDir: scriptDir), wrapperPath(scriptDir: scriptDir)]
++        // Apostrophes are escaped inside generated commands, so the raw path is not a substring.
++        // Retain raw probes for existing hand-written forms and recognize our quoted form as well.
++        let probes = paths.flatMap { [$0, shellQuote($0)] }
+         guard let commands = entry["hooks"] as? [[String: Any]] else { return false }
+         return commands.contains { command in
+             guard let command = command["command"] as? String else { return false }
+--- /dev/null
++++ b/agtermCore/Tests/agtermCoreTests/AgentHooksInstallQuotedPathTests.swift
+@@ -0,0 +1,65 @@
++import Foundation
++import Testing
++@testable import agtermCore
++
++struct AgentHooksInstallQuotedPathTests {
++    private let scriptDir = "/tmp/agent's configuration/agent-status"
++
++    private func events(_ json: String) throws -> [String: [[String: Any]]] {
++        let root = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
++        return try #require(root?["hooks"] as? [String: [[String: Any]]])
++    }
++
++    @Test func apostrophePathReinstallDoesNotAppendHooks() throws {
++        let first = try AgentHooksInstall.mergeClaudeSettings(existing: nil, scriptDir: scriptDir)
++        let second = try AgentHooksInstall.mergeClaudeSettings(existing: first.json, scriptDir: scriptDir)
++        let third = try AgentHooksInstall.mergeClaudeSettings(existing: second.json, scriptDir: scriptDir)
++        #expect(!second.changed)
++        #expect(!third.changed)
++        #expect(second.json == first.json)
++        #expect(third.json == first.json)
++        let hooks = try events(third.json)
++        for hook in AgentHooksInstall.claudeHooks {
++            #expect(hooks[hook.event]?.count == 1)
++        }
++    }
++
++    @Test func quotedLegacyPathsMigrateWithoutAddingDuplicates() throws {
++        let wrapper = AgentHooksInstall.shellQuote(AgentHooksInstall.wrapperPath(scriptDir: scriptDir))
++        var hooks: [String: [[String: Any]]] = [:]
++        for hook in AgentHooksInstall.claudeHooks {
++            hooks[hook.event] = [["hooks": [["type": "command", "command": wrapper + " " + hook.state]]]]
++        }
++        let data = try JSONSerialization.data(withJSONObject: ["hooks": hooks])
++        let first = try AgentHooksInstall.mergeClaudeSettings(
++            existing: String(decoding: data, as: UTF8.self), scriptDir: scriptDir)
++        #expect(first.changed)
++        let merged = try events(first.json)
++        let adapter = AgentHooksInstall.shellQuote(AgentHooksInstall.claudeWrapperPath(scriptDir: scriptDir))
++        for hook in AgentHooksInstall.claudeHooks {
++            #expect(merged[hook.event]?.count == 1)
++            let commands = merged[hook.event]?.first?["hooks"] as? [[String: Any]]
++            #expect(commands?.first?["command"] as? String == adapter + " " + hook.state)
++        }
++        let second = try AgentHooksInstall.mergeClaudeSettings(existing: first.json, scriptDir: scriptDir)
++        #expect(!second.changed)
++        #expect(second.json == first.json)
++    }
++
++    @Test func customizedQuotedLegacyCommandRemainsUnchangedAndUnique() throws {
++        let wrapper = AgentHooksInstall.shellQuote(AgentHooksInstall.wrapperPath(scriptDir: scriptDir))
++        let customized = wrapper + " active --blink --pane right"
++        let entry: [String: Any] = ["matcher": "user-owned", "hooks": [["type": "command", "command": customized]]]
++        let data = try JSONSerialization.data(withJSONObject: ["hooks": ["UserPromptSubmit": [entry]]])
++        let result = try AgentHooksInstall.mergeClaudeSettings(
++            existing: String(decoding: data, as: UTF8.self), scriptDir: scriptDir)
++        let merged = try events(result.json)
++        let prompts = try #require(merged["UserPromptSubmit"])
++        #expect(prompts.count == 1)
++        #expect(prompts.first?["matcher"] as? String == "user-owned")
++        let commands = prompts.first?["hooks"] as? [[String: Any]]
++        #expect(commands?.first?["command"] as? String == customized)
++        let second = try AgentHooksInstall.mergeClaudeSettings(existing: result.json, scriptDir: scriptDir)
++        #expect(!second.changed)
++    }
++}
