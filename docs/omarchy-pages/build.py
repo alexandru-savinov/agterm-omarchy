@@ -103,10 +103,12 @@ def queue_overlay(roster, queue, now):
         key = (str(claim.get("account", "")).lower(), str(claim.get("name", "")))
         entry = {"task": claim.get("task"), "state": record.get("state"), "url": url,
                  "created_at": record["created_at"], "age_seconds": record.get("age_seconds"),
-                 "stale": bool(record.get("stale"))}
+                 "stale": bool(record.get("stale")),
+                 # Same ordering as scripts/github/queue.py observation_order: (updated_at, url).
+                 "order": (record.get("updated_at") or record["created_at"], url)}
         if entry["stale"]:
             stale.setdefault(key, []).append(entry)
-        if key not in latest or entry["created_at"] > latest[key]["created_at"]:
+        if key not in latest or entry["order"] > latest[key]["order"]:
             latest[key] = entry
     # A stale claim on another task must stay visible even when a newer claim is shown.
     for key, entry in latest.items():

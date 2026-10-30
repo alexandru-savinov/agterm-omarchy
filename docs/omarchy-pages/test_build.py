@@ -187,6 +187,18 @@ class PagesTests(unittest.TestCase):
         self.assertIn(build.BASE + "/issues/1000#issuecomment-3", team)
         self.assertIn('Also stale:</strong> <a href="' + build.BASE + '/issues/999#issuecomment-1">#999</a> (10h00m)', team)
 
+    def test_newest_claim_uses_the_queue_ordering(self):
+        roster = self.roster()
+        queue = self.queue(roster)
+        first = roster["agents"][0]
+        # Older post, edited last: the queue's (updated_at, url) ordering makes it the latest.
+        queue["claims"].append({"account": first["account"], "name": first["name"], "task": 1001,
+                                "latest": {"state": "blocked", "url": build.BASE + "/issues/1001#issuecomment-4",
+                                           "created_at": "2026-10-29T00:00:00Z", "updated_at": "2026-10-30T11:00:00Z",
+                                           "age_seconds": 50000, "stale": False}})
+        team, data = self.build_team(queue)
+        self.assertIn('Queue: <a href="' + build.BASE + '/issues/1001#issuecomment-4">#1001</a>', team)
+
     def test_old_queue_snapshot_is_flagged(self):
         team, data = self.build_team(self.queue(self.roster(), observed_at="2026-01-01T00:00:00+00:00"))
         self.assertIn("Queue snapshot is", team)
