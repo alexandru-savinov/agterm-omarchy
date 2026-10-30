@@ -245,6 +245,47 @@ class ClaimHistoryTests(unittest.TestCase):
         self.assertIn("%29%20%5Binjected%5D%28", output)
         self.assertIn("source URL unavailable", output)
 
+    def _age_snapshot(self, reports, now="2026-10-30T12:00:00+00:00"):
+        import datetime
+        issue = {"number": 7, "title": "Task", "state": "open", "html_url": "https://example.test/7"}
+        comments = [{"body": f"Agent: {name}\nTask: #7\nOwned paths: docs/x.md\nState: {state}",
+                     "user": {"login": "shared"}, "html_url": f"https://example.test/{name}",
+                     "created_at": created, "updated_at": updated or created}
+                    for name, state, created, updated in reports]
+        return snapshot([issue], {7: comments}, datetime.datetime.fromisoformat(now))
+
+    def test_working_claim_is_stale_only_after_four_hours(self):
+        for created, expected in (("2026-10-30T08:01:00Z", False),  # 3h59
+                                  ("2026-10-30T08:00:00Z", False),  # exactly 4h00
+                                  ("2026-10-30T07:59:00Z", True)):  # 4h01
+            task = self._age_snapshot([("alpha", "working", created, None)])["tasks"][0]
+            self.assertEqual(task["observed_claims"][0]["stale"], expected, created)
+
+    def test_waiting_states_show_age_but_are_never_stale(self):
+        for state in ("blocked", "ready-for-review"):
+            claim = self._age_snapshot([("alpha", state, "2026-10-30T02:00:00Z", None)])["tasks"][0]["observed_claims"][0]
+            self.assertEqual(claim["age_seconds"], 10 * 3600)
+            self.assertFalse(claim["stale"])
+
+    def test_edit_does_not_reset_age(self):
+        claim = self._age_snapshot([("alpha", "working", "2026-10-30T02:00:00Z",
+                                     "2026-10-30T11:59:00Z")])["tasks"][0]["observed_claims"][0]
+        self.assertTrue(claim["stale"])
+
+    def test_stale_claim_does_not_conflict_with_a_fresh_takeover(self):
+        task = self._age_snapshot([("alpha", "working", "2026-10-30T02:00:00Z", None),
+                                   ("beta", "working", "2026-10-30T11:30:00Z", None)])["tasks"][0]
+        notes = " ".join(task["coordination"])
+        self.assertNotIn("Potential conflict", notes)
+        self.assertIn("Stale working claim: shared/alpha (10h00m", notes)
+        self.assertIn(r"\(10h00m, stale\)", markdown({**self._age_snapshot(
+            [("alpha", "working", "2026-10-30T02:00:00Z", None)]), "observed_at": "x"}))
+
+    def test_two_fresh_working_claims_still_conflict(self):
+        task = self._age_snapshot([("alpha", "working", "2026-10-30T11:00:00Z", None),
+                                   ("beta", "working", "2026-10-30T11:30:00Z", None)])["tasks"][0]
+        self.assertIn("Potential conflict", " ".join(task["coordination"]))
+
 
 if __name__ == "__main__":
     unittest.main()

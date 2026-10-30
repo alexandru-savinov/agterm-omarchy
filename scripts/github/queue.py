@@ -67,12 +67,25 @@ def checkin(body):
             "field_values": fields, "uncertainties": uncertainties}
 
 
+STALE_AFTER_SECONDS = 4 * 3600
+
+
+def parse_time(value):
+    return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def age_text(seconds):
+    hours, rest = divmod(int(seconds), 3600)
+    return f"{hours}h{rest // 60:02d}m"
+
+
 def observation_order(record):
     # Source URL supplies deterministic ordering when timestamps tie.
     return record["updated_at"], record["url"]
 
 
-def snapshot(issues, comments):
+def snapshot(issues, comments, now=None):
+    """Build the snapshot. `now` is injected so ages are reproducible from observed_at."""
     tasks = []
     agents = {}
     for issue in issues:
@@ -88,7 +101,9 @@ def snapshot(issues, comments):
             identity = (comment["user"]["login"].lower(), parsed["name"])
             record = {**parsed, "account": comment["user"]["login"],
                       "issue": issue["number"], "url": comment["html_url"],
-                      "updated_at": comment["updated_at"]}
+                      "updated_at": comment["updated_at"],
+                      # Age counts from creation: editing an old check-in must not reset it.
+                      "created_at": comment.get("created_at", comment["updated_at"])}
             agents.setdefault(identity, []).append(record)
     task_index = {task["number"]: task for task in tasks}
     claims, uncertain = [], []
@@ -109,13 +124,26 @@ def snapshot(issues, comments):
         for number, history in sorted(by_task.items()):
             claims.append({"account": identity[0], "name": identity[1], "task": number,
                            "latest": history[-1], "history": history})
+    for claim in claims:
+        latest = claim["latest"]
+        if now is None:
+            latest["age_seconds"], latest["stale"] = None, False
+        else:
+            latest["age_seconds"] = max(0, int((now - parse_time(latest["created_at"])).total_seconds()))
+            # Only a quiet `working` claim is stale; blocked/ready-for-review wait on others.
+            latest["stale"] = latest["state"] == "working" and latest["age_seconds"] > STALE_AFTER_SECONDS
     for task in tasks:
         observations = [claim["latest"] for claim in claims if claim["task"] == task["number"]]
         task["observed_claims"] = observations
         active = [record for record in observations if record["state"] != "complete"]
+        fresh = [record for record in active if not record["stale"]]
         notes = []
-        if len(active) > 1:
+        if len(fresh) > 1:
             notes.append("Potential conflict: multiple non-complete self-reports; coordinate on the task")
+        for record in active:
+            if record["stale"]:
+                notes.append(f"Stale working claim: {record['account']}/{record['name']} "
+                             f"({age_text(record['age_seconds'])} without a check-in; see takeover rule)")
         if any(record["uncertainties"] for record in observations):
             notes.append("Uncertain fields: read the source comments")
         if task["state"] == "closed" and active:
@@ -169,8 +197,11 @@ def markdown(data):
              "| Task | Issue state | Labels | GitHub assignees | Observed claims | Coordination |",
              "|---|---|---|---|---|---|"]
     for task in data["tasks"]:
-        observed = "; ".join(f"{r['account']}/{r['name']}: {r['state'] or 'unknown'}"
-                             for r in task["observed_claims"])
+        observed = "; ".join(
+            f"{r['account']}/{r['name']}: {r['state'] or 'unknown'}"
+            + (f" ({age_text(r['age_seconds'])}{', stale' if r['stale'] else ''})"
+               if r.get("age_seconds") is not None else "")
+            for r in task["observed_claims"])
         lines.append(f"| {link('#' + str(task['number']) + ' ' + task['title'], task['html_url'])} | "
                      f"{escape(task['state'])} | {escape(', '.join(task['labels']))} | "
                      f"{escape(', '.join(task['assignees']) or 'none recorded')} | "
@@ -210,8 +241,10 @@ def main():
     issues = pages(repository, "issues?state=all", token)
     comments = {issue["number"]: pages(repository, f"issues/{issue['number']}/comments", token)
                 for issue in issues if "pull_request" not in issue and issue["comments"]}
-    data = snapshot(issues, comments)
-    data.update(repository=repository, observed_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    # One clock read after the fetch; published as observed_at so every age can be recomputed.
+    now = datetime.datetime.now(datetime.timezone.utc)
+    data = snapshot(issues, comments, now)
+    data.update(repository=repository, observed_at=now.isoformat(),
                 source_commit=os.environ.get("GITHUB_SHA"), event=os.environ.get("GITHUB_EVENT_NAME"))
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "queue.json").write_text(json.dumps(data, indent=2) + "\n")
