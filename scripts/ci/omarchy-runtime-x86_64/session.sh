@@ -17,6 +17,8 @@ else
   echo "compositor backend: headless only (no vkms device)"
 fi
 
+mkdir -p "$HOME/.config/hypr"
+cp /work/helpers/hyprland.lua "$HOME/.config/hypr/hyprland.lua"
 Hyprland >"$OUT/hyprland-stdout.log" 2>&1 &
 hpid=$!
 sock=""
@@ -49,6 +51,8 @@ if [[ "$(hyprctl monitors -j | python3 -I -c 'import json,sys; print(len(json.lo
   sleep 2
 fi
 hyprctl monitors -j >"$OUT/hyprctl-monitors.json" 2>&1
+hyprctl configerrors >"$OUT/hyprctl-configerrors.txt" 2>&1
+hyprctl clients -j >"$OUT/hyprctl-clients-initial.json" 2>&1
 echo "hyprland-running" >"$OUT/compositor-status.txt"
 timeout 20 eglinfo -B -p wayland >"$OUT/eglinfo-wayland.txt" 2>&1 || true
 
