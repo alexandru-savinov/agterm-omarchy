@@ -169,6 +169,7 @@ jobs:
           docker image inspect "$ARCH_IMAGE" --format '{{json .RepoDigests}} {{.Id}}' | tee "$RUNNER_TEMP/work/out/image-digest.txt"
           rc=0
           docker run --rm --privileged --shm-size=1g \
+            -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
             -v "$RUNNER_TEMP/work:/work" -w /work \
             "$ARCH_IMAGE" bash /work/helpers/in-container.sh || rc=$?
           echo "container exit: $rc"

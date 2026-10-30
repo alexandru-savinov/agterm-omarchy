@@ -5,8 +5,17 @@ set -uo pipefail
 OUT=/work/out
 STAGE=/work/agterm-stage
 export LIBGL_ALWAYS_SOFTWARE=1
-# Upstream Hyprland's hyprtester launches Hyprland this way for its headless test suite.
-export HYPRLAND_HEADLESS_ONLY=1
+export AQ_TRACE=1 HYPRLAND_TRACE=1
+if [[ -n "${VKMS_CARD:-}" ]]; then
+  # Iteration 2: aquamarine's headless backend alone found no allocator in iteration 1
+  # (CBackend::create() failed, no GPU). Give it the virtual KMS device instead, opened
+  # directly through libseat's noop backend (test user is in the video group).
+  export AQ_DRM_DEVICES="$VKMS_CARD" LIBSEAT_BACKEND=noop
+  echo "compositor backend: DRM on vkms $VKMS_CARD (libseat noop)"
+else
+  export HYPRLAND_HEADLESS_ONLY=1
+  echo "compositor backend: headless only (no vkms device)"
+fi
 
 Hyprland >"$OUT/hyprland-stdout.log" 2>&1 &
 hpid=$!
@@ -19,8 +28,9 @@ for _ in $(seq 1 120); do
 done
 if [[ -z "$sock" ]]; then
   echo "Hyprland did not create its IPC socket (pid alive: $(kill -0 "$hpid" 2>/dev/null && echo yes || echo no))"
-  tail -n 60 "$OUT/hyprland-stdout.log"
+  grep -v -E '^ +[a-zA-Z]+ *[a-zA-Z]*$' "$OUT/hyprland-stdout.log" | tail -n 60
   find "$XDG_RUNTIME_DIR" -maxdepth 3 -name 'hyprland.log' -exec cp {} "$OUT/hyprland.log" \;
+  tail -n 80 "$OUT/hyprland.log"
   echo "hyprland-failed" >"$OUT/compositor-status.txt"
   exit 3
 fi
