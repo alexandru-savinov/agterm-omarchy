@@ -25,6 +25,11 @@ selects the package.
 Runtime source, compiler caches, and fallback downloads use `/var/tmp` by default because Omarchy's
 `/tmp` is usually backed by RAM; an explicit `TMPDIR` overrides that choice.
 Ghostty and zmx share a content-addressed dependency cache during setup.
+The zmx helper uses an explicit `x86_64-linux-gnu.2.39` or `aarch64-linux-gnu.2.39` target
+and Zig's `baseline` CPU, so release binaries do not require the build runner's CPU extensions.
+Its cache records that target and CPU in `BUILD_POLICY` alongside the pinned source/patch `REVISION`.
+Setup rejects older caches without that policy, mismatched policies, and wrong-architecture helpers
+before executing them, then rebuilds zmx while retaining any independently verified Ghostty cache.
 The Swift platform is explicit because older mise releases construct a nonexistent `archarm` download URL.
 Arch's `libxml2-legacy` supplies Swift's required `libxml2.so.2` ABI.
 Only ncurses aliases live in `~/.local/share/agterm/swift-compat` (or under `XDG_DATA_HOME`);

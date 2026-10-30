@@ -93,16 +93,23 @@ cp "$ROOT/scripts/zmx-patches/"*.patch "$SETUP_ROOT/scripts/zmx-patches/"
 cp "$ROOT/scripts/zmx-patches/ghostty/"*.patch "$SETUP_ROOT/scripts/zmx-patches/ghostty/"
 cp "$ROOT/linux/arch.sh" "$ROOT/linux/ghostty-resources.env" "$ROOT/linux/zmx.env" "$SETUP_ROOT/linux/"
 cp -R "$WORK/complete/." "$SETUP_ROOT/agterm-linux/vendor/ghostty/"
-cat > "$SETUP_ROOT/agterm-linux/vendor/zmx/zmx" <<'EOF'
-#!/usr/bin/env bash
-exit 0
-EOF
-chmod 0755 "$SETUP_ROOT/agterm-linux/vendor/zmx/zmx"
+# This helper is executed by the verifier: compile a real ELF for this test host.
+SETUP_ARCH="$(uname -m)"
+case "$SETUP_ARCH" in
+  x86_64) STALE_ARCH=aarch64 ;;
+  aarch64) STALE_ARCH=x86_64 ;;
+  *) echo "unsupported test host: $SETUP_ARCH" >&2; exit 1 ;;
+esac
+printf 'int main(void) { return 0; }\n' > "$WORK/zmx-fixture.c"
+"$ZIG" cc -target "$SETUP_ARCH-linux-gnu.2.39" "$WORK/zmx-fixture.c" \
+  -o "$SETUP_ROOT/agterm-linux/vendor/zmx/zmx"
 printf 'test license\n' > "$SETUP_ROOT/agterm-linux/vendor/zmx/LICENSE"
 # shellcheck source=../linux/zmx.env
 source "$ROOT/linux/zmx.env"
 ZMX_PATCH_DIGEST="$(cat "$ROOT/scripts/zmx-patches"/*.patch "$ROOT/scripts/zmx-patches/ghostty"/*.patch | sha256sum | cut -c1-16)"
 printf '%s %s\n' "$ZMX_REV" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
+printf 'target=%s-linux-gnu.2.39 cpu=%s\n' "$SETUP_ARCH" "$ZMX_CPU" \
+  > "$SETUP_ROOT/agterm-linux/vendor/zmx/BUILD_POLICY"
 cat > "$WORK/git" <<'EOF'
 #!/usr/bin/env bash
 echo "agterm cache test reached the libghostty rebuild path" >&2
@@ -110,16 +117,16 @@ exit 97
 EOF
 chmod 0755 "$WORK/git"
 
-install -m755 "$WORK/libghostty-x86_64.so" \
+install -m755 "$WORK/libghostty-$SETUP_ARCH.so" \
   "$SETUP_ROOT/agterm-linux/vendor/ghostty/lib/libghostty.so"
-AGTERM_TEST_UNAME=x86_64 PATH="$WORK:/usr/bin:/bin" "$SETUP_ROOT/scripts/setup-linux.sh" >/dev/null
+AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:/usr/bin:/bin" "$SETUP_ROOT/scripts/setup-linux.sh" >/dev/null
 
-install -m755 "$WORK/libghostty-aarch64.so" \
+install -m755 "$WORK/libghostty-$STALE_ARCH.so" \
   "$SETUP_ROOT/agterm-linux/vendor/ghostty/lib/libghostty.so"
 setup_output=""
-if setup_output="$(AGTERM_TEST_UNAME=x86_64 PATH="$WORK:$PATH" \
+if setup_output="$(AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" \
     "$SETUP_ROOT/scripts/setup-linux.sh" 2>&1)"; then
-  echo "setup-linux.sh unexpectedly reused a stale aarch64 cache on x86_64" >&2
+  echo "setup-linux.sh unexpectedly reused a stale $STALE_ARCH cache on $SETUP_ARCH" >&2
   exit 1
 fi
 grep -Fq "agterm cache test reached the libghostty rebuild path" <<< "$setup_output"
