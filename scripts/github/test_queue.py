@@ -397,6 +397,12 @@ class TeamTests(unittest.TestCase):
         self.assertEqual((result["headcount"], result["active_posters"]), (43, 3))
         self.assertEqual(result["claims"][0]["latest"]["team"], 12)
 
+    def test_latest_team_report_wins_across_tasks(self):
+        for first, second, expected in ((50, 12, 12), (12, 50, 50)):
+            result = self._snapshot([(7, "lead", "blocked", f"\nTeam: {first}", "2026-10-30T11:00:00Z"),
+                                     (8, "lead", "working", f"\nTeam: {second}", "2026-10-30T11:30:00Z")])
+            self.assertEqual(result["headcount"], expected, (first, second))
+
     def test_stale_complete_and_malformed_teams_do_not_count(self):
         result = self._snapshot([(7, "old", "working", "\nTeam: 50", "2026-10-30T02:00:00Z"),
                                  (7, "done", "complete", "\nTeam: 50", "2026-10-30T11:00:00Z"),

@@ -178,12 +178,12 @@ def snapshot(issues, comments, now=None):
             notes.append("Only complete states observed; availability is not established")
         task["coordination"] = notes
     # Real headcount: a lead posts for its whole team (docs/HIVE_WAVES.md); workers never post.
+    # The newest report wins, so a lead that shrinks its team is counted at its current size.
     teams = {}
-    for claim in claims:
-        latest = claim["latest"]
-        if latest["state"] not in (None, "complete") and not latest["stale"]:
-            identity = (claim["account"].lower(), claim["name"])
-            teams[identity] = max(teams.get(identity, 1), latest["team"] or 1)
+    live = [claim for claim in claims
+            if claim["latest"]["state"] not in (None, "complete") and not claim["latest"]["stale"]]
+    for claim in sorted(live, key=lambda claim: observation_order(claim["latest"])):
+        teams[(claim["account"].lower(), claim["name"])] = claim["latest"]["team"] or 1
     return {"headcount": sum(teams.values()), "active_posters": len(teams),
             "tasks": sorted(tasks, key=lambda item: item["number"]), "agents": latest_agents,
             "claims": claims, "uncertain_observations": sorted(uncertain, key=observation_order)}
