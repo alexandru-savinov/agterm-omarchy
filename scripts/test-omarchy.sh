@@ -8,7 +8,18 @@ export AGTERM_TEST_CTL="${AGTERM_TEST_CTL:-$ROOT/agterm-linux/.build/debug/agter
 export AGTERM_GHOSTTY_RESOURCES="${AGTERM_GHOSTTY_RESOURCES:-$ROOT/agterm-linux/vendor/ghostty/share/ghostty}"
 export AGTERM_TEST_RESTORE_MODE="${AGTERM_TEST_RESTORE_MODE:-none}"
 export AGTERM_OMARCHY_ARTIFACTS="${AGTERM_OMARCHY_ARTIFACTS:-$ROOT/artifacts/omarchy-$(date +%Y%m%d-%H%M%S)}"
+# Run-time harness identity for result/cleanup records; the AGTERM_ prefix keeps these out of the app env.
+AGTERM_HARNESS_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+AGTERM_HARNESS_COMMIT=""
+AGTERM_HARNESS_COMMIT_BLOB=""
+if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  AGTERM_HARNESS_COMMIT="$(git -C "$ROOT" rev-parse --verify -q HEAD || true)"
+  AGTERM_HARNESS_COMMIT_BLOB="$(git -C "$ROOT" rev-parse --verify -q HEAD:scripts/test-omarchy.sh || true)"
+fi
+export AGTERM_HARNESS_PATH AGTERM_HARNESS_COMMIT AGTERM_HARNESS_COMMIT_BLOB
 exec python3 - <<'PY'
+from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -63,6 +74,78 @@ transcript = artifacts / "control.jsonl"
 lua_dispatch = False
 live_endpoint = None
 live_daemons = set()
+SENTINEL_PREFIX = "omarchy-harness-sentinel-"
+
+
+def utc_now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def executable_identity(path):
+    """Content identity of an executable without publishing its absolute (possibly private) path."""
+    record = {"name": os.path.basename(path or ""), "sha256": None}
+    try:
+        resolved = os.path.realpath(path)
+        with open(resolved, "rb") as handle:
+            magic = handle.read(4)
+        record.update(resolved_name=os.path.basename(resolved), sha256=sha256_file(resolved),
+                      kind="elf" if magic == b"\x7fELF" else "script" if magic[:2] == b"#!" else "other")
+    except (OSError, TypeError) as error:
+        record["error"] = type(error).__name__
+    return record
+
+
+def harness_identity(path, commit, commit_blob):
+    """sha256 of the harness bytes actually executed, plus whether they equal HEAD's committed blob."""
+    record = {"sha256": None, "git_commit": commit or None, "git_blob": None, "matches_commit": None}
+    try:
+        data = Path(path).read_bytes()
+    except (OSError, TypeError) as error:
+        record["error"] = type(error).__name__
+        return record
+    record["sha256"] = hashlib.sha256(data).hexdigest()
+    record["git_blob"] = hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+    if commit_blob:
+        record["matches_commit"] = record["git_blob"] == commit_blob
+    return record
+
+
+def note_app_process(process):
+    """Hash the image the kernel is running, which a launcher script cannot hide."""
+    entry = {"launch": len(identity["app_processes"]) + 1, "sha256": None}
+    try:
+        exe = f"/proc/{process.pid}/exe"
+        entry.update(exe_name=os.path.basename(os.readlink(exe)), sha256=sha256_file(exe))
+    except OSError as error:
+        entry["error"] = type(error).__name__
+    identity["app_processes"].append(entry)
+
+
+def with_identity(payload):
+    return dict(payload, identity=dict(identity, ended_at_utc=utc_now()))
+
+
+identity = {
+    "schema": "agterm-omarchy-run-identity/1",
+    "run_id": uuid.uuid4().hex,
+    "artifact_dir_name": artifacts.name,
+    "started_at_utc": utc_now(),
+    "harness": harness_identity(os.environ.get("AGTERM_HARNESS_PATH"), os.environ.get("AGTERM_HARNESS_COMMIT"),
+                                os.environ.get("AGTERM_HARNESS_COMMIT_BLOB")),
+    "binaries": {"app": executable_identity(os.environ["AGTERM_TEST_BIN"]),
+                 "cli": executable_identity(os.environ["AGTERM_TEST_CTL"]), "zmx": None},
+    "app_processes": [],
+    "zmx_list": [],
+    "positive_control": None,
+}
 
 
 def command(argv, **kwargs):
@@ -168,6 +251,9 @@ def remember_live_daemons():
     assert re.fullmatch(r"/tmp/agterm-zmx-[0-9a-f]{16}", endpoint["socketDirectory"])
     assert Path(endpoint["executable"]).is_absolute()
     assert live_endpoint is None or live_endpoint == endpoint, "test zmx endpoint changed"
+    if live_endpoint is None:
+        identity["binaries"]["zmx"] = executable_identity(endpoint["executable"])
+        identity["zmx_socket_directory_name"] = os.path.basename(endpoint["socketDirectory"])
     live_endpoint = endpoint
     for entry in inventory["entries"]:
         if entry["state"] == "claimed":
@@ -176,36 +262,101 @@ def remember_live_daemons():
             live_daemons.add(name)
 
 
-def cleanup_live_daemons():
+def zmx_invoke(*args):
+    """Run the saved endpoint's zmx; every listing records exit code, row count and stderr size."""
+    zmx_env = dict(env, ZMX_DIR=live_endpoint["socketDirectory"])
+    for key in ("ZMX_SESSION", "ZMX_SESSION_PREFIX"):
+        zmx_env.pop(key, None)
+    completed = subprocess.run([live_endpoint["executable"], *args], env=zmx_env, text=True,
+                               capture_output=True, timeout=5, check=False, stdin=subprocess.DEVNULL)
+    if args[0] == "list":
+        identity["zmx_list"].append({"at_utc": utc_now(), "exit_code": completed.returncode,
+                                     "stdout_rows": len(completed.stdout.splitlines()),
+                                     "stderr_bytes": len(completed.stderr.encode())})
+    if completed.returncode:
+        raise subprocess.CalledProcessError(completed.returncode, args[0], completed.stdout, completed.stderr)
+    return completed
+
+
+def parse_zmx_list(stdout):
+    names = set()
+    for line in stdout.splitlines():
+        line = line.strip().removeprefix("→ ")
+        fields = line.split("\t")
+        matches = [field.removeprefix("name=") for field in fields if field.startswith("name=")]
+        if len(matches) != 1 or not matches[0]:
+            raise RuntimeError("unrecognized zmx list row; refusing to assume cleanup succeeded")
+        names.add(matches[0])
+    return names
+
+
+def zmx_kill_confirmed(name, what):
+    killed = zmx_invoke("kill", name, "--force")
+    lines = (killed.stdout + killed.stderr).splitlines()
+    if f"killed session {name}" not in (line.strip() for line in lines):
+        raise RuntimeError(f"zmx did not confirm the {what} was killed")
+
+
+def start_zmx_sentinel():
+    """Positive control: a foreign (non-agterm) session in the saved endpoint, created before teardown.
+
+    An empty listing is also what a wrong, missing or unusable ZMX_DIR yields, so cleanup may treat
+    "no test daemon listed" as proof only while the same command still lists this live sentinel.
+    """
+    if not live_endpoint or not live_daemons:
+        return None
+    name = SENTINEL_PREFIX + uuid.uuid4().hex[:12]
+    control = identity["positive_control"] = {
+        "name": name, "created": False, "listed_before_teardown": False, "listed_after_teardown": False,
+        "killed_confirmed": False, "absent_after_kill": False, "passed": False,
+    }
+    try:
+        zmx_invoke("run", name, "-d", "true")
+        control["created"] = True
+        deadline = time.monotonic() + 5
+        while name not in zmx_present():
+            if time.monotonic() > deadline:
+                raise RuntimeError("positive-control sentinel was never listed")
+            time.sleep(0.2)
+        control["listed_before_teardown"] = True
+    except (OSError, subprocess.SubprocessError, RuntimeError) as error:
+        control["error"] = str(error)[:200]
+        print(f"zmx positive control failed: {error}")
+    return name
+
+
+def zmx_present():
+    return parse_zmx_list(zmx_invoke("list").stdout)
+
+
+def cleanup_live_daemons(sentinel=None):
     """Use the saved isolated endpoint even if restarting the frontend failed."""
     if not live_endpoint or not live_daemons:
         return True
-    cleanup_env = dict(env, ZMX_DIR=live_endpoint["socketDirectory"])
-    for key in ("ZMX_SESSION", "ZMX_SESSION_PREFIX"):
-        cleanup_env.pop(key, None)
-    def invoke(*args):
-        return subprocess.run([live_endpoint["executable"], *args], env=cleanup_env,
-                              text=True, capture_output=True, timeout=5, check=True)
-    def present():
-        names = set()
-        for line in invoke("list").stdout.splitlines():
-            line = line.strip().removeprefix("→ ")
-            fields = line.split("\t")
-            matches = [field.removeprefix("name=") for field in fields if field.startswith("name=")]
-            if len(matches) != 1 or not matches[0]:
-                raise RuntimeError("unrecognized zmx list row; refusing to assume cleanup succeeded")
-            names.add(matches[0])
-        return names
+    control = identity["positive_control"] or {}
     try:
-        for name in sorted(live_daemons & present()):
-            killed = invoke("kill", name, "--force")
-            lines = (killed.stdout + killed.stderr).splitlines()
-            if f"killed session {name}" not in (line.strip() for line in lines):
-                raise RuntimeError("zmx did not confirm the test daemon was killed")
-        if live_daemons & present():
-            raise RuntimeError("test-owned zmx daemons remain after cleanup")
+        try:
+            for name in sorted(live_daemons & zmx_present()):
+                zmx_kill_confirmed(name, "test daemon")
+            remaining = zmx_present()
+            if live_daemons & remaining:
+                raise RuntimeError("test-owned zmx daemons remain after cleanup")
+            if sentinel is None or not control.get("listed_before_teardown"):
+                raise RuntimeError("no positive-control sentinel was listed; an empty listing proves nothing")
+            if sentinel not in remaining:
+                raise RuntimeError("positive-control sentinel not listed after teardown; listing cannot prove absence")
+            control["listed_after_teardown"] = True
+        finally:
+            if sentinel is not None and control.get("created"):
+                zmx_kill_confirmed(sentinel, "positive-control sentinel")
+                control["killed_confirmed"] = True
+                if sentinel in zmx_present():
+                    raise RuntimeError("positive-control sentinel remains after kill")
+                control["absent_after_kill"] = True
+        control["passed"] = True
         return True
     except (OSError, subprocess.SubprocessError, RuntimeError) as error:
+        control.setdefault("error", str(error)[:200])
         print(f"isolated zmx cleanup failed: {error}")
         return False
 
@@ -215,6 +366,7 @@ try:
         app = subprocess.Popen([os.environ["AGTERM_TEST_BIN"]], env=env, stdout=log, stderr=log,
                                start_new_session=True)
     wait_for(lambda: Path(env["AGTERM_CONTROL_SOCKET"]).is_socket(), "isolated control socket")
+    note_app_process(app)
     wait_for(client, "Hyprland window")
     initial = wait_for(sessions, "initial terminal session")[0]["id"]
     wait_for(lambda: session(initial).get("realized"), "initial terminal GL surface ready")
@@ -237,6 +389,7 @@ try:
             app = subprocess.Popen([os.environ["AGTERM_TEST_BIN"]], env=env, stdout=log, stderr=log,
                                    start_new_session=True)
         wait_for(lambda: Path(env["AGTERM_CONTROL_SOCKET"]).is_socket(), "restarted control socket")
+        note_app_process(app)
         wait_for(lambda: session(initial).get("realized"), "restored Live terminal GL surface ready")
         shell(initial, "printf '%s' \"$$\" > " + shlex.quote(str(after)))
         assert before.read_text() == after.read_text(), "Live restart replaced the shell process"
@@ -287,11 +440,12 @@ try:
                     "Theme parser error: <data>", "Theme parser warning: <data>"):
         assert failure not in log, failure
     checks.append("no terminal GL-context or app CSS failures")
-    (artifacts / "result.json").write_text(json.dumps({
+    (artifacts / "result.json").write_text(json.dumps(with_identity({
         "passed": True, "restore_mode": restore_mode, "checks": checks,
-    }, indent=2))
+    }), indent=2))
     print("PASS: " + "; ".join(checks))
 finally:
+    sentinel = start_zmx_sentinel()
     if app and app.poll() is None:
         try:
             for item in sessions():
@@ -305,16 +459,18 @@ finally:
         except subprocess.TimeoutExpired:
             app.kill()
             app.wait(timeout=5)
-    cleanup_ok = cleanup_live_daemons()
-    (artifacts / "cleanup.json").write_text(json.dumps({
+    cleanup_ok = cleanup_live_daemons(sentinel)
+    (artifacts / "cleanup.json").write_text(json.dumps(with_identity({
         "passed": cleanup_ok, "tracked_daemon_count": len(live_daemons),
-    }, indent=2))
+    }), indent=2))
     if not cleanup_ok:
-        (artifacts / "result.json").write_text(json.dumps({
+        (artifacts / "result.json").write_text(json.dumps(with_identity({
             "passed": False, "cleanup_passed": False, "completed_checks": checks,
-        }, indent=2))
+        }), indent=2))
     elif not (artifacts / "result.json").exists():
-        (artifacts / "result.json").write_text(json.dumps({"passed": False, "completed_checks": checks}, indent=2))
+        (artifacts / "result.json").write_text(json.dumps(with_identity({
+            "passed": False, "completed_checks": checks,
+        }), indent=2))
     shutil.copytree(state, artifacts / "state", dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns("*.sock", "*.lock"))
     if cleanup_ok:

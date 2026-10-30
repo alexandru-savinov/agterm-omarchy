@@ -1,24 +1,30 @@
 #!/usr/bin/env python3
 """Exercise the embedded smoke runner's actual finally block after a failed restart."""
 import ast
+from datetime import datetime, timezone
+import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+import uuid
 
 
 SOURCE = Path(__file__).resolve().parents[1] / "test-omarchy.sh"
 PYTHON = SOURCE.read_text().split("exec python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
 MODULE = ast.parse(PYTHON)
-CLEANUP = next(node for node in MODULE.body
-               if isinstance(node, ast.FunctionDef) and node.name == "cleanup_live_daemons")
+# Every helper (cleanup, zmx invocation, positive control, identity records) plus the real finally block.
+HELPERS = [node for node in MODULE.body if isinstance(node, ast.FunctionDef) or (
+    isinstance(node, ast.Assign) and [getattr(t, "id", None) for t in node.targets] == ["SENTINEL_PREFIX"])]
 FINALLY = next(node.finalbody for node in reversed(MODULE.body) if isinstance(node, ast.Try))
-CODE = compile(ast.fix_missing_locations(ast.Module(body=[CLEANUP, *FINALLY], type_ignores=[])),
+CODE = compile(ast.fix_missing_locations(ast.Module(body=[*HELPERS, *FINALLY], type_ignores=[])),
                str(SOURCE), "exec")
 OWNED = "agterm-" + "1" * 32
 FOREIGN = "agterm-" + "2" * 32
@@ -37,6 +43,7 @@ class FailedRestartCleanupTests(unittest.TestCase):
             (artifacts / "result.json").write_text('{"passed": true}')
             calls = []
             remaining = {OWNED, FOREIGN}
+            sentinels = []
 
             def invoke(argv, **kwargs):
                 self.assertTrue(run.exists(), "state removed before daemon cleanup")
@@ -44,6 +51,15 @@ class FailedRestartCleanupTests(unittest.TestCase):
                 self.assertEqual(kwargs["env"]["ZMX_DIR"], "/tmp/agterm-zmx-0123456789abcdef")
                 self.assertNotIn("ZMX_SESSION", kwargs["env"])
                 self.assertNotIn("ZMX_SESSION_PREFIX", kwargs["env"])
+                if argv[1] == "run":
+                    self.assertRegex(argv[2], r"^omarchy-harness-sentinel-[0-9a-f]{12}$")
+                    self.assertEqual(argv[3:], ["-d", "true"])
+                    sentinels.append(argv[2])
+                    remaining.add(argv[2])
+                    return SimpleNamespace(stdout="", stderr="", returncode=0)
+                if argv[1] == "kill" and argv[2] in sentinels:
+                    remaining.discard(argv[2])
+                    return SimpleNamespace(stdout="", stderr=f"killed session {argv[2]}\n", returncode=0)
                 if argv[1] == "kill":
                     self.assertEqual(argv, ["/test/zmx", "kill", OWNED, "--force"])
                     if fail_kill:
@@ -55,10 +71,12 @@ class FailedRestartCleanupTests(unittest.TestCase):
                 self.assertEqual(argv[1:], ["list"])
                 # The pinned CLI indents detached rows; attached rows can have an arrow prefix.
                 output = "unrecognized row\n" if malformed else "".join(
-                    f"{'  ' if name == OWNED else '→ '}name={name}\tclients=0\n" for name in remaining)
+                    f"{'  ' if name == OWNED else '→ '}name={name}\tclients=0\n" for name in sorted(remaining))
                 return SimpleNamespace(stdout=output, stderr="", returncode=0)
 
-            namespace = dict(subprocess=subprocess, json=json, re=re, shutil=shutil,
+            namespace = dict(subprocess=subprocess, json=json, re=re, shutil=shutil, os=os, time=time,
+                             uuid=uuid, hashlib=hashlib, datetime=datetime, timezone=timezone, Path=Path,
+                             identity={"run_id": "test", "zmx_list": [], "positive_control": None},
                              app=None if missing_process else SimpleNamespace(poll=lambda: 1),
                              run=run, state=state, artifacts=artifacts, checks=[],
                              env={"ZMX_SESSION": "inherited", "ZMX_SESSION_PREFIX": "unsafe"},
@@ -78,11 +96,12 @@ class FailedRestartCleanupTests(unittest.TestCase):
             self.assertTrue((artifacts / "state/settings.json").exists())
             return calls
 
+    # run sentinel, list (sentinel seen), list, kill owned, list, kill sentinel, list
     def test_exited_replacement_cleans_only_saved_test_daemons(self):
-        self.assertEqual(len(self.scenario()), 3)
+        self.assertEqual(len(self.scenario()), 7)
 
     def test_missing_replacement_process_still_cleans_saved_daemons(self):
-        self.assertEqual(len(self.scenario(missing_process=True)), 3)
+        self.assertEqual(len(self.scenario(missing_process=True)), 7)
 
     def test_failed_backend_cleanup_preserves_recovery_state_and_fails_result(self):
         self.scenario(fail_kill=True)
