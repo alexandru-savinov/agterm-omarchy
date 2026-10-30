@@ -192,6 +192,25 @@ def pages(repository, endpoint, token):
     raise RuntimeError("snapshot exceeds pagination limit; no partial snapshot published")
 
 
+def group_comments(issues, comments):
+    """Group repository-wide issue comments by issue number; drop PR comments and unknown issues."""
+    wanted = {issue["number"] for issue in issues if "pull_request" not in issue}
+    grouped = {}
+    for comment in comments:
+        number = int(comment["issue_url"].rstrip("/").rsplit("/", 1)[1])
+        if number in wanted:
+            grouped.setdefault(number, []).append(comment)
+    return grouped
+
+
+def fetch(repository, token, fetch_pages=pages):
+    issues = fetch_pages(repository, "issues?state=all", token)
+    # One paginated stream for every comment in the repository: ceil(n/100) requests,
+    # not one per issue, so a wave of agents does not exhaust the job token's budget.
+    comments = fetch_pages(repository, "issues/comments?sort=created&direction=asc", token)
+    return issues, group_comments(issues, comments)
+
+
 def markdown(data):
     def escape(value):
         text = re.sub(r"([\\`*_{}\[\]()#+.!|~-])", r"\\\1", " ".join(str(value).splitlines()))
@@ -257,9 +276,7 @@ def main():
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
         raise SystemExit("invalid repository name")
     token = os.environ["GITHUB_TOKEN"]
-    issues = pages(repository, "issues?state=all", token)
-    comments = {issue["number"]: pages(repository, f"issues/{issue['number']}/comments", token)
-                for issue in issues if "pull_request" not in issue and issue["comments"]}
+    issues, comments = fetch(repository, token)
     # One clock read after the fetch; published as observed_at so every age can be recomputed.
     now = datetime.datetime.now(datetime.timezone.utc)
     data = snapshot(issues, comments, now)

@@ -1,5 +1,5 @@
 import unittest
-from queue import checkin, markdown, snapshot
+from queue import checkin, fetch, markdown, snapshot
 
 
 class QueueTests(unittest.TestCase):
@@ -350,6 +350,29 @@ class SessionCollisionTests(unittest.TestCase):
         body = "Agent: codex\nTask: #7\nSession: a1b2\nOwned paths: docs/x.md\nState: working"
         self.assertIsNone(checkin(body)["task"])
         self.assertEqual(checkin(body + "\nSession: a1b2")["state"], None)
+
+
+class FetchTests(unittest.TestCase):
+    def test_comments_come_from_one_stream_grouped_by_issue(self):
+        issues = [{"number": n, "title": "Task", "state": "open", "html_url": f"https://example.test/{n}",
+                   "comments": 3} for n in range(1, 41)] + [{"number": 99, "pull_request": {}, "comments": 3}]
+        stream = [{"issue_url": f"https://api.github.com/repos/o/r/issues/{n}", "id": n * 10 + k,
+                   "body": "Agent: alpha\nTask: #1\nOwned paths: a.py\nState: working",
+                   "user": {"login": "shared"}, "html_url": f"https://example.test/c{n}-{k}",
+                   "updated_at": "2026-10-30T10:00:00Z"} for n in list(range(1, 41)) + [99] for k in range(3)]
+        requests = []
+        def fake_pages(repository, endpoint, token):
+            requests.append(endpoint)
+            if endpoint.startswith("issues?"):
+                return issues
+            self.assertEqual(endpoint, "issues/comments?sort=created&direction=asc")
+            return stream
+        got_issues, grouped = fetch("o/r", "t", fake_pages)
+        self.assertEqual(len(requests), 2)  # never one request per issue
+        self.assertEqual(sorted(grouped), list(range(1, 41)))  # PR #99 dropped
+        self.assertTrue(all(len(grouped[n]) == 3 for n in grouped))
+        self.assertEqual([c["id"] for c in grouped[7]], [70, 71, 72])  # order preserved
+        self.assertEqual(len(snapshot(got_issues, grouped)["claims"]), 1)
 
 
 if __name__ == "__main__":
