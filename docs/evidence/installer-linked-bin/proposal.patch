@@ -1,0 +1,24 @@
+--- a/scripts/install-linux.sh
++++ b/scripts/install-linux.sh
+@@ -58,11 +58,18 @@
+   exit 1
+ fi
+ mkdir -p "$PREFIX/bin" "$PREFIX/share/applications" "$PREFIX/share/icons" "$PREFIX/share/pixmaps"
+-ln -sfn ../lib/agterm/bin/agterm-linux "$PREFIX/bin/agterm-linux"
+-ln -sfn ../lib/agterm/bin/agtermctl "$PREFIX/bin/agtermctl"
+ python3 - "$PREFIX" <<'PY'
+-import pathlib, sys
++import os, pathlib, sys
+ prefix = pathlib.Path(sys.argv[1])
++# Resolve the directory containing each link before calculating its relative target.
++# This preserves normal prefix relocation and also supports a symlinked bin directory.
++for name in ('agterm-linux', 'agtermctl'):
++    link = prefix / 'bin' / name
++    target = (prefix / 'lib/agterm/bin' / name).resolve()
++    relative = os.path.relpath(target, link.parent.resolve())
++    if link.is_symlink() or link.exists():
++        link.unlink()
++    link.symlink_to(relative)
+ source = prefix / 'lib/agterm/share/applications/io.github.melonamin.agterm.desktop'
+ # Desktop Entry Exec has its own escaping, separate from shell quoting.
+ executable = str(prefix / 'bin/agterm-linux').replace('%', '%%')
