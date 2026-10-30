@@ -287,5 +287,70 @@ class ClaimHistoryTests(unittest.TestCase):
         self.assertIn("Potential conflict", " ".join(task["coordination"]))
 
 
+class SessionCollisionTests(unittest.TestCase):
+    NOW = "2026-10-30T12:00:00+00:00"
+
+    def _snapshot(self, reports):
+        """reports: (task, name, state, session or None, created_at)."""
+        import datetime
+        issues = [{"number": n, "title": "Task", "state": "open", "html_url": f"https://example.test/{n}"}
+                  for n in (7, 8)]
+        comments = {7: [], 8: []}
+        for order, (task, name, state, session, created) in enumerate(reports):
+            body = f"Agent: {name}\nTask: #{task}\nOwned paths: docs/x.md\nState: {state}"
+            if session is not None:
+                body += f"\nSession: {session}"
+            comments[task].append({"body": body + "\nEvidence: none", "user": {"login": "shared"},
+                                   "html_url": f"https://example.test/c{order}",
+                                   "created_at": created, "updated_at": created})
+        return snapshot(issues, comments, datetime.datetime.fromisoformat(self.NOW))
+
+    def notes(self, result):
+        return {task["number"]: " ".join(task["coordination"]) for task in result["tasks"]}
+
+    def test_two_sessions_under_one_name_are_flagged_on_both_tasks(self):
+        notes = self.notes(self._snapshot([(7, "codex", "working", "a1b2", "2026-10-30T11:00:00Z"),
+                                           (8, "codex", "working", "c3d4", "2026-10-30T11:10:00Z")]))
+        for number in (7, 8):
+            self.assertIn("Name collision: shared/codex posted from 2 sessions", notes[number])
+
+    def test_one_session_on_two_tasks_is_not_a_collision(self):
+        notes = self.notes(self._snapshot([(7, "codex", "working", "a1b2", "2026-10-30T11:00:00Z"),
+                                           (8, "codex", "blocked", "a1b2", "2026-10-30T11:10:00Z")]))
+        self.assertNotIn("Name collision", " ".join(notes.values()))
+
+    def test_checkins_without_session_never_collide_and_parse_as_before(self):
+        result = self._snapshot([(7, "codex", "working", None, "2026-10-30T11:00:00Z"),
+                                 (8, "codex", "working", "c3d4", "2026-10-30T11:10:00Z")])
+        self.assertNotIn("Name collision", " ".join(self.notes(result).values()))
+        self.assertEqual([claim["latest"]["uncertainties"] for claim in result["claims"]], [[], []])
+        self.assertIsNone(result["claims"][0]["latest"]["session"])
+
+    def test_stale_or_complete_old_session_is_not_a_collision(self):
+        for task7 in ((7, "codex", "working", "a1b2", "2026-10-30T02:00:00Z"),
+                      (7, "codex", "complete", "a1b2", "2026-10-30T11:00:00Z")):
+            with self.subTest(task7=task7):
+                notes = self.notes(self._snapshot([task7, (8, "codex", "working", "c3d4",
+                                                           "2026-10-30T11:10:00Z")]))
+                self.assertNotIn("Name collision", " ".join(notes.values()))
+
+    def test_different_names_with_different_sessions_are_not_a_collision(self):
+        notes = self.notes(self._snapshot([(7, "alpha", "working", "a1b2", "2026-10-30T11:00:00Z"),
+                                           (8, "beta", "working", "c3d4", "2026-10-30T11:10:00Z")]))
+        self.assertNotIn("Name collision", " ".join(notes.values()))
+
+    def test_malformed_session_makes_the_block_uncertain(self):
+        for session in ("AB12", "abc", "a" * 17, "a1-b2", ""):
+            with self.subTest(session=session):
+                result = self._snapshot([(7, "codex", "working", session, "2026-10-30T11:00:00Z")])
+                self.assertEqual(result["claims"], [])
+                self.assertEqual(len(result["uncertain_observations"]), 1)
+
+    def test_session_must_follow_state(self):
+        body = "Agent: codex\nTask: #7\nSession: a1b2\nOwned paths: docs/x.md\nState: working"
+        self.assertIsNone(checkin(body)["task"])
+        self.assertEqual(checkin(body + "\nSession: a1b2")["state"], None)
+
+
 if __name__ == "__main__":
     unittest.main()

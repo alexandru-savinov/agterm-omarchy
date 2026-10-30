@@ -21,13 +21,13 @@ def checkin(body):
                          lines[header_index].rstrip(" "), re.IGNORECASE)
     if not match:
         return None
-    labels = {"task": "Task", "owned paths": "Owned paths", "state": "State"}
+    labels = {"task": "Task", "owned paths": "Owned paths", "state": "State", "session": "Session"}
     fields = {key: [] for key in labels}
     sequence, uncertainties = [], []
     # Parse a small data format, not Markdown. Only the immediate, canonical
     # field block can advance a claim; keep rejected raw fields for diagnosis.
     for line in lines[header_index + 1:]:
-        field = re.fullmatch(r"(Task|Owned paths|State): ?(.*)", line, re.IGNORECASE)
+        field = re.fullmatch(r"(Task|Owned paths|State|Session): ?(.*)", line, re.IGNORECASE)
         if not field:
             break
         key, value = field[1].lower(), field[2]
@@ -35,11 +35,15 @@ def checkin(body):
         sequence.append(key)
         if line != f"{labels[key]}: {value}":
             uncertainties.append("field block: use exact labels followed by one space")
-    if sequence != list(labels):
-        uncertainties.append("field block: expected exactly Task, Owned paths, State in that order")
+    required = ["task", "owned paths", "state"]
+    if sequence not in (required, required + ["session"]):
+        uncertainties.append("field block: expected exactly Task, Owned paths, State in that order, "
+                             "optionally followed by Session")
     values = {}
     for key, entries in fields.items():
-        if len(entries) != 1 or not entries[0]:
+        if key == "session" and not entries:
+            values[key] = None
+        elif len(entries) != 1 or not entries[0]:
             uncertainties.append(f"{key}: {'duplicate' if len(entries) > 1 else 'missing or empty'} field")
             values[key] = None
         else:
@@ -58,12 +62,15 @@ def checkin(body):
     if state is not None and state not in ("working", "blocked", "ready-for-review", "complete"):
         uncertainties.append("state: unrecognized value")
         state = None
+    session = values["session"]
+    if session is not None and not re.fullmatch(r"[a-z0-9]{4,16}", session):
+        uncertainties.append("session: expected 4-16 lowercase letters or digits")
     if uncertainties:
         # Even a syntactically valid Task cannot let an ambiguous later comment
         # replace an earlier observation. Raw fields remain in the report.
         task = state = None
     return {"name": (match[1] or match[2]).lower(), "task": int(task[1:]) if task else None,
-            "owned_paths": values["owned paths"], "state": state,
+            "owned_paths": values["owned paths"], "state": state, "session": session,
             "field_values": fields, "uncertainties": uncertainties}
 
 
@@ -132,6 +139,14 @@ def snapshot(issues, comments, now=None):
             latest["age_seconds"] = max(0, int((now - parse_time(latest["created_at"])).total_seconds()))
             # Only a quiet `working` claim is stale; blocked/ready-for-review wait on others.
             latest["stale"] = latest["state"] == "working" and latest["age_seconds"] > STALE_AFTER_SECONDS
+    # One name, several live sessions: two runs share a name and the queue cannot tell them apart.
+    sessions_by_identity = {}
+    for claim in claims:
+        latest = claim["latest"]
+        if latest["state"] not in (None, "complete") and not latest["stale"] and latest["session"]:
+            sessions_by_identity.setdefault((claim["account"].lower(), claim["name"]), set()).add(latest["session"])
+    collisions = [(account, name, len(sessions))
+                  for (account, name), sessions in sorted(sessions_by_identity.items()) if len(sessions) > 1]
     for task in tasks:
         observations = [claim["latest"] for claim in claims if claim["task"] == task["number"]]
         task["observed_claims"] = observations
@@ -144,6 +159,10 @@ def snapshot(issues, comments, now=None):
             if record["stale"]:
                 notes.append(f"Stale working claim: {record['account']}/{record['name']} "
                              f"({age_text(record['age_seconds'])} without a check-in; see takeover rule)")
+        for account, name, sessions in collisions:
+            if any((record["account"].lower(), record["name"]) == (account, name) for record in fresh):
+                notes.append(f"Name collision: {account}/{name} posted from {sessions} sessions; "
+                             "use distinct agent names (or re-post after a restart)")
         if any(record["uncertainties"] for record in observations):
             notes.append("Uncertain fields: read the source comments")
         if task["state"] == "closed" and active:
