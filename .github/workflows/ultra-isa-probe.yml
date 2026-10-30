@@ -1,0 +1,123 @@
+# Diagnostic probe for #58 / #52: does the hosted zmx from trusted CI run
+# 40957588704 need CPU extensions beyond its architecture baseline?
+# Runs the unchanged hosted binaries under qemu-user with CPU models that
+# lack or have the suspect extensions, and records exit codes and signals.
+# Push-only branch ultra/isa-probe; no PR, no release, no secrets beyond GITHUB_TOKEN.
+name: ultra ISA probe
+
+on:
+  push:
+    branches: [ultra/isa-probe]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SOURCE_RUN: "40957588704"
+  SOURCE_SHA: fa64d44f37d472bb43acdcd3458d33cb159708dc
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            qemu: qemu-aarch64
+            archive_sha256: 17bc64248c8f83aadc9ff5cb793c4c1540dc5cbc1ed027bdb211ae414bfaac2a
+            zmx_sha256: ae0415a4f3281813fc8c963f4c6a9e7582b4c2ff24870334da328a04c0c5d35f
+            # cpu model list: baseline v8.0, v8.2 without SVE, full features with SVE switched off, full features
+            cpus: "cortex-a53 cortex-a72 neoverse-n1 max,sve=off max,sve=off,pauth=off a64fx max"
+          - arch: x86_64
+            runner: ubuntu-24.04
+            qemu: qemu-x86_64
+            archive_sha256: 1d2fc12e4e274d3bc0f204e8c4b723426de67ca715740527cb2268ffbc950d05
+            zmx_sha256: ""
+            # qemu64 = x86-64 v1-ish, Nehalem = v2 (no AVX), SandyBridge = AVX without AVX2, Haswell = v3, max
+            cpus: "qemu64 Nehalem SandyBridge Haswell max"
+    name: probe (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - name: Download trusted payload cross-run
+        uses: actions/download-artifact@v4
+        with:
+          name: agterm-omarchy-${{ matrix.arch }}-${{ env.SOURCE_SHA }}
+          run-id: ${{ env.SOURCE_RUN }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/dl
+      - name: Verify archive and extract
+        env:
+          ARCHIVE_SHA256: ${{ matrix.archive_sha256 }}
+          ZMX_SHA256: ${{ matrix.zmx_sha256 }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/dl/agterm-omarchy-$ARCH.tar.gz"
+          echo "$ARCHIVE_SHA256  $archive" | sha256sum --check
+          mkdir "$RUNNER_TEMP/x"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/x"
+          sha256sum "$RUNNER_TEMP/x/agterm-stage/bin/zmx"
+          if [ -n "$ZMX_SHA256" ]; then
+            echo "$ZMX_SHA256  $RUNNER_TEMP/x/agterm-stage/bin/zmx" | sha256sum --check
+          fi
+      - name: Runner CPU facts
+        run: |
+          set -u
+          uname -m
+          lscpu || true
+          grep -m1 -E '^(Features|flags)' /proc/cpuinfo || true
+          grep -m4 -E '^(CPU implementer|CPU part|model name)' /proc/cpuinfo || true
+      - name: Install qemu-user
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends qemu-user
+          ${{ matrix.qemu }} --version | head -1
+      - name: Run hosted zmx under each CPU model
+        env:
+          QEMU: ${{ matrix.qemu }}
+          CPUS: ${{ matrix.cpus }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -u
+          zmx="$RUNNER_TEMP/x/agterm-stage/bin/zmx"
+          export HOME="$RUNNER_TEMP/home" XDG_RUNTIME_DIR="$RUNNER_TEMP/run"
+          mkdir -p "$HOME" "$XDG_RUNTIME_DIR"; chmod 700 "$XDG_RUNTIME_DIR"
+          results="$RUNNER_TEMP/results.tsv"
+          printf 'arch\tcpu\targ\texit\tsignal\tfirst_stderr_line\n' > "$results"
+          run_one() {
+            cpu="$1"; shift
+            if [ "$cpu" = "host-native" ]; then
+              timeout 60 "$zmx" "$@" > "$RUNNER_TEMP/out" 2> "$RUNNER_TEMP/err"
+            else
+              timeout 60 "$QEMU" -cpu "$cpu" "$zmx" "$@" > "$RUNNER_TEMP/out" 2> "$RUNNER_TEMP/err"
+            fi
+            rc=$?
+            sig=""
+            if [ "$rc" -gt 128 ] && [ "$rc" -lt 160 ]; then sig="$(kill -l $((rc - 128)) 2>/dev/null || true)"; fi
+            first="$(head -c 160 "$RUNNER_TEMP/err" | head -1 | tr '\t' ' ')"
+            printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$ARCH" "$cpu" "$*" "$rc" "$sig" "$first" >> "$results"
+          }
+          for arg in version help; do
+            run_one host-native "$arg"
+            for cpu in $CPUS; do run_one "$cpu" "$arg"; done
+          done
+          column -t -s "$(printf '\t')" "$results"
+          {
+            echo "### zmx under qemu-user ($ARCH, source run $SOURCE_RUN)"
+            echo
+            echo '| cpu | arg | exit | signal | first stderr line |'
+            echo '|---|---|---|---|---|'
+            tail -n +2 "$results" | awk -F'\t' '{printf "| %s | %s | %s | %s | %s |\n", $2, $3, $4, $5, $6}'
+          } >> "$GITHUB_STEP_SUMMARY"
+          cp "$results" "$RUNNER_TEMP/isa-probe-$ARCH.tsv"
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: isa-probe-${{ matrix.arch }}
+          path: ${{ runner.temp }}/isa-probe-${{ matrix.arch }}.tsv
+          retention-days: 14
