@@ -1,0 +1,99 @@
+name: Semgrep and OSV-Scanner
+
+# Keyless scanners from the security scout (#45 ledger): Semgrep Community Edition
+# (SAST for Swift, Python, shell, JS) and OSV-Scanner (known vulnerabilities in
+# lockfiles, public OSV.dev). Both run as plain commands, so no third-party action
+# is added to the allowlist. Pull requests that touch this file scan without
+# uploading; main, the weekly schedule and manual runs upload SARIF to code scanning.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/semgrep-osv.yml]
+  schedule:
+    - cron: '41 5 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: semgrep-osv-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  SEMGREP_VERSION: "1.183.0"
+  OSV_VERSION: "v2.7.0"
+  OSV_SHA256: "160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b"
+
+jobs:
+  semgrep:
+    name: Semgrep CE
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Semgrep
+        env:
+          PIP_CONFIG_FILE: /dev/null
+        run: |
+          python3 -m venv "$RUNNER_TEMP/semgrep-venv"
+          "$RUNNER_TEMP/semgrep-venv/bin/python" -m pip install --disable-pip-version-check \
+            --only-binary=:all: --index-url https://pypi.org/simple "semgrep==${SEMGREP_VERSION}"
+      - name: Scan with a named rule pack (no token, metrics off)
+        run: |
+          "$RUNNER_TEMP/semgrep-venv/bin/semgrep" scan --config p/default --metrics=off \
+            --sarif --output semgrep.sarif
+          python3 -c 'import json; r=json.load(open("semgrep.sarif"))["runs"][0]["results"]; print(f"semgrep results: {len(r)}")'
+      - name: Upload SARIF
+        if: github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  osv:
+    name: OSV-Scanner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download checksum-verified OSV-Scanner
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/osv-scanner" \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SHA256}  $RUNNER_TEMP/osv-scanner" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/osv-scanner"
+      - name: Scan lockfiles
+        run: |
+          rc=0
+          "$RUNNER_TEMP/osv-scanner" scan source -r . --format sarif --output osv.sarif || rc=$?
+          # 0 = no vulnerabilities, 1 = vulnerabilities found (reported, not a CI failure),
+          # 128 = no supported lockfiles found; anything else is a scanner error.
+          echo "osv-scanner exit: $rc"
+          case "$rc" in 0|1|128) ;; *) exit "$rc" ;; esac
+          if [ -s osv.sarif ]; then
+            python3 -c 'import json; r=json.load(open("osv.sarif"))["runs"][0]["results"]; print(f"osv results: {len(r)}")'
+          fi
+      - name: Upload SARIF
+        if: github.event_name != 'pull_request' && hashFiles('osv.sarif') != ''
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: osv.sarif
+          category: osv-scanner
