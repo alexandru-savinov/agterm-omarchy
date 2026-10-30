@@ -5,6 +5,11 @@ name: Omarchy runtime (hosted ARM64 experiment)
 # qemu-aarch64 CPU models, and the launch/Live path under headless compositors.
 # Results are hosted-runner / emulation / software-rendering evidence, not native Omarchy
 # hardware acceptance. Builds nothing and publishes nothing.
+#
+# Default payload (iteration 3): current-head trusted CI 41036190502 at 8458e16d, which carries
+# the 5142c7b8 zmx -Dcpu=baseline fix. The unchanged fa64d44f baseline (run 40957588704, archive
+# 17bc6424...aac2a) was exercised by PR runs 41032787065 and 41034465622. scripts/test-omarchy.sh
+# is byte-identical between fa64d44f and 8458e16d.
 
 on:
   pull_request:
@@ -15,16 +20,16 @@ on:
     inputs:
       source_run_id:
         description: Run id that produced the aarch64 payload artifact
-        default: "40957588704"
+        default: "41036190502"
       artifact_name:
         description: Name of the aarch64 payload artifact in that run
-        default: agterm-omarchy-aarch64-fa64d44f37d472bb43acdcd3458d33cb159708dc
+        default: agterm-omarchy-aarch64-8458e16d06b2432cd6895955b6be972b1edae93d
       archive_sha256:
         description: Expected sha256 of the .tar.gz inside the artifact
-        default: 17bc64248c8f83aadc9ff5cb793c4c1540dc5cbc1ed027bdb211ae414bfaac2a
+        default: 0fd6a8f0dfbc5c20f75511514b58a2e383f7700d7bbcf9237da3527113a716d4
       harness_ref:
         description: Commit whose scripts/test-omarchy.sh is run unmodified
-        default: fa64d44f37d472bb43acdcd3458d33cb159708dc
+        default: 8458e16d06b2432cd6895955b6be972b1edae93d
 
 permissions:
   contents: read
@@ -35,10 +40,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SOURCE_RUN_ID: ${{ inputs.source_run_id || '40957588704' }}
-  ARTIFACT_NAME: ${{ inputs.artifact_name || 'agterm-omarchy-aarch64-fa64d44f37d472bb43acdcd3458d33cb159708dc' }}
-  ARCHIVE_SHA256: ${{ inputs.archive_sha256 || '17bc64248c8f83aadc9ff5cb793c4c1540dc5cbc1ed027bdb211ae414bfaac2a' }}
-  HARNESS_REF: ${{ inputs.harness_ref || 'fa64d44f37d472bb43acdcd3458d33cb159708dc' }}
+  SOURCE_RUN_ID: ${{ inputs.source_run_id || '41036190502' }}
+  ARTIFACT_NAME: ${{ inputs.artifact_name || 'agterm-omarchy-aarch64-8458e16d06b2432cd6895955b6be972b1edae93d' }}
+  ARCHIVE_SHA256: ${{ inputs.archive_sha256 || '0fd6a8f0dfbc5c20f75511514b58a2e383f7700d7bbcf9237da3527113a716d4' }}
+  HARNESS_REF: ${{ inputs.harness_ref || '8458e16d06b2432cd6895955b6be972b1edae93d' }}
 
 jobs:
   cpu-zmx:
