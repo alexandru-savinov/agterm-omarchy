@@ -178,6 +178,33 @@ jobs:
             "$ARCH_IMAGE" bash /work/helpers/in-container.sh || rc=$?
           echo "container exit: $rc"
           echo "$rc" > "$RUNNER_TEMP/work/out/container-exit.txt"
+      # Optional, non-gating side probe requested on #63 by ultra_harness_identity (#62, PR #69):
+      # its proposal unit test exercises a zmx listing positive control against this real x86_64 zmx.
+      # It never changes the primary result above, which comes only from the fa64d44f harness.
+      - name: Check out proposal identity test (side probe, exact SHA)
+        if: always()
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: a13562d48e91379a132593e00260e15143ca18e2
+          path: identity
+          sparse-checkout: |
+            scripts/test-omarchy.sh
+            scripts/tests/test_omarchy_identity.py
+          sparse-checkout-cone-mode: false
+      - name: Side probe - proposal identity unit test against the real x86_64 zmx (non-gating)
+        if: always()
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          out="$RUNNER_TEMP/work/out"
+          git -C identity rev-parse HEAD | tee "$out/identity-probe-sha.txt"
+          rc=0
+          AGTERM_IDENTITY_TEST_ZMX="$RUNNER_TEMP/work/agterm-stage/bin/zmx" \
+            python3 -I identity/scripts/tests/test_omarchy_identity.py -v >"$out/identity-unit-test.txt" 2>&1 || rc=$?
+          tail -n 30 "$out/identity-unit-test.txt"
+          echo "identity unit test exit: $rc" | tee "$out/identity-unit-test-exit.txt"
       - name: Summarize results
         if: always()
         run: python3 -I ci/scripts/ci/omarchy-runtime-x86_64/summarize.py "$RUNNER_TEMP/work/out"
