@@ -92,6 +92,24 @@ LIBGL_ALWAYS_SOFTWARE=1 ~/.local/bin/agterm-linux
 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-omarchy.sh
 ```
 
+To retain software rendering for command-line and desktop-menu launches across reinstalls:
+
+```bash
+scripts/install-linux.sh --software-rendering
+# Return to the normal inherited renderer environment:
+scripts/install-linux.sh --default-rendering
+```
+
+Add `--no-build` to install an existing release build.
+Without either renderer option, reinstalling preserves the prior selection; new installations use the
+normal inherited environment.
+The installer stores `software` or `default` as data in the payload's `share/agterm/RENDERER` file.
+Only the app wrapper reads this file; the `agtermctl` helper and compositor/global settings are unchanged.
+Software mode overrides an inherited `LIBGL_ALWAYS_SOFTWARE=0` for the app launch; default mode leaves
+the caller's value untouched, including an explicit one-shot override.
+Child processes launched by the app can inherit software rendering as well.
+The opt-in addresses this VM's EGL limitation; it is not enabled automatically for other Linux machines.
+
 The ARM64 UTM VM passed terminal rendering, shell input, splits, and program/HTML overlays with this
 process-local setting on Hyprland 0.56.1, GTK 4.22.4, and GLib 2.88.3.
 Hardware rendering on other machines remains dependent on their Mesa/driver configuration.

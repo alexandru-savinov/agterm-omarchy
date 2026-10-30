@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Exercise the installer with a staged payload, without Swift or a graphical session."""
+import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -68,12 +71,13 @@ DESKTOP
         self.assertIn(f'Exec="{self.prefix}/bin/agterm-linux" --desktop-action=quick-terminal', desktop)
 
     def test_staging_failure_preserves_existing_install(self):
-        self.install('--no-build')
+        self.install('--no-build', '--software-rendering')
         marker = self.prefix / 'lib/agterm/keep'
         marker.write_text('old installation')
         self.env['FAIL_STAGE'] = '1'
-        self.install('--no-build', success=False)
+        self.install('--no-build', '--default-rendering', success=False)
         self.assertEqual(marker.read_text(), 'old installation')
+        self.assertEqual((self.prefix / 'lib/agterm/share/agterm/RENDERER').read_text(), 'software\n')
         self.assertTrue((self.prefix / 'bin/agtermctl').exists())
         self.assertEqual(list((self.prefix / 'lib').glob('.agterm-install.*')), [])
 
@@ -119,6 +123,40 @@ DESKTOP
 
     def test_invalid_option_does_not_create_install(self):
         self.install('--bogus', success=False)
+        self.assertFalse(self.prefix.exists())
+
+    def test_renderer_default_selection_preservation_and_reset(self):
+        marker = self.prefix / 'lib/agterm/share/agterm/RENDERER'
+        self.install('--no-build')
+        self.assertEqual(marker.read_text(), 'default\n')
+        # An installation predating the marker keeps normal renderer behavior on upgrade.
+        marker.unlink()
+        self.install('--no-build')
+        self.assertEqual(marker.read_text(), 'default\n')
+        self.install('--no-build', '--software-rendering')
+        self.assertEqual(marker.read_text(), 'software\n')
+        self.install('--no-build')
+        self.assertEqual(marker.read_text(), 'software\n')
+        self.install('--no-build', '--default-rendering')
+        self.assertEqual(marker.read_text(), 'default\n')
+        self.install('--no-build')
+        self.assertEqual(marker.read_text(), 'default\n')
+
+    def test_invalid_renderer_marker_is_not_executed_or_silently_replaced(self):
+        self.install('--no-build')
+        marker = self.prefix / 'lib/agterm/share/agterm/RENDERER'
+        injected = self.work / 'must-not-exist'
+        content = f'software\ntouch "{injected}"\n'
+        marker.write_text(content)
+        result = self.install('--no-build', success=False)
+        self.assertIn('invalid installed renderer mode', result.stderr)
+        self.assertEqual(marker.read_text(), content)
+        self.assertFalse(injected.exists())
+        self.install('--no-build', '--default-rendering')
+        self.assertEqual(marker.read_text(), 'default\n')
+
+    def test_conflicting_renderer_options_do_not_create_install(self):
+        self.install('--no-build', '--software-rendering', '--default-rendering', success=False)
         self.assertFalse(self.prefix.exists())
 
 
@@ -177,6 +215,72 @@ class PayloadStageTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('cannot stage unresolved shared libraries:', result.stderr)
         self.assertFalse((self.destination / 'bin/agterm-linux').exists())
+
+    def stage_probe_wrappers(self):
+        # The actual staging code writes both wrappers around harmless environment/argv probes.
+        probe = f'#!{sys.executable}\n' + '''import json, os, sys
+print(json.dumps({"renderer": os.environ.get("LIBGL_ALWAYS_SOFTWARE"), "args": sys.argv[1:]}))
+'''
+        for binary in ('AgtermLinux', 'agtermctl-linux'):
+            (self.repo / 'agterm-linux/.build/release' / binary).write_text(probe)
+        result = self.stage()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def launch_probe(self, name, *args, renderer='0', launcher=None):
+        env = dict(self.env)
+        env.pop('LIBGL_ALWAYS_SOFTWARE', None)
+        if renderer is not None:
+            env['LIBGL_ALWAYS_SOFTWARE'] = renderer
+        result = subprocess.run([str(launcher or self.destination / 'bin' / name), *args],
+                                env=env, text=True, capture_output=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
+    def test_default_wrapper_preserves_inherited_renderer_and_arguments(self):
+        self.stage_probe_wrappers()
+        marker = self.destination / 'share/agterm/RENDERER'
+        args = ('--desktop-action=new-window', 'path with spaces', '$(literal); argument')
+        for mode in (None, 'default'):
+            if mode:
+                marker.write_text(mode + '\n')
+            for renderer in (None, '0', '1'):
+                for name in ('agterm-linux', 'agtermctl'):
+                    with self.subTest(mode=mode, renderer=renderer, name=name):
+                        self.assertEqual(self.launch_probe(name, *args, renderer=renderer),
+                                         {'renderer': renderer, 'args': list(args)})
+
+    def test_software_wrapper_survives_relocation_and_covers_desktop_actions(self):
+        self.stage_probe_wrappers()
+        (self.destination / 'share/agterm/RENDERER').write_text('software\n')
+        relocated = self.work / 'relocated payload with spaces'
+        self.destination.rename(relocated)
+        self.destination = relocated
+        shutil.rmtree(self.repo)
+        launcher = self.work / 'command-link'
+        launcher.symlink_to(os.path.relpath(self.destination / 'bin/agterm-linux', launcher.parent))
+        self.assertEqual(self.launch_probe('agterm-linux', 'path with spaces', launcher=launcher),
+                         {'renderer': '1', 'args': ['path with spaces']})
+        desktop = self.destination / 'share/applications/io.github.melonamin.agterm.desktop'
+        actions = [shlex.split(line[5:]) for line in desktop.read_text().splitlines()
+                   if line.startswith('Exec=')]
+        self.assertGreater(len(actions), 1)
+        for executable, *args in actions:
+            self.assertEqual(executable, 'agterm-linux')
+            self.assertEqual(self.launch_probe(executable, *args), {'renderer': '1', 'args': args})
+        self.assertEqual(self.launch_probe('agtermctl', 'tree'), {'renderer': '0', 'args': ['tree']})
+        (self.destination / 'share/agterm/RENDERER').write_text('default\n')
+        self.assertEqual(self.launch_probe('agterm-linux'), {'renderer': '0', 'args': []})
+
+    def test_wrapper_only_honors_exact_software_data_marker(self):
+        self.stage_probe_wrappers()
+        marker = self.destination / 'share/agterm/RENDERER'
+        injected = self.work / 'must-not-exist'
+        for content in ('software-extra\n', f'software\ntouch "{injected}"\n',
+                        f'$(touch "{injected}")\n', ' software\n'):
+            with self.subTest(content=content):
+                marker.write_text(content)
+                self.assertEqual(self.launch_probe('agterm-linux')['renderer'], '0')
+                self.assertFalse(injected.exists())
 
 
 if __name__ == '__main__':

@@ -96,6 +96,10 @@ export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 [[ -f "$HERE/share/agterm/VERSION" ]] && export AGTERM_VERSION="$(cat "$HERE/share/agterm/VERSION")"
 [[ -f "$HERE/share/agterm/COMMIT" ]] && export AGTERM_COMMIT="$(cat "$HERE/share/agterm/COMMIT")"
 export AGTERM_ZMX_PATH="$HERE/bin/zmx"
+# This is a data marker, never shell configuration. Default/absent values preserve the caller's choice.
+if [[ -f "$HERE/share/agterm/RENDERER" ]] && [[ "$(cat "$HERE/share/agterm/RENDERER")" == software ]]; then
+  export LIBGL_ALWAYS_SOFTWARE=1
+fi
 exec "$HERE/bin/agterm-linux.bin" "$@"
 LAUNCH
 chmod 0755 "$DEST/bin/agterm-linux"

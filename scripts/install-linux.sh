@@ -1,19 +1,38 @@
 #!/usr/bin/env bash
 # Install the complete relocatable payload without changing terminal defaults or agent hooks.
-# Usage: scripts/install-linux.sh [--prefix DIR] [--no-build]
+# Usage: scripts/install-linux.sh [--prefix DIR] [--no-build] [--software-rendering | --default-rendering]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PREFIX="${PREFIX:-$HOME/.local}"
 BUILD=true
+RENDERER_MODE=""
 while (( $# )); do
   case "$1" in
     --prefix) [[ $# -ge 2 && -n "$2" ]] || { echo "--prefix needs a directory" >&2; exit 2; }; PREFIX="$2"; shift 2 ;;
     --no-build) BUILD=false; shift ;;
-    -h|--help) echo "usage: scripts/install-linux.sh [--prefix DIR] [--no-build]"; exit 0 ;;
+    --software-rendering|--default-rendering)
+      [[ -z "$RENDERER_MODE" ]] || { echo "choose only one renderer option" >&2; exit 2; }
+      RENDERER_MODE="${1#--}"
+      RENDERER_MODE="${RENDERER_MODE%-rendering}"
+      shift ;;
+    -h|--help)
+      echo "usage: scripts/install-linux.sh [--prefix DIR] [--no-build] [--software-rendering | --default-rendering]"
+      echo "Renderer selection persists across reinstalls; new installs use the inherited renderer environment."
+      exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 [[ "$PREFIX" != *$'\n'* && "$PREFIX" != *$'\r'* ]] || { echo "invalid prefix" >&2; exit 2; }
+if [[ -z "$RENDERER_MODE" ]]; then
+  RENDERER_MODE=default
+  if [[ -f "$PREFIX/lib/agterm/share/agterm/RENDERER" ]]; then
+    RENDERER_MODE="$(cat "$PREFIX/lib/agterm/share/agterm/RENDERER")"
+  fi
+fi
+case "$RENDERER_MODE" in
+  software|default) ;;
+  *) echo "invalid installed renderer mode; select --software-rendering or --default-rendering" >&2; exit 2 ;;
+esac
 command -v python3 >/dev/null || { echo "python3 is required to install desktop entries" >&2; exit 1; }
 # shellcheck source=../linux/swift-env.sh
 if $BUILD; then
@@ -29,6 +48,7 @@ PREFIX="$(cd "$PREFIX" && pwd)"
 WORK="$(mktemp -d "$PREFIX/lib/.agterm-install.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 "$ROOT/scripts/stage-linux.sh" "$WORK/payload"
+printf '%s\n' "$RENDERER_MODE" > "$WORK/payload/share/agterm/RENDERER"
 # Finish staging before replacing an installed payload, so a failed build leaves it usable.
 if [[ -e "$PREFIX/lib/agterm" || -L "$PREFIX/lib/agterm" ]]; then
   mv "$PREFIX/lib/agterm" "$WORK/previous"
@@ -68,3 +88,4 @@ if [[ -d "$PREFIX/share/icons/hicolor" ]] && command -v gtk-update-icon-cache >/
 fi
 printf 'Installed agterm-linux and agtermctl in %s/bin (payload: %s/lib/agterm).\n' "$PREFIX" "$PREFIX"
 printf 'Add %s/bin to PATH if needed.\n' "$PREFIX"
+printf 'App renderer mode: %s (preserved on reinstall unless explicitly changed).\n' "$RENDERER_MODE"
