@@ -1,0 +1,35 @@
+--- a/agterm-linux/Sources/AgtermLinux/LinuxPastePolicy.swift
++++ b/agterm-linux/Sources/AgtermLinux/LinuxPastePolicy.swift
+@@ -18,6 +18,6 @@
+         guard !lines.isEmpty, lines.allSatisfy({ $0.hasPrefix("file://") }) else { return nil }
+         let paths = lines.compactMap { URL(string: $0)?.path }
+         guard paths.count == lines.count else { return nil }
+-        return paths.joined(separator: " ")
++        return paths.map(ShellEscape.path).joined(separator: " ")
+     }
+ }
+--- a/agterm-linux/Tests/AgtermLinuxTests/LinuxPolicyTests.swift
++++ b/agterm-linux/Tests/AgtermLinuxTests/LinuxPolicyTests.swift
+@@ -34,9 +34,21 @@
+     @Test("URI lists become POSIX path payloads")
+     func pasteURIList() {
+         let payload = "# copied files\nfile:///tmp/one%20two\nfile:///tmp/three\n"
+-        #expect(PasteDecoder.posixPaths(fromURIList: payload) == "/tmp/one two /tmp/three")
++        #expect(PasteDecoder.posixPaths(fromURIList: payload) == #"/tmp/one\ two /tmp/three"#)
+         #expect(ShellEscape.dropPayload("") == nil)
+         #expect(ShellEscape.dropPayload("plain") == "plain")
++    }
++
++    @Test("URI drop paths preserve file boundaries and escape literal filename punctuation")
++    func escapedURIPaths() {
++        let payload = "# files\r\nfile:///tmp/one%20two\r\nfile:///tmp/report%281%29.txt\r\n"
++        let expected = #"/tmp/one\ two /tmp/report\(1\).txt"#
++        #expect(PasteDecoder.posixPaths(fromURIList: payload) == expected)
++        #expect(ShellEscape.dropPayload(payload) == expected)
++        #expect(PasteDecoder.posixPaths(fromURIList: "file:///tmp/plain") == "/tmp/plain")
++        #expect(ShellEscape.dropPayload("ordinary text (unchanged)") == "ordinary text (unchanged)")
++        #expect(PasteDecoder.posixPaths(fromURIList: "file:///tmp/one\nordinary text") == nil)
++        #expect(ShellEscape.dropPayload("file:///tmp/one\nordinary text") == "file:///tmp/one\nordinary text")
+     }
+ 
+     @Test("Linux proc cmdline decoding is NUL-delimited")
