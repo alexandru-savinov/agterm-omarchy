@@ -4,7 +4,7 @@
 It leaves default CodeQL, branch protection, application CI, and release gates unchanged.
 Pull requests run only integration syntax checks; root reviews and authorizes the actual manual scan/upload.
 
-The explicit production-helper scope is:
+The explicit orchestration/packaging helper scope, including the zmx integration checker, is:
 
 - `scripts/github/channel_probe.py`
 - `scripts/github/queue.py`
@@ -12,7 +12,8 @@ The explicit production-helper scope is:
 - `scripts/zmx-patches/check.py`
 - `docs/omarchy-pages/build.py`
 
-No personal files, dependency trees, fixtures, tests, Swift sources, or private directories are scanned.
+No personal files, dependency trees, unrelated test suites, Swift sources, or private directories are scanned.
+The explicitly listed zmx checker is a real integration-test harness, not application runtime code or a fabricated scanner fixture.
 Each input must be a tracked regular file inside the clean checkout; its SHA-256 and the source commit/ref are retained.
 Changing the scope requires a code review of `scripts/security/bandit_sarif.py`.
 
