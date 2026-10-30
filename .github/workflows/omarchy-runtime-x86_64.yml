@@ -162,6 +162,10 @@ jobs:
           # A virtual KMS device gives Hyprland's renderer a DRM node; record whether it exists.
           sudo modprobe vkms 2>&1 | tee "$out/vkms-modprobe.txt" || true
           find /dev/dri -mindepth 1 -ls 2>&1 | tee "$out/host-dri.txt" || true
+          # Ubuntu 24.04 denies unprivileged user namespaces through AppArmor; WebKitGTK's bwrap
+          # sandbox needs them (iteration 5: "bwrap: setting up uid map: Permission denied").
+          # Relax it on this disposable runner so WebKit keeps its sandbox instead of disabling it.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>&1 | tee "$out/userns-sysctl.txt" || true
       - name: Run harness in Arch Linux container
         run: |
           set -uo pipefail
