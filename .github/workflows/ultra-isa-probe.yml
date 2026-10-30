@@ -9,14 +9,25 @@ on:
   push:
     branches: [ultra/isa-probe]
   workflow_dispatch:
+    inputs:
+      source_run:
+        description: Trusted CI run id whose staged payloads to probe
+        required: true
+        type: string
+      source_sha:
+        description: Source commit used in that run's artifact names (40 hex)
+        required: true
+        type: string
 
 permissions:
   contents: read
   actions: read
 
 env:
-  SOURCE_RUN: "40957588704"
-  SOURCE_SHA: fa64d44f37d472bb43acdcd3458d33cb159708dc
+  SOURCE_RUN: ${{ inputs.source_run || '40957588704' }}
+  SOURCE_SHA: ${{ inputs.source_sha || 'fa64d44f37d472bb43acdcd3458d33cb159708dc' }}
+  # Pinned hashes apply only to the default (push) source; dispatched sources print their hashes instead.
+  PINNED: ${{ inputs.source_run == '' && 'true' || 'false' }}
 
 jobs:
   probe:
@@ -57,11 +68,12 @@ jobs:
         run: |
           set -euo pipefail
           archive="$RUNNER_TEMP/dl/agterm-omarchy-$ARCH.tar.gz"
-          echo "$ARCHIVE_SHA256  $archive" | sha256sum --check
+          sha256sum "$archive"
+          if [ "$PINNED" = true ]; then echo "$ARCHIVE_SHA256  $archive" | sha256sum --check; fi
           mkdir "$RUNNER_TEMP/x"
           tar -xzf "$archive" -C "$RUNNER_TEMP/x"
           sha256sum "$RUNNER_TEMP/x/agterm-stage/bin/zmx"
-          if [ -n "$ZMX_SHA256" ]; then
+          if [ "$PINNED" = true ] && [ -n "$ZMX_SHA256" ]; then
             echo "$ZMX_SHA256  $RUNNER_TEMP/x/agterm-stage/bin/zmx" | sha256sum --check
           fi
       - name: Runner CPU facts
