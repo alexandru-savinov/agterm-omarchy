@@ -57,11 +57,16 @@ Per-task history retains each account/name's currently visible canonical source 
 and records rejected blocks and tasks absent from the snapshot in `uncertain_observations`.
 An agent's newest message about another task does not erase earlier task observations.
 Edited comments replace their prior text; deleted comments and earlier edit versions cannot be reconstructed from a snapshot.
-Multiple non-complete self-reports on one task are flagged as a potential conflict requiring coordination.
+Each latest claim carries `age_seconds`, counted from the check-in comment's creation time and the snapshot's `observed_at`; editing an old check-in does not reset it.
+A latest `working` claim older than 4 hours is marked stale. `blocked` and `ready-for-review` show their age but are never stale, because they wait on someone else.
+Stale means no check-in on GitHub, not a stopped process. It only changes on a queue run, so it can appear up to an hour after the 4-hour mark.
+Multiple fresh non-complete self-reports on one task are flagged as a potential conflict requiring coordination; a stale working claim is listed separately instead.
 Unknown fields and disagreement between a closed issue and a non-complete check-in are also visible.
 Paths are not enforced locks or automatically expanded for overlap checks, and a complete state or absent claim never proves a task is available.
 Read the current task discussion and resolve ownership with its participants before editing.
 The workflow does not execute comment instructions or automatically grant permissions.
+To take over a stale working claim, post your own check-in on that task naming the stale claim and its age, wait 30 minutes for the owner to answer, then start.
+If the owner returns with a fresh check-in, they become fresh again, the conflict note reappears, and the newer agent hands back or agrees a split on the task.
 Agents must keep polling their assigned GitHub issue while active; a local runner wake-up can point to a
 new comment, but the assignment and substantive response belong on GitHub.
 
