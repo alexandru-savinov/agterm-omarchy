@@ -94,7 +94,7 @@ def queue_overlay(roster, queue, now):
     The roster keeps its reviewed prose (role, workstream, work summary). The queue
     supplies the newest self-reported task, state, age and stale flag per account/name.
     Returns (agents, queue-only agents, freshness note or None)."""
-    latest = {}
+    latest, stale = {}, {}
     for claim in queue.get("claims", []):
         record = claim.get("latest") or {}
         url = record.get("url") or ""
@@ -104,8 +104,14 @@ def queue_overlay(roster, queue, now):
         entry = {"task": claim.get("task"), "state": record.get("state"), "url": url,
                  "created_at": record["created_at"], "age_seconds": record.get("age_seconds"),
                  "stale": bool(record.get("stale"))}
+        if entry["stale"]:
+            stale.setdefault(key, []).append(entry)
         if key not in latest or entry["created_at"] > latest[key]["created_at"]:
             latest[key] = entry
+    # A stale claim on another task must stay visible even when a newer claim is shown.
+    for key, entry in latest.items():
+        entry["other_stale"] = sorted((item for item in stale.get(key, []) if item is not entry),
+                                      key=lambda item: item["task"])
     agents, seen = [], set()
     for agent in roster["agents"]:
         key = (agent["account"].lower(), agent["name"])
@@ -125,8 +131,12 @@ def queue_line(entry):
         return '<p class="queue muted">No check-in for this name in the queue snapshot.</p>'
     age = "" if entry["age_seconds"] is None else f' · {hours(entry["age_seconds"])} since check-in'
     stale = ' · <strong class="stale">stale: no check-in for over 4h</strong>' if entry["stale"] else ""
+    others = "".join(
+        f' <a href="{escape(item["url"], quote=True)}">#{int(item["task"])}</a> ({hours(item["age_seconds"] or 0)})'
+        for item in entry.get("other_stale", []))
+    others = f'<br><strong class="stale">Also stale:</strong>{others}' if others else ""
     return (f'<p class="queue">Queue: <a href="{escape(entry["url"], quote=True)}">#{int(entry["task"])}</a>'
-            f' · {escape(entry["state"] or "unknown")}{age}{stale}</p>')
+            f' · {escape(entry["state"] or "unknown")}{age}{stale}{others}</p>')
 
 
 def team_page(roster, rows, commit):

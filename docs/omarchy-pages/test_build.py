@@ -176,6 +176,17 @@ class PagesTests(unittest.TestCase):
         self.assertNotIn("evil", team)
         self.assertEqual([entry["name"] for entry in data["queue"]["queue_only"]], ["newcomer"])
 
+    def test_older_stale_claim_stays_visible_behind_a_newer_claim(self):
+        roster = self.roster()
+        queue = self.queue(roster)
+        first = roster["agents"][0]
+        queue["claims"].append({"account": first["account"], "name": first["name"], "task": 1000,
+                                "latest": {"state": "working", "url": build.BASE + "/issues/1000#issuecomment-3",
+                                           "created_at": "2026-10-30T09:00:00Z", "age_seconds": 60, "stale": False}})
+        team, data = self.build_team(queue)
+        self.assertIn(build.BASE + "/issues/1000#issuecomment-3", team)
+        self.assertIn('Also stale:</strong> <a href="' + build.BASE + '/issues/999#issuecomment-1">#999</a> (10h00m)', team)
+
     def test_old_queue_snapshot_is_flagged(self):
         team, data = self.build_team(self.queue(self.roster(), observed_at="2026-01-01T00:00:00+00:00"))
         self.assertIn("Queue snapshot is", team)
