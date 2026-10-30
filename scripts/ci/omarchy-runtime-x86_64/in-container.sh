@@ -12,10 +12,19 @@ echo "== container os"; cat /etc/os-release | tee "$OUT/os-release.txt"
 uname -a | tee "$OUT/container-uname.txt"
 
 echo "== install packages"
-pacman -Syu --noconfirm --needed \
-  hyprland grim imagemagick python zsh dbus mesa mesa-utils gtk4 libadwaita webkitgtk-6.0 \
-  fontconfig ttf-dejavu file procps-ng which seatd >"$OUT/pacman-install.log" 2>&1
-prc=$?
+# Transient mirror resets happened in iteration 4; add a second mirror and retry the transaction.
+# shellcheck disable=SC2016 # pacman expands $repo/$arch itself
+printf 'Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch\n' >>/etc/pacman.d/mirrorlist
+prc=1
+for attempt in 1 2 3; do
+  echo "pacman attempt $attempt" >>"$OUT/pacman-install.log"
+  pacman -Syu --noconfirm --needed \
+    hyprland grim imagemagick python zsh dbus mesa mesa-utils gtk4 libadwaita webkitgtk-6.0 \
+    fontconfig ttf-dejavu file procps-ng which seatd >>"$OUT/pacman-install.log" 2>&1
+  prc=$?
+  [[ $prc -eq 0 ]] && break
+  sleep 10
+done
 echo "pacman exit: $prc" | tee -a "$OUT/pacman-install.log"
 if [[ $prc -ne 0 ]]; then
   tail -n 20 "$OUT/pacman-install.log"
