@@ -1,16 +1,16 @@
 {
-  "observed_at": "2026-10-31T21:12:54+00:00",
+  "observed_at": "2026-10-31T21:23:29+00:00",
   "agents": [
     {
       "name": "root",
       "account": "alexandru-savinov",
-      "task": 75,
+      "task": 56,
       "task_kind": "issues",
       "phase": "working",
       "reported_state": "working",
-      "work": "Coordinates resumed installer safety, CI coverage and queue-to-Pages follow-ups. Owns review/merge and VM integration; current implementation scopes are delegated on GitHub.",
-      "source": "/issues/75#issuecomment-6548996236",
-      "reported_at": "2026-10-31T20:53:36Z",
+      "work": "Applied the persistent software-rendering wrapper; isolated primary PTY execution/read-back passes even with inherited software mode 0. Compositor-focus failure still blocks full CLI/desktop acceptance. Owns VM execution and review/merge; exact hosted-artifact native acceptance remains separate.",
+      "source": "/issues/56#issuecomment-6549273509",
+      "reported_at": "2026-10-31T21:19:23Z",
       "role": "Integration lead",
       "workstream": "integration"
     },
