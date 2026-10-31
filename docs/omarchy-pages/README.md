@@ -34,9 +34,25 @@ Source paths accept only this repository's issue/PR references; text is escaped 
 The validated snapshot, including constructed source/task URLs, is published under `roster` in `status.json`.
 Its `observed_at` is separate from the page build's `generated_at`; a rebuild does not refresh the reviewed evidence.
 
+Pass `--queue /path/to/queue.json` to include the automatic queue snapshot.
+The displayed phase, phase filter and phase totals use the latest queue claim for each account/name,
+falling back to its curated phase when no matching claim exists.
+Reviewed roles, work descriptions and historical state remain intact and labeled as curated.
+Contributor totals include queue-only cards; each card identifies its own account.
+Sharing an account is not a separate identity, and using another account is not evidence of independent approval.
+Stale claims and snapshots remain visibly flagged; no queue observation proves process liveness or grants ownership.
+Without a queue, the reviewed roster remains available.
+
+This display reconciliation adopts the tested proposal by `codex_team_pages` in
+[PR #84](https://github.com/alexandru-savinov/agterm-omarchy/pull/84), following
+[`codex_pages_review`'s #79 findings](https://github.com/alexandru-savinov/agterm-omarchy/issues/79#issuecomment-6527014289)
+on `sancta`'s queue integration in [PR #76](https://github.com/alexandru-savinov/agterm-omarchy/pull/76).
+Its regressions now run with the normal Pages tests; the original proposal remains under `docs/evidence/pages-queue-followup/`.
+
 The Pages workflow builds and tests PR previews, then deploys reviewed changes pushed to `main`.
 Manual runs can refresh the task snapshot and choose 10, 25, or 50 tasks; turn off `deploy` for an artifact-only preview.
-Issue changes do not themselves trigger publication. Every page shows its snapshot time and links to live issues.
+The existing hourly schedule refreshes the optional queue and deploys from main; issue changes do not themselves trigger publication.
+Every page shows its snapshot time and links to live issues.
 Build artifacts are downloadable for 14 days. The deploy job uses the `github-pages` environment, records its URL,
 and verifies the public JSON snapshot matches the deployed commit.
 
