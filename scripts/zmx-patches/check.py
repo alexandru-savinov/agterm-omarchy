@@ -9,11 +9,12 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import termios
 import time
 
 ZMX = sys.argv[1]
-ZDIR = "/tmp/zmx-e2e-%d" % os.getpid()
+ZDIR = None  # a fresh private directory, made by main
 NAME = "e2e"
 ROLE = re.compile(rb"\x1b\]2;zmx-role;([A-Za-z0-9-]+):(\w+):(\d+)\x1b\\")
 
@@ -56,7 +57,14 @@ def check(label, ok, detail=""):
 
 
 def main():
-    os.makedirs(ZDIR, mode=0o700)
+    global ZDIR
+    # a random name, created exclusively with mode 0700, so no other user can claim the path first
+    ZDIR = tempfile.mkdtemp(prefix="zmx-e2e-")
+    # the daemon's socket lives in ZDIR, and a unix socket path is capped near 104 bytes
+    sock = os.path.join(ZDIR, NAME)
+    if len(os.fsencode(sock)) >= 104:
+        os.rmdir(ZDIR)
+        sys.exit("socket path %s is too long for a unix socket; set TMPDIR to a shorter directory" % sock)
     ok = True
     pids = []
     try:
