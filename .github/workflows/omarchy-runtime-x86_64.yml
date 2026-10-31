@@ -1,0 +1,218 @@
+name: Omarchy runtime x86_64 (hosted)
+
+# Runtime evidence for the exact trusted x86_64 payload of CI run 40957588704 (head fa64d44f).
+# Environment: hosted GitHub x86_64 runner, Arch Linux container, headless Hyprland,
+# software rendering - NOT native Omarchy hardware. The harness scripts/test-omarchy.sh is
+# checked out at fa64d44f and executed unmodified. Owner: ultra_x86_runtime (#63).
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/omarchy-runtime-x86_64.yml'
+      - 'scripts/ci/omarchy-runtime-x86_64/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: omarchy-runtime-x86_64-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_RUN_ID: '40957588704'
+  SOURCE_SHA: fa64d44f37d472bb43acdcd3458d33cb159708dc
+  ARTIFACT_NAME: agterm-omarchy-x86_64-fa64d44f37d472bb43acdcd3458d33cb159708dc
+  # API digest of that artifact (zip) as published by the source run.
+  ARTIFACT_DIGEST: sha256:b9bbfce3d319eb456da284c22a39f75ee16d407bdbb7ebee9682b0ca90f13d38
+
+jobs:
+  fetch:
+    name: Fetch and verify trusted x86_64 payload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      tar_sha256: ${{ steps.verify.outputs.tar_sha256 }}
+      zmx_sha256: ${{ steps.verify.outputs.zmx_sha256 }}
+      payload_commit: ${{ steps.verify.outputs.payload_commit }}
+    steps:
+      - name: Host architecture probe
+        run: |
+          set -euo pipefail
+          uname -a
+          lscpu | grep -E '^(Architecture|Model name|CPU\(s\)|Vendor ID|Flags)' | sed -E 's/^(Flags:\s+).*/\1(see runtime job)/'
+      - name: Resolve source artifact via API and compare its digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/actions/runs/$SOURCE_RUN_ID" --jq '"source run: \(.id) \(.event) \(.head_sha) \(.conclusion) \(.path)"'
+          head_sha=$(gh api "repos/$REPO/actions/runs/$SOURCE_RUN_ID" --jq .head_sha)
+          conclusion=$(gh api "repos/$REPO/actions/runs/$SOURCE_RUN_ID" --jq .conclusion)
+          test "$head_sha" = "$SOURCE_SHA"
+          test "$conclusion" = success
+          meta=$(gh api "repos/$REPO/actions/runs/$SOURCE_RUN_ID/artifacts" --jq ".artifacts[] | select(.name == env.ARTIFACT_NAME)")
+          echo "$meta" | jq '{id, name, size_in_bytes, digest, expired}'
+          test "$(echo "$meta" | jq -r .digest)" = "$ARTIFACT_DIGEST"
+          id=$(echo "$meta" | jq -r .id)
+          mkdir -p "$RUNNER_TEMP/api"
+          gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/api/artifact.zip"
+          zip_sha=$(sha256sum "$RUNNER_TEMP/api/artifact.zip" | cut -d' ' -f1)
+          echo "downloaded zip sha256: $zip_sha"
+          test "sha256:$zip_sha" = "$ARTIFACT_DIGEST"
+          unzip -q "$RUNNER_TEMP/api/artifact.zip" -d "$RUNNER_TEMP/api/x"
+      - name: Download the same artifact cross-run with actions/download-artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/dl
+      - name: Verify payload identity
+        id: verify
+        run: |
+          set -euo pipefail
+          a="$RUNNER_TEMP/api/x/agterm-omarchy-x86_64.tar.gz"
+          b="$RUNNER_TEMP/dl/agterm-omarchy-x86_64.tar.gz"
+          sha_a=$(sha256sum "$a" | cut -d' ' -f1); sha_b=$(sha256sum "$b" | cut -d' ' -f1)
+          echo "tarball sha256 (API zip): $sha_a"; echo "tarball sha256 (download-artifact): $sha_b"
+          test "$sha_a" = "$sha_b"
+          mkdir "$RUNNER_TEMP/x"
+          tar -xzf "$b" -C "$RUNNER_TEMP/x"
+          s="$RUNNER_TEMP/x/agterm-stage"
+          commit=$(cat "$s/share/agterm/COMMIT")
+          echo "payload COMMIT: $commit"
+          test "$commit" = "$SOURCE_SHA"
+          zmx=$(sha256sum "$s/bin/zmx" | cut -d' ' -f1)
+          echo "bin/zmx sha256: $zmx"
+          sha256sum "$s/bin/agterm-linux.bin" "$s/bin/agtermctl.bin" "$s/lib/libghostty.so"
+          file "$s/bin/zmx" "$s/bin/agterm-linux.bin"
+          { echo "tar_sha256=$sha_b"; echo "zmx_sha256=$zmx"; echo "payload_commit=$commit"; } >> "$GITHUB_OUTPUT"
+          cp "$b" "$RUNNER_TEMP/payload.tar.gz"
+          {
+            echo "### Trusted payload verified"
+            echo "| Item | Value |"; echo "|---|---|"
+            echo "| Source run | [$SOURCE_RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID) at \`$SOURCE_SHA\` |"
+            echo "| Artifact digest (API = downloaded zip) | \`$ARTIFACT_DIGEST\` |"
+            echo "| Tarball sha256 | \`$sha_b\` |"
+            echo "| bin/zmx sha256 | \`$zmx\` |"
+            echo "| Payload COMMIT | \`$commit\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Hand the verified tarball to the runtime job
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: verified-payload-x86_64
+          path: ${{ runner.temp }}/payload.tar.gz
+          retention-days: 7
+          if-no-files-found: error
+
+  runtime:
+    name: Runtime (Arch container, headless Hyprland, software GL)
+    needs: fetch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TAR_SHA256: ${{ needs.fetch.outputs.tar_sha256 }}
+      ZMX_SHA256: ${{ needs.fetch.outputs.zmx_sha256 }}
+      ARCH_IMAGE: archlinux:latest
+    steps:
+      - name: Check out helper scripts (this branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: ci
+      - name: Check out the harness at the trusted source SHA (unmodified)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ env.SOURCE_SHA }}
+          path: harness
+          sparse-checkout: scripts/test-omarchy.sh
+          sparse-checkout-cone-mode: false
+      - name: Download the verified payload from the fetch job
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: verified-payload-x86_64
+          path: ${{ runner.temp }}/payload
+      - name: Re-verify payload against fetch job outputs
+        run: |
+          set -euo pipefail
+          test -n "$TAR_SHA256"
+          echo "$TAR_SHA256  $RUNNER_TEMP/payload/payload.tar.gz" | sha256sum --check
+          git -C harness rev-parse HEAD
+          test "$(git -C harness rev-parse HEAD)" = "$SOURCE_SHA"
+          git -C harness status --porcelain
+          sha256sum harness/scripts/test-omarchy.sh
+          mkdir -p "$RUNNER_TEMP/work/out"
+          tar -xzf "$RUNNER_TEMP/payload/payload.tar.gz" -C "$RUNNER_TEMP/work"
+          echo "$ZMX_SHA256  $RUNNER_TEMP/work/agterm-stage/bin/zmx" | sha256sum --check
+          cp harness/scripts/test-omarchy.sh "$RUNNER_TEMP/work/test-omarchy.sh"
+          cp -R ci/scripts/ci/omarchy-runtime-x86_64 "$RUNNER_TEMP/work/helpers"
+      - name: Host probe (uname, CPU, DRM devices)
+        run: |
+          set -uo pipefail
+          out="$RUNNER_TEMP/work/out"
+          { uname -a; echo; lscpu; echo; grep -m1 '^flags' /proc/cpuinfo; } > "$out/host-cpu.txt"
+          uname -a
+          lscpu | grep -E '^(Architecture|Model name|Vendor ID|CPU\(s\)|Hypervisor vendor)'
+          for f in avx avx2 avx512f avx512bw avx512vl avx512_vnni bmi2 sha_ni vaes vpclmulqdq gfni; do
+            if grep -m1 '^flags' /proc/cpuinfo | grep -qw "$f"; then echo "cpu flag $f: yes"; else echo "cpu flag $f: no"; fi
+          done | tee "$out/host-cpu-flags-summary.txt"
+          # A virtual KMS device gives Hyprland's renderer a DRM node; record whether it exists.
+          sudo modprobe vkms 2>&1 | tee "$out/vkms-modprobe.txt" || true
+          find /dev/dri -mindepth 1 -ls 2>&1 | tee "$out/host-dri.txt" || true
+          # Ubuntu 24.04 denies unprivileged user namespaces through AppArmor; WebKitGTK's bwrap
+          # sandbox needs them (iteration 5: "bwrap: setting up uid map: Permission denied").
+          # Relax it on this disposable runner so WebKit keeps its sandbox instead of disabling it.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>&1 | tee "$out/userns-sysctl.txt" || true
+      - name: Run harness in Arch Linux container
+        run: |
+          set -uo pipefail
+          docker pull "$ARCH_IMAGE"
+          docker image inspect "$ARCH_IMAGE" --format '{{json .RepoDigests}} {{.Id}}' | tee "$RUNNER_TEMP/work/out/image-digest.txt"
+          rc=0
+          docker run --rm --privileged --shm-size=1g \
+            -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
+            -v "$RUNNER_TEMP/work:/work" -w /work \
+            "$ARCH_IMAGE" bash /work/helpers/in-container.sh || rc=$?
+          echo "container exit: $rc"
+          echo "$rc" > "$RUNNER_TEMP/work/out/container-exit.txt"
+      # Optional, non-gating side probe requested on #63 by ultra_harness_identity (#62, PR #69):
+      # its proposal unit test exercises a zmx listing positive control against this real x86_64 zmx.
+      # It never changes the primary result above, which comes only from the fa64d44f harness.
+      - name: Check out proposal identity test (side probe, exact SHA)
+        if: always()
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: a13562d48e91379a132593e00260e15143ca18e2
+          path: identity
+          sparse-checkout: |
+            scripts/test-omarchy.sh
+            scripts/tests/test_omarchy_identity.py
+          sparse-checkout-cone-mode: false
+      - name: Side probe - proposal identity unit test against the real x86_64 zmx (non-gating)
+        if: always()
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          out="$RUNNER_TEMP/work/out"
+          git -C identity rev-parse HEAD | tee "$out/identity-probe-sha.txt"
+          rc=0
+          AGTERM_IDENTITY_TEST_ZMX="$RUNNER_TEMP/work/agterm-stage/bin/zmx" \
+            python3 -I identity/scripts/tests/test_omarchy_identity.py -v >"$out/identity-unit-test.txt" 2>&1 || rc=$?
+          tail -n 30 "$out/identity-unit-test.txt"
+          echo "identity unit test exit: $rc" | tee "$out/identity-unit-test-exit.txt"
+      - name: Summarize results
+        if: always()
+        run: python3 -I ci/scripts/ci/omarchy-runtime-x86_64/summarize.py "$RUNNER_TEMP/work/out"
+      - name: Upload results and logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: omarchy-runtime-x86_64-results
+          path: ${{ runner.temp }}/work/out
+          retention-days: 30
+          if-no-files-found: error
