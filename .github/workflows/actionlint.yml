@@ -35,5 +35,13 @@ jobs:
             "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
           echo "${ACTIONLINT_SHA256}  /tmp/${archive}" | sha256sum --check
           tar -xzf "/tmp/${archive}" -C /tmp actionlint
+      - name: Self-test (actionlint must reject a known-bad workflow)
+        run: |
+          set -euo pipefail
+          printf 'on: push\njobs:\n  bad:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo "${{ github.no_such_context_xyz }}"\n' > /tmp/bad.yml
+          if /tmp/actionlint -no-color /tmp/bad.yml; then
+            echo "actionlint accepted a known-bad workflow; this check cannot fail" >&2
+            exit 1
+          fi
       - name: Run actionlint
         run: /tmp/actionlint -color
