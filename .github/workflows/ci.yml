@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, omarchy]
 
   workflow_dispatch:
 
@@ -36,16 +36,34 @@ jobs:
       - uses: actions/checkout@v7
       - name: Shell syntax and lint
         run: |
-          for script in scripts/setup-omarchy.sh scripts/test-omarchy.sh scripts/install-linux.sh scripts/run-linux.sh scripts/stage-linux.sh scripts/zig-build-linux.sh scripts/test-zig-build-linux.sh linux/swift-env.sh; do
+          scripts=(
+            scripts/check-linux-core-boundary.sh
+            scripts/install-linux.sh
+            scripts/package-linux.sh
+            scripts/run-linux.sh
+            scripts/setup-linux.sh
+            scripts/setup-omarchy.sh
+            scripts/stage-linux.sh
+            scripts/test-linux-resources.sh
+            scripts/test-omarchy.sh
+            scripts/test-zig-build-linux.sh
+            scripts/verify-linux-packages.sh
+            scripts/verify-linux-zmx-cache.sh
+            scripts/zig-build-linux.sh
+            linux/swift-env.sh
+          )
+          for script in "${scripts[@]}"; do
             bash -n "$script"
+            exclusions=()
+            if [[ "$script" == scripts/setup-linux.sh ]]; then
+              # Each build subshell explicitly sets all three cache paths; no value leaks between them.
+              exclusions=(-e SC2030,SC2031)
+            fi
+            shellcheck -x -P SCRIPTDIR "${exclusions[@]}" "$script"
           done
-          shellcheck -x -P SCRIPTDIR scripts/setup-omarchy.sh scripts/test-omarchy.sh scripts/install-linux.sh scripts/run-linux.sh scripts/stage-linux.sh scripts/zig-build-linux.sh scripts/test-zig-build-linux.sh linux/swift-env.sh
-      - name: Installer and runtime packaging regression tests
-        run: python3 scripts/tests/test_linux_install.py
-      - name: Failed Live restart cleanup regression tests
-        run: python3 scripts/tests/test_omarchy_cleanup.py
-      - name: Portable zmx build and cache regression tests
-        run: python3 scripts/tests/test_linux_zmx_cache.py
+      - name: Full Python helper regression suite
+        # Discover new modules automatically. Real-zmx cases run after the matrix build below.
+        run: python3 -I -m unittest discover -s scripts/tests -p 'test_*.py' -v
       - name: Zig transport fallback regression tests
         run: scripts/test-zig-build-linux.sh
       - name: Whitespace
@@ -259,6 +277,13 @@ jobs:
         run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty
       - name: Verify built zmx cache
         run: scripts/verify-linux-zmx-cache.sh agterm-linux/vendor/zmx
+      - name: Real zmx identity and cleanup controls
+        env:
+          AGTERM_IDENTITY_TEST_ZMX: ${{ github.workspace }}/agterm-linux/vendor/zmx/zmx
+        run: |
+          # Fail if unavailable rather than letting the integration cases silently skip.
+          test -x "$AGTERM_IDENTITY_TEST_ZMX"
+          python3 -I -m unittest discover -s scripts/tests -p 'test_omarchy_identity.py' -v
       - name: swift test (agterm-linux)
         working-directory: agterm-linux
         run: swift test
