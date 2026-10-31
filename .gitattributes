@@ -1,1 +1,3 @@
 scripts/zmx-patches/*.patch whitespace=-blank-at-eol
+# Unified-diff blank context lines require one space; preserve inert proposal bytes.
+docs/evidence/**/*.patch whitespace=-blank-at-eol
