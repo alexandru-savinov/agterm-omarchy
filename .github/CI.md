@@ -9,6 +9,7 @@ The **Installer and scripts** job discovers every `scripts/tests/test_*.py` modu
 python3 -I -m unittest discover -s scripts/tests -p 'test_*.py' -v
 ```
 
+The job explicitly installs ripgrep, which the real core-boundary fixtures require.
 New helper regression modules join this gate without a workflow allowlist change.
 The suite covers installer/staging behavior, packaging and version handling, core boundaries, cleanup/identity records, zmx cache policy, and promotion preflight.
 The separate Zig transport fixture remains a shell test.
