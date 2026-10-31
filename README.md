@@ -267,6 +267,14 @@ The macOS upstream app exposes the equivalent one-time actions in its **Help** m
 
 ### Linux
 
+For Omarchy, Arch Linux, or Arch Linux ARM, use the
+[native setup and installation guide](packaging/linux/omarchy.md):
+
+```sh
+scripts/setup-omarchy.sh
+scripts/install-linux.sh
+```
+
 Requirements:
 
 - Swift 6.3.2.

@@ -1,10 +1,19 @@
-name: build
+name: Omarchy CI
 
 on:
   push:
-    branches: [linux-port]
+    branches: [main]
   pull_request:
-    branches: [linux-port]
+    branches: [main, omarchy]
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,16 +28,71 @@ env:
   ZIG_SHA256: "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00"
 
 jobs:
+  scripts:
+    name: Installer and scripts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install regression test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ripgrep
+      - name: Shell syntax and lint
+        run: |
+          scripts=(
+            scripts/check-linux-core-boundary.sh
+            scripts/install-linux.sh
+            scripts/package-linux.sh
+            scripts/run-linux.sh
+            scripts/setup-linux.sh
+            scripts/setup-omarchy.sh
+            scripts/stage-linux.sh
+            scripts/test-linux-resources.sh
+            scripts/test-omarchy.sh
+            scripts/test-zig-build-linux.sh
+            scripts/verify-linux-packages.sh
+            scripts/verify-linux-zmx-cache.sh
+            scripts/zig-build-linux.sh
+            linux/swift-env.sh
+          )
+          for script in "${scripts[@]}"; do
+            bash -n "$script"
+            exclusions=()
+            if [[ "$script" == scripts/setup-linux.sh ]]; then
+              # Each build subshell explicitly sets all three cache paths; no value leaks between them.
+              exclusions=(-e SC2030,SC2031)
+            fi
+            shellcheck -x -P SCRIPTDIR "${exclusions[@]}" "$script"
+          done
+      - name: Full Python helper regression suite
+        # Discover new modules automatically. Real-zmx cases run after the matrix build below.
+        run: python3 -I -m unittest discover -s scripts/tests -p 'test_*.py' -v
+      - name: Zig transport fallback regression tests
+        run: scripts/test-zig-build-linux.sh
+      - name: Whitespace
+        run: git diff --check
+      - name: Summary
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          printf '### Installer and scripts\nResult: %s\n' "$RESULT" >> "$GITHUB_STEP_SUMMARY"
+
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
-      swift: ${{ steps.filter.outputs.swift }}
+      swift: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.swift == 'true' }}
       cookbook: ${{ steps.filter.outputs.cookbook }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
+        if: github.event_name != 'workflow_dispatch'
         id: filter
         with:
           filters: |
@@ -55,10 +119,18 @@ jobs:
               - ".github/workflows/ci.yml"
 
   test-linux:
-    name: Unit tests (Linux)
+    name: Core tests (${{ matrix.arch }})
     needs: changes
     if: needs.changes.outputs.swift == 'true'
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     # Keep the shared, host-free controller package green on Linux because it backs the GTK frontend.
     container: swift:6.3.2-noble
     timeout-minutes: 15
@@ -126,15 +198,26 @@ jobs:
           git diff --check
           git diff --check "$UPSTREAM_BASE_TAG"...HEAD
 
+      # This historical release fixture deliberately asserts the upstream repository name.
       - name: Test published-release verifier
-        run: scripts/test-published-linux-release.sh
+        run: env -u GITHUB_REPOSITORY scripts/test-published-linux-release.sh
 
   build-linux:
-    name: Build app (Linux GTK)
-    needs: [changes, test-linux, lint-linux]
+    name: GTK build and tests (${{ matrix.arch }})
+    needs: [changes, scripts, test-linux, lint-linux]
     if: needs.changes.outputs.swift == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            zig-sha256: 70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            zig-sha256: ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     # Compile-check the GTK port. The official Swift image carries the toolchain; apt adds GTK4,
     # libadwaita, GL deps, and zig builds libghostty.
     container: swift:6.3.2-noble
@@ -146,17 +229,20 @@ jobs:
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Install GTK4, accessibility, software GL, test shells, and zig
+        env:
+          BUILD_ARCH: ${{ matrix.arch }}
+          ZIG_SHA256: ${{ matrix.zig-sha256 }}
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
             libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev libepoxy-dev pkg-config git curl ca-certificates xz-utils ncurses-bin \
             ripgrep zsh gcc file at-spi2-core dbus-x11 gir1.2-atspi-2.0 openbox python3-gi xdotool xvfb xauth \
-            libatk-bridge2.0-0 libgl1-mesa-dri libegl-mesa0 mesa-utils
+            libatk-bridge2.0-0 libgl1-mesa-dri libegl-mesa0 mesa-utils imagemagick desktop-file-utils
           curl -fsSLo /tmp/zig.tar.xz \
-            https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz
+            "https://ziglang.org/download/0.16.0/zig-${BUILD_ARCH}-linux-0.16.0.tar.xz"
           echo "${ZIG_SHA256}  /tmp/zig.tar.xz" | sha256sum --check
           tar -xJf /tmp/zig.tar.xz -C /opt
-          echo "/opt/zig-x86_64-linux-0.16.0" >> "$GITHUB_PATH"
+          echo "/opt/zig-${BUILD_ARCH}-linux-0.16.0" >> "$GITHUB_PATH"
       - name: Materialize and verify upstream boundary tag
         run: |
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
@@ -195,6 +281,13 @@ jobs:
         run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty
       - name: Verify built zmx cache
         run: scripts/verify-linux-zmx-cache.sh agterm-linux/vendor/zmx
+      - name: Real zmx identity and cleanup controls
+        env:
+          AGTERM_IDENTITY_TEST_ZMX: ${{ github.workspace }}/agterm-linux/vendor/zmx/zmx
+        run: |
+          # Fail if unavailable rather than letting the integration cases silently skip.
+          test -x "$AGTERM_IDENTITY_TEST_ZMX"
+          python3 -I -m unittest discover -s scripts/tests -p 'test_omarchy_identity.py' -v
       - name: swift test (agterm-linux)
         working-directory: agterm-linux
         run: swift test
@@ -214,9 +307,47 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: linux-ui-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          name: linux-ui-diagnostics-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/linux-ui
           if-no-files-found: warn
+      - name: Archive complete runtime payload
+        env:
+          BUILD_ARCH: ${{ matrix.arch }}
+        run: tar -czf "$RUNNER_TEMP/agterm-omarchy-${BUILD_ARCH}.tar.gz" -C "$RUNNER_TEMP" agterm-stage
+      - name: Upload tested runtime payload
+        uses: actions/upload-artifact@v6
+        with:
+          name: agterm-omarchy-${{ matrix.arch }}-${{ github.sha }}
+          path: ${{ runner.temp }}/agterm-omarchy-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build summary
+        if: always()
+        env:
+          BUILD_ARCH: ${{ matrix.arch }}
+          RESULT: ${{ job.status }}
+        run: |
+          printf '### Linux %s\nResult: %s\n\nSwift 6.3.2; Zig 0.16.0. GTK tests use Xvfb.\n' "$BUILD_ARCH" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Native Hyprland/Wayland validation remains a separate Omarchy VM check.' >> "$GITHUB_STEP_SUMMARY"
+
+  ci:
+    name: CI
+    if: always()
+    needs: [scripts, changes, test-linux, lint-linux, build-linux, cookbook]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require successful checks
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os
+          results = json.loads(os.environ['RESULTS'])
+          failed = [name for name, value in results.items() if value['result'] not in ('success', 'skipped')]
+          if failed:
+              raise SystemExit('Failed or cancelled checks: ' + ', '.join(failed))
+          PYTHON
 
   cookbook:
     name: Cookbook checks
@@ -293,7 +424,7 @@ jobs:
       - name: Install ruff
         # not on the ubuntu-latest image, unlike shellcheck. pipx, because the runner's
         # python is externally managed and a bare pip install into it fails
-        run: pipx install ruff
+        run: pipx install ruff==0.17.3
       - name: ruff
         # the .py counterpart of shellcheck, so a recipe is linted rather than only parsed.
         # EXE001 is ignored because it fails a shebang on a non-executable file, which
@@ -301,7 +432,8 @@ jobs:
         # would move executable-bit policy into CI where this repo deliberately keeps it
         # out. bash explicitly, for pipefail, same reason as the shellcheck step above
         shell: bash
-        run: find cookbook -type f -name '*.py' -print0 | xargs -0 -r ruff check --ignore EXE001
+        # Recipes include Python 3.10 code and explicit 3.9 compatibility; do not require 3.11 APIs.
+        run: find cookbook -type f -name '*.py' -print0 | xargs -0 -r ruff check --target-version py310 --ignore EXE001
       - name: Python recipe tests
         # one process per file keeps recipes independent and gives each test script its own argv.
         # bash explicitly, for pipefail, same reason as the ruff step above.
