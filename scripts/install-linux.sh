@@ -46,7 +46,25 @@ fi
 mkdir -p "$PREFIX/lib"
 PREFIX="$(cd "$PREFIX" && pwd)"
 WORK="$(mktemp -d "$PREFIX/lib/.agterm-install.XXXXXX")"
-trap 'rm -rf "$WORK"' EXIT
+cleanup() {
+  local status=$?
+  trap - EXIT
+  trap '' HUP INT TERM
+  # Inspect paths rather than a flag: a signal can arrive immediately after either rename.
+  if [[ ! -e "$PREFIX/lib/agterm" && ! -L "$PREFIX/lib/agterm" ]] \
+      && [[ -e "$WORK/previous" || -L "$WORK/previous" ]]; then
+    if ! mv "$WORK/previous" "$PREFIX/lib/agterm"; then
+      printf 'Could not restore previous installation; recover it from %s/previous.\n' "$WORK" >&2
+      exit 1
+    fi
+  fi
+  rm -rf "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 "$ROOT/scripts/stage-linux.sh" "$WORK/payload"
 printf '%s\n' "$RENDERER_MODE" > "$WORK/payload/share/agterm/RENDERER"
 # Finish staging before replacing an installed payload, so a failed build leaves it usable.
@@ -54,15 +72,21 @@ if [[ -e "$PREFIX/lib/agterm" || -L "$PREFIX/lib/agterm" ]]; then
   mv "$PREFIX/lib/agterm" "$WORK/previous"
 fi
 if ! mv "$WORK/payload" "$PREFIX/lib/agterm"; then
-  [[ ! -e "$WORK/previous" ]] || mv "$WORK/previous" "$PREFIX/lib/agterm"
   exit 1
 fi
 mkdir -p "$PREFIX/bin" "$PREFIX/share/applications" "$PREFIX/share/icons" "$PREFIX/share/pixmaps"
-ln -sfn ../lib/agterm/bin/agterm-linux "$PREFIX/bin/agterm-linux"
-ln -sfn ../lib/agterm/bin/agtermctl "$PREFIX/bin/agtermctl"
 python3 - "$PREFIX" <<'PY'
-import pathlib, sys
+import os, pathlib, sys
 prefix = pathlib.Path(sys.argv[1])
+# A symlinked bin directory resolves relative links from its physical location.
+# Ordinary prefixes still use relative targets and can be moved as a whole.
+for name in ('agterm-linux', 'agtermctl'):
+    link = prefix / 'bin' / name
+    target = (prefix / 'lib/agterm/bin' / name).resolve()
+    relative = os.path.relpath(target, link.parent.resolve())
+    if link.is_symlink() or link.exists():
+        link.unlink()
+    link.symlink_to(relative)
 source = prefix / 'lib/agterm/share/applications/io.github.melonamin.agterm.desktop'
 # Desktop Entry Exec has its own escaping, separate from shell quoting.
 executable = str(prefix / 'bin/agterm-linux').replace('%', '%%')
