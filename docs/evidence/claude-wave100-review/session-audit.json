@@ -1,0 +1,712 @@
+{
+  "distinct_sessions": 100,
+  "counts": {
+    "user_records": 223,
+    "source_review_prompts": 100,
+    "managed_stop_feedback": 23,
+    "assistant_tool_calls": 0
+  },
+  "agents": [
+    {
+      "agent_id": "wave100_001",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_002",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_003",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_004",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_005",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_006",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_007",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_008",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_009",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_010",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_011",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_012",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_013",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_014",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_015",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_016",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_017",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_018",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_019",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_020",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_021",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_022",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_023",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_024",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_025",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_026",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_027",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_028",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_029",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_030",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_031",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_032",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_033",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_034",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_035",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_036",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_037",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_038",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_039",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_040",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_041",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_042",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_043",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_044",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_045",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_046",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_047",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_048",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_049",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_050",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_051",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_052",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_053",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_054",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_055",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_056",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_057",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_059",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_058",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_060",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_061",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_062",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_063",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_064",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_065",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_066",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_067",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_068",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_069",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_070",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_071",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_072",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_073",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_074",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_075",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_076",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_077",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_078",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_079",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_080",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_081",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_082",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_083",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_084",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_085",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_086",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_087",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_088",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_089",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_090",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_091",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_092",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_093",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_094",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_095",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_096",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_097",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_098",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_099",
+      "user_records": 3,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 1,
+      "assistant_tool_calls": 0
+    },
+    {
+      "agent_id": "wave100_100",
+      "user_records": 2,
+      "source_review_prompts": 1,
+      "managed_stop_feedback": 0,
+      "assistant_tool_calls": 0
+    }
+  ],
+  "scope": "Visible user records and assistant tool-call block types only; no reasoning content exported"
+}

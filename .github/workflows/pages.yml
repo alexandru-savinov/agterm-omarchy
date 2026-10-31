@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [main]
     paths: ['docs/omarchy-pages/**', '.github/workflows/pages.yml']
+  schedule:
+    # Refresh claim ages and stale flags on the team page (queue feeds Pages, #73).
+    - cron: '47 * * * *'
   workflow_dispatch:
     inputs:
       task_limit:
@@ -42,11 +45,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" > "$RUNNER_TEMP/issues.json"
+      - name: Snapshot agent claims with the queue parser
+        # Same parser as the Agent queue workflow. If it fails, the site still builds without the overlay.
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/github/queue.py --output "$RUNNER_TEMP/queue"
       - name: Build static site
         env:
           TASK_LIMIT: ${{ inputs.task_limit || '25' }}
         run: |
           python3 docs/omarchy-pages/build.py --issues "$RUNNER_TEMP/issues.json" \
+            --queue "$RUNNER_TEMP/queue/queue.json" \
             --output _site --commit "$GITHUB_SHA" --limit "$TASK_LIMIT"
       - name: Upload downloadable preview
         uses: actions/upload-artifact@v6
@@ -70,7 +80,7 @@ jobs:
 
   deploy:
     name: Deploy public hub
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.deploy)
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || inputs.deploy)
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10

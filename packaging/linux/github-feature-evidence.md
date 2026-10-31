@@ -132,14 +132,14 @@ The proposed uses below are this project's acceptance scenarios.
 | R08 | README and rendered Markdown | Publish installation/readiness documentation and verify rendered links, tables, and code examples. | pending — rendered README API verified live hub link, hyperlinks, and code blocks; no table present in the inspected README |
 | R09 | Code search/navigation | Execute a repository-scoped search returning a concrete source symbol and inspect its permalink. Indexing can lag. | pending — new probe symbol search returned zero indexed matches; direct source and blame access succeed |
 | R10 | Repository template | Use a narrowly scoped development-template repository to generate a genuine downstream repository, if wanted; record parent template metadata. Do not relabel the main fork simply for this check. | pending — separate artifact decision |
-| R11 | Git LFS | Push and retrieve a legitimate large test artifact through LFS; verify content hash and LFS object transfer. Ordinary Git blobs are not evidence. | pending — real artifact and quota needed |
+| R11 | Git LFS | Push and retrieve a legitimate large test artifact through LFS; verify content hash and LFS object transfer. Ordinary Git blobs are not evidence. | proven — authorized [non-fork fixture repository](https://github.com/alexandru-savinov/agterm-omarchy-fixtures) published two real LFS objects at f34e5b99572429ae57d90aa9b4fd9c56f885eae0; [fresh transfer record](https://github.com/alexandru-savinov/agterm-omarchy-fixtures/blob/0748bb08c1b3de05a08ba8ce9f131835322e8c21/evidence/transfer-2026-10-29.json) verifies empty initial cache, two retrieved PNGs, 603409 bytes and matching hashes. The main public fork rejected new-object upload; no target restriction bypass or allowance claim |
 | R12 | Commit status / Checks API | Produce a real status or check for a published commit; verify its conclusion and details URL. | proven — [real CI check results](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40940912628) include success and failure conclusions for the published head |
-| R13 | Repository notifications | Subscribe to a relevant issue/repository and verify subscription state; delivery requires actual notification evidence. | pending |
-| R14 | Stars/watchers/social metadata | Verify a deliberate owner action and read-back if desired; never manufacture third-party adoption. | pending |
+| R13 | Repository notifications | Subscribe to a relevant issue/repository and verify subscription state; delivery requires actual notification evidence. | pending — [hub subscription read-back](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6508504507) reports SUBSCRIBED; explicit GraphQL updateSubscription rejected INSUFFICIENT_SCOPES (notifications). No notification delivery observed; earlier REST 404 was unsupported-route error |
+| R14 | Stars/watchers/social metadata | Verify a deliberate owner action and read-back if desired; never manufacture third-party adoption. | proven — [owner bookmark action](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6508471468) followed by independent authenticated GET /user/starred/alexandru-savinov/agterm-omarchy returned HTTP 204 at 21:14:42 UTC; deliberate owner bookmark, not third-party adoption |
 | R15 | Wiki | Publish a useful troubleshooting page to the wiki repository and verify its rendered page and Git history. | proven — [Home](https://github.com/alexandru-savinov/agterm-omarchy/wiki/Home), [Troubleshooting](https://github.com/alexandru-savinov/agterm-omarchy/wiki/Troubleshooting), and [Joining](https://github.com/alexandru-savinov/agterm-omarchy/wiki/Joining) all return public HTTP 200 with rendered content; Wiki Git HEAD 18c3e0ba86ee5966bc08fa410ae256e1d08a437d read back independently |
 | R16 | Repository insights | Inspect contributors, commits, pulse, and dependency/network information after activity exists. Record screenshots or exported responses with timestamp. | pending |
 | R17 | Traffic insights | Read owner-only views/clones/referrers statistics after GitHub has data; preserve privacy and timestamps. Empty data proves access only. | pending — owner views/clones endpoints return HTTP 200 with 14 daily buckets but all counts zero; access proven, populated metrics unobserved |
-| R18 | Community health | Publish contribution guidance, code of conduct, security policy, support and templates; verify GitHub's community-profile response. | pending — community-profile endpoint returned HTTP 404 for this fork; community files and rendered entry points still require validation |
+| R18 | Community health | Publish contribution guidance, code of conduct, security policy, support and templates; verify GitHub's community-profile response. | pending — [PR #26](https://github.com/alexandru-savinov/agterm-omarchy/pull/26) published contribution/support/security and templates, and main rendered links verified; no code of conduct adopted. [Community-profile API excludes forks](https://docs.github.com/en/rest/metrics/community), matching observed 404; no profile score claimed |
 | R19 | Citation metadata | Add accurate software citation metadata only if appropriate, then verify GitHub's citation rendering. | pending |
 | R20 | Funding / Sponsors | Configure an actual funding destination only when supplied by the owner; verify destination and rendered funding control. Never invent beneficiaries. | pending — owner destination/account needed |
 
@@ -153,7 +153,7 @@ are separate relationships; a Markdown task list does not demonstrate either.
 | ID | Feature | Minimum real use and required evidence | Status / evidence |
 |---|---|---|---|
 | I01 | Issue lifecycle | Track a real port defect/task, update its body, complete it, and verify final state and closing reason. | proven — [task #12](https://github.com/alexandru-savinov/agterm-omarchy/issues/12) body updated with verified checklist and evidence, then read back CLOSED / COMPLETED |
-| I02 | Issue forms/templates | Submit a real test report through the configured form; preserve the issue URL and resulting fields. A YAML file alone is not execution. | pending |
+| I02 | Issue forms/templates | Submit a real test report through the configured form; preserve the issue URL and resulting fields. A YAML file alone is not execution. | pending — [real form navigation and capability gate](https://github.com/alexandru-savinov/agterm-omarchy/issues/24#issuecomment-6508123383): New issue page opened, but no actual form submitted; prepared detached-zmx report is field content only |
 | I03 | Labels | Create useful architecture/testing labels, apply them to work, verify issue label membership. | proven — [task #4](https://github.com/alexandru-savinov/agterm-omarchy/issues/4) uses both newly created area labels; API membership verified |
 | I04 | Assignees | Assign a real responsible contributor and verify assignment. Do not assign unrelated people. | proven — [assigned task #4](https://github.com/alexandru-savinov/agterm-omarchy/issues/4) has the actual owner identity; named agent claim linked above |
 | I05 | Milestones | Group release criteria in a milestone, complete one item, verify progress counts. | proven — [milestone #1](https://github.com/alexandru-savinov/agterm-omarchy/milestone/1) read-back after completed #12 reports `open_issues=1`, `closed_issues=1` |
@@ -161,7 +161,7 @@ are separate relationships; a Markdown task list does not demonstrate either.
 | I07 | Sub-issues | Add a real test/build child issue to the port tracking issue; query relationship and progress. | proven — [hub #1](https://github.com/alexandru-savinov/agterm-omarchy/issues/1) native children #4 open and #12 completed; read-back summary `total=2`, `completed=1`, `percent_completed=50` |
 | I08 | Issue dependencies | Mark packaging blocked by verified build/testing work; query blocking and blocked-by edges, then resolve the actual prerequisite. | pending — [actual blocking edge](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/issues/4/dependencies/blocked_by) and reverse read-back proven; prerequisite resolution awaits VM integration |
 | I09 | Issue types | Assign a supported issue type and query it. Organization-managed types may require an organization-owned repository. | pending — ownership/API capability check |
-| I10 | Linked branches and PR closing references | Link a task branch and merge a fixing PR that closes the issue; inspect timeline cross-references. | pending |
+| I10 | Linked branches and PR closing references | Link a task branch and merge a fixing PR that closes the issue; inspect timeline cross-references. | proven — [PR #25](https://github.com/alexandru-savinov/agterm-omarchy/pull/25) linked the native-evidence task branch and Closes #22; GraphQL ClosedEvent at 21:05:20 UTC identifies PR #25 / merge 73286f449f86c1fe8cc956f0f35f76cbac442ed0 as closer |
 | I11 | Issue search/filtering | Retrieve an issue with label, milestone, state, and relationship filters; record query and result URL. | pending — combined repository/closed-state/label/milestone query returned #12; relationship-filter search returned zero, native parent/child APIs verified separately |
 | I12 | Issue artifacts | Attach genuine test/research material using the actual issue-artifact feature where exposed; record its object/link. A normal comment attachment is not equivalent. | pending — capability/API check |
 | I13 | Projects creation and repository link | Create a public project for port delivery, link repository, and retrieve project URL and ID. | pending — live CLI rejected missing `read:project`; mutations need `project` authorization |
@@ -184,14 +184,14 @@ require organization ownership for public repositories; this planned target belo
 |---|---|---|---|
 | P01 | Pull request | Open the actual port change, verify base/head SHAs, diff, checks, and description. | proven — [draft PR #6](https://github.com/alexandru-savinov/agterm-omarchy/pull/6) has verified base/head, actual diff, and real checks; failures remain open |
 | P02 | Draft/ready transition | Start unfinished work as draft, complete readiness checks, transition to ready, and verify timeline. | proven — [PR #14](https://github.com/alexandru-savinov/agterm-omarchy/pull/14) created draft, checks passed, timeline `ready_for_review` at 20:08:35 UTC and merged at 20:08:42 UTC |
-| P03 | PR template | Open a PR with the project template populated with actual validation and risks. | pending |
+| P03 | PR template | Open a PR with the project template populated with actual validation and risks. | proven — [PR #26](https://github.com/alexandru-savinov/agterm-omarchy/pull/26) populated the actual Problem and resulting behavior / Validation / Compatibility template with real checks, skipped-test rationale, and limits; merged 17ea3e193a97b674f4e06fd2210266fff4f87e4f |
 | P04 | Inline review/comment/suggestion | Review a real line, propose a useful change, apply it, and resolve the conversation with evidence. | proven — [inline findings](https://github.com/alexandru-savinov/agterm-omarchy/pull/8#pullrequestreview-5703912619), actual fixes, [five-test re-review](https://github.com/alexandru-savinov/agterm-omarchy/pull/8#pullrequestreview-5703952459), and both resolved threads; same-account identity explicit |
 | P05 | Requested review and independent approval | Request an authorized reviewer; obtain genuine review with reviewer identity, state, and commit SHA. | pending — separate reviewer needed |
 | P06 | Requested changes and re-review | Record a genuine review defect, fix it, and obtain an updated review. Do not manufacture criticism to simulate collaboration. | pending — [real defects and re-review](https://github.com/alexandru-savinov/agterm-omarchy/pull/8#pullrequestreview-5703952459) completed with COMMENT reviews; formal REQUEST_CHANGES under an independent identity is unproven |
 | P07 | CODEOWNERS | Add valid ownership rules, create a matching change, and verify review routing and rule interpretation. | pending — independent eligible owner needed for request |
-| P08 | PR merge | Merge tested work and verify merge commit plus linked issue closure. | pending — tested [PR #14](https://github.com/alexandru-savinov/agterm-omarchy/pull/14) merged to 81404c5f; linked #12 closed after runtime verification, not automatically by a closing keyword |
+| P08 | PR merge | Merge tested work and verify merge commit plus linked issue closure. | proven — reviewed [PR #25](https://github.com/alexandru-savinov/agterm-omarchy/pull/25) merged to 73286f449f86c1fe8cc956f0f35f76cbac442ed0 and automatically closed #22; exact closer verified through GraphQL ClosedEvent, distinct from manual #12 closure |
 | P09 | Squash/rebase/merge strategies | Exercise each strategy on a useful, separate PR and verify resulting commit graph. One merge does not prove all strategies. | pending — PR #8 squash result and PR #10 two-parent merge commit verified; PR #11 single-parent rewritten commit is consistent with rebase but requires actual merge-method action record to distinguish custom squash |
-| P10 | Merge conflict resolution | If a real conflict occurs, resolve it and preserve conflicting base/head and resolution evidence; a documented fixture may demonstrate mechanics without harming actual work. | pending |
+| P10 | Merge conflict resolution | If a real conflict occurs, resolve it and preserve conflicting base/head and resolution evidence; a documented fixture may demonstrate mechanics without harming actual work. | pending — [root records real local conflict resolution](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6508431964) in merge 94954fc8 between 3b1ef8a2 and main 59f0d97f (issue forms/CONTRIBUTING); published resolution read-back remains pending |
 | P11 | Auto-merge | Enable on a PR waiting for a real required check and verify automatic merge after success. | pending |
 | P12 | Branch protection | Protect a dedicated validation branch, attempt a harmless disallowed update, record denial, and complete an allowed PR path. | pending |
 | P13 | Branch rulesets | Apply relevant checks/force-push restrictions and demonstrate enforcement, not just creation. | proven — [rule suite 4801459871](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/rulesets/rule-suites/4801459871) records failed force-push/PR-only enforcement on validation/governance under ruleset 26157559; later main suites 4801569141, 4801639053, and 4801860351 passed |
@@ -200,7 +200,7 @@ require organization ownership for public repositories; this planned target belo
 | P16 | Required conversation resolution | Show an unresolved genuine review thread gates a PR, then resolve it and verify eligibility. | pending — reviewer/thread |
 | P17 | Merge queue | Enqueue and merge a checked PR through a queue, retaining merge-group run evidence. | unavailable — personal-owned target; organization repository required |
 | P18 | Push rulesets | Demonstrate supported path/size restrictions in an eligible repository/fork network. | unavailable for this target under documented personal public-repository scope |
-| P19 | Branch cleanup and recovery | Delete only a merged task branch, restore it if testing recovery, and verify references. | pending |
+| P19 | Branch cleanup and recovery | Delete only a merged task branch, restore it if testing recovery, and verify references. | proven — [root exact-lease delete/restore record](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6508504507) for merged pages-readme includes deletion read-back 404 and restoration at 6a02c737ce49c17e46ed173ccf63c2ddf3c2154c; independent final REST ref query confirms that exact restored SHA |
 
 ## Actions, deployments, and distribution
 
@@ -213,30 +213,30 @@ Public repositories support [environments and deployment protection](https://doc
 |---|---|---|---|
 | A01 | Push and PR workflows | Trigger both with real commits/PRs, record run URLs, events, SHAs, and conclusions. | proven — [Pages push run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40944102924) succeeded at 0eacad7f; [PR queue run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40942209489) succeeded and downloaded artifact verified at its synthetic merge SHA |
 | A02 | Manual workflow dispatch | Dispatch a useful packaging/smoke workflow with inputs and verify recorded input/effect. | proven — [manual probe run 40946525379](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40946525379) at 81404c5f passed tests and comparison; supplied repository configuration recorded in downloaded JSON |
-| A03 | Scheduled workflow | Observe an actual scheduled run; a manual dispatch of the same workflow does not prove the schedule. | pending — scheduled event must occur |
-| A04 | Matrix jobs | Run native supported architecture/toolchain jobs and verify every matrix leg; do not label cross-compilation as runtime testing. | proven — [run 40941708442](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40941708442) passed all nine jobs on native Ubuntu x86_64/ARM64 runners; each GTK leg passed 553 tests/81 suites and 49 AT-SPI scenarios plus debug/Release builds and staging; tested synthetic merge 781b194c, not later native fixes |
+| A03 | Scheduled workflow | Observe an actual scheduled run; a manual dispatch of the same workflow does not prove the schedule. | pending — schedule configured, but event=schedule workflow-run query returned no runs at this reconciliation; manual/event runs are not schedule execution |
+| A04 | Matrix jobs | Run native supported architecture/toolchain jobs and verify every matrix leg; do not label cross-compilation as runtime testing. | proven — final-source [run 40957588704](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40957588704) (`workflow_dispatch` at exact `fa64d44f`) and [run 40956409916](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40956409916) (PR at `fa64d44f`) passed both native Ubuntu x86_64/ARM64 legs: core 4025 tests/175 suites on each architecture, GTK 553 tests/81 suites plus 49 AT-SPI scenarios; earlier [run 40941708442](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40941708442) tested synthetic merge 781b194c. Hosted legs are Ubuntu runners, not native Omarchy (#43) |
 | A05 | Job dependencies/outputs | Feed a verified build output/version into dependent package and validation jobs. | pending |
-| A06 | Cache save and restore | Capture a save in one run and an actual cache hit in a later run with the same key. | pending — [both native cache saves](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6507407346) succeeded after initial misses; later successful restore still unobserved |
+| A06 | Cache save and restore | Capture a save in one run and an actual cache hit in a later run with the same key. | proven — [run 40950162779](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40950162779) saved `linux-runtimes-x86_64-631a124a…`; the x86_64 GTK job of later [run 40956409916](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40956409916) logged a cache hit and `Cache restored from key` for the same key, and both cache verifiers passed (#43) |
 | A07 | Workflow artifacts | Upload real test/build evidence, download it independently, and verify contents/hashes. | proven — [run artifact](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40942209489) downloaded independently; queue contents and SHA256 recorded above |
 | A08 | Job summaries/annotations | Publish meaningful test summary and actionable compiler/test annotations; verify run display. | pending — reusable probe writes a successful job summary; independent rendered-summary inspection and actionable annotation verification remain outstanding |
 | A09 | Reusable workflow/composite action | Invoke shared build/test logic from another workflow and verify nested run/step output. | proven — [probe / Verify probe delivery](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40946525379) is the successful nested job from local reusable workflow, with verified result artifact |
 | A10 | Variables/secrets | Read a non-sensitive variable and consume a dedicated benign test secret without printing it; verify comparison success and delete the test secret afterward. | proven — [probe creation/comparison/download/cleanup evidence](https://github.com/alexandru-savinov/agterm-omarchy/issues/12#issuecomment-6507265292); expected hash and channel match, temporary repository secret deleted and listing read back empty |
 | A11 | Workflow concurrency/cancellation | Run a deliberately bounded test group twice and verify superseded run cancellation without interrupting release work. | pending |
-| A12 | Failure/retry handling | Rerun a genuinely failed job after diagnosis and verify attempt number plus corrected outcome. | pending |
+| A12 | Failure/retry handling | Rerun a genuinely failed job after diagnosis and verify attempt number plus corrected outcome. | pending — actual ARM64 HTTP-reset failure diagnosed under #3; failed-job rerun returned 403 because the overall run was still active, not because of OAuth entitlement. No successful retry claimed |
 | A13 | Minimal token permissions | Verify a limited-permission job performs its needed action; denied unrelated action can be checked against an isolated fixture. | proven — [probe run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40946525379) completed checkout/tests/artifact with `contents: read`; checkout credential persistence disabled; no unrelated mutation attempted |
-| A14 | Hosted ARM64/x86_64 runners | Execute native architecture probe and build/test on each available runner, retaining `uname` and result. | pending — native Ubuntu x86_64/ARM64 runner labels and passing architecture-specific builds/tests verified in [run 40941708442](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40941708442); separate uname probe output was not retained in these logs |
+| A14 | Hosted ARM64/x86_64 runners | Execute native architecture probe and build/test on each available runner, retaining `uname` and result. | pending — native Ubuntu x86_64/ARM64 runner labels and passing architecture-specific builds/tests verified at final source in [run 40957588704](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40957588704); a separate `uname` probe output is still not retained in any log at `fa64d44f` (#43) |
 | A15 | Self-hosted runner | Register a dedicated isolated runner, run a bounded trusted job, and remove registration after use. Do not expose the interactive Mac or personal VM to untrusted PR execution. | pending — isolated runner and policy needed |
 | A16 | Environment/deployment | Run a job against a named test environment and verify deployment `success`, SHA, and environment URL. | proven — [Pages run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40944102924) created deployment 7422668836; independently read back `success`, environment `github-pages`, public environment URL |
 | A17 | Deployment branch protection | Demonstrate rejection from a dedicated disallowed test branch and success from the permitted branch. | pending |
-| A18 | Deployment reviewer/wait timer | Observe the protected wait, genuine approval where applicable, and subsequent execution. | pending — reviewer or timed gate |
-| A19 | OIDC | Exchange a job identity for a narrowly scoped credential with a real provider; redact JWTs and record provider audit evidence. `id-token: write` alone is not use. | pending — external provider integration |
-| A20 | Artifact attestations | Attest a real release artifact, download it, and verify provenance against repository/workflow/SHA. | pending |
+| A18 | Deployment reviewer/wait timer | Observe the protected wait, genuine approval where applicable, and subsequent execution. | proven — [Pages deployment statuses](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/deployments/7422668836/statuses) record waiting 19:53:33, queued 19:54:33, in_progress 19:54:35, success 19:54:49 UTC; environment read-back confirms one-minute wait timer, no human approval claimed |
+| A19 | OIDC | Exchange a job identity for a narrowly scoped credential with a real provider; redact JWTs and record provider audit evidence. `id-token: write` alone is not use. | proven — [original attestation API](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/attestations/sha256:e2d48733b2fd8481c314bd639fd15e523110e106418cb982cc830a7e620a839f) certificate binds token.actions.githubusercontent.com issuer to publish-build-image.yml@refs/heads/main and source 67f744ba; [verification job](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40955096412/job/123733024091) cryptographically verifies the original Sigstore provenance, not merely an id-token permission |
+| A20 | Artifact attestations | Attest a real build or release artifact, download it, and verify provenance against repository/workflow/SHA. | proven — original signed OCI provenance 61484924 binds digest e2d48733, source 67f744ba, workflow and build run 40953180566; [fresh exact-source/workflow/ref verification](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40955096412/job/123733024091) succeeded. Registry attachment originally failed; GitHub-hosted original bundle verifies. Application tarball promotion remains pending #17 |
 | A21 | GitHub Pages | Deploy useful Omarchy documentation, fetch the public URL, and verify content version and deployment run. | proven — [live hub](https://alexandru-savinov.github.io/agterm-omarchy/) and [download/public byte comparison](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6506894638) at merged 0eacad7f; status remains work-in-progress |
 | A22 | Pages custom domain | Verify an owner-supplied domain, DNS, and HTTPS certificate; do not invent or take over a domain. | pending — owned domain/DNS access |
-| A23 | Release/prerelease and notes | Publish an honestly labeled tested artifact release/prerelease with notes and tag provenance. | pending |
+| A23 | Release/prerelease and notes | Publish an honestly labeled tested artifact release/prerelease with notes and tag provenance. | pending — reviewed [promotion PR #21](https://github.com/alexandru-savinov/agterm-omarchy/pull/21) merged and validation passed, but #17 still requires final successful trusted non-PR CI before actual prerelease publication |
 | A24 | Release assets/download | Upload architecture-labeled tarball/checksums, download from release URL, verify checksum and launch/test it. | pending |
-| A25 | Packages/container registry | Publish a useful build/test image or package with provenance, pull by digest/version, and use it. | pending — workflow `packages: write` or appropriate auth |
-| A26 | Package visibility/access | Verify intended public visibility and unauthenticated consumption of the published package. | pending |
+| A25 | Packages/container registry | Publish a useful build/test image or package with provenance, pull by digest/version, and use it. | proven — [build run 40953180566](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40953180566) published useful pinned Swift/Zig/GTK image digest e2d48733; [fresh authenticated verification](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40955096412/job/123733024091) pulled that exact digest, verified original provenance, and passed real compiler/link probes |
+| A26 | Package visibility/access | Verify intended public visibility and unauthenticated consumption of the published package. | proven — [fresh anonymous full pull and compiler probes](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40955096412/job/123733873172) succeeded for the same e2d48733 digest with empty Docker config and no registry credentials; no visibility mutation required |
 | A27 | Comment and repository dispatch events | Trigger useful event-driven orchestration and verify event, source SHA, result, and artifact. | proven — [issue_comment run 40942841512](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40942841512) and [repository_dispatch run 40942858795](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40942858795) both succeeded at df1c77bd; root verified queue artifacts |
 
 ## Security and supply chain
@@ -249,7 +249,7 @@ Never leak a live credential, create a real exploitable release, request a fake 
 
 | ID | Feature | Minimum real use and required evidence | Status / evidence |
 |---|---|---|---|
-| S01 | Security policy/private reporting | Publish accurate reporting instructions, enable private reporting if supported, and verify the reporting entry point without filing a fake vulnerability. | pending |
+| S01 | Security policy/private reporting | Publish accurate reporting instructions, enable private reporting if supported, and verify the reporting entry point without filing a fake vulnerability. | proven — [merged SECURITY.md](https://github.com/alexandru-savinov/agterm-omarchy/blob/17ea3e193a97b674f4e06fd2210266fff4f87e4f/SECURITY.md) rendered with the exact private-report link; private-vulnerability-reporting API enabled=true and unauthenticated entry redirects to sign-in with the report return URL. No vulnerability/advisory submitted |
 | S02 | Dependency graph | Verify GitHub ingests actual package manifests/lockfiles and shows the expected dependency relationships. | pending |
 | S03 | Dependency submission/SBOM | Submit build-resolved dependencies if necessary, export an SBOM, and compare dependencies to the actual build. | pending |
 | S04 | Dependency review | Run review on a real dependency-changing PR and inspect its report; no artificial vulnerable production dependency. | pending |
@@ -282,10 +282,10 @@ A local Codex session is not evidence of GitHub Copilot or a GitHub-hosted codin
 | C04 | Copilot coding agent | Assign a useful bounded issue; verify a genuine GitHub agent session, generated PR, tests, and human review. | pending — historical task listing succeeds; [new real task creation](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6506810534) returned HTTP 403, no session or PR created; entitlement/access unresolved |
 | C05 | Copilot code review | Request review of the actual change, inspect resulting findings, and validate any applied fix. | pending — entitlement/policy/credits |
 | C06 | Copilot custom instructions/agents | Observe a hosted agent use committed instructions and verify a relevant result; files alone are configuration. | pending — agent session |
-| C07 | Copilot Chat / CLI | Use on a real repository question/task and retain non-sensitive interaction/output evidence tied to the commit. | pending — client/account access |
+| C07 | Copilot Chat / CLI | Use on a real repository question/task and retain non-sensitive interaction/output evidence tied to the commit. | proven — [actual authenticated CLI question/response](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6508365005), official v1.0.105, public contribution excerpt from PR #26, exit 0, 0.17 AI credits, +0/-0 changes; isolated CLI/config removed afterward. CLI use does not prove IDE Chat or cloud coding-agent access |
 | C08 | Copilot Spaces | Create a useful context space and query it against project sources; record accessible space and result. | pending — UI/account capability |
 | C09 | Third-party coding agents | Invoke a supported GitHub-hosted Claude/Codex agent on real bounded work and verify its session/artifact. | pending — availability/credits/policy |
-| C10 | GitHub Models | Run a bounded useful prompt/evaluation with an eligible account, retaining model/version and result without secrets. | pending — product access and budget |
+| C10 | GitHub Models | Run a bounded useful prompt/evaluation with an eligible account, retaining model/version and result without secrets. | unavailable — [official GitHub Models retirement](https://docs.github.com/en/github-models), effective 2026-07-30, removes playground/catalog/inference/BYOK for all customers; separate from the successfully used Copilot CLI |
 | C11 | REST and GraphQL APIs | Read and mutate relevant project objects through authorized APIs, then independently verify resulting state. | proven — REST planning mutations/read-back and GraphQL discussion mutation/read-back in [evidence report](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6506411483) and [discussion #7](https://github.com/alexandru-savinov/agterm-omarchy/discussions/7) |
 | C12 | GitHub CLI | Perform actual repository lifecycle operations with `gh`, preserving object/run URLs and commands without credentials. | proven — `gh issue comment`, `gh label create`, `gh issue edit`, and `gh api` produced [verified issue metadata](https://github.com/alexandru-savinov/agterm-omarchy/issues/4) |
 | C13 | Webhooks | Deliver a real repository event to an owner-controlled endpoint, verify delivery ID, signature validation, and response. | pending — receiver endpoint and hook access |
@@ -322,9 +322,79 @@ Both native GTK jobs completed at source head `aac39b6481e0aa974e92b13c3cd8757b3
 and tested merge `781b194cad54b4db5c05d576ee9074e2aa7f46e4`.
 Those published artifacts predate the later native GLib and Hyprland fixes; they must not be represented as the final-source release.
 
+## Reconciliation: published evidence and account capabilities
+
+Read-back on 2026-10-29 verifies the following additions without turning configuration or denied actions into completed feature use.
+The earlier snapshots above are historical observations, not current branch/release claims.
+
+### Native evidence and automatic closure
+
+[Reviewed native evidence PR #25](https://github.com/alexandru-savinov/agterm-omarchy/pull/25)
+merged to `73286f449f86c1fe8cc956f0f35f76cbac442ed0`.
+All 22 entries in its [published manifest](https://github.com/alexandru-savinov/agterm-omarchy/blob/73286f449f86c1fe8cc956f0f35f76cbac442ed0/docs/evidence/omarchy-arm64-2026-10-29/SHA256SUMS)
+were independently re-downloaded from that exact commit and SHA256-verified.
+The installed jntN10 result passes nine Live/Wayland checks and cleanup of three tracked names.
+FJbnJA intentionally fails frontend restart; its separate fresh audit confirms empty raw backend inventory and absent recorded shell PIDs.
+KGFCvN's original cleanup result remains explicitly invalidated under `superseded/`; it is not acceptance evidence.
+Application binaries identify source `5e37cb75ce3d4879ca8b7c74ed28d0548780163a`, while the corrected harness identifies `b41fe05dc7a8ee5b345644ecd1dfe17e499218aa`.
+Those distinct identities must not be collapsed into a later final-source hosted CI claim.
+GraphQL issue #22 ClosedEvent at `2026-10-29T21:05:20Z` names PR #25 and merge `73286f44` as its closer, proving automatic closing-keyword behavior.
+
+### Package, original attestation, and OIDC
+
+[Publication run 40953180566](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40953180566)
+built/probed and pushed `ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:e2d48733b2fd8481c314bd639fd15e523110e106418cb982cc830a7e620a839f`
+from `67f744ba7e60525e92a7a0a635b26eb4aab965b6`.
+Its unique tag is `sha-67f744ba7e60525e92a7a0a635b26eb4aab965b6-run-40953180566-attempt-1`.
+Registry attachment failed because the attestation client could not find GHCR credentials; original signed attestation `61484924` was already stored by GitHub.
+The [read-only recovery run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40955096412)
+finished successfully at verifier source `59f0d97f8d4ab45f5b826ddc0077d7b1036d80fc` without rebuilding, republishing, or replacing provenance.
+Authenticated job `123733024091` verified the original signature against exact build workflow/source/ref, then passed compiler/dependency probes.
+Anonymous job `123733873172` independently pulled the full same-digest image and passed those probes on a fresh runner without registry credentials.
+Both completed logs contain `PASS: pinned compilers, Foundation, GTK/libadwaita/WebKit linking and test dependencies`.
+
+Independent attestation API inspection confirms SLSA v1 subject digest, source dependency, workflow path, main ref, and original build invocation.
+The public Sigstore certificate has issuer `sigstore.dev / sigstore-intermediate`, OIDC issuer extension `https://token.actions.githubusercontent.com`,
+and workflow SAN `https://github.com/alexandru-savinov/agterm-omarchy/.github/workflows/publish-build-image.yml@refs/heads/main`.
+Together with successful cryptographic verification, this proves the actual Actions OIDC-to-signing flow.
+No JWT or temporary signed download URL is published in this ledger.
+Application prerelease/tarball promotion remains a separate pending task #17.
+
+### Public contribution and private reporting entry points
+
+[PR #26](https://github.com/alexandru-savinov/agterm-omarchy/pull/26) populated the actual project PR template and merged at `17ea3e193a97b674f4e06fd2210266fff4f87e4f`.
+All seven contribution/support/security/form/template files were read back from main; GitHub rendered the three Markdown entry documents with their expected links.
+Private-reporting API configuration is enabled, and ordinary report entry navigation leads to GitHub authentication with the correct return URL.
+No fake vulnerability, advisory, or CVE was submitted.
+Actual bug-form submission remains pending: Safari reached New issue, but the available scripting/accessibility routes could not complete the form.
+The real detached-zmx bug report fields are preserved in [the #24 handoff](https://github.com/alexandru-savinov/agterm-omarchy/issues/24#issuecomment-6508134230).
+[Community-profile metrics exclude forks](https://docs.github.com/en/rest/metrics/community); the observed 404 is a documented capability restriction, not a successful health score.
+
+### Account capabilities and product restrictions
+
+The [Copilot CLI response](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6508365005)
+answered one read-only question about the public contribution policy using existing authorized GitHub credentials.
+Official darwin-arm64 CLI v1.0.105 archive SHA256 was `34aacd03fb478d47e4b3cfc5ca045c37278c5d8d86239466521a16ea54ac84aa`.
+The actual response placed GTK changes in `agterm-linux/` and distinguished hosted X11 checks from native Wayland acceptance.
+Exit status was zero; the CLI automatically selected GPT-6 Luna and reported 0.17 credits, six seconds, and zero file changes.
+Temporary binary/config/session files were removed, no BYOK provider or paid overage setting was used, and no credential value was published.
+This is CLI inference proof; the separately recorded cloud coding-agent creation HTTP 403 remains unresolved.
+
+[GitHub Models was retired](https://docs.github.com/en/github-models) on 2026-07-30 for all customers, including its playground, catalog, inference API, and BYOK.
+It is a separate service from Copilot, so C10 is unavailable rather than pending access.
+The [actual LFS attempt](https://github.com/alexandru-savinov/agterm-omarchy/issues/28#issuecomment-6508346959)
+failed before transferring either object: `can not upload new objects to public fork alexandru-savinov/agterm-omarchy`.
+This is a target-specific public-fork restriction, not an observed allowance/payment failure.
+The two legitimate image objects total 603,409 bytes; no pointer-only broken branch was published to the fork.
+The authorized [non-fork fixture repository](https://github.com/alexandru-savinov/agterm-omarchy-fixtures) subsequently published both objects at source `f34e5b99572429ae57d90aa9b4fd9c56f885eae0`.
+Its [public transfer record](https://github.com/alexandru-savinov/agterm-omarchy-fixtures/blob/0748bb08c1b3de05a08ba8ce9f131835322e8c21/evidence/transfer-2026-10-29.json)
+records zero initial cached objects, two fresh LFS downloads, matching PNG bytes/hash in checkout and cache, and no Git alternates.
+Independent read-back confirmed public visibility, fork=false, and the exact transfer object/IDs.
+Thus R11 is proven for the account through the legitimate fixture repository while the main fork restriction remains explicit; remaining allowance is still unknown.
+
 ## Current coverage and remaining gates
 
-The 2026-10-29 follow-up records **34 proven**, **85 pending**, and **2 unavailable for this target** across 121 rows.
+The 2026-10-29 reconciliation records **48 proven**, **70 pending**, and **3 unavailable in the stated scope** across 121 rows.
 Counts describe this inventory only; they do not establish exhaustive account-wide coverage.
 The comment/repository-dispatch capability was added as A27 after observing its useful execution.
 
@@ -335,7 +405,8 @@ both passed all seven real Hyprland Wayland gates on ARM64 with a process-local 
 record 553 frontend tests, eight installer fixtures, isolated relocation checks, and a development archive with source `5e37cb75`.
 Core acceptance separately passed 4,025 tests in 175 suites.
 These are application acceptance results, not by themselves GitHub release publication or hosted architecture-matrix evidence.
-Release publication, attestations, cache reuse, and hosted architecture-specific job results remain separate evidence streams.
+Application release publication, cache reuse, and final-source hosted architecture results remain separate evidence streams.
+Original build-image attestation and fresh authenticated/anonymous consumption are now proven above; this does not publish an agterm application release.
 The current account gates are Projects/Codespaces authorization and a denied hosted-agent creation attempt.
 Independent approvals require a separate eligible reviewer; account-wide organization/enterprise availability remains unresolved.
 Funding, custom domains, external webhook/OIDC receivers, and security advisory/CVE demonstrations need real appropriate subjects.

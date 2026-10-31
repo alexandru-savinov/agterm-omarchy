@@ -1,0 +1,145 @@
+[
+  {
+    "status": "validated",
+    "path": "scripts/check-linux-core-boundary.sh",
+    "summary": "Search failures incorrectly pass boundary check",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/pull/96",
+    "evidence": "Nine executable regression tests pass; baseline fails five."
+  },
+  {
+    "status": "validated",
+    "path": "scripts/package-linux.sh",
+    "summary": "Packaging deletes existing output before staging succeeds",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/pull/97",
+    "evidence": "Seven executable tests pass; baseline has three failures and one error."
+  },
+  {
+    "status": "validated",
+    "path": "scripts/install-linux.sh",
+    "summary": "External symlinked bin directory produces dangling launchers",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/pull/99",
+    "evidence": "Twelve installer regressions pass on replay; proposal only."
+  },
+  {
+    "status": "validated-defense-in-depth",
+    "path": "scripts/prepare-omarchy-prerelease.py",
+    "summary": "Promotion archive validator does not require executable entrypoint wrappers",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/94",
+    "evidence": "Eleven tests including twenty adversarial subcases; CI staging already creates wrappers; no current artifact failure claimed."
+  },
+  {
+    "status": "validated",
+    "path": "scripts/verify-linux-packages.sh",
+    "summary": "Unescaped prerelease tilde expands inherited home directory",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/pull/102",
+    "evidence": "Six version cases pass; baseline three failures; no real package execution."
+  },
+  {
+    "status": "source-confirmed",
+    "path": "agterm-linux/Sources/AgtermLinux/LinuxProcessPolicy.swift",
+    "summary": "Empty argv elements discarded during restore capture",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/pull/104",
+    "evidence": "Real Linux proc byte probe executed; Swift patch tests not compiled or run."
+  },
+  {
+    "status": "rejected",
+    "path": "agterm-linux/Sources/AgtermLinux/ControlActions+UpstreamParity.swift",
+    "summary": "Unknown pane token fallback",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "Explicit role fallback is documented and covered by existing test source; tests not executed here. Invalid requests without a role already reject."
+  },
+  {
+    "status": "rejected",
+    "path": "agterm-linux/Sources/AgtermLinux/ControlServer+OverlayJobs.swift",
+    "summary": "Second adoption overwrites live helper",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "Main-actor one-shot claim gate rejects a second claim before adoption."
+  },
+  {
+    "status": "rejected",
+    "path": "agterm-linux/Sources/AgtermLinux/LinuxAttentionSelection.swift",
+    "summary": "Cross-window follow targets wrong controller",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "handleAutoFollow is global and resolves owning window."
+  },
+  {
+    "status": "rejected",
+    "path": "agterm-linux/Sources/AgtermLinux/LinuxControlDispatcher+NewParity.swift",
+    "summary": "Window argument ignored by parity handlers",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "ControlServer routes window to controller before dispatch."
+  },
+  {
+    "status": "runtime-followup",
+    "path": "agterm-linux/Sources/AgtermLinux/AppImageChildEnvironment.swift",
+    "summary": "Tar/personal bundle library path is inherited by children",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "Source traced through launch/sanitizer/child spawning; no runtime library collision claimed."
+  },
+  {
+    "status": "policy-followup",
+    "path": "agterm-linux/Sources/AgtermLinux/LinuxAutoFollowCoordinator.swift",
+    "summary": "Attention churn restarts idle timeout",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "Same behavior exists in shared upstream; requires policy decision and runtime regression, not an established Linux regression."
+  },
+  {
+    "status": "source-confirmed",
+    "path": "agterm-linux/Sources/AgtermLinux/LinuxPastePolicy.swift",
+    "summary": "URI-list drop and paste fail to escape individual decoded paths",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/pull/105",
+    "evidence": "Direct drop-to-inject trace and existing native-file/macOS escaping contract; patch applies; Swift tests unexecuted."
+  },
+  {
+    "status": "source-confirmed",
+    "path": "agterm-linux/Sources/LinuxIntegrations/IntegrationService+Plans.swift",
+    "summary": "Existing shared skill alias validation fails after its own successful replacement",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/pull/107",
+    "evidence": "Sequential validation/replacement source trace; patch applies; proposed Swift tests unexecuted; does not claim transactional/race safety."
+  },
+  {
+    "status": "rejected-as-demonstrated-bug",
+    "path": "agterm-linux/Tests/AgtermLinuxTests/LinuxGdkPolicyTests.swift",
+    "summary": "Originally absent GDK variables restored as empty strings",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "Documented policy; GTK parses both as zero flags. Presence introspection differs, but no affected application behavior shown."
+  },
+  {
+    "status": "runtime-followup",
+    "path": "agterm-linux/Sources/AgtermLinux/ModifierKeyMods.swift",
+    "summary": "Releasing one modifier side clears aggregate bit with other side held",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "Source-confirmed forwarding discrepancy, likely transient hover/cursor effects; no runtime failure or tested correction yet."
+  },
+  {
+    "status": "source-confirmed",
+    "path": "agtermCore/Sources/agtermCore/CustomCommand.swift",
+    "summary": "Command template scanner rewrites environment references and misses tokens after literal braces",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "Source/caller trace and Python string-only translation; Swift tests unexecuted.",
+    "proposal": "core-proposals/custom-command.patch"
+  },
+  {
+    "status": "source-confirmed",
+    "path": "agtermCore/Sources/agtermCore/AgentHooksInstall.swift",
+    "summary": "Apostrophe in hook directory breaks installation idempotency",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "Source trace and Python string membership probe; Swift tests unexecuted.",
+    "proposal": "core-proposals/quoted-hooks.patch"
+  },
+  {
+    "status": "source-confirmed",
+    "path": "agtermCore/Sources/agtermCore/CommandRestore.swift",
+    "summary": "CRLF denylist records fail to split as Swift Characters",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "Source trace and Swift Character semantics; Swift tests unexecuted.",
+    "proposal": "core-proposals/denylist-crlf.patch"
+  },
+  {
+    "status": "confirmed-followup",
+    "path": "agtermCore/Sources/agtermCore/ShellEscape.swift",
+    "summary": "Backslash-newline removes a newline from filenames during shell parsing",
+    "reference": "https://github.com/alexandru-savinov/agterm-omarchy/issues/92",
+    "evidence": "Benign shell argv-only probe confirms removal; existing URI proposal follows helper semantics and explicitly does not claim comprehensive filename handling. No broader fix proposed."
+  }
+]

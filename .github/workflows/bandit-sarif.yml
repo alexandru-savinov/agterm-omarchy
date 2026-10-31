@@ -1,0 +1,73 @@
+name: Bandit orchestration and packaging scan
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/bandit-sarif.yml
+      - scripts/security/bandit_sarif.py
+      - packaging/linux/bandit-scan.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Validate scanner integration syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: |
+          python3 -c 'import ast, pathlib; ast.parse(pathlib.Path("scripts/security/bandit_sarif.py").read_text())'
+          python3 scripts/security/bandit_sarif.py --help
+          git diff --check
+
+  scan:
+    name: Scan real helpers and verify SARIF ingestion
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'alexandru-savinov/agterm-omarchy'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned Bandit and preserve dependency provenance
+        env:
+          PIP_CONFIG_FILE: /dev/null
+        run: |
+          mkdir -p "$RUNNER_TEMP/bandit-evidence"
+          python3 -m venv "$RUNNER_TEMP/bandit-venv"
+          SCANNER_PYTHON="$RUNNER_TEMP/bandit-venv/bin/python"
+          echo "BANDIT_PYTHON=$SCANNER_PYTHON" >> "$GITHUB_ENV"
+          "$SCANNER_PYTHON" --version > "$RUNNER_TEMP/bandit-evidence/python-version.txt"
+          "$SCANNER_PYTHON" -m pip --version > "$RUNNER_TEMP/bandit-evidence/pip-version.txt"
+          "$SCANNER_PYTHON" -m pip install --disable-pip-version-check --only-binary=:all: \
+            --index-url https://pypi.org/simple --report "$RUNNER_TEMP/bandit-evidence/install-report.json" \
+            'bandit[sarif]==1.9.4' > "$RUNNER_TEMP/bandit-evidence/install.log" 2>&1
+          "$SCANNER_PYTHON" -m pip freeze --all > "$RUNNER_TEMP/bandit-evidence/dependencies.txt"
+      - name: Run the real bounded scan and retain every finding
+        run: '"$BANDIT_PYTHON" scripts/security/bandit_sarif.py scan "$RUNNER_TEMP/bandit-evidence"'
+      - name: Upload actual SARIF and verify completed analysis identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: '"$BANDIT_PYTHON" scripts/security/bandit_sarif.py upload "$RUNNER_TEMP/bandit-evidence"'
+      - name: Preserve scanner output, dependency provenance, and API receipts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: bandit-evidence-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/bandit-evidence
+          if-no-files-found: error
+          retention-days: 14

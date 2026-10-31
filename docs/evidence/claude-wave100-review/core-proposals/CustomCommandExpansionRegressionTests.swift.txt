@@ -1,0 +1,25 @@
+import Testing
+@testable import agtermCore
+
+struct CustomCommandExpansionRegressionTests {
+    @Test func shellEnvironmentReferencesStayLiteral() {
+        let context = CommandContext(selection: "selected \"quoted\" text")
+        let body = #"printf '%s' "${AGT_SELECTION}" "$AGT_SELECTION""#
+        #expect(context.expand(body) == body)
+        #expect(context.environment()["AGT_SELECTION"] == "selected \"quoted\" text")
+    }
+
+    @Test func literalOpeningBraceDoesNotConsumeLaterToken() {
+        let context = CommandContext(sessionID: "session-1")
+        #expect(context.expand(#"{ printf '%s' "{AGT_SESSION_ID}"; }"#)
+            == #"{ printf '%s' "session-1"; }"#)
+        #expect(context.expand("{{AGT_SESSION_ID}}") == "{session-1}")
+    }
+
+    @Test func rawReplacementRemainsSinglePassAndUnknownTokensSurvive() {
+        let context = CommandContext(selection: "{AGT_SOCKET}", socket: "/tmp/example.sock")
+        #expect(context.expand("{AGT_SELECTION} ${AGT_SOCKET} {UNKNOWN} {AGT_SOCKET}")
+            == "{AGT_SOCKET} ${AGT_SOCKET} {UNKNOWN} /tmp/example.sock")
+        #expect(context.expand("incomplete {AGT_SOCKET") == "incomplete {AGT_SOCKET")
+    }
+}
