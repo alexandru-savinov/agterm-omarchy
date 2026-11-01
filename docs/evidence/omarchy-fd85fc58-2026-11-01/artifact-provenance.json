@@ -1,0 +1,24 @@
+{
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "source_commit": "fd85fc5824a782d17b2aee0cb113ef31f9ce66ab",
+  "source_branch": "omarchy",
+  "source_run": "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41335760930",
+  "source_run_attempt": 1,
+  "source_workflow": ".github/workflows/ci.yml",
+  "artifacts": [
+    {
+      "id": 13095912984,
+      "name": "agterm-omarchy-x86_64-fd85fc5824a782d17b2aee0cb113ef31f9ce66ab",
+      "transport_digest": "sha256:7bda2dc7bf27fc094989876e70afd9e9f51b10203dd9356ee60bb50770f33ec2",
+      "filename": "agterm-omarchy-x86_64.tar.gz",
+      "sha256": "a2eca303661c8c92afc12cc06a2ea0ef35bdcd1fd17a9feb29cf4f47341429a3"
+    },
+    {
+      "id": 13096395585,
+      "name": "agterm-omarchy-aarch64-fd85fc5824a782d17b2aee0cb113ef31f9ce66ab",
+      "transport_digest": "sha256:2a138caed0109b0b178ec2b593081f1725707e0148db6cb195d915ebc52e786b",
+      "filename": "agterm-omarchy-aarch64.tar.gz",
+      "sha256": "e9aecad7c183ef2ee325ba8bc91b036a7dbf3c2f21dff8645e6ee330ef919671"
+    }
+  ]
+}
