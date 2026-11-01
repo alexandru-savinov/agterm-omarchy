@@ -1,0 +1,10 @@
+{
+  "publication": "Original captures are retained operator-side because an unrelated desktop weather popup overlaps the test window. Images are not included in this public bundle.",
+  "sha256": {
+    "html-overlay.png": "a50ce6685c346e01a05fbe65fc23955ecce013a1c9c5d4fab98daea2da8cc5a9",
+    "terminal-green.png": "d423a9ff01a71f4da132b65eb3155f7e9bc3c6466b573bcf9598d43bffcdbfd1",
+    "overlay.png": "b00ce3983c4d7e9f098a29846bc038456011c270141918c3eb331928c9299280",
+    "split.png": "249a18c966176cc3e08c51183baf20f498e3a5b01269a1d4fabc23527b346375",
+    "terminal-red.png": "639e39c1b8ef9e2ff2701cf21ead706ee88cfa4272c8554376a58d6c80da0234"
+  }
+}

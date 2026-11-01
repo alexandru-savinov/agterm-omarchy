@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "started_at": "2026-11-01T16:35:55.063743+00:00",
+  "route": "gio launch installed desktop entry",
+  "inherited_software_mode": "0",
+  "desktop_sha256": "78c3fa5bf0684240d30ec0726e822ef27901ff89936a945f64212da5715a4c8d",
+  "effective_software_mode": "1",
+  "native_wayland": true,
+  "gl_surface_realized": true,
+  "pty_execution_and_readback": true,
+  "owned_processes_cleaned": true,
+  "preexisting_apps_preserved": true,
+  "owned_process_count": 2,
+  "ended_at": "2026-11-01T16:35:56.543995+00:00"
+}
