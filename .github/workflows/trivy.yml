@@ -1,0 +1,82 @@
+name: Trivy
+
+# Filesystem scan with Trivy (Apache-2.0, no account or key): known vulnerabilities
+# in lockfiles and misconfigurations (Dockerfiles, IaC). The secret scanner is off,
+# since gitleaks.yml covers secrets over the full history. The binary is downloaded
+# and verified against a pinned sha256, as actionlint.yml does. Trivy downloads its
+# vulnerability DB and check bundle at runtime. The log prints only result counts;
+# results go to code scanning as SARIF (category trivy).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '29 6 * * 3'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trivy-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  TRIVY_VERSION: "0.76.1"
+  TRIVY_SHA256: "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0"
+
+jobs:
+  trivy:
+    name: Vulnerability and misconfig scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install trivy
+        run: |
+          set -euo pipefail
+          archive="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -fsSLo "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${archive}"
+          echo "${TRIVY_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" trivy
+          "${RUNNER_TEMP}/trivy" --version
+      - name: Self-test (trivy must flag a known-bad Dockerfile)
+        run: |
+          set -euo pipefail
+          fx="${RUNNER_TEMP}/trivy-fixture"
+          rm -rf "$fx"
+          mkdir -p "$fx"
+          printf 'FROM alpine:3.10\nUSER root\n' > "$fx/Dockerfile"
+          "${RUNNER_TEMP}/trivy" fs --quiet --cache-dir "${RUNNER_TEMP}/trivy-cache" \
+            --scanners misconfig --format sarif --output "${RUNNER_TEMP}/fixture.sarif" \
+            --exit-code 0 "$fx"
+          n="$(jq '.runs[0].results|length' "${RUNNER_TEMP}/fixture.sarif")"
+          echo "self-test results: ${n}"
+          if [ "${n}" -eq 0 ]; then
+            echo "trivy found nothing in a known-bad Dockerfile; this check cannot fail" >&2
+            exit 1
+          fi
+      - name: Scan repository
+        run: |
+          set -euo pipefail
+          "${RUNNER_TEMP}/trivy" fs --quiet --cache-dir "${RUNNER_TEMP}/trivy-cache" \
+            --scanners vuln,misconfig --format sarif --output trivy.sarif \
+            --exit-code 0 .
+          echo "trivy results: $(jq '.runs[0].results|length' trivy.sarif)"
+      - name: Upload SARIF
+        # Fork PRs get a read-only token and cannot upload SARIF.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
