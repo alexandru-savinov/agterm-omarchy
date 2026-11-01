@@ -197,7 +197,7 @@ require organization ownership for public repositories; this planned target belo
 | P13 | Branch rulesets | Apply relevant checks/force-push restrictions and demonstrate enforcement, not just creation. | proven — [rule suite 4801459871](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/rulesets/rule-suites/4801459871) records failed force-push/PR-only enforcement on validation/governance under ruleset 26157559; later main suites 4801569141, 4801639053, and 4801860351 passed |
 | P14 | Tag rulesets | Protect a release/test tag pattern and demonstrate denied unauthorized modification of a dedicated validation tag. | proven — [rule suite 4803148978](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/rulesets/rule-suites/4803148978) records failed tag update under active ruleset 26162219; validation-governance-33 still targets 63ff1aaeba921fae908ee46d2588b298ef3c5b77. No bypass; deletion configured but not separately attempted |
 | P15 | Required status checks | Show a required test failure blocks a dedicated PR and a corrected passing check permits merge. | proven — required [fixture run 40956904559](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40956904559) failed on 52007ea0; corrected [run 40957222108](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40957222108) passed on 560dfd8f, then PR #37 merged at 21:22:45Z. Failure denial is retained in the P12 operator record; fixture-only enforcement |
-| P16 | Required conversation resolution | Show an unresolved genuine review thread gates a PR, then resolve it and verify eligibility. | pending — reviewer/thread |
+| P16 | Required conversation resolution | Show an unresolved genuine review thread gates a PR, then resolve it and verify eligibility. | proven — [PR #114 blocked→resolved→merged record](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6564786416) links the operator HTTP405 denial, credential correction ce255039 and explicit publisher-advisory deferral/resolution; [merge rule suite 4846220946](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/rulesets/rule-suites/4846220946) passed active ruleset 26157559 for main 23d06986. All six review threads resolved; shared-account governance, not independent approval |
 | P17 | Merge queue | Enqueue and merge a checked PR through a queue, retaining merge-group run evidence. | unavailable — personal-owned target; organization repository required |
 | P18 | Push rulesets | Demonstrate supported path/size restrictions in an eligible repository/fork network. | unavailable for this target under documented personal public-repository scope |
 | P19 | Branch cleanup and recovery | Delete only a merged task branch, restore it if testing recovery, and verify references. | proven — [root exact-lease delete/restore record](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6508504507) for merged pages-readme includes deletion read-back 404 and restoration at 6a02c737ce49c17e46ed173ccf63c2ddf3c2154c; independent final REST ref query confirms that exact restored SHA |
@@ -421,12 +421,25 @@ The x86 runtime, ARM64 CPU/zmx, and Bandit evidence ZIPs were downloaded and che
 They were inspected as data, not executed.
 Historical experiment execution remains evidence even when its PR closes; it does not establish current artifact acceptance.
 The hosted architecture probes, older native installation and current hosted candidate remain distinct evidence streams.
-Governance demonstrations use dedicated fixtures; denial/operator statements are explicitly attributed, and P16 conversation gating stays configuration-only.
+At that observation, the governance demonstrations used dedicated fixtures; denial/operator statements were explicitly attributed, and P16 conversation gating remained configuration-only.
 No same-account review is counted as independent approval, and account-wide access/entitlement gaps are unchanged.
+
+## Required conversation resolution: 2026-11-01
+
+P16's later evidence comes from ordinary maintenance in [PR #114](https://github.com/alexandru-savinov/agterm-omarchy/pull/114).
+The retained [root operator record](https://github.com/alexandru-savinov/agterm-omarchy/pull/114#issuecomment-6564507053) reports HTTP405 at 22:01:01 UTC because a review conversation remained unresolved.
+[Correction ce255039](https://github.com/alexandru-savinov/agterm-omarchy/commit/ce2550396880ff64d2ae034bd930a79a4459a4b1) disabled persisted checkout credentials; the security bot resolved the four corresponding credential threads.
+The [publisher-refactor advisory](https://github.com/alexandru-savinov/agterm-omarchy/pull/114#discussion_r4437554328) was instead explicitly deferred and resolved by `alexandru-savinov`; no publisher replacement was implemented.
+Read-back found all six review threads resolved and the PR merged at 22:22:20 UTC as [23d06986](https://github.com/alexandru-savinov/agterm-omarchy/commit/23d06986a11ec54c529c0364962fe8885d7a715f), with parents `90eb3959` and `ce255039`.
+[Rule suite 4846220946](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/rulesets/rule-suites/4846220946) records a passing active pull-request rule for that exact main update, not a bypass.
+[Ruleset 26157559](https://api.github.com/repos/alexandru-savinov/agterm-omarchy/rulesets/26157559) still requires conversation resolution, has no bypass actors, and retains its 2026-10-29 update timestamp.
+Root's [completion record](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6564786416) separately records clean merge eligibility after the last check finished.
+This demonstrates blocked→addressed/resolved→eligible/merged behavior under the unchanged rule; it does not establish independent reviewer identity.
+`ledger_review` verified these existing objects for this reconciliation; no new enforcement attempt or account change was performed.
 
 ## Current coverage and remaining gates
 
-The 2026-11-01 handoff reconciliation records **66 proven**, **51 pending**, and **4 unavailable in the stated scope** across 121 rows.
+The 2026-11-01 handoff and P16 reconciliations record **67 proven**, **50 pending**, and **4 unavailable in the stated scope** across 121 rows.
 Counts describe this inventory only; they do not establish exhaustive account-wide coverage.
 The comment/repository-dispatch capability was added as A27 after observing its useful execution.
 
