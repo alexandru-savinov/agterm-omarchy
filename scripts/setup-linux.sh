@@ -38,7 +38,7 @@ if ! $need_ghostty && ! $need_zmx; then
   exit 0
 fi
 
-for command in git curl tar sha256sum tic infocmp file; do
+for command in git curl tar sha256sum tic infocmp file python3; do
   command -v "$command" >/dev/null || { echo "$command is required to vendor Linux runtimes" >&2; exit 1; }
 done
 ZIG=""
@@ -89,6 +89,8 @@ if $need_ghostty; then
   cp "$GHOSTTY_BUILD/zig-out/lib/ghostty-internal.so" "$GHOSTTY_STAGE/lib/libghostty.so"
   cp -R "$GHOSTTY_BUILD/zig-out/include/." "$GHOSTTY_STAGE/include/"
   cp -R "$GHOSTTY_BUILD/src/shell-integration" "$GHOSTTY_STAGE/share/ghostty/shell-integration"
+  python3 "$ROOT/scripts/linux-notices.py" cache-ghostty \
+    "$GHOSTTY_STAGE/share/licenses/ghostty" "$GHOSTTY_BUILD"
 
   echo "fetching pinned Ghostty theme dependency..."
   curl -fsSLo "$GHOSTTY_BUILD/ghostty-themes.tgz" "$GHOSTTY_THEMES_URL"

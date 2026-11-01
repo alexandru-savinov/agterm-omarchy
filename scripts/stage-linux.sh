@@ -36,6 +36,7 @@ APP_RESOURCES="$APP/.build/release/agterm-linux_AgtermLinux.resources"
 
 "$ROOT/scripts/verify-linux-resources.sh" "$APP/vendor/ghostty/share"
 "$ROOT/scripts/verify-linux-zmx-cache.sh" "$APP/vendor/zmx"
+python3 "$ROOT/scripts/linux-notices.py" verify-ghostty "$APP/vendor/ghostty/share/licenses/ghostty"
 
 mkdir -p "$DEST/bin" "$DEST/lib" "$DEST/share/applications" "$DEST/share/pixmaps"
 install -m755 "$BIN" "$DEST/bin/agterm-linux.bin"
@@ -66,6 +67,7 @@ mkdir -p "$DEST/share/agterm"
 cp -R "$ROOT/agterm/Resources/agent-status" "$DEST/share/agterm/agent-status"
 cp -R "$ROOT/plugins/agterm/skills/agterm" "$DEST/share/agterm/agent-skill"
 install -m644 "$APP/vendor/zmx/LICENSE" "$DEST/share/agterm/ZMX-LICENSE"
+python3 "$ROOT/scripts/linux-notices.py" stage "$DEST"
 printf '%s\n' "${AGTERM_PACKAGE_VERSION:-dev}" > "$DEST/share/agterm/VERSION"
 printf '%s\n' "${AGTERM_PACKAGE_COMMIT:-$(git -C "$ROOT" rev-parse HEAD)}" > "$DEST/share/agterm/COMMIT"
 

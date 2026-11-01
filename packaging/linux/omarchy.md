@@ -133,3 +133,11 @@ AGTERM_STATE_DIR="$(mktemp -d /tmp/agterm-check.XXXXXX)" scripts/run-linux.sh
 
 Point control commands at that instance's `agterm.sock` with `--socket` after the subcommand.
 The CLI does not automatically consume `AGTERM_SOCKET`.
+
+### Distribution notices
+
+Staging retains the repository MIT license and pinned Ghostty/Swift component notices under
+`share/licenses/agterm/`, including immutable source URLs, notice hashes and copied-library hashes.
+Missing or stale Ghostty cache notices are rejected before reuse.
+See [the notice profile and remaining distribution review](notices/README.md) before publication;
+these component copies do not establish complete transitive attribution or qualify a new archive for release.
