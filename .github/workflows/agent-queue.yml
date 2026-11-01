@@ -28,14 +28,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Test queue interpretation
         run: python3 scripts/github/test_queue.py
       - name: Read tasks and named check-ins
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/github/queue.py
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: agent-queue-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/agent-queue

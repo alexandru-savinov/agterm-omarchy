@@ -38,7 +38,7 @@ jobs:
       contents: read
       issues: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Test escaping, readiness, and issue selection
         run: python3 docs/omarchy-pages/test_build.py
       - name: Snapshot the public task queue
@@ -59,7 +59,7 @@ jobs:
             --queue "$RUNNER_TEMP/queue/queue.json" \
             --output _site --commit "$GITHUB_SHA" --limit "$TASK_LIMIT"
       - name: Upload downloadable preview
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: omarchy-hub-preview-${{ github.sha }}
           path: _site
@@ -67,7 +67,7 @@ jobs:
           retention-days: 14
           if-no-files-found: error
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
         with:
           path: _site
       - name: Build summary
@@ -93,10 +93,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - name: Deploy reviewed artifact
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
       - name: Verify public deployment content
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
