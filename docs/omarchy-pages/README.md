@@ -23,6 +23,7 @@ The dedicated `team.html` page presents a reviewed ownership snapshot from `rost
 It links prominently from the hub and uses self-hosted CSS/JavaScript with no network polling or tracking.
 Its optional text, phase and workstream filters preserve the full readable roster when JavaScript is disabled.
 The existing hub remains script-free.
+Both pages link directly to the source-install guide on this repository's integrated `main` branch.
 Both pages distinguish the trusted matrix at `fd85fc58`, its exact ARM64 archive's seven ordinary
 and nine Live native checks, historical failed runs, and older installation/renderer evidence.
 The candidate acceptance records software rendering, a process-local zsh fixture and an external

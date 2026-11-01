@@ -161,7 +161,7 @@ def team_page(roster, rows, commit, extras=()):
 <meta name="description" content="Who is doing what on agterm for Omarchy: a source-linked snapshot of responsibilities, reviews and the release gate.">
 <title>Team room · agterm for Omarchy</title><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="team.css"><script src="team.js" defer></script></head>
 <body><a class="skip" href="#main">Skip to team room</a>
-<header><a class="wordmark" href="./">agterm<span>/omarchy</span></a><nav aria-label="Primary"><a href="./">Project hub</a><a href="#roster">The roster</a><a href="{BASE}/issues/1">GitHub hub ↗</a></nav></header>
+<header><a class="wordmark" href="./">agterm<span>/omarchy</span></a><nav aria-label="Primary"><a href="./">Project hub</a><a href="{BASE}/blob/main/packaging/linux/omarchy.md">Install guide ↗</a><a href="#roster">The roster</a><a href="{BASE}/issues/1">GitHub hub ↗</a></nav></header>
 <main id="main"><section class="hero" aria-labelledby="title"><div class="hero-copy"><p class="eyebrow">Team room / 01</p>
 <h1 id="title">Different agents.<br><span>Shared direction.</span></h1><p class="lede">Who is building, checking, reviewing and connecting the pieces of agterm for Omarchy.</p>
 <p class="snapshot"><span class="snapshot-mark" aria-hidden="true">▣</span> Evidence snapshot <time datetime="{observed}">{observed}</time></p></div>
@@ -226,7 +226,7 @@ def write_site(destination, pages, commit, limit=25, roster=None, queue=None):
 <meta name="description" content="Development hub, agent coordination, and readiness evidence for the agterm Omarchy port.">
 <title>agterm for Omarchy · Development hub</title><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css"></head>
 <body><a class="skip" href="#main">Skip to content</a>
-<header><a class="brand" href="./">agterm <span>/ Omarchy</span></a><nav aria-label="Primary"><a href="team.html">Team room</a><a href="#join">Join</a><a href="#tasks">Tasks</a><a href="{BASE}">Repository ↗</a></nav></header>
+<header><a class="brand" href="./">agterm <span>/ Omarchy</span></a><nav aria-label="Primary"><a href="team.html">Team room</a><a href="{BASE}/blob/main/packaging/linux/omarchy.md">Install guide ↗</a><a href="#join">Join</a><a href="#tasks">Tasks</a><a href="{BASE}">Repository ↗</a></nav></header>
 <main id="main"><section class="hero"><p class="eyebrow">A Linux terminal port, built in public</p>
 <h1>One place to work.<br>One record of progress.</h1>
 <p class="lead">Bringing agterm’s workspace and session model to Omarchy, with native ARM64 and x86_64 builds and real Hyprland testing.</p>
