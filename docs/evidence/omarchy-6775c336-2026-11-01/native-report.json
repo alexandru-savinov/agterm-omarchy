@@ -1,0 +1,332 @@
+{
+  "passed": true,
+  "source_commit": "6775c33626925adc8a17e9ed7700f296f38d7688",
+  "source_run": 41357189891,
+  "started_at_utc": "2026-11-01T23:11:42.305326+00:00",
+  "modes": {
+    "none": {
+      "passed": true,
+      "started_at_utc": "2026-11-01T23:11:44.109258+00:00",
+      "launcher_sha256": "72807ef713cf417207c047d17987f3198eb086287bd28d2b6fb38f022a1a1ba3",
+      "private_runtime_directory": "none-runtime",
+      "returncode": 0,
+      "independent_cleanup": {
+        "passed": true,
+        "tracked_process_count": 16,
+        "remaining_processes": [],
+        "new_app_processes": [],
+        "retained_recovery_paths": [],
+        "endpoints": [
+          "/tmp/agterm-zmx-c54350bd5ccc5274"
+        ],
+        "preservation": {
+          "passed": true,
+          "protected_process_count": 3,
+          "lost": {}
+        },
+        "timed_out": false,
+        "forced_cleanup": false,
+        "shell_pids": {},
+        "cleanup_actions": [],
+        "errors": []
+      },
+      "ended_at_utc": "2026-11-01T23:11:46.907033+00:00",
+      "result": {
+        "passed": true,
+        "restore_mode": "none",
+        "checks": [
+          "primary PTY execution and screen read-back",
+          "native Wayland rendering: red-to-green PTY pixel change",
+          "workspace/session creation and split PTY execution",
+          "overlay output, dismissal, and restored split input",
+          "WebKitGTK HTML overlay load",
+          "split/session/workspace teardown",
+          "no terminal GL-context or app CSS failures"
+        ],
+        "identity": {
+          "schema": "agterm-omarchy-run-identity/1",
+          "run_id": "e7d659f112ac427a9fc4513204019dbb",
+          "artifact_dir_name": "none",
+          "started_at_utc": "2026-11-01T23:11:44.176951Z",
+          "harness": {
+            "sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40",
+            "git_commit": null,
+            "git_blob": "38d8916e35c862f65bd2a206b411086cd95942ab",
+            "matches_commit": null
+          },
+          "binaries": {
+            "app": {
+              "name": "none-launch-app.py",
+              "sha256": "72807ef713cf417207c047d17987f3198eb086287bd28d2b6fb38f022a1a1ba3",
+              "resolved_name": "none-launch-app.py",
+              "kind": "script"
+            },
+            "cli": {
+              "name": "agtermctl",
+              "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+              "resolved_name": "agtermctl",
+              "kind": "script"
+            },
+            "zmx": null
+          },
+          "app_processes": [
+            {
+              "launch": 1,
+              "sha256": "efafbce6ac0956bc8c32f7036d92b6fb4afb45ecb25382b99bf867f31d0a4b37",
+              "exe_name": "agterm-linux.bin"
+            }
+          ],
+          "zmx_list": [],
+          "positive_control": null,
+          "ended_at_utc": "2026-11-01T23:11:46.715271Z"
+        }
+      },
+      "cleanup": {
+        "passed": true,
+        "tracked_daemon_count": 0,
+        "identity": {
+          "schema": "agterm-omarchy-run-identity/1",
+          "run_id": "e7d659f112ac427a9fc4513204019dbb",
+          "artifact_dir_name": "none",
+          "started_at_utc": "2026-11-01T23:11:44.176951Z",
+          "harness": {
+            "sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40",
+            "git_commit": null,
+            "git_blob": "38d8916e35c862f65bd2a206b411086cd95942ab",
+            "matches_commit": null
+          },
+          "binaries": {
+            "app": {
+              "name": "none-launch-app.py",
+              "sha256": "72807ef713cf417207c047d17987f3198eb086287bd28d2b6fb38f022a1a1ba3",
+              "resolved_name": "none-launch-app.py",
+              "kind": "script"
+            },
+            "cli": {
+              "name": "agtermctl",
+              "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+              "resolved_name": "agtermctl",
+              "kind": "script"
+            },
+            "zmx": null
+          },
+          "app_processes": [
+            {
+              "launch": 1,
+              "sha256": "efafbce6ac0956bc8c32f7036d92b6fb4afb45ecb25382b99bf867f31d0a4b37",
+              "exe_name": "agterm-linux.bin"
+            }
+          ],
+          "zmx_list": [],
+          "positive_control": null,
+          "ended_at_utc": "2026-11-01T23:11:46.792000Z"
+        }
+      },
+      "shared_runtime_unchanged": true,
+      "installed_payload_unchanged": true,
+      "login_shell_unchanged": true
+    },
+    "live": {
+      "passed": true,
+      "started_at_utc": "2026-11-01T23:11:47.017347+00:00",
+      "launcher_sha256": "43661b73d1e57d054d5d4a5f1362640d23544cb1a8305a6bf743176e06b219b7",
+      "private_runtime_directory": "live-runtime",
+      "returncode": 0,
+      "independent_cleanup": {
+        "passed": true,
+        "tracked_process_count": 31,
+        "remaining_processes": [],
+        "new_app_processes": [],
+        "retained_recovery_paths": [],
+        "endpoints": [
+          "/tmp/agterm-zmx-71501528ed5101ac"
+        ],
+        "preservation": {
+          "passed": true,
+          "protected_process_count": 3,
+          "lost": {}
+        },
+        "timed_out": false,
+        "forced_cleanup": false,
+        "shell_pids": {
+          "shell-pid-before": 657142,
+          "shell-pid-after": 657142
+        },
+        "cleanup_actions": [],
+        "errors": []
+      },
+      "ended_at_utc": "2026-11-01T23:11:50.849479+00:00",
+      "result": {
+        "passed": true,
+        "restore_mode": "live",
+        "checks": [
+          "primary PTY execution and screen read-back",
+          "Live mode shell execution through bundled zmx",
+          "Live session preserves shell PID across application restart",
+          "native Wayland rendering: red-to-green PTY pixel change",
+          "workspace/session creation and split PTY execution",
+          "overlay output, dismissal, and restored split input",
+          "WebKitGTK HTML overlay load",
+          "split/session/workspace teardown",
+          "no terminal GL-context or app CSS failures"
+        ],
+        "identity": {
+          "schema": "agterm-omarchy-run-identity/1",
+          "run_id": "b1051678b0e540bcaf67fe29cc6740f1",
+          "artifact_dir_name": "live",
+          "started_at_utc": "2026-11-01T23:11:47.046853Z",
+          "harness": {
+            "sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40",
+            "git_commit": null,
+            "git_blob": "38d8916e35c862f65bd2a206b411086cd95942ab",
+            "matches_commit": null
+          },
+          "binaries": {
+            "app": {
+              "name": "live-launch-app.py",
+              "sha256": "43661b73d1e57d054d5d4a5f1362640d23544cb1a8305a6bf743176e06b219b7",
+              "resolved_name": "live-launch-app.py",
+              "kind": "script"
+            },
+            "cli": {
+              "name": "agtermctl",
+              "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+              "resolved_name": "agtermctl",
+              "kind": "script"
+            },
+            "zmx": {
+              "name": "zmx",
+              "sha256": "ed4d6c45f305147c5c4b19661df36e90e75dad2f061d3d595d14bd0257f45f6a",
+              "resolved_name": "zmx",
+              "kind": "elf"
+            }
+          },
+          "app_processes": [
+            {
+              "launch": 1,
+              "sha256": "efafbce6ac0956bc8c32f7036d92b6fb4afb45ecb25382b99bf867f31d0a4b37",
+              "exe_name": "agterm-linux.bin"
+            },
+            {
+              "launch": 2,
+              "sha256": "efafbce6ac0956bc8c32f7036d92b6fb4afb45ecb25382b99bf867f31d0a4b37",
+              "exe_name": "agterm-linux.bin"
+            }
+          ],
+          "zmx_list": [],
+          "positive_control": null,
+          "zmx_socket_directory_name": "agterm-zmx-71501528ed5101ac",
+          "ended_at_utc": "2026-11-01T23:11:50.143851Z"
+        }
+      },
+      "cleanup": {
+        "passed": true,
+        "tracked_daemon_count": 3,
+        "identity": {
+          "schema": "agterm-omarchy-run-identity/1",
+          "run_id": "b1051678b0e540bcaf67fe29cc6740f1",
+          "artifact_dir_name": "live",
+          "started_at_utc": "2026-11-01T23:11:47.046853Z",
+          "harness": {
+            "sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40",
+            "git_commit": null,
+            "git_blob": "38d8916e35c862f65bd2a206b411086cd95942ab",
+            "matches_commit": null
+          },
+          "binaries": {
+            "app": {
+              "name": "live-launch-app.py",
+              "sha256": "43661b73d1e57d054d5d4a5f1362640d23544cb1a8305a6bf743176e06b219b7",
+              "resolved_name": "live-launch-app.py",
+              "kind": "script"
+            },
+            "cli": {
+              "name": "agtermctl",
+              "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+              "resolved_name": "agtermctl",
+              "kind": "script"
+            },
+            "zmx": {
+              "name": "zmx",
+              "sha256": "ed4d6c45f305147c5c4b19661df36e90e75dad2f061d3d595d14bd0257f45f6a",
+              "resolved_name": "zmx",
+              "kind": "elf"
+            }
+          },
+          "app_processes": [
+            {
+              "launch": 1,
+              "sha256": "efafbce6ac0956bc8c32f7036d92b6fb4afb45ecb25382b99bf867f31d0a4b37",
+              "exe_name": "agterm-linux.bin"
+            },
+            {
+              "launch": 2,
+              "sha256": "efafbce6ac0956bc8c32f7036d92b6fb4afb45ecb25382b99bf867f31d0a4b37",
+              "exe_name": "agterm-linux.bin"
+            }
+          ],
+          "zmx_list": [
+            {
+              "at_utc": "2026-11-01T23:11:50.155523Z",
+              "exit_code": 0,
+              "stdout_rows": 2,
+              "stderr_bytes": 0
+            },
+            {
+              "at_utc": "2026-11-01T23:11:50.233081Z",
+              "exit_code": 0,
+              "stdout_rows": 1,
+              "stderr_bytes": 0
+            },
+            {
+              "at_utc": "2026-11-01T23:11:50.236833Z",
+              "exit_code": 0,
+              "stdout_rows": 1,
+              "stderr_bytes": 0
+            },
+            {
+              "at_utc": "2026-11-01T23:11:50.239408Z",
+              "exit_code": 0,
+              "stdout_rows": 0,
+              "stderr_bytes": 54
+            }
+          ],
+          "positive_control": {
+            "name": "omarchy-harness-sentinel-1b97733f8bcf",
+            "created": true,
+            "listed_before_teardown": true,
+            "listed_after_teardown": true,
+            "killed_confirmed": true,
+            "absent_after_kill": true,
+            "passed": true
+          },
+          "zmx_socket_directory_name": "agterm-zmx-71501528ed5101ac",
+          "ended_at_utc": "2026-11-01T23:11:50.239445Z"
+        }
+      },
+      "shared_runtime_unchanged": true,
+      "installed_payload_unchanged": true,
+      "login_shell_unchanged": true
+    }
+  },
+  "phase": "complete",
+  "archive_sha256": "2b629e40475b66a99c3c2599eaae113bb1f7ae7d4a739f95f243563df70d2890",
+  "zmx_sha256": "ed4d6c45f305147c5c4b19661df36e90e75dad2f061d3d595d14bd0257f45f6a",
+  "harness_sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40",
+  "software_rendering": true,
+  "real_login_shell": "/bin/bash",
+  "live_fixture_source_sha256": "b96b70613a14e562eb5d2edec02653b2a41221eedaaf06880334eda3b15ca470",
+  "live_fixture_binary_sha256": "24030151e8e10ff501349477a520c10331fe1cf58ff2990ef584602683a78860",
+  "preservation": {
+    "passed": true,
+    "protected_process_count": 3,
+    "lost": {}
+  },
+  "installed_payload_unchanged": true,
+  "payload_unchanged": true,
+  "preexisting_sessions_preserved": true,
+  "login_shell_unchanged": true,
+  "shared_runtime_unchanged": true,
+  "ended_at_utc": "2026-11-01T23:11:51.133538+00:00",
+  "signals": []
+}
