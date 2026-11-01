@@ -27,8 +27,10 @@ jobs:
       swift: ${{ steps.filter.outputs.swift }}
       cookbook: ${{ steps.filter.outputs.cookbook }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -63,8 +65,9 @@ jobs:
     container: swift:6.3.2-noble
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
       - name: Trust checkout directory
@@ -99,8 +102,9 @@ jobs:
     container: swift:6.3.2-noble
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
       - name: Trust checkout directory
@@ -139,8 +143,9 @@ jobs:
     # libadwaita, GL deps, and zig builds libghostty.
     container: swift:6.3.2-noble
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
       - name: Trust checkout directory
@@ -175,7 +180,7 @@ jobs:
           echo "host=$HOST_ARCH" >> "$GITHUB_OUTPUT"
       - name: Cache vendored Linux runtimes
         id: ghostty-cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             agterm-linux/vendor/ghostty
@@ -212,7 +217,7 @@ jobs:
         run: scripts/test-linux-ui.sh
       - name: Upload GTK diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: linux-ui-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/linux-ui
@@ -225,7 +230,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: recipe layout, index and headings
         # bash explicitly: the block below uses process substitution, and pipefail
         # is what makes a failed find in a command substitution red the step
