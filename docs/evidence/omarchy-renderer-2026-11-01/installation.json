@@ -1,0 +1,13 @@
+{
+  "changed": [
+    "bin/agterm-linux"
+  ],
+  "added": [
+    "share/agterm/RENDERER"
+  ],
+  "retained_original_files": 673,
+  "wrapper_sha256": "82ed3efd2568ec4e00ea17b8e43c99a5b8d732e9cac78b181a96a3d7a98c880b",
+  "renderer_sha256": "34be3da2dd06625cec72ae0914e2dd0f4acfeaf824ee8f4018d96caaeb84595d",
+  "application_sha256": "8415f48320458bd92079a1ebad3aa32b976b15e2c1057980febbf484b9d33cfa",
+  "prior_wrapper_retained": true
+}
