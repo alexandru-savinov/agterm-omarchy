@@ -61,7 +61,7 @@ jobs:
             exclusions=()
             if [[ "$script" == scripts/setup-linux.sh ]]; then
               # Each build subshell explicitly sets all three cache paths; no value leaks between them.
-              exclusions=(-e SC2030,SC2031)
+              exclusions=(-e "SC2030,SC2031")
             fi
             shellcheck -x -P SCRIPTDIR "${exclusions[@]}" "$script"
           done
