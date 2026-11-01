@@ -1,0 +1,15 @@
+{
+  "schema": "agterm-omarchy-renderer-evidence/1",
+  "collected_at": "2026-11-01T16:43:58.108062+00:00",
+  "platform": "Omarchy ARM64 / Hyprland 0.56.1",
+  "native_payload_commit": "5e37cb75ce3d4879ca8b7c74ed28d0548780163a",
+  "native_payload_version": "0.35.1-omarchy.dev",
+  "renderer_remedy_commit": "8458e16d06b2432cd6895955b6be972b1edae93d",
+  "harness_sha256": "c051a4d2c74f7df3f6a2d9c93eabe0001ba481c254e4454cd5380b8f8b9c3c19",
+  "restore_mode": "none",
+  "login_shell": "/bin/bash",
+  "inherited_software_mode": "0",
+  "installed_renderer_mode": "software",
+  "focus_precondition": "Open exclusive Omarchy launcher menu dismissed through shell.hide(omarchy.menu); compositor, other panels and existing app preserved.",
+  "scope": "Existing native-built payload plus reviewed persistent wrapper; not hosted-artifact or hardware-renderer acceptance."
+}
