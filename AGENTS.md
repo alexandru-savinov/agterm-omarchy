@@ -28,10 +28,15 @@ The Linux goal is to carry that model to GTK4/libadwaita without creating a sepa
 
 ## Branch and release model
 
-- `master` tracks upstream `umputun/agterm:master`.
-- `linux-port` is the maintained downstream branch.
-- `linux-port` combines upstream `master` with the Linux UI, Linux packaging, CI, release workflow, and carried portable core fixes.
-- Linux releases are cut from `linux-port`.
+- In this collaboration repository, `main` is the default branch for the integrated Omarchy port,
+  documentation and ordinary task PRs.
+- `omarchy` is the coordinated integration/candidate branch.
+  Follow the task's exact base SHA and PR target; keep a frozen candidate unchanged while its operator validates it.
+- The inherited `master` / `linux-port` names describe the source fork's upstream-tracking model:
+  upstream macOS `master` plus the Linux UI, packaging and portable core fixes.
+  They are not the default checkout or publication route for this Omarchy repository.
+- Omarchy prereleases promote verified CI artifacts from a trusted current `main` or `omarchy` head;
+  follow `packaging/linux/prerelease-omarchy.md` and retain the tested source/archive identities.
 - macOS builds, releases, and support belong to upstream agterm, not this fork.
 - If a change is intended for upstream agterm, do it on a dedicated upstream-PR branch.
   Keep that branch free of Linux-port-only changes so opening a PR to upstream stays simple.
