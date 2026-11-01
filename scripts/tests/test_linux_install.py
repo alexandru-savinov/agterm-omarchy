@@ -168,6 +168,11 @@ class PayloadStageTests(unittest.TestCase):
         self.repo = self.work / 'repo'
         (self.repo / 'scripts').mkdir(parents=True)
         shutil.copy2(ROOT / 'scripts/stage-linux.sh', self.repo / 'scripts/stage-linux.sh')
+        shutil.copy2(ROOT / 'scripts/linux-notices.py', self.repo / 'scripts/linux-notices.py')
+        shutil.copytree(ROOT / 'packaging/linux/notices', self.repo / 'packaging/linux/notices')
+        (self.repo / 'linux').mkdir()
+        shutil.copy2(ROOT / 'linux/ghostty-resources.env', self.repo / 'linux/ghostty-resources.env')
+        shutil.copy2(ROOT / 'LICENSE', self.repo / 'LICENSE')
         for name in ('verify-linux-resources.sh', 'verify-linux-zmx-cache.sh'):
             script = self.repo / 'scripts' / name
             script.write_text('#!/bin/sh\nexit 0\n')
@@ -178,11 +183,14 @@ class PayloadStageTests(unittest.TestCase):
                           'agterm-linux/vendor/zmx', 'agterm/Resources/agent-status',
                           'plugins/agterm/skills/agterm', 'agterm/AppIcon.icon/Assets',
                           'packaging/linux'):
-            (self.repo / directory).mkdir(parents=True)
+            (self.repo / directory).mkdir(parents=True, exist_ok=True)
         for name in ('AgtermLinux', 'agtermctl-linux', 'agterm-linux_AgtermLinux.resources/hud/hud.sh'):
             (self.repo / 'agterm-linux/.build/release' / name).write_text('fixture')
         for name in ('zmx', 'LICENSE'):
             (self.repo / 'agterm-linux/vendor/zmx' / name).write_text('fixture')
+        subprocess.run([sys.executable, str(self.repo / 'scripts/linux-notices.py'), 'cache-ghostty',
+                        str(self.repo / 'agterm-linux/vendor/ghostty/share/licenses/ghostty'),
+                        str(self.repo / 'packaging/linux/notices/ghostty')], check=True)
         shutil.copy2(ROOT / 'packaging/linux/io.github.melonamin.agterm.desktop', self.repo / 'packaging/linux')
         self.compat = self.work / 'agterm/swift-compat'
         self.compat.mkdir(parents=True)
@@ -208,6 +216,12 @@ class PayloadStageTests(unittest.TestCase):
         shutil.rmtree(self.compat)
         self.assertEqual((self.destination / 'lib/libncurses.so.6').read_text(), 'real compatible library')
         self.assertTrue((self.destination / 'bin/zmx').is_file())
+        notices = self.destination / 'share/licenses/agterm'
+        self.assertEqual((notices / 'LICENSE').read_bytes(), (ROOT / 'LICENSE').read_bytes())
+        self.assertTrue((notices / 'swift-foundation/NOTICE.txt').is_file())
+        self.assertTrue((notices / 'icu-76.1/LICENSE').is_file())
+        provenance = json.loads((notices / 'payload.json').read_text())
+        self.assertEqual(provenance['bundled_libraries'][0]['file'], 'libncurses.so.6')
 
     def test_rejects_missing_runtime_library(self):
         self.env['FAKE_DEPENDENCIES'] += '\nlibxml2.so.2 => not found'

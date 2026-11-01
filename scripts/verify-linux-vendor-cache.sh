@@ -18,6 +18,7 @@ for required in lib/libghostty.so include/ghostty.h include/ghostty/vt.h; do
   }
 done
 
+python3 "$ROOT/scripts/linux-notices.py" verify-ghostty "$VENDOR/share/licenses/ghostty"
 "$ROOT/scripts/verify-linux-architecture.sh" "$VENDOR/lib/libghostty.so"
 "$ROOT/scripts/verify-linux-resources.sh" "$VENDOR/share"
 echo "→ verified current-architecture libghostty cache at $VENDOR"

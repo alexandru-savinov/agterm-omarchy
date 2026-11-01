@@ -22,6 +22,8 @@ if "$VERIFY" "$WORK/empty/share" >/dev/null 2>&1; then
 fi
 
 SHARE="$WORK/complete/share"
+python3 "$ROOT/scripts/linux-notices.py" cache-ghostty \
+  "$SHARE/licenses/ghostty" "$ROOT/packaging/linux/notices/ghostty"
 THEMES="$SHARE/ghostty/themes"
 mkdir -p "$THEMES" "$SHARE/ghostty/shell-integration/bash" "$SHARE/ghostty/shell-integration/zsh"
 printf 'fixture\n' > "$SHARE/ghostty/shell-integration/bash/ghostty.bash"
@@ -87,7 +89,10 @@ mkdir -p "$SETUP_ROOT/scripts" "$SETUP_ROOT/linux" \
 cp "$ROOT/scripts/setup-linux.sh" "$ROOT/scripts/verify-linux-architecture.sh" \
   "$ROOT/scripts/verify-linux-resources.sh" "$ROOT/scripts/verify-linux-vendor-cache.sh" \
   "$ROOT/scripts/verify-linux-zmx-cache.sh" \
+  "$ROOT/scripts/linux-notices.py" \
   "$SETUP_ROOT/scripts/"
+mkdir -p "$SETUP_ROOT/packaging/linux"
+cp -R "$ROOT/packaging/linux/notices" "$SETUP_ROOT/packaging/linux/"
 mkdir -p "$SETUP_ROOT/scripts/zmx-patches/ghostty"
 cp "$ROOT/scripts/zmx-patches/"*.patch "$SETUP_ROOT/scripts/zmx-patches/"
 cp "$ROOT/scripts/zmx-patches/ghostty/"*.patch "$SETUP_ROOT/scripts/zmx-patches/ghostty/"
