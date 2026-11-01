@@ -1,86 +1,115 @@
 #!/usr/bin/env bash
-# Personal install of agterm-linux: build Release, then drop the binary, the
-# agtermctl CLI, and a desktop entry into ~/.local. Requires the mise toolchain
-# (swift 6.3.2) and a vendored libghostty (run scripts/setup-linux.sh once).
-#
-# Note: the binary finds the vendored libghostty via an absolute rpath into
-# agterm-linux/vendor/ghostty/lib, so this is a personal install tied to this
-# checkout. A redistributable package must bundle the .so + relocate the rpath
-# (and ship a hicolor icon for the .desktop's Icon= key — not included here).
+# Install the complete relocatable payload without changing terminal defaults or agent hooks.
+# Usage: scripts/install-linux.sh [--prefix DIR] [--no-build] [--software-rendering | --default-rendering]
 set -euo pipefail
-cd "$(dirname "$0")/.."
-
-SWIFT_HOME="$HOME/.local/share/mise/installs/swift/6.3.2"
-COMPAT="$HOME/.local/share/swift-linux-compat"
-export PATH="$SWIFT_HOME/usr/bin:$PATH"
-# Arch ships wide ncurses + soname-bumped libxml2; the Ubuntu Swift toolchain
-# wants the older sonames. Bridge them (no sudo) for build + install.
-mkdir -p "$COMPAT"
-[ -e "$COMPAT/libncurses.so.6" ] || ln -sf /usr/lib/libncursesw.so.6 "$COMPAT/libncurses.so.6"
-[ -e "$COMPAT/libxml2.so.2" ]   || ln -sf "$(ls /usr/lib/libxml2.so.* | sort -V | tail -1)" "$COMPAT/libxml2.so.2"
-export LD_LIBRARY_PATH="$COMPAT${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-
-BIN_DIR="$HOME/.local/bin"
-APP_DIR="$HOME/.local/share/applications"
-
-echo "Building agterm-linux + agtermctl (Release)…"
-( cd agterm-linux && swift build -c release )
-
-install -Dm755 "agterm-linux/.build/release/AgtermLinux" "$BIN_DIR/agterm-linux"
-install -Dm755 "agterm-linux/.build/release/agtermctl-linux" "$BIN_DIR/agtermctl"
-APP_RESOURCES="agterm-linux/.build/release/agterm-linux_AgtermLinux.resources"
-install -d "$BIN_DIR/agterm-linux_AgtermLinux.resources"
-cp -R "$APP_RESOURCES/." "$BIN_DIR/agterm-linux_AgtermLinux.resources/"
-
-# Install the vendored ghostty resources (shell-integration + sibling terminfo) so a session resolves
-# xterm-ghostty + gets shell-integration without a system ghostty package. The app's resolver checks
-# ~/.local/share/agterm/ghostty; libghostty derives TERMINFO from the sibling terminfo dir.
-VENDOR_SHARE="agterm-linux/vendor/ghostty/share"
-if [ -d "$VENDOR_SHARE/ghostty/shell-integration" ]; then
-  RES_DIR="$HOME/.local/share/agterm"
-  rm -rf "$RES_DIR/ghostty" "$RES_DIR/terminfo"; mkdir -p "$RES_DIR"
-  cp -R "$VENDOR_SHARE/ghostty"  "$RES_DIR/ghostty"
-  # terminfo may be absent if the build couldn't stage it (the app then falls back to a system terminfo).
-  [ -d "$VENDOR_SHARE/terminfo" ] && cp -R "$VENDOR_SHARE/terminfo" "$RES_DIR/terminfo"
-  echo "Installed ghostty resources to $RES_DIR."
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PREFIX="${PREFIX:-$HOME/.local}"
+BUILD=true
+RENDERER_MODE=""
+while (( $# )); do
+  case "$1" in
+    --prefix) [[ $# -ge 2 && -n "$2" ]] || { echo "--prefix needs a directory" >&2; exit 2; }; PREFIX="$2"; shift 2 ;;
+    --no-build) BUILD=false; shift ;;
+    --software-rendering|--default-rendering)
+      [[ -z "$RENDERER_MODE" ]] || { echo "choose only one renderer option" >&2; exit 2; }
+      RENDERER_MODE="${1#--}"
+      RENDERER_MODE="${RENDERER_MODE%-rendering}"
+      shift ;;
+    -h|--help)
+      echo "usage: scripts/install-linux.sh [--prefix DIR] [--no-build] [--software-rendering | --default-rendering]"
+      echo "Renderer selection persists across reinstalls; new installs use the inherited renderer environment."
+      exit 0 ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+[[ "$PREFIX" != *$'\n'* && "$PREFIX" != *$'\r'* ]] || { echo "invalid prefix" >&2; exit 2; }
+if [[ -z "$RENDERER_MODE" ]]; then
+  RENDERER_MODE=default
+  if [[ -f "$PREFIX/lib/agterm/share/agterm/RENDERER" ]]; then
+    RENDERER_MODE="$(cat "$PREFIX/lib/agterm/share/agterm/RENDERER")"
+  fi
+fi
+case "$RENDERER_MODE" in
+  software|default) ;;
+  *) echo "invalid installed renderer mode; select --software-rendering or --default-rendering" >&2; exit 2 ;;
+esac
+command -v python3 >/dev/null || { echo "python3 is required to install desktop entries" >&2; exit 1; }
+# shellcheck source=../linux/swift-env.sh
+if $BUILD; then
+  source "$ROOT/linux/swift-env.sh"
+  (cd "$ROOT/agterm-linux" && "${SWIFT_COMMAND[@]}" build -c release)
 else
-  echo "Skipped ghostty resources (run scripts/setup-linux.sh to vendor them; the app falls back to /usr/share/ghostty)."
+  SWIFT_COMPAT="${XDG_DATA_HOME:-$HOME/.local/share}/agterm/swift-compat"
+  [[ ! -d "$SWIFT_COMPAT" ]] || export LD_LIBRARY_PATH="$SWIFT_COMPAT${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
 
-install -Dm644 "packaging/linux/io.github.melonamin.agterm.desktop" \
-  "$APP_DIR/io.github.melonamin.agterm.desktop"
-# Point every launcher Exec at the installed absolute path while preserving Desktop Action arguments.
-sed -i "s|^Exec=agterm-linux\\(.*\\)$|Exec=$BIN_DIR/agterm-linux\\1|" \
-  "$APP_DIR/io.github.melonamin.agterm.desktop"
-# Remove desktop metadata from pre-migration personal installs so launchers do not show two entries.
-rm -f "$APP_DIR/com.umputun.agterm.linux.desktop"
-
-# Generate the hicolor app icon set from the macOS Icon Composer source PNG (no committed binaries),
-# so the .desktop's Icon= key + the taskbar/notification icon resolve.
-ICON_SRC="$(ls agterm/AppIcon.icon/Assets/*.png 2>/dev/null | head -1)"
-ICON_BASE="$HOME/.local/share/icons/hicolor"
-if [ -n "$ICON_SRC" ] && command -v magick >/dev/null 2>&1; then
-  for sz in 16 32 48 64 128 256 512; do
-    install -d "$ICON_BASE/${sz}x${sz}/apps"
-    magick "$ICON_SRC" -resize "${sz}x${sz}" "$ICON_BASE/${sz}x${sz}/apps/io.github.melonamin.agterm.png"
-    rm -f "$ICON_BASE/${sz}x${sz}/apps/com.umputun.agterm.linux.png"
-  done
-  command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f -t "$ICON_BASE" 2>/dev/null || true
-  echo "Installed hicolor app icons (16-512px)."
-else
-  echo "Skipped icon install (no source PNG, or 'magick' not on PATH)."
+mkdir -p "$PREFIX/lib"
+PREFIX="$(cd "$PREFIX" && pwd)"
+WORK="$(mktemp -d "$PREFIX/lib/.agterm-install.XXXXXX")"
+cleanup() {
+  local status=$?
+  trap - EXIT
+  trap '' HUP INT TERM
+  # Inspect paths rather than a flag: a signal can arrive immediately after either rename.
+  if [[ ! -e "$PREFIX/lib/agterm" && ! -L "$PREFIX/lib/agterm" ]] \
+      && [[ -e "$WORK/previous" || -L "$WORK/previous" ]]; then
+    if ! mv "$WORK/previous" "$PREFIX/lib/agterm"; then
+      printf 'Could not restore previous installation; recover it from %s/previous.\n' "$WORK" >&2
+      exit 1
+    fi
+  fi
+  rm -rf "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+"$ROOT/scripts/stage-linux.sh" "$WORK/payload"
+printf '%s\n' "$RENDERER_MODE" > "$WORK/payload/share/agterm/RENDERER"
+# Finish staging before replacing an installed payload, so a failed build leaves it usable.
+if [[ -e "$PREFIX/lib/agterm" || -L "$PREFIX/lib/agterm" ]]; then
+  mv "$PREFIX/lib/agterm" "$WORK/previous"
 fi
-
-# The custom symbolic toolbar icons (split/scratch/quick/new-workspace/new-session/flag) — copy into
-# the hicolor symbolic actions dir so GTK resolves them without the dev search path.
-if [ -d "agterm-linux/Resources/icons/hicolor/scalable/actions" ]; then
-  install -d "$ICON_BASE/scalable/actions"
-  cp agterm-linux/Resources/icons/hicolor/scalable/actions/agterm-*-symbolic.svg "$ICON_BASE/scalable/actions/"
-  command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f -t "$ICON_BASE" 2>/dev/null || true
-  echo "Installed custom symbolic toolbar icons."
+if ! mv "$WORK/payload" "$PREFIX/lib/agterm"; then
+  exit 1
 fi
-
-command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APP_DIR" || true
-
-echo "Installed agterm-linux + agtermctl to $BIN_DIR and a desktop entry to $APP_DIR."
-echo "Ensure $BIN_DIR is on your PATH."
+mkdir -p "$PREFIX/bin" "$PREFIX/share/applications" "$PREFIX/share/icons" "$PREFIX/share/pixmaps"
+python3 - "$PREFIX" <<'PY'
+import os, pathlib, sys
+prefix = pathlib.Path(sys.argv[1])
+# A symlinked bin directory resolves relative links from its physical location.
+# Ordinary prefixes still use relative targets and can be moved as a whole.
+for name in ('agterm-linux', 'agtermctl'):
+    link = prefix / 'bin' / name
+    target = (prefix / 'lib/agterm/bin' / name).resolve()
+    relative = os.path.relpath(target, link.parent.resolve())
+    if link.is_symlink() or link.exists():
+        link.unlink()
+    link.symlink_to(relative)
+source = prefix / 'lib/agterm/share/applications/io.github.melonamin.agterm.desktop'
+# Desktop Entry Exec has its own escaping, separate from shell quoting.
+executable = str(prefix / 'bin/agterm-linux').replace('%', '%%')
+for char in ('\\', '"', '`', '$'):
+    executable = executable.replace(char, '\\' + char)
+executable = executable.replace('\\', '\\\\')
+lines = []
+for line in source.read_text().splitlines():
+    if line.startswith('Exec=agterm-linux'):
+        line = 'Exec="' + executable + '"' + line[len('Exec=agterm-linux'):]
+    lines.append(line)
+(prefix / 'share/applications/io.github.melonamin.agterm.desktop').write_text('\n'.join(lines) + '\n')
+PY
+if [[ -d "$PREFIX/lib/agterm/share/icons" ]]; then
+  cp -R "$PREFIX/lib/agterm/share/icons/." "$PREFIX/share/icons/"
+fi
+cp -R "$PREFIX/lib/agterm/share/pixmaps/." "$PREFIX/share/pixmaps/"
+if command -v update-desktop-database >/dev/null; then
+  update-desktop-database "$PREFIX/share/applications" || true
+fi
+if [[ -d "$PREFIX/share/icons/hicolor" ]] && command -v gtk-update-icon-cache >/dev/null; then
+  gtk-update-icon-cache -f -t "$PREFIX/share/icons/hicolor" || true
+fi
+printf 'Installed agterm-linux and agtermctl in %s/bin (payload: %s/lib/agterm).\n' "$PREFIX" "$PREFIX"
+printf 'Add %s/bin to PATH if needed.\n' "$PREFIX"
+printf 'App renderer mode: %s (preserved on reinstall unless explicitly changed).\n' "$RENDERER_MODE"

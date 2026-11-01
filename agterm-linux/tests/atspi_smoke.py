@@ -3244,15 +3244,20 @@ def verify_remote_presentation(env):
         destination.write(
             "#!/bin/sh\n"
             '[ "$1" = "-G" ] && { printf "serveraliveinterval 0\\n"; exit 0; }\n'
-            '[ -e "$AGTERM_TEST_SSH_DOWN" ] && { echo "ssh: connect to host: Connection refused" >&2; exit 255; }\n'
+            'events="$AGTERM_TEST_SSH_DOWN.processes.log"\n'
+            'record() { printf "%s %s\\n" "$$" "$*" >>"$events"; }\n'
+            '[ -e "$AGTERM_TEST_SSH_DOWN" ] && { record "refused exit=255"; '
+            'echo "ssh: connect to host: Connection refused" >&2; exit 255; }\n'
             "for argument do remote=$argument; done\n"
             'export AGTERM_STATE_DIR="$AGTERM_TEST_ORIGIN_STATE"\n'
             'export AGTERM_CONTROL_SOCKET="$AGTERM_TEST_ORIGIN_SOCKET"\n'
             'case "$remote" in *"\'attach\'"*)\n'
             '  exec 3<&0\n'
             '  /bin/sh -c "$remote" <&3 3<&- & child=$!\n'
-            '  trap \'kill "$child" 2>/dev/null; wait "$child" 2>/dev/null; exit 255\' TERM\n'
-            '  wait "$child"; exit $?;;\n'
+            '  trap \'record "term child=$child"; kill "$child" 2>/dev/null; '
+            'wait "$child" 2>/dev/null; record "term-child-status=$? exit=255"; exit 255\' TERM\n'
+            '  record "attach child=$child"\n'
+            '  wait "$child"; status=$?; record "child-status=$status exit=$status"; exit "$status";;\n'
             'esac\n'
             'exec /bin/sh -c "$remote"\n'
         )

@@ -20,7 +20,7 @@ final class LinuxRemoteLinkObserver {
         guard let connection else { return }
         subscription = g_dbus_connection_signal_subscribe(connection, "org.freedesktop.login1", "org.freedesktop.login1.Manager",
                                                           "PrepareForSleep", "/org/freedesktop/login1", nil,
-                                                          G_DBUS_SIGNAL_FLAGS_NONE, onLinuxPrepareForSleep, nil, nil)
+                                                          GDBusSignalFlags(rawValue: 0), onLinuxPrepareForSleep, nil, nil)
     }
 
     func retry() {

@@ -18,6 +18,7 @@ ZMX_PATCH_DIGEST="$(cat "$ROOT/scripts/zmx-patches"/*.patch "$ROOT/scripts/zmx-p
 ZMX_STAMP="$ZMX_REV $ZMX_PATCH_DIGEST"
 # shellcheck source=../linux/arch.sh
 source "$ROOT/linux/arch.sh"
+ZMX_BUILD_POLICY="target=$ZIG_TARGET cpu=$ZMX_CPU"
 
 cache_is_complete() {
   "$VERIFY_CACHE" "$VENDOR" >/dev/null 2>&1
@@ -37,7 +38,7 @@ if ! $need_ghostty && ! $need_zmx; then
   exit 0
 fi
 
-for command in git curl tar sha256sum tic infocmp file; do
+for command in git curl tar sha256sum tic infocmp file python3; do
   command -v "$command" >/dev/null || { echo "$command is required to vendor Linux runtimes" >&2; exit 1; }
 done
 ZIG=""
@@ -50,7 +51,8 @@ fi
 [[ -x "$ZIG" ]] || { echo "zig 0.16.0 is required to build Linux runtimes" >&2; exit 1; }
 [[ "$($ZIG version)" == "0.16.0" ]] || { echo "setup-linux.sh requires zig 0.16.0" >&2; exit 1; }
 
-BUILD_DIR="$(mktemp -d)"
+# Omarchy mounts /tmp as tmpfs; source and compiler caches should not consume guest RAM.
+BUILD_DIR="$(mktemp -d "${TMPDIR:-/var/tmp}/agterm-linux-build.XXXXXX")"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 mkdir -p "$BUILD_DIR/xdg-cache"
 
@@ -76,10 +78,10 @@ if $need_ghostty; then
   # Zig defaults to Debug, whose terminal integrity checks make sustained PTY output unusably slow.
   (
     cd "$GHOSTTY_BUILD"
-    export ZIG_GLOBAL_CACHE_DIR="$GHOSTTY_BUILD/.zig-global-cache"
+    export ZIG_GLOBAL_CACHE_DIR="$BUILD_DIR/zig-global-cache"
     export ZIG_LOCAL_CACHE_DIR="$GHOSTTY_BUILD/.zig-cache"
     export XDG_CACHE_HOME="$BUILD_DIR/xdg-cache"
-    "$ZIG" build -Doptimize=ReleaseFast -Dapp-runtime=none -Dtarget="$ZIG_TARGET" \
+    ZIG="$ZIG" "$ROOT/scripts/zig-build-linux.sh" -Doptimize=ReleaseFast -Dapp-runtime=none -Dtarget="$ZIG_TARGET" \
       -Demit-themes=false -Demit-terminfo=true
   )
 
@@ -87,6 +89,8 @@ if $need_ghostty; then
   cp "$GHOSTTY_BUILD/zig-out/lib/ghostty-internal.so" "$GHOSTTY_STAGE/lib/libghostty.so"
   cp -R "$GHOSTTY_BUILD/zig-out/include/." "$GHOSTTY_STAGE/include/"
   cp -R "$GHOSTTY_BUILD/src/shell-integration" "$GHOSTTY_STAGE/share/ghostty/shell-integration"
+  python3 "$ROOT/scripts/linux-notices.py" cache-ghostty \
+    "$GHOSTTY_STAGE/share/licenses/ghostty" "$GHOSTTY_BUILD"
 
   echo "fetching pinned Ghostty theme dependency..."
   curl -fsSLo "$GHOSTTY_BUILD/ghostty-themes.tgz" "$GHOSTTY_THEMES_URL"
@@ -131,15 +135,17 @@ if $need_zmx; then
   echo "building zmx with zig..."
   (
     cd "$ZMX_BUILD"
-    export ZIG_GLOBAL_CACHE_DIR="$ZMX_BUILD/.zig-global-cache"
+    export ZIG_GLOBAL_CACHE_DIR="$BUILD_DIR/zig-global-cache"
     export ZIG_LOCAL_CACHE_DIR="$ZMX_BUILD/.zig-cache"
     export XDG_CACHE_HOME="$BUILD_DIR/xdg-cache"
-    "$ZIG" build -Doptimize=ReleaseSafe
+    ZIG="$ZIG" "$ROOT/scripts/zig-build-linux.sh" -Doptimize=ReleaseSafe \
+      -Dtarget="$ZIG_TARGET" -Dcpu="$ZMX_CPU"
   )
   mkdir -p "$ZMX_STAGE"
   install -m0755 "$ZMX_BUILD/zig-out/bin/zmx" "$ZMX_STAGE/zmx"
   install -m0644 "$ZMX_BUILD/LICENSE" "$ZMX_STAGE/LICENSE"
   printf '%s\n' "$ZMX_STAMP" > "$ZMX_STAGE/REVISION"
+  printf '%s\n' "$ZMX_BUILD_POLICY" > "$ZMX_STAGE/BUILD_POLICY"
   "$VERIFY_ZMX_CACHE" "$ZMX_STAGE"
   rm -rf "$ROOT/agterm-linux/vendor/zmx"
   mv "$ZMX_STAGE" "$ROOT/agterm-linux/vendor/zmx"

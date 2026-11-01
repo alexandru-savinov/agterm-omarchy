@@ -36,6 +36,7 @@ APP_RESOURCES="$APP/.build/release/agterm-linux_AgtermLinux.resources"
 
 "$ROOT/scripts/verify-linux-resources.sh" "$APP/vendor/ghostty/share"
 "$ROOT/scripts/verify-linux-zmx-cache.sh" "$APP/vendor/zmx"
+python3 "$ROOT/scripts/linux-notices.py" verify-ghostty "$APP/vendor/ghostty/share/licenses/ghostty"
 
 mkdir -p "$DEST/bin" "$DEST/lib" "$DEST/share/applications" "$DEST/share/pixmaps"
 install -m755 "$BIN" "$DEST/bin/agterm-linux.bin"
@@ -45,9 +46,14 @@ cp -R "$APP_RESOURCES" "$DEST/bin/"
 
 # Bundle the non-system libraries that make the Swift app portable. GTK, libadwaita, and glibc remain
 # host dependencies in tar/DEB/RPM.
-{ ldd "$BIN"; ldd "$CTL"; } \
+DEPENDENCIES="$(ldd "$BIN" && ldd "$CTL")"
+if grep -q '=> not found' <<< "$DEPENDENCIES"; then
+  printf 'cannot stage unresolved shared libraries:\n%s\n' "$DEPENDENCIES" >&2
+  exit 1
+fi
+printf '%s\n' "$DEPENDENCIES" \
   | awk '/=> \// {print $3}' \
-  | grep -E '/(swift|ghostty)|libghostty|swift-linux-compat' \
+  | grep -E '/(swift|ghostty)|libghostty|swift-linux-compat|swift-compat' \
   | sort -u \
   | while read -r lib; do
       [[ -f "$lib" ]] && cp -L "$lib" "$DEST/lib/"
@@ -61,6 +67,7 @@ mkdir -p "$DEST/share/agterm"
 cp -R "$ROOT/agterm/Resources/agent-status" "$DEST/share/agterm/agent-status"
 cp -R "$ROOT/plugins/agterm/skills/agterm" "$DEST/share/agterm/agent-skill"
 install -m644 "$APP/vendor/zmx/LICENSE" "$DEST/share/agterm/ZMX-LICENSE"
+python3 "$ROOT/scripts/linux-notices.py" stage "$DEST"
 printf '%s\n' "${AGTERM_PACKAGE_VERSION:-dev}" > "$DEST/share/agterm/VERSION"
 printf '%s\n' "${AGTERM_PACKAGE_COMMIT:-$(git -C "$ROOT" rev-parse HEAD)}" > "$DEST/share/agterm/COMMIT"
 
@@ -91,6 +98,10 @@ export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 [[ -f "$HERE/share/agterm/VERSION" ]] && export AGTERM_VERSION="$(cat "$HERE/share/agterm/VERSION")"
 [[ -f "$HERE/share/agterm/COMMIT" ]] && export AGTERM_COMMIT="$(cat "$HERE/share/agterm/COMMIT")"
 export AGTERM_ZMX_PATH="$HERE/bin/zmx"
+# This is a data marker, never shell configuration. Default/absent values preserve the caller's choice.
+if [[ -f "$HERE/share/agterm/RENDERER" ]] && [[ "$(cat "$HERE/share/agterm/RENDERER")" == software ]]; then
+  export LIBGL_ALWAYS_SOFTWARE=1
+fi
 exec "$HERE/bin/agterm-linux.bin" "$@"
 LAUNCH
 chmod 0755 "$DEST/bin/agterm-linux"

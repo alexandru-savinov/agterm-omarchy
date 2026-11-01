@@ -22,11 +22,22 @@ Keep GUI and control API behavior aligned, update the bundled agent skill for pr
 Open a draft PR using the [template](.github/pull_request_template.md), linked to the task.
 Run the checks appropriate to the change: installer/script fixtures for packaging, core and Linux frontend tests for Swift,
 and isolated native Hyprland acceptance for rendering or input.
-The [Omarchy build guide on the integration branch](https://github.com/alexandru-savinov/agterm-omarchy/blob/omarchy/packaging/linux/omarchy.md) records commands and prerequisites.
+The [Omarchy build guide](packaging/linux/omarchy.md) records commands and prerequisites.
 Never target a user's default control socket during tests.
 Report the tested commit, architecture, display backend, actual commands/results, and sanitized artifact links; identify skipped or failing checks.
 Hosted X11 tests do not establish native Wayland acceptance, and CI artifacts do not establish a stable release.
 Request maintainer review before merge and distinguish same-account agent review from independent approval.
+
+The **Omarchy CI** workflow runs on pushes and pull requests to `main`, and supports **Run workflow**.
+It runs installer checks, SwiftLint, native x86_64/ARM64 core tests and GTK builds, and Xvfb accessibility tests.
+Architecture-specific runtime caches speed rebuilds, and successful GTK jobs upload complete runtime tarballs
+for 14 days.
+Failed GUI tests upload diagnostics.
+Job summaries distinguish hosted X11 tests from native Hyprland validation.
+Use the aggregate **CI** check as the required status check.
+Dependabot opens grouped Actions updates and limited Swift dependency updates; changes still need review.
+The inherited tag-driven Linux release workflow verifies tags against `main` and currently packages x86_64.
+The [Omarchy prerelease workflow](packaging/linux/prerelease-omarchy.md) promotes verified native-architecture CI artifacts.
 
 ## Before you start
 

@@ -1,0 +1,97 @@
+{
+  "schema": "agterm-linux-notices/1",
+  "swift_release": "swift-6.3.2-RELEASE",
+  "ghostty_revision": "0ba6250388641f52135414b38c4259aa682c489b",
+  "files": [
+    {
+      "component": "ghostty",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/LICENSE",
+      "file": "ghostty/LICENSE",
+      "sha256": "386211873e5b7a02f663ae4d7adf96285999f91608f8f9f31fecfd0f4095e6f1"
+    },
+    {
+      "component": "swift",
+      "repository": "swiftlang/swift",
+      "revision": "cd8d8ad0019e4e291906b311e0d25d7039cddc9c",
+      "source_path": "LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift/cd8d8ad0019e4e291906b311e0d25d7039cddc9c/LICENSE.txt",
+      "file": "swift/LICENSE.txt",
+      "sha256": "770af8291f708538d8ff885a0bbc4e045cd700531741c4f99528d435c14d7f55"
+    },
+    {
+      "component": "swift-foundation",
+      "repository": "swiftlang/swift-foundation",
+      "revision": "dbacc67779dc0a41ddc9493acbaa332d76c9fb03",
+      "source_path": "LICENSE.md",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-foundation/dbacc67779dc0a41ddc9493acbaa332d76c9fb03/LICENSE.md",
+      "file": "swift-foundation/LICENSE.md",
+      "sha256": "2245a990b635558be210fb3eb4f8a6f7a49aebc0fefbf5859146a65ddc7ddcf3"
+    },
+    {
+      "component": "swift-foundation",
+      "repository": "swiftlang/swift-foundation",
+      "revision": "dbacc67779dc0a41ddc9493acbaa332d76c9fb03",
+      "source_path": "NOTICE.txt",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-foundation/dbacc67779dc0a41ddc9493acbaa332d76c9fb03/NOTICE.txt",
+      "file": "swift-foundation/NOTICE.txt",
+      "sha256": "c2e757911b86a76230099804831d8d847a865e88b5912171627492a7a49f0456"
+    },
+    {
+      "component": "swift-corelibs-foundation",
+      "repository": "swiftlang/swift-corelibs-foundation",
+      "revision": "6da8413b9a088eb59badcf0665aa73116db51edf",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-corelibs-foundation/6da8413b9a088eb59badcf0665aa73116db51edf/LICENSE",
+      "file": "swift-corelibs-foundation/LICENSE",
+      "sha256": "0ca84095d1de77cad1a866ebbad28f8db98a0826c6055d92b0608c5baa1643e2"
+    },
+    {
+      "component": "swift-corelibs-libdispatch",
+      "repository": "swiftlang/swift-corelibs-libdispatch",
+      "revision": "ffcd1b88af2f923501b16d9718c53275408e0dbf",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-corelibs-libdispatch/ffcd1b88af2f923501b16d9718c53275408e0dbf/LICENSE",
+      "file": "swift-corelibs-libdispatch/LICENSE",
+      "sha256": "0ca84095d1de77cad1a866ebbad28f8db98a0826c6055d92b0608c5baa1643e2"
+    },
+    {
+      "component": "swift-foundation-icu",
+      "repository": "swiftlang/swift-foundation-icu",
+      "revision": "e29ee41079d35eae68d98a7479864a19f2928d84",
+      "source_path": "LICENSE.md",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-foundation-icu/e29ee41079d35eae68d98a7479864a19f2928d84/LICENSE.md",
+      "file": "swift-foundation-icu/LICENSE.md",
+      "sha256": "2245a990b635558be210fb3eb4f8a6f7a49aebc0fefbf5859146a65ddc7ddcf3"
+    },
+    {
+      "component": "ghostty-nerd-fonts",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "vendor/nerd-fonts/LICENSE",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/vendor/nerd-fonts/LICENSE",
+      "file": "ghostty-nerd-fonts/LICENSE",
+      "sha256": "1f6ad4edae6479aaace3112ede5279a23284ae54b2a34db66357aef5f64df160"
+    },
+    {
+      "component": "swift-string-processing",
+      "repository": "swiftlang/swift-experimental-string-processing",
+      "revision": "efe8986824694c53fd5e94a4c634f20b3682baeb",
+      "source_path": "LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-experimental-string-processing/efe8986824694c53fd5e94a4c634f20b3682baeb/LICENSE.txt",
+      "file": "swift-string-processing/LICENSE.txt",
+      "sha256": "770af8291f708538d8ff885a0bbc4e045cd700531741c4f99528d435c14d7f55"
+    },
+    {
+      "component": "icu-76.1",
+      "repository": "unicode-org/icu",
+      "revision": "8eca245c7484ac6cc179e3e5f7c1ea7680810f39",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/unicode-org/icu/8eca245c7484ac6cc179e3e5f7c1ea7680810f39/LICENSE",
+      "file": "icu-76.1/LICENSE",
+      "sha256": "01edac20612b1e590c1c1cfb02b7218c6adc7b0a944eda7a1e03aeee10725aed"
+    }
+  ]
+}
