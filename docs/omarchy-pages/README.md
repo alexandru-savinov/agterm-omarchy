@@ -30,7 +30,7 @@ historical failed runs, and older installation/renderer evidence.
 The candidate acceptance records software rendering, a process-local zsh fixture and an external
 private-runtime adapter; it does not establish hardware rendering, default-bash Live, native x86_64
 or WebKit pixel rendering.
-Integration and prerelease publication remain separate from those passing checks.
+PR #6 integrated the accepted source on `main`; prerelease publication remains pending.
 The 500-agent request remains distinct from actual launches, and the feature inventory snapshot links
 to current-main evidence rather than copying the candidate branch's older ledger totals.
 The generated-config collision and proposed application fix remain separately tracked in #124/#126.

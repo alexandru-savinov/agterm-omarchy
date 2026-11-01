@@ -1,5 +1,5 @@
 {
-  "observed_at": "2026-11-01T23:18:32+00:00",
+  "observed_at": "2026-11-01T23:25:03+00:00",
   "agents": [
     {
       "name": "root",
@@ -8,9 +8,9 @@
       "task_kind": "issues",
       "phase": "coordination",
       "reported_state": null,
-      "work": "Ran exact 6775c336 ARM64 acceptance: seven ordinary and nine Live checks passed with restart continuity, cleanup and protected-process preservation. Owns evidence/PR integration and publication decisions; assigned the new candidate documentation refresh.",
-      "source": "/issues/187#issuecomment-6565341784",
-      "reported_at": "2026-11-01T23:14:23Z",
+      "work": "Integrated accepted source 6775c336 on main through PR #6 at c88a5b64 and retargeted documentation PR #188 to main. Owns final guide integration and publication decisions; prepared the bounded Home/Troubleshooting Wiki corrections for publication after the guide merges.",
+      "source": "/issues/187#issuecomment-6565410497",
+      "reported_at": "2026-11-01T23:20:23Z",
       "role": "Integration lead",
       "workstream": "integration"
     },
