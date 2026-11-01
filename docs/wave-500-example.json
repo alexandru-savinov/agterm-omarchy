@@ -1,0 +1,32 @@
+{
+  "schema": "agterm-wave-plan/1",
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "requested": 500,
+  "capacity": 3,
+  "assignments": [
+    {
+      "id": "ledger-engine",
+      "title": "Implement the bounded offline ledger assigned in issue 120",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/120",
+      "paths": ["scripts/github/waves.py"],
+      "depends_on": [],
+      "max_attempts": 3
+    },
+    {
+      "id": "ledger-tests",
+      "title": "Validate capacity, ownership, dependencies and retries for issue 120",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/120",
+      "paths": ["scripts/github/test_waves.py"],
+      "depends_on": ["ledger-engine"],
+      "max_attempts": 3
+    },
+    {
+      "id": "operator-guide",
+      "title": "Document issue 120 coordination and the actual-task dry run",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/120",
+      "paths": ["docs/WAVE_500.md", "docs/wave-500-example.json"],
+      "depends_on": ["ledger-tests"],
+      "max_attempts": 3
+    }
+  ]
+}
