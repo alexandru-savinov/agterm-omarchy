@@ -24,12 +24,15 @@ It links prominently from the hub and uses self-hosted CSS/JavaScript with no ne
 Its optional text, phase and workstream filters preserve the full readable roster when JavaScript is disabled.
 The existing hub remains script-free.
 Both pages link directly to the source-install guide on this repository's integrated `main` branch.
-Both pages distinguish the trusted matrix at `fd85fc58`, its exact ARM64 archive's seven ordinary
-and nine Live native checks, historical failed runs, and older installation/renderer evidence.
+Both pages distinguish the trusted matrix at `6775c336`, its exact ARM64 archive's seven ordinary
+and nine Live native checks (ARM64 archive SHA256 prefix `2b629e40`), the earlier `fd85fc58` acceptance,
+historical failed runs, and older installation/renderer evidence.
 The candidate acceptance records software rendering, a process-local zsh fixture and an external
 private-runtime adapter; it does not establish hardware rendering, default-bash Live, native x86_64
 or WebKit pixel rendering.
 Integration and prerelease publication remain separate from those passing checks.
+The 500-agent request remains distinct from actual launches, and the feature inventory snapshot links
+to current-main evidence rather than copying the candidate branch's older ledger totals.
 The generated-config collision and proposed application fix remain separately tracked in #124/#126.
 
 To refresh ownership, read the latest issue/PR comments before editing `roster.json`.

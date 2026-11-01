@@ -1,23 +1,24 @@
 # agterm-linux - Linux-maintained agterm fork
 
 > **The exact ARM64 candidate passed native checks; development release work remains.** This is the Omarchy fork of the v0.35.1 Linux frontend.
-> Candidate `fd85fc58` passed trusted hosted CI on both architectures and native Omarchy acceptance on ARM64. Integration and prerelease publication remain separate steps.
+> Candidate `6775c336` passed trusted hosted CI on both architectures and native Omarchy acceptance on ARM64. Integration and prerelease publication remain separate steps.
 > Visit the [public project hub](https://alexandru-savinov.github.io/agterm-omarchy/), claim work in the [orchestration issue](https://github.com/alexandru-savinov/agterm-omarchy/issues/1), and read the [agent collaboration protocol](docs/AGENT_PROTOCOL.md).
 
 | Area | Verified status and next step |
 |---|---|
 | Join and coordinate | Public repository, task claims, and reviews are ready in [hub #1](https://github.com/alexandru-savinov/agterm-omarchy/issues/1). |
 | Install from source | Start with the [Omarchy / Arch guide](packaging/linux/omarchy.md) for this fork's checkout, dependencies, renderer selection and test prerequisites. |
-| Native Omarchy ARM64 | The unchanged `fd85fc58` archive passed 7 ordinary and 9 Live checks, restart continuity, cleanup and preservation; inspect the [checksummed results and provenance](https://github.com/alexandru-savinov/agterm-omarchy/tree/4d05d60c928c52b04df2ba51c1861cc1b90b8326/docs/evidence/omarchy-fd85fc58-2026-11-01). |
-| Hosted architectures | Trusted [run 41335760930](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41335760930) passed for ARM64 and x86_64 at that source; both archives passed provenance, checksum and architecture validation. [PR #6](https://github.com/alexandru-savinov/agterm-omarchy/pull/6) tracks integration. |
+| Native Omarchy ARM64 | The unchanged `6775c336` ARM64 archive (SHA256 prefix `2b629e40`) passed 7 ordinary and 9 Live checks, restart continuity, cleanup and preservation; inspect the [checksummed results and provenance](https://github.com/alexandru-savinov/agterm-omarchy/tree/48e70b33651ca8855f8cef5bd57f50afa67ed291/docs/evidence/omarchy-6775c336-2026-11-01). |
+| Hosted architectures | Trusted [run 41357189891](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41357189891) passed for ARM64 and x86_64 at that source; both archives passed provenance, checksum and architecture validation. [PR #6](https://github.com/alexandru-savinov/agterm-omarchy/pull/6) tracks integration. |
 | Application downloads | Prerelease publication remains tracked in [#17](https://github.com/alexandru-savinov/agterm-omarchy/issues/17); no application release has been published in this acceptance snapshot. |
 
 The exact-candidate UTM acceptance used software rendering, a process-local zsh login-shell fixture,
-and an external private-runtime adapter; the installed app, existing session and actual bash login shell were preserved.
+and an external private-runtime adapter; the installed app, pre-existing processes and actual bash login shell were preserved.
 Hardware rendering, default-bash Live support and native x86_64 acceptance remain unverified.
 The WebKit check establishes load state, not pixel rendering.
 The separately reproduced generated-config path collision is tracked in [#124](https://github.com/alexandru-savinov/agterm-omarchy/issues/124)
 and the fix proposal in [#126](https://github.com/alexandru-savinov/agterm-omarchy/issues/126); test isolation did not change the application source.
+The [earlier fd85fc58 acceptance](https://github.com/alexandru-savinov/agterm-omarchy/tree/4d05d60c928c52b04df2ba51c1861cc1b90b8326/docs/evidence/omarchy-fd85fc58-2026-11-01) retains its own archive identity.
 Earlier installation/renderer evidence remains in the [older native bundle](docs/evidence/omarchy-arm64-2026-10-29/)
 and [renderer acceptance](https://github.com/alexandru-savinov/agterm-omarchy/pull/116).
 

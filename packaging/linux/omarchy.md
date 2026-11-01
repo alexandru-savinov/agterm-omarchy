@@ -2,8 +2,10 @@
 
 The build scripts select `x86_64` or `aarch64` from the machine running the GTK4 frontend build.
 An x86_64 archive cannot run in an ARM64 VM.
-[Native Omarchy evidence](../../docs/evidence/omarchy-fd85fc58-2026-11-01/) is for the exact ARM64 payload
+[Native Omarchy evidence](https://github.com/alexandru-savinov/agterm-omarchy/tree/48e70b33651ca8855f8cef5bd57f50afa67ed291/docs/evidence/omarchy-6775c336-2026-11-01) is for the exact ARM64 payload
 and recorded conditions; x86_64 has hosted CI evidence, with native Omarchy acceptance still unverified.
+That record binds source `6775c336`, run `41357189891` and ARM64 archive SHA256 prefix `2b629e40`.
+The [earlier fd85fc58 acceptance](https://github.com/alexandru-savinov/agterm-omarchy/tree/4d05d60c928c52b04df2ba51c1861cc1b90b8326/docs/evidence/omarchy-fd85fc58-2026-11-01) remains separate.
 A fresh source build needs its own validation.
 
 ## Install from source
