@@ -1,0 +1,14 @@
+{
+  "source_commit": "fd85fc5824a782d17b2aee0cb113ef31f9ce66ab",
+  "helper_sha256": {
+    "native-prepare-template.py": "4028ab387da02454248290fc56e4c529b7c88172e2eb8556d22972773f1997d4",
+    "native-run-template.py": "aac0ffeea9f9c86ec1eb453763fab2bbec2b1608b477fdb65939635a54fd7d8c",
+    "test-native-helpers.py": "116628a499a1838af97761d4d20fb37278b21e61fb6df5013d68ebf3887c3f32"
+  },
+  "validation_command": "python3 test-native-helpers.py",
+  "tests_passed": 29,
+  "tests_failed": 0,
+  "validation_kind": "local synthetic fixtures; no native or VM execution",
+  "candidate_assets_match_frozen_source": true,
+  "candidate_checkout_clean": true
+}
