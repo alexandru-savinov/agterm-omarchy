@@ -1,0 +1,68 @@
+{
+  "source_commit": "6775c33626925adc8a17e9ed7700f296f38d7688",
+  "run_id": 41357189891,
+  "artifacts": [
+    {
+      "artifact_id": 13104872544,
+      "filename": "agterm-omarchy-x86_64.tar.gz",
+      "archive_sha256": "e59e806ac40b0b0923bef1bdf0e2d3f701d87fac1363108eeccd05e009312389",
+      "notice_files": 15,
+      "pinned_upstream_notices": 10,
+      "notice_profile_sha256": "1b1b6587dbc6631514d51c92eecd4307c2f4ddcb231850644d2128697262f93c",
+      "payload_inventory_sha256": "ab2accc056efa13bdacc813289e07c69487e1948826eb3087e294b2feb28880e",
+      "agterm_license_sha256": "155d97114b2d9b7f66181d0ba258aca57f97b8b957dd1662745bf57218c41ef3",
+      "bundled_libraries": {
+        "libdispatch.so": "8a32f60d801a84a8d9a8cf66e8ae17f75d21df8caa19847722f36e789b170eb1",
+        "lib_FoundationICU.so": "c9787cbc71160bda0fd935e180b700e94d7171c9838644bddce0098efbcf0835",
+        "libswift_Concurrency.so": "dfb7b853562f8d33b3435b7e227178101e7613070f30a90e63c5b4f12a2cd371",
+        "libswift_Builtin_float.so": "9ccd1afb5047c6bc418705d070cbd85d8962bed458441655270e4b5cf88e42a2",
+        "libswiftObservation.so": "027207b2b99742c67c52240cfae327899405c1ba4ec70215350c8ffd0728eff0",
+        "libFoundation.so": "6383cb3a1c03c9772132d85e0dc9a724349de0bc80de1df34b7916d292e3f274",
+        "libghostty.so": "7f0bc926e22996d48bac5efa2849d66187f8c3020fdfb08e80dca22f043314b9",
+        "libswiftGlibc.so": "16d293cbeaa11f5efe1b87fd2bf16be6a11fd124ecf21e16683214e48865a5d8",
+        "libswiftSynchronization.so": "27a76d71f5f53417bd5bea5618c50ccc10be8559ec218fbfbe64529c367ee592",
+        "libswift_RegexParser.so": "0836d892f5d28acf73e16b50bff3f658230138a9e4d8944103d9d9cf71e87b67",
+        "libswiftDispatch.so": "9e165d6514a6d5ce89d850296d1bed932d06947680e1afc8f806044fbf2fbcfc",
+        "libswift_StringProcessing.so": "31b2744bd285d89f8def117c04ef0debe200b3142bf22a58f597ba90468f3663",
+        "libBlocksRuntime.so": "bc1c428c7bce19a4ccf7c60ee917a63e31189776e97c7a9404eafbbdb1458ba5",
+        "libswiftCore.so": "cbf8375af0dd28f368ed9f8ed55d351543078337091408e901c44078d230fb6b",
+        "libFoundationInternationalization.so": "4c5ad5fdf708414c0c6c15a8327500fe4360af16aa1109e24feb24da0a649faf",
+        "libFoundationEssentials.so": "2ba83babbb640fcb17128a15a1e8405e5831d8b201d27c85dd1e4910f2d6bf60"
+      },
+      "coverage": "Pinned component notices; not a complete transitive dependency or toolchain attestation.",
+      "passed": true
+    },
+    {
+      "artifact_id": 13105095490,
+      "filename": "agterm-omarchy-aarch64.tar.gz",
+      "archive_sha256": "2b629e40475b66a99c3c2599eaae113bb1f7ae7d4a739f95f243563df70d2890",
+      "notice_files": 15,
+      "pinned_upstream_notices": 10,
+      "notice_profile_sha256": "1b1b6587dbc6631514d51c92eecd4307c2f4ddcb231850644d2128697262f93c",
+      "payload_inventory_sha256": "cf8e29dcf80000cebace48101f0d1a42b3b7be92ee5ef5d21bac266f4e9de189",
+      "agterm_license_sha256": "155d97114b2d9b7f66181d0ba258aca57f97b8b957dd1662745bf57218c41ef3",
+      "bundled_libraries": {
+        "libswiftObservation.so": "39a0923ef73053b69ba2972c60518ba7ee91e171df51e660f00516edb578be60",
+        "libswiftSynchronization.so": "bf49c2e8ca9197978e2e645151eb958501e93c807cc88308c7145d18f5249288",
+        "libFoundation.so": "6ebdd04504022103ea1962760b6e5e02ba2a69c4ea6d59dbef9c04c893fbabb0",
+        "libswift_RegexParser.so": "cacd51de6219c2aaae8218774b70181395a9e65ebe9895e515e3999997d80ec7",
+        "libFoundationInternationalization.so": "eb3c00c8c38912f8756c6af0c55f0cb49b7f01a41b433fca0d3adb7e71aa3c2e",
+        "libBlocksRuntime.so": "86e6b131aae37483fdd6021f2e28b60d3da1380cbce3cf421b969060e61351b4",
+        "libFoundationEssentials.so": "72bee2509923bd19e3d49f4e346a399bc6347be23d4cdc9709d6b093f9f95041",
+        "libswiftGlibc.so": "c69ebc02d126fa10b1716af43607a152df75e3e5d569fed3f13db5a63ab2819f",
+        "lib_FoundationICU.so": "3ecc8e72250a3b4f8652cde37639de91044c26cc63753cb5a17e64fbaf80617f",
+        "libswift_Concurrency.so": "35d579bd370384b539f40e707b31a368daa18b38f00435b1d5a6beec60701c7c",
+        "libswift_Builtin_float.so": "edbfc79b9e5ad78f909ccffff8ea386f6e76bcd37b3791638a7f0897c5bbcd27",
+        "libghostty.so": "62a8f1343e0e7539c3a749d377b7232a99fe9c9a342bce46dce32a68de44e836",
+        "libdispatch.so": "2858703b9d1abdb9844529c24d715dd18741a7b6150c5e8b5d7bb20f43216e17",
+        "libswiftDispatch.so": "107ef378f372717d3eb8036784dc017c39420acc6ff034b4c6a84bf30ecac631",
+        "libswiftCore.so": "b33d31a025f9951c7ea66bbd9ca07fafceb504c5d39454c5025a3868300d5f4e",
+        "libswift_StringProcessing.so": "75620b05afe116fc575acb40aadaed7d14ec8e8a752f5f924a86fdc8580fff91"
+      },
+      "coverage": "Pinned component notices; not a complete transitive dependency or toolchain attestation.",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "native_acceptance": false
+}

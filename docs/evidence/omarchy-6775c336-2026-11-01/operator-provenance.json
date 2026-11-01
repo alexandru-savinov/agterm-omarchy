@@ -1,0 +1,24 @@
+{
+  "source_commit": "6775c33626925adc8a17e9ed7700f296f38d7688",
+  "source_run": 41357189891,
+  "executed_operator_sha256": "a91a1bfbf8fdb9c0fccac615c4c7b14caba75ed1780a3a5cb8fd1aa3b52c74f9",
+  "executed_preparation_sha256": "b9d45eb16ce67863f1eb61444a536e4aa26110d4c770b00524da25b12d715db9",
+  "run_config_sha256": "6c98f18fda741fd434fc62b6ef2c13833093087bc078f1e42c7a3c713f63cf86",
+  "operator_review": "https://github.com/alexandru-savinov/agterm-omarchy/issues/185#issuecomment-6564906232",
+  "root_execution": "https://github.com/alexandru-savinov/agterm-omarchy/issues/185#issuecomment-6565317571",
+  "harness_source": "scripts/test-omarchy.sh",
+  "fixture_source": "agterm-linux/tests/login_shell_zsh_fixture.c",
+  "private_runtime_adapter": true,
+  "native_architecture": "aarch64",
+  "software_rendering": true,
+  "live_login_shell_fixture": "zsh",
+  "actual_login_shell_unchanged": "/bin/bash",
+  "archive_bytes_unchanged": true,
+  "preparation_uses_reviewed_corrected_template": true,
+  "notes": [
+    "The preparation and execution used the reviewed corrected templates with only this source/run/stage identity adapted.",
+    "Operator validation records local synthetic checks; native-report.json records the subsequent actual VM execution.",
+    "Screenshots and raw logs remain local; no image editing or screenshot publication occurred.",
+    "Artifact records retain their original pre-native scope; the later native result is recorded separately."
+  ]
+}

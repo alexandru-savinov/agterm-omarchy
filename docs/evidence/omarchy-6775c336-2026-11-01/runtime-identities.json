@@ -1,0 +1,64 @@
+{
+  "run_id": 41357189891,
+  "run_attempt": 1,
+  "source_commit": "6775c33626925adc8a17e9ed7700f296f38d7688",
+  "current_branch_rechecked": true,
+  "validator_sha256": "cd32706bc7454324cc092345e506385bc1e9aa9fa852d0417a1893f3f0fc24b6",
+  "artifacts": [
+    {
+      "id": 13104872544,
+      "name": "agterm-omarchy-x86_64-6775c33626925adc8a17e9ed7700f296f38d7688",
+      "transport_digest": "sha256:6525276394751b2d1371ca2ce7a4819a0c95dc73a4cf0d2fe19b52e99f5b4c65",
+      "filename": "agterm-omarchy-x86_64.tar.gz",
+      "sha256": "e59e806ac40b0b0923bef1bdf0e2d3f701d87fac1363108eeccd05e009312389",
+      "archive_bytes": 64322795,
+      "embedded_commit": "6775c33626925adc8a17e9ed7700f296f38d7688",
+      "embedded_version": "dev",
+      "binaries": {
+        "agterm-linux.bin": {
+          "sha256": "c8bb73b4fd9952079d55069fdccd0d73780ec9aa7c1e1eb9af0bb307e1760ac4",
+          "size_bytes": 23154032,
+          "elf_machine": 62
+        },
+        "agtermctl.bin": {
+          "sha256": "9d7795dc50e01fdbaa93ee2514394a125daf85888ab30e2858a414bfdccfd458",
+          "size_bytes": 24047136,
+          "elf_machine": 62
+        },
+        "zmx": {
+          "sha256": "1aff328a59af908773f6ab15507c8b83b20f1dfe1f20e1244fc472f12f22065b",
+          "size_bytes": 15314832,
+          "elf_machine": 62
+        }
+      }
+    },
+    {
+      "id": 13105095490,
+      "name": "agterm-omarchy-aarch64-6775c33626925adc8a17e9ed7700f296f38d7688",
+      "transport_digest": "sha256:63f8865db2f715223a73675912a52e93a34fe4f62cabbc7d2788d636f528bce0",
+      "filename": "agterm-omarchy-aarch64.tar.gz",
+      "sha256": "2b629e40475b66a99c3c2599eaae113bb1f7ae7d4a739f95f243563df70d2890",
+      "archive_bytes": 63029496,
+      "embedded_commit": "6775c33626925adc8a17e9ed7700f296f38d7688",
+      "embedded_version": "dev",
+      "binaries": {
+        "agterm-linux.bin": {
+          "sha256": "efafbce6ac0956bc8c32f7036d92b6fb4afb45ecb25382b99bf867f31d0a4b37",
+          "size_bytes": 23613896,
+          "elf_machine": 183
+        },
+        "agtermctl.bin": {
+          "sha256": "d2fd371fa9d8469d378ebcd5bf88e10be6ad3ac8c3f12ebcfc16e00fc31d5209",
+          "size_bytes": 24405544,
+          "elf_machine": 183
+        },
+        "zmx": {
+          "sha256": "ed4d6c45f305147c5c4b19661df36e90e75dad2f061d3d595d14bd0257f45f6a",
+          "size_bytes": 15355168,
+          "elf_machine": 183
+        }
+      }
+    }
+  ],
+  "native_acceptance": false
+}
