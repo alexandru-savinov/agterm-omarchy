@@ -1,0 +1,21 @@
+{
+  "source_commit": "fd85fc5824a782d17b2aee0cb113ef31f9ce66ab",
+  "executed_operator_sha256": "796ae1596ad51cd269b7ea6ff2b44f78fb7f6b32b72dcd64767f4df97a94ccd5",
+  "executed_preparation_sha256": "9e6b13a83ebbde7e9817a311e1fe42aceed4e0a7bbad2ac75de1a07a3c0a981a",
+  "operator_review": "https://github.com/alexandru-savinov/agterm-omarchy/issues/52#issuecomment-6562606961",
+  "root_execution": "https://github.com/alexandru-savinov/agterm-omarchy/issues/52#issuecomment-6562708234",
+  "harness_source": "scripts/test-omarchy.sh",
+  "fixture_source": "agterm-linux/tests/login_shell_zsh_fixture.c",
+  "private_runtime_adapter": true,
+  "native_architecture": "aarch64",
+  "software_rendering": true,
+  "live_login_shell_fixture": "zsh",
+  "actual_login_shell_unchanged": "/bin/bash",
+  "archive_bytes_unchanged": true,
+  "notes": [
+    "The executed preparation was the earlier successful staging helper; its generated fixture hash is bound by the corrected run helper.",
+    "Operator-validation.json records local synthetic tests, not native execution.",
+    "Screenshots and raw session logs remain local; no visual redaction or image editing was performed.",
+    "The initial interrupted download and later successful digest-verified retry remain separately recorded in issue52."
+  ]
+}

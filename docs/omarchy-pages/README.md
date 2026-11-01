@@ -23,8 +23,13 @@ The dedicated `team.html` page presents a reviewed ownership snapshot from `rost
 It links prominently from the hub and uses self-hosted CSS/JavaScript with no network polling or tracking.
 Its optional text, phase and workstream filters preserve the full readable roster when JavaScript is disabled.
 The existing hub remains script-free.
-Both pages distinguish the final hosted matrix, seven ordinary native checks of its ARM64 archive,
-the blocked Live path, and older nine-check evidence from a different native-built payload.
+Both pages distinguish the trusted matrix at `fd85fc58`, its exact ARM64 archive's seven ordinary
+and nine Live native checks, historical failed runs, and older installation/renderer evidence.
+The candidate acceptance records software rendering, a process-local zsh fixture and an external
+private-runtime adapter; it does not establish hardware rendering, default-bash Live, native x86_64
+or WebKit pixel rendering.
+Integration and prerelease publication remain separate from those passing checks.
+The generated-config collision and proposed application fix remain separately tracked in #124/#126.
 
 To refresh ownership, read the latest issue/PR comments before editing `roster.json`.
 Record the observation time and each source's exact timestamp, agent/account, role, task and reported state.
