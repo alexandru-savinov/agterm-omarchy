@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - run: python3 scripts/tests/test_omarchy_prerelease.py
@@ -55,7 +55,7 @@ jobs:
       tag: ${{ steps.prepare.outputs.tag }}
       sha: ${{ steps.prepare.outputs.sha }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Validate source, gates, artifacts, metadata and ELF architecture
@@ -65,7 +65,7 @@ jobs:
           SOURCE_RUN: ${{ inputs.source_run }}
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA" "$RUNNER_TEMP/promotion"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: verified-prerelease-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/promotion/*
@@ -83,7 +83,7 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: verified-prerelease-${{ github.run_id }}-${{ github.run_attempt }}
           path: dist
@@ -92,14 +92,14 @@ jobs:
         working-directory: dist
         run: sha256sum --check SHA256SUMS
       - name: Attest the promotion workflow provenance
-        uses: actions/attest@v4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
             dist/*.tar.gz
             dist/SHA256SUMS
             dist/promotion.json
       - name: Sign the original build identity and promotion evidence
-        uses: actions/attest@v4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: dist/*.tar.gz
           predicate-type: https://github.com/alexandru-savinov/agterm-omarchy/attestations/promotion/v1
