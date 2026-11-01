@@ -143,9 +143,16 @@ class ReconnectTests(unittest.TestCase):
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) as process:
                 try:
                     deadline = time.monotonic() + 3
-                    while not events.exists() and time.monotonic() < deadline:
+                    ready = False
+                    while time.monotonic() < deadline:
+                        if events.exists():
+                            records = events.read_text().splitlines(keepends=True)
+                            ready = any(line.startswith(f"{process.pid} attach child=") and line.endswith("\n")
+                                        for line in records)
+                            if ready:
+                                break
                         time.sleep(0.01)
-                    self.assertIn("attach child=", events.read_text())
+                    self.assertTrue(ready, "fixture did not publish a complete post-trap attach record")
                     process.terminate()
                     self.assertEqual(process.wait(timeout=3), 255)
                     self.assertIn("term-child-status=143 exit=255", events.read_text())
