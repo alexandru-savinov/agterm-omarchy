@@ -1,0 +1,15 @@
+{
+  "event_id": "w5-retry-audit-complete-1",
+  "operation": "complete",
+  "task": "retry-evidence-audit",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "retry_audit",
+    "session": "rab1c16f5f6d"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6590516983",
+  "token": "16274032b5744d1ea3711eecf0949f02",
+  "evidence": [
+    "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6590516983"
+  ]
+}
