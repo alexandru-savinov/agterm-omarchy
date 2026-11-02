@@ -1,0 +1,57 @@
+{
+  "schema": "agterm-wave-ledger/1",
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "requested": 3,
+  "capacity": 3,
+  "revision": 0,
+  "events": [],
+  "assignments": {
+    "scanner-exception-review": {
+      "id": "scanner-exception-review",
+      "title": "Review the public wave-fence scanner exception",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/45#issuecomment-6589558918",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2,
+      "state": "queued",
+      "attempt": 0,
+      "lease": null,
+      "completion": null,
+      "reason": null
+    },
+    "retry-evidence-audit": {
+      "id": "retry-evidence-audit",
+      "title": "Audit existing genuine CI retry evidence",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6589559291",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2,
+      "state": "queued",
+      "attempt": 0,
+      "lease": null,
+      "completion": null,
+      "reason": null
+    },
+    "feature-proof-and-pages": {
+      "id": "feature-proof-and-pages",
+      "title": "Apply verified feature proofs and matching Pages snapshot",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6589559600",
+      "paths": [
+        "packaging/linux/github-feature-evidence.md",
+        "docs/omarchy-pages/build.py",
+        "docs/omarchy-pages/README.md",
+        "docs/omarchy-pages/test_build.py"
+      ],
+      "depends_on": [
+        "scanner-exception-review",
+        "retry-evidence-audit"
+      ],
+      "max_attempts": 2,
+      "state": "queued",
+      "attempt": 0,
+      "lease": null,
+      "completion": null,
+      "reason": null
+    }
+  }
+}
