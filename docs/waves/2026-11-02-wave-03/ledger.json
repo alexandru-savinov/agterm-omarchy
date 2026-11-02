@@ -3,7 +3,7 @@
   "repository": "alexandru-savinov/agterm-omarchy",
   "requested": 2,
   "capacity": 3,
-  "revision": 11,
+  "revision": 12,
   "events": [
     {
       "request": {
@@ -175,6 +175,25 @@
         ]
       },
       "at": 1793638146
+    },
+    {
+      "request": {
+        "event_id": "wave03-native-config-probe-complete-2",
+        "operation": "complete",
+        "task": "native-config-probe",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "native_probe",
+          "session": "np199r2m8"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6582914143",
+        "token": "8129d6c8cd7f40a3b409bd2d5a620485",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/ed4cae46f650c58f905a3ac7454c681808a31b2d",
+          "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6582914143"
+        ]
+      },
+      "at": 1793640044
     }
   ],
   "assignments": {
@@ -217,18 +236,21 @@
       ],
       "depends_on": [],
       "max_attempts": 2,
-      "state": "running",
+      "state": "completed",
       "attempt": 2,
-      "lease": {
+      "lease": null,
+      "completion": {
         "owner": {
           "account": "alexandru-savinov",
           "agent": "native_probe",
           "session": "np199r2m8"
         },
         "token": "8129d6c8cd7f40a3b409bd2d5a620485",
-        "expires_at": 1793652546
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/ed4cae46f650c58f905a3ac7454c681808a31b2d",
+          "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6582914143"
+        ]
       },
-      "completion": null,
       "reason": null
     }
   }

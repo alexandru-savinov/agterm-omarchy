@@ -1,7 +1,7 @@
 # Corrective implementation wave: 2026-11-02
 
 [Root's handoff](https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6580863851) opened this successor after all wave02 review turns ended and its ledger reached revision 9 with zero reservations.
-This is the sole active worker ledger; earlier waves remain terminal records.
+This wave is terminal; its ledger and prior waves remain historical records.
 
 | Assignment | Worker | Public claim |
 | --- | --- | --- |
@@ -28,7 +28,9 @@ Retry events released the original reservations before the same workers claimed 
 These are second attempts of the same two assignments, not additional assignments or completed workers.
 
 The config correction is delivered at [fdf8bad2](https://github.com/alexandru-savinov/agterm-omarchy/commit/fdf8bad2cee3389a97bcefc73a8e1ad3065fb3cd), with [nine helper tests and a pending real-libghostty Linux fixture](https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6582798583).
-At revision 11, one assignment is completed and the probe assignment retains its reservation.
+The probe is delivered at [ed4cae46](https://github.com/alexandru-savinov/agterm-omarchy/commit/ed4cae46f650c58f905a3ac7454c681808a31b2d), with [19 focused fixtures and the full script-suite result](https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6582914143).
+At revision 12, both assignments are completed and zero reservations remain.
+The config correction still has a hosted lint failure; a delivered correction is not accepted code or a native result.
 Root still owes corrected-head review and exact native acceptance.
 
 ```sh
