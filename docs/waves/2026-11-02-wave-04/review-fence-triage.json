@@ -1,0 +1,333 @@
+{
+  "verified_count": 54,
+  "reason": "false positive",
+  "all_corresponding_threads_read_back_resolved": true,
+  "policy_changed": false,
+  "evidence": "https://github.com/alexandru-savinov/agterm-omarchy/pull/194#issuecomment-6586530408",
+  "alerts": [
+    {
+      "alert": 227,
+      "thread_id": "PRRT_kwDOVcNen86yt255",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 228,
+      "thread_id": "PRRT_kwDOVcNen86yt26R",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 229,
+      "thread_id": "PRRT_kwDOVcNen86yt26c",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 230,
+      "thread_id": "PRRT_kwDOVcNen86yt26m",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 231,
+      "thread_id": "PRRT_kwDOVcNen86yt26v",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 245,
+      "thread_id": "PRRT_kwDOVcNen86yuVaj",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 247,
+      "thread_id": "PRRT_kwDOVcNen86yuVbK",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 246,
+      "thread_id": "PRRT_kwDOVcNen86yuVbd",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 251,
+      "thread_id": "PRRT_kwDOVcNen86yuVb2",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 248,
+      "thread_id": "PRRT_kwDOVcNen86yuVcO",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 252,
+      "thread_id": "PRRT_kwDOVcNen86yuVcd",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 249,
+      "thread_id": "PRRT_kwDOVcNen86yuVcr",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 253,
+      "thread_id": "PRRT_kwDOVcNen86yuVc8",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 250,
+      "thread_id": "PRRT_kwDOVcNen86yuVdG",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 254,
+      "thread_id": "PRRT_kwDOVcNen86yuVdO",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 257,
+      "thread_id": "PRRT_kwDOVcNen86yuk_E",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 255,
+      "thread_id": "PRRT_kwDOVcNen86yulAA",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 256,
+      "thread_id": "PRRT_kwDOVcNen86yulAV",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 258,
+      "thread_id": "PRRT_kwDOVcNen86yulAx",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 259,
+      "thread_id": "PRRT_kwDOVcNen86yulBC",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 266,
+      "thread_id": "PRRT_kwDOVcNen86yu0m3",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 264,
+      "thread_id": "PRRT_kwDOVcNen86yu0n1",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 265,
+      "thread_id": "PRRT_kwDOVcNen86yu0oJ",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 270,
+      "thread_id": "PRRT_kwDOVcNen86yu0od",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 267,
+      "thread_id": "PRRT_kwDOVcNen86yu0oz",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 271,
+      "thread_id": "PRRT_kwDOVcNen86yu0pK",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 268,
+      "thread_id": "PRRT_kwDOVcNen86yu0pj",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 272,
+      "thread_id": "PRRT_kwDOVcNen86yu0p2",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 269,
+      "thread_id": "PRRT_kwDOVcNen86yu0qL",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 273,
+      "thread_id": "PRRT_kwDOVcNen86yu0qh",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 295,
+      "thread_id": "PRRT_kwDOVcNen86ywHzp",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 296,
+      "thread_id": "PRRT_kwDOVcNen86ywHzr",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 297,
+      "thread_id": "PRRT_kwDOVcNen86ywHzt",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 307,
+      "thread_id": "PRRT_kwDOVcNen86yxKsC",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 308,
+      "thread_id": "PRRT_kwDOVcNen86yxKsg",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 309,
+      "thread_id": "PRRT_kwDOVcNen86yxKs9",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 310,
+      "thread_id": "PRRT_kwDOVcNen86yxKtU",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 311,
+      "thread_id": "PRRT_kwDOVcNen86yxKtp",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 312,
+      "thread_id": "PRRT_kwDOVcNen86yxKt4",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 313,
+      "thread_id": "PRRT_kwDOVcNen86yxKuD",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 314,
+      "thread_id": "PRRT_kwDOVcNen86yxKuW",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 315,
+      "thread_id": "PRRT_kwDOVcNen86yxKuv",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 327,
+      "thread_id": "PRRT_kwDOVcNen86yx-MA",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 328,
+      "thread_id": "PRRT_kwDOVcNen86yx-MX",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 326,
+      "thread_id": "PRRT_kwDOVcNen86yx-Mi",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 329,
+      "thread_id": "PRRT_kwDOVcNen86yx-Mu",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 330,
+      "thread_id": "PRRT_kwDOVcNen86yypbv",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 331,
+      "thread_id": "PRRT_kwDOVcNen86yypcC",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 332,
+      "thread_id": "PRRT_kwDOVcNen86yypcJ",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 336,
+      "thread_id": "PRRT_kwDOVcNen86yzT7J",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 347,
+      "thread_id": "PRRT_kwDOVcNen86y0fRF",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 349,
+      "thread_id": "PRRT_kwDOVcNen86y0fRn",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 348,
+      "thread_id": "PRRT_kwDOVcNen86y0fRy",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    },
+    {
+      "alert": 350,
+      "thread_id": "PRRT_kwDOVcNen86y0fR8",
+      "state": "dismissed",
+      "dismissed_reason": "false positive"
+    }
+  ]
+}

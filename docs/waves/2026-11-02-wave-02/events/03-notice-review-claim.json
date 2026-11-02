@@ -1,0 +1,12 @@
+{
+  "event_id": "wave02-notice-review-claim-1",
+  "operation": "claim",
+  "task": "notice-review",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "notice_review",
+    "session": "nr198b2"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6580553350",
+  "lease_seconds": 14400
+}

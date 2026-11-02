@@ -1,0 +1,310 @@
+{
+  "schema": "agterm-wave-ledger/1",
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "requested": 4,
+  "capacity": 3,
+  "revision": 12,
+  "events": [
+    {
+      "request": {
+        "event_id": "wave04-probe-review-claim-1",
+        "operation": "claim",
+        "task": "probe-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "probe_review",
+          "session": "pr201n4b8"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6584130159",
+        "lease_seconds": 14400
+      },
+      "at": 1793641746
+    },
+    {
+      "request": {
+        "event_id": "wave04-probe-review-start-1",
+        "operation": "start",
+        "task": "probe-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "probe_review",
+          "session": "pr201n4b8"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6584130159",
+        "token": "42d9ed3714f047559e975cdb6cafe6e4"
+      },
+      "at": 1793641746
+    },
+    {
+      "request": {
+        "event_id": "wave04-terminal-ledger-review-claim-1",
+        "operation": "claim",
+        "task": "terminal-ledger-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "w4lr82ff7a53"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6584134459",
+        "lease_seconds": 14400
+      },
+      "at": 1793641746
+    },
+    {
+      "request": {
+        "event_id": "wave04-terminal-ledger-review-start-1",
+        "operation": "start",
+        "task": "terminal-ledger-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "w4lr82ff7a53"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6584134459",
+        "token": "adede0cfd2644ee6b92b73fe52cb4036"
+      },
+      "at": 1793641746
+    },
+    {
+      "request": {
+        "event_id": "wave04-config-ci-correction-claim-1",
+        "operation": "claim",
+        "task": "config-ci-correction",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192d4"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6584250003",
+        "lease_seconds": 14400
+      },
+      "at": 1793643307
+    },
+    {
+      "request": {
+        "event_id": "wave04-config-ci-correction-start-1",
+        "operation": "start",
+        "task": "config-ci-correction",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192d4"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6584250003",
+        "token": "279991a7611c441496a4c33a9b7bd0b0"
+      },
+      "at": 1793643307
+    },
+    {
+      "request": {
+        "event_id": "wave04-terminal-ledger-review-complete-1",
+        "operation": "complete",
+        "task": "terminal-ledger-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "w4lr82ff7a53"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6585816064",
+        "token": "adede0cfd2644ee6b92b73fe52cb4036",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/pull/194#pullrequestreview-5741804558",
+          "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6585816064"
+        ]
+      },
+      "at": 1793646283
+    },
+    {
+      "request": {
+        "event_id": "wave04-probe-review-complete-1",
+        "operation": "complete",
+        "task": "probe-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "probe_review",
+          "session": "pr201n4b8"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6586577428",
+        "token": "42d9ed3714f047559e975cdb6cafe6e4",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/pull/194#pullrequestreview-5742231529",
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/e3dbd076f3d6a418ca388ea163922dcaea46617c"
+        ]
+      },
+      "at": 1793648110
+    },
+    {
+      "request": {
+        "event_id": "wave04-config-ci-correction-complete-1",
+        "operation": "complete",
+        "task": "config-ci-correction",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192d4"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6588576298",
+        "token": "279991a7611c441496a4c33a9b7bd0b0",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/41f4f7c29bb7faf961ad75bcfe7fc0f31d013ed3",
+          "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41505996996"
+        ]
+      },
+      "at": 1793653936
+    },
+    {
+      "request": {
+        "event_id": "wave04-corrected-runtime-review-claim-1",
+        "operation": "claim",
+        "task": "corrected-runtime-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "runtime_recheck",
+          "session": "rv195e9k4"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6588632682",
+        "lease_seconds": 14400
+      },
+      "at": 1793654330
+    },
+    {
+      "request": {
+        "event_id": "wave04-corrected-runtime-review-start-1",
+        "operation": "start",
+        "task": "corrected-runtime-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "runtime_recheck",
+          "session": "rv195e9k4"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6588632682",
+        "token": "0dbac6ef66054715886af8d8e1c7ef0c"
+      },
+      "at": 1793654330
+    },
+    {
+      "request": {
+        "event_id": "wave04-corrected-runtime-review-complete-1",
+        "operation": "complete",
+        "task": "corrected-runtime-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "runtime_recheck",
+          "session": "rv195e9k4"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6588747938",
+        "token": "0dbac6ef66054715886af8d8e1c7ef0c",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/pull/195#pullrequestreview-5743510527",
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/41f4f7c29bb7faf961ad75bcfe7fc0f31d013ed3"
+        ]
+      },
+      "at": 1793654500
+    }
+  ],
+  "assignments": {
+    "config-ci-correction": {
+      "id": "config-ci-correction",
+      "title": "Correct config regression CI",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6583931480",
+      "paths": [
+        "agterm-linux/Sources/AgtermLinux/GhosttyApp.swift",
+        "agterm-linux/Sources/AgtermLinux/GhosttyGeneratedConfigStorage.swift",
+        "agterm-linux/Sources/AgtermLinux/App.swift",
+        "agterm-linux/Tests/AgtermLinuxTests/GhosttyGeneratedConfigStorageTests.swift"
+      ],
+      "depends_on": [],
+      "max_attempts": 2,
+      "state": "completed",
+      "attempt": 1,
+      "lease": null,
+      "completion": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192d4"
+        },
+        "token": "279991a7611c441496a4c33a9b7bd0b0",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/41f4f7c29bb7faf961ad75bcfe7fc0f31d013ed3",
+          "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41505996996"
+        ]
+      },
+      "reason": null
+    },
+    "probe-review": {
+      "id": "probe-review",
+      "title": "Review native config probe and root operator",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6583931869",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2,
+      "state": "completed",
+      "attempt": 1,
+      "lease": null,
+      "completion": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "probe_review",
+          "session": "pr201n4b8"
+        },
+        "token": "42d9ed3714f047559e975cdb6cafe6e4",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/pull/194#pullrequestreview-5742231529",
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/e3dbd076f3d6a418ca388ea163922dcaea46617c"
+        ]
+      },
+      "reason": null
+    },
+    "terminal-ledger-review": {
+      "id": "terminal-ledger-review",
+      "title": "Replay the three terminal waves",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6583932213",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2,
+      "state": "completed",
+      "attempt": 1,
+      "lease": null,
+      "completion": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "w4lr82ff7a53"
+        },
+        "token": "adede0cfd2644ee6b92b73fe52cb4036",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/pull/194#pullrequestreview-5741804558",
+          "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6585816064"
+        ]
+      },
+      "reason": null
+    },
+    "corrected-runtime-review": {
+      "id": "corrected-runtime-review",
+      "title": "Review corrected config lifetime and Linux CAPI evidence",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6583604464",
+      "paths": [],
+      "depends_on": [
+        "config-ci-correction"
+      ],
+      "max_attempts": 2,
+      "state": "completed",
+      "attempt": 1,
+      "lease": null,
+      "completion": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "runtime_recheck",
+          "session": "rv195e9k4"
+        },
+        "token": "0dbac6ef66054715886af8d8e1c7ef0c",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/pull/195#pullrequestreview-5743510527",
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/41f4f7c29bb7faf961ad75bcfe7fc0f31d013ed3"
+        ]
+      },
+      "reason": null
+    }
+  }
+}

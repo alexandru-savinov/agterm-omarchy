@@ -1,0 +1,12 @@
+{
+  "event_id": "wave04-terminal-ledger-review-claim-1",
+  "operation": "claim",
+  "task": "terminal-ledger-review",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "ledger_review",
+    "session": "w4lr82ff7a53"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6584134459",
+  "lease_seconds": 14400
+}

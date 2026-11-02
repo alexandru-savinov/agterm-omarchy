@@ -1,0 +1,47 @@
+{
+  "schema": "agterm-wave-plan/1",
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "requested": 4,
+  "capacity": 3,
+  "assignments": [
+    {
+      "id": "config-ci-correction",
+      "title": "Correct config regression CI",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6583931480",
+      "paths": [
+        "agterm-linux/Sources/AgtermLinux/GhosttyApp.swift",
+        "agterm-linux/Sources/AgtermLinux/GhosttyGeneratedConfigStorage.swift",
+        "agterm-linux/Sources/AgtermLinux/App.swift",
+        "agterm-linux/Tests/AgtermLinuxTests/GhosttyGeneratedConfigStorageTests.swift"
+      ],
+      "depends_on": [],
+      "max_attempts": 2
+    },
+    {
+      "id": "probe-review",
+      "title": "Review native config probe and root operator",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6583931869",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2
+    },
+    {
+      "id": "terminal-ledger-review",
+      "title": "Replay the three terminal waves",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6583932213",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2
+    },
+    {
+      "id": "corrected-runtime-review",
+      "title": "Review corrected config lifetime and Linux CAPI evidence",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6583604464",
+      "paths": [],
+      "depends_on": [
+        "config-ci-correction"
+      ],
+      "max_attempts": 2
+    }
+  ]
+}

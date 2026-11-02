@@ -1,0 +1,16 @@
+{
+  "event_id": "wave02-notice-review-complete-1",
+  "operation": "complete",
+  "task": "notice-review",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "notice_review",
+    "session": "nr198b2"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6580727491",
+  "token": "aa1058776ebd410593b9bb1ecd1f36a2",
+  "evidence": [
+    "https://github.com/alexandru-savinov/agterm-omarchy/pull/198#pullrequestreview-5738747107",
+    "https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6580727491"
+  ]
+}

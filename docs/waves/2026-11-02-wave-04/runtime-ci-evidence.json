@@ -1,0 +1,25 @@
+{
+  "source_commit": "41f4f7c29bb7faf961ad75bcfe7fc0f31d013ed3",
+  "run_id": 41505996996,
+  "event": "pull_request",
+  "conclusion": "success",
+  "native_acceptance": false,
+  "promotion_candidate": false,
+  "limits": "PR merge validation is not a trusted promotion run or native acceptance.",
+  "real_c_api_results": [
+    {
+      "architecture": "x86_64",
+      "job_id": 125489237434,
+      "url": "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41505996996/job/125489237434",
+      "captured_gh_log_sha256": "150f002bc72687b68c24fa5ff9d1d86bd5993b1af1f5ff9f96971f9658140179",
+      "observed_result": "GTK build and tests (x86_64)\tswift test (agterm-linux)\t2026-11-02T19:25:02.2266759Z \u2714 Test \"pinned libghostty replays cloned arguments after temporary input removal\" passed after 14.430 seconds."
+    },
+    {
+      "architecture": "aarch64",
+      "job_id": 125489237615,
+      "url": "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41505996996/job/125489237615",
+      "captured_gh_log_sha256": "98dcc2676d610f87cf16767bad2539773cb75483d67477c4c7945f8c2a0de39d",
+      "observed_result": "GTK build and tests (aarch64)\tswift test (agterm-linux)\t2026-11-02T19:22:03.7564958Z \u2714 Test \"pinned libghostty replays cloned arguments after temporary input removal\" passed after 7.054 seconds."
+    }
+  ]
+}

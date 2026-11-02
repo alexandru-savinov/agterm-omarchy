@@ -1,0 +1,12 @@
+{
+  "event_id": "wave04-probe-review-claim-1",
+  "operation": "claim",
+  "task": "probe-review",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "probe_review",
+    "session": "pr201n4b8"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6584130159",
+  "lease_seconds": 14400
+}

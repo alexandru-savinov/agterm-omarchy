@@ -1,0 +1,32 @@
+{
+  "schema": "agterm-wave-plan/1",
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "requested": 2,
+  "capacity": 3,
+  "assignments": [
+    {
+      "id": "bounded-config-correction",
+      "title": "Correct generated config retention lifetime",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6580882813",
+      "paths": [
+        "agterm-linux/Sources/AgtermLinux/GhosttyApp.swift",
+        "agterm-linux/Sources/AgtermLinux/GhosttyGeneratedConfigStorage.swift",
+        "agterm-linux/Sources/AgtermLinux/App.swift",
+        "agterm-linux/Tests/AgtermLinuxTests/GhosttyGeneratedConfigStorageTests.swift"
+      ],
+      "depends_on": [],
+      "max_attempts": 2
+    },
+    {
+      "id": "native-config-probe",
+      "title": "Implement isolated shared-runtime and noisy-shutdown probe",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6580899252",
+      "paths": [
+        "scripts/omarchy-config-probe.py",
+        "scripts/tests/test_omarchy_config_probe.py"
+      ],
+      "depends_on": [],
+      "max_attempts": 2
+    }
+  ]
+}
