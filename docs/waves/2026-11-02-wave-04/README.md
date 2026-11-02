@@ -15,3 +15,11 @@ Root alone operates the VM; accepted6775 remains unchanged.
 ```sh
 python3 scripts/github/waves.py summary docs/waves/2026-11-02-wave-04/ledger.json --limit 20
 ```
+
+## Review checkpoint
+
+The [terminal-ledger review](https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6585816064) reconciles all30 predecessor events and both coordinated retries.
+Its sole finding was a stale derived wave03 summary; root regenerated that summary in c7baad71 without changing historical events.
+At revision7, this review is complete; the CI correction and supplemental probe/operator review retain reservations.
+The probe reviewer delivered two operator findings, then root requested a correction follow-up within the same reserved assignment.
+Neither the supplemental review turn nor the two earlier retries is counted as an added assignment.
