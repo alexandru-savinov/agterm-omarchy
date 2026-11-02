@@ -33,7 +33,9 @@ or WebKit pixel rendering.
 PR #6 integrated the accepted source on `main`; prerelease publication remains pending.
 The 500-agent request remains distinct from actual launches, and the feature inventory snapshot links
 to current-main evidence rather than copying the candidate branch's older ledger totals.
-The generated-config collision and proposed application fix remain separately tracked in #124/#126.
+The reproduced generated-config collision remains recorded in #124, with the active correction in #192/PR #195 and the separate inert proposal in #126.
+Both pages link the resumed implementation/review records in #193 and the additional native probe in #199; these later changes require their own acceptance.
+The merged #196 inventory records 70 proven, 47 pending and 4 unavailable features at main `75c25a0a`.
 
 To refresh ownership, read the latest issue/PR comments before editing `roster.json`.
 Record the observation time and each source's exact timestamp, agent/account, role, task and reported state.
