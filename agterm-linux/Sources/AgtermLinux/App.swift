@@ -314,6 +314,11 @@ private let onShutdown: @MainActor @convention(c) (OpaquePointer?, gpointer?) ->
         gControlServer.shutdownPresentationStreams()
         gControlServer.shutdownOverlayJobs()
         gControlServer.stop()
+        // GApplication quit (including SIGTERM) bypasses close-request. Reuse the existing surface and
+        // deferred-job teardown while widgets are still valid; isTerminating preserves the saved windows.
+        for controller in Array(gWindows.values) { controller.windowWillClose() }
+        // Config paths can be replayed by libghostty until BOTH surfaces and the app have been freed.
+        GhosttyApp.shared.shutdown()
     }
 }
 
