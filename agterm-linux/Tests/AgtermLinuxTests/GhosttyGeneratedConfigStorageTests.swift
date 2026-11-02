@@ -121,7 +121,7 @@ struct GhosttyGeneratedConfigStorageTests {
             }
             #expect(!consumed)
             #expect(try String(contentsOf: stale, encoding: .utf8) == "unrelated stale input")
-            try storage.withConfigFile("fresh", as: .runtime) { path throws -> Void in
+            try storage.withConfigFile("fresh", as: .runtime) { path throws in
                 #expect(path != stale.path)
                 #expect(try String(contentsOfFile: path, encoding: .utf8) == "fresh")
             }
@@ -153,7 +153,7 @@ struct GhosttyGeneratedConfigStorageTests {
             #expect(try String(contentsOfFile: secondThemes.dark, encoding: .utf8) == "")
             #expect(try String(contentsOf: unrelated, encoding: .utf8) == "keep")
             #expect(throws: GhosttyGeneratedConfigStorage.Failure.self) { _ = try first.appearanceThemes() }
-            try second.withConfigFile("still live", as: .runtime) { path throws -> Void in
+            try second.withConfigFile("still live", as: .runtime) { path throws in
                 #expect(try String(contentsOfFile: path, encoding: .utf8) == "still live")
             }
         }
