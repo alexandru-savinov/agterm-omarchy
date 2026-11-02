@@ -11,3 +11,10 @@ condition = "AND"
 paths = ['''^docs/evidence/.*\.json$''']
 regexTarget = "line"
 regexes = ['''^\s*"[^"]+":\s*"[0-9a-f]{64}",?\s*$''']
+
+[[allowlists]]
+description = "wave lease nonces (uuid4 hex) in docs/waves JSON: lease tokens, not credentials"
+condition = "AND"
+paths = ['''^docs/waves/.*\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"token":\s*"[0-9a-f]{32}",?\s*$''']
