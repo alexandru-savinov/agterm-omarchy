@@ -3,7 +3,7 @@
   "repository": "alexandru-savinov/agterm-omarchy",
   "requested": 3,
   "capacity": 3,
-  "revision": 2,
+  "revision": 4,
   "events": [
     {
       "request": {
@@ -34,6 +34,36 @@
         "token": "16274032b5744d1ea3711eecf0949f02"
       },
       "at": 1793659485
+    },
+    {
+      "request": {
+        "event_id": "w5-scanner-review-claim-1",
+        "operation": "claim",
+        "task": "scanner-exception-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "scanner_review",
+          "session": "sr5755165414"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/45#issuecomment-6590382859",
+        "lease_seconds": 14400
+      },
+      "at": 1793659764
+    },
+    {
+      "request": {
+        "event_id": "w5-scanner-review-start-1",
+        "operation": "start",
+        "task": "scanner-exception-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "scanner_review",
+          "session": "sr5755165414"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/45#issuecomment-6590382859",
+        "token": "6a118a402bff4353adc92c7c2fb2a105"
+      },
+      "at": 1793659764
     }
   ],
   "assignments": {
@@ -44,9 +74,17 @@
       "paths": [],
       "depends_on": [],
       "max_attempts": 2,
-      "state": "queued",
-      "attempt": 0,
-      "lease": null,
+      "state": "running",
+      "attempt": 1,
+      "lease": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "scanner_review",
+          "session": "sr5755165414"
+        },
+        "token": "6a118a402bff4353adc92c7c2fb2a105",
+        "expires_at": 1793674164
+      },
       "completion": null,
       "reason": null
     },
