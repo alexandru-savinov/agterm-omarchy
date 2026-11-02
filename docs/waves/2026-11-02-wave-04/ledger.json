@@ -3,8 +3,69 @@
   "repository": "alexandru-savinov/agterm-omarchy",
   "requested": 4,
   "capacity": 3,
-  "revision": 0,
-  "events": [],
+  "revision": 4,
+  "events": [
+    {
+      "request": {
+        "event_id": "wave04-probe-review-claim-1",
+        "operation": "claim",
+        "task": "probe-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "probe_review",
+          "session": "pr201n4b8"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6584130159",
+        "lease_seconds": 14400
+      },
+      "at": 1793641746
+    },
+    {
+      "request": {
+        "event_id": "wave04-probe-review-start-1",
+        "operation": "start",
+        "task": "probe-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "probe_review",
+          "session": "pr201n4b8"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6584130159",
+        "token": "42d9ed3714f047559e975cdb6cafe6e4"
+      },
+      "at": 1793641746
+    },
+    {
+      "request": {
+        "event_id": "wave04-terminal-ledger-review-claim-1",
+        "operation": "claim",
+        "task": "terminal-ledger-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "w4lr82ff7a53"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6584134459",
+        "lease_seconds": 14400
+      },
+      "at": 1793641746
+    },
+    {
+      "request": {
+        "event_id": "wave04-terminal-ledger-review-start-1",
+        "operation": "start",
+        "task": "terminal-ledger-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "w4lr82ff7a53"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6584134459",
+        "token": "adede0cfd2644ee6b92b73fe52cb4036"
+      },
+      "at": 1793641746
+    }
+  ],
   "assignments": {
     "config-ci-correction": {
       "id": "config-ci-correction",
@@ -31,9 +92,17 @@
       "paths": [],
       "depends_on": [],
       "max_attempts": 2,
-      "state": "queued",
-      "attempt": 0,
-      "lease": null,
+      "state": "running",
+      "attempt": 1,
+      "lease": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "probe_review",
+          "session": "pr201n4b8"
+        },
+        "token": "42d9ed3714f047559e975cdb6cafe6e4",
+        "expires_at": 1793656146
+      },
       "completion": null,
       "reason": null
     },
@@ -44,9 +113,17 @@
       "paths": [],
       "depends_on": [],
       "max_attempts": 2,
-      "state": "queued",
-      "attempt": 0,
-      "lease": null,
+      "state": "running",
+      "attempt": 1,
+      "lease": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "w4lr82ff7a53"
+        },
+        "token": "adede0cfd2644ee6b92b73fe52cb4036",
+        "expires_at": 1793656146
+      },
       "completion": null,
       "reason": null
     },
