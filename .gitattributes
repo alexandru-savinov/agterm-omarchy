@@ -6,3 +6,7 @@ packaging/linux/notices/*/LICENSE whitespace=-blank-at-eol
 packaging/linux/notices/jetbrains-mono/AUTHORS.txt whitespace=-blank-at-eol
 packaging/linux/notices/jetbrains-mono/OFL.txt whitespace=-blank-at-eol
 packaging/linux/notices/z2d/COPYING whitespace=-blank-at-eof
+packaging/linux/notices/nerd-fonts-glyphs/codicons-LICENSE.txt -text whitespace=cr-at-eol,-blank-at-eol
+packaging/linux/notices/nerd-fonts-glyphs/weather-icons-OFL.txt -text whitespace=cr-at-eol,-blank-at-eol
+packaging/linux/notices/nerd-fonts-glyphs/pomicons-LICENSE whitespace=-blank-at-eol
+packaging/linux/notices/nerd-fonts-glyphs/powerline-symbols-LICENSE.txt whitespace=-blank-at-eol
