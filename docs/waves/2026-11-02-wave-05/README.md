@@ -5,7 +5,9 @@ This is the sole active ledger; root alone writes it.
 The two initial review/audit assignments are delivered.
 The scanner review reproduced 27 boundary checks; root explicitly rebase-merged PR202 after its required rules and checks were satisfied.
 `pr202-rebase-proof.json` records the request, successful response, resulting single-parent commit and unchanged frozen candidate.
-The retry audit found no previous later attempt; root subsequently requested one retry of an existing diagnosed ARM64 failure, whose outcome is tracked on issue3.
+The retry audit found no previous later attempt; root subsequently requested one retry of an existing diagnosed ARM64 failure, which completed successfully on attempt2 at the identical checkout.
+`a12-retry-proof.json` records the original failure, actual retry request, matching source/checkout, successful corrected job and log digests.
+The corrected run used a verified restored runtime cache; it does not demonstrate that the original external network route was repaired.
 The feature-ledger/Pages task stays queued behind both deliveries and root confirmation of actual usable outcomes.
 The plan contains three concrete assignments with a maximum of three worker turns plus root, including monitors.
 Fifteen scoped assignments across five waves are not 500 worker launches; the two earlier retries and supplemental review turns are not added assignments.

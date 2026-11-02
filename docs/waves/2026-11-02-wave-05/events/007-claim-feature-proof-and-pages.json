@@ -1,0 +1,12 @@
+{
+  "event_id": "w5-feature-apply-claim-1",
+  "operation": "claim",
+  "task": "feature-proof-and-pages",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "feature_apply",
+    "session": "faa582835e54"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6591060964",
+  "lease_seconds": 14400
+}
