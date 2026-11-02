@@ -1,0 +1,32 @@
+{
+  "schema": "agterm-wave-plan/1",
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "requested": 3,
+  "capacity": 3,
+  "assignments": [
+    {
+      "id": "runtime-review",
+      "title": "Review generated-config lifetime and shutdown",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6580549032",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2
+    },
+    {
+      "id": "notice-review",
+      "title": "Review retained notice provenance and staging",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6580553350",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2
+    },
+    {
+      "id": "wave-record-review",
+      "title": "Replay and verify the completed implementation wave",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6580636163",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2
+    }
+  ]
+}

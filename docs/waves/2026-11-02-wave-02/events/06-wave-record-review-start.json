@@ -1,0 +1,12 @@
+{
+  "event_id": "wave02-wave-record-review-start-1",
+  "operation": "start",
+  "task": "wave-record-review",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "ledger_review",
+    "session": "w2lr80648359"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6580636163",
+  "token": "602acc87b0ce41c6b5424283dbd59188"
+}

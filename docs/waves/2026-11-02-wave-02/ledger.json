@@ -1,0 +1,164 @@
+{
+  "schema": "agterm-wave-ledger/1",
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "requested": 3,
+  "capacity": 3,
+  "revision": 6,
+  "events": [
+    {
+      "request": {
+        "event_id": "wave02-runtime-review-claim-1",
+        "operation": "claim",
+        "task": "runtime-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "runtime_review",
+          "session": "rv195k7p2"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6580549032",
+        "lease_seconds": 14400
+      },
+      "at": 1793632372
+    },
+    {
+      "request": {
+        "event_id": "wave02-runtime-review-start-1",
+        "operation": "start",
+        "task": "runtime-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "runtime_review",
+          "session": "rv195k7p2"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6580549032",
+        "token": "d91932f4ebae4482acef1a8ed2954772"
+      },
+      "at": 1793632372
+    },
+    {
+      "request": {
+        "event_id": "wave02-notice-review-claim-1",
+        "operation": "claim",
+        "task": "notice-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "notice_review",
+          "session": "nr198b2"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6580553350",
+        "lease_seconds": 14400
+      },
+      "at": 1793632372
+    },
+    {
+      "request": {
+        "event_id": "wave02-notice-review-start-1",
+        "operation": "start",
+        "task": "notice-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "notice_review",
+          "session": "nr198b2"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6580553350",
+        "token": "aa1058776ebd410593b9bb1ecd1f36a2"
+      },
+      "at": 1793632372
+    },
+    {
+      "request": {
+        "event_id": "wave02-wave-record-review-claim-1",
+        "operation": "claim",
+        "task": "wave-record-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "w2lr80648359"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6580636163",
+        "lease_seconds": 14400
+      },
+      "at": 1793632372
+    },
+    {
+      "request": {
+        "event_id": "wave02-wave-record-review-start-1",
+        "operation": "start",
+        "task": "wave-record-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "w2lr80648359"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6580636163",
+        "token": "602acc87b0ce41c6b5424283dbd59188"
+      },
+      "at": 1793632372
+    }
+  ],
+  "assignments": {
+    "runtime-review": {
+      "id": "runtime-review",
+      "title": "Review generated-config lifetime and shutdown",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6580549032",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2,
+      "state": "running",
+      "attempt": 1,
+      "lease": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "runtime_review",
+          "session": "rv195k7p2"
+        },
+        "token": "d91932f4ebae4482acef1a8ed2954772",
+        "expires_at": 1793646772
+      },
+      "completion": null,
+      "reason": null
+    },
+    "notice-review": {
+      "id": "notice-review",
+      "title": "Review retained notice provenance and staging",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6580553350",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2,
+      "state": "running",
+      "attempt": 1,
+      "lease": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "notice_review",
+          "session": "nr198b2"
+        },
+        "token": "aa1058776ebd410593b9bb1ecd1f36a2",
+        "expires_at": 1793646772
+      },
+      "completion": null,
+      "reason": null
+    },
+    "wave-record-review": {
+      "id": "wave-record-review",
+      "title": "Replay and verify the completed implementation wave",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6580636163",
+      "paths": [],
+      "depends_on": [],
+      "max_attempts": 2,
+      "state": "running",
+      "attempt": 1,
+      "lease": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "w2lr80648359"
+        },
+        "token": "602acc87b0ce41c6b5424283dbd59188",
+        "expires_at": 1793646772
+      },
+      "completion": null,
+      "reason": null
+    }
+  }
+}
