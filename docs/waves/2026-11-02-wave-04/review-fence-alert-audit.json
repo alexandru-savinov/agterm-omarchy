@@ -1,0 +1,493 @@
+{
+  "audited_at": "2026-11-02T19:30:42.261894+00:00",
+  "source_engine": "scripts/github/waves.py:uuid.uuid4().hex",
+  "count": 54,
+  "findings": [
+    {
+      "thread_id": "PRRT_kwDOVcNen86yt255",
+      "comment_id": 4443754659,
+      "alert": 227,
+      "path": "docs/waves/2026-11-02-wave-01/events/wave01-distribution-notices-start-1.json",
+      "reported_commit": "e1fa2ab3ad27a4c1a9507fd7c6421a3e1c3109b9",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yt26R",
+      "comment_id": 4443754704,
+      "alert": 228,
+      "path": "docs/waves/2026-11-02-wave-01/events/wave01-feature-proof-batch-start-1.json",
+      "reported_commit": "e1fa2ab3ad27a4c1a9507fd7c6421a3e1c3109b9",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yt26c",
+      "comment_id": 4443754726,
+      "alert": 229,
+      "path": "docs/waves/2026-11-02-wave-01/events/wave01-generated-config-isolation-start-1.json",
+      "reported_commit": "e1fa2ab3ad27a4c1a9507fd7c6421a3e1c3109b9",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yt26m",
+      "comment_id": 4443754744,
+      "alert": 230,
+      "path": "docs/waves/2026-11-02-wave-01/ledger.json",
+      "reported_commit": "e1fa2ab3ad27a4c1a9507fd7c6421a3e1c3109b9",
+      "line": 34,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yt26v",
+      "comment_id": 4443754755,
+      "alert": 231,
+      "path": "docs/waves/2026-11-02-wave-01/ledger.json",
+      "reported_commit": "e1fa2ab3ad27a4c1a9507fd7c6421a3e1c3109b9",
+      "line": 64,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yuVaj",
+      "comment_id": 4443953535,
+      "alert": 245,
+      "path": "docs/waves/2026-11-02-wave-01/events/07-generated-config-isolation-complete.json",
+      "reported_commit": "f2279770a60f66b1bf1640a4e215a412ecf211e9",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yuVbK",
+      "comment_id": 4443953605,
+      "alert": 247,
+      "path": "docs/waves/2026-11-02-wave-01/events/08-feature-proof-batch-complete.json",
+      "reported_commit": "f2279770a60f66b1bf1640a4e215a412ecf211e9",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yuVbd",
+      "comment_id": 4443953634,
+      "alert": 246,
+      "path": "docs/waves/2026-11-02-wave-01/events/09-distribution-notices-complete.json",
+      "reported_commit": "f2279770a60f66b1bf1640a4e215a412ecf211e9",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yuVb2",
+      "comment_id": 4443953666,
+      "alert": 251,
+      "path": "docs/waves/2026-11-02-wave-01/ledger.json",
+      "reported_commit": "e1fa2ab3ad27a4c1a9507fd7c6421a3e1c3109b9",
+      "line": 94,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yuVcO",
+      "comment_id": 4443953697,
+      "alert": 248,
+      "path": "docs/waves/2026-11-02-wave-01/ledger.json",
+      "reported_commit": "f2279770a60f66b1bf1640a4e215a412ecf211e9",
+      "line": 109,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yuVcd",
+      "comment_id": 4443953723,
+      "alert": 252,
+      "path": "docs/waves/2026-11-02-wave-01/ledger.json",
+      "reported_commit": "e1fa2ab3ad27a4c1a9507fd7c6421a3e1c3109b9",
+      "line": 120,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yuVcr",
+      "comment_id": 4443953740,
+      "alert": 249,
+      "path": "docs/waves/2026-11-02-wave-01/ledger.json",
+      "reported_commit": "f2279770a60f66b1bf1640a4e215a412ecf211e9",
+      "line": 128,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yuVc8",
+      "comment_id": 4443953764,
+      "alert": 253,
+      "path": "docs/waves/2026-11-02-wave-01/ledger.json",
+      "reported_commit": "e1fa2ab3ad27a4c1a9507fd7c6421a3e1c3109b9",
+      "line": 145,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yuVdG",
+      "comment_id": 4443953779,
+      "alert": 250,
+      "path": "docs/waves/2026-11-02-wave-01/ledger.json",
+      "reported_commit": "f2279770a60f66b1bf1640a4e215a412ecf211e9",
+      "line": 147,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yuVdO",
+      "comment_id": 4443953795,
+      "alert": 254,
+      "path": "docs/waves/2026-11-02-wave-01/ledger.json",
+      "reported_commit": "e1fa2ab3ad27a4c1a9507fd7c6421a3e1c3109b9",
+      "line": 168,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yuk_E",
+      "comment_id": 4444052622,
+      "alert": 257,
+      "path": "docs/waves/2026-11-02-wave-02/events/02-runtime-review-start.json",
+      "reported_commit": "20692dcfc24e518e4732e7c3009b139fe4d3cec8",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yulAA",
+      "comment_id": 4444052716,
+      "alert": 255,
+      "path": "docs/waves/2026-11-02-wave-02/events/04-notice-review-start.json",
+      "reported_commit": "20692dcfc24e518e4732e7c3009b139fe4d3cec8",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yulAV",
+      "comment_id": 4444052742,
+      "alert": 256,
+      "path": "docs/waves/2026-11-02-wave-02/events/06-wave-record-review-start.json",
+      "reported_commit": "20692dcfc24e518e4732e7c3009b139fe4d3cec8",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yulAx",
+      "comment_id": 4444052780,
+      "alert": 258,
+      "path": "docs/waves/2026-11-02-wave-02/ledger.json",
+      "reported_commit": "20692dcfc24e518e4732e7c3009b139fe4d3cec8",
+      "line": 34,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yulBC",
+      "comment_id": 4444052805,
+      "alert": 259,
+      "path": "docs/waves/2026-11-02-wave-02/ledger.json",
+      "reported_commit": "20692dcfc24e518e4732e7c3009b139fe4d3cec8",
+      "line": 64,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yu0m3",
+      "comment_id": 4444147775,
+      "alert": 266,
+      "path": "docs/waves/2026-11-02-wave-02/events/07-runtime-review-complete.json",
+      "reported_commit": "39ac073cb4a27a52939c6639bd5dbc7a242e6686",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yu0n1",
+      "comment_id": 4444147863,
+      "alert": 264,
+      "path": "docs/waves/2026-11-02-wave-02/events/08-notice-review-complete.json",
+      "reported_commit": "39ac073cb4a27a52939c6639bd5dbc7a242e6686",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yu0oJ",
+      "comment_id": 4444147891,
+      "alert": 265,
+      "path": "docs/waves/2026-11-02-wave-02/events/09-wave-record-review-complete.json",
+      "reported_commit": "39ac073cb4a27a52939c6639bd5dbc7a242e6686",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yu0od",
+      "comment_id": 4444147918,
+      "alert": 270,
+      "path": "docs/waves/2026-11-02-wave-02/ledger.json",
+      "reported_commit": "20692dcfc24e518e4732e7c3009b139fe4d3cec8",
+      "line": 94,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yu0oz",
+      "comment_id": 4444147947,
+      "alert": 267,
+      "path": "docs/waves/2026-11-02-wave-02/ledger.json",
+      "reported_commit": "39ac073cb4a27a52939c6639bd5dbc7a242e6686",
+      "line": 109,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yu0pK",
+      "comment_id": 4444147978,
+      "alert": 271,
+      "path": "docs/waves/2026-11-02-wave-02/ledger.json",
+      "reported_commit": "20692dcfc24e518e4732e7c3009b139fe4d3cec8",
+      "line": 115,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yu0pj",
+      "comment_id": 4444148009,
+      "alert": 268,
+      "path": "docs/waves/2026-11-02-wave-02/ledger.json",
+      "reported_commit": "39ac073cb4a27a52939c6639bd5dbc7a242e6686",
+      "line": 128,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yu0p2",
+      "comment_id": 4444148036,
+      "alert": 272,
+      "path": "docs/waves/2026-11-02-wave-02/ledger.json",
+      "reported_commit": "20692dcfc24e518e4732e7c3009b139fe4d3cec8",
+      "line": 136,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yu0qL",
+      "comment_id": 4444148064,
+      "alert": 269,
+      "path": "docs/waves/2026-11-02-wave-02/ledger.json",
+      "reported_commit": "39ac073cb4a27a52939c6639bd5dbc7a242e6686",
+      "line": 147,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yu0qh",
+      "comment_id": 4444148099,
+      "alert": 273,
+      "path": "docs/waves/2026-11-02-wave-02/ledger.json",
+      "reported_commit": "20692dcfc24e518e4732e7c3009b139fe4d3cec8",
+      "line": 157,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86ywHzp",
+      "comment_id": 4444694089,
+      "alert": 295,
+      "path": "docs/waves/2026-11-02-wave-03/events/02-bounded-config-correction-start.json",
+      "reported_commit": "8d05b1d013ebf80488ae796d4a5f9808f8dfc25c",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86ywHzr",
+      "comment_id": 4444694091,
+      "alert": 296,
+      "path": "docs/waves/2026-11-02-wave-03/events/04-native-config-probe-start.json",
+      "reported_commit": "8d05b1d013ebf80488ae796d4a5f9808f8dfc25c",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86ywHzt",
+      "comment_id": 4444694093,
+      "alert": 297,
+      "path": "docs/waves/2026-11-02-wave-03/ledger.json",
+      "reported_commit": "8d05b1d013ebf80488ae796d4a5f9808f8dfc25c",
+      "line": 34,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yxKsC",
+      "comment_id": 4445135638,
+      "alert": 307,
+      "path": "docs/waves/2026-11-02-wave-03/events/08-bounded-config-correction-start-2.json",
+      "reported_commit": "4501d8372cfd412100184aad35a31d4dfcd135cf",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yxKsg",
+      "comment_id": 4445135698,
+      "alert": 308,
+      "path": "docs/waves/2026-11-02-wave-03/events/10-native-config-probe-start-2.json",
+      "reported_commit": "4501d8372cfd412100184aad35a31d4dfcd135cf",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yxKs9",
+      "comment_id": 4445135736,
+      "alert": 309,
+      "path": "docs/waves/2026-11-02-wave-03/events/11-bounded-config-correction-complete-2.json",
+      "reported_commit": "4501d8372cfd412100184aad35a31d4dfcd135cf",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yxKtU",
+      "comment_id": 4445135769,
+      "alert": 310,
+      "path": "docs/waves/2026-11-02-wave-03/ledger.json",
+      "reported_commit": "8d05b1d013ebf80488ae796d4a5f9808f8dfc25c",
+      "line": 64,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yxKtp",
+      "comment_id": 4445135799,
+      "alert": 311,
+      "path": "docs/waves/2026-11-02-wave-03/ledger.json",
+      "reported_commit": "8d05b1d013ebf80488ae796d4a5f9808f8dfc25c",
+      "line": 90,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yxKt4",
+      "comment_id": 4445135823,
+      "alert": 312,
+      "path": "docs/waves/2026-11-02-wave-03/ledger.json",
+      "reported_commit": "8d05b1d013ebf80488ae796d4a5f9808f8dfc25c",
+      "line": 114,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yxKuD",
+      "comment_id": 4445135845,
+      "alert": 313,
+      "path": "docs/waves/2026-11-02-wave-03/ledger.json",
+      "reported_commit": "4501d8372cfd412100184aad35a31d4dfcd135cf",
+      "line": 126,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yxKuW",
+      "comment_id": 4445135873,
+      "alert": 314,
+      "path": "docs/waves/2026-11-02-wave-03/ledger.json",
+      "reported_commit": "4501d8372cfd412100184aad35a31d4dfcd135cf",
+      "line": 156,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yxKuv",
+      "comment_id": 4445135904,
+      "alert": 315,
+      "path": "docs/waves/2026-11-02-wave-03/ledger.json",
+      "reported_commit": "4501d8372cfd412100184aad35a31d4dfcd135cf",
+      "line": 171,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yx-MA",
+      "comment_id": 4445477723,
+      "alert": 327,
+      "path": "docs/waves/2026-11-02-wave-03/events/12-native-config-probe-complete-2.json",
+      "reported_commit": "73272501e444fac5353b8e4fc78630ccc404b4ab",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yx-MX",
+      "comment_id": 4445477762,
+      "alert": 328,
+      "path": "docs/waves/2026-11-02-wave-03/ledger.json",
+      "reported_commit": "73272501e444fac5353b8e4fc78630ccc404b4ab",
+      "line": 190,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yx-Mi",
+      "comment_id": 4445477784,
+      "alert": 326,
+      "path": "docs/waves/2026-11-02-wave-03/ledger.json",
+      "reported_commit": "4501d8372cfd412100184aad35a31d4dfcd135cf",
+      "line": 202,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yx-Mu",
+      "comment_id": 4445477809,
+      "alert": 329,
+      "path": "docs/waves/2026-11-02-wave-03/ledger.json",
+      "reported_commit": "4501d8372cfd412100184aad35a31d4dfcd135cf",
+      "line": 228,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yypbv",
+      "comment_id": 4445764340,
+      "alert": 330,
+      "path": "docs/waves/2026-11-02-wave-04/events/02-probe-review-start-1.json",
+      "reported_commit": "95d984a5788583db4cfa0e40c5d3d24a2675e472",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yypcC",
+      "comment_id": 4445764381,
+      "alert": 331,
+      "path": "docs/waves/2026-11-02-wave-04/events/04-terminal-ledger-review-start-1.json",
+      "reported_commit": "95d984a5788583db4cfa0e40c5d3d24a2675e472",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yypcJ",
+      "comment_id": 4445764401,
+      "alert": 332,
+      "path": "docs/waves/2026-11-02-wave-04/ledger.json",
+      "reported_commit": "95d984a5788583db4cfa0e40c5d3d24a2675e472",
+      "line": 34,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86yzT7J",
+      "comment_id": 4446049234,
+      "alert": 336,
+      "path": "docs/waves/2026-11-02-wave-04/ledger.json",
+      "reported_commit": "95d984a5788583db4cfa0e40c5d3d24a2675e472",
+      "line": 64,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86y0fRF",
+      "comment_id": 4446553042,
+      "alert": 347,
+      "path": "docs/waves/2026-11-02-wave-04/events/07-terminal-ledger-review-complete-1.json",
+      "reported_commit": "430eba4ed4d552fe8fa8ff814c78f76b5d33f8b2",
+      "line": 11,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86y0fRn",
+      "comment_id": 4446553091,
+      "alert": 349,
+      "path": "docs/waves/2026-11-02-wave-04/ledger.json",
+      "reported_commit": "95d984a5788583db4cfa0e40c5d3d24a2675e472",
+      "line": 103,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86y0fRy",
+      "comment_id": 4446553113,
+      "alert": 348,
+      "path": "docs/waves/2026-11-02-wave-04/ledger.json",
+      "reported_commit": "430eba4ed4d552fe8fa8ff814c78f76b5d33f8b2",
+      "line": 109,
+      "classification": "public offline wave fence; not an authentication credential"
+    },
+    {
+      "thread_id": "PRRT_kwDOVcNen86y0fR8",
+      "comment_id": 4446553132,
+      "alert": 350,
+      "path": "docs/waves/2026-11-02-wave-04/ledger.json",
+      "reported_commit": "95d984a5788583db4cfa0e40c5d3d24a2675e472",
+      "line": 124,
+      "classification": "public offline wave fence; not an authentication credential"
+    }
+  ]
+}
