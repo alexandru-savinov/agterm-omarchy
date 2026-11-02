@@ -74,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           "${RUNNER_TEMP}/gitleaks" git --redact --no-banner --report-format sarif \
-            --report-path gitleaks.sarif --exit-code 0 .
+            --report-path gitleaks.sarif --exit-code 0 --config .gitleaks.toml .
           echo "gitleaks results: $(jq '.runs[0].results|length' gitleaks.sarif)"
       - name: Upload SARIF
         # Fork PRs get a read-only token and cannot upload SARIF.
