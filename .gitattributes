@@ -3,3 +3,6 @@ scripts/zmx-patches/*.patch whitespace=-blank-at-eol
 docs/evidence/**/*.patch whitespace=-blank-at-eol
 # Preserve the exact upstream license bytes recorded in the notice provenance manifest.
 packaging/linux/notices/*/LICENSE whitespace=-blank-at-eol
+packaging/linux/notices/jetbrains-mono/AUTHORS.txt whitespace=-blank-at-eol
+packaging/linux/notices/jetbrains-mono/OFL.txt whitespace=-blank-at-eol
+packaging/linux/notices/z2d/COPYING whitespace=-blank-at-eof
