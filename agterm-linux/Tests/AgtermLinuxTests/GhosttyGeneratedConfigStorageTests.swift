@@ -9,25 +9,73 @@ import Darwin
 
 @Suite("Generated Ghostty config storage")
 struct GhosttyGeneratedConfigStorageTests {
-    @Test("all generated inputs are private and earlier reload inputs remain immutable")
+    @Test("generated files are private and ordinary inputs end at their consumer")
     func permissionsAndLifetime() throws {
         try withRoot { root in
             let storage = try GhosttyGeneratedConfigStorage(runtimeRoot: root.path)
             defer { try? storage.cleanup() }
+            let themes = try storage.appearanceThemes()
             #expect(try permissions(storage.directoryPath) == 0o700)
-            var paths = Set<String>()
-            for kind in GhosttyGeneratedConfigStorage.Kind.allCases {
-                let text = kind == .lightTheme || kind == .darkTheme ? "" : "\(kind.rawValue): λ\n"
-                let path = try storage.write(text, as: kind)
-                #expect(paths.insert(path).inserted)
+            for path in [themes.light, themes.dark] {
                 #expect(try permissions(path) == 0o600)
-                #expect(try String(contentsOfFile: path, encoding: .utf8) == text)
+                #expect(try String(contentsOfFile: path, encoding: .utf8) == "")
             }
-            let first = try storage.write("background = #123456", as: .runtime)
-            let second = try storage.write(String(repeating: "new λ\n", count: 50_000), as: .runtime)
-            #expect(first != second)
-            #expect(try String(contentsOfFile: first, encoding: .utf8) == "background = #123456")
-            #expect(try String(contentsOfFile: second, encoding: .utf8) == String(repeating: "new λ\n", count: 50_000))
+            for kind in GhosttyGeneratedConfigStorage.Kind.allCases {
+                let text = String(repeating: "\(kind.rawValue): λ\n", count: 10_000)
+                let path = try storage.withConfigFile(text, as: kind) { path throws -> String in
+                    #expect(try permissions(path) == 0o600)
+                    #expect(try String(contentsOfFile: path, encoding: .utf8) == text)
+                    return path
+                }
+                #expect(!FileManager.default.fileExists(atPath: path))
+                #expect(storage.retainedFileCount == 2)
+            }
+            #expect(try storage.appearanceThemes() == themes)
+        }
+    }
+
+    @Test("1000 rebuilds keep exactly one theme pair and bounded bookkeeping")
+    func repeatedBuilds() throws {
+        try withRoot { root in
+            let storage = try GhosttyGeneratedConfigStorage(runtimeRoot: root.path)
+            defer { try? storage.cleanup() }
+            let themes = try storage.appearanceThemes()
+            var firstArgument: String?
+            for iteration in 0..<1_000 {
+                for kind in GhosttyGeneratedConfigStorage.Kind.allCases {
+                    let value = "\(iteration):\(kind.rawValue)"
+                    let copied = try storage.withConfigFile(value, as: kind) { path in
+                        #expect(storage.retainedFileCount == 3)
+                        return try String(contentsOfFile: path, encoding: .utf8)
+                    }
+                    #expect(copied == value)
+                    if firstArgument == nil { firstArgument = copied }
+                    #expect(storage.retainedFileCount == 2)
+                }
+                #expect(try storage.appearanceThemes() == themes)
+                #expect(try FileManager.default.contentsOfDirectory(atPath: storage.directoryPath).count == 2)
+            }
+            #expect(firstArgument == "0:defaults")
+        }
+    }
+
+    @Test("failed consumers release their ordinary file and bookkeeping")
+    func failedConsumer() throws {
+        enum ConsumerFailure: Error { case stopped }
+        try withRoot { root in
+            let storage = try GhosttyGeneratedConfigStorage(runtimeRoot: root.path)
+            defer { try? storage.cleanup() }
+            _ = try storage.appearanceThemes()
+            var input: String?
+            #expect(throws: ConsumerFailure.self) {
+                try storage.withConfigFile("consumed then failed", as: .runtime) { path in
+                    input = path
+                    throw ConsumerFailure.stopped
+                }
+            }
+            #expect(!FileManager.default.fileExists(atPath: try #require(input)))
+            #expect(storage.retainedFileCount == 2)
+            #expect(try FileManager.default.contentsOfDirectory(atPath: storage.directoryPath).count == 2)
         }
     }
 
@@ -61,25 +109,30 @@ struct GhosttyGeneratedConfigStorageTests {
         }
     }
 
-    @Test("failed exclusive writes never publish stale input or delete an unrelated entry")
+    @Test("failed exclusive writes never consume stale input or delete an unrelated entry")
     func failedWrite() throws {
         try withRoot { root in
             let storage = try GhosttyGeneratedConfigStorage(runtimeRoot: root.path)
             let stale = URL(fileURLWithPath: storage.directoryPath).appendingPathComponent("runtime-1.conf")
             try Data("unrelated stale input".utf8).write(to: stale)
+            var consumed = false
             #expect(throws: GhosttyGeneratedConfigStorage.Failure.self) {
-                _ = try storage.write("replacement", as: .runtime)
+                try storage.withConfigFile("replacement", as: .runtime) { _ in consumed = true }
             }
+            #expect(!consumed)
             #expect(try String(contentsOf: stale, encoding: .utf8) == "unrelated stale input")
-            let fresh = try storage.write("fresh", as: .runtime)
-            #expect(fresh != stale.path)
-            #expect(try String(contentsOfFile: fresh, encoding: .utf8) == "fresh")
-            // An unowned entry keeps the directory nonempty. Cleanup reports it instead of recursing.
+            try storage.withConfigFile("fresh", as: .runtime) { path throws -> Void in
+                #expect(path != stale.path)
+                #expect(try String(contentsOfFile: path, encoding: .utf8) == "fresh")
+            }
+            #expect(storage.retainedFileCount == 0)
             #expect(throws: GhosttyGeneratedConfigStorage.Failure.self) { try storage.cleanup() }
             try storage.cleanup()
-            #expect(!FileManager.default.fileExists(atPath: fresh))
             #expect(try String(contentsOf: stale, encoding: .utf8) == "unrelated stale input")
-            #expect(throws: GhosttyGeneratedConfigStorage.Failure.self) { _ = try storage.write("late", as: .runtime) }
+            #expect(throws: GhosttyGeneratedConfigStorage.Failure.self) {
+                try storage.withConfigFile("late", as: .runtime) { _ in consumed = true }
+            }
+            #expect(!consumed)
         }
     }
 
@@ -91,18 +144,18 @@ struct GhosttyGeneratedConfigStorageTests {
             defer { try? first.cleanup(); try? second.cleanup() }
             let unrelated = root.appendingPathComponent("desktop-sentinel")
             try Data("keep".utf8).write(to: unrelated)
-            let firstPath = try first.write("first", as: .defaults)
-            let secondPath = try second.write("second", as: .defaults)
-            #expect(firstPath != secondPath)
+            let firstThemes = try first.appearanceThemes()
+            let secondThemes = try second.appearanceThemes()
+            #expect(firstThemes != secondThemes)
             try first.cleanup()
             try first.cleanup()
             #expect(!FileManager.default.fileExists(atPath: first.directoryPath))
-            #expect(!FileManager.default.fileExists(atPath: firstPath))
-            #expect(try String(contentsOfFile: secondPath, encoding: .utf8) == "second")
+            #expect(try String(contentsOfFile: secondThemes.dark, encoding: .utf8) == "")
             #expect(try String(contentsOf: unrelated, encoding: .utf8) == "keep")
-            #expect(throws: GhosttyGeneratedConfigStorage.Failure.self) { _ = try first.write("late", as: .runtime) }
-            let later = try second.write("still live", as: .runtime)
-            #expect(try String(contentsOfFile: later, encoding: .utf8) == "still live")
+            #expect(throws: GhosttyGeneratedConfigStorage.Failure.self) { _ = try first.appearanceThemes() }
+            try second.withConfigFile("still live", as: .runtime) { path throws -> Void in
+                #expect(try String(contentsOfFile: path, encoding: .utf8) == "still live")
+            }
         }
     }
 
@@ -110,24 +163,24 @@ struct GhosttyGeneratedConfigStorageTests {
     func replacedDirectory() throws {
         try withRoot { root in
             let storage = try GhosttyGeneratedConfigStorage(runtimeRoot: root.path)
-            let owned = try storage.write("owned", as: .runtime)
+            let themes = try storage.appearanceThemes()
             let moved = root.appendingPathComponent("moved-owner")
             try FileManager.default.moveItem(atPath: storage.directoryPath, toPath: moved.path)
             try FileManager.default.createDirectory(atPath: storage.directoryPath, withIntermediateDirectories: false)
             let replacement = URL(fileURLWithPath: storage.directoryPath).appendingPathComponent("unrelated")
             try Data("keep replacement".utf8).write(to: replacement)
-            #expect(throws: GhosttyGeneratedConfigStorage.Failure.self) { _ = try storage.write("late", as: .runtime) }
+            #expect(throws: GhosttyGeneratedConfigStorage.Failure.self) { _ = try storage.appearanceThemes() }
             #expect(throws: GhosttyGeneratedConfigStorage.Failure.self) { try storage.cleanup() }
             try storage.cleanup()
             #expect(try String(contentsOf: replacement, encoding: .utf8) == "keep replacement")
-            #expect(!FileManager.default.fileExists(atPath: moved.appendingPathComponent((owned as NSString).lastPathComponent).path))
+            #expect(!FileManager.default.fileExists(atPath: moved.appendingPathComponent((themes.light as NSString).lastPathComponent).path))
         }
     }
 
     @Test("two overlapping processes share the desktop root but never their config files")
     func overlappingProcesses() throws {
         try withRoot { root in
-            let executable = try compileChild(in: root)
+            let executable = try compileChild(in: root, source: Self.childSource)
             let runtime = root.appendingPathComponent("desktop-runtime")
             try FileManager.default.createDirectory(at: runtime, withIntermediateDirectories: false)
             let sentinel = runtime.appendingPathComponent("unrelated-desktop-file")
@@ -142,7 +195,7 @@ struct GhosttyGeneratedConfigStorageTests {
             #expect(first.process.processIdentifier != second.process.processIdentifier)
             #expect(Set(firstPaths.values).isDisjoint(with: secondPaths.values))
             for paths in [firstPaths, secondPaths] {
-                #expect(paths.count == GhosttyGeneratedConfigStorage.Kind.allCases.count)
+                #expect(paths.count == 5)
                 for path in paths.values {
                     let directory = URL(fileURLWithPath: path).deletingLastPathComponent()
                     #expect(directory.deletingLastPathComponent().path == runtime.path)
@@ -169,18 +222,143 @@ struct GhosttyGeneratedConfigStorageTests {
         }
     }
 
-    /// Compile the production helper, not a reimplementation. Each child keeps it alive behind a pipe
-    /// barrier so the test observes simultaneous ownership and one cleanup while the peer is still live.
-    private func compileChild(in root: URL) throws -> URL {
-        let source = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("Sources/AgtermLinux/GhosttyGeneratedConfigStorage.swift")
+    #if os(Linux)
+    @Test("pinned libghostty replays cloned arguments after temporary input removal")
+    func actualGhosttyReplay() throws {
+        try withRoot { root in
+            let executable = try compileChild(in: root, source: Self.ghosttySource, ghostty: true)
+            let child = try StorageChild(executable: executable, root: root, marker: "ghostty", syntheticDesktop: false)
+            defer { child.stop() }
+            #expect(try child.readPaths() == ["rebuilds": "1000", "retained": "2", "replay": "old-new-old"])
+            try child.clean()
+        }
+    }
+
+    /// Separate process: ghostty_init owns global allocator state and must not race other test suites.
+    /// No GTK init, surface, display, shell or session is created by this headless C API regression.
+    private static let ghosttySource = #"""
+        import Foundation
+        import CGhostty
+
+        enum CheckFailure: Error { case failed(String) }
+        func check(_ condition: Bool, _ message: String) throws {
+            guard condition else { throw CheckFailure.failed(message) }
+        }
+        final class Capture {
+            var config: ghostty_config_t?
+            func clear() { if let config { ghostty_config_free(config) }; config = nil }
+            func accept(_ source: ghostty_config_t) { clear(); config = ghostty_config_clone(source) }
+            func verify(background: UInt8, fontSize: Float) throws {
+                guard let config else { throw CheckFailure.failed("missing config-change callback") }
+                var color = ghostty_config_color_s()
+                var size: Float = 0
+                try check("background".withCString { ghostty_config_get(config, &color, $0, 10) }, "background getter")
+                try check("font-size".withCString { ghostty_config_get(config, &size, $0, 9) }, "font-size getter")
+                try check(color.r == background && color.g == background && color.b == background, "earlier background changed")
+                try check(size == fontSize, "earlier defaults changed")
+                try check(ghostty_config_diagnostics_count(config) == 0, "conditional replay diagnostics")
+            }
+            deinit { clear() }
+        }
+        @main struct GhosttyReplay {
+            static func build(_ storage: GhosttyGeneratedConfigStorage, color: String, size: Int) throws -> ghostty_config_t {
+                guard let config = ghostty_config_new() else { throw CheckFailure.failed("config allocation") }
+                do {
+                    try storage.withConfigFile("font-size = \(size)\n", as: .defaults) {
+                        $0.withCString { ghostty_config_load_file(config, $0) }
+                    }
+                    let themes = try storage.appearanceThemes()
+                    let contents = "theme = light:\(themes.light),dark:\(themes.dark)\nbackground = \(color)\ntitle = temporary\n"
+                    try storage.withConfigFile(contents, as: .runtime) {
+                        $0.withCString { ghostty_config_load_file(config, $0) }
+                    }
+                    ghostty_config_load_recursive_files(config)
+                    try storage.withConfigFile("title =\n", as: .title) {
+                        $0.withCString { ghostty_config_load_file(config, $0) }
+                    }
+                    ghostty_config_finalize(config)
+                    try check(storage.retainedFileCount == 2, "ordinary bookkeeping retained")
+                    try check(FileManager.default.contentsOfDirectory(atPath: storage.directoryPath).count == 2, "ordinary files retained")
+                    try check(ghostty_config_diagnostics_count(config) == 0, "initial config diagnostics")
+                    return config
+                } catch { ghostty_config_free(config); throw error }
+            }
+            static func exercise(_ storage: GhosttyGeneratedConfigStorage) throws {
+                let original = try build(storage, color: "#111111", size: 13)
+                guard let old = ghostty_config_clone(original) else { throw CheckFailure.failed("clone allocation") }
+                ghostty_config_free(original)
+                defer { ghostty_config_free(old) }
+                let latest = try build(storage, color: "#eeeeee", size: 19)
+                defer { ghostty_config_free(latest) }
+                for iteration in 0..<1_000 {
+                    let temporary = try build(storage, color: iteration.isMultiple(of: 2) ? "#abcdef" : "#fedcba", size: 15)
+                    ghostty_config_free(temporary)
+                }
+                let capture = Capture()
+                var runtime = ghostty_runtime_config_s()
+                runtime.userdata = Unmanaged.passUnretained(capture).toOpaque()
+                runtime.wakeup_cb = { _ in }
+                runtime.action_cb = { app, target, action in
+                    if target.tag == GHOSTTY_TARGET_APP, action.tag == GHOSTTY_ACTION_CONFIG_CHANGE,
+                       let app, let userdata = ghostty_app_userdata(app), let config = action.action.config_change.config {
+                        Unmanaged<Capture>.fromOpaque(userdata).takeUnretainedValue().accept(config)
+                    }
+                    return true
+                }
+                runtime.read_clipboard_cb = { _, _, _ in false }
+                runtime.confirm_read_clipboard_cb = { _, _, _, _ in }
+                runtime.write_clipboard_cb = { _, _, _, _, _ in }
+                runtime.close_surface_cb = { _, _ in }
+                guard let app = ghostty_app_new(&runtime, old) else { throw CheckFailure.failed("app allocation") }
+                defer { ghostty_app_free(app); capture.clear() }
+                for dark in [true, false, true] {
+                    ghostty_app_set_color_scheme(app, dark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+                    ghostty_app_update_config(app, old)
+                    try capture.verify(background: 0x11, fontSize: 13)
+                    ghostty_app_update_config(app, latest)
+                    try capture.verify(background: 0xee, fontSize: 19)
+                    ghostty_app_update_config(app, old)
+                    try capture.verify(background: 0x11, fontSize: 13)
+                }
+            }
+            static func main() throws {
+                try check(ghostty_init(0, nil) == 0, "ghostty initialization")
+                let storage = try GhosttyGeneratedConfigStorage()
+                defer { try? storage.cleanup() }
+                try exercise(storage)
+                // Every app/config owner has been freed; the immutable pair remains until cleanup.
+                try check(storage.retainedFileCount == 2, "theme lifetime")
+                FileHandle.standardOutput.write(Data("{\"rebuilds\":\"1000\",\"retained\":\"2\",\"replay\":\"old-new-old\"}\n".utf8))
+                guard readLine() == "cleanup" else { throw CheckFailure.failed("cleanup barrier") }
+                try storage.cleanup()
+                try check(!FileManager.default.fileExists(atPath: storage.directoryPath), "cleanup directory")
+                FileHandle.standardOutput.write(Data("cleaned\n".utf8))
+            }
+        }
+        """#
+    #endif
+
+    /// Compile the production helper, not a reimplementation, into a separate process.
+    private func compileChild(in root: URL, source: String, ghostty: Bool = false) throws -> URL {
+        let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let helper = package.appendingPathComponent("Sources/AgtermLinux/GhosttyGeneratedConfigStorage.swift")
         let driver = root.appendingPathComponent("StorageChild.swift")
-        try Self.childSource.write(to: driver, atomically: true, encoding: .utf8)
+        try source.write(to: driver, atomically: true, encoding: .utf8)
         let executable = root.appendingPathComponent("storage-child")
+        var arguments = ["swiftc", "-swift-version", "6", "-parse-as-library", helper.path, driver.path, "-o", executable.path]
+        if ghostty {
+            let vendor = package.appendingPathComponent("vendor/ghostty")
+            let module = root.appendingPathComponent("CGhostty")
+            try FileManager.default.createDirectory(at: module, withIntermediateDirectories: false)
+            let map = "module CGhostty { header \"\(vendor.path)/include/ghostty.h\" link \"ghostty\" export * }"
+            try map.write(to: module.appendingPathComponent("module.modulemap"), atomically: true, encoding: .utf8)
+            arguments += ["-I", root.path, "-L", vendor.appendingPathComponent("lib").path,
+                          "-Xlinker", "-rpath", "-Xlinker", vendor.appendingPathComponent("lib").path]
+        }
         let compiler = Process()
         let output = Pipe()
         compiler.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        compiler.arguments = ["swiftc", "-swift-version", "6", "-parse-as-library", source.path, driver.path, "-o", executable.path]
+        compiler.arguments = arguments
         compiler.standardOutput = output
         compiler.standardError = output
         try compiler.run()
@@ -198,21 +376,29 @@ struct GhosttyGeneratedConfigStorageTests {
                 let storage = try GhosttyGeneratedConfigStorage()
                 defer { try? storage.cleanup() }
                 let marker = CommandLine.arguments[1]
-                var paths: [String: String] = [:]
-                for kind in GhosttyGeneratedConfigStorage.Kind.allCases {
-                    let text = kind == .lightTheme || kind == .darkTheme ? "" : "\(marker):\(kind.rawValue)"
-                    paths[kind.rawValue] = try storage.write(text, as: kind)
+                let themes = try storage.appearanceThemes()
+                var paths = ["lightTheme": themes.light, "darkTheme": themes.dark]
+                func consume(_ kinds: ArraySlice<GhosttyGeneratedConfigStorage.Kind>) throws {
+                    guard let kind = kinds.first else {
+                        guard ProcessInfo.processInfo.environment == before else { exit(3) }
+                        var payload = try JSONSerialization.data(withJSONObject: paths, options: [.sortedKeys])
+                        payload.append(10)
+                        FileHandle.standardOutput.write(payload)
+                        guard readLine() == "cleanup" else { exit(4) }
+                        return
+                    }
+                    try storage.withConfigFile("\(marker):\(kind.rawValue)", as: kind) { path in
+                        paths[kind.rawValue] = path
+                        try consume(kinds.dropFirst())
+                    }
                 }
-                guard ProcessInfo.processInfo.environment == before else { exit(3) }
-                var payload = try JSONSerialization.data(withJSONObject: paths, options: [.sortedKeys])
-                payload.append(10)
-                FileHandle.standardOutput.write(payload)
-                guard readLine() == "cleanup" else { exit(4) }
+                try consume(GhosttyGeneratedConfigStorage.Kind.allCases[...])
+                guard storage.retainedFileCount == 2 else { exit(5) }
                 try storage.cleanup()
                 try storage.cleanup()
                 do {
-                    _ = try storage.write("after cleanup", as: .runtime)
-                    exit(5)
+                    try storage.withConfigFile("after cleanup", as: .runtime) { _ in exit(6) }
+                    exit(7)
                 } catch GhosttyGeneratedConfigStorage.Failure.closed { }
                 FileHandle.standardOutput.write(Data("cleaned\n".utf8))
             }
@@ -237,14 +423,16 @@ private final class StorageChild {
     private let input = Pipe()
     private let output = Pipe()
 
-    init(executable: URL, root: URL, marker: String) throws {
+    init(executable: URL, root: URL, marker: String, syntheticDesktop: Bool = true) throws {
         process.executableURL = executable
         process.arguments = [marker]
         var environment = ProcessInfo.processInfo.environment
         environment["XDG_RUNTIME_DIR"] = root.path
-        environment["WAYLAND_DISPLAY"] = "disposable-display"
-        environment["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=disposable-bus"
-        environment["SHELL"] = "/disposable/login-shell"
+        if syntheticDesktop {
+            environment["WAYLAND_DISPLAY"] = "disposable-display"
+            environment["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=disposable-bus"
+            environment["SHELL"] = "/disposable/login-shell"
+        }
         process.environment = environment
         process.standardInput = input
         process.standardOutput = output

@@ -125,8 +125,9 @@ final class GhosttyApp: @unchecked Sendable {
         do {
             let storage = try generatedFiles.get()
             let term = GhosttyResourceResolver.terminalName(resolvedResources: resolvedResources)
-            let defaults = try storage.write("term = \(term)\n" + GhosttyDefaults.baseConfLines, as: .defaults)
-            defaults.withCString { ghostty_config_load_file(cfg, $0) }
+            try storage.withConfigFile("term = \(term)\n" + GhosttyDefaults.baseConfLines, as: .defaults) {
+                $0.withCString { ghostty_config_load_file(cfg, $0) }
+            }
             if linuxSettingsStore().load().inheritGlobalGhosttyConfig == true {
                 ghostty_config_load_default_files(cfg)
             }
@@ -135,12 +136,13 @@ final class GhosttyApp: @unchecked Sendable {
                 scoped.withCString { ghostty_config_load_file(cfg, $0) }
             }
             // Empty themes preserve conditional color-scheme reports with agterm's fixed palette.
-            // Keep every input alive: libghostty can replay these paths after this config is cloned.
-            let light = try storage.write("", as: .lightTheme)
-            let dark = try storage.write("", as: .darkTheme)
-            let lines = ["theme = light:\(light),dark:\(dark)"] + extraLines
-            let runtime = try storage.write(lines.joined(separator: "\n"), as: .runtime)
-            runtime.withCString { ghostty_config_load_file(cfg, $0) }
+            // Only the immutable theme pair must survive conditional-state changes. Ordinary config
+            // arguments have already been copied when load_file returns (pinned Config.loadIter/replay).
+            let themes = try storage.appearanceThemes()
+            let lines = ["theme = light:\(themes.light),dark:\(themes.dark)"] + extraLines
+            try storage.withConfigFile(lines.joined(separator: "\n"), as: .runtime) {
+                $0.withCString { ghostty_config_load_file(cfg, $0) }
+            }
             // Includes expand after all layers and before finalization, matching macOS ordering.
             ghostty_config_load_recursive_files(cfg)
             let title = try clearStaticTitle(cfg, storage: storage)
@@ -162,8 +164,9 @@ final class GhosttyApp: @unchecked Sendable {
         let found = key.withCString { ghostty_config_get(config, &value, $0, UInt(key.utf8.count)) }
         let title = found ? value.map { String(cString: $0) }.flatMap { $0.isEmpty ? nil : $0 } : nil
         guard title != nil else { return nil }
-        let path = try storage.write("title =\n", as: .title)
-        path.withCString { ghostty_config_load_file(config, $0) }
+        try storage.withConfigFile("title =\n", as: .title) {
+            $0.withCString { ghostty_config_load_file(config, $0) }
+        }
         return title
     }
 

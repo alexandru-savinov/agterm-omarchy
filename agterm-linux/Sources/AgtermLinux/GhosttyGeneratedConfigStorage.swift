@@ -5,12 +5,17 @@ import Glibc
 import Darwin
 #endif
 
-/// Owns immutable libghostty inputs for one application lifetime. Config clones can replay files later,
-/// so even an older runtime overlay stays intact until every surface and the app have been freed.
+/// Keeps one immutable theme pair for the app lifetime. Ordinary config arguments are copied by
+/// libghostty during load, so their files live only through the consumer call, not every later replay.
 /// The desktop runtime root is an input only: never replace XDG_RUNTIME_DIR in the process environment.
 final class GhosttyGeneratedConfigStorage {
     enum Kind: String, CaseIterable {
-        case defaults, runtime, lightTheme, darkTheme, title
+        case defaults, runtime, title
+    }
+
+    struct AppearanceThemes: Equatable {
+        let light: String
+        let dark: String
     }
 
     enum Failure: Error, CustomStringConvertible {
@@ -32,7 +37,8 @@ final class GhosttyGeneratedConfigStorage {
     private let directoryFD: Int32
     private let identity: stat
     private let lock = NSLock()
-    private var names: [String] = []
+    private var names: Set<String> = []
+    private var themes: AppearanceThemes?
     private var nextFile = 0
     private var closed = false
 
@@ -64,18 +70,63 @@ final class GhosttyGeneratedConfigStorage {
 
     deinit { try? cleanup() }
 
-    /// No previously published file is overwritten. Return a path only after the complete write closes.
-    func write(_ contents: String, as kind: Kind) throws -> String {
+    /// The pinned Config.loadFile copies ordinary arguments into replay state. Release its input after
+    /// the consumer returns, including failed consumers, so repeated OSC/config updates stay bounded.
+    func withConfigFile<T>(_ contents: String, as kind: Kind, consume: (String) throws -> T) throws -> T {
+        lock.lock()
+        let path: String
+        do { path = try writeLocked(contents, prefix: kind.rawValue) } catch { lock.unlock(); throw error }
+        lock.unlock()
+        let result = Result { try consume(path) }
         lock.lock()
         defer { lock.unlock() }
+        try removeLocked((path as NSString).lastPathComponent)
+        return try result.get()
+    }
+
+    /// Unlike ordinary arguments, the selected conditional theme path can be reopened during finalize.
+    func appearanceThemes() throws -> AppearanceThemes {
+        lock.lock()
+        defer { lock.unlock() }
+        try requireOpenDirectory()
+        if let themes {
+            for path in [themes.light, themes.dark] {
+                var info = stat()
+                guard path.withCString({ lstat($0, &info) }) == 0 else { throw Failure.systemCall("stat theme", errno) }
+            }
+            return themes
+        }
+        let light = try writeLocked("", prefix: "lightTheme")
+        let dark: String
+        do { dark = try writeLocked("", prefix: "darkTheme") } catch {
+            try removeLocked((light as NSString).lastPathComponent)
+            throw error
+        }
+        let pair = AppearanceThemes(light: light, dark: dark)
+        themes = pair
+        return pair
+    }
+
+    var retainedFileCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return names.count
+    }
+
+    private func requireOpenDirectory() throws {
         guard !closed else { throw Failure.closed }
         guard ownsDirectoryPath else { throw Failure.directoryReplaced }
+    }
+
+    /// Exclusive creation never overwrites an earlier input or returns a stale path after failure.
+    private func writeLocked(_ contents: String, prefix: String) throws -> String {
+        try requireOpenDirectory()
         nextFile += 1
-        let name = "\(kind.rawValue)-\(nextFile).conf"
+        let name = "\(prefix)-\(nextFile).conf"
         let descriptor = name.withCString {
             openat(directoryFD, $0, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, mode_t(S_IRUSR | S_IWUSR))
         }
-        guard descriptor >= 0 else { throw Failure.systemCall("create \(kind.rawValue)", errno) }
+        guard descriptor >= 0 else { throw Failure.systemCall("create \(prefix)", errno) }
         var needsClose = true
         var published = false
         defer {
@@ -91,17 +142,26 @@ final class GhosttyGeneratedConfigStorage {
                 let count = Darwin.write(descriptor, bytes.baseAddress!.advanced(by: offset), bytes.count - offset)
                 #endif
                 if count < 0 && errno == EINTR { continue }
-                guard count > 0 else { throw Failure.systemCall("write \(kind.rawValue)", count == 0 ? EIO : errno) }
+                guard count > 0 else { throw Failure.systemCall("write \(prefix)", count == 0 ? EIO : errno) }
                 offset += count
             }
         }
         let result = close(descriptor)
         needsClose = false
-        guard result == 0 else { throw Failure.systemCall("close \(kind.rawValue)", errno) }
+        guard result == 0 else { throw Failure.systemCall("close \(prefix)", errno) }
         guard ownsDirectoryPath else { throw Failure.directoryReplaced }
-        names.append(name)
+        names.insert(name)
         published = true
         return (directoryPath as NSString).appendingPathComponent(name)
+    }
+
+    private func removeLocked(_ name: String) throws {
+        guard !closed else { throw Failure.closed }
+        guard names.contains(name) else { return }
+        guard name.withCString({ unlinkat(directoryFD, $0, 0) }) == 0 || errno == ENOENT else {
+            throw Failure.systemCall("remove file", errno)
+        }
+        names.remove(name)
     }
 
     /// Call only after libghostty has released every config owner. Never recursively remove a directory:
@@ -119,6 +179,7 @@ final class GhosttyGeneratedConfigStorage {
             }
         }
         names.removeAll()
+        themes = nil
         if ownsDirectoryPath {
             if directoryPath.withCString({ rmdir($0) }) != 0 && errno != ENOENT && failure == nil {
                 failure = .systemCall("remove directory", errno)
