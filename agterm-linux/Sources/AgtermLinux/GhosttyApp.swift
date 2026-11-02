@@ -5,7 +5,7 @@
 //
 // `@unchecked Sendable` like the macOS GhosttyCallbacks: the C closures fire off
 // whatever thread libghostty calls from. The only mutable state (`tickScheduled`)
-// is lock-guarded; `app` is set once on the main thread before any surface exists.
+// is lock-guarded; app/config creation and shutdown run on the main thread.
 // Surface-touching action handling runs during a tick on the main thread, asserted
 // via `MainActor.assumeIsolated`.
 import CGtk
@@ -32,6 +32,8 @@ final class GhosttyApp: @unchecked Sendable {
     private let tickLock = NSLock()
     private var tickScheduled = false
     private var resolvedResources: String?
+    private let generatedFiles = Result { try GhosttyGeneratedConfigStorage() }
+    private var isShutDown = false
 
     var currentThemeBackgroundHex: String?
     var currentThemeForegroundHex: String?
@@ -39,6 +41,7 @@ final class GhosttyApp: @unchecked Sendable {
     @MainActor private var appliedAppearanceSide: LinuxAppearanceSide?
 
     @MainActor func start(appearanceSide: LinuxAppearanceSide) {
+        guard !isShutDown else { return }
         setGhosttyResourcesEnv()   // export GHOSTTY_RESOURCES_DIR before init + buildConfig read it
         ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv)
 
@@ -46,10 +49,8 @@ final class GhosttyApp: @unchecked Sendable {
         // relaunch. Translucency is omitted: Linux has no window-level compositing yet.
         let saved = linuxSettingsStore().load()
         let lines = AppController.ghosttyLines(for: saved, isDark: appearanceSide.isDark)
-        let cfg = buildConfig(extraLines: lines)
-        if let cfg {
-            currentThemeBackgroundHex = GhosttyConfigTheme.colors(from: cfg).background
-        }
+        guard let cfg = buildConfig(extraLines: lines) else { return }
+        currentThemeBackgroundHex = GhosttyConfigTheme.colors(from: cfg).background
 
         var rt = ghostty_runtime_config_s()
         rt.userdata = Unmanaged.passUnretained(self).toOpaque()
@@ -75,13 +76,27 @@ final class GhosttyApp: @unchecked Sendable {
         // libghostty starts with a light conditional state. Re-side and re-apply the app config before
         // any surface mounts; otherwise a dark launch rebuilds each surface from config files and drops
         // host-only env vars, initial input, and command fields from its surface configuration.
-        if let app, let cfg {
+        if let app {
             ghostty_app_set_color_scheme(
                 app, appearanceSide.isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
             ghostty_app_update_config(app, cfg)
         }
         appliedAppearanceSide = appearanceSide
         ghostty_config_free(cfg)
+    }
+
+    /// The caller must tear down all window surfaces first. Retained config paths stay valid through
+    /// ghostty_app_free, including any final conditional reload; queued ticks then see a nil app.
+    @MainActor func shutdown() {
+        guard !isShutDown else { return }
+        isShutDown = true
+        if let app {
+            self.app = nil
+            ghostty_app_free(app)
+        }
+        if case .success(let storage) = generatedFiles {
+            do { try storage.cleanup() } catch { Self.reportConfigFailure(error) }
+        }
     }
 
     func tick() { if let a = app { ghostty_app_tick(a) } }
@@ -104,49 +119,55 @@ final class GhosttyApp: @unchecked Sendable {
     private(set) var staticTitle: String?
 
     func buildConfig(extraLines: [String]) -> ghostty_config_t? {
-        let cfg = ghostty_config_new()
-        if let path = Self.writeDefaultsConf() { path.withCString { ghostty_config_load_file(cfg, $0) } }
-        if linuxSettingsStore().load().inheritGlobalGhosttyConfig == true {
-            ghostty_config_load_default_files(cfg)
+        guard !isShutDown, let cfg = ghostty_config_new() else { return nil }
+        var ready = false
+        defer { if !ready { ghostty_config_free(cfg) } }
+        do {
+            let storage = try generatedFiles.get()
+            let term = GhosttyResourceResolver.terminalName(resolvedResources: resolvedResources)
+            try storage.withConfigFile("term = \(term)\n" + GhosttyDefaults.baseConfLines, as: .defaults) {
+                $0.withCString { ghostty_config_load_file(cfg, $0) }
+            }
+            if linuxSettingsStore().load().inheritGlobalGhosttyConfig == true {
+                ghostty_config_load_default_files(cfg)
+            }
+            // The scoped layer overrides bundled/global defaults; UI settings still load last.
+            if let scoped = Self.scopedGhosttyConfigPath(), FileManager.default.fileExists(atPath: scoped) {
+                scoped.withCString { ghostty_config_load_file(cfg, $0) }
+            }
+            // Empty themes preserve conditional color-scheme reports with agterm's fixed palette.
+            // Only the immutable theme pair must survive conditional-state changes. Ordinary config
+            // arguments have already been copied when load_file returns (pinned Config.loadIter/replay).
+            let themes = try storage.appearanceThemes()
+            let lines = ["theme = light:\(themes.light),dark:\(themes.dark)"] + extraLines
+            try storage.withConfigFile(lines.joined(separator: "\n"), as: .runtime) {
+                $0.withCString { ghostty_config_load_file(cfg, $0) }
+            }
+            // Includes expand after all layers and before finalization, matching macOS ordering.
+            ghostty_config_load_recursive_files(cfg)
+            let title = try clearStaticTitle(cfg, storage: storage)
+            ghostty_config_finalize(cfg)
+            staticTitle = title
+            ready = true
+            return cfg
+        } catch {
+            Self.reportConfigFailure(error)
+            return nil
         }
-        // The agterm-scoped <configDir>/ghostty.conf overrides the bundled defaults + the user's
-        // global ghostty config for any key, but the UI settings (extraLines) still win since they
-        // load last. Mirrors macOS's 4-layer stack. Skipped when absent.
-        if let scoped = Self.scopedGhosttyConfigPath(), FileManager.default.fileExists(atPath: scoped) {
-            scoped.withCString { ghostty_config_load_file(cfg, $0) }
-        }
-        // Distinct empty themes keep libghostty's conditional state active while the following agterm
-        // lines supply one fixed palette. This updates OSC color-scheme reports without changing colors.
-        let appearanceStateLines = Self.writeAppearanceStateThemes().map {
-            ["theme = light:\($0.light),dark:\($0.dark)"]
-        } ?? []
-        let runtimeLines = appearanceStateLines + extraLines
-        if let extra = Self.writeTempConf(runtimeLines) {
-            extra.withCString { ghostty_config_load_file(cfg, $0) }
-        }
-        // Expand any `config-file = <path>` includes across the loaded layers (matches macOS ordering:
-        // recursive resolution after all load_file calls, before finalize). Without this a user's
-        // `config-file` directives are silently ignored on Linux.
-        ghostty_config_load_recursive_files(cfg)
-        clearStaticTitle(cfg)
-        ghostty_config_finalize(cfg)
-        return cfg
     }
 
     /// A Ghostty static title would suppress the OSC title reports managed zmx uses for pane leadership.
     /// Keep the user's title at the host boundary and let the terminal report every role change.
-    private func clearStaticTitle(_ candidate: ghostty_config_t?) {
-        guard let config = candidate else { return }
+    private func clearStaticTitle(_ config: ghostty_config_t, storage: GhosttyGeneratedConfigStorage) throws -> String? {
         let key = "title"
         var value: UnsafePointer<CChar>?
         let found = key.withCString { ghostty_config_get(config, &value, $0, UInt(key.utf8.count)) }
-        staticTitle = found ? value.map { String(cString: $0) }.flatMap { $0.isEmpty ? nil : $0 } : nil
-        guard staticTitle != nil else { return }
-        let path = (NSTemporaryDirectory() as NSString)
-            .appendingPathComponent("agterm-title-\(UUID().uuidString).conf")
-        guard (try? "title =\n".write(toFile: path, atomically: true, encoding: .utf8)) != nil else { return }
-        path.withCString { ghostty_config_load_file(config, $0) }
-        try? FileManager.default.removeItem(atPath: path)
+        let title = found ? value.map { String(cString: $0) }.flatMap { $0.isEmpty ? nil : $0 } : nil
+        guard title != nil else { return nil }
+        try storage.withConfigFile("title =\n", as: .title) {
+            $0.withCString { ghostty_config_load_file(config, $0) }
+        }
+        return title
     }
 
     /// Build a config for one surface with a final per-session overlay (`background-image*`, solid
@@ -174,20 +195,8 @@ final class GhosttyApp: @unchecked Sendable {
         return ConfigPaths.ghosttyConfigPath(configDirectory: dir).path
     }
 
-    private static func writeTempConf(_ lines: [String]) -> String? {
-        let dir = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"] ?? NSTemporaryDirectory()
-        let path = (dir as NSString).appendingPathComponent("agterm-ghostty-runtime.conf")
-        try? lines.joined(separator: "\n").write(toFile: path, atomically: true, encoding: .utf8)
-        return path
-    }
-
-    private static func writeAppearanceStateThemes() -> (light: String, dark: String)? {
-        let dir = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"] ?? NSTemporaryDirectory()
-        let light = (dir as NSString).appendingPathComponent("agterm-ghostty-empty-light-theme")
-        let dark = (dir as NSString).appendingPathComponent("agterm-ghostty-empty-dark-theme")
-        guard (try? "".write(toFile: light, atomically: true, encoding: .utf8)) != nil,
-              (try? "".write(toFile: dark, atomically: true, encoding: .utf8)) != nil else { return nil }
-        return (light, dark)
+    private static func reportConfigFailure(_ error: Error) {
+        FileHandle.standardError.write(Data(("agterm: \(error)\n").utf8))
     }
 
     /// Coalesce libghostty wakeups (fired off the main thread, faster than the
@@ -496,17 +505,6 @@ final class GhosttyApp: @unchecked Sendable {
               let surface = target.target.surface,
               let ud = ghostty_surface_userdata(surface) else { return nil }
         return Unmanaged<GhosttySurface>.fromOpaque(ud).takeUnretainedValue()
-    }
-
-    /// Bundled config defaults select Ghostty's TERM only when its complete resource pair resolved.
-    /// User's ~/.config/ghostty/config still wins.
-    private static func writeDefaultsConf() -> String? {
-        let dir = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"] ?? NSTemporaryDirectory()
-        let path = (dir as NSString).appendingPathComponent("agterm-ghostty-defaults.conf")
-        let term = GhosttyResourceResolver.terminalName(resolvedResources: GhosttyApp.shared.resolvedResources)
-        let contents = "term = \(term)\n" + GhosttyDefaults.baseConfLines
-        try? contents.write(toFile: path, atomically: true, encoding: .utf8)
-        return path
     }
 
     /// Resolve the ghostty resources dir (shell-integration + themes, with the compiled terminfo DB as its
