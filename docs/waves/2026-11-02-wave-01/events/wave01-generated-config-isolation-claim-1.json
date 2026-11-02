@@ -1,0 +1,12 @@
+{
+  "event_id": "wave01-generated-config-isolation-claim-1",
+  "operation": "claim",
+  "task": "generated-config-isolation",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "config_isolation",
+    "session": "cfg192a1"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6579927476",
+  "lease_seconds": 14400
+}

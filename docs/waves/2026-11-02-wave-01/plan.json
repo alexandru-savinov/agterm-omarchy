@@ -1,0 +1,43 @@
+{
+  "schema": "agterm-wave-plan/1",
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "requested": 500,
+  "capacity": 3,
+  "assignments": [
+    {
+      "id": "generated-config-isolation",
+      "title": "Implement instance-owned generated Ghostty config storage",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192",
+      "paths": [
+        "agterm-linux/Sources/AgtermLinux/GhosttyApp.swift",
+        "agterm-linux/Sources/AgtermLinux/GhosttyGeneratedConfigStorage.swift",
+        "agterm-linux/Sources/AgtermLinux/App.swift",
+        "agterm-linux/Tests/AgtermLinuxTests/GhosttyGeneratedConfigStorageTests.swift"
+      ],
+      "depends_on": [],
+      "max_attempts": 3
+    },
+    {
+      "id": "distribution-notices",
+      "title": "Reconcile and retain missing pinned distribution notices",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6579858015",
+      "paths": [
+        "packaging/linux/notices",
+        "scripts/linux-notices.py",
+        "scripts/tests/test_linux_notices.py"
+      ],
+      "depends_on": [],
+      "max_attempts": 3
+    },
+    {
+      "id": "feature-proof-batch",
+      "title": "Verify dependency graph, SBOM and dependency-review criteria",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6579860054",
+      "paths": [
+        "packaging/linux/github-feature-evidence.md"
+      ],
+      "depends_on": [],
+      "max_attempts": 3
+    }
+  ]
+}

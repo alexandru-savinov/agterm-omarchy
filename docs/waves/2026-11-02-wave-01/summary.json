@@ -1,0 +1,21 @@
+{
+  "revision": 6,
+  "requested": 500,
+  "assigned": 3,
+  "unscoped_requested": 497,
+  "capacity": 3,
+  "reserved_slots": 3,
+  "reported_states": {
+    "queued": 0,
+    "claimed": 0,
+    "running": 3,
+    "blocked": 0,
+    "completed": 0,
+    "rejected": 0
+  },
+  "eligible_count": 0,
+  "eligible": [],
+  "expired_lease_count": 0,
+  "expired_leases": [],
+  "observation": "Recorded coordination only; not worker liveness or additional compute."
+}

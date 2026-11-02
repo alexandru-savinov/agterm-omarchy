@@ -1,0 +1,12 @@
+{
+  "event_id": "wave01-feature-proof-batch-claim-1",
+  "operation": "claim",
+  "task": "feature-proof-batch",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "ledger_review",
+    "session": "resume1031"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6579928505",
+  "lease_seconds": 14400
+}

@@ -1,0 +1,175 @@
+{
+  "schema": "agterm-wave-ledger/1",
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "requested": 500,
+  "capacity": 3,
+  "revision": 6,
+  "events": [
+    {
+      "request": {
+        "event_id": "wave01-generated-config-isolation-claim-1",
+        "operation": "claim",
+        "task": "generated-config-isolation",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192a1"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6579927476",
+        "lease_seconds": 14400
+      },
+      "at": 1793630601
+    },
+    {
+      "request": {
+        "event_id": "wave01-generated-config-isolation-start-1",
+        "operation": "start",
+        "task": "generated-config-isolation",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192a1"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6579927476",
+        "token": "772d33634f664ecb941d9de9582de166"
+      },
+      "at": 1793630601
+    },
+    {
+      "request": {
+        "event_id": "wave01-distribution-notices-claim-1",
+        "operation": "claim",
+        "task": "distribution-notices",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "omarchy_packaging",
+          "session": "notices1102"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6579894262",
+        "lease_seconds": 14400
+      },
+      "at": 1793630601
+    },
+    {
+      "request": {
+        "event_id": "wave01-distribution-notices-start-1",
+        "operation": "start",
+        "task": "distribution-notices",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "omarchy_packaging",
+          "session": "notices1102"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6579894262",
+        "token": "723258a7acbc4c1780fa23bac35155db"
+      },
+      "at": 1793630601
+    },
+    {
+      "request": {
+        "event_id": "wave01-feature-proof-batch-claim-1",
+        "operation": "claim",
+        "task": "feature-proof-batch",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "resume1031"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6579928505",
+        "lease_seconds": 14400
+      },
+      "at": 1793630601
+    },
+    {
+      "request": {
+        "event_id": "wave01-feature-proof-batch-start-1",
+        "operation": "start",
+        "task": "feature-proof-batch",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "resume1031"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6579928505",
+        "token": "ec87abbd3eda428ab4f58eb93410c656"
+      },
+      "at": 1793630601
+    }
+  ],
+  "assignments": {
+    "generated-config-isolation": {
+      "id": "generated-config-isolation",
+      "title": "Implement instance-owned generated Ghostty config storage",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192",
+      "paths": [
+        "agterm-linux/Sources/AgtermLinux/GhosttyApp.swift",
+        "agterm-linux/Sources/AgtermLinux/GhosttyGeneratedConfigStorage.swift",
+        "agterm-linux/Sources/AgtermLinux/App.swift",
+        "agterm-linux/Tests/AgtermLinuxTests/GhosttyGeneratedConfigStorageTests.swift"
+      ],
+      "depends_on": [],
+      "max_attempts": 3,
+      "state": "running",
+      "attempt": 1,
+      "lease": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192a1"
+        },
+        "token": "772d33634f664ecb941d9de9582de166",
+        "expires_at": 1793645001
+      },
+      "completion": null,
+      "reason": null
+    },
+    "distribution-notices": {
+      "id": "distribution-notices",
+      "title": "Reconcile and retain missing pinned distribution notices",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6579858015",
+      "paths": [
+        "packaging/linux/notices",
+        "scripts/linux-notices.py",
+        "scripts/tests/test_linux_notices.py"
+      ],
+      "depends_on": [],
+      "max_attempts": 3,
+      "state": "running",
+      "attempt": 1,
+      "lease": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "omarchy_packaging",
+          "session": "notices1102"
+        },
+        "token": "723258a7acbc4c1780fa23bac35155db",
+        "expires_at": 1793645001
+      },
+      "completion": null,
+      "reason": null
+    },
+    "feature-proof-batch": {
+      "id": "feature-proof-batch",
+      "title": "Verify dependency graph, SBOM and dependency-review criteria",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6579860054",
+      "paths": [
+        "packaging/linux/github-feature-evidence.md"
+      ],
+      "depends_on": [],
+      "max_attempts": 3,
+      "state": "running",
+      "attempt": 1,
+      "lease": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "ledger_review",
+          "session": "resume1031"
+        },
+        "token": "ec87abbd3eda428ab4f58eb93410c656",
+        "expires_at": 1793645001
+      },
+      "completion": null,
+      "reason": null
+    }
+  }
+}
