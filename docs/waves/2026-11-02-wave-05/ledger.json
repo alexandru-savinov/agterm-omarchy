@@ -3,7 +3,7 @@
   "repository": "alexandru-savinov/agterm-omarchy",
   "requested": 3,
   "capacity": 3,
-  "revision": 5,
+  "revision": 6,
   "events": [
     {
       "request": {
@@ -82,6 +82,25 @@
         ]
       },
       "at": 1793659982
+    },
+    {
+      "request": {
+        "event_id": "w5-scanner-review-complete-1",
+        "operation": "complete",
+        "task": "scanner-exception-review",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "scanner_review",
+          "session": "sr5755165414"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/45#issuecomment-6590562141",
+        "token": "6a118a402bff4353adc92c7c2fb2a105",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/pull/202#pullrequestreview-5744587660",
+          "https://github.com/alexandru-savinov/agterm-omarchy/issues/45#issuecomment-6590562141"
+        ]
+      },
+      "at": 1793660527
     }
   ],
   "assignments": {
@@ -92,18 +111,21 @@
       "paths": [],
       "depends_on": [],
       "max_attempts": 2,
-      "state": "running",
+      "state": "completed",
       "attempt": 1,
-      "lease": {
+      "lease": null,
+      "completion": {
         "owner": {
           "account": "alexandru-savinov",
           "agent": "scanner_review",
           "session": "sr5755165414"
         },
         "token": "6a118a402bff4353adc92c7c2fb2a105",
-        "expires_at": 1793674164
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/pull/202#pullrequestreview-5744587660",
+          "https://github.com/alexandru-savinov/agterm-omarchy/issues/45#issuecomment-6590562141"
+        ]
       },
-      "completion": null,
       "reason": null
     },
     "retry-evidence-audit": {

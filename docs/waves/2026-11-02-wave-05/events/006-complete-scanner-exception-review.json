@@ -1,0 +1,16 @@
+{
+  "event_id": "w5-scanner-review-complete-1",
+  "operation": "complete",
+  "task": "scanner-exception-review",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "scanner_review",
+    "session": "sr5755165414"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/45#issuecomment-6590562141",
+  "token": "6a118a402bff4353adc92c7c2fb2a105",
+  "evidence": [
+    "https://github.com/alexandru-savinov/agterm-omarchy/pull/202#pullrequestreview-5744587660",
+    "https://github.com/alexandru-savinov/agterm-omarchy/issues/45#issuecomment-6590562141"
+  ]
+}
