@@ -250,9 +250,9 @@ Never leak a live credential, create a real exploitable release, request a fake 
 | ID | Feature | Minimum real use and required evidence | Status / evidence |
 |---|---|---|---|
 | S01 | Security policy/private reporting | Publish accurate reporting instructions, enable private reporting if supported, and verify the reporting entry point without filing a fake vulnerability. | proven — [merged SECURITY.md](https://github.com/alexandru-savinov/agterm-omarchy/blob/17ea3e193a97b674f4e06fd2210266fff4f87e4f/SECURITY.md) rendered with the exact private-report link; private-vulnerability-reporting API enabled=true and unauthenticated entry redirects to sign-in with the report return URL. No vulnerability/advisory submitted |
-| S02 | Dependency graph | Verify GitHub ingests actual package manifests/lockfiles and shows the expected dependency relationships. | pending |
-| S03 | Dependency submission/SBOM | Submit build-resolved dependencies if necessary, export an SBOM, and compare dependencies to the actual build. | pending |
-| S04 | Dependency review | Run review on a real dependency-changing PR and inspect its report; no artificial vulnerable production dependency. | pending |
+| S02 | Dependency graph | Verify GitHub ingests actual package manifests/lockfiles and shows the expected dependency relationships. | proven — [2026-11-02 graph/source comparison](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6580239952) verifies 18 parseable manifests, 42 dependency instances and 17 unique package/version pairs against source 8aa04012; Linux Swift lockfile and 17 Actions manifests match, with complete pagination. This is the ingested graph, not a complete native-build inventory |
+| S03 | Dependency submission/SBOM | Submit build-resolved dependencies if necessary, export an SBOM, and compare dependencies to the actual build. | pending — [SPDX export and build comparison](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6580239952) verifies 18 packages including the repository and matches both Swift resolutions in trusted run 41357189891; manually vendored Ghostty/zmx and native-library inputs remain absent, so build-resolved native coverage/submission and comparison are still missing |
+| S04 | Dependency review | Run review on a real dependency-changing PR and inspect its report; no artificial vulnerable production dependency. | proven — [PR #114 dependency-review job 124993281206](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41355073706/job/124993281206) passed on pull_request head ce255039, attempt 1; its actual report contains eight additions and eight removals for real CI/release action-reference changes, all matched to base c66fa01a and head source. [Read-back](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6580239952) preserves the later comparison API's smaller result separately |
 | S05 | Dependabot version updates | Configure relevant ecosystem updates and observe a real generated update PR with passing validation. | pending |
 | S06 | Dependabot alerts/security updates | Inspect actual alerts and, if one exists, validate and fix it through a real security-update PR. Zero alerts proves scanning state, not alert remediation. | pending — genuine alert may not exist |
 | S07 | Code scanning/CodeQL | Run analysis for a supported language present here, verify uploaded analysis and commit SHA in GitHub. Swift toolchain/runner support must be checked. | proven — [CodeQL run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40942197068) and three analysis API objects match head f83e679d; Actions/JS/Python only, Swift coverage unproven |
@@ -447,9 +447,27 @@ That merge followed root's [7/7 ordinary and 9/9 Live native acceptance](https:/
 The prerequisite's completion satisfies the previously missing part of I08's unchanged criterion; the relationship remains recorded rather than being deleted or recreated.
 `ledger_review` read the existing REST/GraphQL objects without changing the relationship or executing the VM; this is shared-account evidence, not independent approval or another feature promotion.
 
+## Dependency evidence: 2026-11-02
+
+[The bounded S02/S03/S04 read-back](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6580239952) records the graph and SBOM snapshot at 14:44 UTC against main `8aa04012590e7f1c6918d9d0b6abdea8f771c56a`.
+All 18 ingested manifests are parseable, below the size limit and fully paginated; their 42 dependency instances match the exact source declarations after deduplicating repeated Action uses.
+The Linux lockfile contributes swift-argument-parser 1.8.2 and TOMLDecoder 0.4.5; the other 17 manifests are Actions workflows, including one parsed workflow with no declared Action dependency.
+The SPDX 2.3 export has 18 packages including the repository, 17 dependency edges and one document-description edge; its dependency identities match all 17 unique graph package/version pairs.
+Retained graph JSON SHA256 is `3602136d191e9ef192391747eda3c267ca52ea98ec8bd4a4157d5ee0cf736b8d`; exported SBOM JSON SHA256 is `4f013e1da64dd365f1a23252b42cd16d4eb8097f2c14d157d9d68132edba0a9f`.
+
+Both architecture logs from trusted manual [run 41357189891, attempt 1](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41357189891) resolve those same Swift versions at source `6775c33626925adc8a17e9ed7700f296f38d7688`.
+The app/core package manifests and lockfiles are byte-identical between that historical build source and 8aa04012; this is an actual build comparison, not a new build at the ledger source.
+S03 remains pending because the export does not cover manually vendored Ghostty/zmx and native/OS-library build inputs, and no resolved native dependency submission or complete native-payload SBOM comparison is demonstrated.
+
+[Dependency-review run 41355073706](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41355073706) is a successful pull_request run at `ce2550396880ff64d2ae034bd930a79a4459a4b1`, attempt 1, for the real action-pinning PR #114.
+Its job-log report contains 16 dependency changes across CI and release workflows, matching the source diff from `c66fa01a2920084e77f7c27013b90efb94d783ac`; it reports no detected vulnerable or denied packages within that check's configured scope.
+The fresh comparison API returned only the eight release-workflow entries, so that later response is retained as a strict subset rather than substituted for the historical report.
+The check's API summary/text are null; inspecting this job-log report does not complete A08's rendered-summary criterion.
+Only S02 and S04 are promoted; this shared-account read-back launches no builds or workers and changes no workflow, runtime candidate, account setting or release.
+
 ## Current coverage and remaining gates
 
-The 2026-11-01 handoff, P16 and I08 reconciliations record **68 proven**, **49 pending**, and **4 unavailable in the stated scope** across 121 rows.
+Through the 2026-11-02 dependency reconciliation, the inventory records **70 proven**, **47 pending**, and **4 unavailable in the stated scope** across 121 rows.
 Counts describe this inventory only; they do not establish exhaustive account-wide coverage.
 The comment/repository-dispatch capability was added as A27 after observing its useful execution.
 
