@@ -568,32 +568,42 @@ with Path(settings['result']).open('x') as stream:
 raise SystemExit(0 if result.get('passed') is True else 1)
 '''
 
-    def collect():
+    def collect(*, recovery=False):
         current = processes(token)
         owned.observe(current)
         for row in owned.remaining(current):
-            if app_process(row) and key(row) not in images:
+            if key(row) not in images:
                 try:
-                    value = digest(Path('/proc') / str(row['pid']) / 'exe')
+                    executable = Path('/proc') / str(row['pid']) / 'exe'
+                    if os.readlink(executable) != str(payload / 'bin/agterm-linux.bin'):
+                        continue
+                    value = digest(executable)
                     after = process_record(row['pid'])
                     if after and key(after) == key(row):
                         images[key(row)] = dict(process=row, sha256=value)
                 except OSError:
                     pass  # A missing live image cannot satisfy acceptance below.
-        atomic_json(journal, dict(token=token, processes=list(owned.records.values()),
-                                 protected_processes=list(protected.values()), actions=result['actions']))
+        try:
+            atomic_json(journal, dict(token=token, processes=list(owned.records.values()),
+                                     protected_processes=list(protected.values()), actions=result['actions']))
+        except BaseException as error:
+            message = 'Probe recovery journal: ' + type(error).__name__ + ': ' + str(error)
+            if message not in result['errors']:
+                result['errors'].append(message)
+            if not recovery:
+                raise
         return current
 
-    def wait_until(seconds):
+    def wait_until(seconds, *, recovery=False):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
-            remaining = owned.remaining(collect())
+            remaining = owned.remaining(collect(recovery=recovery))
             if process is not None:
                 process.poll()
             if not remaining:
                 return []
             time.sleep(0.2)
-        return owned.remaining(collect())
+        return owned.remaining(collect(recovery=recovery))
 
     try:
         require(not any(os.path.lexists(path) for path in
@@ -639,13 +649,13 @@ raise SystemExit(0 if result.get('passed') is True else 1)
             # The probe owns its private file cleanup; do not guess paths or remove a real runtime entry.
             try:
                 for sig, seconds in ((signal.SIGTERM, 5), (signal.SIGKILL, 3)):
-                    remaining = owned.remaining(collect())
+                    remaining = owned.remaining(collect(recovery=True))
                     for row in remaining:
                         if signal_owned(row, sig):
                             result['actions'].append(dict(pid=row['pid'], start=row['start'], signal=int(sig)))
-                    if not remaining or not wait_until(seconds):
+                    if not remaining or not wait_until(seconds, recovery=True):
                         break
-                current = collect()
+                current = collect(recovery=True)
                 result['remaining_owned_processes'] = owned.remaining(current)
                 result['preservation'] = preservation(protected, current)
                 result['tracked_process_count'] = len(owned.records)
@@ -661,7 +671,11 @@ raise SystemExit(0 if result.get('passed') is True else 1)
                 if interrupts is not None:
                     interrupts.cleaning = was_cleaning
             result['ended_at_utc'] = stamp()
-            atomic_json(stage / 'config-probe-operator.json', result)
+            try:
+                atomic_json(stage / 'config-probe-operator.json', result)
+            except BaseException as error:
+                result['passed'] = False
+                result['errors'].append('Probe operator report: ' + type(error).__name__ + ': ' + str(error))
         else:
             result['ended_at_utc'] = stamp()
 

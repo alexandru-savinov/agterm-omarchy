@@ -13,13 +13,16 @@ python3 -W error test-native-helpers.py
 python3 -W error test-config-probe-operator.py
 ```
 
-Root observed29 and7 passing tests respectively.
+Root observed29 and10 passing tests respectively.
+The additional checks reproduce a sampled control client, a recovery-journal write failure, and a final-report write failure.
+Only exact frontend executable paths enter the image gate; all owned clients remain tracked for cleanup.
+A journal failure stops the test, but bounded recovery continues from in-memory identities and still fails acceptance.
 These fixtures never launch a frontend, compiler or VM.
 The compiler-timeout fixture now builds synthetic asset data in memory so it needs no private asset bundle.
 SOURCE and SOURCE_RUN intentionally remain UNSELECTED_CANDIDATE and0; do not execute the templates directly.
 No VM identifier, authentication credential or private run configuration is included.
 
-- `native-run-template.py`: `605011b8c5b68c160627ba9c15961a268ec7a4021d48c8c9bada040b97c1556b`
+- `native-run-template.py`: `f2fd01e70c9478e2d28398d43cfb05918ac3c4c27242300a121a299272e437fd`
 - `native-prepare-template.py`: `487c41f254b13ed782a61d365bb1ec37e58391ecc6755e554ed64d381a981a51`
 - `test-native-helpers.py`: `1373c7272a6bc454484b9507e499846047f15a5407fdba2002d2b038fa8fc766`
-- `test-config-probe-operator.py`: `5e5c8469b802178093ab0f61712d5c3392cf932a430ba005eb28d3db117cdfa8`
+- `test-config-probe-operator.py`: `36782022134534aeb0dcc4ba0a749f7eb9b0efa26837a56fc02f65527d24a580`
