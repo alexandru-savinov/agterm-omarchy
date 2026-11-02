@@ -162,7 +162,7 @@
       "notices": [
         "ghostty/LICENSE"
       ],
-      "association": "Swift 6.3.2 component runtime notice source; not a toolchain binary attestation"
+      "association": "libghostty.so source notice at the pinned Ghostty revision; dependency notices are mapped separately"
     },
     "swift": {
       "notices": [
