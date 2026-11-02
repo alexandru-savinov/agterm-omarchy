@@ -1,0 +1,13 @@
+{
+  "event_id": "wave03-native-config-probe-retry-1",
+  "operation": "retry",
+  "task": "native-config-probe",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "root",
+    "session": "rw1102a9"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6582735818",
+  "confirmed_stopped": true,
+  "reason": "Root confirmed both agent turns interrupted after delayed public checkpoints; same owners resume preserved branches and local files via responsive GitHub CLI."
+}

@@ -3,7 +3,7 @@
   "repository": "alexandru-savinov/agterm-omarchy",
   "requested": 2,
   "capacity": 3,
-  "revision": 4,
+  "revision": 11,
   "events": [
     {
       "request": {
@@ -64,6 +64,117 @@
         "token": "af7b6d55716242e1b1d1c19e96490696"
       },
       "at": 1793634461
+    },
+    {
+      "request": {
+        "event_id": "wave03-bounded-config-correction-retry-1",
+        "operation": "retry",
+        "task": "bounded-config-correction",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "root",
+          "session": "rw1102a9"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6582735818",
+        "confirmed_stopped": true,
+        "reason": "Root confirmed both agent turns interrupted after delayed public checkpoints; same owners resume preserved branches and local files via responsive GitHub CLI."
+      },
+      "at": 1793637854
+    },
+    {
+      "request": {
+        "event_id": "wave03-native-config-probe-retry-1",
+        "operation": "retry",
+        "task": "native-config-probe",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "root",
+          "session": "rw1102a9"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6582735818",
+        "confirmed_stopped": true,
+        "reason": "Root confirmed both agent turns interrupted after delayed public checkpoints; same owners resume preserved branches and local files via responsive GitHub CLI."
+      },
+      "at": 1793637854
+    },
+    {
+      "request": {
+        "event_id": "wave03-bounded-config-correction-claim-2",
+        "operation": "claim",
+        "task": "bounded-config-correction",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192c3"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6582768018",
+        "lease_seconds": 14400
+      },
+      "at": 1793638146
+    },
+    {
+      "request": {
+        "event_id": "wave03-bounded-config-correction-start-2",
+        "operation": "start",
+        "task": "bounded-config-correction",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192c3"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6582768018",
+        "token": "6d54fde5269245c785f9da57d4a138df"
+      },
+      "at": 1793638146
+    },
+    {
+      "request": {
+        "event_id": "wave03-native-config-probe-claim-2",
+        "operation": "claim",
+        "task": "native-config-probe",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "native_probe",
+          "session": "np199r2m8"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6582771976",
+        "lease_seconds": 14400
+      },
+      "at": 1793638146
+    },
+    {
+      "request": {
+        "event_id": "wave03-native-config-probe-start-2",
+        "operation": "start",
+        "task": "native-config-probe",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "native_probe",
+          "session": "np199r2m8"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6582771976",
+        "token": "8129d6c8cd7f40a3b409bd2d5a620485"
+      },
+      "at": 1793638146
+    },
+    {
+      "request": {
+        "event_id": "wave03-bounded-config-correction-complete-2",
+        "operation": "complete",
+        "task": "bounded-config-correction",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192c3"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6582798583",
+        "token": "6d54fde5269245c785f9da57d4a138df",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/fdf8bad2cee3389a97bcefc73a8e1ad3065fb3cd",
+          "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6582798583"
+        ]
+      },
+      "at": 1793638146
     }
   ],
   "assignments": {
@@ -79,18 +190,21 @@
       ],
       "depends_on": [],
       "max_attempts": 2,
-      "state": "running",
-      "attempt": 1,
-      "lease": {
+      "state": "completed",
+      "attempt": 2,
+      "lease": null,
+      "completion": {
         "owner": {
           "account": "alexandru-savinov",
           "agent": "config_isolation",
-          "session": "cfg192b2"
+          "session": "cfg192c3"
         },
-        "token": "ee68f9f9367f4a09b1165c9a87608711",
-        "expires_at": 1793648860
+        "token": "6d54fde5269245c785f9da57d4a138df",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/fdf8bad2cee3389a97bcefc73a8e1ad3065fb3cd",
+          "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6582798583"
+        ]
       },
-      "completion": null,
       "reason": null
     },
     "native-config-probe": {
@@ -104,15 +218,15 @@
       "depends_on": [],
       "max_attempts": 2,
       "state": "running",
-      "attempt": 1,
+      "attempt": 2,
       "lease": {
         "owner": {
           "account": "alexandru-savinov",
           "agent": "native_probe",
-          "session": "np199s7q6"
+          "session": "np199r2m8"
         },
-        "token": "af7b6d55716242e1b1d1c19e96490696",
-        "expires_at": 1793648861
+        "token": "8129d6c8cd7f40a3b409bd2d5a620485",
+        "expires_at": 1793652546
       },
       "completion": null,
       "reason": null

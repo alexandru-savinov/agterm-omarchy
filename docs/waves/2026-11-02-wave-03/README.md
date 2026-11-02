@@ -20,6 +20,17 @@ Root alone writes this ledger in one checkout.
 Completion remains distinct from review, merge and exact native acceptance.
 Accepted `6775c336` artifacts and their native evidence remain unchanged.
 
+## Coordinated recovery and delivered correction
+
+After delayed public checkpoints, root [coordinated a stop](https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6582719540) and [confirmed both agent turns were interrupted](https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6582735818).
+The existing branches and uncommitted probe files were preserved.
+Retry events released the original reservations before the same workers claimed new sessions, `cfg192c3` and `np199r2m8`.
+These are second attempts of the same two assignments, not additional assignments or completed workers.
+
+The config correction is delivered at [fdf8bad2](https://github.com/alexandru-savinov/agterm-omarchy/commit/fdf8bad2cee3389a97bcefc73a8e1ad3065fb3cd), with [nine helper tests and a pending real-libghostty Linux fixture](https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6582798583).
+At revision 11, one assignment is completed and the probe assignment retains its reservation.
+Root still owes corrected-head review and exact native acceptance.
+
 ```sh
 python3 scripts/github/waves.py summary docs/waves/2026-11-02-wave-03/ledger.json --limit 20
 ```

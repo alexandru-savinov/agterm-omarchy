@@ -1,0 +1,12 @@
+{
+  "event_id": "wave03-native-config-probe-claim-2",
+  "operation": "claim",
+  "task": "native-config-probe",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "native_probe",
+    "session": "np199r2m8"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6582771976",
+  "lease_seconds": 14400
+}
