@@ -19,6 +19,21 @@ No worker is assigned only to monitor the others.
 Recorded state describes coordination and public reports; it does not continuously inspect worker liveness.
 Event timestamps are when the root recorded the observations, not independently measured process-start times.
 
+## Delivered worker outputs
+
+The final ledger is revision 9: three completed assignments and zero remaining reservations.
+Each completion records an actual scoped worker handoff, separate from PR review, integration and native acceptance.
+
+| Assignment | Delivered source | Public handoff |
+| --- | --- | --- |
+| Generated-config isolation | [PR #195, d42be05f](https://github.com/alexandru-savinov/agterm-omarchy/commit/d42be05f204fffdb8ed78511898e0d14e662f736) | [Seven helper tests; Linux/native gates pending](https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6580340909) |
+| Pinned distribution notices | [PR #198, c24f4624](https://github.com/alexandru-savinov/agterm-omarchy/commit/c24f4624b7ce271869713118ec2bfa0acbd33880) | [Retained source bytes, tests and unresolved coverage](https://github.com/alexandru-savinov/agterm-omarchy/issues/17#issuecomment-6580461278) |
+| Dependency-feature proof batch | [PR #196, a8aab04b](https://github.com/alexandru-savinov/agterm-omarchy/commit/a8aab04b3083d5b61ce56dd8158d8f9c2284dce9) | [S02/S04 evidence; S03 remains pending](https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6580377999) |
+
+Root separately owns the seven verbatim-file formatting exceptions in [PR #197](https://github.com/alexandru-savinov/agterm-omarchy/pull/197).
+That integration support is outside this worker count and did not expand or rewrite a worker's active path reservation.
+All three implementation-wave leases are now released; this completed ledger remains the historical record for these assignments.
+
 ## Files and ownership
 
 - `plan.json` defines the concrete scopes and their original GitHub assignment sources.

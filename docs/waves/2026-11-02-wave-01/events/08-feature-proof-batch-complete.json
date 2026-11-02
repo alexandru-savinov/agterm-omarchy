@@ -1,0 +1,16 @@
+{
+  "event_id": "wave01-feature-proof-batch-complete-1",
+  "operation": "complete",
+  "task": "feature-proof-batch",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "ledger_review",
+    "session": "resume1031"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6580377999",
+  "token": "ec87abbd3eda428ab4f58eb93410c656",
+  "evidence": [
+    "https://github.com/alexandru-savinov/agterm-omarchy/commit/a8aab04b3083d5b61ce56dd8158d8f9c2284dce9",
+    "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6580239952"
+  ]
+}
