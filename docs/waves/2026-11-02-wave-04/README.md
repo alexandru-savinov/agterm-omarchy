@@ -20,6 +20,10 @@ python3 scripts/github/waves.py summary docs/waves/2026-11-02-wave-04/ledger.jso
 
 The [terminal-ledger review](https://github.com/alexandru-savinov/agterm-omarchy/issues/193#issuecomment-6585816064) reconciles all30 predecessor events and both coordinated retries.
 Its sole finding was a stale derived wave03 summary; root regenerated that summary in c7baad71 without changing historical events.
-At revision7, this review is complete; the CI correction and supplemental probe/operator review retain reservations.
+At revision8, the terminal-ledger and supplemental probe/operator reviews are complete; only the CI correction retains a reservation.
+The corrected-runtime review remains queued behind that correction.
 The probe reviewer delivered two operator findings, then root requested a correction follow-up within the same reserved assignment.
 Neither the supplemental review turn nor the two earlier retries is counted as an added assignment.
+
+The [supplemental operator review](https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6586577428) confirms both root fixes at e3dbd076 with39 fixtures and independent reproductions.
+Its original static-title limitation was corrected after tracing the host config boundary; the probe still does not measure host callback count or rate.
