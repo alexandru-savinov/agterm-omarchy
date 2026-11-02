@@ -102,14 +102,13 @@ class ConfigSnapshotTests(unittest.TestCase):
             probe.configs(self.root, 2)
 
     def test_directory_and_file_symlinks_are_not_followed(self):
-        outside = self.root / 'outside'; outside.mkdir(mode=0o700)
+        separate = tempfile.TemporaryDirectory(); self.addCleanup(separate.cleanup)
+        outside = Path(separate.name).resolve()
         secret = outside / 'keep'; secret.write_bytes(b'preserve')
         link = self.root / 'agterm-ghostty-link'; link.symlink_to(outside, target_is_directory=True)
         with self.assertRaises(RuntimeError):
             probe.configs(self.root, 2)
-        link.unlink(); outside.rename(self.root / 'unrelated-sentinel-dir')
-        # Remove the extra root entry from this fixture, retaining its bytes outside the observed root.
-        outside = self.root / 'unrelated-sentinel-dir'
+        link.unlink()
         owner = self.make_owner('file-link')
         (owner / 'lightTheme.conf').unlink()
         (owner / 'lightTheme.conf').symlink_to(outside / 'keep')
@@ -189,7 +188,7 @@ class RunSafetyTests(unittest.TestCase):
             if not kill_fails:
                 current.pop(71, None)
             return True
-        limits = dict(probe.LIMITS, recovery=0.001)
+        limits = dict(probe.LIMITS, recovery=0.001, drain=0)
         with patch.object(probe, 'snapshot', side_effect=lambda token=None: dict(current)), \
                 patch.object(probe.Probe, 'exercise', exercise), patch.object(probe.OwnedProcesses, 'send', send), \
                 patch.object(probe, 'LIMITS', limits), patch.object(probe.time, 'sleep'):
@@ -227,6 +226,33 @@ class RunSafetyTests(unittest.TestCase):
         self.assertFalse(result['passed'])
         self.assertEqual(kept[0].read_bytes(), b'keep me')
         self.assertIn('cleanup:', '\n'.join(result['errors']))
+
+    def test_launch_keeps_outer_marker_and_routes_only_the_child_to_private_runtime(self):
+        self.env['OMARCHY_NATIVE_RUN_TOKEN'] = 'outer-fixture-marker'
+        self.env['LD_PRELOAD'] = '/fixture/must-not-be-loaded'
+        original = dict(self.env)
+        observed = []
+        def launch(argv, **kwargs):
+            env = kwargs['env']; observed.append(dict(env))
+            self.assertEqual(env['OMARCHY_NATIVE_RUN_TOKEN'], 'outer-fixture-marker')
+            self.assertNotIn('LD_PRELOAD', env)
+            self.assertEqual(env['DBUS_SESSION_BUS_ADDRESS'], self.env['DBUS_SESSION_BUS_ADDRESS'])
+            self.assertEqual(env['WAYLAND_DISPLAY'], str(self.root / 'wayland'))
+            self.assertEqual(env['XDG_RUNTIME_DIR'], str(self.root / 'output/shared-runtime'))
+            self.assertTrue(env['AGTERM_CONTROL_SOCKET'].startswith('/tmp/agt-cfg-'))
+            self.assertLess(len(env['AGTERM_CONTROL_SOCKET'].encode()), 100)
+            raise OSError('stop before any frontend')
+        with patch.object(probe.subprocess, 'Popen', side_effect=launch):
+            result = self.run_probe()
+        self.assertFalse(result['passed'])
+        self.assertEqual(len(observed), 1)
+        self.assertEqual(self.env, original)
+
+    def test_partial_success_cannot_pass_without_both_apps_and_all_checks(self):
+        with patch.object(probe.Probe, 'exercise', return_value=None):
+            result = self.run_probe()
+        self.assertFalse(result['passed'])
+        self.assertTrue(result['sentinel_preserved'])
 
 
 if __name__ == '__main__':

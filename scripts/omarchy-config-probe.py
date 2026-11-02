@@ -23,7 +23,7 @@ import time
 import uuid
 
 TOKEN = 'OMARCHY_CONFIG_PROBE_TOKEN'
-LIMITS = {'total': 180, 'command': 10, 'ready': 20, 'shutdown': 10, 'recovery': 5}
+LIMITS = {'total': 180, 'command': 10, 'ready': 20, 'shutdown': 10, 'drain': 2, 'recovery': 5}
 
 
 def require(value, message):
@@ -160,7 +160,8 @@ class Probe:
                            expected_app_sha256=expected, retained_file_limit=limit, checks=[], apps=[],
                            forced_recovery=False, cleanup_actions=[], errors=[],
                            limits=['No desktop appearance switch or conditional-side transition is claimed.',
-                                   'Mapped realized surfaces and PTY read-back are checked; pixels are a separate gate.'])
+                                   'Mapped realized surfaces and PTY read-back are checked; pixels are a separate gate.',
+                                   'Linux config.reload exposes no diagnostic count; app logs are checked separately.'])
 
     def collect(self):
         current = snapshot(self.token)
@@ -311,8 +312,7 @@ class Probe:
         self.report['checks'].append('idle first shutdown cleans its config while peer remains usable')
         for number in range(32):
             (right['state'] / 'config/ghostty.conf').write_text(f'title = config-probe-reload-{number}\n')
-            response = self.ctl(right, 'config', 'reload')
-            require(response.get('count', 0) == 0, 'Generated config reload reported diagnostics')
+            self.ctl(right, 'config', 'reload')
         colors = "for i in $(seq 1 32); do printf '\\033]11;#223344\\007\\033]111\\007'; done"
         self.input(right, 'backgrounds', colors)
         after = self.stable_configs(1)
@@ -326,14 +326,22 @@ class Probe:
         self.report['checks'].append('32 config reloads and OSC background updates preserve bounded usable theme files')
         producer, started = right['state'] / 'noise.py', right['state'] / 'noise-started.json'
         producer.write_text("import json,os,pathlib,sys,time\n"
-                            f"pathlib.Path({str(started)!r}).write_text(json.dumps({{'pid':os.getpid()}}))\n"
+                            f"marker=pathlib.Path({str(started)!r})\n"
                             "print('AGTERM_CONFIG_NOISE_STARTED', flush=True)\n"
                             "end=time.monotonic()+8\ni=0\n"
                             "while time.monotonic()<end:\n"
-                            " sys.stdout.write('\\033]2;AGTERM_CONFIG_NOISE_%d\\007'%i); sys.stdout.flush(); i+=1\n")
+                            " sys.stdout.write('\\033]2;AGTERM_CONFIG_NOISE_%d\\007'%i); sys.stdout.flush(); i+=1\n"
+                            " if i==100:\n"
+                            "  marker.write_text(json.dumps({'pid':os.getpid(),'titles_sent':i}))\n")
         self.ctl(right, 'session', 'type', 'python3 ' + shlex.quote(str(producer)) + '\n', '--target', right['session'])
-        self.wait(started.exists, 'noisy producer start', 5, right)
-        noise_pid = json.loads(started.read_text())['pid']
+        def started_pid():
+            try:
+                value = json.loads(started.read_text())
+                pid = value['pid']
+                return pid if type(pid) is int and pid > 0 and value.get('titles_sent') == 100 else None
+            except (OSError, ValueError, KeyError):
+                return None  # creation can be observed before write_text finishes
+        noise_pid = self.wait(started_pid, 'noisy producer start', 5, right)
         current = self.collect()
         noise = current.get(noise_pid)
         require(live(noise) and identity(noise) in self.owned.rows, 'Noisy producer is not a live owned process')
@@ -341,6 +349,7 @@ class Probe:
                 'Noisy producer output not observed')
         require(live(record(noise_pid)), 'Noisy producer ended before shutdown')
         self.report['noisy_producer'] = noise
+        self.report['noisy_titles_written_before_shutdown'] = 100
         self.stop(right)
         self.wait(lambda: list(self.runtime.iterdir()) == [self.sentinel], 'all generated config directories removed', 5)
         require(sha256(self.sentinel) == self.sentinel_hash, 'Unrelated runtime sentinel changed')
@@ -351,7 +360,7 @@ class Probe:
         current = self.collect()
         remaining = self.owned.remaining(current)
         # Reap an ordinarily exiting shell/producer before classifying intervention as recovery.
-        deadline = time.monotonic() + 2
+        deadline = time.monotonic() + LIMITS['drain']
         while remaining and all(app['process'].poll() is not None for app in self.apps) and time.monotonic() < deadline:
             for child in self.children:
                 child.poll()
@@ -377,6 +386,7 @@ class Probe:
         self.report['sentinel_preserved'] = self.sentinel.exists() and sha256(self.sentinel) == self.sentinel_hash
         self.report['remaining_generated_paths'] = sorted(p.name for p in self.runtime.iterdir() if p != self.sentinel)
         for app in self.apps:
+            require(app['log'].stat().st_size <= 16 * 1024 * 1024, 'Excessive app diagnostic output')
             data = app['log'].read_text(errors='replace')
             if re.search(r'generated Ghostty config|failed to load.*theme|error.*config', data, re.I):
                 self.report['errors'].append(app['name'] + ': generated-config diagnostics in app log')
@@ -433,6 +443,7 @@ def run_probe(payload, output_dir, base_env, expected_app_sha256, *, retained_fi
                             caller_environment_unchanged=dict(os.environ) == before_env,
                             login_shell_unchanged=pwd.getpwuid(os.getuid()).pw_shell == shell)
         probe.report['passed'] = bool(probe.report['passed'] and not probe.report['errors'] and not received
+                                     and len(probe.report['checks']) == 4 and len(probe.report['apps']) == 2
                                      and not probe.report['forced_recovery'] and not probe.report.get('remaining_processes')
                                      and not probe.report.get('remaining_generated_paths') and probe.report.get('sentinel_preserved')
                                      and probe.report.get('socket_directory_removed') and probe.report['caller_environment_unchanged']
