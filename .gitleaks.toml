@@ -1,0 +1,13 @@
+# Extend the default ruleset; only add one narrow allowlist.
+[extend]
+useDefault = true
+
+# File-to-digest maps in evidence JSON (path -> sha256 hex) are not secrets.
+# Both conditions must hold: the file is an evidence JSON AND the whole line is
+# exactly a `"key": "<64 lowercase hex>"` pair. Anything else stays detected.
+[[allowlists]]
+description = "file-to-digest maps in evidence JSON"
+condition = "AND"
+paths = ['''^docs/evidence/.*\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"[^"]+":\s*"[0-9a-f]{64}",?\s*$''']
