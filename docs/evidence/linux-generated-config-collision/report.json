@@ -1,0 +1,36 @@
+{
+  "source_commit": "fd85fc5824a782d17b2aee0cb113ef31f9ce66ab",
+  "source_path": "agterm-linux/Sources/AgtermLinux/GhosttyApp.swift",
+  "source_sha256": "16a01f347d233cbf3e8b6b9f1259cc8dd8885c41e7136485d3c69ed32c105b6b",
+  "extracted_helper_sha256": "d1372a9af1810e1e41ccda3bbed559d9071bc57d4091f3b59ab2b429e4a7866a",
+  "probe_swift_sha256": "8d8f500e706372110c2718d0b6e37b8a7d6878fba8c30776fbd4e66984001a58",
+  "probe_runner_sha256": "a2abfe195ee3fbdfa37e16468a9b607b6f6afd9e37d075358a8015580fc85f8a",
+  "swift_version": "Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)\nTarget: arm64-apple-macosx26.0",
+  "boundary": "Foundation-only helper on macOS; file read models the load gap; no GTK/libghostty/native app execution",
+  "results": [
+    {
+      "case": "shared-runtime",
+      "distinct_state_directories": true,
+      "same_returned_path": true,
+      "a_returned_path": "shared-runtime/runtime-a/agterm-ghostty-runtime.conf",
+      "b_returned_path": "shared-runtime/runtime-a/agterm-ghostty-runtime.conf",
+      "a_intended": "background = #112233",
+      "a_observed_after_b_write": "background = #445566",
+      "b_observed": "background = #445566",
+      "a_exit": 0,
+      "b_exit": 0
+    },
+    {
+      "case": "separate-runtime-control",
+      "distinct_state_directories": true,
+      "same_returned_path": false,
+      "a_returned_path": "separate-runtime-control/runtime-a/agterm-ghostty-runtime.conf",
+      "b_returned_path": "separate-runtime-control/runtime-b/agterm-ghostty-runtime.conf",
+      "a_intended": "background = #112233",
+      "a_observed_after_b_write": "background = #112233",
+      "b_observed": "background = #445566",
+      "a_exit": 0,
+      "b_exit": 0
+    }
+  ]
+}
