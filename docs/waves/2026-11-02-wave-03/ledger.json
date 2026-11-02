@@ -1,0 +1,121 @@
+{
+  "schema": "agterm-wave-ledger/1",
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "requested": 2,
+  "capacity": 3,
+  "revision": 4,
+  "events": [
+    {
+      "request": {
+        "event_id": "wave03-bounded-config-correction-claim-1",
+        "operation": "claim",
+        "task": "bounded-config-correction",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192b2"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6580882813",
+        "lease_seconds": 14400
+      },
+      "at": 1793634460
+    },
+    {
+      "request": {
+        "event_id": "wave03-bounded-config-correction-start-1",
+        "operation": "start",
+        "task": "bounded-config-correction",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192b2"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6580882813",
+        "token": "ee68f9f9367f4a09b1165c9a87608711"
+      },
+      "at": 1793634461
+    },
+    {
+      "request": {
+        "event_id": "wave03-native-config-probe-claim-1",
+        "operation": "claim",
+        "task": "native-config-probe",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "native_probe",
+          "session": "np199s7q6"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6580899252",
+        "lease_seconds": 14400
+      },
+      "at": 1793634461
+    },
+    {
+      "request": {
+        "event_id": "wave03-native-config-probe-start-1",
+        "operation": "start",
+        "task": "native-config-probe",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "native_probe",
+          "session": "np199s7q6"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6580899252",
+        "token": "af7b6d55716242e1b1d1c19e96490696"
+      },
+      "at": 1793634461
+    }
+  ],
+  "assignments": {
+    "bounded-config-correction": {
+      "id": "bounded-config-correction",
+      "title": "Correct generated config retention lifetime",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/192#issuecomment-6580882813",
+      "paths": [
+        "agterm-linux/Sources/AgtermLinux/GhosttyApp.swift",
+        "agterm-linux/Sources/AgtermLinux/GhosttyGeneratedConfigStorage.swift",
+        "agterm-linux/Sources/AgtermLinux/App.swift",
+        "agterm-linux/Tests/AgtermLinuxTests/GhosttyGeneratedConfigStorageTests.swift"
+      ],
+      "depends_on": [],
+      "max_attempts": 2,
+      "state": "running",
+      "attempt": 1,
+      "lease": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "config_isolation",
+          "session": "cfg192b2"
+        },
+        "token": "ee68f9f9367f4a09b1165c9a87608711",
+        "expires_at": 1793648860
+      },
+      "completion": null,
+      "reason": null
+    },
+    "native-config-probe": {
+      "id": "native-config-probe",
+      "title": "Implement isolated shared-runtime and noisy-shutdown probe",
+      "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6580899252",
+      "paths": [
+        "scripts/omarchy-config-probe.py",
+        "scripts/tests/test_omarchy_config_probe.py"
+      ],
+      "depends_on": [],
+      "max_attempts": 2,
+      "state": "running",
+      "attempt": 1,
+      "lease": {
+        "owner": {
+          "account": "alexandru-savinov",
+          "agent": "native_probe",
+          "session": "np199s7q6"
+        },
+        "token": "af7b6d55716242e1b1d1c19e96490696",
+        "expires_at": 1793648861
+      },
+      "completion": null,
+      "reason": null
+    }
+  }
+}
