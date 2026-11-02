@@ -1,0 +1,85 @@
+name: Gitleaks
+
+# Secret scan over the full git history with Gitleaks (MIT, no account or key).
+# The binary is downloaded and verified against a pinned sha256, as actionlint.yml
+# does, so no third-party action is added to the allowlist. Logs are public: the
+# scan runs with --redact and without --verbose, and the log prints only the count
+# of results. Findings go to code scanning as SARIF (category gitleaks).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 6 * * 3'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitleaks-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GITLEAKS_VERSION: "8.30.1"
+  GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+
+jobs:
+  gitleaks:
+    name: Secret scan (full history)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSLo "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" gitleaks
+          "${RUNNER_TEMP}/gitleaks" version
+      - name: Self-test (gitleaks must catch a planted fake key)
+        run: |
+          set -euo pipefail
+          # The fake AWS-style access key id is assembled at runtime from pieces,
+          # so this file holds no detectable string. It is never printed.
+          fx="${RUNNER_TEMP}/gitleaks-fixture"
+          rm -rf "$fx"
+          git init -q "$fx"
+          p1='AK'; p2='IA'; p3='Q4MZ7XRT'; p4='2W5NBV3K'
+          printf 'aws_access_key_id = %s%s%s%s\n' "$p1" "$p2" "$p3" "$p4" > "$fx/creds.ini"
+          git -C "$fx" add creds.ini
+          git -C "$fx" -c user.name=fixture -c user.email=fixture@invalid commit -qm fixture
+          "${RUNNER_TEMP}/gitleaks" git --redact --no-banner --report-format sarif \
+            --report-path "${RUNNER_TEMP}/fixture.sarif" --exit-code 0 "$fx"
+          n="$(jq '.runs[0].results|length' "${RUNNER_TEMP}/fixture.sarif")"
+          echo "self-test results: ${n}"
+          if [ "${n}" -eq 0 ]; then
+            echo "gitleaks found nothing in a planted fake key; this check cannot fail" >&2
+            exit 1
+          fi
+      - name: Scan full history
+        run: |
+          set -euo pipefail
+          "${RUNNER_TEMP}/gitleaks" git --redact --no-banner --report-format sarif \
+            --report-path gitleaks.sarif --exit-code 0 .
+          echo "gitleaks results: $(jq '.runs[0].results|length' gitleaks.sarif)"
+      - name: Upload SARIF
+        # Fork PRs get a read-only token and cannot upload SARIF.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
