@@ -141,6 +141,89 @@ class NoticeTests(unittest.TestCase):
         (ghostty / 'shell-integration/zsh/.zshenv').unlink()
         self.assertNotEqual(subprocess.run(command, capture_output=True, timeout=10).returncode, 0)
 
+    def update_inventory(self, change):
+        path = self.notices / 'inventory.json'
+        value = json.loads(path.read_text())
+        change(value)
+        path.write_text(json.dumps(value))
+        profile = self.notices / 'sources.json'
+        manifest = json.loads(profile.read_text())
+        manifest['inventory_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+        profile.write_text(json.dumps(manifest))
+
+    def test_inventory_hash_is_checked_before_staging(self):
+        path = self.notices / 'inventory.json'
+        path.write_bytes(path.read_bytes() + b' ')
+        result = self.command('stage', self.destination, success=False)
+        self.assertIn('inventory digest mismatch', result.stderr)
+        self.assertFalse((self.destination / 'share/licenses/agterm').exists())
+
+    def test_archive_declaration_must_match_retained_lock(self):
+        self.update_inventory(lambda value: value['archives']['libxev'].update(zig_hash='incorrect'))
+        self.assertIn('pinned dependency manifest', self.command('verify-profile', success=False).stderr)
+
+    def test_theme_source_pin_is_not_silently_replaced(self):
+        self.update_inventory(lambda value: value['archives']['iterm2_themes'].update(sha256='0' * 64))
+        self.assertIn('stale theme notice archive identity', self.command('verify-profile', success=False).stderr)
+
+    def test_theme_inventory_cannot_lose_or_duplicate_a_file(self):
+        path = self.notices / 'inventory.json'
+        original = path.read_bytes()
+        for operation in ['missing', 'duplicate']:
+            with self.subTest(operation=operation):
+                path.write_bytes(original)
+                def change(value):
+                    entries = value['themes']['files']
+                    if operation == 'missing': entries.pop()
+                    else: entries[-1] = entries[0]
+                self.update_inventory(change)
+                self.command('verify-profile', success=False)
+
+    def test_component_cannot_reference_missing_notice(self):
+        self.update_inventory(lambda value: value['components']['z2d']['notices'].append('z2d/MISSING'))
+        self.assertIn('missing retained notices', self.command('verify-profile', success=False).stderr)
+
+    def test_unmapped_compatibility_library_is_explicitly_unresolved(self):
+        (self.destination / 'lib/libncurses.so.6').write_bytes(b'unreviewed compatibility library')
+        self.command('stage', self.destination)
+        payload = json.loads((self.destination / 'share/licenses/agterm/payload.json').read_text())
+        self.assertEqual(payload['unresolved_libraries'], ['libncurses.so.6'])
+        self.assertEqual(payload['library_notice_components']['libncurses.so.6'], [])
+        self.assertEqual(payload['library_notice_components']['libswiftCore.so'], ['swift'])
+
+    def test_linked_component_directory_is_rejected(self):
+        original = self.notices / 'z2d'
+        moved = self.root / 'external-z2d'
+        original.rename(moved)
+        original.symlink_to(moved, target_is_directory=True)
+        self.assertIn('linked notice directory', self.command('verify-profile', success=False).stderr)
+
+    def test_archive_excerpt_and_member_metadata_are_checked(self):
+        path = self.notices / 'sources.json'
+        original = path.read_bytes()
+        for operation in ['length', 'traversal', 'unknown-archive']:
+            with self.subTest(operation=operation):
+                manifest = json.loads(original)
+                entry = next(entry for entry in manifest['files'] if 'archive' in entry and 'excerpt' in entry)
+                if operation == 'length': entry['excerpt']['end'] += 1
+                elif operation == 'traversal': entry['source_path'] = '../notice'
+                else: entry['archive'] = 'unknown'
+                path.write_text(json.dumps(manifest))
+                self.command('verify-profile', success=False)
+
+    def test_staged_inventory_and_runtime_mapping_survive_source_removal(self):
+        original = (self.notices / 'inventory.json').read_bytes()
+        self.command('stage', self.destination)
+        shutil.rmtree(self.repo)
+        staged = self.destination / 'share/licenses/agterm/inventory.json'
+        self.assertEqual(staged.read_bytes(), original)
+        inventory = json.loads(original)
+        self.assertIn('swift', inventory['bundled_libraries']['libswiftCore.so'])
+        self.assertEqual(len(inventory['bundled_libraries']), 16)
+        self.assertEqual(len(inventory['themes']['files']), 602)
+        self.assertTrue(all(theme['attribution'] == 'unresolved-individual-author-license'
+                            for theme in inventory['themes']['files']))
+
     def setup_fixture(self):
         # Architecture/resource behavior is covered separately; these fixtures isolate notice-driven cache reuse.
         for name in ['verify-linux-architecture.sh', 'verify-linux-resources.sh', 'verify-linux-zmx-cache.sh']:
