@@ -1,5 +1,5 @@
 {
-  "schema": "agterm-linux-notices/1",
+  "schema": "agterm-linux-notices/2",
   "swift_release": "swift-6.3.2-RELEASE",
   "ghostty_revision": "0ba6250388641f52135414b38c4259aa682c489b",
   "files": [
@@ -92,6 +92,680 @@
       "url": "https://raw.githubusercontent.com/unicode-org/icu/8eca245c7484ac6cc179e3e5f7c1ea7680810f39/LICENSE",
       "file": "icu-76.1/LICENSE",
       "sha256": "01edac20612b1e590c1c1cfb02b7218c6adc7b0a944eda7a1e03aeee10725aed"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/build.zig.zon",
+      "file": "ghostty-inputs/build.zig.zon",
+      "sha256": "91a1f45260dd0dbe7bf02d91860e38bed6ed74beca4821483356773d1bd77166"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/dcimgui/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/dcimgui/build.zig.zon",
+      "file": "ghostty-inputs/pkg-dcimgui-build.zig.zon",
+      "sha256": "e169b626b17ba80e6010b62671ded77ad82d27a9ecadfce51be6a2eb917537bf"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/fontconfig/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/fontconfig/build.zig.zon",
+      "file": "ghostty-inputs/pkg-fontconfig-build.zig.zon",
+      "sha256": "9c2cc4249d3237c38b2dff9e161677666ff9e7b343925ecaaea377a81c1b75e4"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/freetype/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/freetype/build.zig.zon",
+      "file": "ghostty-inputs/pkg-freetype-build.zig.zon",
+      "sha256": "0d2448fece69f8d9147597a37400cc4a5c227a7421ea7502e4a36f41e3cb7d05"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/glslang/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/glslang/build.zig.zon",
+      "file": "ghostty-inputs/pkg-glslang-build.zig.zon",
+      "sha256": "02222c509aba57597aae1d60ce49b8c6882882347e891065858f4de8109d6aab"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/harfbuzz/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/harfbuzz/build.zig.zon",
+      "file": "ghostty-inputs/pkg-harfbuzz-build.zig.zon",
+      "sha256": "846abfcf35002769e4629497b67321f90fc68c54dbfb8b29e51d1b712ca9b325"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/highway/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/highway/build.zig.zon",
+      "file": "ghostty-inputs/pkg-highway-build.zig.zon",
+      "sha256": "57103e0424e9ca660756bb2cd0475ca3057e61e7f2d4038aba2a90eae890b932"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/libpng/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/libpng/build.zig.zon",
+      "file": "ghostty-inputs/pkg-libpng-build.zig.zon",
+      "sha256": "4546494e09ee5459dca7caf363521545d96aaff65d07d84ab22b74ee80a9e4de"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/libxml2/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/libxml2/build.zig.zon",
+      "file": "ghostty-inputs/pkg-libxml2-build.zig.zon",
+      "sha256": "2d9ad897f7942d2ba4079a4d9e724afdb9fb4c73740deed3e78edd3c96cd7703"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/oniguruma/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/oniguruma/build.zig.zon",
+      "file": "ghostty-inputs/pkg-oniguruma-build.zig.zon",
+      "sha256": "ed4d291a596c73d75ecd60b449e552d559ed1b3884bfcfbae146d0209747b8a0"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/spirv-cross/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/spirv-cross/build.zig.zon",
+      "file": "ghostty-inputs/pkg-spirv-cross-build.zig.zon",
+      "sha256": "4f7064c00f29e461757aeeedbfc7cd284cc5677e298bf64cbc9b797a5eccfde4"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/wuffs/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/wuffs/build.zig.zon",
+      "file": "ghostty-inputs/pkg-wuffs-build.zig.zon",
+      "sha256": "b18152b314c24f32444dde3e06b7cf95291fb735873cf5ae49d2ac5d93452777"
+    },
+    {
+      "component": "ghostty-inputs",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/zlib/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/zlib/build.zig.zon",
+      "file": "ghostty-inputs/pkg-zlib-build.zig.zon",
+      "sha256": "ec984b740c5bc72bdb6e4afe45130bd3fe1d5a83eada1c36ece319b48883b69b"
+    },
+    {
+      "component": "libxev",
+      "archive": "libxev",
+      "source_path": "libxev-9ce8e8e6ff89e583258a7f8e7adeeeaeae8611bf/LICENSE",
+      "file": "libxev/LICENSE",
+      "sha256": "fcd26bcead569a910dd778cb864e027683498ca414e15db1694a5893eee1b835"
+    },
+    {
+      "component": "vaxis",
+      "archive": "vaxis",
+      "source_path": "libvaxis-1dbbe575dff4586fe51e3217aa5c3fecdcbb6089/LICENSE",
+      "file": "vaxis/LICENSE",
+      "sha256": "cca4ffa6a45c0b17d3e9840b4cbe5be1e76ab84fda69850e0cb3f117729eeeea"
+    },
+    {
+      "component": "z2d",
+      "archive": "z2d",
+      "source_path": "z2d-7dbae85c81784dba9988320bf9543ed9a81350c8/LICENSE",
+      "file": "z2d/LICENSE",
+      "sha256": "c3c0b845181a67c2f926485299855769afa675bc90b18904c3087ae884cb1873"
+    },
+    {
+      "component": "z2d",
+      "archive": "z2d",
+      "source_path": "z2d-7dbae85c81784dba9988320bf9543ed9a81350c8/COPYING",
+      "file": "z2d/COPYING",
+      "sha256": "d8d2562a7cb68ffdfe91fc66af1ed4a8a4e272aa4ab59bea7451ba34b9aba3d4"
+    },
+    {
+      "component": "uucode",
+      "archive": "uucode",
+      "source_path": "uucode-2826a37a4562284fdacd8fa029d49509cc9bffcd/LICENSE.md",
+      "file": "uucode/LICENSE.md",
+      "sha256": "312e901e142be2477b4ca859e9311f9e3f80d33372991759b7921c1893605f33"
+    },
+    {
+      "component": "uucode",
+      "archive": "uucode",
+      "source_path": "uucode-2826a37a4562284fdacd8fa029d49509cc9bffcd/licenses/LICENSE_Bjoern_Hoehrmann",
+      "file": "uucode/licenses-LICENSE_Bjoern_Hoehrmann",
+      "sha256": "de219cece932aad5a817bf763393d8d149d378a15d2ad5320e3331eac07626dd"
+    },
+    {
+      "component": "uucode",
+      "archive": "uucode",
+      "source_path": "uucode-2826a37a4562284fdacd8fa029d49509cc9bffcd/licenses/LICENSE_unicode",
+      "file": "uucode/licenses-LICENSE_unicode",
+      "sha256": "1eda5a3b026870c737b22e8bcd4954338612c790db688242e003f41a4fa95175"
+    },
+    {
+      "component": "zf",
+      "archive": "zf",
+      "source_path": "zf-c35c421f84895193246db06c40683c1a30e616ef/LICENSE",
+      "file": "zf/LICENSE",
+      "sha256": "0629000344ad0dc3c6e0e4c1b0c4a5cacf090e17d56e8bc5272705e3d35b7def"
+    },
+    {
+      "component": "jetbrains-mono",
+      "archive": "jetbrains_mono",
+      "source_path": "./OFL.txt",
+      "file": "jetbrains-mono/OFL.txt",
+      "sha256": "30f0c136e3c88e422d0791acd97238870f9054a9729bc34cf2ff0d4ed8cac4ad"
+    },
+    {
+      "component": "jetbrains-mono",
+      "archive": "jetbrains_mono",
+      "source_path": "./AUTHORS.txt",
+      "file": "jetbrains-mono/AUTHORS.txt",
+      "sha256": "33f99c94ef0a0909d7584a5d4bde1fb9b1630daa620f5a788c28c43327e79412"
+    },
+    {
+      "component": "nerd-fonts-symbols-only",
+      "archive": "nerd_fonts_symbols_only",
+      "source_path": "./LICENSE",
+      "file": "nerd-fonts-symbols-only/LICENSE",
+      "sha256": "84a7a98c82140fb12c37fe42b93805baa16024cb3e5acc599b7ffe612c55d847"
+    },
+    {
+      "component": "freetype",
+      "archive": "freetype",
+      "source_path": "freetype-VER-2-13-2/LICENSE.TXT",
+      "file": "freetype/LICENSE.TXT",
+      "sha256": "2e3bbb7d7c5c396368dd0853a790ec29ce5b8647163dde42a0493fb0d6556b2b"
+    },
+    {
+      "component": "freetype",
+      "archive": "freetype",
+      "source_path": "freetype-VER-2-13-2/docs/FTL.TXT",
+      "file": "freetype/docs-FTL.TXT",
+      "sha256": "08c135755dd589039470f1fdbb400daaabaaa50d0b366d19cebff4d22986baa1"
+    },
+    {
+      "component": "freetype",
+      "archive": "freetype",
+      "source_path": "freetype-VER-2-13-2/docs/GPLv2.TXT",
+      "file": "freetype/docs-GPLv2.TXT",
+      "sha256": "c4120c6752c910c299e3bd9cb3a46ff262c268303ca2069b61f92f10a5656c18"
+    },
+    {
+      "component": "fontconfig",
+      "archive": "fontconfig",
+      "source_path": "fontconfig-2.14.2/COPYING",
+      "file": "fontconfig/COPYING",
+      "sha256": "51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067"
+    },
+    {
+      "component": "harfbuzz",
+      "archive": "harfbuzz",
+      "source_path": "harfbuzz-11.0.0/COPYING",
+      "file": "harfbuzz/COPYING",
+      "sha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64"
+    },
+    {
+      "component": "harfbuzz",
+      "archive": "harfbuzz",
+      "source_path": "harfbuzz-11.0.0/src/ms-use/COPYING",
+      "file": "harfbuzz/src-ms-use-COPYING",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+    },
+    {
+      "component": "imgui",
+      "archive": "imgui",
+      "source_path": "imgui-1.92.5-docking/LICENSE.txt",
+      "file": "imgui/LICENSE.txt",
+      "sha256": "c80c5789748d955c4a650562baa0d750494e2c7128c2ca66aaebe2e3c4e198bf"
+    },
+    {
+      "component": "highway",
+      "archive": "highway",
+      "source_path": "highway-66486a10623fa0d72fe91260f96c892e41aceb06/LICENSE",
+      "file": "highway/LICENSE",
+      "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
+    },
+    {
+      "component": "highway",
+      "archive": "highway",
+      "source_path": "highway-66486a10623fa0d72fe91260f96c892e41aceb06/LICENSE-BSD3",
+      "file": "highway/LICENSE-BSD3",
+      "sha256": "d25e82e26acd42ca3ccc9993622631163425b869b9e16284226d534cff6470f2"
+    },
+    {
+      "component": "glslang",
+      "archive": "glslang",
+      "source_path": "glslang-14.2.0/LICENSE.txt",
+      "file": "glslang/LICENSE.txt",
+      "sha256": "adb783e734e906d1f46db5df29991dbde84bdb0ceab502ac2febb44fe3c2b5f4"
+    },
+    {
+      "component": "spirv-cross",
+      "archive": "spirv_cross",
+      "source_path": "SPIRV-Cross-476f384eb7d9e48613c45179e502a15ab95b6b49/LICENSE",
+      "file": "spirv-cross/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "component": "spirv-cross",
+      "archive": "spirv_cross",
+      "source_path": "SPIRV-Cross-476f384eb7d9e48613c45179e502a15ab95b6b49/LICENSES/LicenseRef-KhronosFreeUse.txt",
+      "file": "spirv-cross/LICENSES-LicenseRef-KhronosFreeUse.txt",
+      "sha256": "fbeaca472f4f70e276dd1106ca5097435967a22ad6c1d8200aef7ad9f70aaf3f"
+    },
+    {
+      "component": "oniguruma",
+      "archive": "oniguruma",
+      "source_path": "oniguruma-6.9.9/COPYING",
+      "file": "oniguruma/COPYING",
+      "sha256": "70ba5469ea0bab6e18a32d7009068f996503168d27be57747e08da34337ff26f"
+    },
+    {
+      "component": "wuffs",
+      "archive": "wuffs",
+      "source_path": "wuffs-0.4.0-alpha.9/LICENSE",
+      "file": "wuffs/LICENSE",
+      "sha256": "f8ac2c75e7f629a87565c80d61ff9fe5aa15cdea0bda997d52a4dc13fdbd19cb"
+    },
+    {
+      "component": "wuffs",
+      "archive": "wuffs",
+      "source_path": "wuffs-0.4.0-alpha.9/LICENSE-APACHE",
+      "file": "wuffs/LICENSE-APACHE",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+    },
+    {
+      "component": "wuffs",
+      "archive": "wuffs",
+      "source_path": "wuffs-0.4.0-alpha.9/LICENSE-MIT",
+      "file": "wuffs/LICENSE-MIT",
+      "sha256": "bb811a4b485eac3caeb8bdc58bbafb355fbcb6116010a7ea9179e5c70b0bc878"
+    },
+    {
+      "component": "libpng",
+      "archive": "libpng",
+      "source_path": "libpng-1.6.43/LICENSE",
+      "file": "libpng/LICENSE",
+      "sha256": "7317e078e2d3b5d7ba5a6159e650945153262b44b76f6700f8e9edb261c5143e"
+    },
+    {
+      "component": "zlib",
+      "archive": "zlib",
+      "source_path": "zlib-1.3.1/LICENSE",
+      "file": "zlib/LICENSE",
+      "sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243"
+    },
+    {
+      "component": "libxml2",
+      "archive": "libxml2",
+      "source_path": "libxml2-2.11.5/Copyright",
+      "file": "libxml2/Copyright",
+      "sha256": "c5c63674f8a83c4d2e385d96d1c670a03cb871ba2927755467017317878574bd"
+    },
+    {
+      "component": "apple-icu",
+      "repository": "apple-oss-distributions/ICU",
+      "revision": "71e88350afd8f8bcbb8a387edafd090de9ff7cca",
+      "source_path": "icu/LICENSE",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/ICU/71e88350afd8f8bcbb8a387edafd090de9ff7cca/icu/LICENSE",
+      "file": "apple-icu/LICENSE",
+      "sha256": "92841ff27a1b2d1030b00e0958af4d1f70353ff42c5dad7041f1950e909ccc5e"
+    },
+    {
+      "component": "simdutf",
+      "repository": "simdutf/simdutf",
+      "revision": "ca7acbcea967b5dcbab490066e99e3a6e6925539",
+      "source_path": "LICENSE-MIT",
+      "url": "https://raw.githubusercontent.com/simdutf/simdutf/ca7acbcea967b5dcbab490066e99e3a6e6925539/LICENSE-MIT",
+      "file": "simdutf/LICENSE-MIT",
+      "sha256": "fc8dbc04e03ad4efc08a647ffe7f995b811a95bc04c0e85a56d5277c6593fa5f"
+    },
+    {
+      "component": "simdutf",
+      "repository": "simdutf/simdutf",
+      "revision": "ca7acbcea967b5dcbab490066e99e3a6e6925539",
+      "source_path": "LICENSE-APACHE",
+      "url": "https://raw.githubusercontent.com/simdutf/simdutf/ca7acbcea967b5dcbab490066e99e3a6e6925539/LICENSE-APACHE",
+      "file": "simdutf/LICENSE-APACHE",
+      "sha256": "3d34610fc6b5e1b0bfe4e2f36171c2d62c28ef05cb8d704f5a0073be41a43b3d"
+    },
+    {
+      "component": "swift-argument-parser",
+      "repository": "apple/swift-argument-parser",
+      "revision": "6a52f3251125d74daf04fcbd5e6f08a75d074382",
+      "source_path": "LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/apple/swift-argument-parser/6a52f3251125d74daf04fcbd5e6f08a75d074382/LICENSE.txt",
+      "file": "swift-argument-parser/LICENSE.txt",
+      "sha256": "770af8291f708538d8ff885a0bbc4e045cd700531741c4f99528d435c14d7f55"
+    },
+    {
+      "component": "dear-bindings",
+      "repository": "dearimgui/dear_bindings",
+      "revision": "d27d0824350dcaa08c09b1e882ea1ce13f2eb90d",
+      "source_path": "LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/dearimgui/dear_bindings/d27d0824350dcaa08c09b1e882ea1ce13f2eb90d/LICENSE.txt",
+      "file": "dear-bindings/LICENSE.txt",
+      "sha256": "b08fd9947ec127fd7785801cac8b1eea2ab4282008cdaae8e50331d870f30d0d"
+    },
+    {
+      "component": "tomldecoder",
+      "repository": "dduan/TOMLDecoder",
+      "revision": "a2bbd2796fe3064e107de18cb56031052c4fa899",
+      "source_path": "LICENSE.md",
+      "url": "https://raw.githubusercontent.com/dduan/TOMLDecoder/a2bbd2796fe3064e107de18cb56031052c4fa899/LICENSE.md",
+      "file": "tomldecoder/LICENSE.md",
+      "sha256": "ee59f20a0a5550b0b071a0d9edb31c29629ce4bad2d8f5d0467ee7d574b541cf"
+    },
+    {
+      "component": "stb",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "src/stb/stb_image.h",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/src/stb/stb_image.h",
+      "file": "stb/stb_image.h.LICENSE",
+      "excerpt": {
+        "start": 282296,
+        "end": 284732,
+        "source_sha256": "7fb1521970dc268639ed95ab9808ef3b47aa0800fd2d0e9250b1b90be03ee75b"
+      },
+      "sha256": "0c1a6bc63aa465dbe3a1cb014b79b586e9fb902347a78a2a156985fce5eaaf9f"
+    },
+    {
+      "component": "stb",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "src/stb/stb_image_resize.h",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/src/stb/stb_image_resize.h",
+      "file": "stb/stb_image_resize.h.LICENSE",
+      "excerpt": {
+        "start": 114079,
+        "end": 116515,
+        "source_sha256": "6a0e75adbabb48df9031c2e39ccd97437bb226fe31e7d4a01c7bf70a18d32ec6"
+      },
+      "sha256": "0c1a6bc63aa465dbe3a1cb014b79b586e9fb902347a78a2a156985fce5eaaf9f"
+    },
+    {
+      "component": "simdutf",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "pkg/simdutf/vendor/simdutf.h",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/simdutf/vendor/simdutf.h",
+      "file": "simdutf/BSD-TH-NOTICE",
+      "excerpt": {
+        "start": 33238,
+        "end": 35554,
+        "source_sha256": "d3501fc2143f0edc5c84e6bb013a7fdb8ccd95514f7fd0816669248e62676301"
+      },
+      "sha256": "acffdbe9983f5996c4bd096132ffdd745a074ed8c9ba9b26b0d09c654fd45e43"
+    },
+    {
+      "component": "noto-emoji",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "src/font/res/OFL.txt",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/src/font/res/OFL.txt",
+      "file": "noto-emoji/OFL.txt",
+      "sha256": "fb755fa3280d1d215a20df2e64fe6a0f75f8208439b11671978214aae60d2997"
+    },
+    {
+      "component": "noto-emoji",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "src/font/res/README.md",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/src/font/res/README.md",
+      "file": "noto-emoji/README.md",
+      "sha256": "b3177ac25cc57c976ae9e2a458a23cf840b7d4c919e4f87fdc8cab7875c3ea17"
+    },
+    {
+      "component": "khronos",
+      "repository": "ghostty-org/ghostty",
+      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "source_path": "vendor/glad/include/KHR/khrplatform.h",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/vendor/glad/include/KHR/khrplatform.h",
+      "file": "khronos/LICENSE",
+      "excerpt": {
+        "start": 51,
+        "end": 1197,
+        "source_sha256": "7b1e01aaa7ad8f6fc34b5c7bdf79ebf5189bb09e2c4d2e79fc5d350623d11e83"
+      },
+      "sha256": "fd7c88f69e70ffa778137ba0bc8267fa8dd83189365d9ff5a2533161432b3d0b"
+    },
+    {
+      "component": "iterm2-themes",
+      "repository": "mbadolato/iTerm2-Color-Schemes",
+      "revision": "0173c3cc154aab5d43b03241286d32372a87dec6",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/mbadolato/iTerm2-Color-Schemes/0173c3cc154aab5d43b03241286d32372a87dec6/LICENSE",
+      "file": "iterm2-themes/LICENSE",
+      "sha256": "2373168614b527494dff99eb393024608216db79f687d58bad420f6c1e0ad192"
+    },
+    {
+      "component": "zmx-ghostty",
+      "repository": "ghostty-org/ghostty",
+      "revision": "8af6897c0afc63037a8a3efee4162a380e3a4572",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/8af6897c0afc63037a8a3efee4162a380e3a4572/LICENSE",
+      "file": "zmx-ghostty/LICENSE",
+      "sha256": "386211873e5b7a02f663ae4d7adf96285999f91608f8f9f31fecfd0f4095e6f1"
+    },
+    {
+      "component": "zmx-ghostty",
+      "repository": "ghostty-org/ghostty",
+      "revision": "8af6897c0afc63037a8a3efee4162a380e3a4572",
+      "source_path": "build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/8af6897c0afc63037a8a3efee4162a380e3a4572/build.zig.zon",
+      "file": "zmx-ghostty/build.zig.zon",
+      "sha256": "bb13e580925ad82d4e3db7391cd48b58fb034a022c57c1e8e66519bf679a501d"
+    },
+    {
+      "component": "zig-runtime",
+      "archive": "zig-0.16.0",
+      "source_path": "zig-0.16.0/LICENSE",
+      "file": "zig-runtime/LICENSE",
+      "sha256": "5c537d6853e005298a285d508cff9ac7192cea23576c840d485b2b586a7ff177"
+    },
+    {
+      "component": "zig-libcxx",
+      "archive": "zig-0.16.0",
+      "source_path": "zig-0.16.0/lib/libcxx/LICENSE.TXT",
+      "file": "zig-libcxx/LICENSE.TXT",
+      "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+    },
+    {
+      "component": "zig-libcxxabi",
+      "archive": "zig-0.16.0",
+      "source_path": "zig-0.16.0/lib/libcxxabi/LICENSE.TXT",
+      "file": "zig-libcxxabi/LICENSE.TXT",
+      "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
+    },
+    {
+      "component": "zig-libunwind",
+      "archive": "zig-0.16.0",
+      "source_path": "zig-0.16.0/lib/libunwind/LICENSE.TXT",
+      "file": "zig-libunwind/LICENSE.TXT",
+      "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d"
+    },
+    {
+      "component": "glad",
+      "repository": "Dav1dde/glad",
+      "revision": "73db193f853e2ee079bf3ca8a64aa2eaf6459043",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/Dav1dde/glad/73db193f853e2ee079bf3ca8a64aa2eaf6459043/LICENSE",
+      "file": "glad/LICENSE",
+      "sha256": "cbb325cd4ac5bd06717ffa34a322b984f9d285e4c67c8ca1b7380d6ef08c2a77"
+    },
+    {
+      "component": "iterm2-themes",
+      "repository": "mbadolato/iTerm2-Color-Schemes",
+      "revision": "0173c3cc154aab5d43b03241286d32372a87dec6",
+      "source_path": "CREDITS.md",
+      "url": "https://raw.githubusercontent.com/mbadolato/iTerm2-Color-Schemes/0173c3cc154aab5d43b03241286d32372a87dec6/CREDITS.md",
+      "file": "iterm2-themes/CREDITS.md",
+      "sha256": "13787a17e22f74975e01ebfb29906fda45d9ee84813e535ac243f490a3b64e11"
+    },
+    {
+      "component": "iterm2-themes",
+      "repository": "mbadolato/iTerm2-Color-Schemes",
+      "revision": "0173c3cc154aab5d43b03241286d32372a87dec6",
+      "source_path": "README.md",
+      "url": "https://raw.githubusercontent.com/mbadolato/iTerm2-Color-Schemes/0173c3cc154aab5d43b03241286d32372a87dec6/README.md",
+      "file": "iterm2-themes/README-CREDITS.md",
+      "excerpt": {
+        "start": 47252,
+        "end": 48449,
+        "source_sha256": "9bae4dc172533a77b688767652a4fe4584b8cf298d72b9f82cfcf494c426e14b"
+      },
+      "sha256": "55b7c2e93e26e57faa2834292548e85e4695aae3a450dcec9b49cb2631e445e4"
+    },
+    {
+      "component": "freetype",
+      "archive": "freetype",
+      "source_path": "freetype-VER-2-13-2/src/bdf/README",
+      "file": "freetype/src-bdf-README.NOTICE",
+      "sha256": "7984455e7e5a9faba3797c8bf095fbe10cc846316b7320aff8c58402e22b82fe"
+    },
+    {
+      "component": "freetype",
+      "archive": "freetype",
+      "source_path": "freetype-VER-2-13-2/src/pcf/README",
+      "file": "freetype/src-pcf-README.NOTICE",
+      "sha256": "18d9782898d9eac04476e2f744678137b2a889689ed3e923e052fc396a86f86b"
+    },
+    {
+      "component": "freetype",
+      "archive": "freetype",
+      "source_path": "freetype-VER-2-13-2/src/base/fthash.c",
+      "file": "freetype/src-base-fthash.c.NOTICE",
+      "excerpt": {
+        "start": 135,
+        "end": 1366,
+        "source_sha256": "73fca7e875ea7bfc7496dc9eb84abe9f16844ebd7589f0e4eafd9b1d1df137e3"
+      },
+      "sha256": "fa04727dc6e4a77fd2e7cf3980ac6a3690103a1712679b28664c15ec491bcbc3"
+    },
+    {
+      "component": "freetype",
+      "archive": "freetype",
+      "source_path": "freetype-VER-2-13-2/src/gzip/zlib.h",
+      "file": "freetype/src-gzip-zlib.h.NOTICE",
+      "excerpt": {
+        "start": 0,
+        "end": 1328,
+        "source_sha256": "b3bff4c483860d26cec9587c3b287b79b0d40b5f5fe6bb6000deb663b03955bb"
+      },
+      "sha256": "4ce814c61160ae6c1aa3feb2e09924106741b66ade821c19a910677018ab3742"
+    },
+    {
+      "component": "freetype",
+      "archive": "freetype",
+      "source_path": "freetype-VER-2-13-2/src/autofit/ft-hb.c",
+      "file": "freetype/src-autofit-ft-hb.c.NOTICE",
+      "excerpt": {
+        "start": 0,
+        "end": 1147,
+        "source_sha256": "65c23597427a2954bed2145191d2f129fe26b6f290d371b900628ac0c6b5af37"
+      },
+      "sha256": "02538fb019fe962c58be4863a2fc6d21e5b072f4681ca3ea96bf813f31487e43"
+    },
+    {
+      "component": "nerd-fonts-glyphs",
+      "repository": "ryanoasis/nerd-fonts",
+      "revision": "fa7b859994228a9c8759f99c55a8d31ee92a1b5e",
+      "source_path": "src/glyphs/codicons/LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/src/glyphs/codicons/LICENSE.txt",
+      "file": "nerd-fonts-glyphs/codicons-LICENSE.txt",
+      "sha256": "d6239afa918961b465b07bf7411cbe34ff6685854f58553db7966f4881a0211f"
+    },
+    {
+      "component": "nerd-fonts-glyphs",
+      "repository": "ryanoasis/nerd-fonts",
+      "revision": "fa7b859994228a9c8759f99c55a8d31ee92a1b5e",
+      "source_path": "src/glyphs/font-awesome/LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/src/glyphs/font-awesome/LICENSE.txt",
+      "file": "nerd-fonts-glyphs/font-awesome-LICENSE.txt",
+      "sha256": "de784a808496d49f5f80dd9d1d6e9a51cff712cfbc339e7c25155631ae3cdb5d"
+    },
+    {
+      "component": "nerd-fonts-glyphs",
+      "repository": "ryanoasis/nerd-fonts",
+      "revision": "fa7b859994228a9c8759f99c55a8d31ee92a1b5e",
+      "source_path": "src/glyphs/materialdesign/LICENSE",
+      "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/src/glyphs/materialdesign/LICENSE",
+      "file": "nerd-fonts-glyphs/materialdesign-LICENSE",
+      "sha256": "3bae6305bcaa6d10219b999f65c342034c2d40b1c0e8567fa08605e73ccba829"
+    },
+    {
+      "component": "nerd-fonts-glyphs",
+      "repository": "ryanoasis/nerd-fonts",
+      "revision": "fa7b859994228a9c8759f99c55a8d31ee92a1b5e",
+      "source_path": "src/glyphs/octicons/LICENSE",
+      "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/src/glyphs/octicons/LICENSE",
+      "file": "nerd-fonts-glyphs/octicons-LICENSE",
+      "sha256": "4f886642f9e8d99eeadd484acdac011c3fde8a338faf52f5ca1408c13b9a9b63"
+    },
+    {
+      "component": "nerd-fonts-glyphs",
+      "repository": "ryanoasis/nerd-fonts",
+      "revision": "fa7b859994228a9c8759f99c55a8d31ee92a1b5e",
+      "source_path": "src/glyphs/pomicons/LICENSE",
+      "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/src/glyphs/pomicons/LICENSE",
+      "file": "nerd-fonts-glyphs/pomicons-LICENSE",
+      "sha256": "cb4797a9745683f287c28833db596e9d68ec43082d59359b3a49c504f0f610ce"
+    },
+    {
+      "component": "nerd-fonts-glyphs",
+      "repository": "ryanoasis/nerd-fonts",
+      "revision": "fa7b859994228a9c8759f99c55a8d31ee92a1b5e",
+      "source_path": "src/glyphs/powerline-extra/LICENSE",
+      "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/src/glyphs/powerline-extra/LICENSE",
+      "file": "nerd-fonts-glyphs/powerline-extra-LICENSE",
+      "sha256": "544307a58e6826c24145b2af1c3578b53e2e21ae0e6c67ab4c6abd544304d26a"
+    },
+    {
+      "component": "nerd-fonts-glyphs",
+      "repository": "ryanoasis/nerd-fonts",
+      "revision": "fa7b859994228a9c8759f99c55a8d31ee92a1b5e",
+      "source_path": "src/glyphs/powerline-symbols/LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/src/glyphs/powerline-symbols/LICENSE.txt",
+      "file": "nerd-fonts-glyphs/powerline-symbols-LICENSE.txt",
+      "sha256": "46d5355e4734468135d8e4a30d0916292cc4df2b3ec30aa68c866f82497933be"
+    },
+    {
+      "component": "nerd-fonts-glyphs",
+      "repository": "ryanoasis/nerd-fonts",
+      "revision": "fa7b859994228a9c8759f99c55a8d31ee92a1b5e",
+      "source_path": "src/glyphs/weather-icons/OFL.txt",
+      "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/src/glyphs/weather-icons/OFL.txt",
+      "file": "nerd-fonts-glyphs/weather-icons-OFL.txt",
+      "sha256": "69cdedc8a4f57a30d68e4f045af8b9cce0ec3b1a6e7eec1ad41737c894f26790"
+    },
+    {
+      "component": "nerd-fonts-glyphs",
+      "repository": "ryanoasis/nerd-fonts",
+      "revision": "fa7b859994228a9c8759f99c55a8d31ee92a1b5e",
+      "source_path": "src/glyphs/README.md",
+      "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/src/glyphs/README.md",
+      "file": "nerd-fonts-glyphs/README.md",
+      "sha256": "8538467a6f1f67b9d7fb7f95da492796ac1f02046121aa4138c07026e85c5fb2"
     }
-  ]
+  ],
+  "inventory_sha256": "573aad7b04f8a882ff405fa048566894a554b3122f7acbccf095ad9240bccb1a"
 }
