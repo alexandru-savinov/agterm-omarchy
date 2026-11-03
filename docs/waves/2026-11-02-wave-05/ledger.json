@@ -3,7 +3,7 @@
   "repository": "alexandru-savinov/agterm-omarchy",
   "requested": 3,
   "capacity": 3,
-  "revision": 8,
+  "revision": 9,
   "events": [
     {
       "request": {
@@ -131,6 +131,26 @@
         "token": "a1dfb5049d04484a8d4731c3cdff1643"
       },
       "at": 1793661925
+    },
+    {
+      "request": {
+        "event_id": "w5-feature-apply-complete-1",
+        "operation": "complete",
+        "task": "feature-proof-and-pages",
+        "actor": {
+          "account": "alexandru-savinov",
+          "agent": "feature_apply",
+          "session": "faa582835e54"
+        },
+        "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6593210392",
+        "token": "a1dfb5049d04484a8d4731c3cdff1643",
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/53bdfb4b8c8f7362a56601df0bb17ef281863a44",
+          "https://github.com/alexandru-savinov/agterm-omarchy/pull/204#pullrequestreview-5746020037",
+          "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6593210392"
+        ]
+      },
+      "at": 1793672019
     }
   ],
   "assignments": {
@@ -196,18 +216,22 @@
         "retry-evidence-audit"
       ],
       "max_attempts": 2,
-      "state": "running",
+      "state": "completed",
       "attempt": 1,
-      "lease": {
+      "lease": null,
+      "completion": {
         "owner": {
           "account": "alexandru-savinov",
           "agent": "feature_apply",
           "session": "faa582835e54"
         },
         "token": "a1dfb5049d04484a8d4731c3cdff1643",
-        "expires_at": 1793676325
+        "evidence": [
+          "https://github.com/alexandru-savinov/agterm-omarchy/commit/53bdfb4b8c8f7362a56601df0bb17ef281863a44",
+          "https://github.com/alexandru-savinov/agterm-omarchy/pull/204#pullrequestreview-5746020037",
+          "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6593210392"
+        ]
       },
-      "completion": null,
       "reason": null
     }
   }

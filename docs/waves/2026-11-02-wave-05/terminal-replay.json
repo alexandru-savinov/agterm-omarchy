@@ -1,0 +1,81 @@
+{
+  "waves": [
+    {
+      "wave": 1,
+      "revision": 9,
+      "assignments": 3,
+      "delivered": 3,
+      "claim_attempts": 3,
+      "start_attempts": 3,
+      "coordinated_worker_retries": 0,
+      "peak_reservations": 3,
+      "terminal_reservations": 0,
+      "event_replay_equal": true,
+      "summary_equal": true,
+      "ledger_sha256": "e735cee3fe769d55620761686e459077fadf698dd45906954a6f1d75e0a80f3f"
+    },
+    {
+      "wave": 2,
+      "revision": 9,
+      "assignments": 3,
+      "delivered": 3,
+      "claim_attempts": 3,
+      "start_attempts": 3,
+      "coordinated_worker_retries": 0,
+      "peak_reservations": 3,
+      "terminal_reservations": 0,
+      "event_replay_equal": true,
+      "summary_equal": true,
+      "ledger_sha256": "37bfd9916e60cc36e75dadb10b81ac77ee7ecdc5b2e129034ee2bd110fdba27f"
+    },
+    {
+      "wave": 3,
+      "revision": 12,
+      "assignments": 2,
+      "delivered": 2,
+      "claim_attempts": 4,
+      "start_attempts": 4,
+      "coordinated_worker_retries": 2,
+      "peak_reservations": 2,
+      "terminal_reservations": 0,
+      "event_replay_equal": true,
+      "summary_equal": true,
+      "ledger_sha256": "0192dbea3899cbe2f6c5c7c31bf98b39910d50f400b5c134474b3ee7e1e09d37"
+    },
+    {
+      "wave": 4,
+      "revision": 12,
+      "assignments": 4,
+      "delivered": 4,
+      "claim_attempts": 4,
+      "start_attempts": 4,
+      "coordinated_worker_retries": 0,
+      "peak_reservations": 3,
+      "terminal_reservations": 0,
+      "event_replay_equal": true,
+      "summary_equal": true,
+      "ledger_sha256": "2cc7fa8c2ba7d03a7582111f2f0b9546fb6c16c68abfed520a51f33070f735c4"
+    },
+    {
+      "wave": 5,
+      "revision": 9,
+      "assignments": 3,
+      "delivered": 3,
+      "claim_attempts": 3,
+      "start_attempts": 3,
+      "coordinated_worker_retries": 0,
+      "peak_reservations": 2,
+      "terminal_reservations": 0,
+      "event_replay_equal": true,
+      "summary_equal": true,
+      "ledger_sha256": "198e62d0b1086ecd65a6e2b45a1b69215695a98646a56d8e37c8d4b5d5ef5f87"
+    }
+  ],
+  "total_events": 51,
+  "total_assignments": 15,
+  "total_delivered": 15,
+  "claim_attempts": 17,
+  "start_attempts": 17,
+  "coordinated_worker_retries": 2,
+  "observation": "Recorded GitHub coordination and verified delivered work; not continuous process liveness, independent-account approval, 500 worker launches, or native acceptance."
+}
