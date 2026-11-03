@@ -1,0 +1,53 @@
+{
+  "source_commit": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "source_run": 41532553668,
+  "public_operator_source_commit": "e3dbd076f3d6a418ca388ea163922dcaea46617c",
+  "binding_changes": [
+    "SOURCE constant",
+    "SOURCE_RUN constant"
+  ],
+  "unselected_template_sha256": {
+    "native-run-template.py": "f2fd01e70c9478e2d28398d43cfb05918ac3c4c27242300a121a299272e437fd",
+    "native-prepare-template.py": "487c41f254b13ed782a61d365bb1ec37e58391ecc6755e554ed64d381a981a51"
+  },
+  "bound_template_sha256": {
+    "native-run-template.py": "e8a8cac3a4a7ea0a82a15043c115f8dc0b06de077220150d3ce22969142422ed",
+    "native-prepare-template.py": "11aabcd0bfcf9fd32cbba21a4025e108cd31c2f4181534a76b290fa8d6238b5f"
+  },
+  "synthetic_checks": {
+    "test-native-helpers.py": {
+      "passed": 29,
+      "failed": 0
+    },
+    "test-config-probe-operator.py": {
+      "passed": 10,
+      "failed": 0
+    },
+    "native_execution": false
+  },
+  "assets": {
+    "harness.sh": {
+      "sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40",
+      "source_path": "scripts/test-omarchy.sh"
+    },
+    "fixture.c": {
+      "sha256": "b96b70613a14e562eb5d2edec02653b2a41221eedaaf06880334eda3b15ca470",
+      "source_path": "agterm-linux/tests/login_shell_zsh_fixture.c"
+    },
+    "validator.py": {
+      "sha256": "cd32706bc7454324cc092345e506385bc1e9aa9fa852d0417a1893f3f0fc24b6",
+      "source_path": "scripts/prepare-omarchy-prerelease.py"
+    },
+    "config-probe.py": {
+      "sha256": "c521ff81ffa6677eeb61b1601c5535cda140ee605682449d6abb63d683d6eed9"
+    }
+  },
+  "arm64_archive_sha256": "d553f29e9fd978e83d60df73b1ef668292bc8414ec5b6617c94c0dc08d0b6995",
+  "arm64_app_sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+  "arm64_zmx_sha256": "7d4d530c2741e7c8edc1ddbfadf528a247d19f032e660aeb7eaf0b1f6288d310",
+  "generated_preparation_sha256": "38d2cf74bc6f08c8df1596a37465d6cbac683055068e440a38de03b707ee6a7c",
+  "fresh_guest_stage_created": false,
+  "frontend_executed": false,
+  "native_acceptance": false,
+  "gate": "VM stopped; owner start/unlock remains pending"
+}
