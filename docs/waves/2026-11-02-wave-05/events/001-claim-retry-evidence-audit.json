@@ -1,0 +1,12 @@
+{
+  "event_id": "w5-retry-audit-claim-1",
+  "operation": "claim",
+  "task": "retry-evidence-audit",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "retry_audit",
+    "session": "rab1c16f5f6d"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/4#issuecomment-6589922663",
+  "lease_seconds": 14400
+}

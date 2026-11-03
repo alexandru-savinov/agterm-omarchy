@@ -1,0 +1,12 @@
+{
+  "event_id": "w5-scanner-review-claim-1",
+  "operation": "claim",
+  "task": "scanner-exception-review",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "scanner_review",
+    "session": "sr5755165414"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/45#issuecomment-6590382859",
+  "lease_seconds": 14400
+}

@@ -1,0 +1,52 @@
+{
+  "source_commit": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "trusted_run": "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41532553668",
+  "run_attempt": 1,
+  "event": "workflow_dispatch",
+  "conclusion": "success",
+  "validator": {
+    "exit_code": 0,
+    "validator_sha256": "cd32706bc7454324cc092345e506385bc1e9aa9fa852d0417a1893f3f0fc24b6"
+  },
+  "required_jobs": [
+    {
+      "id": 125576189460,
+      "name": "Installer and scripts",
+      "conclusion": "success"
+    },
+    {
+      "id": 125576313299,
+      "name": "SwiftLint (Linux)",
+      "conclusion": "success"
+    },
+    {
+      "id": 125576313683,
+      "name": "Core tests (x86_64)",
+      "conclusion": "success"
+    },
+    {
+      "id": 125576313738,
+      "name": "Core tests (aarch64)",
+      "conclusion": "success"
+    },
+    {
+      "id": 125579490061,
+      "name": "GTK build and tests (x86_64)",
+      "conclusion": "success"
+    },
+    {
+      "id": 125579490098,
+      "name": "GTK build and tests (aarch64)",
+      "conclusion": "success"
+    },
+    {
+      "id": 125590718654,
+      "name": "CI",
+      "conclusion": "success"
+    }
+  ],
+  "native_acceptance": false,
+  "vm_observation": "stopped",
+  "frontend_executed": false,
+  "guest_stage_created": false
+}

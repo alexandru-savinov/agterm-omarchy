@@ -1,0 +1,44 @@
+{
+  "repository": "alexandru-savinov/agterm-omarchy",
+  "pull_request": 202,
+  "reviewed_head": "da5fb1ce36a09b56d7f95b67af5f1a81e670fd4a",
+  "root_review": "https://github.com/alexandru-savinov/agterm-omarchy/pull/202#pullrequestreview-5744664975",
+  "separate_agent_review": "https://github.com/alexandru-savinov/agterm-omarchy/pull/202#pullrequestreview-5744587660",
+  "requested_at": 1793660531.722699,
+  "main_before": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "candidate_before": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "method": "PUT",
+  "endpoint": "/repos/alexandru-savinov/agterm-omarchy/pulls/202/merge",
+  "request": {
+    "sha": "da5fb1ce36a09b56d7f95b67af5f1a81e670fd4a",
+    "merge_method": "rebase"
+  },
+  "response": {
+    "sha": "dc06116703cb7fe1c4a09e827e1fa8f3ee9787ef",
+    "merged": true,
+    "message": "Pull Request successfully merged"
+  },
+  "pull_read_back": {
+    "state": "closed",
+    "merged": true,
+    "merged_at": "2026-11-02T23:02:13Z",
+    "merge_commit_sha": "dc06116703cb7fe1c4a09e827e1fa8f3ee9787ef"
+  },
+  "main_after": "dc06116703cb7fe1c4a09e827e1fa8f3ee9787ef",
+  "candidate_after": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "result_commit": {
+    "sha": "dc06116703cb7fe1c4a09e827e1fa8f3ee9787ef",
+    "parents": [
+      "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d"
+    ],
+    "files": [
+      {
+        "filename": ".gitleaks.toml",
+        "status": "modified",
+        "additions": 7,
+        "deletions": 0,
+        "blob_sha": "935ec4b6535197f7e04257bacb631eaf50f89c46"
+      }
+    ]
+  }
+}

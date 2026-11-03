@@ -1,0 +1,160 @@
+{
+  "request": {
+    "intent_url": "https://github.com/alexandru-savinov/agterm-omarchy/issues/3#issuecomment-6590596749",
+    "original_job": 123719308427,
+    "run_id": 40950162779,
+    "source_commit": "619df7f376c3f45a11ce13fbb407faad4671bf5f",
+    "before_attempt": 1,
+    "requested_at": 1793660216.223702,
+    "endpoint": "POST /repos/alexandru-savinov/agterm-omarchy/actions/jobs/123719308427/rerun",
+    "request": {
+      "enable_debug_logging": false
+    },
+    "client_exit_code": 0,
+    "http_status_lines": [
+      "HTTP/1.1 201 Created"
+    ],
+    "stderr": ""
+  },
+  "read_back_run": {
+    "id": 40950162779,
+    "run_attempt": 2,
+    "head_sha": "619df7f376c3f45a11ce13fbb407faad4671bf5f",
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40950162779"
+  },
+  "jobs": [
+    {
+      "id": 123719308427,
+      "name": "GTK build and tests (aarch64)",
+      "head_sha": "619df7f376c3f45a11ce13fbb407faad4671bf5f",
+      "run_id": 40950162779,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-10-29T20:40:44Z",
+      "completed_at": "2026-10-29T20:43:02Z",
+      "html_url": "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40950162779/job/123719308427",
+      "log_sha256": "547d02e9669d4e2b33782a1a4c833aed7740ab34307ebb53c324d83d075bbfe1",
+      "log_bytes": 296484,
+      "evidence_lines": [
+        "2026-10-29T20:41:15.0594492Z HEAD is now at 7c417d28 Merge 619df7f376c3f45a11ce13fbb407faad4671bf5f into 81404c5f7987df4cef0dd08621789ef85532a2c1",
+        "2026-10-29T20:41:15.0675966Z [command]/usr/bin/git log -1 --format=%H",
+        "2026-10-29T20:41:15.0708232Z 7c417d2891b00e8412ea70496a869881d5ded447",
+        "2026-10-29T20:42:57.4878780Z /var/tmp/agterm-linux-build.RO8vUA/ghostty/build.zig.zon:27:20: error: HTTP response read failure: ConnectionResetByPeer"
+      ],
+      "steps": [
+        {
+          "name": "Verify restored libghostty cache",
+          "conclusion": "skipped",
+          "started_at": "2026-10-29T20:41:59Z",
+          "completed_at": "2026-10-29T20:41:59Z"
+        },
+        {
+          "name": "Build libghostty (skips if the cache restored it)",
+          "conclusion": "failure",
+          "started_at": "2026-10-29T20:42:27Z",
+          "completed_at": "2026-10-29T20:42:57Z"
+        },
+        {
+          "name": "swift test (agterm-linux)",
+          "conclusion": "skipped",
+          "started_at": "2026-10-29T20:42:57Z",
+          "completed_at": "2026-10-29T20:42:57Z"
+        },
+        {
+          "name": "swift build Release/WMO (agterm-linux)",
+          "conclusion": "skipped",
+          "started_at": "2026-10-29T20:42:57Z",
+          "completed_at": "2026-10-29T20:42:57Z"
+        },
+        {
+          "name": "Validate staged Linux payload",
+          "conclusion": "skipped",
+          "started_at": "2026-10-29T20:42:57Z",
+          "completed_at": "2026-10-29T20:42:57Z"
+        },
+        {
+          "name": "GTK AT-SPI smoke tests",
+          "conclusion": "skipped",
+          "started_at": "2026-10-29T20:42:57Z",
+          "completed_at": "2026-10-29T20:42:57Z"
+        },
+        {
+          "name": "Upload tested runtime payload",
+          "conclusion": "skipped",
+          "started_at": "2026-10-29T20:42:58Z",
+          "completed_at": "2026-10-29T20:42:58Z"
+        }
+      ]
+    },
+    {
+      "id": 125606465633,
+      "name": "GTK build and tests (aarch64)",
+      "head_sha": "619df7f376c3f45a11ce13fbb407faad4671bf5f",
+      "run_id": 40950162779,
+      "run_attempt": 2,
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-11-02T22:57:03Z",
+      "completed_at": "2026-11-02T23:16:54Z",
+      "html_url": "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/40950162779/job/125606465633",
+      "log_sha256": "c88a5f04fbfbee0f37318ed1d07cb2f5b9b75fdaacace8debb64b1459d141965",
+      "log_bytes": 681545,
+      "evidence_lines": [
+        "2026-11-02T22:57:35.5878170Z HEAD is now at 7c417d28 Merge 619df7f376c3f45a11ce13fbb407faad4671bf5f into 81404c5f7987df4cef0dd08621789ef85532a2c1",
+        "2026-11-02T22:57:35.5949767Z [command]/usr/bin/git log -1 --format=%H",
+        "2026-11-02T22:57:35.5977117Z 7c417d2891b00e8412ea70496a869881d5ded447",
+        "2026-11-02T22:58:23.6624411Z Cache restored from key: linux-runtimes-aarch64-631a124a65eb58dccf30530aa5051d2e1dc37dcbf7d3f0811c0532ab43e30bdd",
+        "2026-11-02T23:00:02.7374387Z \u2714 Test run with 553 tests in 81 suites passed after 6.856 seconds."
+      ],
+      "steps": [
+        {
+          "name": "Verify restored libghostty cache",
+          "conclusion": "success",
+          "started_at": "2026-11-02T22:58:23Z",
+          "completed_at": "2026-11-02T22:58:23Z"
+        },
+        {
+          "name": "Build libghostty (skips if the cache restored it)",
+          "conclusion": "success",
+          "started_at": "2026-11-02T22:58:48Z",
+          "completed_at": "2026-11-02T22:58:48Z"
+        },
+        {
+          "name": "swift test (agterm-linux)",
+          "conclusion": "success",
+          "started_at": "2026-11-02T22:58:48Z",
+          "completed_at": "2026-11-02T23:00:02Z"
+        },
+        {
+          "name": "swift build Release/WMO (agterm-linux)",
+          "conclusion": "success",
+          "started_at": "2026-11-02T23:00:05Z",
+          "completed_at": "2026-11-02T23:02:14Z"
+        },
+        {
+          "name": "Validate staged Linux payload",
+          "conclusion": "success",
+          "started_at": "2026-11-02T23:02:14Z",
+          "completed_at": "2026-11-02T23:02:15Z"
+        },
+        {
+          "name": "GTK AT-SPI smoke tests",
+          "conclusion": "success",
+          "started_at": "2026-11-02T23:02:15Z",
+          "completed_at": "2026-11-02T23:16:41Z"
+        },
+        {
+          "name": "Upload tested runtime payload",
+          "conclusion": "success",
+          "started_at": "2026-11-02T23:16:46Z",
+          "completed_at": "2026-11-02T23:16:49Z"
+        }
+      ]
+    }
+  ],
+  "native_candidate_untouched": true,
+  "promotion_source": false
+}

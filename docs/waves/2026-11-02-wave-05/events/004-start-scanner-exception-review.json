@@ -1,0 +1,12 @@
+{
+  "event_id": "w5-scanner-review-start-1",
+  "operation": "start",
+  "task": "scanner-exception-review",
+  "actor": {
+    "account": "alexandru-savinov",
+    "agent": "scanner_review",
+    "session": "sr5755165414"
+  },
+  "source": "https://github.com/alexandru-savinov/agterm-omarchy/issues/45#issuecomment-6590382859",
+  "token": "6a118a402bff4353adc92c7c2fb2a105"
+}
