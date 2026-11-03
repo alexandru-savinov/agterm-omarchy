@@ -32,10 +32,11 @@ private-runtime adapter; it does not establish hardware rendering, default-bash 
 or WebKit pixel rendering.
 PR #6 integrated the accepted source on `main`; prerelease publication remains pending.
 The 500-agent request remains distinct from actual launches, and the feature inventory snapshot links
-to current-main evidence rather than copying the candidate branch's older ledger totals.
+to a pinned evidence snapshot rather than copying the candidate branch's older ledger totals.
 The reproduced generated-config collision remains recorded in #124, with the active correction in #192/PR #195 and the separate inert proposal in #126.
 Both pages link the resumed implementation/review records in #193 and the additional native probe in #199; these later changes require their own acceptance.
-The merged #196 inventory records 70 proven, 47 pending and 4 unavailable features at main `75c25a0a`.
+The verified P09/A12 [inventory snapshot at `67e2d3bc`](https://github.com/alexandru-savinov/agterm-omarchy/blob/67e2d3bccc6e93b7844c1c4188bdbf63c968efed/packaging/linux/github-feature-evidence.md) records 72 proven, 45 pending and 4 unavailable features.
+Its merge/retry proofs preserve all 121 criteria and do not change native acceptance or release status.
 
 To refresh ownership, read the latest issue/PR comments before editing `roster.json`.
 Record the observation time and each source's exact timestamp, agent/account, role, task and reported state.
