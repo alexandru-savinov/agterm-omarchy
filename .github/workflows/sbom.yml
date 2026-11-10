@@ -1,7 +1,10 @@
 name: Release SBOM
 
-# Called by each release workflow before it publishes, so the SBOM ships, and is attested, with the assets.
+# release-linux calls this before publishing, so the SBOM is attested and shipped with the packages.
 on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/sbom.yml]
   workflow_call:
     inputs:
       ref:
