@@ -1,4 +1,5 @@
 import Foundation
+import Glibc
 import Testing
 import agtermCore
 @testable import AgtermLinux
@@ -196,6 +197,37 @@ struct LinuxCustomCommandProcessTests {
         }
     }
 
+    @Test("a descendant holding stderr cannot stall completion, and the capture is gone on delivery")
+    func stderrDescendant() async throws {
+        let pidFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("agterm-command-test-\(UUID().uuidString).pid").path
+        defer { try? FileManager.default.removeItem(atPath: pidFile) }
+        let command = CustomCommand(
+            name: "descendant", command: "(sleep 30 >&2 & echo $! > '\(pidFile)'); echo diag >&2; exit 7",
+            shortcut: "", errorHud: true)
+        let launcher = ObservingProcessLauncher()
+        let start = Date()
+        let failure = await withCheckedContinuation { (continuation: CheckedContinuation<LinuxCustomCommandFailure, Never>) in
+            LinuxCustomCommandProcess.launch(
+                command: command, context: CommandContext(sessionPWD: "/tmp"), baseEnvironment: [:], launcher: launcher
+            ) { continuation.resume(returning: $0) }
+        }
+        #expect(Date().timeIntervalSince(start) < 2)
+        #expect(failure == .exit(7, "diag"))
+        guard case .stderrFile(let path) = try #require(launcher.requests.first).standardIO else {
+            Issue.record("errorHud did not request a stderr file")
+            return
+        }
+        #expect(!FileManager.default.fileExists(atPath: path))
+
+        let pid = try #require(pid_t(try String(contentsOfFile: pidFile, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)))
+        #expect(isLiveSleep(pid))
+        #expect(kill(pid, SIGKILL) == 0)
+        for _ in 0..<100 where isLiveSleep(pid) { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(!isLiveSleep(pid))
+    }
+
     @Test("closing and reopening the same window id cannot reactivate an old origin")
     @MainActor
     func controllerIncarnation() async {
@@ -251,6 +283,33 @@ private final class RecordingProcessLauncher: LinuxProcessLaunching, @unchecked 
         lock.unlock()
         completion(status)
     }
+}
+
+private final class ObservingProcessLauncher: LinuxProcessLaunching, @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [LinuxProcessLaunchRequest] = []
+
+    var requests: [LinuxProcessLaunchRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recorded
+    }
+
+    func launch(_ request: LinuxProcessLaunchRequest, onTermination: @escaping @Sendable (Int32) -> Void) throws {
+        lock.lock()
+        recorded.append(request)
+        lock.unlock()
+        try FoundationLinuxProcessLauncher().launch(request, onTermination: onTermination)
+    }
+}
+
+/// A zombie counts as dead: the orphan's new parent may never reap it.
+private func isLiveSleep(_ pid: pid_t) -> Bool {
+    guard let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8),
+          let close = stat.lastIndex(of: ")"),
+          let cmdline = FileManager.default.contents(atPath: "/proc/\(pid)/cmdline") else { return false }
+    return stat[stat.index(close, offsetBy: 2)...].first != "Z"
+        && String(decoding: cmdline, as: UTF8.self).hasPrefix("sleep\u{0}30")
 }
 
 private final class LockedValue<Value>: @unchecked Sendable {

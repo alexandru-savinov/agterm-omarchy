@@ -1,5 +1,8 @@
 import Foundation
 import agtermCore
+#if canImport(Glibc)
+import Glibc
+#endif
 
 enum LinuxProcessStandardIO: Sendable, Equatable {
     case null
@@ -168,7 +171,10 @@ private final class LinuxCommandStderrCapture: @unchecked Sendable {
     init?() {
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent("agterm-command-\(UUID().uuidString).err").path
-        guard FileManager.default.createFile(atPath: path, contents: nil) else { return nil }
+        // createFile follows the umask; O_EXCL with an explicit 0600 cannot be widened by it.
+        let descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o600)
+        guard descriptor >= 0 else { return nil }
+        close(descriptor)
         self.path = path
     }
 

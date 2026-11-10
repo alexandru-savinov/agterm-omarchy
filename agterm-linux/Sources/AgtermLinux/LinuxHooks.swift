@@ -59,7 +59,15 @@ extension AppController {
 /// Launch one shell per event and finish on GLib's main thread after stdin closes and the child exits.
 /// The control server ignores SIGPIPE, so a hook exiting before reading yields EPIPE to the writer.
 @MainActor
-private final class LinuxHookLauncher: HookLauncher {
+final class LinuxHookLauncher: HookLauncher {
+    private let shellPath: String
+    private let socketPath: @MainActor () -> String
+
+    init(shellPath: String = "/bin/sh", socketPath: @escaping @MainActor () -> String = { gControlServer.resolvedSocketPath }) {
+        self.shellPath = shellPath
+        self.socketPath = socketPath
+    }
+
     func launch(entry: HookEntry, event: ControlEvent,
                 onDeliveryFailure: @escaping @MainActor @Sendable (String) -> Void,
                 onExit: @escaping @MainActor @Sendable (Int32) -> Void) throws -> Int32 {
@@ -70,13 +78,13 @@ private final class LinuxHookLauncher: HookLauncher {
         environment["AGT_SESSION_ID"] = event.session ?? ""
         environment["AGT_WORKSPACE_ID"] = event.workspace ?? ""
         environment["AGT_WINDOW_ID"] = event.window ?? ""
-        environment["AGT_SOCKET"] = gControlServer.resolvedSocketPath
+        environment["AGT_SOCKET"] = socketPath()
         let executableDirectory = URL(fileURLWithPath: CommandLine.arguments[0])
             .standardizedFileURL.resolvingSymlinksInPath().deletingLastPathComponent().path
         environment["PATH"] = CommandPath.widened(environment["PATH"], bundledCLIDirectory: executableDirectory)
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.executableURL = URL(fileURLWithPath: shellPath)
         process.arguments = ["-c", entry.command]
         process.environment = environment
         let input = Pipe()
