@@ -188,7 +188,8 @@ struct LinuxControlStreamOwnerTests {
         var payload = Data(repeating: UInt8(ascii: "o"), count: PresentationCodec.maxFrameBytes + 1)
         if terminated { payload.append(0x0A) }
         let peer = stream.peer
-        Thread.detachNewThread { _ = peer.send(payload) }
+        let bytes = payload
+        Thread.detachNewThread { _ = peer.send(bytes) }
 
         #expect(stream.waitForClose(timeout: 5))
         #expect(stream.probe.received.isEmpty)
