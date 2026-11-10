@@ -3,7 +3,9 @@
 import json
 import os
 import subprocess
+import time
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -28,11 +30,14 @@ def verify_html_v0351(env, state):
     storage_path = os.path.join(pages, "storage.html")
     with open(storage_path, "w", encoding="utf-8") as file:
         file.write('<!doctype html><title>Storage pending</title><script>'
-                   'document.title="storage:"+localStorage.getItem("agterm-test")+":"+'
+                   'const value=new URLSearchParams(location.search).get("v")||"saved";'
+                   'const cookie=(document.cookie.match(/(?:^|; )agterm-test=([^;]*)/)||[])[1]||"null";'
+                   'document.title="storage:"+localStorage.getItem("agterm-test")+":"+cookie+":"+'
                    '(typeof agterm==="undefined"?"no-bridge":"unexpected-bridge");'
-                   'localStorage.setItem("agterm-test","saved");</script>')
+                   'localStorage.setItem("agterm-test",value);'
+                   'document.cookie="agterm-test="+value+"; max-age=3600; path=/";</script>')
 
-    process, app = launch(env)
+    process, app = launch(dict(env, AGTERM_ATSPI_BROWSER_CLEAR="hold,fail"))
     try:
         window = next(row["id"] for row in window_list(env) if row["open"])
         session = window_tree(env, window)["workspaces"][0]["sessions"][0]["id"]
@@ -91,17 +96,36 @@ def verify_html_v0351(env, state):
         thread.start()
         try:
             address = f"http://127.0.0.1:{server.server_port}/storage.html"
-            for persistent, expected in [(True, "null"), (True, "saved"), (False, "null")]:
-                request("session.overlay.open", {"url": address, "persistent": persistent, "javascript": True})
-                loaded(f"storage:{expected}:no-bridge")
+            def visit(persistent, expected, value=None):
+                url = address + (f"?v={value}" if value else "")
+                request("session.overlay.open", {"url": url, "persistent": persistent, "javascript": True})
+                loaded(f"storage:{expected}:{expected}:no-bridge")
                 if persistent:
                     refused = raw_control_json(env, {"cmd": "browser.clear"})
                     assert not refused["ok"] and "still open" in refused["error"], refused
                 request("session.overlay.close")
-            cleared = raw_control_json(env, {"cmd": "browser.clear"})
+
+            visit(True, "null")
+            visit(True, "saved")
+            visit(False, "null", value="ephemeral")
+            visit(True, "saved")
+
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                held = pool.submit(raw_control_json, env, {"cmd": "browser.clear"})
+                time.sleep(0.4)
+                busy = raw_control_json(env, {"cmd": "browser.clear"})
+                assert not busy["ok"] and busy["error"] == "browser.clear: browser storage is being cleared", busy
+                cleared = held.result(timeout=10)
             assert cleared["ok"], cleared
+            visit(True, "null")
+
+            failed = raw_control_json(env, {"cmd": "browser.clear"})
+            assert not failed["ok"] and "injected by AGTERM_ATSPI_BROWSER_CLEAR" in failed["error"], failed
+            visit(True, "saved")
+            retried = raw_control_json(env, {"cmd": "browser.clear"})
+            assert retried["ok"], retried
             request("session.overlay.open", {"url": address, "persistent": True, "javascript": True})
-            loaded("storage:null:no-bridge")
+            loaded("storage:null:null:no-bridge")
             request("session.overlay.close")
             assert os.path.isdir(os.path.join(state, "browser")), "browser storage escaped the isolated state directory"
             other_state = os.path.join(state, "other-instance")
@@ -121,7 +145,7 @@ def verify_html_v0351(env, state):
                     row = window_tree(other_env, other_window)["workspaces"][0]["sessions"][0]
                     return next(iter(row.get("htmlOverlays", [])), {})
 
-                wait_for(lambda: other_page().get("title") == "storage:null:no-bridge",
+                wait_for(lambda: other_page().get("title") == "storage:null:null:no-bridge",
                          "separate agterm instance reused the first instance's browser data", timeout=20)
             finally:
                 stop(other_process)
@@ -135,6 +159,7 @@ def verify_html_v0351(env, state):
         finally:
             server.shutdown()
             server.server_close()
-        print("OK: trusted DOM and JS bridges, page submit/outcome, zoom, persistent/ephemeral isolation, and browser.clear")
+        print("OK: trusted DOM and JS bridges, page submit/outcome, zoom, persistent/ephemeral localStorage and cookie "
+              "isolation, browser.clear exclusion and failure recovery")
     finally:
         stop(process)
