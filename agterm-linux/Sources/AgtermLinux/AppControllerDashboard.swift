@@ -290,7 +290,7 @@ extension AppController {
         let context = DashboardDelayedClickContext(controller: self, member: member, generation: generation)
         dashboardRuntime.pendingClickContext = context
         let source = g_timeout_add_full(
-            G_PRIORITY_DEFAULT, DashboardClickIntent.delayMilliseconds, onDashboardClickDelay,
+            G_PRIORITY_DEFAULT, DashboardClickIntent.scheduledDelayMilliseconds, onDashboardClickDelay,
             Unmanaged.passRetained(context).toOpaque(), releaseDashboardDelayedClickContext)
         dashboardRuntime.pendingClickSource = source
         if source == 0 {
