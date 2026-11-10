@@ -57,6 +57,7 @@ def verify_chrome_interface_controls(env):
 
         # Every element is present, sensitive and focusable with nothing hidden.
         table = []
+        insensitive = set()
         for raw, _, name in ELEMENTS:
             node = wait_for(lambda name=name: button(name), f"the {name!r} button is not actionable")
             state = states(node)
@@ -65,6 +66,8 @@ def verify_chrome_interface_controls(env):
             # Recent Sessions and the workspace filter are legitimately insensitive with nothing to act on.
             if raw not in ("recentSessions", "focusFilter"):
                 assert state.get("sensitive"), f"{name!r} is not sensitive: {state}"
+            if not state.get("sensitive"):
+                insensitive.add(name)
             assert state.get("focusable"), f"{name!r} is not focusable, so Tab cannot reach it: {state}"
         print("measured: " + " | ".join(table))
 
@@ -108,10 +111,12 @@ def verify_chrome_interface_controls(env):
             press_x11_key("shift+Tab", pid)
             time.sleep(0.3)
             reached |= {name for _, _, name in ELEMENTS if ctx.has_keyboard(button(name))}
-            if len(reached) == len(ELEMENTS):
+            if len(reached | insensitive) == len(ELEMENTS):
                 break
-        missing = [name for _, _, name in ELEMENTS if name not in reached]
+        # GTK skips an insensitive widget in the focus chain, so those are recorded rather than walked to.
+        missing = [name for _, _, name in ELEMENTS if name not in reached | insensitive]
         assert not missing, f"Shift+Tab never reached {missing}"
+        print(f"measured: Shift+Tab reached {sorted(reached)}; insensitive {sorted(insensitive)}")
         ctx.close_search("after the Tab walk")
 
         # AT-SPI activation reaches the same handlers a click does.
