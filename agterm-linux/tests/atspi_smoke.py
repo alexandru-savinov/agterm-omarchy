@@ -7469,6 +7469,8 @@ def main():
             "sidebar-multiselect",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
+            "theme-picker-cancel", "appearance-reset", "unavailable-font-family", "keymap-config-directory",
+            "chrome-interface-controls",
             "theme-many-sessions",
         ):
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
@@ -7635,6 +7637,21 @@ def main():
         elif scenario == "desktop-actions":
             from atspi_desktop_actions import verify_desktop_actions
             verify_desktop_actions(env)
+        elif scenario == "theme-picker-cancel":
+            from atspi_prefs_theme_cancel import verify_theme_picker_cancel
+            verify_theme_picker_cancel(env)
+        elif scenario == "appearance-reset":
+            from atspi_prefs_reset import verify_appearance_reset
+            verify_appearance_reset(env)
+        elif scenario == "unavailable-font-family":
+            from atspi_prefs_font import verify_unavailable_font_family
+            verify_unavailable_font_family(env)
+        elif scenario == "keymap-config-directory":
+            from atspi_prefs_keymap_dir import verify_keymap_config_directory
+            verify_keymap_config_directory(env)
+        elif scenario == "chrome-interface-controls":
+            from atspi_chrome_interface import verify_chrome_interface_controls
+            verify_chrome_interface_controls(env)
         elif scenario == "theme-many-sessions":
             from atspi_theme_many_sessions import verify_theme_many_sessions
             verify_theme_many_sessions(env)
