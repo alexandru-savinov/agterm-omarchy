@@ -110,9 +110,9 @@ struct LinuxCustomCommandProcessTests {
         #expect(failures.value.last == .exit(19, nil))
     }
 
-    @Test("Foundation launcher rejects a missing executable")
+    @Test("spawn launcher rejects a missing executable")
     func missingExecutable() {
-        let launcher = FoundationLinuxProcessLauncher()
+        let launcher = SpawnLinuxProcessLauncher()
         let request = LinuxProcessLaunchRequest(
             executablePath: "/definitely/missing/agterm-command",
             arguments: [], environment: [:], currentDirectoryPath: nil, standardIO: .null)
@@ -124,9 +124,9 @@ struct LinuxCustomCommandProcessTests {
         }
     }
 
-    @Test("Foundation launcher rejects an invalid working directory")
+    @Test("spawn launcher rejects an invalid working directory")
     func invalidWorkingDirectory() {
-        let launcher = FoundationLinuxProcessLauncher()
+        let launcher = SpawnLinuxProcessLauncher()
         let request = LinuxProcessLaunchRequest(
             executablePath: "/bin/sh", arguments: ["-c", "true"], environment: [:],
             currentDirectoryPath: "/definitely/missing/agterm-cwd", standardIO: .null)
@@ -138,9 +138,9 @@ struct LinuxCustomCommandProcessTests {
         }
     }
 
-    @Test("Foundation launcher reports successful and non-zero termination")
+    @Test("spawn launcher reports successful and non-zero termination")
     func realTermination() async {
-        let launcher = FoundationLinuxProcessLauncher()
+        let launcher = SpawnLinuxProcessLauncher()
         for (line, expected) in [("true", Int32(0)), ("exit 23", Int32(23))] {
             await confirmation { confirmed in
                 let request = LinuxProcessLaunchRequest(
@@ -168,7 +168,7 @@ struct LinuxCustomCommandProcessTests {
         let failure = await withCheckedContinuation { (continuation: CheckedContinuation<LinuxCustomCommandFailure, Never>) in
             LinuxCustomCommandProcess.launch(
                 command: command, context: CommandContext(sessionPWD: "/tmp"),
-                baseEnvironment: [:], launcher: FoundationLinuxProcessLauncher()
+                baseEnvironment: [:], launcher: SpawnLinuxProcessLauncher()
             ) { continuation.resume(returning: $0) }
         }
         #expect(failure == .exit(23, "final diagnostic"))
@@ -299,7 +299,7 @@ private final class ObservingProcessLauncher: LinuxProcessLaunching, @unchecked 
         lock.lock()
         recorded.append(request)
         lock.unlock()
-        try FoundationLinuxProcessLauncher().launch(request, onTermination: onTermination)
+        try SpawnLinuxProcessLauncher().launch(request, onTermination: onTermination)
     }
 }
 

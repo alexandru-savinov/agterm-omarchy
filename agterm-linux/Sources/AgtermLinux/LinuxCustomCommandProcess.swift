@@ -56,36 +56,61 @@ protocol LinuxProcessLaunching: Sendable {
     ) throws
 }
 
-struct FoundationLinuxProcessLauncher: LinuxProcessLaunching {
+/// posix_spawn and a waitpid thread, not Foundation's Process: on Linux, Process reports exit only after every
+/// descendant holding its inherited status socket has closed it, so a backgrounded child stalled completion.
+struct SpawnLinuxProcessLauncher: LinuxProcessLaunching {
     func launch(
         _ request: LinuxProcessLaunchRequest,
         onTermination: @escaping @Sendable (Int32) -> Void
     ) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: request.executablePath)
-        process.arguments = request.arguments
-        process.environment = request.environment
-        if let path = request.currentDirectoryPath {
-            process.currentDirectoryURL = URL(fileURLWithPath: path, isDirectory: true)
-        }
+        var actions = posix_spawn_file_actions_t()
+        posix_spawn_file_actions_init(&actions)
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
+        posix_spawn_file_actions_addopen(&actions, 1, "/dev/null", O_WRONLY, 0)
         switch request.standardIO {
         case .null:
-            process.standardInput = FileHandle.nullDevice
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
+            posix_spawn_file_actions_addopen(&actions, 2, "/dev/null", O_WRONLY, 0)
         case .stderrFile(let path):
-            let stderr = try FileHandle(forWritingTo: URL(fileURLWithPath: path))
-            defer { try? stderr.close() }
-            process.standardInput = FileHandle.nullDevice
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = stderr
-            process.terminationHandler = { onTermination($0.terminationStatus) }
-            try process.run()
-            return
+            posix_spawn_file_actions_addopen(&actions, 2, path, O_WRONLY, 0)
         }
-        process.terminationHandler = { onTermination($0.terminationStatus) }
-        try process.run()
+        if let path = request.currentDirectoryPath { posix_spawn_file_actions_addchdir_np(&actions, path) }
+        posix_spawn_file_actions_addclosefrom_np(&actions, 3)
+        var attributes = posix_spawnattr_t()
+        posix_spawnattr_init(&attributes)
+        defer { posix_spawnattr_destroy(&attributes) }
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP))
+
+        var pid = pid_t()
+        let arguments = [request.executablePath] + request.arguments
+        let environment = request.environment.map { "\($0.key)=\($0.value)" }
+        let status = withCStringArray(arguments) { argv in
+            withCStringArray(environment) { envp in
+                posix_spawn(&pid, request.executablePath, &actions, &attributes, argv, envp)
+            }
+        }
+        guard status == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(status), userInfo: [
+                NSLocalizedDescriptionKey: "\(request.executablePath): \(String(cString: strerror(status)))"
+            ])
+        }
+        let child = pid
+        Thread.detachNewThread { onTermination(Self.waitForExit(child)) }
     }
+
+    /// The exit status, or the signal number for a signalled child, as Foundation's `terminationStatus` reports.
+    private static func waitForExit(_ pid: pid_t) -> Int32 {
+        var status: Int32 = 0
+        while waitpid(pid, &status, 0) < 0, errno == EINTR {}
+        let signal = status & 0x7f
+        return signal == 0 ? (status >> 8) & 0xff : signal
+    }
+}
+
+private func withCStringArray<R>(_ strings: [String], _ body: ([UnsafeMutablePointer<CChar>?]) -> R) -> R {
+    let pointers = strings.map { strdup($0) } + [nil]
+    defer { pointers.forEach { free($0) } }
+    return body(pointers)
 }
 
 enum LinuxCustomCommandFailure: Sendable, Equatable {
@@ -196,7 +221,7 @@ final class LinuxCustomCommandOrigin {
     let launcher: any LinuxProcessLaunching
     private(set) var isActive = true
 
-    init(launcher: any LinuxProcessLaunching = FoundationLinuxProcessLauncher()) {
+    init(launcher: any LinuxProcessLaunching = SpawnLinuxProcessLauncher()) {
         self.launcher = launcher
     }
 

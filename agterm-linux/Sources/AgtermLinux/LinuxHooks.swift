@@ -1,5 +1,8 @@
 import Foundation
 import agtermCore
+#if canImport(Glibc)
+import Glibc
+#endif
 
 @MainActor var gHooks: LinuxHooks?
 
@@ -94,12 +97,10 @@ final class LinuxHookLauncher: HookLauncher {
         let data = try JSONEncoder().encode(event) + Data("\n".utf8)
         try process.run()
         DispatchQueue.global(qos: .utility).async {
-            do {
-                try input.fileHandleForWriting.write(contentsOf: data)
-            } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(EPIPE) {
-                // A hook may exit without reading its event; its exit status is the outcome.
-            } catch {
-                let detail = error.localizedDescription
+            // A hook may exit without reading its event; its exit status is the outcome. Written with
+            // write(2) because Foundation on Linux reports EPIPE as CocoaError 512, not a POSIX error.
+            if let failure = Self.write(data, to: input.fileHandleForWriting.fileDescriptor), failure != EPIPE {
+                let detail = String(cString: strerror(failure))
                 runOnMain { MainActor.assumeIsolated { onDeliveryFailure(detail) } }
             }
             try? input.fileHandleForWriting.close()
@@ -108,5 +109,20 @@ final class LinuxHookLauncher: HookLauncher {
             runOnMain { MainActor.assumeIsolated { onExit(status) } }
         }
         return process.processIdentifier
+    }
+
+    /// nil once every byte is written, otherwise the errno that stopped it.
+    nonisolated static func write(_ data: Data, to descriptor: Int32) -> Int32? {
+        data.withUnsafeBytes { raw -> Int32? in
+            guard let base = raw.baseAddress else { return nil }
+            var offset = 0
+            while offset < raw.count {
+                let count = Glibc.write(descriptor, base + offset, raw.count - offset)
+                if count < 0, errno == EINTR { continue }
+                guard count > 0 else { return count < 0 ? errno : EIO }
+                offset += count
+            }
+            return nil
+        }
     }
 }

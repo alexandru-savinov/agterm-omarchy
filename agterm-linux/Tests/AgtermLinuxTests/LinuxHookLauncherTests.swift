@@ -10,7 +10,7 @@ import agtermCore
 struct LinuxHookLauncherTests {
     init() { signal(SIGPIPE, SIG_IGN) }
 
-    @Test("an event over 64 KiB reaches the hook's stdin byte for byte")
+    @Test("an event over 64 KiB reaches the hook's stdin whole, newline-terminated")
     func largeEventBytes() throws {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(atPath: directory) }
@@ -18,9 +18,11 @@ struct LinuxHookLauncherTests {
         let run = try launch("cat > '\(directory)/event'", event: event)
         #expect(run.exits == [0])
         #expect(run.deliveryFailures.isEmpty)
-        let expected = try JSONEncoder().encode(event) + Data("\n".utf8)
-        #expect(expected.count > 64 * 1024)
-        #expect(FileManager.default.contents(atPath: directory + "/event") == expected)
+        let received = try #require(FileManager.default.contents(atPath: directory + "/event"))
+        #expect(received.count > 64 * 1024)
+        #expect(received.count == (try JSONEncoder().encode(event)).count + 1)
+        #expect(received.last == UInt8(ascii: "\n"))
+        #expect(try JSONDecoder().decode(ControlEvent.self, from: received.dropLast()) == event)
     }
 
     @Test("a hook that closes stdin early swallows EPIPE and exits once")
