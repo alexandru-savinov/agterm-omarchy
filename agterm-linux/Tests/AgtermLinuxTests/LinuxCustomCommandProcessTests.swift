@@ -175,6 +175,27 @@ struct LinuxCustomCommandProcessTests {
         #expect(failure.toast(commandName: command.name) == "command failed (exit 23): capture")
     }
 
+    @Test("the stderr capture is owner-only under umask 0 and unlinked after exit 0 and exit 23")
+    func stderrCapturePrivacy() throws {
+        let launcher = RecordingProcessLauncher()
+        let command = CustomCommand(name: "capture", command: "true", shortcut: "", errorHud: true)
+        for status in [Int32(0), 23] {
+            let previous = umask(0)
+            LinuxCustomCommandProcess.launch(
+                command: command, context: CommandContext(), baseEnvironment: [:], launcher: launcher) { _ in }
+            umask(previous)
+            guard case .stderrFile(let path) = try #require(launcher.requests.last).standardIO else {
+                Issue.record("errorHud did not request a stderr file")
+                return
+            }
+            var info = stat()
+            #expect(stat(path, &info) == 0)
+            #expect(info.st_mode & 0o777 == 0o600)
+            launcher.finish(status: status)
+            #expect(!FileManager.default.fileExists(atPath: path))
+        }
+    }
+
     @Test("closing and reopening the same window id cannot reactivate an old origin")
     @MainActor
     func controllerIncarnation() async {
@@ -204,15 +225,23 @@ struct LinuxCustomCommandProcessTests {
 private final class RecordingProcessLauncher: LinuxProcessLaunching, @unchecked Sendable {
     private let lock = NSLock()
     var error: (any Error)?
+    private var recorded: [LinuxProcessLaunchRequest] = []
     private var completions: [@Sendable (Int32) -> Void] = []
 
+    var requests: [LinuxProcessLaunchRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recorded
+    }
+
     func launch(
-        _: LinuxProcessLaunchRequest,
+        _ request: LinuxProcessLaunchRequest,
         onTermination: @escaping @Sendable (Int32) -> Void
     ) throws {
         lock.lock()
         defer { lock.unlock() }
         if let error { throw error }
+        recorded.append(request)
         completions.append(onTermination)
     }
 
