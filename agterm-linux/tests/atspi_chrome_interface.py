@@ -117,7 +117,8 @@ def verify_chrome_interface_controls(env):
         missing = [name for _, _, name in ELEMENTS if name not in reached | insensitive]
         assert not missing, f"Shift+Tab never reached {missing}"
         print(f"measured: Shift+Tab reached {sorted(reached)}; insensitive {sorted(insensitive)}")
-        ctx.close_search("after the Tab walk")
+        # The keyboard now sits on a chrome button, where the Ctrl+Shift+F toggle does not reach the bar;
+        # the open bar is harmless to the AT-SPI legs below.
 
         # AT-SPI activation reaches the same handlers a click does.
         for name, (effect, undo) in toggles.items():
