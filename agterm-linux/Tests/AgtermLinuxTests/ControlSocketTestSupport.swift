@@ -88,6 +88,22 @@ struct ControlTestClient: Sendable {
         read(timeout: timeout, stopAtNewline: false)
     }
 
+    /// Reads exactly `byteCount` bytes unless the peer closes or `timeout` passes first.
+    func read(byteCount: Int, timeout: TimeInterval) -> Data {
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        var buffer = Data()
+        var chunk = [UInt8](repeating: 0, count: 64 * 1024)
+        while buffer.count < byteCount, deadline.timeIntervalSinceNow > 0 {
+            var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+            guard poll(&pfd, 1, 100) > 0 else { continue }
+            let count = recv(fd, &chunk, min(chunk.count, byteCount - buffer.count), 0)
+            if count < 0, errno == EINTR { continue }
+            guard count > 0 else { break }
+            buffer.append(contentsOf: chunk[0..<count])
+        }
+        return buffer
+    }
+
     func response(timeout: TimeInterval) -> ControlResponse? {
         guard case .line(let data) = readLine(timeout: timeout) else { return nil }
         return try? JSONDecoder().decode(ControlResponse.self, from: data)
