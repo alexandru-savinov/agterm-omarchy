@@ -16,7 +16,9 @@ SEEDED_APPEARANCE = dict(fontFamily="Reset Probe Mono", fontSize=17, cursorStyle
                          theme="Dracula", darkTheme="Atom One Light", followSystemAppearance=True)
 SEEDED_UNRELATED = dict(sidebarFontSize=11, interfaceFontSize=15, activeStatusColorHex="#123456",
                         blockedStatusShape="square", toolbarMode="normal", notificationsEnabled=False,
-                        rightClickPaste=False, hiddenInterfaceElements=["focusFilter"], statusReset="anyKey")
+                        rightClickPaste=False, hiddenInterfaceElements=["focusFilter"], statusReset="anyKey",
+                        # Seeded so the restore-mode migration has nothing to add on the reset's save.
+                        restoreMode="none")
 DEFAULT_THEME = "agterm"
 
 

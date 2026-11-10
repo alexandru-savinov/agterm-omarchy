@@ -29,8 +29,16 @@ def verify_keymap_config_directory(env):
 
     process, app = launch(dict(env, AGTERM_ATSPI_OPEN_PREFERENCES="key-mapping"))
     try:
+        def without_paths(node):
+            # `keymap list` reports the LIVE directory's path beside the cached bindings; only the latter count.
+            if isinstance(node, dict):
+                return {key: without_paths(value) for key, value in node.items() if key != "path"}
+            if isinstance(node, list):
+                return [without_paths(value) for value in node]
+            return node
+
         def bindings():
-            return json.dumps(control_json(env, "keymap", "list", "--json")["result"])
+            return json.dumps(without_paths(control_json(env, "keymap", "list", "--json")["result"]), sort_keys=True)
 
         def shows(text):
             """The page shows `text` as a row subtitle, whether GTK exposes it as a label or a description."""

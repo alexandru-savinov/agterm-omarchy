@@ -56,7 +56,7 @@ def verify_chrome_interface_controls(env):
             node = wait_for(lambda name=name: button(name), f"the {name!r} button is not actionable")
             state = states(node)
             table.append(f"{raw}={name!r} {state}")
-            assert state.get("enabled") and state.get("sensitive"), f"{name!r} is not enabled: {state}"
+            assert state.get("showing") and state.get("sensitive"), f"{name!r} is not shown and sensitive: {state}"
             assert state.get("focusable"), f"{name!r} is not focusable, so Tab cannot reach it: {state}"
         print("measured: " + " | ".join(table))
 
