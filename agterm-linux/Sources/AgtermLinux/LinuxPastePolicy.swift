@@ -18,6 +18,6 @@ enum PasteDecoder {
         guard !lines.isEmpty, lines.allSatisfy({ $0.hasPrefix("file://") }) else { return nil }
         let paths = lines.compactMap { URL(string: $0)?.path }
         guard paths.count == lines.count else { return nil }
-        return paths.joined(separator: " ")
+        return paths.map(ShellEscape.path).joined(separator: " ")
     }
 }
