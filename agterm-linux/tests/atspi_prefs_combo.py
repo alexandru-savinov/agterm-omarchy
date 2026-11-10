@@ -10,6 +10,8 @@ import json
 import os
 import time
 
+from gi.repository import Atspi
+
 from atspi_smoke import (activate, collect, mouse_click, press_ctrl_comma, press_escape,
                          press_x11_key, preferences_window, type_x11_text, wait_for)
 
@@ -107,6 +109,48 @@ def label_counts(app):
     return counts
 
 
+def item_ancestry(app, text):
+    """(role, action count, has selection, focused) up from each label named `text`, for a failure report."""
+    chains = []
+    for node in collect(app, role="label", name=text):
+        chain, current = [], node
+        for _ in range(6):
+            try:
+                actions = current.get_action_iface()
+                chain.append((current.get_role_name(), actions.get_n_actions() if actions else 0,
+                              bool(current.get_selection_iface()),
+                              current.get_state_set().contains(Atspi.StateType.FOCUSED)))
+                current = current.get_parent()
+            except Exception:
+                break
+            if current is None:
+                break
+        chains.append(chain)
+    return chains
+
+
+def pick_through_atspi(app, text, landed):
+    """Select the popover item labelled `text` through its list's AT-SPI selection, else its own action."""
+    for node in collect(app, role="label", name=text):
+        child, parent = node, node.get_parent()
+        for _ in range(4):
+            if parent is None:
+                break
+            try:
+                selection = parent.get_selection_iface()
+                if selection and selection.select_child(child.get_index_in_parent()) and wait_for(
+                        landed, "", timeout=3, required=False):
+                    return True
+                actions = child.get_action_iface()
+                if actions and actions.get_n_actions() > 0 and actions.do_action(0) and wait_for(
+                        landed, "", timeout=3, required=False):
+                    return True
+            except Exception:
+                pass
+            child, parent = parent, parent.get_parent()
+    return False
+
+
 def choose_combo(env, app, process_id, title, values, index, landed, search=None):
     """Pick `values[index]` in the combo row `title`, then wait until `landed(settings)` holds.
 
@@ -135,14 +179,17 @@ def choose_combo(env, app, process_id, title, values, index, landed, search=None
         listed = added()
         text = search(listed)
         assert text, f"the {title!r} popover offered nothing to pick: {listed}"
+        if pick_through_atspi(app, text, lambda: landed(read_settings(env))):
+            return
         type_x11_text(text, process_id)
         time.sleep(1)
-        for keys in (["Return"], ["Down", "Return"], ["Down", "Home", "Return"]):
+        for keys in (["Return"], ["Down", "Return"]):
             for key in keys:
                 press_x11_key(key, process_id)
             if wait_for(lambda: landed(read_settings(env)), "", timeout=4, required=False):
                 return
-        raise AssertionError(f"searching {text!r} in {title!r} never reached settings.json: {read_settings(env)}")
+        raise AssertionError(f"searching {text!r} in {title!r} never reached settings.json: "
+                             f"{read_settings(env)}; popover item ancestry {item_ancestry(app, text)}")
     # Down enters the list wherever the popover put focus, Home pins the walk to the first value.
     press_x11_key("Down", process_id)
     press_x11_key("Home", process_id)

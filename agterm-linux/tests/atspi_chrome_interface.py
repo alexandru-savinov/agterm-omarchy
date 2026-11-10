@@ -79,7 +79,7 @@ def verify_chrome_interface_controls(env):
             return any(item["id"] == ctx.session_id and item.get("scratch") for item in ctx.sessions())
 
         toggles = {
-            "Toggle Split (Ctrl+Shift+D)": (has_split, ("session", "split", "off", "--target", ctx.session_id)),
+            "Toggle Split (Ctrl+Shift+D)": (has_split, ("session", "split", "close", "--target", ctx.session_id)),
             "Scratch Terminal (Ctrl+Shift+J)": (has_scratch, ("session", "scratch", "off", "--target", ctx.session_id)),
             "Quick Terminal (Ctrl+`)": (lambda: ctx.tree().get("quickVisible"), ("quick", "hide")),
         }
