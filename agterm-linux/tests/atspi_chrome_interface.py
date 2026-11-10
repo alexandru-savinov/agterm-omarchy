@@ -50,7 +50,12 @@ def verify_chrome_interface_controls(env):
         def session_count():
             return len(ctx.sessions())
 
-        # Every element is present, enabled and focusable with nothing hidden.
+        # Recent Sessions is insensitive with nothing to switch to, so give it a second session.
+        control_json(env, "session", "new", "--name", "chrome-second", "--json")
+        wait_for(lambda: len(ctx.sessions()) == 2, "the second session never appeared")
+        ctx.select_session(ctx.session_id, "the original session could not be reselected")
+
+        # Every element is present, sensitive and focusable with nothing hidden.
         table = []
         for raw, _, name in ELEMENTS:
             node = wait_for(lambda name=name: button(name), f"the {name!r} button is not actionable")

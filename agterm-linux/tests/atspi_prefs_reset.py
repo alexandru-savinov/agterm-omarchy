@@ -20,6 +20,7 @@ SEEDED_UNRELATED = dict(sidebarFontSize=11, interfaceFontSize=15, activeStatusCo
                         # Seeded so the restore-mode migration has nothing to add on the reset's save.
                         restoreMode="none")
 DEFAULT_THEME = "agterm"
+DEFAULT_FONT_SIZE = 13
 
 
 def font_sizes(node):
@@ -71,7 +72,8 @@ def verify_appearance_reset(env):
             assert after.get(key) is None, f"Reset left {key} = {after.get(key)!r}"
         assert unrelated(after) == kept, (
             f"Reset changed unrelated keys: before {kept}, after {unrelated(after)}")
-        wait_for(lambda: session_font() != zoomed, f"Reset left the session font zoomed at {zoomed}")
+        wait_for(lambda: session_font() == DEFAULT_FONT_SIZE,
+                 f"Reset left the session font at {session_font()} (zoomed {zoomed}), not {DEFAULT_FONT_SIZE}")
         with open(os.path.join(env["AGTERM_STATE_DIR"], "workspaces.json"), encoding="utf-8") as source:
             saved = json.load(source)
         assert not [size for size in font_sizes(saved) if size is not None], (

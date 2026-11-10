@@ -353,6 +353,18 @@ final class GhosttySurface: PaneRoleMutableSurface {
         _ = action.withCString { ghostty_surface_binding_action(surface, $0, UInt(action.utf8.count)) }
     }
 
+    /// Drop a live font zoom back to the configured default without pinning that default on the session:
+    /// the CELL_SIZE report it triggers matches `pendingFontRestore` and is swallowed by `reportFontSize`.
+    func resetFontZoomToDefault() {
+        guard let current = currentFontSize() else { return }
+        let target = linuxSettingsStore().load().fontSize ?? DashboardLayout.ghosttyDefaultFontSize
+        guard abs(current - target) > 0.5, let surface else { return }
+        pendingFontRestore = target
+        let action = "set_font_size:\(String(format: "%g", target))"
+        let applied = action.withCString { ghostty_surface_binding_action(surface, $0, UInt(action.utf8.count)) }
+        if !applied { performBindingAction(FontBindingAction.reset) }
+    }
+
     /// Inject text as keystrokes (the control channel's session.type): printable runs go
     /// as key-with-text, each newline as a Return keypress (keycode 36 = XKB Return). NOT
     /// ghostty_surface_text, whose bracketed-paste wrapping suppresses Enter.

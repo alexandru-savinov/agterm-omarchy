@@ -433,6 +433,11 @@ extension AppController {
         try? linuxSettingsStore().save(settings)
         reloadConfig()
         library.resetSessionFontSizesAllWindows()
+        // The base config update leaves a live ⌘+/⌘− zoom in place, so clearing the pins alone would leave
+        // every zoomed surface at its old size with nothing recording it.
+        for controller in gWindows.values {
+            for surface in controller.configurableSurfaces { surface.resetFontZoomToDefault() }
+        }
         rebuildSettings(page: .appearance)
     }
 

@@ -48,8 +48,10 @@ def verify_unavailable_font_family(env):
 
         open_preferences(app, process.pid, "Appearance")
         if not wait_for(lambda: font_row_shows(app, "Default"), "", required=False):
-            raise AssertionError(f"the Font row shows {row_texts(preferences_row(app, 'Font'))} for a missing "
-                                 "family, not 'Default'")
+            row = preferences_row(app, "Font")
+            shape = [(item.get_role_name(), item.get_name()) for item in collect(row)] if row else None
+            raise AssertionError(f"the Font row shows {row_texts(row) if row else None} for a missing family, "
+                                 f"not 'Default'; row subtree {shape}")
         time.sleep(NEGATIVE_SETTLE_SECONDS)
         with open(settings_path(env), "rb") as source:
             assert source.read() == before, "opening Appearance rewrote settings.json"
