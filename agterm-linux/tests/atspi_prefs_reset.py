@@ -74,8 +74,11 @@ def verify_appearance_reset(env):
             f"Reset changed unrelated keys: before {kept}, after {unrelated(after)}")
         wait_for(lambda: session_font() == DEFAULT_FONT_SIZE,
                  f"Reset left the session font at {session_font()} (zoomed {zoomed}), not {DEFAULT_FONT_SIZE}")
-        with open(os.path.join(env["AGTERM_STATE_DIR"], "workspaces.json"), encoding="utf-8") as source:
-            saved = json.load(source)
+        try:
+            with open(os.path.join(env["AGTERM_STATE_DIR"], "workspaces.json"), encoding="utf-8") as source:
+                saved = json.load(source)
+        except FileNotFoundError:
+            saved = {}   # nothing pinned since launch, so nothing was saved
         assert not [size for size in font_sizes(saved) if size is not None], (
             "Reset left a per-session font size in the saved tree")
 

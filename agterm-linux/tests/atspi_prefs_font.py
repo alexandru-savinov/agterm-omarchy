@@ -58,7 +58,8 @@ def verify_unavailable_font_family(env):
 
         families = row_texts(preferences_row(app, "Font"))
         choose_combo(env, app, process.pid, "Font", ["Default"], 1,
-                     lambda settings: settings.get("fontFamily") not in (None, MISSING))
+                     lambda settings: settings.get("fontFamily") not in (None, MISSING),
+                     search=lambda listed: next((name for name in listed if name not in ("Default", MISSING)), None))
         chosen = read_settings(env)["fontFamily"]
         close_preferences(app, process.pid)
         print(f"measured: chose available family {chosen!r} (row labels before: {families})")
