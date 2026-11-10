@@ -7,7 +7,7 @@ sized normally: the only thing left that can change its grid between two reads i
 import json
 import os
 
-from atspi_smoke import (actionable, activate, control_json, launch, press_escape, press_return, stop,
+from atspi_smoke import (activate, named, control_json, launch, press_escape, press_return, stop,
                          wait_for, window_list, window_tree)
 from atspi_prefs_combo import read_settings
 from atspi_zoom_ratio import pane_grid
@@ -108,7 +108,8 @@ def verify_dashboard_font_restore(env):
         assert_restored("Escape")
 
         open_dashboard(pinned, default)
-        activate(wait_for(lambda: actionable(app, "Exit Dashboard"), "the dashboard has no Exit Dashboard button"))
+        activate(wait_for(lambda: named(app, "Exit Dashboard", role="button"),
+                          "the dashboard has no Exit Dashboard button"))
         assert_restored("the close button")
 
         # Reconciliation closes the dashboard and reopens it for the survivors, so the member that goes

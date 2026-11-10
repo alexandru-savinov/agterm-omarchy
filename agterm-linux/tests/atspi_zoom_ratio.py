@@ -140,7 +140,8 @@ def verify_zoom_split_ratio(env):
 
         # Replacement split: the restore queued for the old paned must not be applied to the new host.
         zoom("primary")
-        control_json(env, "session", "split", "off", "--target", session_id, "--window", window_id, "--json")
+        # `split off` only hides the pane; `split close` destroys it, which is what replaces its host.
+        control_json(env, "session", "split", "close", "--target", session_id, "--window", window_id, "--json")
         wait_for(lambda: not session().get("hasSplit"), "the split did not close under zoom")
         control_json(env, "session", "split", "on", "--target", session_id, "--window", window_id, "--json")
         wait_for(lambda: session().get("hasSplit"), "the split did not reopen under zoom")
