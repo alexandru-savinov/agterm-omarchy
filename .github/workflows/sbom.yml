@@ -1,0 +1,42 @@
+name: Release SBOM
+
+# Called by each release workflow before it publishes, so the SBOM ships, and is attested, with the assets.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Tag or commit to describe
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: Generate SPDX SBOM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: spdx-json
+          output-file: ${{ runner.temp }}/sbom/sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Require the pinned Swift packages in the SBOM
+        env:
+          SBOM: ${{ runner.temp }}/sbom/sbom.spdx.json
+        run: |
+          jq -e '[.packages[].name] | index("swift-argument-parser") and index("tomldecoder")' "$SBOM" > /dev/null
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sbom
+          path: ${{ runner.temp }}/sbom/sbom.spdx.json
+          if-no-files-found: error
+          retention-days: 14

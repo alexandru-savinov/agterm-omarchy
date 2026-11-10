@@ -86,4 +86,26 @@ printf 'unexpected\n' > "$FIXTURE/agterm-v0.33.1-x86_64.AppImage"
 must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
   "$VERIFY" linux-v0.33.1
 
+rm -rf "$FIXTURE"
+mkdir -p "$FIXTURE"
+sbom_payloads=(
+  agterm-linux-v0.34.0-x86_64.tar.gz
+  agterm-linux-v0.34.0-x86_64.deb
+  agterm-linux-v0.34.0-x86_64.rpm
+)
+for artifact in "${sbom_payloads[@]}"; do
+  printf 'fixture for %s\n' "$artifact" > "$FIXTURE/$artifact"
+done
+(
+  cd "$FIXTURE"
+  sha256sum "${sbom_payloads[@]}" > agterm-linux-v0.34.0-SHA256SUMS
+)
+must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+  "$VERIFY" linux-v0.34.0
+printf '{}\n' > "$FIXTURE/agterm-linux-v0.34.0.spdx.json"
+AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+  "$VERIFY" linux-v0.34.0 >/dev/null
+must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+  AGTERM_TEST_FAIL_ASSET=agterm-linux-v0.34.0.spdx.json "$VERIFY" linux-v0.34.0
+
 echo "→ public release verifier accepts the authenticated historical and current artifact sets"

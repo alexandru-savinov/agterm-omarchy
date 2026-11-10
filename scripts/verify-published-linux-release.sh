@@ -33,6 +33,10 @@ if [[ "$(printf '%s\n' "$VERSION" '0.33.1' | sort -V | head -n 1)" == "$VERSION"
   expected+=("agterm-v${VERSION}-x86_64.AppImage")
 fi
 payloads=("${expected[@]}")
+# Releases after 0.33.1+linux.1 carry an attested SPDX SBOM outside the checksum manifest.
+if [[ "$(printf '%s\n' "$VERSION" '0.33.1+linux.1' | sort -V | tail -n 1)" == "$VERSION" && "$VERSION" != 0.33.1+linux.1 ]]; then
+  expected+=("agterm-linux-v${VERSION}.spdx.json")
+fi
 expected+=("agterm-linux-v${VERSION}-SHA256SUMS")
 
 if [[ -n "$SOURCE" ]]; then
