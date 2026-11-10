@@ -41,9 +41,12 @@ enum LinuxRemoteCommand {
             return RemoteCommandResult(status: 1, stdout: "", stderr: String(describing: error))
         }
         if finished.wait(timeout: .now() + deadline) == .timedOut {
-            process.terminate()
+            // Foundation spawns the child as a group leader and reports its exit only once every holder of an
+            // inherited status socket has closed it, so a surviving descendant would hold this path open.
+            let group = -process.processIdentifier
+            _ = Glibc.kill(group, SIGTERM)
             if finished.wait(timeout: .now() + terminationGrace) == .timedOut {
-                _ = Glibc.kill(process.processIdentifier, SIGKILL)
+                _ = Glibc.kill(group, SIGKILL)
                 process.waitUntilExit()
             }
             output.closeForReading()

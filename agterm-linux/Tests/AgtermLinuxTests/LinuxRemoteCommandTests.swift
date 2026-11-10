@@ -71,12 +71,12 @@ struct LinuxRemoteCommandTests {
         #expect(overStderr.status == LinuxRemoteCommand.outputLimitStatus)
     }
 
-    @Test("a TERM-ignoring child is killed after the grace, and its descendant is recorded")
+    @Test("a TERM-ignoring child and its descendant are killed after the grace")
     func termIgnoringChild() throws {
         try expectTimeout(script: "trap '' TERM; sleep 30 & echo $! > \"$0\"; wait", minimum: 0.75)
     }
 
-    @Test("a backgrounded descendant does not delay the timeout, and is recorded")
+    @Test("a backgrounded descendant neither delays the timeout nor outlives it")
     func backgroundedDescendant() throws {
         try expectTimeout(script: "sleep 30 & echo $! > \"$0\"; sleep 30", minimum: 0.5)
     }
@@ -94,9 +94,7 @@ struct LinuxRemoteCommandTests {
 
         let pid = try #require(readPID(pidFile))
         defer { if isLiveSleep(pid) { _ = Glibc.kill(pid, SIGKILL) } }
-        withKnownIssue("timeout signals only the direct child, so a descendant outlives it (#143)") {
-            #expect(!isLiveSleep(pid))
-        }
+        #expect(!isLiveSleep(pid))
     }
 }
 
@@ -112,7 +110,7 @@ private func runIsolated(_ argv: [String], deadline: TimeInterval = 10, root: St
 }
 
 private func makeDirectory() throws -> String {
-    var template = Array("/tmp/agterm-remote-test-XXXXXX".utf8CString)
+    var template = Array("/tmp/agterm-rc-test-XXXXXX".utf8CString)
     guard mkdtemp(&template) != nil else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
     return String(decoding: template.dropLast().map { UInt8(bitPattern: $0) }, as: UTF8.self)
 }
