@@ -218,7 +218,9 @@ struct ControlServerOverlayJobTests {
         let helper = try fixture.claim(job)
         #expect(helper.frame() == .context(fixture.context))
 
-        helper.client.send(Data("not json\n".utf8) + (try OverlayJobFrame.exited(0).line()))
+        let exited = try OverlayJobFrame.exited(0).line()
+
+        helper.client.send(Data("not json\n".utf8) + exited)
 
         #expect(pumpGLib(timeout: 10) { fixture.server.overlayJobStreams[job] == nil })
         #expect(fixture.state(job) == .finished(.unknown))
