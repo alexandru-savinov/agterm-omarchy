@@ -335,6 +335,27 @@ class SessionCollisionTests(unittest.TestCase):
                                                            "2026-10-30T11:10:00Z")]))
                 self.assertNotIn("Name collision", " ".join(notes.values()))
 
+    def test_two_sessions_under_one_name_on_one_task_are_flagged(self):
+        for first in ("working", "blocked", "ready-for-review"):
+            with self.subTest(first=first):
+                result = self._snapshot([(7, "codex", first, "a1b2", "2026-10-30T11:00:00Z"),
+                                         (7, "codex", "working", "c3d4", "2026-10-30T11:10:00Z")])
+                self.assertIn("Name collision: shared/codex posted from 2 sessions", self.notes(result)[7])
+                self.assertEqual(len(result["claims"][0]["history"]), 2)
+
+    def test_one_task_repeats_restarts_and_completed_sessions_are_not_a_collision(self):
+        for reports in ([(7, "codex", "working", "a1b2", "2026-10-30T11:00:00Z"),
+                         (7, "codex", "blocked", "a1b2", "2026-10-30T11:10:00Z")],
+                        [(7, "codex", "working", "a1b2", "2026-10-30T07:30:00Z"),
+                         (7, "codex", "working", "c3d4", "2026-10-30T11:10:00Z")],
+                        [(7, "codex", "working", "a1b2", "2026-10-30T10:00:00Z"),
+                         (7, "codex", "complete", "a1b2", "2026-10-30T11:00:00Z"),
+                         (7, "codex", "working", "c3d4", "2026-10-30T11:10:00Z")],
+                        [(7, "codex", "working", "a1b2", "2026-10-30T11:00:00Z"),
+                         (7, "codex", "working", None, "2026-10-30T11:10:00Z")]):
+            with self.subTest(reports=reports):
+                self.assertNotIn("Name collision", " ".join(self.notes(self._snapshot(reports)).values()))
+
     def test_different_names_with_different_sessions_are_not_a_collision(self):
         notes = self.notes(self._snapshot([(7, "alpha", "working", "a1b2", "2026-10-30T11:00:00Z"),
                                            (8, "beta", "working", "c3d4", "2026-10-30T11:10:00Z")]))

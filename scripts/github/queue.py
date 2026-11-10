@@ -148,8 +148,16 @@ def snapshot(issues, comments, now=None):
     sessions_by_identity = {}
     for claim in claims:
         latest = claim["latest"]
+        sessions = sessions_by_identity.setdefault((claim["account"].lower(), claim["name"]), set())
         if latest["state"] not in (None, "complete") and not latest["stale"] and latest["session"]:
-            sessions_by_identity.setdefault((claim["account"].lower(), claim["name"]), set()).add(latest["session"])
+            sessions.add(latest["session"])
+        # On one task a second session supersedes `latest`, so an earlier session counts while its own
+        # newest check-in there is non-complete and under the stale age; a restart ages out by itself.
+        newest_by_session = {record["session"]: record for record in claim["history"] if record["session"]}
+        for session, record in newest_by_session.items():
+            if (record is not latest and now is not None and record["state"] not in (None, "complete")
+                    and (now - parse_time(record["created_at"])).total_seconds() <= STALE_AFTER_SECONDS):
+                sessions.add(session)
     collisions = [(account, name, len(sessions))
                   for (account, name), sessions in sorted(sessions_by_identity.items()) if len(sessions) > 1]
     for task in tasks:
