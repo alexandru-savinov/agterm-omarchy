@@ -7474,9 +7474,6 @@ def main():
     if scenario is None:
         failures = []
         for child_scenario in (
-            "session-switch-commit", "zoom-split-ratio", "zoom-preference-changes", "zoom-primary-promotion",
-            "dashboard-font-restore", "dashboard-delayed-clicks",
-        ) if os.environ.get("AGTERM_WIP_NARROW", "1") else (
             "normal", "upstream-controls", "html-overlay", "live-restart", "dashboard-modal", "context-menu",
             "window-key-dispatch",
             "split-exit", "split-primary-exit", "window-ownership", "preferences-pages",

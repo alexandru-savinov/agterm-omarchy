@@ -8,9 +8,10 @@ extents are relative to that surface and a pointer aimed through `mouse_click` w
 
 import json
 import os
+import time
 
 from atspi_smoke import (activate, collect, mouse_click, press_ctrl_comma, press_escape,
-                         press_x11_key, preferences_window, wait_for)
+                         press_x11_key, preferences_window, type_x11_text, wait_for)
 
 
 def settings_path(env):
@@ -98,9 +99,22 @@ def preferences_row(app, title):
     return rows[0] if rows else None
 
 
-def choose_combo(env, app, process_id, title, values, index, landed):
-    """Pick `values[index]` in the combo row `title`, then wait until `landed(settings)` holds."""
+def label_counts(app):
+    counts = {}
+    for node in collect(app, role="label"):
+        name = node.get_name() or ""
+        counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def choose_combo(env, app, process_id, title, values, index, landed, search=None):
+    """Pick `values[index]` in the combo row `title`, then wait until `landed(settings)` holds.
+
+    `search(new_labels)` is for a combo with a search entry (libadwaita adds one past ten values): it gets
+    the labels the popover added and returns the text to type, and the first filtered value is taken.
+    """
     row = wait_for(lambda: preferences_row(app, title), f"Preferences has no {title!r} row")
+    before = label_counts(app)
     try:
         has_action = bool(row.get_action_iface() and row.get_action_iface().get_n_actions() > 0)
     except Exception:
@@ -110,11 +124,25 @@ def choose_combo(env, app, process_id, title, values, index, landed):
     else:
         mouse_click(lambda: preferences_row(app, title), process_id, button="left")
 
-    def listed():
-        # The row itself shows its current value; an open popover adds one label per value.
-        return sum(1 for node in collect(app, role="label") if node.get_name() in values) >= 2
+    def added():
+        after = label_counts(app)
+        return [name for name, count in after.items() if name and count > before.get(name, 0)]
 
-    wait_for(listed, f"activating the {title!r} row did not pop up its list")
+    wait_for(lambda: len(added()) >= (1 if search else 2) or
+             sum(1 for node in collect(app, role="label") if node.get_name() in values) >= 2,
+             f"activating the {title!r} row did not pop up its list")
+    if search:
+        listed = added()
+        text = search(listed)
+        assert text, f"the {title!r} popover offered nothing to pick: {listed}"
+        type_x11_text(text, process_id)
+        time.sleep(1)
+        for keys in (["Return"], ["Down", "Return"], ["Down", "Home", "Return"]):
+            for key in keys:
+                press_x11_key(key, process_id)
+            if wait_for(lambda: landed(read_settings(env)), "", timeout=4, required=False):
+                return
+        raise AssertionError(f"searching {text!r} in {title!r} never reached settings.json: {read_settings(env)}")
     # Down enters the list wherever the popover put focus, Home pins the walk to the first value.
     press_x11_key("Down", process_id)
     press_x11_key("Home", process_id)
@@ -122,4 +150,4 @@ def choose_combo(env, app, process_id, title, values, index, landed):
         press_x11_key("Down", process_id)
     press_x11_key("Return", process_id)
     wait_for(lambda: landed(read_settings(env)),
-             f"choosing {values[index]!r} for {title!r} never reached settings.json: {read_settings(env)}")
+             f"choosing entry {index} of {title!r} never reached settings.json: {read_settings(env)}")
