@@ -7,15 +7,18 @@ import Glibc
 enum LinuxRemoteCommand {
     static let treeDeadline: TimeInterval = 8
     private static let terminationGrace: TimeInterval = 0.25
+    /// Per stream. Above Ghostty's default 10 MB scrollback so a full `zmx screen --all` still fits.
+    static let outputLimit = 32 * 1024 * 1024
+    static let outputLimitStatus: Int32 = 1
 
-    static func run(_ argv: [String], deadline: TimeInterval,
-                    input: Data? = nil) -> RemoteCommandResult {
+    static func run(_ argv: [String], deadline: TimeInterval, input: Data? = nil,
+                    outputLimit: Int = outputLimit, temporaryDirectory: String = "/tmp") -> RemoteCommandResult {
         guard !argv.isEmpty else {
             return RemoteCommandResult(status: 127, stdout: "", stderr: "no command to run")
         }
-        let output = TemporaryOutput()
-        let errors = TemporaryOutput()
-        let inputFile = input.flatMap(TemporaryInput.init)
+        let output = TemporaryOutput(directory: temporaryDirectory)
+        let errors = TemporaryOutput(directory: temporaryDirectory)
+        let inputFile = input.flatMap { TemporaryInput(data: $0, directory: temporaryDirectory) }
         guard let output, let errors else {
             return RemoteCommandResult(status: 1, stdout: "", stderr: "could not create command output files")
         }
@@ -45,12 +48,17 @@ enum LinuxRemoteCommand {
             }
             output.closeForReading()
             errors.closeForReading()
-            return RemoteCommandResult(status: 124, stdout: output.read(), stderr: "remote command timed out")
+            return RemoteCommandResult(status: 124, stdout: output.read(limit: outputLimit) ?? "",
+                                       stderr: "remote command timed out")
         }
         output.closeForReading()
         errors.closeForReading()
-        return RemoteCommandResult(status: process.terminationStatus,
-                                   stdout: output.read(), stderr: errors.read())
+        // Whole failure, not truncation: callers parse stdout, and a cut tree or screen would still parse.
+        guard let stdout = output.read(limit: outputLimit), let stderr = errors.read(limit: outputLimit) else {
+            return RemoteCommandResult(status: outputLimitStatus, stdout: "",
+                                       stderr: "remote command output exceeded \(outputLimit) bytes")
+        }
+        return RemoteCommandResult(status: process.terminationStatus, stdout: stdout, stderr: stderr)
     }
 
 }
@@ -59,8 +67,8 @@ private final class TemporaryInput {
     let path: String
     let handle: FileHandle
 
-    init?(data: Data) {
-        var template = Array("/tmp/agterm-input-XXXXXX".utf8CString)
+    init?(data: Data, directory: String) {
+        var template = Array("\(directory)/agterm-input-XXXXXX".utf8CString)
         let descriptor = mkstemp(&template)
         guard descriptor >= 0 else { return nil }
         path = String(decoding: template.dropLast().map { UInt8(bitPattern: $0) }, as: UTF8.self)
@@ -93,8 +101,8 @@ private final class TemporaryOutput {
     let path: String
     let handle: FileHandle
 
-    init?() {
-        var template = Array("/tmp/agterm-remote-XXXXXX".utf8CString)
+    init?(directory: String) {
+        var template = Array("\(directory)/agterm-remote-XXXXXX".utf8CString)
         let descriptor = mkstemp(&template)
         guard descriptor >= 0 else { return nil }
         path = String(decoding: template.dropLast().map { UInt8(bitPattern: $0) }, as: UTF8.self)
@@ -111,8 +119,11 @@ private final class TemporaryOutput {
         try? handle.close()
     }
 
-    func read() -> String {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return "" }
-        return String(decoding: data, as: UTF8.self)
+    /// nil when the file holds more than `limit` bytes; never reads more than one byte past it.
+    func read(limit: Int) -> String? {
+        guard let reader = FileHandle(forReadingAtPath: path) else { return "" }
+        defer { try? reader.close() }
+        guard let data = (try? reader.read(upToCount: limit + 1)) ?? nil else { return "" }
+        return data.count > limit ? nil : String(decoding: data, as: UTF8.self)
     }
 }
