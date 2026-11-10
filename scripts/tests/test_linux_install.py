@@ -28,6 +28,7 @@ class PersonalInstallTests(unittest.TestCase):
         self.env = dict(os.environ, HOME=str(self.work / 'home'), XDG_DATA_HOME=str(self.work / 'data'))
         self.env.pop('PREFIX', None)
         self.env.pop('SWIFT', None)
+        self.env.pop('XDG_CONFIG_HOME', None)
         self.stage = self.repo / 'scripts/stage-linux.sh'
         self.stage.write_text('''#!/usr/bin/env bash
 set -eu
