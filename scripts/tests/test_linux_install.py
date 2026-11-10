@@ -40,6 +40,8 @@ printf library > "$1/lib/libswiftCore.so"
 printf theme > "$1/share/ghostty/theme"
 printf entry > "$1/share/terminfo/x/xterm-ghostty"
 printf icon > "$1/share/pixmaps/io.github.melonamin.agterm.png"
+printf icon > "$1/share/icons/hicolor/scalable/actions/agterm-quick-symbolic.svg"
+[[ "${OLD_ICON:-0}" != 1 ]] || printf icon > "$1/share/icons/hicolor/scalable/actions/agterm-old-symbolic.svg"
 printf hook > "$1/share/agterm/agent-status/hook.sh"
 cat > "$1/share/applications/io.github.melonamin.agterm.desktop" <<'DESKTOP'
 [Desktop Entry]
@@ -158,6 +160,117 @@ DESKTOP
     def test_conflicting_renderer_options_do_not_create_install(self):
         self.install('--no-build', '--software-rendering', '--default-rendering', success=False)
         self.assertFalse(self.prefix.exists())
+
+    def files(self):
+        return sorted(str(path.relative_to(self.prefix)) for path in self.prefix.rglob('*'))
+
+    def test_uninstall_leaves_the_prefix_empty(self):
+        self.install('--no-build')
+        for cache in ('share/icons/hicolor/icon-theme.cache', 'share/applications/mimeinfo.cache'):
+            (self.prefix / cache).write_text('cache')
+        self.assertIn('share/agterm/INSTALLED_FILES', [str(path.relative_to(self.prefix / 'lib/agterm'))
+                                                      for path in (self.prefix / 'lib/agterm').rglob('*')])
+        result = self.install('--uninstall')
+        self.assertEqual(self.files(), [])
+        self.assertTrue(self.prefix.is_dir())
+        self.assertIn('renderer choice is not kept', result.stdout)
+
+    def test_uninstall_keeps_unrelated_files_state_and_config(self):
+        self.install('--no-build')
+        unrelated = ['share/pixmaps/unrelated.png', 'share/icons/hicolor/scalable/actions/other-symbolic.svg',
+                     'share/icons/hicolor/icon-theme.cache', 'bin/other-tool']
+        for name in unrelated:
+            (self.prefix / name).write_text('preserve')
+        state = Path(self.env['XDG_DATA_HOME']) / 'agterm'
+        config = Path(self.env['HOME']) / '.config/agterm'
+        for directory in (state, config):
+            directory.mkdir(parents=True)
+            (directory / 'keep').write_text('user')
+        self.install('--uninstall')
+        self.assertEqual(self.files(), sorted(['bin', 'share', 'share/icons', 'share/icons/hicolor',
+                                               'share/icons/hicolor/scalable',
+                                               'share/icons/hicolor/scalable/actions', 'share/pixmaps',
+                                               *unrelated]))
+        self.assertTrue((state / 'keep').exists())
+        self.install('--no-build')
+        result = self.install('--uninstall', '--purge-state')
+        self.assertFalse(state.exists())
+        self.assertTrue((config / 'keep').exists())
+        self.assertIn(f'Kept configuration in {config}', result.stdout)
+
+    def test_uninstall_of_an_install_without_manifest_uses_its_payload(self):
+        self.install('--no-build')
+        (self.prefix / 'lib/agterm/share/agterm/INSTALLED_FILES').unlink()
+        self.install('--uninstall')
+        self.assertEqual(self.files(), [])
+
+    def test_uninstall_refuses_a_manifest_entry_outside_installer_paths(self):
+        self.install('--no-build')
+        outside = self.work / 'outside'
+        outside.write_text('preserve')
+        manifest = self.prefix / 'lib/agterm/share/agterm/INSTALLED_FILES'
+        for entry in ('bin/../../outside', '/etc/passwd', 'lib/agterm/bin/zmx'):
+            with self.subTest(entry=entry):
+                manifest.write_text(f'bin/agtermctl\n{entry}\n')
+                result = self.install('--uninstall', success=False)
+                self.assertIn('refusing manifest entry', result.stderr)
+                self.assertTrue((self.prefix / 'bin/agtermctl').is_symlink())
+                self.assertTrue((self.prefix / 'lib/agterm/bin/zmx').exists())
+        self.assertEqual(outside.read_text(), 'preserve')
+
+    def test_uninstall_option_errors_change_nothing(self):
+        for args in (('--uninstall',), ('--purge-state',), ('--uninstall', '--no-build'),
+                     ('--uninstall', '--software-rendering'), ('--uninstall', '--payload', str(self.work))):
+            with self.subTest(args=args):
+                self.install(*args, success=False)
+                self.assertFalse(self.prefix.exists())
+
+    def test_reinstall_removes_icons_the_new_payload_dropped(self):
+        old = self.prefix / 'share/icons/hicolor/scalable/actions/agterm-old-symbolic.svg'
+        self.env['OLD_ICON'] = '1'
+        self.install('--no-build')
+        self.assertTrue(old.exists())
+        del self.env['OLD_ICON']
+        self.install('--no-build')
+        self.assertFalse(old.exists())
+        self.assertTrue((old.parent / 'agterm-quick-symbolic.svg').exists())
+
+    def test_payload_installs_an_extracted_archive_without_building_or_staging(self):
+        archive = self.work / 'extracted/agterm-stage'
+        subprocess.run(['bash', str(self.stage), str(archive)], check=True)
+        (archive / 'bin/agterm-linux').chmod(0o755)
+        self.env.update(FAIL_STAGE='1', SWIFT=str(self.work / 'missing-swift'))
+        self.install('--payload', str(archive), '--software-rendering')
+        payload = self.prefix / 'lib/agterm'
+        self.assertEqual((payload / 'bin/zmx').read_text(), 'fixture\n')
+        self.assertEqual((payload / 'share/agterm/RENDERER').read_text(), 'software\n')
+        self.assertFalse((archive / 'share/agterm/RENDERER').exists())
+        self.assertIn(f'Exec="{self.prefix}/bin/agterm-linux"\n',
+                      (self.prefix / 'share/applications/io.github.melonamin.agterm.desktop').read_text())
+        self.install('--uninstall')
+        self.assertEqual(self.files(), [])
+
+    def test_payload_must_be_an_agterm_payload(self):
+        for args in (('--payload', str(self.work)), ('--payload',), ('--payload', str(self.work), '--no-build')):
+            with self.subTest(args=args):
+                self.install(*args, success=False)
+                self.assertFalse(self.prefix.exists())
+
+    def test_desktop_entry_gets_try_exec_in_the_main_group_only(self):
+        self.install('--no-build')
+        lines = (self.prefix / 'share/applications/io.github.melonamin.agterm.desktop').read_text().splitlines()
+        self.assertEqual([line for line in lines if line.startswith('TryExec=')],
+                         [f'TryExec={self.prefix}/bin/agterm-linux'])
+        self.assertLess(lines.index(f'TryExec={self.prefix}/bin/agterm-linux'), lines.index('[Desktop Action QuickTerminal]'))
+
+    def test_warns_when_the_prefix_is_off_the_xdg_data_path(self):
+        warning = 'is not on XDG_DATA_HOME or XDG_DATA_DIRS'
+        self.assertIn(warning, self.install('--no-build').stderr)
+        self.env['XDG_DATA_DIRS'] = f'/usr/share:{self.prefix}/share'
+        self.assertNotIn(warning, self.install('--no-build').stderr)
+        del self.env['XDG_DATA_DIRS']
+        self.env['XDG_DATA_HOME'] = str(self.prefix / 'share')
+        self.assertNotIn(warning, self.install('--no-build').stderr)
 
 
 class PayloadStageTests(unittest.TestCase):
