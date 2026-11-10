@@ -7468,8 +7468,9 @@ def main():
             "sidebar-incremental",
             "sidebar-multiselect",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
+            "window-close-cancel", "workspace-focus-filters", "quick-card-geometry",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
-            "theme-many-sessions", "window-close-cancel", "workspace-focus-filters", "quick-card-geometry",
+            "theme-many-sessions",
         ):
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             result = subprocess.run([sys.executable, __file__], env=child_env)
@@ -7608,6 +7609,15 @@ def main():
             verify_chrome_focus_popovers(env)
         elif scenario == "auto-follow":
             verify_auto_follow(env, state)
+        elif scenario == "window-close-cancel":
+            from atspi_window_lifecycle import verify_window_close_cancel
+            verify_window_close_cancel(env, state)
+        elif scenario == "workspace-focus-filters":
+            from atspi_window_lifecycle import verify_workspace_focus_filters
+            verify_workspace_focus_filters(env)
+        elif scenario == "quick-card-geometry":
+            from atspi_window_lifecycle import verify_quick_card_geometry
+            verify_quick_card_geometry(env, state)
         elif scenario == "recent-clear":
             verify_recent_clear(env)
         elif scenario == "control-picker":
@@ -7639,15 +7649,6 @@ def main():
         elif scenario == "theme-many-sessions":
             from atspi_theme_many_sessions import verify_theme_many_sessions
             verify_theme_many_sessions(env)
-        elif scenario == "window-close-cancel":
-            from atspi_window_lifecycle import verify_window_close_cancel
-            verify_window_close_cancel(env, state)
-        elif scenario == "workspace-focus-filters":
-            from atspi_window_lifecycle import verify_workspace_focus_filters
-            verify_workspace_focus_filters(env)
-        elif scenario == "quick-card-geometry":
-            from atspi_window_lifecycle import verify_quick_card_geometry
-            verify_quick_card_geometry(env, state)
         else:
             raise ValueError(f"unknown AT-SPI scenario: {scenario}")
         print(f"PASS: {scenario}")
