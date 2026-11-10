@@ -49,8 +49,8 @@ private struct OwnedStream {
         inode = try #require(socketInode(mine))
         peer = ControlTestClient(fd: theirs)
         owner = LinuxControlStreamOwner(descriptor: mine)
-        let probe = probe
-        owner.start(onLine: { probe.line($0) }, onClose: { probe.closed() })
+        let sink = probe
+        owner.start(onLine: { sink.line($0) }, onClose: { sink.closed() })
     }
 
     /// The owner's socket is gone: its number is free or now names a different file.
@@ -67,7 +67,25 @@ private func socketInode(_ fd: Int32) -> UInt64? {
     return UInt64(info.st_ino)
 }
 
-private func frame(_ index: Int) -> Data { Data(String(format: "frame-%03d\n", index).utf8) }
+private func frame(_ index: Int) -> Data { Data("frame-\(index)\n".utf8) }
+
+/// Counts worker threads that finished.
+private final class Finished: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    func increment() {
+        lock.lock()
+        count += 1
+        lock.unlock()
+    }
+}
 
 @Suite("Linux control stream owner")
 struct LinuxControlStreamOwnerTests {
@@ -103,15 +121,14 @@ struct LinuxControlStreamOwnerTests {
     func repeatedShutdownClosesOnce() throws {
         let stream = try OwnedStream()
         defer { stream.peer.close() }
-        let callers = DispatchGroup()
+        let callers = Finished()
         for _ in 0..<8 {
-            callers.enter()
             Thread.detachNewThread {
                 for _ in 0..<100 { stream.owner.shutdown() }
-                callers.leave()
+                callers.increment()
             }
         }
-        #expect(callers.wait(timeout: .now() + 5) == .success)
+        #expect(waitUntil(timeout: 5) { callers.value == 8 })
         #expect(stream.waitForClose(timeout: 5))
         #expect(stream.descriptorClosed)
 
@@ -157,7 +174,7 @@ struct LinuxControlStreamOwnerTests {
         }
         let payload = Data(repeating: UInt8(ascii: "m"), count: PresentationCodec.maxFrameBytes)
         let peer = stream.peer
-        Thread.detachNewThread { peer.send(payload + Data("\n".utf8)) }
+        Thread.detachNewThread { _ = peer.send(payload + Data("\n".utf8)) }
 
         #expect(waitUntil(timeout: 5) { stream.probe.received.count == 1 })
         #expect(stream.probe.received.first == payload)
@@ -171,7 +188,7 @@ struct LinuxControlStreamOwnerTests {
         var payload = Data(repeating: UInt8(ascii: "o"), count: PresentationCodec.maxFrameBytes + 1)
         if terminated { payload.append(0x0A) }
         let peer = stream.peer
-        Thread.detachNewThread { peer.send(payload) }
+        Thread.detachNewThread { _ = peer.send(payload) }
 
         #expect(stream.waitForClose(timeout: 5))
         #expect(stream.probe.received.isEmpty)
