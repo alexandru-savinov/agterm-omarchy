@@ -196,7 +196,7 @@ def verify_html_policy(env, state):
             prompt = dialog()
             observed = "openExternal" if prompt else "allow" if allowed() else "cancel"
             if prompt:
-                activate(named(find_app(process.pid), "Cancel", role="push button"))
+                activate(named(find_app(process.pid), "Cancel", role="button"))
                 wait_for(lambda: dialog() is None, "external-open prompt did not dismiss")
             state_now = page() or {}
             rows.append((mode, label, expected.split(":", 1)[0], observed, state_now.get("state"),
