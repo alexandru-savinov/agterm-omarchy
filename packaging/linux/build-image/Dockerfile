@@ -36,6 +36,10 @@ RUN curl --fail --show-error --location --proto '=https' --proto-redir '=https' 
 ENV PATH="/opt/zig-x86_64-linux-0.16.0:${PATH}" \
     LINUX_SOURCEKIT_LIB_PATH="/usr/lib/libsourcekitdInProc.so"
 COPY --chmod=755 probe.sh /usr/local/bin/agterm-build-image-probe
+# UID 1001 matches the GitHub-hosted runner user, so bind-mounted workspaces stay writable.
+RUN useradd --create-home --uid 1001 --user-group builder \
+    && install -d -o builder -g builder /workspace
+USER builder
 RUN agterm-build-image-probe
 WORKDIR /workspace
 CMD ["bash"]

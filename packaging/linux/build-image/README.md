@@ -12,6 +12,7 @@ The context is only this directory, and `.dockerignore` admits just `Dockerfile`
 There are no repository sources, user files, build secrets, tokens, or runtime binaries in the image.
 OCI source/URL/base labels are declared in the Dockerfile; the workflow adds exact revision and version labels.
 Run the image as a build container with an explicit source bind mount when needed.
+It runs as the non-root `builder` user, UID 1001, the GitHub-hosted runner's UID.
 
 After review/merge and the execution handoff, dispatch `publish-build-image.yml` on `main`.
 Only the publish job has package-write permissions.
