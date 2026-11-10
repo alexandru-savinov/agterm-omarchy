@@ -62,7 +62,7 @@ def verify_window_close_cancel(env, state):
 
             control_json(mode_env, "window", "close", window, "--json")
             wait_for(prompt, "closing the last window did not ask to quit")
-            activate(wait_for(lambda: named(app, "Cancel", role="push button"), "the quit prompt had no Cancel"))
+            activate(wait_for(lambda: named(app, "Cancel", role="button"), "the quit prompt had no Cancel"))
             wait_for(lambda: prompt() is None, "Cancel did not dismiss the quit prompt")
             assert process.poll() is None, "Cancel quit the app"
             assert next(item for item in window_list(mode_env) if item["id"] == window)["open"], "Cancel closed the window"
@@ -79,7 +79,7 @@ def verify_window_close_cancel(env, state):
                               if name.endswith(".json"))
             control_json(mode_env, "window", "close", window, "--json")
             wait_for(prompt, "the second close did not ask to quit")
-            activate(wait_for(lambda: named(app, "Quit", role="push button"), "the quit prompt had no Quit"))
+            activate(wait_for(lambda: named(app, "Quit", role="button"), "the quit prompt had no Quit"))
             stamps = []
             deadline = time.monotonic() + 15
             while process.poll() is None and time.monotonic() < deadline:
