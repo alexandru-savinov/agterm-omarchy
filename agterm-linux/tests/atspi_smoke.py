@@ -7469,7 +7469,7 @@ def main():
             "sidebar-multiselect",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
-            "theme-many-sessions",
+            "theme-many-sessions", "window-close-cancel", "workspace-focus-filters", "quick-card-geometry",
         ):
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             result = subprocess.run([sys.executable, __file__], env=child_env)
@@ -7538,8 +7538,9 @@ def main():
             from atspi_html_v0351 import verify_html_v0351
             verify_html_v0351(env, state)
         elif scenario == "live-restart":
-            from atspi_restart_v0351 import verify_restart_v0351
+            from atspi_restart_v0351 import verify_restart_close_reopen, verify_restart_v0351
             verify_restart_v0351(env, state)
+            verify_restart_close_reopen(env, state)
         elif scenario == "control-ask":
             verify_control_ask(env)
         elif scenario == "dashboard-modal":
@@ -7638,6 +7639,15 @@ def main():
         elif scenario == "theme-many-sessions":
             from atspi_theme_many_sessions import verify_theme_many_sessions
             verify_theme_many_sessions(env)
+        elif scenario == "window-close-cancel":
+            from atspi_window_lifecycle import verify_window_close_cancel
+            verify_window_close_cancel(env, state)
+        elif scenario == "workspace-focus-filters":
+            from atspi_window_lifecycle import verify_workspace_focus_filters
+            verify_workspace_focus_filters(env)
+        elif scenario == "quick-card-geometry":
+            from atspi_window_lifecycle import verify_quick_card_geometry
+            verify_quick_card_geometry(env, state)
         else:
             raise ValueError(f"unknown AT-SPI scenario: {scenario}")
         print(f"PASS: {scenario}")
