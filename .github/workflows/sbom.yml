@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+env:
+  SYFT_VERSION: "1.57.1"
+  SYFT_SHA256: "bf52519eb57f675d47c07d43213cb6dff6449f3d6d1147ff6701ed91f44eef0c"
+
 jobs:
   sbom:
     name: Generate SPDX SBOM
@@ -25,13 +29,15 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
-      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
-        with:
-          path: .
-          format: spdx-json
-          output-file: ${{ runner.temp }}/sbom/sbom.spdx.json
-          upload-artifact: false
-          upload-release-assets: false
+      # The repository's allowed-actions list excludes anchore/sbom-action; fetch syft like the other release tools.
+      - name: Generate SPDX with checksum-verified syft
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/syft.tar.gz" \
+            "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          echo "${SYFT_SHA256}  $RUNNER_TEMP/syft.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/syft.tar.gz" -C "$RUNNER_TEMP" syft
+          mkdir -p "$RUNNER_TEMP/sbom"
+          "$RUNNER_TEMP/syft" scan dir:. --quiet --output "spdx-json=$RUNNER_TEMP/sbom/sbom.spdx.json"
       - name: Require the pinned Swift packages in the SBOM
         env:
           SBOM: ${{ runner.temp }}/sbom/sbom.spdx.json
