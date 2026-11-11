@@ -158,7 +158,9 @@ def main():
         "`SHA256SUMS` covers both archives and `promotion.json`. GitHub build provenance describes "
         "the promotion workflow, not a recompilation; the additional signed promotion predicate records "
         "the validated original build run, source SHA and immutable artifact identities.\n\n"
-        f"Verify: `gh attestation verify agterm-omarchy-aarch64.tar.gz --repo {REPOSITORY}`.\n")
+        f"Verify: `gh attestation verify agterm-omarchy-aarch64.tar.gz --repo {REPOSITORY} "
+        f"--signer-workflow {REPOSITORY}/.github/workflows/prerelease-omarchy.yml "
+        "--source-ref refs/heads/main`.\n")
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
             output.write(f"tag={tag}\nsha={args.sha}\n")

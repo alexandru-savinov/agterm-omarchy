@@ -118,6 +118,21 @@ struct ControlResolveTests {
         #expect(path == "/Users/x/Library/Application Support/agterm/agterm.sock")
     }
 
+    @Test func emptyStateDirUsesAppSupport() {
+        let support = "/tmp/application support/agterm"
+        #expect(ControlResolve.socketPath(stateDir: "", appSupport: support)
+                == ControlResolve.socketPath(stateDir: nil, appSupport: support))
+        #expect(ControlResolve.socketPath(stateDir: "", appSupport: support)
+                == support + "/agterm.sock")
+    }
+
+    @Test func relativeStateDirResolvesAgainstCurrentDirectory() {
+        let current = FileManager.default.currentDirectoryPath
+        let path = ControlResolve.socketPath(stateDir: "relative state", appSupport: "/unused")
+        #expect(path == (current as NSString).appendingPathComponent("relative state/agterm.sock"))
+        #expect(ControlResolve.ownershipLockPath(forSocket: path) == path + ".lock")
+    }
+
     @Test func ownershipLockSitsBesideTheSocketItGuards() {
         let socket = ControlResolve.socketPath(stateDir: "/tmp/agterm-state", appSupport: "/unused")
         #expect(ControlResolve.ownershipLockPath(forSocket: socket) == "/tmp/agterm-state/agterm.sock.lock")

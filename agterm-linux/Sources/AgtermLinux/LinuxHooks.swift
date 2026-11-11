@@ -82,9 +82,10 @@ final class LinuxHookLauncher: HookLauncher {
         environment["AGT_WORKSPACE_ID"] = event.workspace ?? ""
         environment["AGT_WINDOW_ID"] = event.window ?? ""
         environment["AGT_SOCKET"] = socketPath()
-        let executableDirectory = URL(fileURLWithPath: CommandLine.arguments[0])
-            .standardizedFileURL.resolvingSymlinksInPath().deletingLastPathComponent().path
-        environment["PATH"] = CommandPath.widened(environment["PATH"], bundledCLIDirectory: executableDirectory)
+        let home = environment["HOME"] ?? FileManager.default.homeDirectoryForCurrentUser.path
+        environment["PATH"] = LinuxCommandPath.widened(
+            environment["PATH"], bundledCLIDirectory: LinuxCommandPath.bundledCLIDirectory,
+            homeDirectory: home)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: shellPath)
