@@ -24,9 +24,19 @@ final class ZmxClient {
     enum CommandError: Error {
         case timedOut
         case failed(Int32, String)
+        case socketDirectoryRefused(ZmxSocketDirectory.Refusal)
     }
 
     typealias Runner = (Invocation) throws -> String
+
+    /// zmx creates a missing ZMX_DIR itself (0750) and accepts any existing one, so every real
+    /// invocation first creates it as 0700 or proves the existing one private; a refusal runs nothing.
+    nonisolated static func runVerified(_ invocation: Invocation) throws -> String {
+        if case .failure(let refusal) = ZmxSocketDirectory.verify(invocation.environment["ZMX_DIR"] ?? "") {
+            throw CommandError.socketDirectoryRefused(refusal)
+        }
+        return try run(invocation)
+    }
 
     private static let logger = Logger(subsystem: "com.umputun.agterm", category: "ZmxClient")
     private let executablePath: String
@@ -37,7 +47,7 @@ final class ZmxClient {
     private let sweeper: ProcessSweeper?
 
     init(executablePath: String, socketDirectory: String, timeout: TimeInterval = 3,
-         sweeper: ProcessSweeper? = nil, runner: @escaping Runner = ZmxClient.run) {
+         sweeper: ProcessSweeper? = nil, runner: @escaping Runner = ZmxClient.runVerified) {
         self.executablePath = executablePath
         self.socketDirectory = socketDirectory
         self.timeout = timeout
