@@ -143,8 +143,10 @@ def verify_clipboard_payloads(env, state):
                 press_x11_key("ctrl+shift+v", process.pid)
                 must_ask = protection and not (bracketed and trust_bracketed) and kind != "uri"
                 if must_ask:
-                    until(lambda: named(app, PASTE_HEADING), f"{label}/{kind}: unsafe paste was not confirmed")
-                    assert output.read_bytes() == b"", "unsafe paste reached the PTY before consent"
+                    def unsafe_prompt():
+                        assert output.read_bytes() == b"", f"{label}/{kind}: unsafe paste reached the PTY before consent"
+                        return named(app, PASTE_HEADING)
+                    until(unsafe_prompt, f"{label}/{kind}: unsafe paste was not confirmed")
                     answer(PASTE_HEADING, "Cancel")
                     remains_empty(output, "cancelled paste delivered bytes")
                     press_x11_key("ctrl+shift+v", process.pid)
