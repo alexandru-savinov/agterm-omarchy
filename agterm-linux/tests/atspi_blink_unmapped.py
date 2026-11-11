@@ -16,7 +16,7 @@ import os
 import re
 import tempfile
 
-from atspi_smoke import control_json, launch, named, select_window, stop, wait_for, window_list, window_tree
+from atspi_smoke import control_json, launch, named, stop, wait_for, window_list, window_tree
 
 TRACE_KEY = "AGTERM_ATSPI_BLINK_TRACE"
 LINE = re.compile(r"^agterm-blink-trace: window=(\S+) event=(\S+)((?: [a-z]+=\S+)*)$")
@@ -102,10 +102,17 @@ def window_open(env, window_id):
 def verify_normal(env, trace):
     process, _app = launch(env)
     try:
-        a = wait_for(lambda: next((item["id"] for item in window_list(env) if item["open"]), None),
-                     "the launched window never opened").lower()
-        b = control_json(env, "window", "new", "blink-clock", "--json")["result"]["id"].lower()
-        wait_for(lambda: window_open(env, b), "the control window never opened")
+        first = wait_for(lambda: next((item["id"] for item in window_list(env) if item["open"]), None),
+                         "the launched window never opened").lower()
+        second = control_json(env, "window", "new", "blink-clock", "--json")["result"]["id"].lower()
+        wait_for(lambda: window_open(env, second), "the control window never opened")
+        # `sidebar hide|show` act on the FRONTMOST window and carry no selector, and `window select` did
+        # not move activation within its bound under the runner's openbox, so the subject A is whichever
+        # window the app reports active and the other one is the clock B.
+        active = wait_for(lambda: next((item["id"].lower() for item in window_list(env)
+                                        if item["open"] and item.get("active")), None),
+                          "neither window reported itself active")
+        a, b = active, (second if active == first else first)
         blink(env, a)
         blink(env, b)
         assert_ticking(trace, 0, a, "initial pulse on A")
@@ -116,7 +123,6 @@ def verify_normal(env, trace):
             f"{resyncs[:3]}")
 
         # Hide: the column's glyphs unmap synchronously, so this resync must disarm A's timer.
-        select_window(env, a)
         mark = len(trace.events())
         control_json(env, "sidebar", "hide", "--json")
         quiet = await_disarm(trace, mark, a, "resync", "sidebar hide", mapped="0", marked="1")
