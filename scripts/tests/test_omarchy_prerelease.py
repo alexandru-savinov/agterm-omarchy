@@ -5,8 +5,12 @@ import copy
 import hashlib
 import importlib.util
 import io
+import os
 from pathlib import Path
+import shutil
+import subprocess
 import tarfile
+import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -125,6 +129,52 @@ class PromotionTests(unittest.TestCase):
                       [("share/libs", "../lib"), ("share/libs-up", "libs/.."), ("bin/tool", "../share/libs-up/../x")]):
             with self.subTest(links=links), self.assertRaises(ValueError):
                 promotion.validate_payload(payload(extra=[self.link(*item) for item in links]), "aarch64", SHA)
+
+    def ci_archive(self, links=()):
+        # Archive a real directory tree exactly as ci.yml does: tar -czf OUT -C PARENT agterm-stage.
+        with tempfile.TemporaryDirectory() as temp:
+            stage = Path(temp) / "agterm-stage"
+            header = bytearray(b"\x7fELF\x02\x01" + b"\0" * 14)
+            header[18:20] = promotion.ARCHITECTURES["aarch64"].to_bytes(2, "little")
+            for name, data in {"share/agterm/COMMIT": SHA.encode() + b"\n", "share/agterm/VERSION": b"dev\n",
+                               "lib/libswiftCore.so.1": b"library", "bin/agterm-linux.bin": bytes(header),
+                               "bin/agtermctl.bin": bytes(header), "bin/zmx": bytes(header)}.items():
+                path = stage / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+                path.chmod(0o755)
+            (stage / "lib/libswiftCore.so").symlink_to("libswiftCore.so.1")
+            (stage / "share/icons/hicolor").mkdir(parents=True)
+            for name, target in links:
+                (stage / name).parent.mkdir(parents=True, exist_ok=True)
+                os.symlink(target, stage / name)
+            output = Path(temp) / "payload.tar.gz"
+            subprocess.run([shutil.which("tar"), "-czf", str(output), "-C", temp, "agterm-stage"], check=True)
+            return output.read_bytes()
+
+    @unittest.skipUnless(shutil.which("tar"), "tar unavailable")
+    def test_accepts_payload_archived_like_ci_with_directory_entries(self):
+        data = self.ci_archive()
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+            first = archive.getmembers()[0]
+            self.assertTrue(first.isdir() and first.name == "agterm-stage", "fixture must carry the root entry")
+        self.assertEqual(promotion.validate_payload(data, "aarch64", SHA), "dev")
+
+    @unittest.skipUnless(shutil.which("tar"), "tar unavailable")
+    def test_rejects_escaping_chain_in_payload_archived_like_ci(self):
+        data = self.ci_archive([("a/b/up", ".."), ("a/b/escape", "up/../../x")])
+        with self.assertRaises(ValueError):
+            promotion.validate_payload(data, "aarch64", SHA)
+
+    def test_rejects_non_canonical_member_spellings(self):
+        # A link map keyed on one spelling must not miss a directory link written with another.
+        for links in ([("./lib/x/s", ".."), ("lib/x/s/l", "../../../x")],
+                      [("/lib/x/s", ".."), ("lib/x/s/l", "../../../x")]):
+            with self.subTest(links=links), self.assertRaises(ValueError):
+                promotion.validate_payload(payload(extra=[self.link(*item) for item in links]), "aarch64", SHA)
+        below = tarfile.TarInfo("agterm-stage/lib/x/s/payload")
+        with self.assertRaises(ValueError):
+            promotion.validate_payload(payload(extra=[self.link("/lib/x/s", ".."), below]), "aarch64", SHA)
 
     def test_rejects_members_and_hardlinks_through_links(self):
         stage_link = self.link("share/out", "../lib")

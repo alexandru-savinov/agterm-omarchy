@@ -15,7 +15,7 @@
 # built from a different rev is indistinguishable from a current one, so the stamp, not the directory,
 # is what says a rebuild can be skipped.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+CDPATH='' cd -- "$(dirname "$0")/.."
 
 GHOSTTY_REPO="https://github.com/ghostty-org/ghostty"
 GHOSTTY_REV="683d8db643b95cf229bfb5fe9fab9ae677920343"  # 2026-08-25

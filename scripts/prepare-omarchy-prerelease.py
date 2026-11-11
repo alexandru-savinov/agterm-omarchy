@@ -79,11 +79,15 @@ def resolve_member_path(parts, links, depth=0):
 
 
 def resolve_member_links(members):
+    for member in members:
+        # Only canonical spellings ("a/b", no "./" or "//"), so the link map and every lookup share one key.
+        require(member.name.rstrip("/") == str(PurePosixPath(member.name)), "Non-canonical tar path")
     links = {member.name.rstrip("/"): member.linkname for member in members if member.issym()}
     for member in members:
         parent = list(PurePosixPath(member.name).parent.parts)
-        # A member written below a symlink would land wherever that link points.
-        require(resolve_member_path(parent, links) == parent, "Tar member below a link")
+        # A member written below a symlink would land wherever that link points. The top-level
+        # agterm-stage entry has no parent inside the archive to resolve.
+        require(not parent or resolve_member_path(parent, links) == parent, "Tar member below a link")
         if member.issym():
             resolve_member_path(parent + list(PurePosixPath(member.linkname).parts), links)
         elif member.islnk():
