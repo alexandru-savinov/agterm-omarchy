@@ -8,7 +8,7 @@ on:
         default: success
 permissions: {}
 concurrency:
-  group: cancellation-probe-${{ github.ref }}
+  group: cancellation-probe-${{ github.ref }}-${{ inputs.outcome }}
   cancel-in-progress: true
 jobs:
   prerequisite:
