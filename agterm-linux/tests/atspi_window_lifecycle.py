@@ -200,6 +200,8 @@ def verify_quick_card_geometry(env, state):
 
     def minimum_allocation():
         xid = int(subprocess.check_output(["xdotool", "getactivewindow"], text=True).strip())
+        owner = int(subprocess.check_output(["xdotool", "getwindowpid", str(xid)], text=True).strip())
+        assert owner == process.pid, f"minimum geometry came from PID {owner}, expected {process.pid}"
         x11 = ctypes.CDLL("libX11.so.6")
         x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
         x11.XOpenDisplay.restype = ctypes.c_void_p
