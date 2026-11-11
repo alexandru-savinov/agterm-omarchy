@@ -10,6 +10,16 @@ private final class FakeDisk: @unchecked Sendable {
     private(set) var restricted: [String] = []
     private(set) var created: [String] = []
 
+    /// The parent chain of the suite's state directory as a typical home lays it out; the state
+    /// directory candidate is taken only when every ancestor is safe.
+    init() {
+        put("/", .directory, mode: 0o755, owner: 0)
+        put("/home", .directory, mode: 0o755, owner: 0)
+        put("/home/u", .directory, mode: 0o750)
+        put("/home/u/.local", .directory, mode: 0o700)
+        put("/home/u/.local/share", .directory, mode: 0o755)
+    }
+
     func put(_ path: String, _ kind: ZmxSocketDirectory.Entry.Kind, mode: UInt16 = 0o700, owner: UInt32? = nil) {
         entries[path] = .init(kind: kind, ownerID: owner ?? uid, permissions: mode)
     }
@@ -304,5 +314,227 @@ struct ZmxSocketDirectoryTests {
         }
         #expect(configuration.socketDirectory == "/run/user/1/agterm-zmx-0")
         #expect(configuration.environment["ZMX_DIR"] == "/run/user/1/agterm-zmx-0")
+    }
+
+    // MARK: state directory verification
+
+    @Test("a state directory in a world-writable, non-sticky directory is skipped for the /tmp last resort")
+    func stateInWorldWritableParentSkipped() {
+        let disk = FakeDisk()
+        disk.put("/scratch", .directory, mode: 0o777, owner: 0)
+        disk.put("/scratch/agterm", .directory, mode: 0o700)
+        let legacy = ZmxSupport.socketDirectory(forStateDirectory: "/scratch/agterm")
+        let result = ZmxSocketDirectory.resolveLinux(stateDirectory: "/scratch/agterm", environment: [:], fileSystem: disk.fileSystem)
+        #expect(result == .success(legacy))
+        #expect(disk.entry("/scratch/agterm/zmx") == nil)
+        #expect(disk.created == [legacy])
+    }
+
+    @Test("an unsafe state directory or ancestor is skipped",
+          arguments: ["state-group-writable", "state-foreign", "state-symlink", "state-file", "ancestor-foreign",
+                      "ancestor-group-writable", "ancestor-user-sticky", "ancestor-missing", "ancestor-symlink"])
+    func unsafeStateSkipped(_ scenario: String) {
+        let disk = FakeDisk()
+        if scenario.hasPrefix("ancestor-") { disk.put(Self.state, .directory) }
+        switch scenario {
+        case "state-group-writable": disk.put(Self.state, .directory, mode: 0o770)
+        case "state-foreign": disk.put(Self.state, .directory, mode: 0o700, owner: 4242)
+        case "state-symlink": disk.put(Self.state, .symbolicLink, mode: 0o777)
+        case "state-file": disk.put(Self.state, .other, mode: 0o600)
+        case "ancestor-foreign": disk.put("/home/u", .directory, mode: 0o755, owner: 4242)
+        case "ancestor-group-writable": disk.put("/home", .directory, mode: 0o775, owner: 0)
+        // sticky protects entries only when the sticky directory's owner is trusted to keep it so: root
+        case "ancestor-user-sticky": disk.put("/home", .directory, mode: 0o1777, owner: 4242)
+        case "ancestor-symlink": disk.put("/home/u/.local", .symbolicLink, mode: 0o777)
+        default: break  // ancestor-missing: /home vanishes below
+        }
+        let fileSystem: ZmxSocketDirectory.FileSystem
+        if scenario == "ancestor-missing" {
+            var base = disk.fileSystem
+            let inner = base.inspect
+            base.inspect = { $0 == "/home" ? .missing : inner($0) }
+            fileSystem = base
+        } else {
+            fileSystem = disk.fileSystem
+        }
+        #expect(ZmxSocketDirectory.safeStateDirectory(Self.state, fileSystem: fileSystem) == nil)
+        #expect(ZmxSocketDirectory.resolveLinux(stateDirectory: Self.state, environment: [:], fileSystem: fileSystem)
+            == .success(Self.legacy))
+    }
+
+    @Test("a safe state directory is taken, including below root-owned sticky /tmp, and symbolic links are resolved first")
+    func safeStateTaken() {
+        let disk = FakeDisk()
+        disk.put(Self.state, .directory, mode: 0o755)
+        #expect(ZmxSocketDirectory.safeStateDirectory(Self.state, fileSystem: disk.fileSystem) == Self.state)
+        #expect(disk.restricted.isEmpty)
+
+        disk.put("/tmp", .directory, mode: 0o1777, owner: 0)
+        disk.put("/tmp/state", .directory, mode: 0o700)
+        #expect(ZmxSocketDirectory.safeStateDirectory("/tmp/state", fileSystem: disk.fileSystem) == "/tmp/state")
+
+        var linked = disk.fileSystem
+        linked.realPath = { $0 == "/link/state" ? Self.state : nil }
+        #expect(ZmxSocketDirectory.safeStateDirectory("/link/state", fileSystem: linked) == Self.state)
+        #expect(ZmxSocketDirectory.resolveLinux(stateDirectory: "/link/state", environment: [:], fileSystem: linked)
+            == .success(Self.state + "/zmx"))
+        var unresolvable = disk.fileSystem
+        unresolvable.realPath = { _ in nil }
+        #expect(ZmxSocketDirectory.safeStateDirectory(Self.state, fileSystem: unresolvable) == nil)
+    }
+
+    @Test("on disk: a state directory inside a world-writable non-sticky scratch directory is not trusted")
+    func liveWorldWritableParent() throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: root.path)
+        let state = root.appending(path: "state").path
+        try FileManager.default.createDirectory(atPath: state, withIntermediateDirectories: false,
+                                                attributes: [.posixPermissions: 0o700])
+        #expect(ZmxSocketDirectory.safeStateDirectory(state) == nil)
+        #expect(!FileManager.default.fileExists(atPath: state + "/zmx"))
+    }
+
+    // MARK: legacy socket ownership
+
+    @Test("the old directory is not reused when a daemon-named entry in it is not this user's socket",
+          arguments: ["foreign-socket", "foreign-only", "symlink-named-like-daemon"])
+    func legacyRefusedForForeignSocket(_ scenario: String) {
+        let disk = FakeDisk()
+        disk.put("/run/user/1000", .directory, mode: 0o700)
+        disk.put(Self.state, .directory)
+        disk.put(Self.legacy, .directory, mode: 0o700)
+        let other = ZmxSupport.daemonName(for: UUID())
+        switch scenario {
+        case "foreign-socket":
+            disk.put(Self.legacy + "/" + Self.daemon, .socket, mode: 0o755)
+            disk.put(Self.legacy + "/" + other, .socket, mode: 0o755, owner: 4242)
+        case "foreign-only":
+            disk.put(Self.legacy + "/" + other, .socket, mode: 0o755, owner: 4242)
+        default:
+            disk.put(Self.legacy + "/" + Self.daemon, .socket, mode: 0o755)
+            disk.put(Self.legacy + "/" + other, .symbolicLink, mode: 0o777)
+        }
+        let result = ZmxSocketDirectory.resolveLinux(stateDirectory: Self.state, environment: ["XDG_RUNTIME_DIR": "/run/user/1000"],
+                                                     fileSystem: disk.fileSystem)
+        #expect(result == .success("/run/user/1000/" + Self.leaf))
+        #expect(disk.restricted.isEmpty)
+    }
+
+    @Test("entries that are not daemon names do not block reuse of the old directory")
+    func legacyIgnoresOtherNames() {
+        let disk = FakeDisk()
+        disk.put(Self.state, .directory)
+        disk.put(Self.legacy, .directory, mode: 0o700)
+        disk.put(Self.legacy + "/" + Self.daemon, .socket, mode: 0o755)
+        disk.put(Self.legacy + "/session-host", .directory, mode: 0o700)
+        disk.put(Self.legacy + "/agterm-notes", .socket, mode: 0o755, owner: 4242)
+        #expect(ZmxSocketDirectory.resolveLinux(stateDirectory: Self.state, environment: [:], fileSystem: disk.fileSystem)
+            == .success(Self.legacy))
+    }
+
+    // MARK: macOS
+
+    private static let userTemporary = "/var/folders/zz/" + String(repeating: "a", count: 28) + "0000gn/T/"
+    private static var userTemporaryStandardized: String { String(userTemporary.dropLast()) }
+    private static let darwinLeaf = ZmxSocketDirectory.darwinUserTemporaryLeaf(forStateDirectory: state)
+
+    @Test("macOS uses its private per-user temporary directory with the short leaf")
+    func darwinUserTemporaryChosen() {
+        #expect(Self.darwinLeaf.utf8.count == 12)
+        #expect(Self.darwinLeaf.hasPrefix("zmx-"))
+        #expect(Self.leaf.hasPrefix("agterm-zmx-" + String(Self.darwinLeaf.dropFirst(4))))
+        #expect(ZmxSocketDirectory.darwinUserTemporaryLeaf(forStateDirectory: Self.state) == Self.darwinLeaf)
+        #expect(ZmxSocketDirectory.darwinUserTemporaryLeaf(forStateDirectory: "/other") != Self.darwinLeaf)
+        let disk = FakeDisk()
+        disk.put(Self.userTemporaryStandardized, .directory, mode: 0o700)
+        disk.put(Self.state, .directory)
+        let result = ZmxSocketDirectory.resolveDarwin(stateDirectory: Self.state, userTemporaryDirectory: Self.userTemporary,
+                                                      fileSystem: disk.fileSystem)
+        let expected = Self.userTemporaryStandardized + "/" + Self.darwinLeaf
+        #expect(result == .success(expected))
+        #expect(disk.created == [expected])
+        #expect(disk.entry(expected)?.permissions == 0o700)
+    }
+
+    @Test("macOS falls back to the verified state directory when the per-user temporary directory is unusable",
+          arguments: [nil, "", "var/folders/x/T", "0755", "foreign", "link", "too-long"])
+    func darwinUserTemporaryFallback(_ spec: String?) {
+        let disk = FakeDisk()
+        disk.put(Self.state, .directory)
+        var temporary: String? = spec
+        if let spec, ["0755", "foreign", "link"].contains(spec) { temporary = Self.userTemporary }
+        switch spec {
+        case "0755": disk.put(Self.userTemporaryStandardized, .directory, mode: 0o755)
+        case "foreign": disk.put(Self.userTemporaryStandardized, .directory, mode: 0o700, owner: 4242)
+        case "link": disk.put(Self.userTemporaryStandardized, .symbolicLink, mode: 0o777)
+        case "too-long":
+            let long = "/" + String(repeating: "t", count: 51)  // 52 + 1 + 12 + 1 + 39 = 105 > 103
+            temporary = long
+            disk.put(long, .directory, mode: 0o700)
+        default: break
+        }
+        let result = ZmxSocketDirectory.resolveDarwin(stateDirectory: Self.state, userTemporaryDirectory: temporary,
+                                                      fileSystem: disk.fileSystem)
+        #expect(result == .success(Self.state + "/zmx"))
+    }
+
+    @Test("macOS keeps the old /tmp directory for this user's live daemons, and otherwise never trusts it unverified")
+    func darwinLegacyRules() {
+        let disk = FakeDisk()
+        disk.put(Self.userTemporaryStandardized, .directory, mode: 0o700)
+        disk.put(Self.legacy, .directory, mode: 0o750)
+        disk.put(Self.legacy + "/" + Self.daemon, .socket, mode: 0o755)
+        #expect(ZmxSocketDirectory.resolveDarwin(stateDirectory: Self.state, userTemporaryDirectory: Self.userTemporary,
+                                                 fileSystem: disk.fileSystem) == .success(Self.legacy))
+
+        let foreign = FakeDisk()
+        foreign.put(Self.userTemporaryStandardized, .directory, mode: 0o700)
+        foreign.put(Self.legacy, .directory, mode: 0o700)
+        foreign.put(Self.legacy + "/" + Self.daemon, .socket, mode: 0o755, owner: 4242)
+        #expect(ZmxSocketDirectory.resolveDarwin(stateDirectory: Self.state, userTemporaryDirectory: Self.userTemporary,
+                                                 fileSystem: foreign.fileSystem)
+            == .success(Self.userTemporaryStandardized + "/" + Self.darwinLeaf))
+
+        let planted = FakeDisk()
+        planted.put(Self.legacy, .directory, mode: 0o700, owner: 4242)
+        #expect(ZmxSocketDirectory.resolveDarwin(stateDirectory: Self.state, userTemporaryDirectory: nil,
+                                                 fileSystem: planted.fileSystem)
+            == .failure(.init(path: Self.legacy, reason: .foreignOwner)))
+    }
+
+    @Test("off macOS the live per-user temporary directory is absent")
+    func darwinUserTemporaryOffDarwin() {
+        #if canImport(Darwin)
+        #expect(ZmxSocketDirectory.darwinUserTemporaryDirectory()?.hasPrefix("/") == true)
+        #else
+        #expect(ZmxSocketDirectory.darwinUserTemporaryDirectory() == nil)
+        #endif
+    }
+
+    // MARK: sun_path, macOS
+
+    @Test("the longest macOS socket path fits sun_path in the worst-case per-user temporary directory, only with the short leaf")
+    func darwinSocketPathWorstCase() {
+        #expect(ZmxSocketDirectory.darwinMaximumSocketPathBytes == 103)
+        let worstTemporary = "/var/folders/xx/" + String(repeating: "y", count: 32) + "/T"
+        #expect(worstTemporary.utf8.count == 50)
+        let short = worstTemporary + "/" + Self.darwinLeaf
+        #expect((short + "/" + Self.daemon).utf8.count == 103)
+        #expect(ZmxSocketDirectory.fitsSocketPath(short, maximumBytes: ZmxSocketDirectory.darwinMaximumSocketPathBytes))
+        #expect(!ZmxSocketDirectory.fitsSocketPath(short + "x", maximumBytes: ZmxSocketDirectory.darwinMaximumSocketPathBytes))
+        // the Linux leaf would not fit there: this is why macOS shortens it
+        #expect(!ZmxSocketDirectory.fitsSocketPath(worstTemporary + "/" + Self.leaf,
+                                                   maximumBytes: ZmxSocketDirectory.darwinMaximumSocketPathBytes))
+        // the old /tmp name and the session-host socket fit on macOS too
+        #expect(ZmxSocketDirectory.fitsSocketPath(Self.legacy, maximumBytes: ZmxSocketDirectory.darwinMaximumSocketPathBytes))
+        #expect((try? SessionHost.paths(socketDirectory: short)) != nil)
+        // the same directory checked against Linux's larger limit still fits, so the default is Linux's
+        #expect(ZmxSocketDirectory.fitsSocketPath(short + "xxxx"))
+
+        let disk = FakeDisk()
+        disk.put(worstTemporary, .directory, mode: 0o700)
+        #expect(ZmxSocketDirectory.resolveDarwin(stateDirectory: Self.state, userTemporaryDirectory: worstTemporary,
+                                                 fileSystem: disk.fileSystem) == .success(short))
     }
 }

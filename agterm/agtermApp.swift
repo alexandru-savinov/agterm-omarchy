@@ -350,7 +350,7 @@ struct agtermApp: App {
         let executable = ZmxLaunch.executablePath(bundleURL: Bundle.main.bundleURL, environment: environment,
                                                   allowDebugOverride: ZmxLaunch.allowDebugOverride)
         let client = ZmxClient(executablePath: executable,
-                              socketDirectory: ZmxSupport.socketDirectory(forStateDirectory: stateDirectory.path),
+                              socketDirectory: (try? ZmxLaunch.socketDirectoryChoice(forStateDirectory: stateDirectory.path).get()) ?? "",
                               sweeper: ProcessSweeper())
         let foregroundResolver = ZmxForegroundResolver(leaderProvider: { client.sessionLeaderPIDs(timeout: $0) })
         let context = LaunchSpawnContext()
