@@ -26,6 +26,9 @@ private final class OverlayJobFixture {
     let server: ControlServer
     let context = OverlayLaunchContext(command: "true", cwd: "/tmp", sessionEnvironment: [:])
     private(set) var finished: [String] = []
+    /// Whether the job's helper stream was still adopted when its outcome landed. Only a claim whose reply
+    /// write failed finishes with no stream ever adopted; `closed()` reports `helperGone` before it lets go.
+    private(set) var streamHeldAtFinish: [String: Bool] = [:]
     private var helpers: [ControlTestClient] = []
 
     init() throws {
@@ -36,6 +39,7 @@ private final class OverlayJobFixture {
         let forward = server.overlayJobs.onFinished
         server.overlayJobs.onFinished = { [weak self] job in
             self?.finished.append(job.id)
+            self?.streamHeldAtFinish[job.id] = self?.server.overlayJobStreams[job.id] != nil
             forward?(job)
         }
     }
@@ -128,6 +132,8 @@ struct ControlServerOverlayJobTests {
 
         #expect(pumpGLib(timeout: 10) { fixture.state(job) == .finished(.unknown) })
         #expect(fixture.server.overlayJobStreams[job] == nil)
+        // The reply-write failure path: abandoned before any stream was adopted, not adopted and then EOF.
+        #expect(fixture.streamHeldAtFinish[job] == false)
 
         #expect(try fixture.claim(job).reply == Self.notClaimable)
     }
@@ -143,6 +149,7 @@ struct ControlServerOverlayJobTests {
         fixture.hangUp(helper)
 
         #expect(pumpGLib(timeout: 10) { fixture.state(job) == .finished(.unknown) })
+        #expect(fixture.streamHeldAtFinish[job] == true)
         #expect(pumpGLib(timeout: 5) { fixture.server.overlayJobStreams[job] == nil })
         #expect(fixture.finishCount(job) == 1)
         #expect(try fixture.claim(job).reply == Self.notClaimable)
@@ -166,7 +173,12 @@ struct ControlServerOverlayJobTests {
         let other = fixture.register()
         let plain = try fixture.claim(other)
         #expect(plain.frame() == .context(fixture.context))
-        #expect(plain.reader.next(timeout: 0.5) == nil)
+        // Read off the main thread while pumping GLib, so a stray cancel queued to the main loop would arrive.
+        let stray = TestSlot<Bool>()
+        let reader = plain.reader
+        Thread.detachNewThread { stray.set(reader.next(timeout: 0.5) != nil) }
+        #expect(pumpGLib(timeout: 5) { stray.value != nil })
+        #expect(stray.value == false)
     }
 
     @Test("malformed or origin-only frames close the helper stream", arguments: [
@@ -245,9 +257,18 @@ struct ControlServerOverlayJobTests {
             #expect(pumpGLib(timeout: OverlayJobs.startWindow + 5) { fixture.state(silent) == .finished(.unknown) })
             #expect(Date().timeIntervalSince(claimed) >= OverlayJobs.startWindow)
             #expect(fixture.state(running) == .running)
+            // The job slot is released: the expired claim cannot be taken again.
+            #expect(try fixture.claim(silent).reply == Self.notClaimable)
+            // The stream slot is not: expiry leaves the helper adopted until it hangs up (#142, open item).
+            #expect(fixture.streamHeldAtFinish[silent] == true)
+            #expect(fixture.server.overlayJobStreams[silent] != nil)
 
             silentHelper.send([.started, .exited(0)])
             pumpGLib(timeout: 0.5)
+            #expect(fixture.state(silent) == .finished(.unknown))
+            #expect(fixture.server.overlayJobStreams[silent] != nil)
+            fixture.hangUp(silentHelper)
+            #expect(pumpGLib(timeout: 5) { fixture.server.overlayJobStreams[silent] == nil })
             #expect(fixture.state(silent) == .finished(.unknown))
             #expect(fixture.finishCount(silent) == 1)
             #expect(fixture.finishCount(running) == 0)
