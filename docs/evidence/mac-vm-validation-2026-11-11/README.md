@@ -20,6 +20,7 @@ Acceptance remains **incomplete**. This evidence supports [goal #305](https://gi
 | Reviewed Mac core | [PR #311](https://github.com/alexandru-savinov/agterm-omarchy/pull/311), `ab94f48fc94e9a4e2db82f2feb5b8f38d462f341` | 4,129 passed / 0 failed / 9 skipped, out of 4,138 definitions / 182 suites. |
 | Same reviewed core, available zmx staged privately | Same source, installed zmx hash below | Full suite: **4,137 passed / 0 failed / 1 skipped (fish)**. The eight host definitions previously skipped also pass in a separate 26-test group. |
 | Integrated Mac core, available zmx staged privately | `2ddd93af8cd0b09a7c3fe668e6cf1f759949393b` | **4,148 passed / 1 failed / 1 skipped (fish)** out of 4,150 definitions / 182 suites. The known terminfo fixture failure remains; PR #311 is not in this head. All 26 host tests pass. |
+| Later integrated Mac core, available zmx and Node | `4ffbe4bd2aec1216b2d7a31b043ff2f96fff036b`, fresh full serial run | **4,149 passed / 2 failed / 2 skipped (fish)** out of 4,153 definitions / 182 suites. Terminfo and exported-editor fixtures fail; all 26 host tests and 16 Node-dependent tests pass. Overall failed. |
 
 The core revisions have different test inventories. The terminfo test-file blob is identical at the original baseline and PR #311's base; the changed total is not attributed solely to that fixture fix. All full runs were unfiltered. The reviewed-PR run with staged zmx used `--skip-build` with the already built, unchanged reviewed source and a newly satisfied runtime prerequisite. The later integrated-main run performed its own fresh build.
 
@@ -113,6 +114,24 @@ The first ordinary direct launches did not create the control socket; LaunchServ
 
 Core tests used the installed CLT framework and macro plugin through command-local flags, with the native build engine. No global toolchain change or weakened assertion was made. See the recorded argv in [the reviewed manifest](mac-core-reviewed.json). Staging copied only the existing bundled zmx into the private checkout's ignored resource path. The fixture helper hashes and actual server tests are recorded separately; this is not a source-built zmx claim. Fish is the one remaining explicit prerequisite skip.
 
+The [later source4ff run](mac-core-main-4ff.json) retains three separate attempts.
+The first full run fails with 4,073 emitted passes, two failed tests and 18 skips; its deliberately minimal PATH hides Node and its framework total exceeds emitted outcomes by 60.
+No missing completion is inferred to have passed.
+The second attempt is stopped before tests after a copied Node image fails its relative-loader preflight; its erroneous advance to compilation and subsequent verified cleanup remain recorded.
+The final fresh serial run uses a private symlink to the unchanged installed Node loader context and accounts for all 4,153 outcomes: 4,149 passes, two failures and two fish skips.
+All 16 Node-dependent tests and all 26 source session-host tests pass.
+One start record is truncated, but its actual passing completion is retained.
+
+The two failures are the existing zsh terminfo fixture and `editorCommandResolvesExportedEditorAndPreservesPath`.
+The latter launches the system editor instead of its recorder in both retained full runs.
+Root traced global zsh startup to a system environment assignment of `EDITOR=nano` when the inherited once-only guard is absent; private HOME and ZDOTDIR alone do not prevent this earlier assignment.
+The test and production ConfigPaths files are unchanged from the earlier tested source.
+[Issue #343](https://github.com/alexandru-savinov/agterm-omarchy/issues/343) owns the focused fixture correction; this evidence does not assert a new production regression or apply that correction.
+
+All four installed image/attribute identities and the protected installed process remain unchanged.
+Independent observers found no remaining private process; the two completed suites' 2,274 attributable disposable data directories were archived, verified and selectively removed, preserving unrelated temporary data.
+Root rehashed [all 78 original records](mac-core-main-4ff-original-bindings.json) and independently recounted the final raw log; [the readback](mac-core-main-4ff-verification.json) agrees with the published summary.
+
 ## Published evidence
 
 - [Native attempt 1](native-attempt-1.json), [attempt 2](native-attempt-2.json), and [revised binding](native-attempt-2-binding.json).
@@ -122,6 +141,7 @@ Core tests used the installed CLT framework and macro plugin through command-loc
 - [Mac ordinary](mac-ordinary.json), [Live](mac-live.json), [minimal cleanup reproduction](mac-live-cleanup.json), and [official release image comparison](mac-release-artifact.json).
 - [Core baseline](mac-core-baseline.json), [reviewed full run](mac-core-reviewed.json), [full run with staged zmx](mac-core-staged.json), and [real host fixtures](mac-host-fixtures.json).
 - [Fresh integrated-main core run](mac-core-integrated-main.json), with its exact failing source, one retained skip, all 26 host test names, binary hashes and private original-log binding.
+- [Later integrated source4ff core run](mac-core-main-4ff.json), with all three attempts, actual final 4,149/2/2 outcomes, source/compiler/prerequisite identities, retained log limitations and bounded cleanup.
 - The [complete source77 native package](native-complete-source77/README.native-complete-insertion.md) and [additive raw-log and renderer appendix](native-source77-appendix/README.native-appendix-insertion.md), with complete retained observations, executable verifiers and original-byte bindings.
 - [Deployed Pages verification](pages-publication.json): all seven public site files match the successful [run 43113509231](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/43113509231) artifact at `6c7d0886`, observed at 22:59 UTC. The empty `.nojekyll` metadata file is artifact-only and returned HTTP 404 publicly. This proves the refreshed status publication, not product acceptance or worker liveness.
 - The three `*-tests.log` files contain explicitly labeled test-result extracts. Each carries the original complete log's SHA256; it is not presented as the complete raw log. Literal split completion lines remain intact. [Interleaving support](interleaved-results.json) records all three affected raw fragments and explicitly labeled reconstructions, so an inserted SwiftPM warning does not silently remove a completion or alter the verified totals.
