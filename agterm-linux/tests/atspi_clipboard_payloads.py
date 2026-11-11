@@ -132,11 +132,16 @@ def verify_clipboard_payloads(env, state):
             events = []
             def prepare(*_args):
                 events.append("prepare")
-                print("measured: GTK drag prepared", flush=True)
+                print("measured: GTK drag prepared formats=" + provider.ref_formats().to_string(), flush=True)
                 return provider
             drag.connect("prepare", prepare)
             drag.connect("drag-begin", lambda *_args: events.append("begin"))
-            drag.connect("drag-end", lambda *_args: events.append("end"))
+            drag.connect("drag-end", lambda _source, operation, deleted:
+                         events.append(f"end: action={operation.get_selected_action()} delete={deleted}"))
+            def cancelled(_source, _operation, reason):
+                events.append(f"cancel: {reason}")
+                return False
+            drag.connect("drag-cancel", cancelled)
             drag.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
             source.add_controller(drag)
             source.present()
@@ -163,6 +168,8 @@ def verify_clipboard_payloads(env, state):
                 until(lambda: driver.poll() is not None, "drag driver did not finish")
                 assert driver.returncode == 0, "drag input failed"
                 until(lambda: "begin" in events, "real GTK drag never began")
+                subprocess.run(["import", "-window", "root", str(artifacts / f"drag-{len(drag_sources)}.png")],
+                               check=True, timeout=10)
                 print(f"measured: GTK drag events {events}", flush=True)
             finally:
                 if driver is not None and driver.poll() is None:
