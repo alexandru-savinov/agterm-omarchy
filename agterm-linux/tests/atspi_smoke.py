@@ -5979,6 +5979,15 @@ def verify_session_switch_commit(env):
         assert not switcher_overlay_names(app) and switcher_dim(app) is None, (
             "the switcher card outlived a release whose candidate had closed")
 
+        # Model selection is not keyboard focus: type through X11 and let the surviving PTY identify itself.
+        live_id = next(session["id"] for session in window_sessions(env, preheld_window) if session["active"])
+        marker = os.path.join(env["AGTERM_STATE_DIR"], "switcher-removal-keyboard")
+        type_x11_text(f'printf %s "$AGTERM_SESSION_ID" > {shlex.quote(marker)}', process.pid)
+        press_return(process.pid)
+        wait_for(lambda: os.path.exists(marker), "target removal left keyboard focus outside the live terminal")
+        with open(marker, encoding="utf-8") as source:
+            assert source.read().lower() == live_id.lower(), "keyboard input reached the wrong session after target removal"
+
         print("OK: Ctrl-Tab cycles without selecting, commits once the last Ctrl comes up, reverses, "
               "survives pre-held Ctrl keys, ignores a highlighted candidate closed mid-hold, and Esc / a "
               "blur / the dashboard abort")
