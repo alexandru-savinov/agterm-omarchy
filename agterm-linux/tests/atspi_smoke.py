@@ -7517,6 +7517,7 @@ def main():
             "sidebar-click-rename", "sidebar-session-drag", "sidebar-workspace-drag",
             "sidebar-incremental",
             "sidebar-multiselect",
+            "blink-unmapped",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
             "window-close-cancel", "workspace-focus-filters", "quick-card-geometry",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
@@ -7740,6 +7741,9 @@ def main():
         elif scenario == "cursor-preferences":
             from atspi_cursor_preferences import verify_cursor_preferences
             verify_cursor_preferences(env)
+        elif scenario == "blink-unmapped":
+            from atspi_blink_unmapped import verify_blink_unmapped
+            verify_blink_unmapped(env)
         else:
             raise ValueError(f"unknown AT-SPI scenario: {scenario}")
         print(f"PASS: {scenario}")
