@@ -435,12 +435,17 @@ struct ZmxSocketDirectoryTests {
 
     // MARK: macOS
 
-    private static let userTemporary = "/var/folders/zz/" + String(repeating: "a", count: 28) + "0000gn/T/"
+    /// A typical per-user temporary directory: a 30-character second segment, as macOS issues them.
+    private static let userTemporary = "/var/folders/zz/" + String(repeating: "a", count: 24) + "0000gn/T/"
     private static var userTemporaryStandardized: String { String(userTemporary.dropLast()) }
     private static let darwinLeaf = ZmxSocketDirectory.darwinUserTemporaryLeaf(forStateDirectory: state)
 
     @Test("macOS uses its private per-user temporary directory with the short leaf")
     func darwinUserTemporaryChosen() {
+        // the fixture must itself fit sun_path, or the choice below is skipped for length, not for safety
+        #expect(Self.userTemporaryStandardized.utf8.count == 48)
+        #expect(ZmxSocketDirectory.fitsSocketPath(Self.userTemporaryStandardized + "/" + Self.darwinLeaf,
+                                                  maximumBytes: ZmxSocketDirectory.darwinMaximumSocketPathBytes))
         #expect(Self.darwinLeaf.utf8.count == 12)
         #expect(Self.darwinLeaf.hasPrefix("zmx-"))
         #expect(Self.leaf.hasPrefix("agterm-zmx-" + String(Self.darwinLeaf.dropFirst(4))))

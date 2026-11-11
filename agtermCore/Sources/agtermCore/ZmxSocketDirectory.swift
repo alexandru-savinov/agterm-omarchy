@@ -213,7 +213,6 @@ public enum ZmxSocketDirectory {
         }
     }
 
-
     /// A directory only this user can write to: set, absolute, a real directory owned by this user with
     /// mode 0700 or stricter. Used for the per-user locations the system provides (`XDG_RUNTIME_DIR`,
     /// macOS's per-user temporary directory), verified rather than assumed.
