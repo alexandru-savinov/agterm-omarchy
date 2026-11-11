@@ -426,9 +426,7 @@ final class GhosttyApp: @unchecked Sendable {
                         }
                         let text = gdk_clipboard_read_text_finish(OpaquePointer(source), result, nil)
                         let raw = text.map { String(cString: $0) } ?? ""
-                        // a file-manager copy lands as a file:// uri-list → paste the POSIX paths, like macOS.
-                        let value = PasteDecoder.posixPaths(fromURIList: raw) ?? raw
-                        MainActor.assumeIsolated { req.complete(value) }
+                        MainActor.assumeIsolated { req.complete(raw) }
                         if let text { g_free(text) }
                     },
                     Unmanaged.passRetained(req).toOpaque()
@@ -560,19 +558,21 @@ final class GhosttyApp: @unchecked Sendable {
 }
 
 final class ClipboardRequest: @unchecked Sendable {
+    let kind: ghostty_clipboard_request_e?
     let state: UnsafeMutableRawPointer?
     let retained: RetainedGhosttySurface
     init(state: UnsafeMutableRawPointer?, retained: RetainedGhosttySurface) {
         self.state = state
         self.retained = retained
+        kind = state.map { ghostty_clipboard_request_type($0) }
     }
 
     /// Rereads the live surface, which a teardown during the GDK read frees.
     /// The orphaned request state then leaks: no C API frees it without the surface.
-    /// Line endings are normalised so libghostty's paste protection sees CR-only lines (`PasteLineEndings`).
     @MainActor func complete(_ text: String) {
         guard let surface = retained.surface.surface else { return }
-        PasteLineEndings.normalized(text).withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, false) }
+        let payload = LinuxClipboardReadPolicy.payload(text, request: kind)
+        payload.withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, false) }
     }
 }
 

@@ -50,6 +50,15 @@ The Linux build does not patch z2d.
 
 ## Provenance and validation
 
+The Ghostty profile records SHA256 identities of the selected Linux `ghostty-*.patch` inputs.
+The profile verifier checks those bytes, and the vendored Ghostty provenance includes the same map.
+A cache lacking the map or carrying an earlier patch identity is rejected, so a new C API/header cannot
+silently link against an older local runtime. `setup-linux.sh` applies the selected patches before building;
+this records selected source inputs, not an independent attestation of arbitrary binary contents.
+The clipboard request-kind patch exposes the existing live request tag without changing its ownership:
+callers must query it before completion invalidates the request, and must never pass a null or stale pointer.
+
+
 Git-source entries identify an immutable commit, path and raw URL.
 Archive entries identify an exact member and refer to an archive URL/SHA256 in the inventory.
 All 21 Ghostty dependency archives were downloaded and their Zig package hashes independently recomputed with the checksum-verified Zig 0.16 fetch utility; no build or candidate execution was involved.

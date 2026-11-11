@@ -17,10 +17,18 @@ enum ClipboardConfirmRoute: Equatable {
 enum PasteLineEndings {
     /// libghostty's safety check looks only for "\n" (paste.zig `isSafe`) and its encoder leaves a lone
     /// "\r" alone, so CR-only lines would reach a raw prompt unasked and each CR would submit one.
-    /// Every text the app hands back for a clipboard read is normalised to LF first.
+    /// Apply only to known paste requests; OSC 52 replies must preserve the original bytes.
     static func normalized(_ text: String) -> String {
         guard text.contains("\r") else { return text }
         return text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+    }
+}
+
+enum LinuxClipboardReadPolicy {
+    static func payload(_ text: String, request: ghostty_clipboard_request_e?) -> String {
+        guard request == GHOSTTY_CLIPBOARD_REQUEST_PASTE else { return text }
+        // File-manager copies become shell paths only for paste, never for a terminal clipboard query.
+        return PasteLineEndings.normalized(PasteDecoder.posixPaths(fromURIList: text) ?? text)
     }
 }
 

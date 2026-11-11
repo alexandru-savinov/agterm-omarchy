@@ -289,6 +289,7 @@ class PayloadStageTests(unittest.TestCase):
         shutil.copytree(ROOT / 'packaging/linux/notices', self.repo / 'packaging/linux/notices')
         (self.repo / 'linux').mkdir()
         shutil.copy2(ROOT / 'linux/ghostty-resources.env', self.repo / 'linux/ghostty-resources.env')
+        shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
         shutil.copy2(ROOT / 'LICENSE', self.repo / 'LICENSE')
         for name in ('verify-linux-resources.sh', 'verify-linux-zmx-cache.sh'):
             script = self.repo / 'scripts' / name

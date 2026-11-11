@@ -139,4 +139,17 @@ struct LinuxUnsafePasteTests {
         #expect(!normalised.unicodeScalars.contains("\r"))
         #expect(normalised.unicodeScalars.filter { $0 == "\n" }.count == 2)
     }
+    @Test("Only known paste requests transform line endings and file-manager URI lists")
+    func requestKindPreservesClipboardQueries() {
+        let text = "Unicode λ\r\nsecond\rthird\n"
+        let uri = "file:///tmp/one%20two\r\nfile:///tmp/three\r\n"
+        for payload in [text, uri] {
+            #expect(LinuxClipboardReadPolicy.payload(payload, request: GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ) == payload)
+            #expect(LinuxClipboardReadPolicy.payload(payload, request: GHOSTTY_CLIPBOARD_REQUEST_OSC_52_WRITE) == payload)
+            #expect(LinuxClipboardReadPolicy.payload(payload, request: nil) == payload)
+        }
+        #expect(LinuxClipboardReadPolicy.payload(text, request: GHOSTTY_CLIPBOARD_REQUEST_PASTE) == "Unicode λ\nsecond\nthird\n")
+        #expect(LinuxClipboardReadPolicy.payload(uri, request: GHOSTTY_CLIPBOARD_REQUEST_PASTE) == #"/tmp/one\ two /tmp/three"#)
+    }
+
 }
