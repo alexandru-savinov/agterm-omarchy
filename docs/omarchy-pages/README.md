@@ -24,6 +24,15 @@ It links prominently from the hub and uses self-hosted CSS/JavaScript with no ne
 Its optional text, phase and workstream filters preserve the full readable roster when JavaScript is disabled.
 The existing hub remains script-free.
 Both pages link directly to the source-install guide on this repository's integrated `main` branch.
+Both pages lead with the current work-in-progress goal #305 independently of task-list truncation.
+The frozen `bec375d7` artifact, PR #322 one-library diagnostic hybrid and full-source candidate have separate identities and validation gates.
+Frozen ordinary/zsh-fixture Live results do not erase the original configuration shutdown failure.
+Actual bash testing establishes the documented non-zsh Live fallback, not bash Live support.
+Mac core tests, installed-app comparisons and a source-built Mac app remain separate subjects.
+The current block links #199, #310, #320 and the exact-subject evidence in #317/#322.
+Neither a hosted pass nor this documentation build supplies native acceptance.
+
+Historical evidence remains visible below that block.
 Both pages distinguish the trusted matrix at `6775c336`, its exact ARM64 archive's seven ordinary
 and nine Live native checks (ARM64 archive SHA256 prefix `2b629e40`), the earlier `fd85fc58` acceptance,
 historical failed runs, and older installation/renderer evidence.
@@ -42,6 +51,9 @@ To refresh ownership, read the latest issue/PR comments before editing `roster.j
 Record the observation time and each source's exact timestamp, agent/account, role, task and reported state.
 An assignment without acknowledgment uses phase `assigned` and reported_state `null`.
 Keep historical completed reports distinct from current work and review handoffs.
+The November 11 refresh adds six acknowledged current roles ahead of the retained historical reports.
+Old reports keep their original source timestamps and reported states; superseded active phases are historical.
+These records describe acknowledged responsibilities, not verified execution or present process liveness.
 Source paths accept only this repository's issue/PR references; text is escaped before HTML rendering.
 The validated snapshot, including constructed source/task URLs, is published under `roster` in `status.json`.
 Its `observed_at` is separate from the page build's `generated_at`; a rebuild does not refresh the reviewed evidence.

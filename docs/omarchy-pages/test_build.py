@@ -42,7 +42,7 @@ class PagesTests(unittest.TestCase):
             self.assertIn('class="filters" hidden', team)
             self.assertIn('rel="icon" href="favicon.svg"', team)
             self.assertNotIn("$ agterm team --evidence", team)
-            self.assertIn("Exact candidate passed.", team)
+            self.assertIn("Historical candidate passed.", team)
             for page in (team, (root / "index.html").read_text()):
                 self.assertIn("7 ordinary and 9 Live checks passed", page)
                 self.assertIn("41357189891", page)
@@ -162,6 +162,28 @@ class PagesTests(unittest.TestCase):
             self.assertTrue((root / "style.css").stat().st_size > 0)
             self.assertTrue((root / ".nojekyll").exists())
             self.assertIn("not a verified stable release", (root / "index.html").read_text())
+
+    def test_current_goal_is_visible_without_a_task_row_or_queue(self):
+        issues = [{"number": n, "title": str(n), "state": "open"} for n in range(1, 21)]
+        with tempfile.TemporaryDirectory() as temporary:
+            build.write_site(temporary, issues, "a" * 40, limit=10)
+            root = Path(temporary)
+            data = json.loads((root / "status.json").read_text())
+            self.assertNotIn(305, [task["number"] for task in data["tasks"]])
+            self.assertEqual(data["readiness"], "work-in-progress")
+            for name in ("index.html", "team.html"):
+                with self.subTest(page=name):
+                    page = (root / name).read_text()
+                    current = page.split('id="current-validation"', 1)[1].split("</section>", 1)[0]
+                    for target in ("issues/305", "issues/199", "issues/310", "issues/320", "pull/317", "pull/322"):
+                        self.assertIn(build.BASE + "/" + target, current)
+                    self.assertIn("Current acceptance remains incomplete.", current)
+                    self.assertIn("bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d", current)
+                    self.assertIn("one changed library", current)
+                    self.assertIn("Full-source candidate:", current)
+                    self.assertIn("not bash Live support", current)
+                    self.assertIn("same-account review is not independent approval", current)
+                    self.assertLess(page.index('id="current-validation"'), page.index("6775c336"))
 
     def test_issues_only_sorted_open_first_and_limited(self):
         issues = [{"number": n, "title": str(n), "state": "closed" if n == 1 else "open"}
