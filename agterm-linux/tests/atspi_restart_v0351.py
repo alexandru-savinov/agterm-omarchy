@@ -129,6 +129,20 @@ def verify_restart_close_reopen(env, state):
             entries = request("zmx.list")["result"]["zmx"]["entries"]
             return next((entry.get("leaderPID") for entry in entries if entry["daemon"] == daemon), None)
 
+        caller = raw_control_json(env, {"cmd": "window.new", "args": {"name": "reopen caller"}})
+        assert caller["ok"], caller
+        caller = caller["result"]["id"]
+        caller_title = "Reopen from another window"
+        caller_session = raw_control_json(env, {"cmd": "session.new", "args": {
+            "name": caller_title, "window": caller}})
+        assert caller_session["ok"], caller_session
+        assert caller != window
+
+        def reopen_from_other_window():
+            run_palette_action(app, process.pid, caller_title, "Reopen Last Closed Item")
+            wait_for(lambda: any(item["id"] == window and item["active"] for item in window_list(env)),
+                     "Reopen did not reveal the restored session's owning window")
+
         # control arm: with no restart in flight, a plain closed session must reopen realized, which
         # separates a Reopen defect from one the held restart below causes
         plain = request("session.new", args={"name": "reopen control"})
@@ -137,7 +151,7 @@ def verify_restart_close_reopen(env, state):
         wait_realized(plain, "control: the plain session never realized")
         assert request("session.close", plain)["ok"]
         wait_for(lambda: row(plain) is None, "control: the plain session did not close")
-        run_palette_action(app, process.pid, None, "Reopen Last Closed Item")
+        reopen_from_other_window()
         wait_realized(plain, "control: Reopen Last Closed Item did not bring a plain closed session back realized")
         assert request("session.close", plain)["ok"]
         wait_for(lambda: row(plain) is None, "control: the reopened plain session did not close")
@@ -184,7 +198,7 @@ def verify_restart_close_reopen(env, state):
         assert worker.is_alive(), f"the restart finished before the close/reopen window: {restart}"
         assert request("session.close", session)["ok"]
         wait_for(lambda: row() is None, "the restarting session did not close")
-        run_palette_action(app, process.pid, None, "Reopen Last Closed Item")
+        reopen_from_other_window()
         wait_realized(session, "Reopen Last Closed Item did not bring the realized session back")
         assert pane_id() == identity, f"the reopened session took a new pane identity: {pane_id()} != {identity}"
         reopened_shell = wait_for(lambda: leader(daemon), "the reopened pane reported no shell", timeout=15)
