@@ -2,8 +2,7 @@
 
 Pointer checks cover Split, Scratch, Quick and New Session; AT-SPI activation covers Split, Scratch,
 Quick, Sidebar and Flagged. Shift+Tab must reach each sensitive button, and every listed button must
-follow its Settings > Interface switch. Tab+Space activates Split and Flagged. Other
-pointer/activation paths are not verified here.
+follow its Settings > Interface switch. Physical keyboard activation checks every listed control.
 """
 
 import time
@@ -11,7 +10,7 @@ import time
 from gi.repository import Atspi
 
 from atspi_smoke import (NEGATIVE_SETTLE_SECONDS, ChromeFocus, actionable, activate, control_json, describe_tree,
-                         mouse_click, preferences_window, press_x11_key, stop, wait_for)
+                         mouse_click, preferences_window, press_escape, press_x11_key, stop, wait_for)
 from atspi_prefs_combo import close_preferences, open_preferences, read_settings
 
 # element raw value, Interface switch title, accessible name
@@ -115,6 +114,12 @@ def verify_chrome_interface_controls(env):
              ("session", "split", "close", "--target", ctx.session_id)),
             ("Show Flagged Only", lambda: ctx.tree().get("sidebarMode") == "flagged",
              ("sidebar", "mode", "tree")),
+            ("Toggle Sidebar (Ctrl+Shift+S)", lambda: not ctx.tree().get("sidebarVisible"),
+             ("sidebar", "show")),
+            ("Scratch Terminal (Ctrl+Shift+J)", has_scratch, toggles["Scratch Terminal (Ctrl+Shift+J)"][1]),
+            ("Quick Terminal (Ctrl+`)", lambda: ctx.tree().get("quickVisible"), ("quick", "hide")),
+            ("Dashboard (Ctrl+Shift+M)", lambda: bool(ctx.tree().get("dashboardMembers")),
+             ("dashboard", "--close")),
         )
         for name, effect, undo in keyboard_actions:
             assert not effect(), f"{name!r} was already active before its keyboard test"
@@ -127,6 +132,73 @@ def verify_chrome_interface_controls(env):
             wait_for(lambda: not effect(), f"undoing keyboard activation of {name!r} failed")
             ctx.select_session(ctx.session_id, "the original session could not be reselected")
             ctx.close_search("after keyboard activation of " + name)
+
+        def invoke(name, route):
+            ctx.select_session(ctx.session_id, "the original session could not be reselected")
+            if route == "keyboard":
+                ctx.open_search("before " + name)
+                ctx.shift_tab_until(lambda: ctx.has_keyboard(button(name)),
+                                    f"Shift+Tab never focused {name!r}")
+                press_x11_key("space", pid)
+            elif route == "pointer":
+                mouse_click(lambda: button(name), pid, button="left")
+            else:
+                activate(wait_for(lambda: button(name), f"{name!r} is not actionable"))
+
+        def finish(route):
+            ctx.select_session(ctx.session_id, "the original session could not be reselected")
+            if route == "keyboard" and actionable(app, "Next match (Enter)"):
+                ctx.close_search("after keyboard activation")
+
+        for name, routes in (("New Workspace", ("pointer", "keyboard", "accessibility")),
+                             ("New Session", ("keyboard", "accessibility"))):
+            for route in routes:
+                before = ctx.tree()
+                old_workspaces = {item["id"] for item in before["workspaces"]}
+                old_sessions = {item["id"] for item in ctx.sessions()}
+                invoke(name, route)
+                created = wait_for(lambda: [item for item in ctx.sessions() if item["id"] not in old_sessions],
+                                   f"{route} activation of {name} created no session")
+                assert len(created) == 1 and created[0].get("active"), (
+                    f"{route} activation of {name} did not select exactly one new session: {created}")
+                workspaces = {item["id"] for item in ctx.tree()["workspaces"]}
+                assert len(workspaces - old_workspaces) == (1 if name == "New Workspace" else 0), (
+                    f"{route} activation of {name} changed the wrong workspace count")
+                expected = f"owner={created[0]['id']}/{ctx.window_id}/left"
+                assert ctx.owner_after(f"{route}-{name.replace(' ', '-')}") == expected, (
+                    f"{route} activation of {name} did not focus its new terminal")
+                finish(route)
+
+        for route in ("keyboard", "accessibility"):
+            invoke("Recent Sessions (Ctrl+Tab)", route)
+            wait_for(ctx.picker_row, f"{route} activation did not open Recent Sessions")
+            press_escape(pid)
+            wait_for(lambda: ctx.picker_row() is None, "Escape did not dismiss Recent Sessions")
+            finish(route)
+            assert ctx.owner_after(f"{route}-recent-dismiss") == ctx.session_owner, (
+                f"{route} Recent Sessions dismissal did not restore the original terminal")
+
+        invoke("Dashboard (Ctrl+Shift+M)", "pointer")
+        wait_for(lambda: ctx.tree().get("dashboardMembers"), "pointer activation did not open Dashboard")
+        press_escape(pid)
+        wait_for(lambda: not ctx.tree().get("dashboardMembers"), "Escape did not close Dashboard")
+        assert ctx.owner_after("pointer-dashboard-dismiss") == ctx.session_owner, (
+            "Dashboard dismissal did not restore the original terminal")
+
+        original_workspace = next(item["id"] for item in ctx.tree()["workspaces"]
+                                  if any(session["id"] == ctx.session_id for session in item["sessions"]))
+        control_json(env, "workspace", "focus", "on", "--target", original_workspace, "--json")
+        control_json(env, "workspace", "filter", "off", "--json")
+        for route in ("pointer", "keyboard", "accessibility"):
+            wait_for(lambda: button("Show Only Focused Workspaces"), "workspace filter did not reset")
+            invoke("Show Only Focused Workspaces", route)
+            wait_for(lambda: button("Show All Workspaces"), f"{route} activation did not enable workspace filter")
+            if route == "pointer":
+                assert ctx.owner_after("pointer-workspace-filter") == ctx.session_owner, (
+                    "clicking the workspace filter moved focus off the terminal")
+            control_json(env, "workspace", "filter", "off", "--json")
+            wait_for(lambda: button("Show Only Focused Workspaces"), "workspace filter did not turn off")
+            finish(route)
 
         # Shift+Tab walks backward from the search entry through every visible chrome button.
         reached = set()
@@ -177,7 +249,8 @@ def verify_chrome_interface_controls(env):
             wait_for(lambda name=name: button(name), f"{name!r} did not return with {title!r} on")
         close_preferences(app, pid)
         print("OK: pointer focus for Split/Scratch/Quick/New Session; AT-SPI activation for "
-              "Split/Scratch/Quick/Sidebar/Flagged; Tab+Space activation for Split/Flagged; "
+              "Split/Scratch/Quick/Sidebar/Flagged; all ten controls activated by keyboard; "
+              "new workspace/session creation, Recent Sessions dismissal and workspace-filter routes; "
               "sensitive buttons reached by Shift+Tab; "
               "all listed Interface visibility switches verified")
     except AssertionError:
