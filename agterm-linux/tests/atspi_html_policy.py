@@ -61,17 +61,23 @@ def verify_html_policy(env, state):
             return next(iter(node().get("htmlOverlays", [])), None)
 
         def open_page(args, title):
+            # A page may retitle itself (bridge reply, subframe message) before a poll sees its first title,
+            # so a finished load counts too; the caller then checks the title it is waiting for.
             request("session.overlay.open", args)
-            wait_for(lambda: page() and page().get("title") == title,
-                     f"page did not reach {title!r}: {page()}", timeout=20)
+            if not wait_for(lambda: page() and (page().get("title") == title or page().get("state") == "loaded"),
+                            "", timeout=20, required=False):
+                raise AssertionError(f"page did not reach {title!r}: {page()}")
 
         def close_page():
             request("session.overlay.close")
             wait_for(lambda: page() is None, "closed page remained in the control tree")
 
         def titled(prefix):
-            return wait_for(lambda: page() and (page().get("title") or "").startswith(prefix) and page()["title"],
-                            f"page never reported {prefix!r}: {page()}", timeout=20)
+            found = wait_for(lambda: page() and (page().get("title") or "").startswith(prefix) and page()["title"],
+                             "", timeout=20, required=False)
+            if not found:
+                raise AssertionError(f"page never reported {prefix!r}: {page()}")
+            return found
 
         base = "policy base"
         request("session.rename", {"name": base})
