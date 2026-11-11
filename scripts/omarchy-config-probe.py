@@ -150,6 +150,7 @@ class Probe:
         self.token = uuid.uuid4().hex
         self.owned = OwnedProcesses(snapshot(), self.token)
         self.apps, self.children, self.commands, self.sockets = [], [], 0, None
+        self.state_links = []
         self.deadline = time.monotonic() + LIMITS['total']
         self.runtime = output / 'shared-runtime'
         self.runtime.mkdir(mode=0o700)
@@ -214,6 +215,12 @@ class Probe:
             self.socket_identity = private_directory(self.sockets)
         home, state = self.output / (name + '-home'), self.output / (name + '-state')
         home.mkdir(mode=0o700); state.mkdir(mode=0o700)
+        # Linux derives its socket from AGTERM_STATE_DIR, ignoring AGTERM_CONTROL_SOCKET.
+        # A private short alias keeps sun_path bounded while state evidence stays in output.
+        state_link = self.sockets / name
+        state_link.symlink_to(state, target_is_directory=True)
+        link_info = state_link.lstat()
+        self.state_links.append((state_link, (link_info.st_dev, link_info.st_ino), state, private_directory(state)))
         (state / 'config').mkdir(mode=0o700)
         (state / 'settings.json').write_text(json.dumps(dict(welcomeShown=True, restoreMode='none',
                                                            closeGraceUndoEnabled=False, notificationsEnabled=False)))
@@ -226,11 +233,12 @@ class Probe:
             display = Path(self.desktop['XDG_RUNTIME_DIR']) / display
         display = display.resolve(strict=True)
         require(display.is_socket(), 'Wayland endpoint is not a socket')
-        socket = self.sockets / (name + '.sock')
+        socket = state_link / 'agterm.sock'
+        require(len(os.fsencode(socket)) < 100, 'Isolated state-derived control socket path is too long')
         env.update(HOME=str(home), XDG_CONFIG_HOME=str(home / '.config'), XDG_DATA_HOME=str(home / '.local/share'),
                    XDG_CACHE_HOME=str(home / '.cache'), XDG_STATE_HOME=str(home / '.local/state'),
                    XDG_RUNTIME_DIR=str(self.runtime), WAYLAND_DISPLAY=str(display),
-                   AGTERM_STATE_DIR=str(state), AGTERM_CONTROL_SOCKET=str(socket),
+                   AGTERM_STATE_DIR=str(state_link), GSETTINGS_BACKEND='memory',
                    AGTERM_APP_ID='io.github.melonamin.agterm.configprobe.r' + uuid.uuid4().hex,
                    AGTERM_GHOSTTY_RESOURCES=str(self.payload / 'share/ghostty'),
                    AGTERM_RESOURCE_ROOT=str(self.payload / 'share/agterm'), AGTERM_ZMX_PATH=str(self.payload / 'bin/zmx'),
@@ -392,12 +400,18 @@ class Probe:
                 self.report['errors'].append(app['name'] + ': generated-config diagnostics in app log')
         if self.sockets is not None and not remaining:
             require(private_directory(self.sockets) == self.socket_identity, 'Socket directory identity changed')
-            for app in self.apps:
-                path = app['socket']
-                if path.exists():
+            for link, expected_link, state, expected_state in self.state_links:
+                info = link.lstat()
+                require(stat.S_ISLNK(info.st_mode) and info.st_uid == os.getuid()
+                        and (info.st_dev, info.st_ino) == expected_link and os.readlink(link) == str(state),
+                        'State alias identity or target changed')
+                require(private_directory(state) == expected_state, 'State directory identity changed')
+                path = state / 'agterm.sock'
+                if os.path.lexists(path):
                     info = path.lstat()
                     require(stat.S_ISSOCK(info.st_mode) and info.st_uid == os.getuid(), 'Unexpected socket replacement')
                     path.unlink()
+                link.unlink()
             self.sockets.rmdir()  # refuses unrelated entries; never recursively delete
         self.report['socket_directory_removed'] = self.sockets is None or not self.sockets.exists()
 

@@ -121,6 +121,13 @@ class ConfigSnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'private regular'):
             probe.configs(self.root, 2)
 
+    def test_dconf_is_not_exempted_from_unknown_runtime_entries(self):
+        foreign = self.root / 'dconf'; foreign.mkdir(mode=0o700)
+        marker = foreign / 'user'; marker.write_bytes(b'preserve foreign runtime data')
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected shared-runtime entry'):
+            probe.configs(self.root, 2)
+        self.assertEqual(marker.read_bytes(), b'preserve foreign runtime data')
+
 
 class RunSafetyTests(unittest.TestCase):
     def setUp(self):
@@ -143,6 +150,11 @@ class RunSafetyTests(unittest.TestCase):
         self.stack.enter_context(patch.object(probe.os, 'pidfd_open', create=True))
         self.stack.enter_context(patch.object(probe.signal, 'pidfd_send_signal', create=True))
         self.stack.enter_context(patch.object(probe, 'snapshot', return_value={}))
+        self.short = tempfile.TemporaryDirectory(prefix='agt-cfg-test-', dir='/tmp')
+        self.addCleanup(self.short.cleanup)
+        self.short_output = tempfile.TemporaryDirectory(prefix='agt-out-', dir='/tmp')
+        self.addCleanup(self.short_output.cleanup)
+        self.stack.enter_context(patch.object(probe.tempfile, 'mkdtemp', return_value=self.short.name))
 
     def run_probe(self, **options):
         return probe.run_probe(self.payload, self.root / 'output', self.env, self.digest, **options)
@@ -239,14 +251,156 @@ class RunSafetyTests(unittest.TestCase):
             self.assertEqual(env['DBUS_SESSION_BUS_ADDRESS'], self.env['DBUS_SESSION_BUS_ADDRESS'])
             self.assertEqual(env['WAYLAND_DISPLAY'], str(self.root / 'wayland'))
             self.assertEqual(env['XDG_RUNTIME_DIR'], str(self.root / 'output/shared-runtime'))
-            self.assertTrue(env['AGTERM_CONTROL_SOCKET'].startswith('/tmp/agt-cfg-'))
-            self.assertLess(len(env['AGTERM_CONTROL_SOCKET'].encode()), 100)
+            self.assertNotIn('AGTERM_CONTROL_SOCKET', env)
+            self.assertTrue(env['AGTERM_STATE_DIR'].startswith('/tmp/agt-cfg-'))
+            self.assertLess(len((env['AGTERM_STATE_DIR'] + '/agterm.sock').encode()), 100)
+            self.assertEqual(Path(env['AGTERM_STATE_DIR']).resolve(), self.root / 'output/left-state')
+            self.assertEqual(env['GSETTINGS_BACKEND'], 'memory')
             raise OSError('stop before any frontend')
         with patch.object(probe.subprocess, 'Popen', side_effect=launch):
             result = self.run_probe()
         self.assertFalse(result['passed'])
         self.assertEqual(len(observed), 1)
+        self.assertEqual(result['errors'], ['OSError: stop before any frontend'])
         self.assertEqual(self.env, original)
+
+    def bound_socket_fixture(self, exercise):
+        """Bind as Linux ControlResolve does; stub only the frontend/process/JSON endpoints."""
+        servers, launched = {}, []
+        original_hash = probe.sha256
+        def launch(argv, **kwargs):
+            env = kwargs['env']; pid = 710 + len(launched)
+            # Deliberately ignore AGTERM_CONTROL_SOCKET, exactly like the Linux frontend.
+            path = str(Path(env['AGTERM_STATE_DIR']) / 'agterm.sock')
+            server = socket.socket(socket.AF_UNIX); self.addCleanup(server.close)
+            server.bind(path); server.listen(1); servers[path] = server
+            if env.get('GSETTINGS_BACKEND') != 'memory':
+                (Path(env['XDG_RUNTIME_DIR']) / 'dconf').mkdir(exist_ok=True)
+            cache = Path(env['XDG_CACHE_HOME']); cache.mkdir(parents=True)
+            (cache / 'fixture-cache').write_text(str(pid))
+            launched.append(dict(pid=pid, env=env))
+            return SimpleNamespace(pid=pid, poll=lambda: None)
+        def command(instance, arguments, env, **kwargs):
+            if arguments[0] == 'hyprctl':
+                self.assertEqual(env, self.env)
+                return json.dumps([dict(pid=app['pid'], mapped=True, xwayland=False) for app in launched])
+            path = arguments[arguments.index('--socket') + 1]
+            with socket.socket(socket.AF_UNIX) as client:
+                client.connect(path)
+                accepted, _ = servers[path].accept(); accepted.close()
+            return json.dumps(dict(ok=True, result=dict(tree=dict(workspaces=[
+                dict(sessions=[dict(id='fixture-session', realized=True)])]))))
+        with patch.object(probe.subprocess, 'Popen', side_effect=launch), \
+                patch.object(probe, 'record', side_effect=lambda pid: row(pid)), \
+                patch.object(probe, 'sha256', side_effect=lambda path: self.digest if str(path).startswith('/proc/')
+                             else original_hash(path)), patch.object(probe.Probe, 'command', command), \
+                patch.object(probe.Probe, 'input'), \
+                patch.object(probe.Probe, 'exercise', lambda instance: exercise(instance, launched)):
+            return self.run_probe()
+
+    def test_linux_socket_is_discovered_without_a_control_socket_override(self):
+        self.root = Path(self.short_output.name).resolve()
+        with patch.object(probe, 'LIMITS', dict(probe.LIMITS, ready=0.2)):
+            result = self.bound_socket_fixture(lambda instance, launched: instance.launch('left'))
+        self.assertEqual(result['errors'], [])
+        self.assertEqual(len(result['apps']), 1)
+        self.assertTrue(result['socket_directory_removed'])
+
+    def test_linux_state_socket_contract_with_long_output_and_isolated_gtk_children(self):
+        self.root = self.root / ('retained-evidence-' + 'x' * 90); self.root.mkdir(mode=0o700)
+        self.env.update(GSETTINGS_BACKEND='dconf', AGTERM_CONTROL_SOCKET='/unrelated/ignored.sock',
+                        XDG_CACHE_HOME='/unrelated/cache')
+        original = dict(self.env)
+        def exercise(instance, launched):
+            for name in ('left', 'right'):
+                app = instance.launch(name)
+                state = self.root / 'output' / (name + '-state')
+                self.assertGreater(len(str(state / 'agterm.sock').encode()), 104)
+                self.assertEqual(Path(app['env']['AGTERM_STATE_DIR']).resolve(), state)
+                self.assertTrue(app['socket'].is_socket())
+                self.assertLess(len(str(app['socket']).encode()), 100)
+                self.assertEqual(app['env']['GSETTINGS_BACKEND'], 'memory')
+                self.assertNotIn('AGTERM_CONTROL_SOCKET', app['env'])
+                self.assertEqual(app['env']['XDG_CACHE_HOME'], str(self.root / 'output' / (name + '-home/.cache')))
+            self.assertNotEqual(launched[0]['env']['AGTERM_STATE_DIR'], launched[1]['env']['AGTERM_STATE_DIR'])
+            self.assertNotEqual(launched[0]['env']['XDG_CACHE_HOME'], launched[1]['env']['XDG_CACHE_HOME'])
+            self.assertEqual(probe.configs(instance.runtime, 2), {})
+        result = self.bound_socket_fixture(exercise)
+        self.assertEqual(result['errors'], [])
+        self.assertEqual(len(result['apps']), 2)
+        self.assertTrue(result['socket_directory_removed'])
+        self.assertTrue(result['sentinel_preserved'])
+        self.assertEqual(result['remaining_generated_paths'], [])
+        for name in ('left', 'right'):
+            state = self.root / 'output' / (name + '-state')
+            self.assertFalse((state / 'agterm.sock').exists())
+            self.assertTrue((state / 'config/ghostty.conf').is_file())
+            self.assertTrue((self.root / 'output' / (name + '-home/.cache/fixture-cache')).is_file())
+        self.assertEqual(self.env, original)
+
+    def test_changed_state_alias_is_preserved_without_following_it(self):
+        foreign = self.root / 'foreign'; foreign.mkdir(mode=0o700)
+        marker = foreign / 'agterm.sock'; marker.write_bytes(b'keep unrelated file')
+        aliases = []
+        def launch(argv, **kwargs):
+            link = Path(kwargs['env']['AGTERM_STATE_DIR']); aliases.append(link)
+            link.rename(link.with_name('original-alias'))
+            link.symlink_to(foreign, target_is_directory=True)
+            raise OSError('fixture changed alias')
+        with patch.object(probe.subprocess, 'Popen', side_effect=launch):
+            result = self.run_probe()
+        self.assertIn('State alias identity or target changed', '\n'.join(result['errors']))
+        self.assertEqual(aliases[0].resolve(), foreign)
+        self.assertEqual(marker.read_bytes(), b'keep unrelated file')
+
+    def test_same_target_alias_replacement_is_rejected_by_identity(self):
+        def launch(argv, **kwargs):
+            link = Path(kwargs['env']['AGTERM_STATE_DIR']); target = os.readlink(link)
+            link.rename(link.with_name('original-alias')); link.symlink_to(target, target_is_directory=True)
+            raise OSError('fixture replaced alias inode')
+        with patch.object(probe.subprocess, 'Popen', side_effect=launch):
+            result = self.run_probe()
+        self.assertIn('State alias identity or target changed', '\n'.join(result['errors']))
+        self.assertTrue((Path(self.short.name) / 'left').is_symlink())
+
+    def test_changed_state_directory_is_preserved(self):
+        def launch(argv, **kwargs):
+            state = Path(kwargs['env']['AGTERM_STATE_DIR']).resolve()
+            state.rename(state.with_name('original-state')); state.mkdir(mode=0o700)
+            (state / 'agterm.sock').write_bytes(b'keep replacement state')
+            raise OSError('fixture replaced state inode')
+        with patch.object(probe.subprocess, 'Popen', side_effect=launch):
+            result = self.run_probe()
+        self.assertIn('State directory identity changed', '\n'.join(result['errors']))
+        self.assertEqual((self.root / 'output/left-state/agterm.sock').read_bytes(), b'keep replacement state')
+
+    def test_broken_socket_symlink_is_rejected_and_preserved(self):
+        def launch(argv, **kwargs):
+            (Path(kwargs['env']['AGTERM_STATE_DIR']) / 'agterm.sock').symlink_to(self.root / 'absent')
+            raise OSError('fixture replaced socket')
+        with patch.object(probe.subprocess, 'Popen', side_effect=launch):
+            result = self.run_probe()
+        self.assertIn('Unexpected socket replacement', '\n'.join(result['errors']))
+        self.assertTrue((self.root / 'output/left-state/agterm.sock').is_symlink())
+
+    def test_socket_file_replacement_is_rejected_and_preserved(self):
+        def launch(argv, **kwargs):
+            (Path(kwargs['env']['AGTERM_STATE_DIR']) / 'agterm.sock').write_bytes(b'keep replacement file')
+            raise OSError('fixture replaced socket')
+        with patch.object(probe.subprocess, 'Popen', side_effect=launch):
+            result = self.run_probe()
+        self.assertIn('Unexpected socket replacement', '\n'.join(result['errors']))
+        self.assertEqual((self.root / 'output/left-state/agterm.sock').read_bytes(), b'keep replacement file')
+
+    def test_unexpected_dconf_remains_reported_and_preserved(self):
+        def exercise(instance):
+            (instance.runtime / 'dconf').mkdir(mode=0o700)
+        with patch.object(probe.Probe, 'exercise', exercise):
+            result = self.run_probe()
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['remaining_generated_paths'], ['dconf'])
+        self.assertTrue((self.root / 'output/shared-runtime/dconf').is_dir())
+        self.assertTrue(result['sentinel_preserved'])
 
     def test_partial_success_cannot_pass_without_both_apps_and_all_checks(self):
         with patch.object(probe.Probe, 'exercise', return_value=None):
