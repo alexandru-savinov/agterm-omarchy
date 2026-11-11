@@ -77,8 +77,8 @@ def verify_clipboard_read_lifetime(env):
         return session, output
 
     def respond(label):
-        dialog = wait_for(lambda: named(app, HEADING), "read consent disappeared before response")
-        activate(wait_for(lambda: named(dialog, label, role="button"), "read consent response missing"))
+        wait_for(lambda: named(app, HEADING), "read consent disappeared before response")
+        activate(wait_for(lambda: named(app, label, role="button"), "read consent response missing"))
         wait_for(lambda: named(app, HEADING) is None, "read consent remained after response")
 
     def reply_bytes(output):
