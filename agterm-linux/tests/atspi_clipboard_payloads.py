@@ -56,6 +56,8 @@ finally:
 
 
 def verify_clipboard_payloads(env, state):
+    artifacts = Path(os.environ.get("AGTERM_UI_ARTIFACT_DIR", state)) / "clipboard-payloads"
+    artifacts.mkdir(parents=True, exist_ok=True)
     Gtk.init()
     clipboard = Gdk.Display.get_default().get_clipboard()
     mixed = "agterm λ\r\nCRLF\rCR\nLF"
@@ -169,8 +171,8 @@ def verify_clipboard_payloads(env, state):
                 for kind, payload in (("mixed", mixed), ("uri", uri)):
                     for response in ("Allow", "Deny"):
                         set_text(payload)
-                        output = root / f"read-{kind}-{response}.reply"
-                        complete = root / f"read-{kind}-{response}.complete"
+                        output = artifacts / f"{label}-read-{kind}-{response}.reply"
+                        complete = artifacts / f"{label}-read-{kind}-{response}.complete"
                         start(["/usr/bin/python3", str(reader), str(output), str(complete)], f"read-{kind}-{response}")
                         until(lambda: named(app, READ_HEADING), "OSC52 read did not ask permission")
                         assert not output.exists(), "clipboard query completed before consent"
@@ -179,14 +181,15 @@ def verify_clipboard_payloads(env, state):
                         match = re.fullmatch(rb"\x1b\]52;c;([A-Za-z0-9+/=]*)(?:\x07|\x1b\\)", output.read_bytes())
                         assert match, f"invalid OSC52 response: {output.read_bytes()!r}"
                         expected = payload.encode() if response == "Allow" else b""
-                        assert base64.b64decode(match[1], validate=True) == expected, (
-                            f"{kind} OSC52 {response} did not preserve the exact expected bytes")
+                        actual = base64.b64decode(match[1], validate=True)
+                        assert actual == expected, (
+                            f"{kind} OSC52 {response} did not preserve the exact expected bytes: {actual!r} != {expected!r}")
                         print(f"OK: exact {kind} OSC52 {response}", flush=True)
             payloads = (("cr", "one\rtwo"), ("lf", "one\ntwo"))
             if label == "protected":
                 payloads += (("uri", uri), ("drop-cr", "one\rtwo"), ("drop-lf", "one\ntwo"), ("drop-uri", uri))
             for kind, payload in payloads:
-                ready, output = root / f"{kind}.ready", root / f"{kind}.input"
+                ready, output = root / f"{kind}.ready", artifacts / f"{label}-{kind}.input"
                 start(["/usr/bin/python3", str(collector), str(ready), str(output), str(bracketed).lower()],
                       f"paste-{label}-{kind}")
                 until(ready.exists, "raw paste receiver did not start")
