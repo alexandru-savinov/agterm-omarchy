@@ -7,6 +7,9 @@ extension GhosttySurface {
     /// Drop a live font zoom back to the configured default without pinning that default on the session:
     /// the CELL_SIZE report it triggers matches `pendingFontRestore` and is swallowed by `reportFontSize`.
     func resetFontZoomToDefault() {
+        // A dashboard tile runs at the dashboard's size, which is applied only when the dashboard opens:
+        // resetting it here would leave the tile at full size until the dashboard is reopened.
+        guard dashboardFontOverride == nil else { return }
         guard let current = currentFontSize() else { return }
         // The effective base config, not the UI setting: with the setting cleared, a `font-size` from the
         // scoped or inherited Ghostty config is what new sessions use, so a reset must land there too.
