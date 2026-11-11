@@ -168,6 +168,8 @@ def verify_appearance_reset(env):
         reset_appearance()
         wait_for(lambda: saved_font_sizes(env, [window_id])[session_id.lower()] is None,
                  "the equal-size reset did not clear the saved pin")
+        time.sleep(1)
+        assert saved_font_sizes(env, [window_id])[session_id.lower()] is None, "a late equal-size report re-pinned the reset"
         change_scoped_size(SCOPED_FONT_SIZE + 2)
         created = control_json(env, "session", "new", "--name", "reset-new", "--window", window_id, "--json")["result"]["id"]
         wait_for(lambda: any(item["id"] == created and item.get("fontSize") == SCOPED_FONT_SIZE + 2
