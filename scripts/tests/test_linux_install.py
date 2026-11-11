@@ -232,14 +232,16 @@ DESKTOP
         self.install('--no-build')
         manifest = self.prefix / 'lib/agterm/share/agterm/INSTALLED_FILES'
         complete = manifest.read_text()
-        for kind, text in (('empty', ''), ('cut mid-line', complete[:len('bin/agterm-li')]),
-                           ('cut at a line', 'bin/agterm-linux\n'), ('blank line', '\n' + complete),
-                           ('no trailing newline', complete.rstrip('\n'))):
+        for kind, text, reason in (('empty', '', 'is incomplete (it is empty)'),
+                                   ('cut mid-line', complete[:len('bin/agterm-li')], 'is incomplete (it ends mid-line)'),
+                                   ('cut at a line', 'bin/agterm-linux\n', 'is incomplete (it does not list'),
+                                   ('no trailing newline', complete.rstrip('\n'), 'is incomplete (it ends mid-line)'),
+                                   ('blank line', '\n' + complete, 'is malformed (it has blank')):
             with self.subTest(kind=kind):
                 manifest.write_text(text)
                 result = self.install('--uninstall', success=False)
-                # A partial line is also refused as an unknown entry; either way nothing is removed.
-                self.assertIn('refusing', result.stderr)
+                self.assertIn(reason, result.stderr)
+                self.assertIn('nothing was removed', result.stderr)
                 self.assert_still_installed()
         manifest.write_text(complete)
         self.install('--uninstall')
@@ -249,7 +251,7 @@ DESKTOP
         self.install('--no-build')
         (self.prefix / 'lib/agterm/share/agterm/INSTALLED_FILES').write_text('')
         result = self.install('--no-build')
-        self.assertIn('ignoring malformed', result.stderr)
+        self.assertIn('ignoring incomplete', result.stderr)
         self.install('--uninstall')
         self.assertEqual(self.files(), [])
 

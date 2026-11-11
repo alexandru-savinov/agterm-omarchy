@@ -75,17 +75,20 @@ def derived(root):
     return files
 
 def manifest_problem(manifest):
+    # The installer always writes newline-terminated lines that include both launchers and the entry.
     if not manifest.is_file():
-        return 'it is not a regular file'
+        return 'malformed', 'it is not a regular file'
     text = manifest.read_text()
     names = text.splitlines()
-    # The installer always writes newline-terminated lines that start with both launchers.
+    if not text:
+        return 'incomplete', 'it is empty'
     if not text.endswith('\n'):
-        return 'it is empty or truncated'
+        return 'incomplete', 'it ends mid-line'
     if any(not name for name in names) or len(set(names)) != len(names):
-        return 'it has blank or duplicate entries'
+        return 'malformed', 'it has blank or duplicate entries'
+    checked(names)
     if not set(launchers + (desktop_entry,)) <= set(names):
-        return 'it does not list the launchers and desktop entry'
+        return 'incomplete', 'it does not list both launchers and the desktop entry'
     return None
 
 def checked(names):
@@ -101,15 +104,14 @@ def recorded(root, strict=True):
     manifest = root / manifest_name
     if not (manifest.exists() or manifest.is_symlink()):
         return checked(derived(root))
-    if manifest.is_file():
-        checked(manifest.read_text().splitlines())
     problem = manifest_problem(manifest)
     if problem is None:
         return manifest.read_text().splitlines()
+    kind, detail = problem
     if strict:
-        sys.exit(f'refusing to uninstall: {manifest} is malformed ({problem}); nothing was removed')
+        sys.exit(f'refusing to uninstall: {manifest} is {kind} ({detail}); nothing was removed')
     # Replacing an install only needs its stale launcher files; its payload still implies them.
-    print(f'warning: ignoring malformed {manifest} ({problem}); using the installed payload instead',
+    print(f'warning: ignoring {kind} {manifest} ({detail}); using the installed payload instead',
           file=sys.stderr)
     return checked(derived(root))
 

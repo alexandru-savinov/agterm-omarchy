@@ -20,21 +20,29 @@ ZMX_STAMP="$ZMX_REV $ZMX_PATCH_DIGEST"
 source "$ROOT/linux/arch.sh"
 ZMX_BUILD_POLICY="target=$ZIG_TARGET cpu=$ZMX_CPU"
 
-# Fetch a pinned archive and refuse to use it unless its SHA-256 matches the recorded pin.
-fetch_verified() {
-  local url="$1" expected="$2" output="$3" actual
-  [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || { echo "no SHA-256 pin recorded for $url" >&2; exit 1; }
-  curl -fsSLo "$output" "$url"
-  actual="$(sha256sum < "$output" | cut -d' ' -f1)"
-  [[ "$actual" == "$expected" ]] || {
-    echo "checksum mismatch for $url: expected $expected, got $actual" >&2
-    rm -f "$output"
+# Fetch one pinned commit and refuse it unless the checked-out HEAD is exactly that commit; the commit id
+# identifies the content, so no archive checksum is needed. The checkout is then detached from git so
+# the build sees a plain source tree.
+fetch_pinned_commit() {
+  local url="$1" rev="$2" directory="$3"
+  [[ "$rev" =~ ^[0-9a-f]{40}$ ]] || { echo "no pinned 40-hex commit recorded for $url" >&2; exit 1; }
+  git init -q "$directory"
+  git -C "$directory" remote add origin "$url"
+  git -C "$directory" fetch -q --depth 1 origin "$rev"
+  git -C "$directory" -c advice.detachedHead=false checkout -q FETCH_HEAD
+  [[ "$(git -C "$directory" rev-parse HEAD)" == "$rev" ]] || {
+    echo "fetched $url at $(git -C "$directory" rev-parse HEAD), not the pinned commit $rev" >&2
     exit 1
   }
+  rm -rf "${directory:?}/.git"
 }
 
 cache_is_complete() {
-  "$VERIFY_CACHE" "$VENDOR" >/dev/null 2>&1
+  local reason
+  reason="$("$VERIFY_CACHE" "$VENDOR" 2>&1 >/dev/null)" && return 0
+  # Say once why an existing cache is rebuilt; a fresh checkout simply has nothing to reuse.
+  [[ ! -d "$VENDOR" ]] || printf 'rebuilding vendored libghostty:\n%s\n' "$reason" >&2
+  return 1
 }
 
 zmx_cache_is_complete() {
@@ -129,12 +137,8 @@ fi
 if $need_zmx; then
   ZMX_BUILD="$BUILD_DIR/zmx"
   ZMX_STAGE="$BUILD_DIR/zmx-stage"
-  ZMX_SLUG="${ZMX_REPO#https://github.com/}"
-  ZMX_SLUG="${ZMX_SLUG%.git}"
   echo "fetching zmx $ZMX_REV..."
-  mkdir -p "$ZMX_BUILD"
-  fetch_verified "https://codeload.github.com/$ZMX_SLUG/tar.gz/$ZMX_REV" "${ZMX_SHA256:-}" "$BUILD_DIR/zmx.tgz"
-  tar -xzf "$BUILD_DIR/zmx.tgz" -C "$ZMX_BUILD" --strip-components=1
+  fetch_pinned_commit "$ZMX_REPO" "${ZMX_REV:-}" "$ZMX_BUILD"
   ZMX_GHOSTTY_REV="$(sed -n 's|.*ghostty-org/ghostty#\([0-9a-f]\{40\}\)".*|\1|p' "$ZMX_BUILD/build.zig.zon")"
   [[ -n "$ZMX_GHOSTTY_REV" ]] || { echo "missing zmx ghostty revision" >&2; exit 1; }
   [[ "$ZMX_GHOSTTY_REV" == "${ZMX_GHOSTTY_PIN:-}" ]] || {
@@ -142,10 +146,7 @@ if $need_zmx; then
     exit 1
   }
   ZMX_GHOSTTY="$BUILD_DIR/zmx-ghostty"
-  mkdir -p "$ZMX_GHOSTTY"
-  fetch_verified "https://codeload.github.com/ghostty-org/ghostty/tar.gz/$ZMX_GHOSTTY_REV" \
-    "${ZMX_GHOSTTY_SHA256:-}" "$BUILD_DIR/zmx-ghostty.tgz"
-  tar -xzf "$BUILD_DIR/zmx-ghostty.tgz" -C "$ZMX_GHOSTTY" --strip-components=1
+  fetch_pinned_commit "$GHOSTTY_REPO" "$ZMX_GHOSTTY_PIN" "$ZMX_GHOSTTY"
   for ghostty_patch in "$ROOT/scripts/zmx-patches/ghostty"/*.patch; do
     git -C "$ZMX_GHOSTTY" apply --whitespace=nowarn "$ghostty_patch"
   done

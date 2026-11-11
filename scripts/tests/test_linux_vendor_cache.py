@@ -84,6 +84,10 @@ class VendorCacheStampTests(unittest.TestCase):
         result = self.setup()
         self.assertEqual(result.returncode, 97, result.stdout + result.stderr)
         self.assertIn('stamp-fixture-rebuild', result.stderr)
+        # Setup names the reason once before rebuilding, instead of discarding the verifier's message.
+        self.assertEqual(result.stderr.count('rebuilding vendored libghostty:'), 1, result.stderr)
+        self.assertEqual(result.stderr.count('built from different Ghostty sources or patches'), 1, result.stderr)
+        self.assertIn('ghostty-embedded-opengl.patch', result.stderr)
 
     def test_added_patch_rejects_cache(self):
         (self.repo / 'linux/patches/ghostty-new-fix.patch').write_text('--- a\n+++ b\n')

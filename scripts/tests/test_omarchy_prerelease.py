@@ -29,8 +29,8 @@ def payload(arch="aarch64", sha=SHA, extra=None):
             member.size = len(data)
             member.mode = 0o755
             archive.addfile(member, io.BytesIO(data))
-        if extra:
-            archive.addfile(extra)
+        for member in (extra if isinstance(extra, list) else [extra] if extra else []):
+            archive.addfile(member)
     return output.getvalue()
 
 
@@ -87,6 +87,52 @@ class PromotionTests(unittest.TestCase):
         member.type = tarfile.SYMTYPE
         member.linkname = "libswiftCore.so.1"
         promotion.validate_payload(payload(extra=member), "aarch64", SHA)
+
+    @staticmethod
+    def link(name, target, kind=tarfile.SYMTYPE):
+        member = tarfile.TarInfo("agterm-stage/" + name)
+        member.type = kind
+        member.linkname = target
+        return member
+
+    def test_accepts_link_chains_that_stay_inside_the_stage(self):
+        for links in ([("lib/libfoo.so", "libfoo.so.1"), ("lib/libfoo.so.1", "libfoo.so.1.2")],
+                      [("share/lib", "../lib"), ("share/core", "lib/libswiftCore.so"),
+                       ("lib/libswiftCore.so", "../lib/./libswiftCore.so.1")],
+                      [("share/agterm/up", ".."), ("share/peer", "agterm/up/agterm/VERSION")]):
+            with self.subTest(links=links):
+                members = [self.link(name, target) for name, target in links]
+                promotion.validate_payload(payload(extra=members), "aarch64", SHA)
+        hard = self.link("bin/zmx-copy", "agterm-stage/bin/zmx", tarfile.LNKTYPE)
+        promotion.validate_payload(payload(extra=hard), "aarch64", SHA)
+
+    def test_rejects_link_chains_that_resolve_outside_the_stage(self):
+        # Each link is lexically inside agterm-stage; only the resolved chain leaves it.
+        for links in ([("a/b/up", ".."), ("a/b/escape", "up/../../x")],
+                      [("lib/self", "."), ("lib/deep/loop", "../self/../../x")],
+                      [("a/up", "../share/agterm/.."), ("a/escape", "up/../../x")],
+                      [("x", "y"), ("y", "x")]):
+            with self.subTest(links=links), self.assertRaises(ValueError):
+                members = [self.link(name, target) for name, target in links]
+                promotion.validate_payload(payload(extra=members), "aarch64", SHA)
+
+    def test_resolves_links_reached_through_directory_links(self):
+        # Each target is lexically inside agterm-stage; only resolving the directory links shows the result.
+        accepted = [("share/libs", "../lib"), ("bin/core", "../share/libs/libswiftCore.so")]
+        promotion.validate_payload(payload(extra=[self.link(*item) for item in accepted]), "aarch64", SHA)
+        for links in ([("share/libs", "../lib"), ("bin/tool", "../share/libs/../../x")],
+                      [("lib/sub", "../share"), ("q", "lib/sub/.."), ("p", "q/../x")],
+                      [("share/libs", "../lib"), ("share/libs-up", "libs/.."), ("bin/tool", "../share/libs-up/../x")]):
+            with self.subTest(links=links), self.assertRaises(ValueError):
+                promotion.validate_payload(payload(extra=[self.link(*item) for item in links]), "aarch64", SHA)
+
+    def test_rejects_members_and_hardlinks_through_links(self):
+        stage_link = self.link("share/out", "../lib")
+        below = tarfile.TarInfo("agterm-stage/share/out/planted")
+        through = self.link("bin/copy", "agterm-stage/share/out/../../x", tarfile.LNKTYPE)
+        for members in ([stage_link, below], [stage_link, through]):
+            with self.subTest(members=[member.name for member in members]), self.assertRaises(ValueError):
+                promotion.validate_payload(payload(extra=members), "aarch64", SHA)
 
     def test_rejects_duplicate_members_and_devices(self):
         duplicate = tarfile.TarInfo("agterm-stage/share/agterm/COMMIT")

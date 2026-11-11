@@ -57,6 +57,39 @@ def validate_jobs(jobs):
                 require(len(steps) == 1 and steps[0]["conclusion"] == "success", f"Missing successful {step}")
 
 
+def resolve_member_path(parts, links, depth=0):
+    """Resolve a path the way extraction would, following symlinks among the archive's own members."""
+    require(depth <= 40, "Tar link chain too deep")
+    resolved = []
+    for part in parts:
+        if part in ("", "."):
+            continue
+        if part == "..":
+            # Leaving agterm-stage, even transiently, escapes the directory the payload is extracted into.
+            require(len(resolved) > 1, "Escaping tar link")
+            resolved.pop()
+            continue
+        resolved.append(part)
+        link = links.get("/".join(resolved))
+        if link is not None:
+            require(not link.startswith("/"), "Escaping tar link")
+            resolved = resolve_member_path(resolved[:-1] + list(PurePosixPath(link).parts), links, depth + 1)
+    require(resolved[:1] == ["agterm-stage"], "Escaping tar link")
+    return resolved
+
+
+def resolve_member_links(members):
+    links = {member.name.rstrip("/"): member.linkname for member in members if member.issym()}
+    for member in members:
+        parent = list(PurePosixPath(member.name).parent.parts)
+        # A member written below a symlink would land wherever that link points.
+        require(resolve_member_path(parent, links) == parent, "Tar member below a link")
+        if member.issym():
+            resolve_member_path(parent + list(PurePosixPath(member.linkname).parts), links)
+        elif member.islnk():
+            resolve_member_path(list(PurePosixPath(member.linkname).parts), links)
+
+
 def validate_payload(data, arch, sha):
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
         names = set()
@@ -71,6 +104,7 @@ def validate_payload(data, arch, sha):
                 target = posixpath.normpath(posixpath.join(str(path.parent), member.linkname)
                                             if member.issym() else member.linkname)
                 require(target.startswith("agterm-stage/") and not member.linkname.startswith("/"), "Escaping tar link")
+        resolve_member_links(archive.getmembers())
 
         def read(name, limit):
             member = archive.getmember("agterm-stage/" + name)
