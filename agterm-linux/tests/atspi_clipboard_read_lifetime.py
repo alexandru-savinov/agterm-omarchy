@@ -56,7 +56,11 @@ class HeldClipboard(Gdk.ContentProvider):
         return self.delegate.ref_formats()
 
     def do_write_mime_type_async(self, mime, stream, priority, cancellable, callback, user_data=None):
-        task = Gio.Task.new(self, cancellable, callback, user_data)
+        # Preserve the C caller's opaque data; Gio.Task's Python callback data is a different ABI layer.
+        def deliver(source, result, _):
+            callback(source, result, user_data)
+
+        task = Gio.Task.new(self, cancellable, deliver, None)
         request = (mime, stream, priority, cancellable, task)
         if self.holding:
             self.pending.append(request)
