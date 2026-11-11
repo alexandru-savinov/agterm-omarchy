@@ -5442,6 +5442,18 @@ def verify_sidebar_width_floor(env):
                 "GtkPaned's `max-position`, so it re-asserts the over-wide position from inside GtkPaned's"
                 " own `size_allocate`, where GTK does not re-clamp it, and the sidebar overhangs the "
                 "window", timeout=8)
+            control_json(env, "sidebar", "hide", "--json")
+            wait_for(lambda: not window_tree(env, window_id).get("sidebarVisible"),
+                     "the sidebar did not hide in the narrow window")
+            control_json(env, "sidebar", "show", "--json")
+            wait_for(lambda: window_tree(env, window_id).get("sidebarVisible"),
+                     "the sidebar did not show again in the narrow window")
+            wait_for(
+                lambda: sidebar_column_settled(
+                    app, lambda width: width < SIDEBAR_REQUESTED_WIDTH - SIDEBAR_EDGE_SLACK),
+                f"the sidebar came back at its {SIDEBAR_REQUESTED_WIDTH}px request after a hide/show in "
+                f"the {narrowed}px window instead of the {capped}px cap, so it overhangs the window",
+                timeout=8)
             resize(1100)
             wait_for(lambda: sidebar_column_settled(app, at_request),
                      f"the sidebar stayed at the narrow window's {capped}px cap after the window "
@@ -5509,7 +5521,7 @@ def verify_sidebar_width_floor(env):
         f"floor ({SIDEBAR_PIN_WIDTH}px here) instead of `sidebarEffectiveMinimum`, so GTK's clamp up to "
         "the real minimum reads as a drag — the user's saved width is destroyed on any client-side-"
         "decorated desktop, and no unit test can see it")
-    narrow_leg = (f"survives the narrow window's {capped}px cap" if capped is not None
+    narrow_leg = (f"survives the narrow window's {capped}px cap and a hide/show inside it" if capped is not None
                   else "SKIPPED the compositor-dependent narrow-window cycle")
     print(f"OK: the sidebar width floor pins at {SIDEBAR_PIN_WIDTH}px, follows its measured content to "
           f"{measured}px, re-measures to {regrown}px when the row grows, widens to {widened}px for a "
@@ -7465,8 +7477,8 @@ def main():
             "sidebar-narrow-clipping",
             "sidebar-width-floor",
             "sidebar-click-rename", "sidebar-session-drag", "sidebar-workspace-drag",
-            "sidebar-incremental",
-            "sidebar-multiselect",
+            "sidebar-incremental", "sidebar-rename-sync",
+            "sidebar-multiselect", "sidebar-multiselect-autofollow",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-many-sessions",
@@ -7591,12 +7603,18 @@ def main():
             verify_sidebar_click_and_rename(env)
         elif scenario == "sidebar-incremental":
             verify_sidebar_incremental(env)
+        elif scenario == "sidebar-rename-sync":
+            from atspi_sidebar_rename import verify_sidebar_rename_sync
+            verify_sidebar_rename_sync(env)
         elif scenario == "sidebar-session-drag":
             verify_sidebar_session_drag(env)
         elif scenario == "sidebar-workspace-drag":
             verify_sidebar_workspace_drag(env)
         elif scenario == "sidebar-multiselect":
             verify_sidebar_multiselect_collapse(env)
+        elif scenario == "sidebar-multiselect-autofollow":
+            from atspi_sidebar_autofollow import verify_sidebar_multiselect_autofollow
+            verify_sidebar_multiselect_autofollow(env)
         elif scenario == "preferences-pages":
             verify_preferences_pages(env, home)
         elif scenario == "chrome-focus-buttons":

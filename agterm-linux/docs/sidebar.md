@@ -336,10 +336,13 @@ Nothing auto-loads this document — read it before editing `AppController.swift
   End-to-end coverage is the `sidebar-multiselect` AT-SPI scenario (shift-click block build,
   a mid-hold active-session probe pinning "deferred, not applied", and block drags onto a
   session row and a workspace header).
-  A DEFERRED press still calls `noteUserActivity` — otherwise the idle auto-follow timer would
-  replace `sidebarSelectionIDs` mid-hold, and a block drag would lose its block; that auto-follow
-  interplay has no automated scenario (auto-follow's idle window defeats pointer-leg timing) and
-  remains a known manual check.
+  A deferred press resets user activity and suppresses auto-follow until release or gesture cancellation.
+  A drag separately suppresses auto-follow from `drag-begin` through `drag-end`, including cancelled drops.
+  This preserves the block even when a hold or drag outlasts the idle interval.
+  Ending either interaction restarts the idle interval; separate ownership prevents the click cancellation
+  that starts a drag from lifting the drag's suppression.
+  The `sidebar-multiselect-autofollow` AT-SPI scenario exercises a 6.5-second hold with a 5-second idle interval.
+  Hosted execution is required before claiming the new hold coverage passes.
 
 ## Y-midpoint drop slots feed the shared `SidebarDrop` math
 
