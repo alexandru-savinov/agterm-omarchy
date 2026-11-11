@@ -88,6 +88,17 @@ def wait_for(predicate, message, timeout=12, required=True):
     raise AssertionError(message)
 
 
+def skip_declined_resize(message):
+    """Report a SKIP for a leg whose window resize the host declined, unless the runner says resizes take.
+
+    AGTERM_ATSPI_REQUIRE_RESIZE=1 (scripts/test-linux-ui.sh, the Xvfb + openbox session) turns the SKIP
+    into a failure, so a leg that is the sole cover for a regression cannot pass there without running.
+    """
+    if os.environ.get("AGTERM_ATSPI_REQUIRE_RESIZE") == "1":
+        raise AssertionError(f"{message} (AGTERM_ATSPI_REQUIRE_RESIZE=1: this session must honour resizes)")
+    print(f"SKIP: {message}")
+
+
 def poll(predicate, timeout, interval=0.2):
     """Bool-returning sibling of `wait_for`: True as soon as `predicate()` is truthy, False on
     timeout. Retry sweeps (the dy-offset legs below) need to OBSERVE a timeout and move on to
@@ -5430,9 +5441,10 @@ def verify_sidebar_width_floor(env):
         narrowed = wait_for(narrowed_window, "the window never narrowed", timeout=8, required=False)
         if narrowed is None:
             capped = None
-            print(f"SKIP: the compositor kept the window at {wide_window}px instead of the 360px asked "
-                  "for, so the sidebar cannot be capped and the widen-restores-the-request cycle cannot "
-                  "run here (it runs under the Xvfb + openbox session CI uses)")
+            skip_declined_resize(f"the compositor kept the window at {wide_window}px instead of the 360px "
+                                 "asked for, so the sidebar cannot be capped and the widen-restores-the-"
+                                 "request cycle cannot run here (it runs under the Xvfb + openbox session CI "
+                                 "uses)")
         else:
             capped = wait_for(
                 lambda: sidebar_column_settled(
@@ -6087,7 +6099,7 @@ def verify_session_switch_scroll(env):
         tall = wait_for(frame_height, "the window frame never reported an allocation")
         control_json(env, "window", "resize", window_id, "--width", "900", "--height", "300", "--json")
         if wait_for(lambda: (frame_height() or tall) < tall - 50, "", timeout=8, required=False) is None:
-            print(f"SKIP: the compositor kept the window {tall}px tall, so ten rows cannot overflow the card")
+            skip_declined_resize(f"the compositor kept the window {tall}px tall, so ten rows cannot overflow the card")
             return
 
         with ctrl_held(process.pid) as tap:
