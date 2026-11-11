@@ -60,6 +60,15 @@ struct LinuxRestorePrefillTests {
         #expect(seed.initialInput == nil)
     }
 
+    @Test("a captured argv carrying a C1 control character is neither pre-filled nor replayed",
+          arguments: ["\u{85}", "\u{9B}"])
+    func c1Refused(c1: String) {
+        #expect(LinuxRestoreSeed.restoreLine(["echo", "a\(c1)b"], restoreEnabled: true, denylist: []) == nil)
+        let seed = LinuxRestoreSeed.wrappedSeed(configuration, replay: ["echo", "a\(c1)b"], durable: nil,
+                                                denylist: [], daemonRunning: false)
+        #expect(seed.initialInput == nil)
+    }
+
     @Test("no accepted line can submit itself")
     func noAcceptedLineCarriesLineBreak() {
         let samples: [[String]] = [["claude"], ["vim", "it's here"], ["printf", "%s\\n", "x"], ["a", "", "b"]]

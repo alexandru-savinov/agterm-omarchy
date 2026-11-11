@@ -32,8 +32,9 @@ enum LinuxRestoreSeed {
     /// With a capture, zmx is never handed a command to run: the attach is the plain one, so a missing daemon is
     /// created with the normal login shell, and the captured line is pre-filled only when the inventory says the
     /// daemon is gone — typing into a live (or unknown) session would land in whatever it is running. A capture,
-    /// even a refused one, still preempts the durable creation command. Without a capture the session's own
-    /// creation command recreates a lost daemon, as before.
+    /// even a refused one, still preempts the durable creation command, so an unknown inventory drops the capture.
+    /// The line is typed at the tty, so the first reader takes it: a startup file that reads input can consume it.
+    /// Without a capture the session's own creation command recreates a lost daemon, as before.
     static func wrappedSeed(_ configuration: ZmxSupport.Configuration, replay: [String]?, durable: String?,
                             denylist: Set<String>, daemonRunning: Bool?) -> LinuxLaunchSeed {
         guard let replay else {
