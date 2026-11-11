@@ -7459,7 +7459,14 @@ def verify_auto_follow(env, state):
         assert raw_control_json(auto_env, {"cmd": "ask.result", "target": ask["result"]["id"]})[
             "result"]["ask"]["result"] == "pending", "auto-follow cancelled the GUI ask"
         assert raw_control_json(auto_env, {"cmd": "ask.cancel", "target": ask["result"]["id"]})["ok"]
-        print("OK: GTK/GLib auto-follow pauses for Preferences and GUI asks")
+        wait_for(lambda: not named(app, "Auto-follow GUI ask", role="frame"), "GUI ask did not close")
+        # Positive arm: with nothing blocking, a fresh blocked episode must pull the selection after the
+        # s5 grace — otherwise a coordinator that never fires passes both legs above.
+        set_status("idle")
+        set_status("blocked")
+        wait_for(auto_followed, "auto-follow never selected the blocked session with nothing blocking it",
+                 timeout=20)
+        print("OK: GTK/GLib auto-follow pauses for Preferences and GUI asks, then fires once unblocked")
     finally:
         stop(process)
 
