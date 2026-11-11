@@ -1,5 +1,6 @@
-Selected test-result lines; this is a derived extract, not the complete original log.
+Selected test-result lines, preserving literal stdout/stderr interleaving; this is a derived extract, not the complete original log.
 Original SHA256: fad5be9ef827ed14059ededb7915b95ab5cd7f8dae73dcb7613e7a918954f98e
+Split-record support and explicitly labeled normalizations: interleaved-results.json
 
 ➜ Test editorCommandWorksUnderNonPosixLoginShell() skipped: "no non-POSIX login shell (fish) installed — the cross-shell parse assertion is skipped here"
 ✔ Test rejectedBeforeCreationKeepsPayload() passed after 27.552 seconds.
@@ -4278,6 +4279,7 @@ Original SHA256: fad5be9ef827ed14059ededb7915b95ab5cd7f8dae73dcb7613e7a918954f98
 ✔ Test finalizingTheOnlyPendingSessionDropsItsRecord() passed after 36.327 seconds.
 ✔ Test batchSoftCloseDropsEveryMembersPanes() passed after 36.327 seconds.
 ✔ Test aRemoteRowReportsLeavingOnSoftCloseAndReturninwarning: '--build-system native' has been deprecated and will be removed in a future release; please report an issue at https://github.com/swiftlang/swift-package-manager/issues if you are unable to adopt the default build system.
+gOnUndo() passed after 36.326 seconds.
 ✔ Test finalizingOnePendingSessionKeepsItsBatchMatesAndOtherRecordsUndoable() passed after 36.326 seconds.
 ✔ Test softRemovingAWorkspaceDropsItsSessionsPanes() passed after 36.326 seconds.
 ✔ Test softCloseCancelsAsksImmediatelyAndUndoDoesNotRestoreThem(path:) with 3 test cases passed after 36.326 seconds.

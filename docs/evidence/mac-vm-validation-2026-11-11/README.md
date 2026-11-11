@@ -35,6 +35,8 @@ The revised probe demonstrates two exact-image, mapped native Wayland instances 
 
 Installed/extracted payloads, actual login shell and snapshotted shared runtime remained unchanged. The first attempt had no preexisting protected app processes; the second observed and preserved two. These are fresh observations, not inherited historical session counts.
 
+Two later configuration-only diagnostic replays retain the unchanged probe and payload. Replay 1 passed all four checks; its right shutdown took 3.218 seconds and no debugger attached. Replay 2 reproduced the timeout and captured the verified test-owned frontend after its control socket was unlinked. GDB attached and detached successfully; main, io, io-reader and io-gather were waiting on futexes, with library frames inside the exact shipped libghostty. The renderer thread had exited. The library is stripped and internal unwinding is incomplete, so the source-supported mailbox/join cycle remains a hypothesis. These diagnostic outcomes demonstrate intermittency and do not supersede failed acceptance. The source fix is tracked in [#320](https://github.com/alexandru-savinov/agterm-omarchy/issues/320).
+
 ## Mac boundary
 
 Host: macOS 26.7.1 arm64, Apple Swift 6.4, selected Command Line Tools. Full Xcode is absent. There is no fork Debug/Release AppKit build or PR #296 GUI acceptance in this evidence.
@@ -50,9 +52,10 @@ Core tests used the installed CLT framework and macro plugin through command-loc
 ## Published evidence
 
 - [Native attempt 1](native-attempt-1.json), [attempt 2](native-attempt-2.json), and [revised binding](native-attempt-2-binding.json).
+- Configuration-only [diagnostic replay 1](native-diagnostic-1.json), [replay 2](native-diagnostic-2.json), and [selected backtrace blocks](native-diagnostic-2-threads.txt), with debugger and symbolization limits.
 - [Mac ordinary](mac-ordinary.json), [Live](mac-live.json), and [minimal cleanup reproduction](mac-live-cleanup.json).
 - [Core baseline](mac-core-baseline.json), [reviewed full run](mac-core-reviewed.json), [full run with staged zmx](mac-core-staged.json), and [real host fixtures](mac-host-fixtures.json).
-- The three `*-tests.log` files contain explicitly labeled test-result extracts. Each carries the original complete log's SHA256; it is not presented as the complete raw log.
+- The three `*-tests.log` files contain explicitly labeled test-result extracts. Each carries the original complete log's SHA256; it is not presented as the complete raw log. Literal split completion lines remain intact. [Interleaving support](interleaved-results.json) records all three affected raw fragments and explicitly labeled reconstructions, so an inserted SwiftPM warning does not silently remove a completion or alter the verified totals.
 - [SHA256SUMS](SHA256SUMS) covers the published files. JSON reports select public, relevant fields and retain their private originals' hashes. VM identifiers, private environment values, full desktop images and absolute test-stage paths are excluded.
 
 The public [goal](https://github.com/alexandru-savinov/agterm-omarchy/issues/305), [native task](https://github.com/alexandru-savinov/agterm-omarchy/issues/199), and [Mac fixture task](https://github.com/alexandru-savinov/agterm-omarchy/issues/310) remain authoritative for later changes. Reviews here use a shared account and do not constitute independent account approval. Hosted Linux/lint checks, subsequent source integration, and exact-current-candidate native acceptance remain separate gates.

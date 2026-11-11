@@ -1,5 +1,6 @@
-Selected test-result lines; this is a derived extract, not the complete original log.
+Selected test-result lines, preserving literal stdout/stderr interleaving; this is a derived extract, not the complete original log.
 Original SHA256: 375840f7429f423ac2c046b5d00c0943bcbd7a6405a6b05b6f6aa0d95a95b9c6
+Split-record support and explicitly labeled normalizations: interleaved-results.json
 
 ➜ Test stopKeepsLockInodesForTheNextHost() skipped: "needs the responsibility SPI and the staged zmx from scripts/setup.sh"
 ➜ Test failedFixtureClientCannotPassAsAnEmptyReply(termination:status:reason:) skipped: "needs the staged fixture executables"
@@ -4288,6 +4289,8 @@ Original SHA256: 375840f7429f423ac2c046b5d00c0943bcbd7a6405a6b05b6f6aa0d95a95b9c
 ✔ Suite SettingsStoreTests passed after 35.662 seconds.
 ✔ Suite AppStoreRestoreTests passed after 35.662 seconds.
 ✔ Suite PresenterGrantTests passed after 35.662 seconds.
+✔ Suiwarning: '--build-system native' has been deprecated and will be removed in a future release; please report an issue at https://github.com/swiftlang/swift-package-manager/issues if you are unable to adopt the default build system.
+te AppStoreEventTests passed after 35.662 seconds.
 ✔ Suite OverlayJobsTests passed after 35.662 seconds.
 ✔ Suite WindowFileQuarantineTests passed after 35.662 seconds.
 ✔ Suite DashboardCoverTests passed after 35.661 seconds.
