@@ -110,6 +110,7 @@ private final class LinuxPaneRestart {
         let client = client
         Thread.detachNewThread { [self] in
             let ended = Self.waitForJob(job, client: client)
+            Self.injectedHold()
             runOnMain { MainActor.assumeIsolated { self.replace(oldPID: pid, ended: ended) } }
         }
     }
@@ -148,8 +149,12 @@ private final class LinuxPaneRestart {
         }
     }
 
+    /// Close the pane this restart ended, never a successor under the same id: a session closed and
+    /// reopened mid-restart is a NEW object holding the pane the user brought back, while the stale object
+    /// still points at the torn-down surface, so `session.surface === surface` alone would close the reopened one.
     private func closeEnded() {
-        if controller.store.session(withID: session.id) != nil {
+        if let current = controller.store.session(withID: session.id) {
+            guard current === session else { return }
             if session.surface === surface {
                 controller.closePrimaryPane(session.id, alreadyFinalized: identity)
             } else if session.splitSurface === surface {
@@ -170,6 +175,16 @@ private final class LinuxPaneRestart {
             Thread.sleep(forTimeInterval: 0.1)
         } while Date() < deadline
         return nil
+    }
+
+    /// Debug/AT-SPI-only: `AGTERM_ATSPI_RESTART_HOLD` seconds between the old job ending and the replace,
+    /// so the smoke can close and reopen the pane inside that window.
+    nonisolated private static func injectedHold(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        #if DEBUG
+        guard environment["AGTERM_ATSPI_SCENARIO"] != nil,
+              let seconds = environment["AGTERM_ATSPI_RESTART_HOLD"].flatMap(TimeInterval.init), seconds > 0 else { return }
+        Thread.sleep(forTimeInterval: seconds)
+        #endif
     }
 
     nonisolated private static func waitForJob(_ job: [ProcessRecord], client: LinuxZmxClient) -> Bool {
