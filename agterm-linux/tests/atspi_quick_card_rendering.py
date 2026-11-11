@@ -9,8 +9,7 @@ import subprocess
 import time
 
 from atspi_smoke import (control_json, launch, named, press_return, stop, type_x11_text,
-                         wait_for, window_list)
-from gi.repository import Atspi
+                         wait_for, window_extents, window_list)
 
 
 def verify_quick_card_rendering(env, state):
@@ -75,10 +74,15 @@ def verify_quick_card_rendering(env, state):
                     return wait_for(stable, f"{tag}: {label} pixels never settled")
 
                 dimensions, shown = stable_capture("shown")
-                screen = card.get_component_iface().get_extents(Atspi.CoordType.SCREEN)
-                geometry = dict(line.split("=", 1) for line in subprocess.check_output(
-                    ["xdotool", "getwindowgeometry", "--shell", xid], text=True, timeout=10).splitlines())
-                bounds = (screen.x - int(geometry["X"]), screen.y - int(geometry["Y"]), screen.width, screen.height)
+                frame = card
+                while frame.get_role_name() not in ("frame", "window"):
+                    frame = frame.get_parent()
+                    assert frame is not None, "quick card has no accessible window"
+                frame_box, card_box = window_extents(frame), window_extents(card)
+                assert frame_box and card_box
+                assert (frame_box.width, frame_box.height) == dimensions, (
+                    "accessible window bounds do not match the captured X11 client")
+                bounds = (card_box.x - frame_box.x, card_box.y - frame_box.y, card_box.width, card_box.height)
                 control_json(local, "quick", "hide", "--json")
                 hidden_dimensions, hidden = stable_capture("hidden")
                 assert dimensions == hidden_dimensions, "hiding the card resized its window"
