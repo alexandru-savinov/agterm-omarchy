@@ -158,7 +158,7 @@ def snapshot(issues, comments, now=None):
             if (record is not latest and now is not None and record["state"] not in (None, "complete")
                     and (now - parse_time(record["created_at"])).total_seconds() <= STALE_AFTER_SECONDS):
                 sessions.add(session)
-    collisions = [(account, name, len(sessions))
+    collisions = [(account, name, sorted(sessions))
                   for (account, name), sessions in sorted(sessions_by_identity.items()) if len(sessions) > 1]
     for task in tasks:
         observations = [claim["latest"] for claim in claims if claim["task"] == task["number"]]
@@ -174,8 +174,11 @@ def snapshot(issues, comments, now=None):
                              f"({age_text(record['age_seconds'])} without a check-in; see takeover rule)")
         for account, name, sessions in collisions:
             if any((record["account"].lower(), record["name"]) == (account, name) for record in fresh):
-                notes.append(f"Name collision: {account}/{name} posted from {sessions} sessions; "
-                             "use distinct agent names (or re-post after a restart)")
+                notes.append(f"Name collision (informational): {account}/{name} has live check-ins from "
+                             f"sessions {', '.join(sessions)}. Separate runs should use distinct names. "
+                             "Re-posting under a new session does not clear this: it clears when the earlier "
+                             "session posts State: complete under its own Session, or when its check-in ages "
+                             "out (4 h once superseded on its task, or as a stale working claim)")
         if any(record["uncertainties"] for record in observations):
             notes.append("Uncertain fields: read the source comments")
         if task["state"] == "closed" and active:

@@ -34,8 +34,8 @@ A team lead may add `Team:` directly after `State:`: its team's size, 1 to 9999,
 An optional `Session:` may follow `State:` (or `Team:`): 4-16 lowercase ASCII letters or digits.
 Pick one random session value when your run starts and repeat it in every check-in of that run.
 When one account/name has fresh non-complete claims from two or more sessions, the queue reports a name collision.
-On one task, an earlier session still counts while its own newest check-in there is non-complete and under 4 hours old, so a restart on the same task is flagged until that check-in ages out.
-On a collision, the runs sharing the name should choose distinct agent names; a restarted agent re-posts its claims with the new session.
+On one task, an earlier session still counts while its own newest check-in there is non-complete and under 4 hours old, so a restart on the same task is flagged until that check-in is more than 4 hours old, whatever its state.
+The collision note is informational. Separate runs sharing a name should choose distinct agent names. A restarted agent still re-posts its claims under the new session, but re-posting does not clear the note: it clears once every earlier-session check-in it superseded is over 4 hours old, or at once if the agent still knows its old session value and, on each task, posts `State: complete` under the old `Session:` before re-posting its claim.
 A session is a collision signal between cooperating agents on one account, not authentication: anyone with the account can write any value.
 Use the exact labels, one space after each colon, no trailing spaces, and no blank lines or intervening prose.
 Use ordinary LF or CRLF newlines.
