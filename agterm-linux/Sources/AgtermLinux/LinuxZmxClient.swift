@@ -24,6 +24,7 @@ final class LinuxZmxClient: @unchecked Sendable {
     enum CommandError: Error, Equatable {
         case timedOut
         case failed(Int32, String)
+        case socketDirectoryRefused(ZmxSocketDirectory.Refusal)
     }
 
     typealias Runner = @Sendable (Invocation) throws -> String
@@ -164,6 +165,7 @@ final class LinuxZmxClient: @unchecked Sendable {
     }
 
     private static func run(_ invocation: Invocation) throws -> String {
+        try verifySocketDirectory(of: invocation)
         let argv = ["ZMX_DIR=" + (invocation.environment["ZMX_DIR"] ?? ""),
                     "ZMX_SESSION=", "ZMX_SESSION_PREFIX=",
                     invocation.executablePath] + invocation.arguments
@@ -173,5 +175,15 @@ final class LinuxZmxClient: @unchecked Sendable {
             throw CommandError.failed(result.status, result.stdout + result.stderr)
         }
         return invocation.mergesStderr ? result.stdout + result.stderr : result.stdout
+    }
+
+    /// zmx creates a missing ZMX_DIR itself (0750) and accepts any existing one, so every real
+    /// invocation first creates it as 0700 or proves the existing one private; a refusal runs nothing.
+    static func verifySocketDirectory(of invocation: Invocation,
+                                      fileSystem: ZmxSocketDirectory.FileSystem = .live) throws {
+        if case .failure(let refusal) = ZmxSocketDirectory.verify(invocation.environment["ZMX_DIR"] ?? "",
+                                                                 fileSystem: fileSystem) {
+            throw CommandError.socketDirectoryRefused(refusal)
+        }
     }
 }
