@@ -42,6 +42,8 @@ def verify_quick_card_rendering(env, state):
             process, app = launch(local)
             try:
                 window = wait_for(lambda: window_list(local), "no quick-card window")[0]["id"]
+                control_json(local, "sidebar", "hide", "--json")
+                wait_for(lambda: not window_tree(local, window).get("sidebarVisible"), "sidebar did not hide")
                 control_json(local, "window", "resize", window, "--width", str(width), "--height", str(height), "--json")
                 session = next(row["id"] for workspace in window_tree(local, window)["workspaces"]
                                for row in workspace["sessions"] if row["active"])
