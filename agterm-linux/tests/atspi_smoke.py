@@ -7469,7 +7469,7 @@ def main():
             "sidebar-multiselect",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
-            "theme-many-sessions",
+            "theme-many-sessions", "clipboard-lifetime",
         ):
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             result = subprocess.run([sys.executable, __file__], env=child_env)
@@ -7638,6 +7638,9 @@ def main():
         elif scenario == "theme-many-sessions":
             from atspi_theme_many_sessions import verify_theme_many_sessions
             verify_theme_many_sessions(env)
+        elif scenario == "clipboard-lifetime":
+            from atspi_clipboard_lifetime import verify_clipboard_lifetime
+            verify_clipboard_lifetime(env)
         else:
             raise ValueError(f"unknown AT-SPI scenario: {scenario}")
         print(f"PASS: {scenario}")
