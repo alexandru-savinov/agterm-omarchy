@@ -75,13 +75,17 @@ final class ClipboardPromptController {
         "allow".withCString { adw_alert_dialog_set_response_appearance(cast(dialog), $0, ADW_RESPONSE_SUGGESTED) }
         "always-deny".withCString { adw_alert_dialog_set_response_appearance(cast(dialog), $0, ADW_RESPONSE_DESTRUCTIVE) }
         "deny".withCString { adw_alert_dialog_set_close_response(cast(dialog), $0) }
-        let ctx = Unmanaged.passRetained(ResponseContext(key: key, controller: .shared)).toOpaque()
+        connectResponse(dialog, context: ResponseContext(key: key, controller: .shared))
+        adw_dialog_present(cast(dialog), W(window(for: requester)))
+    }
+
+    static func connectResponse(_ dialog: OpaquePointer, context: ResponseContext) {
+        let ctx = Unmanaged.passRetained(context).toOpaque()
         "response".withCString {
             _ = g_signal_connect_data(RAW(dialog), $0,
                 unsafeBitCast(onClipboardPromptResponse, to: GCallback.self), ctx,
                 onClipboardPromptDestroyed, GConnectFlags(rawValue: 0))
         }
-        adw_dialog_present(cast(dialog), W(window(for: requester)))
     }
 
     func resolve(_ key: PromptKey, response: String) {
