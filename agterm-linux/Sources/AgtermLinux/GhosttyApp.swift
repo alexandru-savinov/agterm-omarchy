@@ -480,10 +480,17 @@ final class GhosttyApp: @unchecked Sendable {
                 }
                 ClipboardPromptController.shared.request(.write, requester: requester) { allowed in
                     defer { retained.release() }
-                    if allowed { setClipboard(text, loc: loc) }
+                    completeClipboardWrite(text, loc: loc, surface: requester.surface, allowed: allowed)
                 }
             }
         }
+    }
+
+    static func completeClipboardWrite(_ text: String, loc: ghostty_clipboard_e,
+                                       surface: ghostty_surface_t?, allowed: Bool,
+                                       write: (String, ghostty_clipboard_e) -> Void = setClipboard) {
+        guard allowed, surface != nil else { return }
+        write(text, loc)
     }
 
     private static func setClipboard(_ text: String, loc: ghostty_clipboard_e) {

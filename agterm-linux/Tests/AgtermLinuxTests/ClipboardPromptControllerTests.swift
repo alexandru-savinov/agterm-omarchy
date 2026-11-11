@@ -1,4 +1,5 @@
 import Foundation
+import CGtk
 import Testing
 import agtermCore
 @testable import AgtermLinux
@@ -6,6 +7,81 @@ import agtermCore
 @MainActor
 @Suite("Linux clipboard consent coalescing and requester lifetime")
 struct ClipboardPromptControllerTests {
+    @Test("signal destruction denies unresolved coalesced waiters and releases the context")
+    func destroyedPrompt() {
+        let prompts = PromptLog()
+        let controller = ClipboardPromptController(present: prompts.record)
+        let requester = Requester()
+        var answers: [Bool] = []
+        controller.request(.write, requester: requester) { answers.append($0) }
+        controller.request(.write, requester: requester) { answers.append($0) }
+        var context: ClipboardPromptController.ResponseContext? = .init(key: prompts.keys[0], controller: controller)
+        weak var observed = context
+        let data = Unmanaged.passRetained(context!).toOpaque()
+        context = nil
+        onClipboardPromptDestroyed(data, nil)
+        #expect(answers == [false, false])
+        #expect(observed == nil)
+        controller.request(.write, requester: requester) { answers.append($0) }
+        #expect(prompts.keys.count == 2)
+        #expect(answers.count == 2)
+    }
+
+    @Test("an answered dialog cannot resolve a replacement prompt when its signal is destroyed")
+    func answeredPromptDestroyed() {
+        let prompts = PromptLog()
+        let controller = ClipboardPromptController(present: prompts.record)
+        let requester = Requester()
+        var answers: [Bool] = []
+        controller.request(.write, requester: requester) { answers.append($0) }
+        let context = ClipboardPromptController.ResponseContext(key: prompts.keys[0], controller: controller)
+        let data = Unmanaged.passRetained(context).toOpaque()
+        "allow".withCString { onClipboardPromptResponse(nil, $0, data) }
+        controller.request(.write, requester: requester) { answers.append($0) }
+        "always-allow".withCString { onClipboardPromptResponse(nil, $0, data) }
+        onClipboardPromptDestroyed(data, nil)
+        #expect(answers == [true])
+        controller.resolve(prompts.keys[1], response: "deny")
+        controller.request(.write, requester: requester) { answers.append($0) }
+        #expect(prompts.keys.count == 3)
+        #expect(answers == [true, false])
+    }
+
+    @Test("write consent completion checks the current surface before touching the clipboard")
+    func writeCompletionAfterTeardown() {
+        var writes: [String] = []
+        let surface = OpaquePointer(bitPattern: 1)!
+        for (current, allowed) in [(Optional(surface), false), (nil, true), (nil, false)] {
+            GhosttyApp.completeClipboardWrite("fixture", loc: GHOSTTY_CLIPBOARD_STANDARD,
+                                             surface: current, allowed: allowed) { text, _ in writes.append(text) }
+        }
+        #expect(writes.isEmpty)
+        GhosttyApp.completeClipboardWrite("fixture", loc: GHOSTTY_CLIPBOARD_STANDARD,
+                                         surface: surface, allowed: true) { text, _ in writes.append(text) }
+        #expect(writes == ["fixture"])
+    }
+
+    @Test("a waiter may destroy its response signal without resolving twice")
+    func reentrantSignalDestruction() {
+        let prompts = PromptLog()
+        let controller = ClipboardPromptController(present: prompts.record)
+        let requester = Requester()
+        var data: UnsafeMutableRawPointer?
+        var answers: [Bool] = []
+        controller.request(.read, requester: requester) { allowed in
+            answers.append(allowed)
+            onClipboardPromptDestroyed(data, nil)
+        }
+        controller.request(.read, requester: requester) { answers.append($0) }
+        var context: ClipboardPromptController.ResponseContext? = .init(key: prompts.keys[0], controller: controller)
+        weak var observed = context
+        data = Unmanaged.passRetained(context!).toOpaque()
+        context = nil
+        "allow".withCString { onClipboardPromptResponse(nil, $0, data) }
+        #expect(answers == [true, true])
+        #expect(observed == nil)
+    }
+
     @Test("one requester and one access share a prompt, and each waiter fires once")
     func coalescing() {
         let prompts = PromptLog()
