@@ -216,7 +216,7 @@ def choose_combo(env, app, process_id, title, values, index, landed, search=None
 
     def typed():
         choices = set(added())
-        matches = {name for name in choices if text.casefold() in name.casefold()}
+        matches = {name for name in choices if name.casefold().startswith(text.casefold())}
         assert text in matches, f"the {title!r} popover lost its search target {text!r}: {choices}"
         type_x11_text(text, process_id)
         wait_for(lambda: set(added()) & choices == matches,
