@@ -209,11 +209,16 @@ struct ControlServerOverlayJobTests {
         let job = fixture.register()
         let helper = try fixture.claim(job)
         #expect(helper.frame() == .context(fixture.context))
+        let stream = try #require(fixture.server.overlayJobStreams[job])
 
         helper.send([.exited(3)])
         #expect(pumpGLib(timeout: 5) { fixture.state(job) == .finished(.exited(3)) })
-        helper.send([.exited(4), .started])
-        pumpGLib(timeout: 0.5)
+        #expect(fixture.server.overlayJobStreams[job] == nil)
+        #expect(waitUntil(timeout: 5) { helper.client.isClosedByPeer })
+        // A main-thread callback can still hold the retired stream after its socket closes.
+        stream.receive(try OverlayJobFrame.exited(4).line())
+        stream.receive(try OverlayJobFrame.started.line())
+        stream.closed()
 
         #expect(fixture.state(job) == .finished(.exited(3)))
         fixture.hangUp(helper)
@@ -253,20 +258,26 @@ struct ControlServerOverlayJobTests {
             let claimed = Date()
             let silentHelper = try fixture.claim(silent)
             #expect(silentHelper.frame() == .context(fixture.context))
+            let expiredStream = try #require(fixture.server.overlayJobStreams[silent])
 
             #expect(pumpGLib(timeout: OverlayJobs.startWindow + 5) { fixture.state(silent) == .finished(.unknown) })
             #expect(Date().timeIntervalSince(claimed) >= OverlayJobs.startWindow)
             #expect(fixture.state(running) == .running)
             // The job slot is released: the expired claim cannot be taken again.
             #expect(try fixture.claim(silent).reply == Self.notClaimable)
-            // The stream slot is not: expiry leaves the helper adopted until it hangs up (#142, open item).
             #expect(fixture.streamHeldAtFinish[silent] == true)
-            #expect(fixture.server.overlayJobStreams[silent] != nil)
+            #expect(fixture.server.overlayJobStreams[silent] == nil)
+            #expect(waitUntil(timeout: 5) { silentHelper.client.isClosedByPeer })
+            #expect(fixture.server.overlayJobStreams[running] != nil)
+            #expect(!runningHelper.client.isClosedByPeer)
 
-            silentHelper.send([.started, .exited(0)])
+            // Exercise already-queued callbacks even though the expired socket now rejects new traffic.
+            expiredStream.receive(try OverlayJobFrame.started.line())
+            expiredStream.receive(try OverlayJobFrame.exited(0).line())
+            expiredStream.closed()
             pumpGLib(timeout: 0.5)
             #expect(fixture.state(silent) == .finished(.unknown))
-            #expect(fixture.server.overlayJobStreams[silent] != nil)
+            #expect(fixture.server.overlayJobStreams[silent] == nil)
             fixture.hangUp(silentHelper)
             #expect(pumpGLib(timeout: 5) { fixture.server.overlayJobStreams[silent] == nil })
             #expect(fixture.state(silent) == .finished(.unknown))

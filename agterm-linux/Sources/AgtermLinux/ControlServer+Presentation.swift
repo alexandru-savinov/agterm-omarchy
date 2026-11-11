@@ -123,6 +123,7 @@ extension ControlServer {
         presentationHub.onPresenterFrame = { [weak self] id, body in self?.receivePresenterFrame(body, forSession: id) }
         overlayJobs.onFinished = { [weak self] job in
             self?.pendingJobCancels.remove(job.id)
+            self?.overlayJobStreams.removeValue(forKey: job.id)?.shutdown()
             gLibrary?.store(forSession: job.session)?.finishRemoteOverlay(job)
         }
         for controller in gWindows.values {
