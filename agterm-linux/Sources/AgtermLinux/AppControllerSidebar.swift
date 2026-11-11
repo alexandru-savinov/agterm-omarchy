@@ -656,10 +656,8 @@ final class SidebarInteraction {
 private let sidebarInteractionKey = "agterm-sidebar-interaction"
 private let releaseSidebarInteraction: GDestroyNotify = { data in
     guard let data else { return }
-    MainActor.assumeIsolated {
-        let context = Unmanaged<SidebarInteraction>.fromOpaque(data).takeRetainedValue()
-        context.setActive(false)
-    }
+    let context = Unmanaged<SidebarInteraction>.fromOpaque(data).takeRetainedValue()
+    MainActor.assumeIsolated { context.setActive(false) }
 }
 
 @MainActor
