@@ -10,8 +10,8 @@ import time
 from gi.repository import Atspi
 
 from atspi_smoke import (NEGATIVE_SETTLE_SECONDS, ChromeFocus, actionable, activate, control_json, describe_tree,
-                         mouse_click, press_x11_key, stop, wait_for)
-from atspi_prefs_combo import close_preferences, open_preferences, preferences_row, read_settings
+                         mouse_click, preferences_window, press_x11_key, stop, wait_for)
+from atspi_prefs_combo import close_preferences, open_preferences, read_settings
 
 # element raw value, Interface switch title, accessible name
 ELEMENTS = [
@@ -138,14 +138,16 @@ def verify_chrome_interface_controls(env):
         # Each Interface switch hides exactly its button, and turning it back on restores it.
         open_preferences(app, pid, "Interface")
         for raw, title, name in ELEMENTS:
-            row = wait_for(lambda title=title: preferences_row(app, title), f"Interface has no {title!r} switch")
-            activate(row)
+            # The switch, not the row, carries the action: the same lookup `preferences-pages` uses.
+            switch = wait_for(lambda title=title: actionable(preferences_window(app), title),
+                              f"Interface has no actionable {title!r} switch")
+            activate(switch)
             wait_for(lambda raw=raw: raw in (read_settings(env).get("hiddenInterfaceElements") or []),
                      f"turning {title!r} off did not persist")
             wait_for(lambda name=name: button(name) is None, f"{name!r} stayed visible with {title!r} off")
             others = [other for _, _, other in ELEMENTS if other != name and button(other) is None]
             assert not others, f"turning {title!r} off also hid {others}"
-            activate(preferences_row(app, title))
+            activate(actionable(preferences_window(app), title))
             wait_for(lambda raw=raw: raw not in (read_settings(env).get("hiddenInterfaceElements") or []),
                      f"turning {title!r} back on did not persist")
             wait_for(lambda name=name: button(name), f"{name!r} did not return with {title!r} on")

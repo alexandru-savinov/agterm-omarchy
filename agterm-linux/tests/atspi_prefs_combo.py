@@ -176,8 +176,10 @@ def choose_combo(env, app, process_id, title, values, index, landed, search=None
         return [name for name, count in after.items() if name and count > before.get(name, 0)]
 
     def popped():
-        return len(added()) >= (1 if search else 2) or (
-            sum(1 for node in collect(app, role="label") if node.get_name() in values) >= 2)
+        if search:
+            # The row already shows one of `values`, so only a label beyond them proves the list is up.
+            return any(name not in values for name in added())
+        return len(added()) >= 2 or sum(1 for node in collect(app, role="label") if node.get_name() in values) >= 2
 
     def pop_up():
         if popped():
