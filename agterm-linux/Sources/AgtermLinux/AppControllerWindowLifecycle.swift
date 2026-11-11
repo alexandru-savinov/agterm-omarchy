@@ -121,7 +121,9 @@ extension AppController {
         if w > 0, h > 0 { library.setGeometry(WindowGeometry.Size(width: Double(w), height: Double(h)), forWindow: windowID) }
         applyExitCapture(gExitCapture.windowClosing(windowID, isTerminating: library.isTerminating,
                                                      openIDs: library.openIDs()))
-        store.save()
+        // Terminating stores remain in the library for flushOnQuit, in either shutdown ordering.
+        // Ordinary window closes still own their snapshot before the store is removed.
+        if !library.isTerminating { store.save() }
         store.discardHudBodies()
         quickSurface?.teardown()
         quickSurface = nil
