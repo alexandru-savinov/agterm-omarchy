@@ -16,9 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 env:
   UPSTREAM_BASE_TAG: "v0.35.1"
@@ -42,8 +40,12 @@ jobs:
     name: Build Linux x86_64 release
     needs: sbom
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     container: swift:6.3.2-noble
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     defaults:
       run:
         shell: bash
@@ -158,33 +160,10 @@ jobs:
       - name: Test Linux architecture verification
         run: scripts/test-linux-architecture.sh
 
-      - name: Resolve Linux architecture
-        id: linux-architecture
-        shell: bash
-        run: |
-          source linux/arch.sh
-          echo "host=$HOST_ARCH" >> "$GITHUB_OUTPUT"
-
       - name: Lint Swift sources
         run: swiftlint lint --strict --quiet
 
-      - name: Cache vendored Linux runtimes
-        id: ghostty-cache
-        uses: actions/cache@v6
-        with:
-          path: |
-            agterm-linux/vendor/ghostty
-            agterm-linux/vendor/zmx
-          key: linux-runtimes-${{ steps.linux-architecture.outputs.host }}-${{ hashFiles('scripts/setup-linux.sh', 'scripts/verify-linux-vendor-cache.sh', 'scripts/verify-linux-zmx-cache.sh', 'scripts/verify-linux-architecture.sh', 'scripts/verify-linux-resources.sh', 'scripts/zmx-patches/**/*.patch', 'linux/arch.sh', 'linux/ghostty-resources.env', 'linux/zmx.env', 'linux/patches/ghostty-embedded-opengl.patch', 'linux/patches/ghostty-embedded-input-handoff.patch', 'linux/patches/ghostty-lib-resources.patch') }}
-
-      - name: Verify restored libghostty cache
-        if: steps.ghostty-cache.outputs.cache-hit == 'true'
-        run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty
-
-      - name: Verify restored zmx cache
-        if: steps.ghostty-cache.outputs.cache-hit == 'true'
-        run: scripts/verify-linux-zmx-cache.sh agterm-linux/vendor/zmx
-
+      # No cache: a release restores nothing it did not build in this run (cache poisoning).
       - name: Test deterministic Ghostty resources
         run: scripts/test-linux-resources.sh
 
@@ -227,10 +206,13 @@ jobs:
       - name: Package Linux release formats
         env:
           SOURCE_DATE_EPOCH: ${{ steps.release.outputs.source_date_epoch }}
-        run: scripts/package-linux.sh "${{ steps.release.outputs.package_version }}" dist-linux
+          PACKAGE_VERSION: ${{ steps.release.outputs.package_version }}
+        run: scripts/package-linux.sh "$PACKAGE_VERSION" dist-linux
 
       - name: Verify Linux release formats
-        run: scripts/verify-linux-packages.sh "${{ steps.release.outputs.package_version }}" dist-linux
+        env:
+          PACKAGE_VERSION: ${{ steps.release.outputs.package_version }}
+        run: scripts/verify-linux-packages.sh "$PACKAGE_VERSION" dist-linux
 
       - name: Generate artifact attestations
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
@@ -242,11 +224,9 @@ jobs:
       - name: Write release notes
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: >-
-          scripts/write-linux-release-notes.sh
-          "${{ steps.release.outputs.tag }}"
-          "${{ steps.release.outputs.commit }}"
-          release-notes.md
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+        run: scripts/write-linux-release-notes.sh "$RELEASE_TAG" "$RELEASE_COMMIT" release-notes.md
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
