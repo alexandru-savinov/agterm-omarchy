@@ -8,7 +8,7 @@ import subprocess
 import time
 
 from atspi_smoke import (control_json, launch, named, press_return, stop, type_x11_text,
-                         wait_for, window_extents, window_list)
+                         wait_for, window_extents, window_list, window_tree)
 
 
 def verify_quick_card_rendering(env, state):
@@ -29,6 +29,9 @@ def verify_quick_card_rendering(env, state):
             specimen = root / "specimen.py"
             specimen.write_text(
                 "import os,sys,pathlib,signal\n"
+                "if len(sys.argv)>2:\n"
+                " os.write(1,b'\\x1b]11;#28343c\\x07\\x1b[2J\\x1b[H\\x1b[?25l'); pathlib.Path(sys.argv[1]).write_text('ready')\n"
+                " while True: signal.pause()\n"
                 "size=os.get_terminal_size(); rows,cols=size.lines,size.columns\n"
                 "s='\\x1b]11;#00ffff\\x07\\x1b[2J\\x1b[H\\x1b[?25l'\n"
                 "for row,col,color in ((1,cols//2,'255;0;0'),(rows,cols//2,'0;255;0'),"
@@ -40,6 +43,13 @@ def verify_quick_card_rendering(env, state):
             try:
                 window = wait_for(lambda: window_list(local), "no quick-card window")[0]["id"]
                 control_json(local, "window", "resize", window, "--width", str(width), "--height", str(height), "--json")
+                session = next(row["id"] for workspace in window_tree(local, window)["workspaces"]
+                               for row in workspace["sessions"] if row["active"])
+                backdrop_ready = root / "backdrop-ready"
+                backdrop_command = shlex.join(["/usr/bin/python3", str(specimen), str(backdrop_ready), "backdrop"])
+                control_json(local, "session", "type", backdrop_command + "\n", "--target", session,
+                             "--window", window, "--json")
+                wait_for(lambda: backdrop_ready.exists(), "static backdrop PTY did not run")
                 control_json(local, "quick", "show", "--json")
                 card = wait_for(lambda: named(app, "Quick terminal"), "quick card did not map")
                 command = shlex.join(["/usr/bin/python3", str(specimen), str(ready)])
