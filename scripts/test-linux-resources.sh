@@ -97,6 +97,7 @@ mkdir -p "$SETUP_ROOT/scripts/zmx-patches/ghostty"
 cp "$ROOT/scripts/zmx-patches/"*.patch "$SETUP_ROOT/scripts/zmx-patches/"
 cp "$ROOT/scripts/zmx-patches/ghostty/"*.patch "$SETUP_ROOT/scripts/zmx-patches/ghostty/"
 cp "$ROOT/linux/arch.sh" "$ROOT/linux/ghostty-resources.env" "$ROOT/linux/zmx.env" "$SETUP_ROOT/linux/"
+cp -R "$ROOT/linux/patches" "$SETUP_ROOT/linux/"
 cp -R "$WORK/complete/." "$SETUP_ROOT/agterm-linux/vendor/ghostty/"
 # This helper is executed by the verifier: compile a real ELF for this test host.
 SETUP_ARCH="$(uname -m)"
