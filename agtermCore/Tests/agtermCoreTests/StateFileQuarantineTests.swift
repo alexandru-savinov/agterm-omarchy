@@ -47,7 +47,7 @@ final class StateFileQuarantineTests {
         let copy = try #require(StateFileQuarantine.preserve(fileURL, reason: .unreadable("test")))
         #expect(copy.lastPathComponent.hasPrefix("state.json.unreadable-"))
         #expect(copy.pathExtension != "json")
-        #expect(copy.deletingLastPathComponent().standardizedFileURL == directory.standardizedFileURL)
+        #expect(copy.deletingLastPathComponent().standardizedFileURL.path == directory.standardizedFileURL.path)
     }
 
     @Test func missingFileOrDirectoryIsNeverMoved() throws {
