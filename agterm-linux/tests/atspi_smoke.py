@@ -3169,6 +3169,27 @@ def verify_notification_banner_round_trip(env):
         stop(process)
 
 
+def dismiss_toast(window, message):
+    assert window is not None, "toast owner window is missing"
+    toast_label = named(window, message, role="label")
+    if toast_label is not None:
+        toast_container = toast_label.get_parent()
+        while toast_container is not None and toast_container != window:
+            buttons = [button for button in collect(toast_container, role="push button")
+                       if button.get_state_set().contains(Atspi.StateType.SHOWING)]
+            if buttons:
+                labels = collect(toast_container, role="label")
+                assert len(buttons) == 1 and labels == [toast_label], (
+                    f"toast dismiss control is not uniquely scoped: {message}"
+                )
+                activate(buttons[0])
+                break
+            toast_container = toast_container.get_parent()
+        else:
+            raise AssertionError(f"toast dismiss control is missing: {message}")
+    wait_for(lambda: not named(window, message), f"toast did not dismiss: {message}")
+
+
 def verify_custom_command_failures(env):
     config = os.path.join(env["AGTERM_STATE_DIR"], "config")
     os.makedirs(config)
@@ -3232,9 +3253,13 @@ def verify_custom_command_failures(env):
         )
         assert command_hud().get("detail") == "failure-detail", command_hud()
         assert command_hud().get("position") == "top-right", command_hud()
+        hud_toast_message = "command failed (exit 71): HUD Failure"
+        wait_for(lambda: named(frame("command-origin-a"), hud_toast_message, role="label"),
+                 "HUD failure companion toast did not appear")
         control_json(env, "session", "hud", "close", "--target", first_session,
                      "--window", first_window, "--json")
-        time.sleep(0.5)
+        wait_for(lambda: not command_hud(), "custom-command HUD did not close")
+        dismiss_toast(frame("command-origin-a"), hud_toast_message)
         shutil.rmtree(first_cwd)
         shutil.rmtree(second_cwd)
         exit_titles = {}
@@ -3244,13 +3269,14 @@ def verify_custom_command_failures(env):
         ):
             run_palette_action(app, process.pid, title, "Launch Failure", badge="custom")
             launch_prefix = "command failed to launch: Launch Failure —"
-            wait_for(
+            launch_toast = wait_for(
                 lambda: named_prefix(frame(title), launch_prefix),
                 f"launch failure toast did not appear in {title}",
             )
             assert not named_prefix(frame(other_title), launch_prefix), (
                 f"launch failure from {title} leaked into {other_title}"
             )
+            dismiss_toast(frame(title), launch_toast.get_name())
 
             suffix = "a" if window_id == first_window else "b"
             exit_title = f"command-exit-{suffix}"
@@ -3269,6 +3295,7 @@ def verify_custom_command_failures(env):
             assert not named(frame(other_title), exit_message), (
                 f"non-zero failure from {exit_title} leaked into {other_title}"
             )
+            dismiss_toast(frame(exit_title), exit_message)
 
         run_palette_action(app, process.pid, exit_titles[first_window], "Slow Failure", badge="custom")
         control_json(env, "window", "close", first_window, "--json")
@@ -7564,7 +7591,7 @@ def main():
     scenario = os.environ.get("AGTERM_ATSPI_SCENARIO")
     if scenario is None:
         failures = []
-        for child_scenario in (
+        scenarios = (
             "normal", "upstream-controls", "html-overlay", "live-restart", "dashboard-modal", "context-menu",
             "window-key-dispatch",
             "split-exit", "split-primary-exit", "window-ownership", "preferences-pages",
@@ -7594,7 +7621,16 @@ def main():
             "dashboard-font-restore", "dashboard-delayed-clicks",
             "cursor-preferences",
             "appearance-follow",
-        ):
+        )
+        try:
+            shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
+            shard_index = int(os.environ.get("AGTERM_ATSPI_SHARD_INDEX", "0"))
+            if not 0 <= shard_index < shard_count <= len(scenarios):
+                raise ValueError("require 0 <= shard index < shard count <= scenario count")
+        except ValueError as error:
+            print(f"FAIL: invalid AT-SPI shard configuration: {error}")
+            return 2
+        for child_scenario in scenarios[shard_index::shard_count]:
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             result = subprocess.run([sys.executable, __file__], env=child_env)
             if result.returncode != 0:
