@@ -6,13 +6,16 @@ import agtermCore
 final class ClipboardPromptController {
     static let shared = ClipboardPromptController()
 
+    /// Shows the prompt for `key`; the dialog's answer must come back through `resolve`.
+    typealias Presenter = @MainActor (PromptKey, AnyObject?) -> Void
+
     struct PromptKey: Hashable {
         let access: ClipboardAccess
         let requester: ObjectIdentifier?
     }
 
     private struct Pending {
-        let requester: GhosttySurface?
+        let requester: AnyObject?
         var waiters: [(Bool) -> Void]
     }
 
@@ -23,8 +26,13 @@ final class ClipboardPromptController {
 
     private var policy = ClipboardPromptPolicy()
     private var pending: [PromptKey: Pending] = [:]
+    private let present: Presenter
 
-    func request(_ access: ClipboardAccess, requester: GhosttySurface?, completion: @escaping (Bool) -> Void) {
+    init(present: Presenter? = nil) {
+        self.present = present ?? { key, requester in Self.presentDialog(key, requester: requester as? GhosttySurface) }
+    }
+
+    func request(_ access: ClipboardAccess, requester: AnyObject?, completion: @escaping (Bool) -> Void) {
         switch policy.decision(for: access) {
         case .allow:
             completion(true)
@@ -37,11 +45,11 @@ final class ClipboardPromptController {
                 return
             }
             pending[key] = Pending(requester: requester, waiters: [completion])
-            presentPrompt(key)
+            present(key, requester)
         }
     }
 
-    private func presentPrompt(_ key: PromptKey) {
+    private static func presentDialog(_ key: PromptKey, requester: GhosttySurface?) {
         let heading = key.access == .read ? "Allow a program to read the clipboard?" : "Allow a program to set the clipboard?"
         let body = key.access == .read
             ? "A program running in the terminal is trying to read your clipboard contents (OSC 52)."
@@ -59,7 +67,7 @@ final class ClipboardPromptController {
                 unsafeBitCast(onClipboardPromptResponse as @convention(c) (OpaquePointer?, UnsafePointer<CChar>?, gpointer?) -> Void,
                               to: GCallback.self),
                 ctx)
-        adw_dialog_present(cast(dialog), W(window(for: pending[key]?.requester)))
+        adw_dialog_present(cast(dialog), W(window(for: requester)))
     }
 
     func resolve(_ key: PromptKey, response: String) {
@@ -71,7 +79,7 @@ final class ClipboardPromptController {
         for waiter in entry?.waiters ?? [] { waiter(allowed) }
     }
 
-    private func window(for requester: GhosttySurface?) -> OpaquePointer? {
+    private static func window(for requester: GhosttySurface?) -> OpaquePointer? {
         guard let requester else { return gController?.windowPointer }
         return gWindows.values.first { $0.store.session(withID: requester.sessionID) != nil }?.windowPointer
             ?? gController?.windowPointer
