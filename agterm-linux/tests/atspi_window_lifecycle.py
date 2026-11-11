@@ -35,7 +35,7 @@ def verify_window_close_cancel(env, state):
     import subprocess
     import sys
     import traceback
-    from atspi_smoke import ROOT
+    from atspi_smoke import ROOT, press_x11_key
 
     class Publications:
         """Watch the directory before an action; replaced inode polling loses rapid publications."""
@@ -115,6 +115,10 @@ def verify_window_close_cancel(env, state):
             os.makedirs(windows)
             with open(os.path.join(mode_state, "settings.json"), "w", encoding="utf-8") as file:
                 json.dump({"restoreMode": mode, "closeGraceUndoEnabled": pending}, file)
+            if pending:
+                os.makedirs(os.path.join(mode_state, "config"))
+                with open(os.path.join(mode_state, "config", "keymap.conf"), "w", encoding="utf-8") as file:
+                    file.write("map ctrl+alt+u undo_close\n")
             mode_env = dict(env, AGTERM_STATE_DIR=mode_state,
                             AGTERM_CONTROL_SOCKET=os.path.join(mode_state, "agterm.sock"))
             if mode == "live":
@@ -212,6 +216,14 @@ def verify_window_close_cancel(env, state):
                     birth = file.read().rsplit(")", 1)[1].split()[19]
                 time.sleep(1.5)
                 if pending:
+                    def pending_key(x11, hypr):
+                        # Palette navigation consumes the real three-second undo grace.
+                        if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+                            subprocess.run(["hyprctl", "dispatch", "sendshortcut", f"{hypr},pid:{process.pid}"],
+                                           check=True, stdout=subprocess.DEVNULL)
+                        else:
+                            press_x11_key(x11, process.pid)
+
                     def held_row():
                         response = raw_control_json(mode_env, {"cmd": "zmx.list"})
                         assert response["ok"], response
@@ -224,7 +236,7 @@ def verify_window_close_cancel(env, state):
                     def soft_close():
                         assert any(row["id"] == ids[0] and row.get("active") for row in sessions())
                         started = time.monotonic()
-                        run_palette_action(app, process.pid, None, "Close Session")
+                        pending_key("ctrl+shift+q", "CTRL SHIFT,Q")
                         wait_for(lambda: all(row["id"] != ids[0] for row in sessions()),
                                  "GUI close did not remove the held session")
                         held = held_row()
@@ -234,9 +246,11 @@ def verify_window_close_cancel(env, state):
 
                     control_json(mode_env, "session", "select", "--target", ids[0], "--window", window, "--json")
                     time.sleep(1.5)  # Finish selection's scheduled save before observing pending work.
-                    pending_snapshot = structure(mode_state)
                     observer.drain()
                     soft_close()
+                    # Soft close persists recent-closed history; Cancel must preserve that new baseline.
+                    pending_snapshot = structure(mode_state)
+                    assert not observer.drain(), "soft close published the window snapshot before finalization"
                     control_json(mode_env, "window", "close", window, "--json")
                     wait_for(prompt, "pending-work close did not ask to quit")
                     activate(wait_for(lambda: named(app, "Cancel", role="button"), "pending quit had no Cancel"))
@@ -244,7 +258,7 @@ def verify_window_close_cancel(env, state):
                     assert held_row()["state"] == "pendingClose", "Cancel lost the held close record"
                     assert structure(mode_state) == pending_snapshot, "Cancel published pending work"
                     assert not observer.drain(), "Cancel finalized the pending close"
-                    run_palette_action(app, process.pid, None, "Reopen Closed Item")
+                    pending_key("ctrl+alt+u", "CTRL ALT,U")
                     wait_for(lambda: any(row["id"] == ids[0] and row.get("active") for row in sessions()),
                              "Undo did not restore and select the held session")
                     assert not select.select([job_fd], [], [], 0)[0], "Undo replaced the held job"
