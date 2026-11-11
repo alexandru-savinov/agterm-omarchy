@@ -19,7 +19,7 @@ permissions:
   issues: read
 
 concurrency:
-  group: agent-queue-${{ github.event_name }}-${{ github.ref }}
+  group: agent-queue-${{ github.event_name == 'pull_request' && 'pr' || 'snapshot' }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
