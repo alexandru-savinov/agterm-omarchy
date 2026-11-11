@@ -232,7 +232,8 @@ jobs:
 
   build-linux:
     name: GTK build and tests (${{ matrix.arch }})
-    needs: [changes, scripts, test-linux, lint-linux]
+    # Independent checks run concurrently; the final CI gate still requires every result.
+    needs: changes
     if: needs.changes.outputs.swift == 'true'
     strategy:
       fail-fast: false
