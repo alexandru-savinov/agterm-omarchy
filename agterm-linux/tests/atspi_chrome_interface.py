@@ -131,15 +131,13 @@ def verify_chrome_interface_controls(env):
             control_json(env, *undo, "--json")
             wait_for(lambda: not effect(), f"undoing keyboard activation of {name!r} failed")
             ctx.select_session(ctx.session_id, "the original session could not be reselected")
-            ctx.close_search("after keyboard activation of " + name)
+            if actionable(app, "Next match (Enter)"):
+                ctx.close_search("after keyboard activation of " + name)
 
         def invoke(name, route):
             ctx.select_session(ctx.session_id, "the original session could not be reselected")
             if route == "keyboard":
-                if name == "Recent Sessions (Ctrl+Tab)":
-                    ctx.open_counted_query("before Recent Sessions")
-                else:
-                    ctx.open_search("before " + name)
+                ctx.open_search("before " + name)
                 ctx.shift_tab_until(lambda: ctx.has_keyboard(button(name)),
                                     f"Shift+Tab never focused {name!r}")
                 press_x11_key("space", pid)
@@ -175,17 +173,13 @@ def verify_chrome_interface_controls(env):
                 finish(route)
 
         for route in ("keyboard", "accessibility"):
-            if route == "keyboard":
-                control_json(env, "session", "type", "--target", ctx.session_id, "echo zzq zzq zzq\n", "--json")
             invoke("Recent Sessions (Ctrl+Tab)", route)
             wait_for(ctx.picker_row, f"{route} activation did not open Recent Sessions")
             press_escape(pid)
             wait_for(lambda: ctx.picker_row() is None, "Escape did not dismiss Recent Sessions")
-            if route == "keyboard":
-                ctx.assert_typing_reaches_query("Recent Sessions dismissal did not restore the search query")
-            else:
-                assert ctx.owner_after(f"{route}-recent-dismiss") == ctx.session_owner, (
-                    f"{route} Recent Sessions dismissal did not restore the original terminal")
+            # Tab moved focus off search before popup, so this route captures no search-entry owner.
+            assert ctx.owner_after(f"{route}-recent-dismiss") == ctx.session_owner, (
+                f"{route} Recent Sessions dismissal did not restore the original terminal")
             finish(route)
 
         invoke("Dashboard (Ctrl+Shift+M)", "pointer")
