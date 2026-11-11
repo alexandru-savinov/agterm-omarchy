@@ -34,6 +34,14 @@ final class ControlServer: @unchecked Sendable {
     private let pendingLock = NSLock()
     private var pendingReplies: [ObjectIdentifier: MainReply] = [:]
     private var stopping = false
+    /// The cap on concurrent connection workers. agtermctl opens one short connection per command and
+    /// streams (`zmx.present`, overlay jobs) hand their descriptor to the main loop and free the worker,
+    /// so a worker is held only while a request is read, served on main, or waits on zmx/ssh (seconds).
+    /// Dozens of agent panes polling about once a second need a handful at a time; 64 leaves more than
+    /// tenfold headroom while bounding threads and descriptors well under the usual 1024 soft limit.
+    static let defaultConnectionWorkers = 64
+    private let connectionSlots: ControlConnectionSlots
+    var activeConnectionWorkers: Int { connectionSlots.busy }
 
     private let logger = LinuxStructuredLogger(category: "ControlServer")
     @MainActor lazy var presentationHub = PresentationHub(staleTimeout: 30)
@@ -57,10 +65,12 @@ final class ControlServer: @unchecked Sendable {
     init(
         path: String? = nil,
         setSocketPermissions: ((String, Int32) -> Int32)? = nil,
-        timing: Timing = Timing()
+        timing: Timing = Timing(),
+        maxConnectionWorkers: Int = ControlServer.defaultConnectionWorkers
     ) {
         self.path = path ?? Self.defaultSocketPath()
         self.timing = timing
+        self.connectionSlots = ControlConnectionSlots(limit: max(1, maxConnectionWorkers))
         self.setSocketPermissions = setSocketPermissions ?? { path, _ in
             path.withCString { chmod($0, 0o600) }
         }
@@ -125,6 +135,7 @@ final class ControlServer: @unchecked Sendable {
             return
         }
         listenFD = fd
+        connectionSlots.open()
         pendingLock.lock()
         stopping = false
         pendingLock.unlock()
@@ -148,6 +159,7 @@ final class ControlServer: @unchecked Sendable {
         // close() alone does not wake a thread blocked in accept() on Linux; that thread would then
         // accept on whatever socket next reuses the descriptor number.
         _ = Glibc.shutdown(listenFD, Int32(SHUT_RDWR))
+        connectionSlots.close()
         let deadline = Date(timeIntervalSinceNow: 2)
         acceptLoops.lock()
         while runningAcceptLoops > 0, acceptLoops.wait(until: deadline) {}
@@ -182,17 +194,55 @@ final class ControlServer: @unchecked Sendable {
         lockFD = -1
     }
 
+    /// What the accept loop does after `accept()` fails with `code`, given the backoff it last slept.
+    enum AcceptFailure: Equatable {
+        /// stop()'s shutdown makes accept fail with EINVAL; the listener is gone.
+        case exit
+        /// EINTR (signal), ECONNABORTED and the like are transient: keep serving. Mirrors the macOS loop.
+        case retry
+        /// Out of descriptors or kernel memory: retrying at once would spin until one frees.
+        case backoff(TimeInterval)
+    }
+
+    static let acceptBackoffFloor: TimeInterval = 0.01
+    static let acceptBackoffCeiling: TimeInterval = 0.25
+
+    static func acceptFailure(_ code: Int32, previousBackoff: TimeInterval) -> AcceptFailure {
+        switch code {
+        case EBADF, EINVAL, ENOTSOCK:
+            return .exit
+        case EMFILE, ENFILE, ENOBUFS, ENOMEM:
+            return .backoff(min(max(previousBackoff * 2, acceptBackoffFloor), acceptBackoffCeiling))
+        default:
+            return .retry
+        }
+    }
+
+    /// Takes a worker slot before each accept, so beyond the cap new connections wait in the listen backlog
+    /// (and then in the client's blocking connect) instead of being accepted and dropped.
     private func acceptLoop(_ fd: Int32) {
-        while true {
+        var backoff: TimeInterval = 0
+        while connectionSlots.acquire() {
             let conn = accept(fd, nil, nil)
-            if conn < 0 {
-                // stop()'s shutdown makes accept fail with EINVAL — exit; EINTR (signal) / ECONNABORTED
-                // are transient, so keep serving instead of dying. Mirrors the macOS accept loop.
-                if errno == EBADF || errno == EINVAL || errno == ENOTSOCK { return }
-                continue
+            guard conn >= 0 else {
+                let code = errno
+                connectionSlots.release()
+                switch Self.acceptFailure(code, previousBackoff: backoff) {
+                case .exit:
+                    return
+                case .retry:
+                    continue
+                case .backoff(let interval):
+                    backoff = interval
+                    // stop() closes the slots, which ends this pause at once.
+                    guard connectionSlots.pause(interval) else { return }
+                    continue
+                }
             }
+            backoff = 0
             Thread.detachNewThread { [self] in
                 if !handle(conn) { close(conn) }
+                connectionSlots.release()
             }
         }
     }
@@ -571,6 +621,62 @@ final class ControlServer: @unchecked Sendable {
             }
             return true
         }
+    }
+}
+
+/// Counts connection workers; parks the accept loop while every slot is busy or while it backs off.
+/// `close()` (from `stop()`) wakes both waits at once.
+final class ControlConnectionSlots: @unchecked Sendable {
+    let limit: Int
+    private let condition = NSCondition()
+    private var held = 0
+    private var closed = false
+
+    init(limit: Int) { self.limit = limit }
+
+    var busy: Int {
+        condition.lock()
+        defer { condition.unlock() }
+        return held
+    }
+
+    func open() {
+        condition.lock()
+        closed = false
+        condition.unlock()
+    }
+
+    func close() {
+        condition.lock()
+        closed = true
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    /// Waits for a free slot; false once closed.
+    func acquire() -> Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        while held >= limit, !closed { condition.wait() }
+        guard !closed else { return false }
+        held += 1
+        return true
+    }
+
+    func release() {
+        condition.lock()
+        held -= 1
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    /// Sleeps up to `interval`; false when closed before or during the sleep.
+    func pause(_ interval: TimeInterval) -> Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        let deadline = Date(timeIntervalSinceNow: interval)
+        while !closed, condition.wait(until: deadline) {}
+        return !closed
     }
 }
 
