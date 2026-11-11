@@ -262,7 +262,8 @@ struct CommandRestoreTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let arguments = ["", "space here", "\\", "\\\\", "end\\", "\\'", "'\\", "a\\\\'b",
-                         "$HOME", "$(false)", "`false`", "; false", "*?[abc]", "日本語"]
+                         "$HOME", "$(false)", "`false`", "; false", "*?[abc]", "日本語",
+                         "'\u{301}", "\u{600}'", "'\u{200D}", "\\\u{301}"]
         let expected = Data((arguments.joined(separator: "\0") + "\0").utf8)
         var command = CommandRestore.shellQuotedLine(["printf", "%s\\0"] + arguments)
         for _ in 0..<3 {

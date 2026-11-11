@@ -246,9 +246,15 @@ public enum CommandRestore {
     /// Keep backslashes outside single quotes: fish unescapes them inside quotes, unlike POSIX shells.
     /// Single-quote each intervening chunk and render each embedded `'` as `'\''`.
     private static func shellQuote(_ arg: String) -> String {
-        arg.components(separatedBy: "\\")
-            .map { "'" + $0.replacingOccurrences(of: "'", with: "'\\''") + "'" }
-            .joined(separator: "\\\\")
+        var quoted = "'"
+        for scalar in arg.unicodeScalars {
+            switch scalar {
+            case "'": quoted += "'\\''"
+            case "\\": quoted += "'\\\\'"
+            default: quoted.unicodeScalars.append(scalar)
+            }
+        }
+        return quoted + "'"
     }
 
     /// Parse a macOS `KERN_PROCARGS2` blob into the process's argv. Layout: a host-order `Int32` argc,
