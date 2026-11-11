@@ -35,6 +35,9 @@ final class AppController {
     var quickSurface: GhosttySurface?  // the window-level quick terminal (floating panel)
     var quickFrame: OpaquePointer?   // the card frame holding the quick surface
     var quickVisible = false
+    /// The toplevel's last seen MINIMIZED bit: `surfaceStateDidChange` acts only on its edges, since the
+    /// surface's `notify::state` also fires for focus and tiling changes.
+    var surfaceMinimized = false
     /// Pending compositor state, used to serialize rapid GTK fullscreen toggles.
     var fullscreenDesired: Bool?
     var fullscreenTransitionInFlight = false
@@ -336,6 +339,11 @@ final class AppController {
         applyWindowTranslucency()
         applyAutoFollowSettings()
         gtk_window_present(WIN(window))
+        // GTK keeps a minimized window's widgets MAPPED (`surface_state_changed` in gtkwindow.c only
+        // restyles), so `unmap` never fires on iconify; the blink timer reads the surface's state instead.
+        if let surface = gtk_native_get_surface(window) {
+            connect(surface, "notify::state", unsafeBitCast(onWindowSurfaceState as @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void, to: GCallback.self))
+        }
         applySidebarThemeColor()   // tint the sidebar to the terminal theme background
         loadKeymapAtStartup()   // this window's own keymap.conf caches; NOT an app-wide reload
         reconcile()

@@ -111,6 +111,11 @@ def window_open(env, window_id):
     return next((item.get("open") for item in window_list(env) if item["id"] == window_id), None)
 
 
+def window_minimized(env, window_id):
+    """The surface's MINIMIZED bit as `window list` reports it; None when the window is not listed."""
+    return next((bool(item.get("minimized")) for item in window_list(env) if item["id"] == window_id), None)
+
+
 def verify_normal(env, trace):
     """Returns the still-running process and the clock window's trace key: the reduced-motion leg runs
     while this window keeps ticking, so its own negative window has the same positive control."""
@@ -142,16 +147,28 @@ def verify_normal(env, trace):
                  "sidebar show never re-armed A's pulse", timeout=TIMEOUT)
         assert_ticking(trace, mark, a, "after sidebar show")
 
-        # Minimize: X11 iconify unmaps the toplevel, and `stopBlinkPhaseForUnmap` must stop A outright.
+        # Minimize: GTK keeps an iconified window's widgets mapped, so the app reads the surface's
+        # MINIMIZED bit and must stop A outright. The leg is judged only once the window manager has
+        # actually iconified A (`window list` reads that same bit); a desktop that never does so cannot
+        # say anything about the pulse, and the leg then reports UNVERIFIED instead of passing.
         mark = len(trace.events())
         control_json(env, "window", "minimize", a_id, "on", "--json")
-        quiet = await_disarm(trace, mark, a, "unmap", "window minimize")
-        assert_silent(trace, quiet, a, b, "window minimized")
-        mark = len(trace.events())
-        control_json(env, "window", "minimize", a_id, "off", "--json")
-        wait_for(lambda: trace.first(mark, a, "resync", armed="1", mapped="1"),
-                 "restoring the minimized window never re-armed A's pulse", timeout=TIMEOUT)
-        assert_ticking(trace, mark, a, "after window restore")
+        legs = "hide/show"
+        if wait_for(lambda: window_minimized(env, a_id), "", timeout=10, required=False):
+            quiet = await_disarm(trace, mark, a, "unmap", "window minimize")
+            assert_silent(trace, quiet, a, b, "window minimized")
+            mark = len(trace.events())
+            control_json(env, "window", "minimize", a_id, "off", "--json")
+            wait_for(lambda: window_minimized(env, a_id) is False, "window A never reported restored",
+                     timeout=TIMEOUT)
+            wait_for(lambda: trace.first(mark, a, "resync", armed="1", mapped="1"),
+                     "restoring the minimized window never re-armed A's pulse", timeout=TIMEOUT)
+            assert_ticking(trace, mark, a, "after window restore")
+            legs += ", minimize/restore"
+        else:
+            print("UNVERIFIED: blink-unmapped minimize/restore: the window manager never reported "
+                  f"window {a_id} minimized, so the pulse under iconify was not observed")
+            control_json(env, "window", "minimize", a_id, "off", "--json")
 
         # Close: the mark is taken BEFORE the request, so nothing A does during teardown escapes the
         # check. Teardown may stop and normalize (unmap, a phase-0 apply, a disarmed resync); a phase-1
@@ -168,7 +185,7 @@ def verify_normal(env, trace):
         assert not ticks, f"window close: window {a} ticked or re-armed during teardown: {ticks[:3]}"
         late = trace.since(closed, a)
         assert not late, f"window closed: window {a} still traced after close: {late[:3]}"
-        print(f"blink-unmapped: hide/show, minimize/restore and close verified on {a} against clock {b}")
+        print(f"blink-unmapped: {legs} and close verified on {a} against clock {b}")
         return process, b
     except BaseException:
         stop(process)
