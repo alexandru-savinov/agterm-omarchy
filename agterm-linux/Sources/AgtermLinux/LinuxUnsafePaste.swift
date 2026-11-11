@@ -116,7 +116,9 @@ final class UnsafePasteController {
         return String(text.prefix(limit)) + "\n… " + notice
     }
 
-    final class ResponseContext {
+    /// Immutable, and `answer` is main-actor isolated, so handing it to the main actor from the GLib
+    /// destroy-notify (which is not declared main-actor) is safe.
+    final class ResponseContext: @unchecked Sendable {
         let answer: Answer
         init(answer: @escaping Answer) { self.answer = answer }
     }
