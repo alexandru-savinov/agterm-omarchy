@@ -35,6 +35,7 @@ def verify_window_close_cancel(env, state):
     import subprocess
     import sys
     import traceback
+    from atspi_smoke import ROOT
 
     class Publications:
         """Watch the directory before an action; replaced inode polling loses rapid publications."""
@@ -99,6 +100,10 @@ def verify_window_close_cancel(env, state):
                    "with open(sys.argv[1], 'a') as f: f.write(str(os.getpid()) + '\\n')\n"
                    "while True: signal.pause()\n")
 
+    login_fixture = os.path.join(state, "quit-login-shell.so")
+    subprocess.run(["cc", "-shared", "-fPIC", "-o", login_fixture,
+                    os.path.join(ROOT, "tests/login_shell_zsh_fixture.c"), "-ldl"], check=True)
+
     for mode in ("none", "rerun", "live"):
         for exit_kind in ("accept", "SIGTERM", "SIGINT"):
             mode_state = os.path.join(state, f"close-{mode}-{exit_kind}")
@@ -108,6 +113,8 @@ def verify_window_close_cancel(env, state):
                 json.dump({"restoreMode": mode, "closeGraceUndoEnabled": False}, file)
             mode_env = dict(env, AGTERM_STATE_DIR=mode_state,
                             AGTERM_CONTROL_SOCKET=os.path.join(mode_state, "agterm.sock"))
+            if mode == "live":
+                mode_env["LD_PRELOAD"] = login_fixture  # Existing process-local eligibility fixture; no account changes.
             process, app = launch(mode_env)
             observer = None
             job_fd = None
@@ -115,6 +122,8 @@ def verify_window_close_cancel(env, state):
             cleanup_targets = []
             try:
                 window = first_window(mode_env)
+                mode_status = raw_control_json(mode_env, {"cmd": "restore.mode"})
+                assert mode_status["ok"] and mode_status["result"]["restore"]["active"] == mode, mode_status
                 control_json(mode_env, "session", "new", "--name", "close-two", "--window", window, "--json")
 
                 def sessions():
@@ -221,6 +230,8 @@ def verify_window_close_cancel(env, state):
 
                 process, app = launch(mode_env)
                 window = first_window(mode_env)
+                mode_status = raw_control_json(mode_env, {"cmd": "restore.mode"})
+                assert mode_status["ok"] and mode_status["result"]["restore"]["active"] == mode, mode_status
                 restored = [row["id"] for row in sessions()]
                 assert restored == ids, f"{mode}: restored {restored}, not {ids}"
                 answers("restored-shell", [ids[1]])
@@ -271,13 +282,38 @@ def verify_window_close_cancel(env, state):
                         # post-exit assertion. Never sweep unrelated daemons or signal a bare PID.
                         if process.poll() is not None:
                             process, app = launch(mode_env)
+                        def inventory():
+                            response = raw_control_json(mode_env, {"cmd": "zmx.list"})
+                            assert response["ok"], response
+                            return response["result"]["zmx"]["entries"]
+
+                        before = inventory()
+                        owned_names = set()
                         for owner_window, ident in cleanup_targets:
+                            matches = [row for row in before if row.get("sessionID", "").casefold() == ident.casefold()
+                                       and row.get("pane") == "left"]
+                            assert len(matches) <= 1, f"ambiguous fixture daemon: {matches}"
+                            if not matches:
+                                continue  # A normally closed session can have removed its claim already.
+                            row = matches[0]
+                            assert row.get("windowID", "").casefold() == owner_window.casefold(), row
+                            assert row["state"] == "claimed", row
+                            owned_names.add(row["daemon"])
+                            if row["observation"] == "absent":
+                                continue
+                            assert row["observation"] == "running", row
+                            # Omit the common open-window selector: this API resolves explicit session
+                            # UUIDs across the inventory, including these verified closed-window claims.
                             reply = raw_control_json(mode_env, {"cmd": "zmx.kill", "target": ident,
-                                                     "args": {"window": owner_window, "pane": "left", "force": True}})
-                            if not reply.get("ok"):
-                                assert ("no left pane daemon" in reply.get("error", "") or
-                                        "no such window" in reply.get("error", "") or
-                                        reply.get("error", "").endswith(" is not running")), reply
+                                                     "args": {"pane": "left", "force": True}})
+                            assert reply.get("ok") or reply.get("error", "").endswith(" is not running"), reply
+                        after = inventory()
+                        assert all(row["observation"] == "absent" for row in after
+                                   if row["daemon"] in owned_names), after
+                        unrelated = {row["daemon"]: row for row in before if row["daemon"] not in owned_names}
+                        assert {row["daemon"]: row for row in after if row["daemon"] not in owned_names} == unrelated, (
+                            "fixture cleanup changed unrelated daemon inventory")
+                        print(f"measured: cleaned {len(owned_names)} exact fixture daemon identities")
                 finally:
                     try:
                         if job_fd is not None:
