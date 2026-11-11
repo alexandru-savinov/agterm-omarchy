@@ -134,9 +134,10 @@ public enum CommandRestore {
         isControlCharacter(scalar) || scalar.value == 0xFFFD
     }
 
-    /// C0 and DEL — what a line editor reads as an editing command rather than as text.
+    /// C0, DEL and C1 (U+0080–U+009F) — what a line editor or terminal can read as an editing command or the
+    /// start of a control sequence (U+009B is a one-character CSI, U+0085 a next-line) rather than as text.
     private static func isControlCharacter(_ scalar: Unicode.Scalar) -> Bool {
-        scalar.value < 0x20 || scalar.value == 0x7F
+        scalar.value < 0x20 || (0x7F...0x9F).contains(scalar.value)
     }
 
     /// The mutually-exclusive surface seed a pane restores/creates with. `command` != nil → the exec path

@@ -583,6 +583,80 @@ print(json.dumps({"renderer": os.environ.get("LIBGL_ALWAYS_SOFTWARE"), "args": s
         (self.destination / 'share/agterm/RENDERER').write_text('default\n')
         self.assertEqual(self.launch_probe('agterm-linux'), {'renderer': '0', 'args': []})
 
+    LAUNCHER_VARIABLES = ('LD_LIBRARY_PATH', 'LIBGL_ALWAYS_SOFTWARE', 'AGTERM_ZMX_PATH',
+                          'AGTERM_GHOSTTY_RESOURCES', 'AGTERM_VERSION', 'AGTERM_COMMIT')
+
+    def launch_environment_probe(self, **caller):
+        """Run the staged agterm-linux launcher over a binary that reports its whole environment."""
+        probe = f'#!{sys.executable}\n' + 'import json, os\nprint(json.dumps(dict(os.environ)))\n'
+        (self.destination / 'bin/agterm-linux.bin').write_text(probe)
+        env = {key: value for key, value in self.env.items()
+               if key not in self.LAUNCHER_VARIABLES and not key.startswith('AGTERM_ORIG_')}
+        env.update(caller)
+        result = subprocess.run([str(self.destination / 'bin/agterm-linux')], env=env, text=True,
+                                capture_output=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
+    def staged_software_launcher(self):
+        self.stage_probe_wrappers()
+        (self.destination / 'share/agterm/RENDERER').write_text('software\n')
+        for name in ('VERSION', 'COMMIT'):
+            (self.destination / 'share/agterm' / name).write_text('fixture\n')
+        self.assertTrue((self.destination / 'share/ghostty').is_dir())
+
+    def test_launcher_records_caller_values_it_overrides(self):
+        # Issue #270: children must get these back, so the launcher has to say what they were.
+        self.staged_software_launcher()
+        caller = {name: f'caller {name} value' for name in self.LAUNCHER_VARIABLES}
+        caller['LD_LIBRARY_PATH'] = '/home/user/lib:/opt/vendor lib'
+        seen = self.launch_environment_probe(**caller)
+        self.assertEqual(seen['LD_LIBRARY_PATH'], f'{self.destination}/lib:/home/user/lib:/opt/vendor lib')
+        self.assertEqual(seen['LIBGL_ALWAYS_SOFTWARE'], '1')
+        self.assertEqual(seen['AGTERM_ZMX_PATH'], f'{self.destination}/bin/zmx')
+        for name, value in caller.items():
+            with self.subTest(name=name):
+                self.assertEqual(seen.get('AGTERM_ORIG_' + name), value)
+        self.assertEqual(seen['AGTERM_ORIG_UNSET'], '')
+        self.assertEqual(seen['AGTERM_ORIG_SET'], '1')
+
+    def test_launcher_lists_variables_the_caller_never_had(self):
+        self.staged_software_launcher()
+        seen = self.launch_environment_probe()
+        self.assertEqual(seen['AGTERM_ORIG_UNSET'].split(' '), [
+            'LD_LIBRARY_PATH', 'AGTERM_GHOSTTY_RESOURCES', 'AGTERM_VERSION', 'AGTERM_COMMIT',
+            'AGTERM_ZMX_PATH', 'LIBGL_ALWAYS_SOFTWARE'])
+        self.assertEqual(sorted(key for key in seen if key.startswith('AGTERM_ORIG_')),
+                         ['AGTERM_ORIG_SET', 'AGTERM_ORIG_UNSET'])
+        self.assertEqual(seen['AGTERM_ORIG_SET'], '1')
+        self.assertEqual(seen['LD_LIBRARY_PATH'], f'{self.destination}/lib')
+
+    def test_launcher_records_an_empty_caller_value_as_set(self):
+        self.staged_software_launcher()
+        seen = self.launch_environment_probe(LD_LIBRARY_PATH='', LIBGL_ALWAYS_SOFTWARE='')
+        self.assertEqual(seen['AGTERM_ORIG_LD_LIBRARY_PATH'], '')
+        self.assertEqual(seen['AGTERM_ORIG_LIBGL_ALWAYS_SOFTWARE'], '')
+        self.assertNotIn('LD_LIBRARY_PATH', seen['AGTERM_ORIG_UNSET'].split(' '))
+
+    def test_launcher_clears_bookkeeping_inherited_from_an_outer_agterm(self):
+        self.staged_software_launcher()
+        # A pane of an outer agterm hands on its record blanked, marker included (AGTERM_ORIG_SET="").
+        seen = self.launch_environment_probe(AGTERM_ORIG_STALE='outer', AGTERM_ORIG_UNSET='STALE_NAME',
+                                             AGTERM_ORIG_LD_LIBRARY_PATH='/outer/lib', AGTERM_ORIG_SET='')
+        self.assertEqual(seen['AGTERM_ORIG_SET'], '1')
+        self.assertNotIn('AGTERM_ORIG_STALE', seen)
+        self.assertNotIn('STALE_NAME', seen['AGTERM_ORIG_UNSET'].split(' '))
+        self.assertNotIn('AGTERM_ORIG_LD_LIBRARY_PATH', seen)
+
+    def test_default_launcher_leaves_renderer_out_of_the_bookkeeping(self):
+        self.stage_probe_wrappers()
+        for caller in ({}, {'LIBGL_ALWAYS_SOFTWARE': '0'}):
+            with self.subTest(caller=caller):
+                seen = self.launch_environment_probe(**caller)
+                self.assertEqual(seen.get('LIBGL_ALWAYS_SOFTWARE'), caller.get('LIBGL_ALWAYS_SOFTWARE'))
+                self.assertNotIn('AGTERM_ORIG_LIBGL_ALWAYS_SOFTWARE', seen)
+                self.assertNotIn('LIBGL_ALWAYS_SOFTWARE', seen.get('AGTERM_ORIG_UNSET', '').split(' '))
+
     def test_wrapper_only_honors_exact_software_data_marker(self):
         self.stage_probe_wrappers()
         marker = self.destination / 'share/agterm/RENDERER'
