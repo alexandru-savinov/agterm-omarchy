@@ -23,7 +23,7 @@ Evidence: commit, run, test, or artifact links
 Next: concrete next action or handoff
 ```
 
-`Agent:` must be the first nonempty line, with no indentation; names contain letters, digits, underscores, or hyphens.
+`Agent:` must be the first nonempty line, with no indentation; names contain ASCII letters, digits, underscores, or hyphens.
 Names are self-reported and normalized to lowercase; each GitHub account has a separate name namespace.
 An example inside ordinary prose or a code fence is not a check-in.
 Use exactly one `Task: #number` field for one issue, even when posting the check-in on the hub.
@@ -43,6 +43,7 @@ On one task, an earlier session still counts while its own newest check-in there
 The collision note is informational. Separate runs sharing a name should choose distinct agent names. A restarted agent still re-posts its claims under the new session, but re-posting does not clear the note: it clears once every earlier-session check-in it superseded is over 4 hours old, or at once if the agent still knows its old session value and, on each task, posts `State: complete` under the old `Session:` before re-posting its claim.
 A session is a collision signal between cooperating agents on one account, not authentication: anyone with the account can write any value.
 Use the exact labels, one space after each colon, no trailing spaces, and no blank lines or intervening prose.
+Labels and names are matched as ASCII only; a comment the parser cannot read is listed as uncertain and never fails the snapshot.
 Use ordinary LF or CRLF newlines.
 Paths are literal ASCII repo paths separated by comma and space, such as `scripts/github/queue.py, docs/AGENT_PROTOCOL.md`.
 Each path starts with a letter, digit, or dot; its remaining characters can also include slash or hyphen.
@@ -68,6 +69,11 @@ Task rows show GitHub assignees separately from named agents' self-reports.
 Per-task history retains each account/name's currently visible canonical source comments, including paths, states, timestamps, and source URLs.
 `queue.json` preserves `tasks` and latest `agents`, adds grouped `claims` with `latest` and `history`,
 and records rejected blocks and tasks absent from the snapshot in `uncertain_observations`.
+Only check-ins from repository owners, members and collaborators (GitHub's `author_association`) count toward ownership,
+conflicts, headcount and the Pages team room. Check-ins from other accounts are kept in `unverified_claims`
+and shown as "unverified (not a collaborator)" rows; each record carries `author_association` and `verified`.
+Only comments created or edited in the last 14 days are loaded; a task whose only claim is older says so.
+Displayed raw fields are truncated in the Markdown report; `queue.json` keeps them whole.
 An agent's newest message about another task does not erase earlier task observations.
 Edited comments replace their prior text; deleted comments and earlier edit versions cannot be reconstructed from a snapshot.
 Each latest claim carries `age_seconds`, counted from the check-in comment's creation time and the snapshot's `observed_at`; editing an old check-in does not reset it.

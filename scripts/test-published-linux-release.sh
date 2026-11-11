@@ -15,14 +15,25 @@ payloads=(
   agterm-v0.14.0-x86_64.AppImage
 )
 
+# The fake gh accepts only provenance bound to the expected repository, its release workflow, and a
+# tag that names the artifact being verified.
 cat > "$WORK/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+repo="${AGTERM_TEST_EXPECT_REPO:-melonamin/agterm-linux}"
+(( $# == 9 ))
 [[ "$1 $2" == "attestation verify" ]]
-[[ "$4" == "--repo" && "$5" == "melonamin/agterm-linux" ]]
+[[ "$4" == "--repo" && "$5" == "$repo" ]]
+[[ "$6" == "--signer-workflow" && "$7" == "$repo/.github/workflows/release-linux.yml" ]]
+[[ "$8" == "--source-ref" && "$9" == refs/tags/linux-v* ]]
+[[ "$(basename "$3")" == *"-${9#refs/tags/linux-}"[-.]* ]]
 [[ "$(basename "$3")" != "${AGTERM_TEST_FAIL_ASSET:-}" ]]
 EOF
 chmod 0755 "$WORK/gh"
+
+# Historical cases describe upstream releases, so they never inherit the caller's GITHUB_REPOSITORY
+# (always set on GitHub Actions, including during a tagged release of this repository).
+unset GITHUB_REPOSITORY
 
 make_fixture() {
   rm -rf "$FIXTURE"
@@ -124,5 +135,19 @@ for version in 0.41.1+linux.1 0.42.0; do
   must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
     AGTERM_TEST_FAIL_ASSET="agterm-linux-v${version}.spdx.json" "$VERIFY" "linux-v$version"
 done
+
+# A verifier run on Actions (or by a user who exports GITHUB_REPOSITORY) authenticates against that
+# repository, and provenance from any other repository is rejected.
+make_package_fixture 0.42.0
+printf '{}\n' > "$FIXTURE/agterm-linux-v0.42.0.spdx.json"
+GITHUB_REPOSITORY=example/agterm-fork AGTERM_TEST_EXPECT_REPO=example/agterm-fork \
+  AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" "$VERIFY" linux-v0.42.0 >/dev/null
+must_fail env GITHUB_REPOSITORY=example/agterm-fork AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+  "$VERIFY" linux-v0.42.0
+
+# Prereleases use the same artifact contract and tag binding.
+make_package_fixture 0.42.0-rc.1
+printf '{}\n' > "$FIXTURE/agterm-linux-v0.42.0-rc.1.spdx.json"
+AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" "$VERIFY" linux-v0.42.0-rc.1 >/dev/null
 
 echo "→ public release verifier accepts the authenticated historical and current artifact sets"

@@ -954,14 +954,7 @@ private let surfaceScroll: @MainActor @convention(c) (OpaquePointer?, Double, Do
 private let surfaceDropString: @MainActor @convention(c) (OpaquePointer?, UnsafePointer<GValue>?, Double, Double, gpointer?) -> gboolean = { _, value, _, _, data in
     MainActor.assumeIsolated {
         guard let value, let cstr = g_value_get_string(value), let surface = wrap(data) else { return 0 }
-        let payload = String(cString: cstr)
-        // Defensive guard for in-app sidebar drags if a compositor offers COPY anyway.
-        if UUID(uuidString: payload) != nil { return 0 }
-        if payload.hasPrefix("w:"), UUID(uuidString: String(payload.dropFirst(2))) != nil { return 0 }
-        guard let text = ShellEscape.dropPayload(payload) else { return 0 }
-        surface.grabFocus(supersedingPopoverCapture: true)
-        surface.inject(text: text)
-        return 1
+        return LinuxDropPolicy.deliverText(String(cString: cstr), to: surface) ? 1 : 0
     }
 }
 private let surfaceDropFiles: @MainActor @convention(c) (OpaquePointer?, UnsafePointer<GValue>?, Double, Double, gpointer?) -> gboolean = { _, value, _, _, data in
@@ -989,10 +982,6 @@ private let surfaceDropFiles: @MainActor @convention(c) (OpaquePointer?, UnsafeP
             node = current.pointee.next
         }
 
-        let text = parts.filter { !$0.isEmpty }.joined(separator: " ")
-        guard !text.isEmpty else { return 0 }
-        surface.grabFocus(supersedingPopoverCapture: true)
-        surface.inject(text: text)
-        return 1
+        return LinuxDropPolicy.deliverFiles(parts, to: surface) ? 1 : 0
     }
 }

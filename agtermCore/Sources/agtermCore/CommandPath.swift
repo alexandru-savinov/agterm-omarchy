@@ -10,6 +10,10 @@ public enum CommandPath {
     /// widens a REMOTE shell with the same list, so the two cannot disagree about where the CLI lives.
     static let standardDirectories = [CLIInstall.installDirectory, "/opt/homebrew/bin"]
 
+    static var remoteShellPrefix: String {
+        "PATH=\"$PATH:" + standardDirectories.joined(separator: ":") + "${HOME:+:$HOME/.local/bin}\""
+    }
+
     /// The PATH a launchd-started app inherits, used when the environment carries none at all.
     static let launchdDefault = "/usr/bin:/bin:/usr/sbin:/sbin"
 
