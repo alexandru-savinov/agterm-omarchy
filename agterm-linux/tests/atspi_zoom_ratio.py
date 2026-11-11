@@ -104,6 +104,7 @@ def verify_zoom_split_ratio(env):
                 f"{what}: the model ratio drifted to {ratio} after the settle")
             assert abs(measured[0] - expected) <= RATIO_SLACK, (
                 f"{what}: the panes drifted to {measured} after the settle")
+            print(f"measured: {what}: settled stored ratio {ratio}, PTY ratio/columns {measured}")
             return measured
 
         control_json(env, "session", "split", "on", "--target", session_id, "--window", window_id, "--json")
@@ -138,10 +139,8 @@ def verify_zoom_split_ratio(env):
         control_json(env, "sidebar", "show", "--json")
         wait_for(lambda: window_tree(env, window_id).get("sidebarVisible"), "the sidebar did not return")
 
-        # Not covered here: #167's "stale restore must not change a replacement split host". A session's
-        # GtkPaned is built once and dropped only with the session (`ensurePrimary`/`removeSession`), and
-        # `split close` clears the stored ratio, so no control command replaces the host under a pending
-        # restore and the paned-identity guard in `restoreRatioAfterZoomExit` cannot be driven from here.
+        # ZoomExitRatioGTKTests exercises a stale callback against an actual replacement GtkPaned;
+        # the public control path cannot replace that host while a restoration callback is pending.
         print("OK: split ratio 0.31 survives zoom target switches and exits")
     finally:
         stop(process)
