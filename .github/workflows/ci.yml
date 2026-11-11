@@ -31,16 +31,20 @@ jobs:
   scripts:
     name: Installer and scripts
     runs-on: ubuntu-24.04
+    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:e2d48733b2fd8481c314bd639fd15e523110e106418cb982cc830a7e620a839f
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install regression test dependencies
+      - name: Prepare unprivileged regression user
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ripgrep
+          useradd --create-home --user-group agterm-test
+          chown -R agterm-test:agterm-test "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          for command in python3 rg shellcheck file; do command -v "$command"; done
       - name: Shell syntax and lint
+        shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
         run: |
           scripts=(
             scripts/check-linux-core-boundary.sh
@@ -68,9 +72,11 @@ jobs:
             shellcheck -x -P SCRIPTDIR "${exclusions[@]}" "$script"
           done
       - name: Full Python helper regression suite
+        shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
         # Discover new modules automatically. Real-zmx cases run after the matrix build below.
         run: python3 -I -m unittest discover -s scripts/tests -p 'test_*.py' -v
       - name: Zig transport fallback regression tests
+        shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
         run: scripts/test-zig-build-linux.sh
       - name: Whitespace
         run: git diff --check
@@ -173,7 +179,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.swift == 'true'
     runs-on: ubuntu-24.04
-    container: swift:6.3.2-noble
+    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:e2d48733b2fd8481c314bd639fd15e523110e106418cb982cc830a7e620a839f
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -183,16 +189,9 @@ jobs:
           fetch-tags: true
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      - name: Install SwiftLint
+      - name: Verify SwiftLint
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends curl ca-certificates unzip
-          curl -fsSLo /tmp/swiftlint.zip \
-            "https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/swiftlint_linux_amd64.zip"
-          echo "${SWIFTLINT_SHA256}  /tmp/swiftlint.zip" | sha256sum --check
-          unzip -q /tmp/swiftlint.zip -d /usr/local/bin
-          chmod +x /usr/local/bin/swiftlint
-          swiftlint --version
+          test "$(swiftlint version)" = "$SWIFTLINT_VERSION"
       - name: swiftlint (strict)
         run: swiftlint lint --strict --quiet
       - name: Materialize and verify upstream boundary tag
