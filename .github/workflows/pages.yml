@@ -48,7 +48,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" > "$RUNNER_TEMP/issues.json"
       - name: Snapshot agent claims with the queue parser
-        # Same parser as the Agent queue workflow. If it fails, the site still builds without the overlay.
+        # Same parser as the Agent queue workflow. If it fails, the site still builds without the overlay
+        # and build.py marks the queue snapshot as unavailable on the page and in status.json.
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
