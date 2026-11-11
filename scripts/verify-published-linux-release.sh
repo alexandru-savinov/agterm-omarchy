@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download and authenticate the exact public artifact set for a stable Linux release.
+# Download and authenticate the exact public artifact set for a Linux release.
 # Usage: scripts/verify-published-linux-release.sh TAG
 set -euo pipefail
 
@@ -9,8 +9,8 @@ if (( $# != 1 )); then
 fi
 
 TAG="$1"
-if [[ ! "$TAG" =~ ^linux-(v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?)(\+linux\.[1-9][0-9]*)?$ ]]; then
-  echo "invalid stable Linux release tag: $TAG" >&2
+if [[ ! "$TAG" =~ ^linux-(v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*))*)?)(\+linux\.[1-9][0-9]*)?$ ]]; then
+  echo "invalid Linux release tag: $TAG (expected MAJOR.MINOR.PATCH[-PRERELEASE][+linux.N]; prerelease identifiers are dot-separated letters and digits without '-', numbers without leading zeros)" >&2
   exit 2
 fi
 
@@ -72,7 +72,8 @@ fi
 )
 
 for artifact in "${expected[@]}"; do
-  "$GH" attestation verify "$DOWNLOAD/$artifact" --repo "$REPOSITORY"
+  "$GH" attestation verify "$DOWNLOAD/$artifact" --repo "$REPOSITORY" \
+    --signer-workflow "$REPOSITORY/.github/workflows/release-linux.yml" --source-ref "refs/tags/$TAG"
 done
 
 echo "→ verified public $TAG artifact set, checksums, and attestations"
