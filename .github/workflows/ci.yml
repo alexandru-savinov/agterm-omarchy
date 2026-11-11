@@ -4,44 +4,72 @@ on:
     inputs:
       outcome:
         type: choice
-        options: [success, failure, skip, hold]
+        options: [success, failure, skip, hold, fail-fast, supersede]
         default: success
+      include_always:
+        type: boolean
+        default: true
+      hold_superseded:
+        type: boolean
+        default: false
 permissions: {}
 concurrency:
   group: cancellation-probe-${{ github.ref }}-${{ inputs.outcome }}
   cancel-in-progress: true
 jobs:
   prerequisite:
-    if: inputs.outcome != 'skip'
+    if: inputs.outcome != 'skip' && inputs.outcome != 'fail-fast'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - env:
           OUTCOME: ${{ inputs.outcome }}
+          HOLD_SUPERSEDED: ${{ inputs.hold_superseded }}
         run: |
           case "$OUTCOME" in
             success) exit 0 ;;
             failure) exit 1 ;;
             hold) sleep 180 ;;
+            supersede) if [[ "$HOLD_SUPERSEDED" == true ]]; then sleep 180; fi ;;
             *) exit 2 ;;
           esac
+  matrix-prerequisite:
+    if: inputs.outcome == 'fail-fast'
+    strategy:
+      fail-fast: true
+      matrix:
+        behavior: [fail, wait]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          BEHAVIOR: ${{ matrix.behavior }}
+        run: |
+          if [[ "$BEHAVIOR" == fail ]]; then sleep 30; exit 1; fi
+          sleep 180
   always-gate:
-    needs: prerequisite
-    if: always()
+    needs: [prerequisite, matrix-prerequisite]
+    if: always() && inputs.include_always
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - env:
           RESULT: ${{ needs.prerequisite.result }}
+          MATRIX_RESULT: ${{ needs.matrix-prerequisite.result }}
         run: |
-          case "$RESULT" in success|skipped) exit 0 ;; *) exit 1 ;; esac
+          for result in "$RESULT" "$MATRIX_RESULT"; do
+            case "$result" in success|skipped) ;; *) exit 1 ;; esac
+          done
   cancellation-aware-gate:
-    needs: prerequisite
+    needs: [prerequisite, matrix-prerequisite]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - env:
           RESULT: ${{ needs.prerequisite.result }}
+          MATRIX_RESULT: ${{ needs.matrix-prerequisite.result }}
         run: |
-          case "$RESULT" in success|skipped) exit 0 ;; *) exit 1 ;; esac
+          for result in "$RESULT" "$MATRIX_RESULT"; do
+            case "$result" in success|skipped) ;; *) exit 1 ;; esac
+          done
