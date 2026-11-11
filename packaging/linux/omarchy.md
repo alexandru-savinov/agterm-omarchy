@@ -56,8 +56,13 @@ The install example selects Swift 6.3.2 through mise; if `SWIFT` is already set,
 
 The personal installer places the complete runtime under `~/.local/lib/agterm`, commands under
 `~/.local/bin`, and an **agterm** launcher in the desktop application menu.
-The installer builds Release; `--no-build` uses the checkout's existing `.build/release` products.
-Use `--prefix /another/prefix` (or `PREFIX=/another/prefix`) on the install command for another destination.
+The installer builds Release; `--no-build` uses the checkout's existing `.build/release` products,
+and `--payload DIR` installs an extracted archive directory (such as `agterm-stage/`) without building.
+Use `--prefix /another/prefix` (or `PREFIX=/another/prefix`) on the install command for another destination;
+the installer warns when that prefix's `share/` is not on the XDG data path, where launchers look.
+`--uninstall` removes exactly the files the installer recorded and keeps state in `~/.local/share/agterm`
+and configuration in `~/.config/agterm`; add `--purge-state` to delete the state directory too,
+including setup's `swift-compat`.
 For a VM with the documented EGL failure, add `--software-rendering` when installing; see [Rendering](#rendering).
 The installed runtime includes Swift libraries, libghostty, zmx, themes, shell integration, terminfo,
 and the agent integration resources; the source checkout is not needed to run it.
