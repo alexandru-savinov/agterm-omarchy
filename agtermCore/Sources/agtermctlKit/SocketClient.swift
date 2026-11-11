@@ -10,8 +10,13 @@ import agtermCore
 /// A failure talking to the control socket (connect/write/read/decode), distinct from a server-side
 /// `{"ok":false}` response (which is a valid decoded `ControlResponse`).
 struct SocketClientError: Error, CustomStringConvertible {
+    enum Kind { case ordinary, transport }
     let description: String
-    init(_ description: String) { self.description = description }
+    let kind: Kind
+    init(_ description: String, kind: Kind = .ordinary) {
+        self.description = description
+        self.kind = kind
+    }
 }
 
 /// A server response beside the bytes it arrived as. `--json` prints `raw` unchanged, so a field this
@@ -64,12 +69,12 @@ struct SocketClient {
         try Self.writeAll(fd, data, deadline: deadline)
 
         guard let line = try Self.readLine(fd, deadline: deadline) else {
-            throw SocketClientError("no response from \(path)")
+            throw SocketClientError("no response from \(path)", kind: .transport)
         }
         do {
             return SocketReply(response: try JSONDecoder().decode(ControlResponse.self, from: line), raw: line)
         } catch {
-            throw SocketClientError("could not decode response: \(error.localizedDescription)")
+            throw SocketClientError("could not decode response: \(error.localizedDescription)", kind: .transport)
         }
     }
 
@@ -89,7 +94,7 @@ struct SocketClient {
         #else
         let fd = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
         #endif
-        guard fd >= 0 else { throw SocketClientError("socket() failed: \(String(cString: strerror(errno)))") }
+        guard fd >= 0 else { throw SocketClientError("socket() failed: \(String(cString: strerror(errno)))", kind: .transport) }
         var connected = false
         defer { if !connected { close(fd) } }
         let flags = try Self.makeNonblocking(fd)
@@ -130,15 +135,15 @@ struct SocketClient {
                 try Self.wait(fd, for: Int16(POLLOUT), deadline: deadline, operation: "connect")
                 var size = socklen_t(MemoryLayout<Int32>.size)
                 guard getsockopt(fd, SOL_SOCKET, SO_ERROR, &failure, &size) == 0 else {
-                    throw SocketClientError("could not inspect connection: \(String(cString: strerror(errno)))")
+                    throw SocketClientError("could not inspect connection: \(String(cString: strerror(errno)))", kind: .transport)
                 }
                 if failure == 0 { break }
             }
             let message = String(cString: strerror(failure))
-            throw SocketClientError("connect(\(path)) failed: \(message) — \(Self.hint(forConnect: failure, path: path))")
+            throw SocketClientError("connect(\(path)) failed: \(message) — \(Self.hint(forConnect: failure, path: path))", kind: .transport)
         }
         guard fcntl(fd, F_SETFL, flags) == 0 else {
-            throw SocketClientError("could not restore socket flags: \(String(cString: strerror(errno)))")
+            throw SocketClientError("could not restore socket flags: \(String(cString: strerror(errno)))", kind: .transport)
         }
         connected = true
         return fd
@@ -152,7 +157,7 @@ struct SocketClient {
     private static func makeNonblocking(_ fd: Int32) throws -> Int32 {
         let flags = fcntl(fd, F_GETFL)
         guard flags >= 0, fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0 else {
-            throw SocketClientError("could not set socket flags: \(String(cString: strerror(errno)))")
+            throw SocketClientError("could not set socket flags: \(String(cString: strerror(errno)))", kind: .transport)
         }
         return flags
     }
@@ -161,7 +166,7 @@ struct SocketClient {
         let remaining = deadline - ProcessInfo.processInfo.systemUptime
         guard remaining > 0 else {
             let ambiguity = operation == "connect" ? "" : " — the request may have completed; do not retry automatically"
-            throw SocketClientError("timed out waiting to \(operation)\(ambiguity)")
+            throw SocketClientError("timed out waiting to \(operation)\(ambiguity)", kind: .transport)
         }
         return remaining
     }
@@ -174,7 +179,7 @@ struct SocketClient {
             let ready = poll(&descriptor, 1, milliseconds)
             if ready > 0 { return }
             if ready < 0, errno != EINTR {
-                throw SocketClientError("socket poll failed: \(String(cString: strerror(errno)))")
+                throw SocketClientError("socket poll failed: \(String(cString: strerror(errno)))", kind: .transport)
             }
         }
     }
@@ -226,7 +231,7 @@ struct SocketClient {
                 let n = Glibc.send(fd, base + offset, data.count - offset, Int32(MSG_NOSIGNAL))
                 #endif
                 if n < 0, errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK { continue }
-                if n <= 0 { throw SocketClientError("write failed: \(String(cString: strerror(errno)))") }
+                if n <= 0 { throw SocketClientError("write failed: \(String(cString: strerror(errno)))", kind: .transport) }
                 offset += n
             }
         }

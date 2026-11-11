@@ -19,13 +19,15 @@ struct StreamBridge: Sendable {
     func open(_ request: ControlRequest) throws {
         var line = try JSONEncoder().encode(request)
         line.append(UInt8(ascii: "\n"))
-        guard Self.writeAll(socket, line) else { throw SocketClientError("could not send the request") }
-        guard let reply = readReplyLine() else { throw SocketClientError("the app closed the connection without answering") }
+        guard Self.writeAll(socket, line) else { throw SocketClientError("could not send the request", kind: .transport) }
+        guard let reply = readReplyLine() else {
+            throw SocketClientError("the app closed the connection without answering", kind: .transport)
+        }
         let response: ControlResponse
         do {
             response = try JSONDecoder().decode(ControlResponse.self, from: reply)
         } catch {
-            throw SocketClientError("could not decode the reply: \(error.localizedDescription)")
+            throw SocketClientError("could not decode the reply: \(error.localizedDescription)", kind: .transport)
         }
         guard response.ok else { throw SocketClientError(response.error ?? "the app refused the stream") }
     }

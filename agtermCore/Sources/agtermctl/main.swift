@@ -1,3 +1,3 @@
 import agtermctlKit
 
-Agtermctl.main()
+Agtermctl.mainWithTransportStatus()
