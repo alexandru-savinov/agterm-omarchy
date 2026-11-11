@@ -17,53 +17,34 @@ Patch/source checks (exit 0):
 Retained command output:
 Swift version 6.3.2 (swift-6.3.2-RELEASE)
 Target: x86_64-unknown-linux-gnu
+[0/1] Planning build
 Building for debugging...
-[0/13] Write swift-version-24593BA9C3E375BF.txt
-[1/13] Write sources
-[4/14] Emitting module AgtermLinux
-[5/15] Compiling AgtermLinux GhosttyGeneratedConfigStorage.swift
-[7/17] Emitting module AgtermLinuxTests
-[8/18] Compiling AgtermLinuxTests GhosttyGeneratedConfigStorageTests.swift
-[9/19] Wrapping AST for AgtermLinux for debugging
-[10/19] /tmp/proposal126-build/x86_64-unknown-linux-gnu/debug/GeneratedConfigStorageProposalPackageDiscoveredTests.derived/all-discovered-tests.swift
-[11/19] Wrapping AST for AgtermLinuxTests for debugging
-[12/19] Write sources
-[14/20] Emitting module GeneratedConfigStorageProposalPackageDiscoveredTests
-[15/22] Compiling GeneratedConfigStorageProposalPackageDiscoveredTests AgtermLinuxTests.swift
-[16/22] Compiling GeneratedConfigStorageProposalPackageDiscoveredTests all-discovered-tests.swift
-[17/23] /tmp/proposal126-build/x86_64-unknown-linux-gnu/debug/GeneratedConfigStorageProposalPackageTests.derived/runner.swift
-[18/23] Wrapping AST for GeneratedConfigStorageProposalPackageDiscoveredTests for debugging
-[19/23] Write sources
-[21/24] Emitting module GeneratedConfigStorageProposalPackageTests
-[22/25] Compiling GeneratedConfigStorageProposalPackageTests runner.swift
-[23/26] Wrapping AST for GeneratedConfigStorageProposalPackageTests for debugging
-[24/26] Write Objects.LinkFileList
-[25/26] Linking GeneratedConfigStorageProposalPackageTests.xctest
-Build complete! (10.11s)
-Test Suite 'Selected tests' started at 2026-11-11 18:57:20.537
-Test Suite 'Selected tests' passed at 2026-11-11 18:57:20.539
+[0/3] Write swift-version-24593BA9C3E375BF.txt
+Build complete! (0.14s)
+Test Suite 'Selected tests' started at 2026-11-11 18:59:05.814
+Test Suite 'Selected tests' passed at 2026-11-11 18:59:05.815
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.0 (0.0) seconds
 ◇ Test run started.
 ↳ Testing Library Version: 6.3.2 (70eff261d7f462c)
 ↳ Target Platform: x86_64-unknown-linux-gnu
 ◇ Suite "Generated Ghostty config storage" started.
 ◇ Test "generated files are private and ordinary inputs end at their consumer" started.
-◇ Test "cleanup is local to its owner, idempotent, and prevents reuse" started.
-◇ Test "missing runtime uses a private fallback without changing the environment" started.
-◇ Test "failed consumers release their ordinary file and bookkeeping" started.
-◇ Test "two overlapping processes share the desktop root but never their config files" started.
-◇ Test "a replacement at the old directory path is never followed or removed" started.
 ◇ Test "failed exclusive writes never consume stale input or delete an unrelated entry" started.
+◇ Test "missing runtime uses a private fallback without changing the environment" started.
+◇ Test "two overlapping processes share the desktop root but never their config files" started.
+◇ Test "failed consumers release their ordinary file and bookkeeping" started.
 ◇ Test "invalid supplied roots fail instead of silently falling back" started.
 ◇ Test "1000 rebuilds keep exactly one theme pair and bounded bookkeeping" started.
-✔ Test "missing runtime uses a private fallback without changing the environment" passed after 0.012 seconds.
-✔ Test "failed consumers release their ordinary file and bookkeeping" passed after 0.012 seconds.
-✔ Test "generated files are private and ordinary inputs end at their consumer" passed after 0.012 seconds.
-✔ Test "cleanup is local to its owner, idempotent, and prevents reuse" passed after 0.013 seconds.
-✔ Test "a replacement at the old directory path is never followed or removed" passed after 0.013 seconds.
-✔ Test "failed exclusive writes never consume stale input or delete an unrelated entry" passed after 0.013 seconds.
-✔ Test "invalid supplied roots fail instead of silently falling back" passed after 0.020 seconds.
-✔ Test "1000 rebuilds keep exactly one theme pair and bounded bookkeeping" passed after 0.154 seconds.
-✔ Test "two overlapping processes share the desktop root but never their config files" passed after 1.516 seconds.
-✔ Suite "Generated Ghostty config storage" passed after 1.517 seconds.
-✔ Test run with 9 tests in 1 suite passed after 1.517 seconds.
+◇ Test "a replacement at the old directory path is never followed or removed" started.
+◇ Test "cleanup is local to its owner, idempotent, and prevents reuse" started.
+✔ Test "missing runtime uses a private fallback without changing the environment" passed after 0.028 seconds.
+✔ Test "failed consumers release their ordinary file and bookkeeping" passed after 0.029 seconds.
+✔ Test "generated files are private and ordinary inputs end at their consumer" passed after 0.029 seconds.
+✔ Test "failed exclusive writes never consume stale input or delete an unrelated entry" passed after 0.029 seconds.
+✔ Test "invalid supplied roots fail instead of silently falling back" passed after 0.029 seconds.
+✔ Test "a replacement at the old directory path is never followed or removed" passed after 0.029 seconds.
+✔ Test "cleanup is local to its owner, idempotent, and prevents reuse" passed after 0.035 seconds.
+✔ Test "1000 rebuilds keep exactly one theme pair and bounded bookkeeping" passed after 0.117 seconds.
+✔ Test "two overlapping processes share the desktop root but never their config files" passed after 0.470 seconds.
+✔ Suite "Generated Ghostty config storage" passed after 0.470 seconds.
+✔ Test run with 9 tests in 1 suite passed after 0.470 seconds.
