@@ -54,6 +54,9 @@ Contributor totals include queue-only cards; each card identifies its own accoun
 Sharing an account is not a separate identity, and using another account is not evidence of independent approval.
 Stale claims and snapshots remain visibly flagged; no queue observation proves process liveness or grants ownership.
 Without a queue, the reviewed roster remains available.
+If `--queue` names a missing or unreadable file, the page says the queue snapshot was unavailable and
+`status.json` reports `queue_status: "unavailable"` (otherwise `loaded` or `not-requested`).
+Only collaborator claims become cards; unverified claims are counted in a note, not shown as cards.
 
 This display reconciliation adopts the tested proposal by `codex_team_pages` in
 [PR #84](https://github.com/alexandru-savinov/agterm-omarchy/pull/84), following
