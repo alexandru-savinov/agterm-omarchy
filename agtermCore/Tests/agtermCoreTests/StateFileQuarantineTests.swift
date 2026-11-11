@@ -16,9 +16,9 @@ final class StateFileQuarantineTests {
 
     private var fileURL: URL { directory.appendingPathComponent("state.json") }
 
-    // a launch that keeps failing must not fill the disk: only the newest `keepPerFile` copies survive,
-    // even when several land within one millisecond
-    @Test func preservedCopiesAreCappedKeepingTheNewest() throws {
+    // a launch that keeps failing must not fill the disk: the first copy plus the newest `keepPerFile - 1`
+    // survive, even when several land within one millisecond
+    @Test func preservedCopiesAreCappedKeepingTheFirstAndTheNewest() throws {
         let store = PersistenceStore(directory: directory, fileName: "state.json")
         for attempt in 0..<(StateFileQuarantine.keepPerFile + 3) {
             try Data("broken \(attempt)".utf8).write(to: fileURL)
@@ -27,11 +27,29 @@ final class StateFileQuarantineTests {
         }
         let kept = try StateFileQuarantine.preservedCopies(of: fileURL).map { try String(decoding: Data(contentsOf: $0), as: UTF8.self) }
         #expect(StateFileQuarantine.keepPerFile == 3)
-        #expect(kept == ["broken 3", "broken 4", "broken 5"])
+        #expect(kept == ["broken 0", "broken 4", "broken 5"])
         #expect(StateFileQuarantine.preservedNames(in: directory)?.count == StateFileQuarantine.keepPerFile)
     }
 
-    // a clock that went backwards must not make the newest copy the first one pruned
+    // the user's real settings.json has a typo; it is preserved, then later failures (a crash loop, two
+    // builds alternating) keep re-quarantining. The real file must outlive every one of them.
+    @Test func aHandEditedSettingsFileWithATypoSurvivesLaterFailures() throws {
+        let settingsURL = directory.appendingPathComponent("settings.json")
+        let store = SettingsStore(directory: directory)
+        let real = Data(#"{"fontSize": 15, "theme": "Alabaster",}"#.utf8) // trailing comma
+        try real.write(to: settingsURL)
+        #expect(store.load() == AppSettings(theme: AppSettings.defaultTheme))
+        for attempt in 0..<(StateFileQuarantine.keepPerFile + 2) {
+            try Data("broken \(attempt)".utf8).write(to: settingsURL)
+            _ = store.load()
+        }
+        let kept = try StateFileQuarantine.preservedCopies(of: settingsURL).map { try Data(contentsOf: $0) }
+        #expect(kept.count == StateFileQuarantine.keepPerFile)
+        #expect(kept.first == real)
+        #expect(kept.last == Data("broken \(StateFileQuarantine.keepPerFile + 1)".utf8))
+    }
+
+    // a clock that went backwards must not make the newest copy one that is pruned
     @Test func aCopyMadeUnderAnEarlierClockStillSortsNewest() throws {
         let late = Date(timeIntervalSince1970: 2_000_000_000)
         for (index, now) in [late, late, late, Date(timeIntervalSince1970: 1_000_000_000)].enumerated() {
@@ -39,7 +57,7 @@ final class StateFileQuarantineTests {
             #expect(StateFileQuarantine.preserve(fileURL, reason: .unreadable("test"), now: now) != nil)
         }
         let kept = try StateFileQuarantine.preservedCopies(of: fileURL).map { try String(decoding: Data(contentsOf: $0), as: UTF8.self) }
-        #expect(kept == ["copy 1", "copy 2", "copy 3"])
+        #expect(kept == ["copy 0", "copy 2", "copy 3"])
     }
 
     @Test func preservedNamesKeepNoJSONExtension() throws {

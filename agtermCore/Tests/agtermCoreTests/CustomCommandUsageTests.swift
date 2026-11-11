@@ -54,5 +54,8 @@ struct CustomCommandUsageTests {
 
         try Data("not json".utf8).write(to: file)
         #expect(store.load() == CustomCommandUsage())
+        // both unusable files were moved aside, never left for the next `record` to save over
+        let preserved = try StateFileQuarantine.preservedCopies(of: file).map { try Data(contentsOf: $0) }
+        #expect(preserved == [try JSONEncoder().encode(foreign), Data("not json".utf8)])
     }
 }

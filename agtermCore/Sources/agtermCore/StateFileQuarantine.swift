@@ -8,8 +8,10 @@ import Foundation
 /// therefore renames such a file to `<name>.unreadable-<UTC stamp>[-n]` in the same directory before the
 /// caller gets its default, and logs one line naming the preserved file.
 ///
-/// At most `keepPerFile` preserved copies are kept per file name, oldest pruned first, so a launch that
-/// keeps failing cannot fill the disk. A preserved copy is never read back: restoring it is the user's call.
+/// At most `keepPerFile` preserved copies are kept per file name, so a launch that keeps failing cannot fill
+/// the disk: the FIRST copy always stays, since it is the one most likely to hold the user's real state (a
+/// hand-edited file with a typo, a tree from a newer build), plus the newest `keepPerFile - 1`; the ones in
+/// between are pruned. A preserved copy is never read back: restoring it is the user's call.
 public enum StateFileQuarantine {
     /// Preserved copies kept per state file name.
     public static let keepPerFile = 3
@@ -77,7 +79,7 @@ public enum StateFileQuarantine {
         return .unreadable(String(describing: error))
     }
 
-    /// Renames `url` aside and prunes older copies beyond `keepPerFile`. Returns the preserved copy, nil
+    /// Renames `url` aside and prunes beyond `keepPerFile`, sparing the first copy. Returns the preserved copy, nil
     /// when the rename failed (logged; the original is then still in place).
     @discardableResult
     public static func preserve(_ url: URL, reason: Reason, now: Date = Date()) -> URL? {
@@ -99,8 +101,12 @@ public enum StateFileQuarantine {
             NSLog("agterm: %@ %@ but could not be preserved: %@", base, reason.summary, String(describing: error))
             return nil
         }
-        let pruned = copies(of: url).dropLast(keepPerFile)
-        for copy in pruned { try? FileManager.default.removeItem(at: copy.url) }
+        // later failures are usually the app's own default re-failing (two builds alternating, a crash
+        // loop); dropping the first copy would delete the real state they pushed out
+        let all = copies(of: url)
+        if all.count > keepPerFile {
+            for copy in all[1..<(all.count - (keepPerFile - 1))] { try? FileManager.default.removeItem(at: copy.url) }
+        }
         NSLog("agterm: %@ %@; preserved it as %@ and started from an empty default", base, reason.summary,
               destination.path)
         return destination
