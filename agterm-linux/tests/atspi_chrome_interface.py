@@ -79,18 +79,21 @@ def verify_chrome_interface_controls(env):
             return any(item["id"] == ctx.session_id and item.get("scratch") for item in ctx.sessions())
 
         toggles = {
-            "Toggle Split (Ctrl+Shift+D)": (has_split, ("session", "split", "close", "--target", ctx.session_id)),
-            "Scratch Terminal (Ctrl+Shift+J)": (has_scratch, ("session", "scratch", "off", "--target", ctx.session_id)),
-            "Quick Terminal (Ctrl+`)": (lambda: ctx.tree().get("quickVisible"), ("quick", "hide")),
+            "Toggle Split (Ctrl+Shift+D)": (has_split, ("session", "split", "close", "--target", ctx.session_id),
+                                           {ctx.session_owner, ctx.split_owner}),
+            "Scratch Terminal (Ctrl+Shift+J)": (has_scratch, ("session", "scratch", "off", "--target", ctx.session_id),
+                                              {ctx.scratch_owner}),
+            "Quick Terminal (Ctrl+`)": (lambda: ctx.tree().get("quickVisible"), ("quick", "hide"), {ctx.quick_owner}),
         }
-        for name, (effect, undo) in toggles.items():
+        for name, (effect, undo, expected_owners) in toggles.items():
             mouse_click(lambda name=name: button(name), pid, button="left")
             wait_for(effect, f"clicking {name!r} did not take effect")
             press_x11_key("space", pid)
             time.sleep(NEGATIVE_SETTLE_SECONDS)
             assert effect(), f"Space after clicking {name!r} toggled it back: the button kept the keyboard"
             owner = ctx.owner_after(f"click-{name.split()[0].lower()}")
-            assert owner and owner.startswith("owner="), f"no terminal took the keyboard after clicking {name!r}"
+            assert owner in expected_owners, (
+                f"clicking {name!r} sent the keyboard to {owner!r}, expected {sorted(expected_owners)}")
             control_json(env, *undo, "--json")
             wait_for(lambda: not effect(), f"undoing {name!r} over the control socket did not apply")
 
@@ -121,7 +124,7 @@ def verify_chrome_interface_controls(env):
         # the open bar is harmless to the AT-SPI legs below.
 
         # AT-SPI activation reaches the same handlers a click does.
-        for name, (effect, undo) in toggles.items():
+        for name, (effect, undo, _) in toggles.items():
             activate(button(name))
             wait_for(effect, f"AT-SPI activation of {name!r} did not take effect")
             control_json(env, *undo, "--json")

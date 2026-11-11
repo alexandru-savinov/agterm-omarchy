@@ -59,7 +59,8 @@ def verify_theme_picker_cancel(env):
             for window_id, session_id in open_sessions():
                 for query, expected in ((11, background), (10, foreground)):
                     seen = [osc(window_id, session_id, query) for _ in range(3)]
-                    assert expected in seen, (
+                    successful = [value for value in seen if value is not None]
+                    assert successful and successful[-1] == expected, (
                         f"{what}: session {session_id} reports OSC {query} {seen}, not the committed {expected}")
 
         def picker():

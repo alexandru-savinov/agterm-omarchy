@@ -15,10 +15,11 @@ extension GhosttySurface {
         // scoped or inherited Ghostty config is what new sessions use, so a reset must land there too.
         let target = GhosttyApp.shared.currentBaseFontSize
             ?? linuxSettingsStore().load().fontSize ?? DashboardLayout.ghosttyDefaultFontSize
-        guard abs(current - target) > 0.5, let surface else { return }
-        pendingFontRestore = target
-        let action = "set_font_size:\(String(format: "%g", target))"
-        let applied = action.withCString { ghostty_surface_binding_action(surface, $0, UInt(action.utf8.count)) }
-        if !applied { performBindingAction(FontBindingAction.reset) }
+        // Reset uses the surface config's size, which may still carry its old session/creation size.
+        // Keep its background overlay, replace that size, then clear libghostty's manual-adjustment flag
+        // even when the current size already matches; later config changes must reach this surface.
+        guard reapplyBackgroundOverlay(force: true, fontSizeOverride: target) else { return }
+        pendingFontRestore = abs(current - target) > 0.5 ? target : nil
+        performBindingAction(FontBindingAction.reset)
     }
 }

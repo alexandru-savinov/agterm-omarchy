@@ -116,11 +116,14 @@ def verify_appearance_reset(env):
         kept = unrelated(before)
         assert set(SEEDED_UNRELATED) <= set(kept), f"seeded unrelated keys were dropped at launch: {sorted(kept)}"
 
-        row = wait_for(lambda: preferences_row(app, "Terminal defaults"), "Appearance has no Terminal defaults row")
-        reset = wait_for(lambda: next((item for item in collect(row, name="Reset")
-                                       if item.get_role_name() != "label"), None),
-                         "Terminal defaults has no Reset button")
-        activate(reset)
+        def reset_appearance():
+            row = wait_for(lambda: preferences_row(app, "Terminal defaults"), "Appearance has no Terminal defaults row")
+            reset = wait_for(lambda: next((item for item in collect(row, name="Reset")
+                                           if item.get_role_name() != "label"), None),
+                             "Terminal defaults has no Reset button")
+            activate(reset)
+
+        reset_appearance()
 
         def reset_landed():
             settings = read_settings(env)
@@ -144,6 +147,32 @@ def verify_appearance_reset(env):
         assert not missing, f"the window snapshots do not list the test sessions {sorted(missing)}: {sorted(saved)}"
         assert all(size is None for size in saved.values()), f"Reset left a persisted per-session font size: {saved}"
         print(f"measured: tiles {tile_fonts()} | windows/<id>.json fontSize {saved}")
+
+        def change_scoped_size(size):
+            with open(os.path.join(config_dir, "ghostty.conf"), "w", encoding="utf-8") as target:
+                target.write(f"font-size = {size}\n")
+            control_json(env, "config", "reload", "--json")
+            wait_for(lambda: session_font() == size,
+                     f"a config reload after Reset left the live session at {session_font()}, expected {size}")
+
+        # A set_font_size action reaches 15 but leaves libghostty's manual-adjustment flag set.
+        # A later config reload distinguishes that incomplete reset from a real return to defaults.
+        change_scoped_size(SCOPED_FONT_SIZE + 1)
+        control_json(env, "font", "inc", "--target", session_id, "--window", window_id, "--json")
+        wait_for(lambda: session_font() == SCOPED_FONT_SIZE + 2, "font inc did not apply before the equal-size reset")
+        control_json(env, "font", "dec", "--target", session_id, "--window", window_id, "--json")
+        wait_for(lambda: session_font() == SCOPED_FONT_SIZE + 1, "font dec did not return to the configured size")
+        wait_for(lambda: saved_font_sizes(env, [window_id])[session_id.lower()] == SCOPED_FONT_SIZE + 1,
+                 "the equal-size manual zoom never reached the window snapshot")
+        # Even when the size already equals the default, Reset must clear the manual-adjustment flag.
+        reset_appearance()
+        wait_for(lambda: saved_font_sizes(env, [window_id])[session_id.lower()] is None,
+                 "the equal-size reset did not clear the saved pin")
+        change_scoped_size(SCOPED_FONT_SIZE + 2)
+        created = control_json(env, "session", "new", "--name", "reset-new", "--window", window_id, "--json")["result"]["id"]
+        wait_for(lambda: any(item["id"] == created and item.get("fontSize") == SCOPED_FONT_SIZE + 2
+                             for workspace in window_tree(env, window_id)["workspaces"] for item in workspace["sessions"]),
+                 "a new session did not match the reset session after the config change")
 
         stop(process)
         process = None
