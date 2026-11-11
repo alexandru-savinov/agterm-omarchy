@@ -5956,8 +5956,32 @@ def verify_session_switch_commit(env):
             # A failed assertion must not poison the remainder of the suite or the user's keyboard.
             xdotool("keyup", "Control_L", "Control_R", check=False)
 
+        # Closing the HIGHLIGHTED candidate mid-hold leaves the release nothing to commit to. The commit
+        # above left the MRU `[b, c, a]`, so one Tab highlights preheld-c.
+        held = active_session_name(env, preheld_window)
+        titles = sorted(item.get_name() or "" for item in collect(app, role="frame"))
+        doomed = next(session["id"] for session in window_sessions(env, preheld_window)
+                      if session["name"] == "preheld-c")
+        with ctrl_held(process.pid) as tap:
+            tap("Tab")
+            if not poll(lambda: switcher_overlay_names(app)[1:2] == ["preheld-c"], 12):
+                raise AssertionError(f"Ctrl-Tab did not highlight preheld-c: {switcher_overlay_names(app)}")
+            control_json(env, "session", "close", "--target", doomed, "--window", preheld_window, "--json")
+            wait_for(lambda: all(session["id"] != doomed for session in window_sessions(env, preheld_window)),
+                     "the highlighted candidate did not close mid-hold")
+        time.sleep(NEGATIVE_SETTLE_SECONDS)
+        assert active_session_name(env, preheld_window) == held, (
+            "releasing Ctrl after its highlighted candidate closed selected "
+            f"{active_session_name(env, preheld_window)}, not the held {held}")
+        assert sorted(item.get_name() or "" for item in collect(app, role="frame")) == titles, (
+            "releasing Ctrl after its highlighted candidate closed changed a window title")
+        assert row_selected(app, held), "the sidebar selection moved off the held session"
+        assert not switcher_overlay_names(app) and switcher_dim(app) is None, (
+            "the switcher card outlived a release whose candidate had closed")
+
         print("OK: Ctrl-Tab cycles without selecting, commits once the last Ctrl comes up, reverses, "
-              "survives pre-held Ctrl keys, and Esc / a blur / the dashboard abort")
+              "survives pre-held Ctrl keys, ignores a highlighted candidate closed mid-hold, and Esc / a "
+              "blur / the dashboard abort")
     except AssertionError:
         describe_tree(app)
         raise
@@ -7472,6 +7496,8 @@ def main():
             "theme-picker-cancel", "appearance-reset", "unavailable-font-family", "keymap-config-directory",
             "chrome-interface-controls",
             "theme-many-sessions",
+            "zoom-split-ratio", "zoom-preference-changes", "zoom-primary-promotion",
+            "dashboard-font-restore", "dashboard-delayed-clicks",
         ):
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             result = subprocess.run([sys.executable, __file__], env=child_env)
@@ -7655,6 +7681,21 @@ def main():
         elif scenario == "theme-many-sessions":
             from atspi_theme_many_sessions import verify_theme_many_sessions
             verify_theme_many_sessions(env)
+        elif scenario == "zoom-split-ratio":
+            from atspi_zoom_ratio import verify_zoom_split_ratio
+            verify_zoom_split_ratio(env)
+        elif scenario == "zoom-preference-changes":
+            from atspi_zoom_chrome import verify_zoom_preference_changes
+            verify_zoom_preference_changes(env)
+        elif scenario == "zoom-primary-promotion":
+            from atspi_zoom_promotion import verify_zoom_primary_promotion
+            verify_zoom_primary_promotion(env)
+        elif scenario == "dashboard-font-restore":
+            from atspi_dashboard_fonts import verify_dashboard_font_restore
+            verify_dashboard_font_restore(env)
+        elif scenario == "dashboard-delayed-clicks":
+            from atspi_dashboard_clicks import verify_dashboard_delayed_clicks
+            verify_dashboard_delayed_clicks(env)
         else:
             raise ValueError(f"unknown AT-SPI scenario: {scenario}")
         print(f"PASS: {scenario}")
