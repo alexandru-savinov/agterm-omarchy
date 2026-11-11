@@ -135,8 +135,9 @@ def verify_window_close_cancel(env, state):
                 time.sleep(1.5)
                 saved = structure(mode_state)
                 assert saved, "no saved structure to compare against"
-                record = f"{window.lower()}.json"
-                assert os.path.isfile(os.path.join(windows, record)), f"missing exact window record {record}"
+                records = [name for name in os.listdir(windows) if name.casefold() == f"{window.lower()}.json"]
+                assert len(records) == 1, f"missing or ambiguous record for window {window}: {records}"
+                record = records[0]  # Foundation's UUID filename is uppercase; the wire ID may not be.
                 observer = Publications(windows)
 
                 def prompt():
@@ -164,7 +165,7 @@ def verify_window_close_cancel(env, state):
                 wait_for(lambda: all(item["id"] != other or not item["open"] for item in window_list(mode_env)),
                          "ordinary close did not close its window")
                 events = observer.drain()
-                assert sum(name == f"{other.lower()}.json" for name, _ in events) == 1, events
+                assert sum(name.casefold() == f"{other.lower()}.json" for name, _ in events) == 1, events
                 assert not any(name == record for name, _ in events), events
                 answers("ordinary-close-survivor")
 
