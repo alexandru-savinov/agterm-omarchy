@@ -144,6 +144,8 @@ changing the image or primary launcher. This is supplemental Nix fish, **not Ubu
 test**. The five paths below are the observed ELF runtime, including the libgcc symlink target; they are
 enough for the tested `fish --no-config` command, not a claim about all interactive fish features.
 Require these paths to exist already; this procedure does not download or build them.
+The supplement also requires Nix and bubblewrap/kernel support for temporary overlays (tested with
+bubblewrap 0.11.2), beyond the base user/mount/PID namespace requirement.
 
 ```bash
 export FISH_STORE=/nix/store/qq6iknnizywfjjclczrhxx0y6jvll84m-fish-4.0.8
@@ -156,7 +158,8 @@ paths = [fish,
     '/nix/store/cf1a53iqg6ncnygl698c4v0l8qam5a2q-gcc-14.3.0-lib',
     '/nix/store/d84l3qjb077dxkajn24k58z2q261d4lv-gcc-14.3.0-libgcc',
     '/nix/store/i3ibgfskl99qd8rslafbpaa1dmxdzh1z-glibc-2.40-66']
-subprocess.run(['nix', '--offline', 'store', 'verify', '--sigs-needed', '1', *paths], check=True)
+subprocess.run(['nix', '--extra-experimental-features', 'nix-command', '--offline',
+                'store', 'verify', '--sigs-needed', '1', *paths], check=True)
 source = (root / 'run').read_text()
 mounts = ' '.join('--ro-bind ' + shlex.quote(path) + ' ' + shlex.quote(path) for path in paths)
 edits = {
