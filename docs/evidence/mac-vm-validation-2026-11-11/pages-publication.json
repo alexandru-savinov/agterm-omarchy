@@ -1,0 +1,147 @@
+{
+  "observed_at": "2026-11-11T22:59:00.007849+00:00",
+  "run_id": 43113509231,
+  "commit": "6c7d0886b70e8551c045c240dc5ea8b7004c38ed",
+  "status_keys": [
+    "repository",
+    "readiness",
+    "upstream_baseline",
+    "commit",
+    "generated_at",
+    "tasks",
+    "roster",
+    "queue",
+    "queue_status"
+  ],
+  "records": [
+    {
+      "file": ".nojekyll",
+      "url": "https://alexandru-savinov.github.io/agterm-omarchy/.nojekyll",
+      "status": 404,
+      "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": false,
+      "limit": "GitHub Pages does not publicly serve this dotfile"
+    },
+    {
+      "file": "favicon.svg",
+      "url": "https://alexandru-savinov.github.io/agterm-omarchy/favicon.svg",
+      "status": 200,
+      "bytes": 343,
+      "sha256": "2684c5fa2d334d8ecc672de5f2b8f7d767068f65bdea800b2d1ecfe596b4ab2d",
+      "expected_sha256": "2684c5fa2d334d8ecc672de5f2b8f7d767068f65bdea800b2d1ecfe596b4ab2d",
+      "matches": true,
+      "headers": {
+        "Content-Type": "image/svg+xml",
+        "Last-Modified": "Wed, 11 Nov 2026 22:56:50 GMT",
+        "ETag": "\"6af4f2b2-157\"",
+        "Date": "Wed, 11 Nov 2026 22:58:59 GMT"
+      }
+    },
+    {
+      "file": "index.html",
+      "url": "https://alexandru-savinov.github.io/agterm-omarchy/index.html",
+      "status": 200,
+      "bytes": 35740,
+      "sha256": "a6030c18d04c2c6717230af5d4c2ae533cf6e0a53c5fb75526a021362260b260",
+      "expected_sha256": "a6030c18d04c2c6717230af5d4c2ae533cf6e0a53c5fb75526a021362260b260",
+      "matches": true,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Last-Modified": "Wed, 11 Nov 2026 22:56:50 GMT",
+        "ETag": "\"6af4f2b2-8b9c\"",
+        "Date": "Wed, 11 Nov 2026 22:58:59 GMT"
+      }
+    },
+    {
+      "file": "status.json",
+      "url": "https://alexandru-savinov.github.io/agterm-omarchy/status.json",
+      "status": 200,
+      "bytes": 97812,
+      "sha256": "b59fb4ce5b1d41a43a8878a4d125e9458d2ec7673bbf4873e21505132467c6f1",
+      "expected_sha256": "b59fb4ce5b1d41a43a8878a4d125e9458d2ec7673bbf4873e21505132467c6f1",
+      "matches": true,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Last-Modified": "Wed, 11 Nov 2026 22:56:50 GMT",
+        "ETag": "\"6af4f2b2-17e14\"",
+        "Date": "Wed, 11 Nov 2026 22:58:59 GMT"
+      }
+    },
+    {
+      "file": "style.css",
+      "url": "https://alexandru-savinov.github.io/agterm-omarchy/style.css",
+      "status": 200,
+      "bytes": 3558,
+      "sha256": "91570bbbd6fbe6c2987c1bff51143dbeaf7645c8188449f9b90db51122f9e96e",
+      "expected_sha256": "91570bbbd6fbe6c2987c1bff51143dbeaf7645c8188449f9b90db51122f9e96e",
+      "matches": true,
+      "headers": {
+        "Content-Type": "text/css; charset=utf-8",
+        "Last-Modified": "Wed, 11 Nov 2026 22:56:50 GMT",
+        "ETag": "\"6af4f2b2-de6\"",
+        "Date": "Wed, 11 Nov 2026 22:58:59 GMT"
+      }
+    },
+    {
+      "file": "team.css",
+      "url": "https://alexandru-savinov.github.io/agterm-omarchy/team.css",
+      "status": 200,
+      "bytes": 7453,
+      "sha256": "db1419428e61107d7ea133c85a6a7d4d56a0eec1f94253011820b145100fc76b",
+      "expected_sha256": "db1419428e61107d7ea133c85a6a7d4d56a0eec1f94253011820b145100fc76b",
+      "matches": true,
+      "headers": {
+        "Content-Type": "text/css; charset=utf-8",
+        "Last-Modified": "Wed, 11 Nov 2026 22:56:50 GMT",
+        "ETag": "\"6af4f2b2-1d1d\"",
+        "Date": "Wed, 11 Nov 2026 22:58:59 GMT"
+      }
+    },
+    {
+      "file": "team.html",
+      "url": "https://alexandru-savinov.github.io/agterm-omarchy/team.html",
+      "status": 200,
+      "bytes": 75433,
+      "sha256": "b65779c8c0d69e60fae446cde9c69952d35e15332c43c91b6aa1c8ae3a3a691b",
+      "expected_sha256": "b65779c8c0d69e60fae446cde9c69952d35e15332c43c91b6aa1c8ae3a3a691b",
+      "matches": true,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Last-Modified": "Wed, 11 Nov 2026 22:56:50 GMT",
+        "ETag": "\"6af4f2b2-126a9\"",
+        "Date": "Wed, 11 Nov 2026 22:58:59 GMT"
+      }
+    },
+    {
+      "file": "team.js",
+      "url": "https://alexandru-savinov.github.io/agterm-omarchy/team.js",
+      "status": 200,
+      "bytes": 1204,
+      "sha256": "6eaf1a7b7dde8cd63dead690f7b7de7b883d7b544b12c54ac8790c9c6d860dca",
+      "expected_sha256": "6eaf1a7b7dde8cd63dead690f7b7de7b883d7b544b12c54ac8790c9c6d860dca",
+      "matches": true,
+      "headers": {
+        "Content-Type": "application/javascript; charset=utf-8",
+        "Last-Modified": "Wed, 11 Nov 2026 22:56:50 GMT",
+        "ETag": "\"6af4f2b2-4b4\"",
+        "Date": "Wed, 11 Nov 2026 22:59:00 GMT"
+      }
+    }
+  ],
+  "checks": {
+    "index.html": {
+      "goal_305_link": true,
+      "full_source_result_link": true,
+      "source77_text": true,
+      "incomplete_acceptance": true
+    },
+    "team.html": {
+      "goal_305_link": true,
+      "full_source_result_link": true,
+      "source77_text": true,
+      "incomplete_acceptance": true
+    }
+  },
+  "public_content_bytes_match": true,
+  "metadata_dotfile_artifact_only": true
+}

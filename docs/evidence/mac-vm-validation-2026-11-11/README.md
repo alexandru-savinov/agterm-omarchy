@@ -11,6 +11,9 @@ Acceptance remains **incomplete**. This evidence supports [goal #305](https://gi
 | Native actual-bash Live eligibility | Same immutable artifact, unchanged harness, Live preload removed | Primary PTY check passes; requested Live reports active `none` because the passwd login shell is not zsh. Live harness fails with clean teardown, demonstrating the documented eligibility restriction. |
 | Native config, attempt 1 | Same app; original probe `c521ff81…` from the same source | Fails before assertions: probe waited for an unsupported control-socket override. Forced recovery and a generated `dconf` entry remain recorded. |
 | Native config, attempt 2 | Same app; separately reviewed probe from [PR #312](https://github.com/alexandru-savinov/agterm-omarchy/pull/312), `e77b6ad448677e00cafd14a36c557b96affb6678` | 3/4 checks pass. The final noisy-title shutdown exceeds 10 seconds, needs another signal, and retains its generated theme directory. Overall failed. |
+| Complete native branch source | `77cce43eb791ba1a983c19760c7df5259d0e452d`, privately built complete payload | Linux package 693/693; core 4104 pass and one fish skip; ordinary 7/7, zsh-fixture Live 9/9 and five configuration runs 4/4 each, under software rendering. No recovery signals; image and preservation checks pass. |
+| Native default renderer | Same complete source77 payload, seven renderer launch overrides absent | Fails before ordinary checks: no EGL configuration available. Cleanup and preservation pass. |
+| Native private software installation | Same complete source77 payload and installer, fresh private prefix with `--software-rendering` | Ordinary 7/7 and both cleanup audits pass. Actual app environment confirms the installed wrapper selects software rendering. |
 | Installed Mac ordinary comparison | agterm 0.38.1 / `09727610` | 14/14 checks pass; original app/session identities and installed bytes preserved; no test process remains. |
 | Installed Mac Live comparison | Same installed bundle | 11/11 functional checks pass, including shell persistence and hidden-pane restart. Empty daemon inventory, but the session host needs explicit cleanup: overall failed under the strict no-recovery criterion. |
 | Original Mac core baseline | `25edfe31a34a9cce9c4cbd68a106222e4d73aea8` | 4,117 passed / 1 failed / 9 skipped; zsh startup bypassed the fake terminfo compiler. |
@@ -20,10 +23,10 @@ Acceptance remains **incomplete**. This evidence supports [goal #305](https://gi
 
 The core revisions have different test inventories. The terminfo test-file blob is identical at the original baseline and PR #311's base; the changed total is not attributed solely to that fixture fix. All full runs were unfiltered. The reviewed-PR run with staged zmx used `--skip-build` with the already built, unchanged reviewed source and a newly satisfied runtime prerequisite. The later integrated-main run performed its own fresh build.
 
-Native application SHA256: `c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946`.
-ARM archive SHA256: `d553f29e9fd978e83d60df73b1ef668292bc8414ec5b6617c94c0dc08d0b6995`.
-Native bundled zmx SHA256: `7d4d530c2741e7c8edc1ddbfadf528a247d19f032e660aeb7eaf0b1f6288d310`.
-Unchanged native harness SHA256: `9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40`.
+Frozen native application SHA256: `c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946`.
+Frozen ARM archive SHA256: `d553f29e9fd978e83d60df73b1ef668292bc8414ec5b6617c94c0dc08d0b6995`.
+Frozen bundled zmx SHA256: `7d4d530c2741e7c8edc1ddbfadf528a247d19f032e660aeb7eaf0b1f6288d310`.
+Frozen native harness SHA256: `9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40`.
 Installed Mac app SHA256: `04abc755511fb07456070cc8b12348c2674dd1ad0530f78d9a36837b43e72306`.
 Installed Mac zmx SHA256: `4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01`.
 
@@ -68,6 +71,34 @@ The native queue run used original runner `b2dd3598…`, which later received a 
 
 Additive extracts: [build/variant](native-shutdown-build.json), [original native queue run](native-shutdown-queue.json), runtime [attempt 1](native-shutdown-runtime-attempt-1.json) and [attempt 2](native-shutdown-runtime-attempt-2.json), configuration [baseline](native-shutdown-config-baseline.json), [patched A/B](native-shutdown-config-patched.json) and [confirmations](native-shutdown-config-confirmations.json), plus [derived totals](native-shutdown-summary.json) and the [complete original/hash map](native-shutdown-source-map.json). Report verdicts, errors, limits, recovery, timings and collection boundaries are preserved; private paths and process identifiers use aliases. Preparation performed no new runtime execution. Same-account review is not independent approval.
 
+## Complete native branch source
+
+The [complete source77 package](native-complete-source77/README.native-complete-insertion.md) records the private compiler, three build attempts, separate full core run and complete native runtime at `77cce43eb791ba1a983c19760c7df5259d0e452d`.
+The original compiler-library prerequisite failure, omitted queue argument and long-temporary-path test failure remain recorded alongside the successful corrections.
+The final complete payload has 769 bound files; its app, CLI, zmx and libghostty were all built for this source.
+
+Ordinary 7/7, process-local zsh-fixture Live 9/9 and five consecutive configuration runs at 4/4 passed under software rendering.
+All 13 actual frontend identities and 91 mapped-library observations agree, all preservation predicates pass, and no recovery signal was required.
+The real login shell remains bash.
+The package retains the original diagnostic flags and does not accept later integrated source, a trusted hosted release archive, hardware rendering or every UI route.
+
+Root reran the package's comparison/privacy verifier: 23,508 checks pass, and six tampering/privacy controls are rejected.
+All 38 original files and ten public deliverables remain byte-identical to the preparation handoff.
+The package documents its original normalized-text and missing-complete-success-log collection limits; the [byte-transfer and renderer appendix](native-source77-appendix/README.native-appendix-insertion.md) resolves those collection gaps as a separate addition.
+Same-account preparation and review are not independent approval.
+
+The recovered complete third-attempt frontend log has 693 literal passes, no failures and no skips across 99 suites.
+Its bytes agree with the original guest hash; the run reused the compiled tests with `--skip-build` and the same source/compiler identities after shortening the private temporary path.
+The original long-path failure remains recorded.
+The recovered core log confirms 4104 literal passes and one missing-fish skip; its framework count of 4105 includes that skip.
+Root reran the appendix verifier: 8,957 checks pass, all eight negative controls reject their mutations, and all 67 inputs remain unchanged.
+
+The separate default-renderer experiment fails at initial EGL context creation with all seven renderer launch overrides absent.
+The exact source77 installer in a fresh private prefix preserves all 769 payload originals and adds two installer metadata files.
+Its software wrapper changes deliberate launcher input `LIBGL_ALWAYS_SOFTWARE=0` to observed app value `1`, retaining original value `0`; the ordinary native Wayland checks then pass 7/7.
+Both experiments preserve the real installation, two protected processes, shared runtime and login shell, with successful independent cleanup.
+This verifies the private software-launcher remedy for this VM; it does not establish hardware acceleration or later candidate acceptance.
+
 ## Mac boundary
 
 Host: macOS 26.7.1 arm64, Apple Swift 6.4, selected Command Line Tools. Full Xcode is absent. There is no fork Debug/Release AppKit build or PR #296 GUI acceptance in this evidence.
@@ -91,6 +122,8 @@ Core tests used the installed CLT framework and macro plugin through command-loc
 - [Mac ordinary](mac-ordinary.json), [Live](mac-live.json), [minimal cleanup reproduction](mac-live-cleanup.json), and [official release image comparison](mac-release-artifact.json).
 - [Core baseline](mac-core-baseline.json), [reviewed full run](mac-core-reviewed.json), [full run with staged zmx](mac-core-staged.json), and [real host fixtures](mac-host-fixtures.json).
 - [Fresh integrated-main core run](mac-core-integrated-main.json), with its exact failing source, one retained skip, all 26 host test names, binary hashes and private original-log binding.
+- The [complete source77 native package](native-complete-source77/README.native-complete-insertion.md) and [additive raw-log and renderer appendix](native-source77-appendix/README.native-appendix-insertion.md), with complete retained observations, executable verifiers and original-byte bindings.
+- [Deployed Pages verification](pages-publication.json): all seven public site files match the successful [run 43113509231](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/43113509231) artifact at `6c7d0886`, observed at 22:59 UTC. The empty `.nojekyll` metadata file is artifact-only and returned HTTP 404 publicly. This proves the refreshed status publication, not product acceptance or worker liveness.
 - The three `*-tests.log` files contain explicitly labeled test-result extracts. Each carries the original complete log's SHA256; it is not presented as the complete raw log. Literal split completion lines remain intact. [Interleaving support](interleaved-results.json) records all three affected raw fragments and explicitly labeled reconstructions, so an inserted SwiftPM warning does not silently remove a completion or alter the verified totals.
 - [SHA256SUMS](SHA256SUMS) covers the published files. JSON reports select public, relevant fields and retain their private originals' hashes. VM identifiers, private environment values, full desktop images and absolute test-stage paths are excluded.
 
