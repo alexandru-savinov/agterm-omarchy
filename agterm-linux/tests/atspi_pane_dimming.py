@@ -8,7 +8,7 @@ import shlex
 import subprocess
 import time
 
-from atspi_smoke import (control_json, launch, press_return, stop, type_x11_text,
+from atspi_smoke import (control_json, launch, named, press_return, stop, type_x11_text,
                          wait_for, window_list, window_tree)
 
 
@@ -31,7 +31,7 @@ def verify_pane_dimming(env, state):
                 "os.write(1, ('\\x1b]11;'+color+'\\x07\\x1b[2J\\x1b[H\\x1b[?25l').encode())\n"
                 "pathlib.Path(ready).write_text('ready')\n"
                 "for line in sys.stdin: pathlib.Path(received).write_text(line.strip())\n")
-            process, _app = launch(local)
+            process, app = launch(local)
             try:
                 window = wait_for(lambda: window_list(local), "no dimming window")[0]["id"]
                 session = control_json(local, "session", "new", "--window", window,
@@ -110,6 +110,7 @@ def verify_pane_dimming(env, state):
                     else:
                         cli("session", "overlay", "open", "sleep 120", "--size-percent", "40")
                         wait_for(overlay_visible, "floating overlay did not become visible in the session")
+                        wait_for(lambda: named(app, "Floating terminal overlay"), "floating GTK card did not map")
                     covered = settled(cover)
                     if strength == 0:
                         assert covered == left, f"zero mute cover changed patch colors: {covered}, {left}"
