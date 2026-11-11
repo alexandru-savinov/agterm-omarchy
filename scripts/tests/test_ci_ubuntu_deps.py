@@ -29,9 +29,16 @@ class UbuntuDependencyTests(unittest.TestCase):
 import json, os, pathlib, sys
 args = sys.argv[1:]
 source = next(arg.split('=', 1)[1] for arg in args if arg.startswith('Dir::Etc::sourcelist='))
+lists = pathlib.Path(next(arg.split('=', 1)[1] for arg in args if arg.startswith('Dir::State::lists=')))
+text = pathlib.Path(source).read_text()
 with open(os.environ['CALL_LOG'], 'a') as log:
-    log.write(json.dumps({'args': args, 'source': source, 'text': pathlib.Path(source).read_text()}) + '\\n')
-sys.exit(100 if os.environ.get('FAIL_COMMAND') in args else 0)
+    log.write(json.dumps({'args': args, 'source': source, 'text': text,
+                         'indexes': sorted(p.name for p in lists.iterdir())}) + '\\n')
+failed = (os.environ.get('FAIL_COMMAND') in args or
+          ('update' in args and os.environ.get('FAIL_PRIMARY') == '1' and 'kernel.org' in text))
+if 'update' in args:
+    (lists / ('partial-index' if failed else 'verified-index')).write_text(text)
+sys.exit(100 if failed else 0)
 ''')
 
     def executable(self, name, text):
@@ -55,6 +62,8 @@ sys.exit(100 if os.environ.get('FAIL_COMMAND') in args else 0)
                 result = self.run_install('fish', 'libgtk-4-dev')
                 self.assertEqual(result.returncode, 0, result.stderr)
                 update, install = self.calls()
+                self.assertEqual(update['indexes'], [])
+                self.assertEqual(install['indexes'], ['verified-index'])
                 self.assertEqual(update['source'], install['source'])
                 self.assertEqual(update['text'], install['text'])
                 self.assertIn(f'URIs: {uri}\n', update['text'])
@@ -74,7 +83,38 @@ sys.exit(100 if os.environ.get('FAIL_COMMAND') in args else 0)
         self.env['FAIL_COMMAND'] = 'update'
         self.assertEqual(self.run_install('fish').returncode, 100)
         calls = self.calls()
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len({call['source'] for call in calls}), 2)
+        for call in calls:
+            self.assertEqual(call['args'][-1], 'update')
+            self.assertEqual(call['indexes'], [])
+            self.assertFalse(Path(call['source']).parent.exists())
+
+    def test_fallback_uses_fresh_indexes_and_only_installs_from_successful_source(self):
+        self.env['FAIL_PRIMARY'] = '1'
+        result = self.run_install('fish')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        primary, fallback, install = self.calls()
+        self.assertIn('URIs: https://mirrors.edge.kernel.org/ubuntu\n', primary['text'])
+        self.assertIn('URIs: https://mirrors.mit.edu/ubuntu\n', fallback['text'])
+        self.assertNotEqual(primary['source'], fallback['source'])
+        self.assertEqual(primary['indexes'], [])
+        self.assertEqual(fallback['indexes'], [])
+        self.assertEqual(install['indexes'], ['verified-index'])
+        self.assertEqual(fallback['source'], install['source'])
+        self.assertEqual(fallback['args'][:-1], install['args'][:-4])
+        self.assertEqual(primary['text'].replace('https://mirrors.edge.kernel.org/ubuntu',
+                                               'https://mirrors.mit.edu/ubuntu'), fallback['text'])
+        self.assertIn('index update failed', result.stderr)
+        for call in (primary, fallback, install):
+            self.assertFalse(Path(call['source']).parent.exists())
+
+    def test_arm_update_failure_has_no_unverified_fallback(self):
+        self.env.update(TEST_ARCH='arm64', FAIL_COMMAND='update')
+        self.assertEqual(self.run_install('fish').returncode, 100)
+        calls = self.calls()
         self.assertEqual(len(calls), 1)
+        self.assertIn('URIs: https://mirrors.mit.edu/ubuntu-ports\n', calls[0]['text'])
         self.assertFalse(Path(calls[0]['source']).parent.exists())
 
     def test_failed_install_propagates_and_cleans_sources(self):
@@ -83,6 +123,15 @@ sys.exit(100 if os.environ.get('FAIL_COMMAND') in args else 0)
         update, install = self.calls()
         self.assertEqual(update['source'], install['source'])
         self.assertFalse(Path(install['source']).parent.exists())
+
+    def test_failed_fallback_install_is_not_retried(self):
+        self.env.update(FAIL_PRIMARY='1', FAIL_COMMAND='install')
+        self.assertEqual(self.run_install('fish').returncode, 100)
+        primary, fallback, install = self.calls()
+        self.assertEqual(fallback['source'], install['source'])
+        self.assertEqual(install['indexes'], ['verified-index'])
+        for call in (primary, fallback, install):
+            self.assertFalse(Path(call['source']).parent.exists())
 
     def test_unsupported_release_architecture_and_empty_request_fail_before_apt(self):
         for release, arch, packages in [('ID=debian\nVERSION_CODENAME=noble\n', 'amd64', ['fish']),
