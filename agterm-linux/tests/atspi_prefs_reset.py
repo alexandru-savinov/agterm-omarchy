@@ -1,7 +1,8 @@
 """Appearance > Terminal defaults > Reset clears exactly the seven terminal-appearance fields.
 
 Reset is a load-modify-save, so every other key must come back byte for byte, both straight after the
-reset and after a relaunch has loaded and re-saved the file.
+reset and after a relaunch has loaded and re-saved the file. A zoomed session must land on the effective
+base size, which with the UI setting cleared is the scoped ghostty.conf's `font-size`, not a hardcoded 13.
 """
 
 import json
@@ -20,7 +21,8 @@ SEEDED_UNRELATED = dict(sidebarFontSize=11, interfaceFontSize=15, activeStatusCo
                         # Seeded so the restore-mode migration has nothing to add on the reset's save.
                         restoreMode="none")
 DEFAULT_THEME = "agterm"
-DEFAULT_FONT_SIZE = 13
+# Distinct from Ghostty's 13 and the seeded 17, so landing on it proves the reset read the effective config.
+SCOPED_FONT_SIZE = 15
 
 
 def font_sizes(node):
@@ -39,6 +41,10 @@ def unrelated(settings):
 
 def verify_appearance_reset(env):
     seed_settings(env, **SEEDED_APPEARANCE, **SEEDED_UNRELATED)
+    config_dir = os.path.join(env["AGTERM_STATE_DIR"], "config")
+    os.makedirs(config_dir, exist_ok=True)
+    with open(os.path.join(config_dir, "ghostty.conf"), "w", encoding="utf-8") as target:
+        target.write(f"font-size = {SCOPED_FONT_SIZE}\n")
     process, app = launch(dict(env, AGTERM_ATSPI_OPEN_PREFERENCES="appearance"))
     try:
         window_id = next(item["id"] for item in window_list(env) if item["open"])
@@ -48,6 +54,8 @@ def verify_appearance_reset(env):
             return window_tree(env, window_id)["workspaces"][0]["sessions"][0].get("fontSize")
 
         launched = wait_for(session_font, "the session never reported a font size")
+        assert launched == SEEDED_APPEARANCE["fontSize"], (
+            f"the UI font size should override the scoped config at launch, got {launched}")
         control_json(env, "font", "inc", "--target", session_id, "--window", window_id, "--json")
         zoomed = wait_for(lambda: (size := session_font()) != launched and size, "font inc did not zoom the session")
 
@@ -72,8 +80,8 @@ def verify_appearance_reset(env):
             assert after.get(key) is None, f"Reset left {key} = {after.get(key)!r}"
         assert unrelated(after) == kept, (
             f"Reset changed unrelated keys: before {kept}, after {unrelated(after)}")
-        wait_for(lambda: session_font() == DEFAULT_FONT_SIZE,
-                 f"Reset left the session font at {session_font()} (zoomed {zoomed}), not {DEFAULT_FONT_SIZE}")
+        wait_for(lambda: session_font() == SCOPED_FONT_SIZE,
+                 f"Reset left the session font at {session_font()} (zoomed {zoomed}), not {SCOPED_FONT_SIZE}")
         try:
             with open(os.path.join(env["AGTERM_STATE_DIR"], "workspaces.json"), encoding="utf-8") as source:
                 saved = json.load(source)

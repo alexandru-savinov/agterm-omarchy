@@ -32,6 +32,7 @@ extension AppController {
         GhosttyApp.shared.currentThemeBackgroundHex = chromeColors.background
         GhosttyApp.shared.currentThemeForegroundHex = chromeColors.foreground
         GhosttyApp.shared.currentThemePalette = GhosttyConfigTheme.palette(from: config)
+        GhosttyApp.shared.currentBaseFontSize = GhosttyConfigTheme.fontSize(from: config)
         synchronizeLiveColorScheme(side)
         // The app-level update is the single base application: pinned libghostty propagates it to
         // every surface. Each surface then reasserts only its own overlay/zoom state.

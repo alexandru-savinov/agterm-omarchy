@@ -8,7 +8,10 @@ extension GhosttySurface {
     /// the CELL_SIZE report it triggers matches `pendingFontRestore` and is swallowed by `reportFontSize`.
     func resetFontZoomToDefault() {
         guard let current = currentFontSize() else { return }
-        let target = linuxSettingsStore().load().fontSize ?? DashboardLayout.ghosttyDefaultFontSize
+        // The effective base config, not the UI setting: with the setting cleared, a `font-size` from the
+        // scoped or inherited Ghostty config is what new sessions use, so a reset must land there too.
+        let target = GhosttyApp.shared.currentBaseFontSize
+            ?? linuxSettingsStore().load().fontSize ?? DashboardLayout.ghosttyDefaultFontSize
         guard abs(current - target) > 0.5, let surface else { return }
         pendingFontRestore = target
         let action = "set_font_size:\(String(format: "%g", target))"
