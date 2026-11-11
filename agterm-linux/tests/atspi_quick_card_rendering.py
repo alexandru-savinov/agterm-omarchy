@@ -17,7 +17,8 @@ def verify_quick_card_rendering(env, state):
     cyan = (0, 255, 255)
     markers = ((255, 0, 0), (0, 255, 0), (255, 255, 0), (255, 0, 255))
     for toolbar in ("normal", "hidden"):
-        for width, height in ((1, 1), (1400, 860)):
+        reference_shadow = None
+        for width, height in ((1400, 860), (1, 1)):
             tag = f"{toolbar}-{width}"
             root = Path(state) / tag
             root.mkdir()
@@ -150,20 +151,44 @@ def verify_quick_card_rendering(env, state):
                 assert left_edge < left - 3 and right_edge > right + 3, (
                     f"{tag}: no continuous side backdrops outside the card")
                 edge_points = ((left_edge + 1, mid_y), (right_edge - 1, mid_y))
-                for point in edge_points:
-                    if width == 1:
-                        assert sum(pixel(shown, *point)) < sum(pixel(hidden, *point)) - 10, (
-                            f"{tag}: minimum-window shadow did not reach the backdrop edge at {point}")
+                shadow_profiles = []
+                for edge, origin, direction in ((edge_points[0][0], left, -1), (edge_points[1][0], right, 1)):
+                    available = abs(edge - origin)
+                    backdrop = pixel(hidden, origin + direction * 3, mid_y)
+                    samples = []
+                    for distance in range(3, available + 1):
+                        point = (origin + direction * distance, mid_y)
+                        assert pixel(hidden, *point) == backdrop, f"{tag}: shadow scan crossed backdrop colors"
+                        samples.append((distance, sum(backdrop) - sum(pixel(shown, *point))))
+                    # Ignore <=2 RGB-sum quantization levels; allow a two-pixel antialiased tail shift.
+                    dark = [distance for distance, delta in samples if delta > 2]
+                    assert dark, f"{tag}: no measurable side shadow"
+                    reach = max(dark)
+                    shadow_profiles.append({"available": available, "reach": reach, "backdrop": backdrop,
+                                            "edge_delta": samples[-1][1]})
+                    if reference_shadow is None:
+                        assert reach + 2 < available and all(delta == 0 for _, delta in samples[-2:]), (
+                            f"{tag}: large-case shadow has no clear baseline before the backdrop edge")
                     else:
-                        assert pixel(shown, *point) == pixel(hidden, *point), (
-                            f"{tag}: large-window shadow did not clear the backdrop edge at {point}")
+                        reference = reference_shadow[len(shadow_profiles) - 1]
+                        assert backdrop == reference["backdrop"], f"{tag}: large/minimum backdrops differ"
+                        assert abs(reach - min(reference["reach"], available)) <= 2, (
+                            f"{tag}: shadow extent {reach} differs from large profile {reference} at margin {available}")
+                        if available > reference["reach"] + 2:
+                            assert all(delta == 0 for _, delta in samples[-2:]), (
+                                f"{tag}: shadow did not clear the available backdrop margin")
+                        elif available < reference["reach"] - 2:
+                            assert samples[-1][1] > 2, f"{tag}: truncated shadow did not reach its backdrop edge"
+                if reference_shadow is None:
+                    reference_shadow = shadow_profiles
                 record = {"case": tag, "client": dimensions, "card_allocation": allocation, "tty": ready.read_text(),
                           "cyan_bounds": [left, top, right, bottom], "marker_sizes": marker_sizes,
                           "shadow": [(point, pixel(shown, *point), pixel(hidden, *point)) for point in shadow_points],
-                          "backdrop_edges": [(point, pixel(shown, *point), pixel(hidden, *point)) for point in edge_points]}
+                          "backdrop_edges": [(point, pixel(shown, *point), pixel(hidden, *point)) for point in edge_points],
+                          "shadow_profiles": shadow_profiles}
                 (artifacts / f"{tag}.json").write_text(json.dumps(record, indent=2))
                 print("OK: rendered quick card " + json.dumps(record), flush=True)
             finally:
                 stop(process)
-    print("OK: quick terminal edge cells remain whole inside rounded cards; only the outward shadow reaches "
-          "minimum-window backdrop edges, while large-window shadows clear them")
+    print("OK: quick terminal edge cells remain whole inside rounded cards; outward shadow extent matches "
+          "the large-case profile and clears backdrop edges wherever the measured margin permits")
