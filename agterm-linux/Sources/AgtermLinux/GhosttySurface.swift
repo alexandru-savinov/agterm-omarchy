@@ -429,14 +429,15 @@ final class GhosttySurface: PaneRoleMutableSurface {
         let inherited = role.statusPane.flatMap { pane in
             controller?.store.session(withID: sessionID)?.effectiveBackground(for: pane)
         }
-        guard oscBackgroundColorHex != nil
+        // Explicit reloads must preserve the dashboard's temporary size even without a watermark.
+        guard dashboardFontOverride != nil || oscBackgroundColorHex != nil
                 || fixedBackgroundColor != nil
                 || usesSessionWatermark && inherited != nil else { return }
         reapplyBackgroundOverlay(windowOpacity: windowOpacity, settings: settings)
     }
 
     /// Automatic appearance reconciliation restores every per-session overlay.
-    /// Explicit reloads keep the watermark-only path.
+    /// Explicit reloads keep watermark and temporary dashboard overrides.
     func reapplySessionConfigIfNeeded(windowOpacity: Double? = nil, settings: AppSettings? = nil) {
         reapplyBackgroundOverlay(windowOpacity: windowOpacity, settings: settings)
     }
