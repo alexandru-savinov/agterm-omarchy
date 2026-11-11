@@ -525,7 +525,8 @@ omitted when expanded).
 closed bundle is not a stop — `window select` opens one. Errors with one window open. GUI twins: Navigate ▸
 Previous/Next Window and the keyless `previous_window`/`next_window` keymap actions) · `window close <id>` ·
 `window rename <id> <name>` ·
-`window delete <id>` · `window resize <id> --width W --height H` · `window move <id> --x X --y Y [--display N]` ·
+`window delete <id>` · `window resize <id> --width W --height H` · `window move <id> --x X --y Y [--display N]` (macOS only;
+Linux always answers `window.move is not supported on this platform`) ·
 `window zoom <id>` (maximize-to-screen toggle, the double-click-header gesture; a plain green-button click does full screen) ·
 `window fullscreen <id>` (toggle native macOS full screen, the green-button / ⌃⌘F action) ·
 `window minimize <id> [on|off|toggle]` (minimize to the Dock or restore, the ⌘M / yellow-button action; default

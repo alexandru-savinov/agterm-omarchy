@@ -728,7 +728,7 @@ With no selection it exits non-zero with `no selection`. The selection must be m
 `session paste` pastes the system clipboard into a session (the socket analogue of ⌘V), and `session select-all` selects the session's entire buffer (the analogue of ⌘A) — pair `select-all` with `copy` to grab the whole buffer:
 
 ```sh
-printf 'deploy staging' | pbcopy
+printf 'deploy staging' | pbcopy                 # macOS; on Linux: printf 'deploy staging' | wl-copy
 agtermctl session paste --target work            # lands at the prompt, not submitted
 agtermctl session select-all --target 9f3c       # then read it all back
 agtermctl session copy --target 9f3c
