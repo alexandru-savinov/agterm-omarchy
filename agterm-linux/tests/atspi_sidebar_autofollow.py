@@ -94,12 +94,16 @@ def verify_sidebar_multiselect_autofollow(env):
             return before, during, (active_name(), selected())
 
         target_resolution = []
+        cached_hold_target = sidebar_session_row_label(app, "af-two")
 
         def hold_target():
-            # Resolve AT-SPI before the final control-only sample: a full tree walk can itself
-            # outlast the idle interval, so a collapsed first hold sample need not be a press bug.
+            # Cache the stable target before building the block: a full AT-SPI tree walk can
+            # itself consume the idle interval before mousedown.
             started = time.monotonic()
-            target = sidebar_session_row_label(app, "af-two")
+            target = cached_hold_target
+            # Arm a fresh episode only after the expensive lookup, so setup cannot consume it.
+            control_json(env, "session", "status", "idle", "--target", blocked_id, "--json")
+            control_json(env, "session", "status", "blocked", "--target", blocked_id, "--json")
             snapshot = window_tree(env, window_id)
             active = next((item["name"] for workspace in snapshot["workspaces"]
                            for item in workspace["sessions"] if item.get("active")), None)
@@ -155,16 +159,48 @@ def verify_sidebar_multiselect_autofollow(env):
                 time.sleep(0.03)
             time.sleep(0.3)
 
+        def cancel_drag():
+            drag_to_bottom_of_blocked()
+            subprocess.run(["xdotool", "key", "Escape"], check=True)
+
+        timeline = mouse_press_probe_release(hold_target, process.pid, hold(cancel_drag), dy=row_dy)
+        assert intact(timeline), f"the block changed before cancelling the held drag: {timeline}"
+        wait_for(lambda: names() == ["af-one", "af-two", "af-three", "af-blocked"]
+                 and selected() == ("af-one", "af-two"),
+                 f"cancelling the drag changed the order or selected block: {names()}, {selected()}")
+        wait_for(lambda: active_name() == "af-blocked",
+                 "auto-follow stayed suppressed after the cancelled drag", timeout=15)
+        control_json(env, "session", "status", "idle", "--target", blocked_id, "--json")
+        build_block()
+
         timeline = mouse_press_probe_release(
-            lambda: sidebar_session_row_label(app, "af-two"), process.pid, hold(drag_to_bottom_of_blocked), dy=row_dy)
+            hold_target, process.pid, hold(drag_to_bottom_of_blocked), dy=row_dy)
         wait_for(lambda: names() != ["af-one", "af-two", "af-three", "af-blocked"],
                  f"the held block drag moved nothing: {names()}")
         assert names() == ["af-three", "af-blocked", "af-one", "af-two"], (
             f"a block drag after a {HOLD_SECONDS}s hold dropped {names()} (held {timeline}) instead of moving "
             "af-one and af-two below af-blocked")
         assert intact(timeline), f"the block changed during the held drag: {timeline}"
+        wait_for(lambda: active_name() == "af-blocked",
+                 "auto-follow stayed suppressed after the completed drag", timeout=15)
+        control_json(env, "session", "status", "idle", "--target", blocked_id, "--json")
+        cached_hold_target = sidebar_session_row_label(app, "af-two")
+        build_block()
+        source_id = next(item["id"] for item in sessions() if item["name"] == "af-two")
+
+        def remove_drag_source():
+            drag_to_bottom_of_blocked()
+            control_json(env, "session", "close", "--target", source_id, "--json")
+            wait_for(lambda: all(item["id"] != source_id for item in sessions()),
+                     "the held drag source did not close")
+            subprocess.run(["xdotool", "key", "Escape"], check=True)
+
+        mouse_press_probe_release(hold_target, process.pid, hold(remove_drag_source), dy=row_dy)
+        wait_for(lambda: active_name() == "af-blocked",
+                 "removing the drag source stranded auto-follow suppression", timeout=15)
         print(f"OK: a {HOLD_SECONDS}s press on a selection block outlasts the 5s auto-follow idle window; "
-              "the release collapses to the pressed row and the drag drops the whole block")
+              "release collapses to the pressed row, cancellation preserves the block, a drop moves it, "
+              "and auto-follow resumes after cancellation, drop and source removal")
     except AssertionError:
         describe_tree(app)
         raise

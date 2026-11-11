@@ -250,8 +250,10 @@ let onRowActivated: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, g
 // (`SessionClickTracker`), so a modifier lifted between press and release changes nothing.
 
 let onSessionRowPress: @MainActor @convention(c) (OpaquePointer?, Int32, Double, Double, gpointer?) -> Void = { gesture, presses, _, _, data in
-    guard presses == 1, let gesture, let data else { return }
+    guard let gesture else { return }
     MainActor.assumeIsolated {
+        sidebarInteraction(for: gesture)?.setActive(true)
+        guard presses == 1, let data else { return }
         guard let controller = controllerForEventController(gesture),
               let id = controller.session(forRow: OpaquePointer(data)) else { return }
         let modifiers = gtk_event_controller_get_current_event_state(gesture).rawValue
@@ -260,12 +262,28 @@ let onSessionRowPress: @MainActor @convention(c) (OpaquePointer?, Int32, Double,
 }
 
 let onSessionRowRelease: @MainActor @convention(c) (OpaquePointer?, Int32, Double, Double, gpointer?) -> Void = { gesture, presses, _, _, data in
-    guard presses == 1, let gesture, let data else { return }
+    guard let gesture else { return }
     MainActor.assumeIsolated {
+        sidebarInteraction(for: gesture)?.setActive(false)
+        guard presses == 1, let data else { return }
         guard let controller = controllerForEventController(gesture),
               let id = controller.session(forRow: OpaquePointer(data)) else { return }
         controller.handleSessionRowRelease(id)
     }
+}
+
+// A drag claims/cancels the click sequence, then owns its own suppression until drag-end
+// (including cancelled drops). Separate owners make either callback order safe and idempotent.
+let onSessionRowCancel: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { gesture, _, _ in
+    MainActor.assumeIsolated { sidebarInteraction(for: gesture)?.setActive(false) }
+}
+
+let onSessionDragBegin: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { source, _, _ in
+    MainActor.assumeIsolated { sidebarInteraction(for: source)?.setActive(true) }
+}
+
+let onSessionDragEnd: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gboolean, gpointer?) -> Void = { source, _, _, _ in
+    MainActor.assumeIsolated { sidebarInteraction(for: source)?.setActive(false) }
 }
 
 let onSessionRowContextClick: @MainActor @convention(c) (OpaquePointer?, Int32, Double, Double, gpointer?) -> Void = { gesture, _, x, y, data in

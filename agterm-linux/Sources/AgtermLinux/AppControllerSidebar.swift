@@ -383,10 +383,12 @@ extension AppController {
         gtk_list_box_row_set_activatable(GLBR(row), 0)
         gtk_widget_set_focusable(W(row), 0)
         let selectClick = gtk_gesture_click_new()
+        attachSidebarInteraction(to: selectClick, controller: self)
         gtk_gesture_single_set_button(selectClick, 1)
         gtk_event_controller_set_propagation_phase(selectClick, GTK_PHASE_CAPTURE)
         connect(selectClick, "pressed", unsafeBitCast(onSessionRowPress, to: GCallback.self), RAW(row))
         connect(selectClick, "released", unsafeBitCast(onSessionRowRelease, to: GCallback.self), RAW(row))
+        connect(selectClick, "cancel", unsafeBitCast(onSessionRowCancel, to: GCallback.self))
         gtk_widget_add_controller(W(row), selectClick)
         let rightClick = gtk_gesture_click_new()
         gtk_gesture_single_set_button(rightClick, 3)
@@ -395,8 +397,11 @@ extension AppController {
         gtk_widget_add_controller(W(row), rightClick)
         if store.sidebarMode != .flagged {
             let drag = gtk_drag_source_new()
+            attachSidebarInteraction(to: drag, controller: self)
             gtk_drag_source_set_actions(drag, GDK_ACTION_MOVE)
             connect(drag, "prepare", unsafeBitCast(onRowDragPrepare as @convention(c) (OpaquePointer?, Double, Double, gpointer?) -> OpaquePointer?, to: GCallback.self))
+            connect(drag, "drag-begin", unsafeBitCast(onSessionDragBegin, to: GCallback.self))
+            connect(drag, "drag-end", unsafeBitCast(onSessionDragEnd, to: GCallback.self))
             gtk_widget_add_controller(W(row), drag)
             let drop = gtk_drop_target_new(GType(64), GDK_ACTION_MOVE)
             connect(drop, "drop", unsafeBitCast(onRowDrop as @convention(c) (OpaquePointer?, UnsafePointer<GValue>?, Double, Double, gpointer?) -> gboolean, to: GCallback.self))
@@ -498,11 +503,7 @@ extension AppController {
     /// firing the entry's focus-leave commit mid-edit.
     func handleSessionRowPress(_ id: UUID, modifiers: UInt32) {
         guard renaming?.id != id else { return }
-        // A press is user activity even when the tracker DEFERS the selection change: a deferred
-        // press is how every block drag starts, and once the drag claims the sequence the release
-        // (the other activity-noting path) never fires — so without this the idle auto-follow
-        // timer keeps running through the hold/drag and its fire would replace
-        // `sidebarSelectionIDs` before `handleSessionDrop` reads the block.
+        // Reset idle time AND suppress for the whole hold, including holds longer than the timeout.
         noteUserActivity()
         let applyNow = sessionClickTracker.press(
             id,
@@ -628,4 +629,48 @@ extension AppController {
         selectSession(selected)
         return true
     }
+}
+
+/// Owned by the GTK gesture/source, not its row's ancestry: removal during a drag must still
+/// release suppression on the original controller. Neither GTK nor this context retains it.
+@MainActor
+final class SidebarInteraction {
+    weak var controller: AppController?
+    private var active = false
+
+    init(controller: AppController) { self.controller = controller }
+
+    func setActive(_ active: Bool) {
+        guard self.active != active else { return }
+        self.active = active
+        if active {
+            controller?.noteUserActivity()
+            controller?.suppressAutoFollow()
+        } else {
+            controller?.resumeAutoFollow()
+            controller?.noteUserActivity()
+        }
+    }
+}
+
+private let sidebarInteractionKey = "agterm-sidebar-interaction"
+private let releaseSidebarInteraction: GDestroyNotify = { data in
+    guard let data else { return }
+    MainActor.assumeIsolated {
+        let context = Unmanaged<SidebarInteraction>.fromOpaque(data).takeRetainedValue()
+        context.setActive(false)
+    }
+}
+
+@MainActor
+func attachSidebarInteraction(to object: OpaquePointer?, controller: AppController) {
+    let context = Unmanaged.passRetained(SidebarInteraction(controller: controller)).toOpaque()
+    sidebarInteractionKey.withCString { g_object_set_data_full(GOBJ(object), $0, context, releaseSidebarInteraction) }
+}
+
+@MainActor
+func sidebarInteraction(for object: OpaquePointer?) -> SidebarInteraction? {
+    guard let object,
+          let data = sidebarInteractionKey.withCString({ g_object_get_data(GOBJ(object), $0) }) else { return nil }
+    return Unmanaged<SidebarInteraction>.fromOpaque(data).takeUnretainedValue()
 }
