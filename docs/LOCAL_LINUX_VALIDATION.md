@@ -136,3 +136,70 @@ Keep its HOME path stable too: Clang PCM files embed the module-cache path. The 
 and regenerating it. Preserve SwiftPM dependencies and the checkout rather than deleting every cache.
 Do not switch its commit while another process is compiling or testing. Full GTK/vendor builds are a
 separate cost and are not implied by a CLI build. Keep local results separate from hosted and native evidence.
+
+## Optional cached fish supplement
+
+The image has no fish. A separately verified Nix fish 4.0.8 can exercise the quoting regression without
+changing the image or primary launcher. This is supplemental Nix fish, **not Ubuntu apt fish or a pure-image
+test**. The five paths below are the observed ELF runtime, including the libgcc symlink target; they are
+enough for the tested `fish --no-config` command, not a claim about all interactive fish features.
+Require these paths to exist already; this procedure does not download or build them.
+
+```bash
+export FISH_STORE=/nix/store/qq6iknnizywfjjclczrhxx0y6jvll84m-fish-4.0.8
+python3 - <<'PY'
+import os, pathlib, shlex, subprocess
+root = pathlib.Path(os.environ['VALIDATION_ROOT'])
+fish = os.environ['FISH_STORE']
+paths = [fish,
+    '/nix/store/n6vl6ni6zxxgh4163cqnjf8p0n7yah0d-pcre2-10.44',
+    '/nix/store/cf1a53iqg6ncnygl698c4v0l8qam5a2q-gcc-14.3.0-lib',
+    '/nix/store/d84l3qjb077dxkajn24k58z2q261d4lv-gcc-14.3.0-libgcc',
+    '/nix/store/i3ibgfskl99qd8rslafbpaa1dmxdzh1z-glibc-2.40-66']
+subprocess.run(['nix', '--offline', 'store', 'verify', '--sigs-needed', '1', *paths], check=True)
+source = (root / 'run').read_text()
+mounts = ' '.join('--ro-bind ' + shlex.quote(path) + ' ' + shlex.quote(path) for path in paths)
+edits = {
+    '--ro-bind "$root/bundle/rootfs" /':
+        '--overlay-src "$root/bundle/rootfs" --tmp-overlay / --dir /nix/store ' + mounts,
+    '--proc /proc --dev /dev --clearenv': '--proc /proc --dev /dev --remount-ro / --clearenv',
+    '--setenv PATH /opt/': '--setenv PATH ' + fish + '/bin:/opt/',
+    '"$root/home"': '"${AGTERM_FISH_HOME:-$root/fish-profile/home}"',
+    '"$root/workspace"': '"${AGTERM_FISH_WORKSPACE:-$root/fish-profile/workspace}"',
+    '"$root/tmp"': '"${AGTERM_FISH_TMP:-$root/fish-profile/tmp}"',
+}
+for before, after in edits.items():
+    assert source.count(before) == 1, before
+    source = source.replace(before, after)
+for directory in ['home', 'workspace', 'tmp/runtime-ubuntu']:
+    (root / 'fish-profile' / directory).mkdir(parents=True, exist_ok=True)
+(root / 'fish-profile/home').chmod(0o700)
+(root / 'fish-profile/tmp/runtime-ubuntu').chmod(0o700)
+target = root / 'run-fish'
+target.write_text(source)
+target.chmod(0o755)
+PY
+"$VALIDATION_ROOT/run-fish" /bin/bash -c 'fish --version; fish --no-config -c "printf fish-ok"; command -v sh swift'
+```
+
+The namespace-only overlay creates missing `/nix/store` mountpoints, then becomes read-only before
+execution. Original image bytes remain untouched. Only fish's bin directory is added to PATH; no
+Nix loader variables or other Nix command directories replace Ubuntu tools. Fish's verified package NAR
+hash is `sha256-6VycLRLsjCN25nCwZvvDyBS3ILaw+Hantd52uh1dYKY=`. Keep the offline signature/content-verification
+result with the test evidence rather than treating a path name as signature verification.
+
+After the current build owner releases the shared checkout, select the exact reviewed commit and reuse
+the existing 6.3.2 workspace/home/tmp at unchanged container paths:
+
+```bash
+AGTERM_FISH_HOME="$VALIDATION_ROOT/home" \
+AGTERM_FISH_WORKSPACE="$VALIDATION_ROOT/workspace" \
+AGTERM_FISH_TMP="$VALIDATION_ROOT/tmp" \
+  "$VALIDATION_ROOT/run-fish" /bin/bash -c \
+  'cd /workspace/agtermCore && swift test --jobs 2 --filter CommandRestoreTests'
+```
+
+[Executed PR #278 evidence](https://github.com/alexandru-savinov/agterm-omarchy/pull/278#issuecomment-6800308946)
+at `80be556a8541d9fe9f4fb5e893479aff7b5b7066` passed all 38 tests with Swift 6.3.2 and this supplemental
+fish 4.0.8, including the real fish roundtrip (not skipped). This does not replace hosted architecture
+checks or native runtime acceptance.
