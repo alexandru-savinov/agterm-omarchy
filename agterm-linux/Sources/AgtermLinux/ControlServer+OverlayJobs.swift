@@ -42,27 +42,15 @@ final class LinuxOverlayJobStream {
 
 extension ControlServer {
     func claimOverlayJobOnMain(_ target: String?) -> ControlResponse {
-        let sem = DispatchSemaphore(value: 0)
-        let box = OverlayClaimBox()
-        runOnMain {
-            MainActor.assumeIsolated {
-                box.value = self.claimOverlayJob(target)
-                sem.signal()
-            }
-        }
-        sem.wait()
-        return box.value
+        awaitMain { $0.resolve(self.claimOverlayJob(target)) }
     }
 
-    func adoptOverlayJobOnMain(_ descriptor: Int32, job: String) {
-        let sem = DispatchSemaphore(value: 0)
-        runOnMain {
-            MainActor.assumeIsolated {
-                self.adoptOverlayJobStream(descriptor: descriptor, job: job)
-                sem.signal()
-            }
-        }
-        sem.wait()
+    /// False when shutdown failed the wait before the stream took the descriptor.
+    func adoptOverlayJobOnMain(_ descriptor: Int32, job: String) -> Bool {
+        awaitMain { reply in
+            self.adoptOverlayJobStream(descriptor: descriptor, job: job)
+            reply.resolve(ControlResponse(ok: true))
+        }.ok
     }
 
     func abandonOverlayJobOnMain(_ job: String) {
@@ -148,8 +136,4 @@ extension ControlServer {
         for stream in overlayJobStreams.values { stream.shutdown() }
         overlayJobStreams.removeAll()
     }
-}
-
-private final class OverlayClaimBox: @unchecked Sendable {
-    var value = ControlResponse(ok: false, error: "internal")
 }
