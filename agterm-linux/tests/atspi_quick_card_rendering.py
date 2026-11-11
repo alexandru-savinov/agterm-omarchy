@@ -1,0 +1,142 @@
+"""Rendered quick-terminal content containment and outward shadow at minimum/large sizes."""
+
+from collections import Counter
+import json
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import time
+
+from atspi_smoke import (control_json, launch, named, press_return, stop, type_x11_text,
+                         wait_for, window_list)
+from gi.repository import Atspi
+
+
+def verify_quick_card_rendering(env, state):
+    artifacts = Path(os.environ.get("AGTERM_UI_ARTIFACT_DIR", state)) / "quick-card-rendering"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    cyan = (0, 255, 255)
+    markers = ((255, 0, 0), (0, 255, 0), (255, 255, 0), (255, 0, 255))
+    for toolbar in ("normal", "hidden"):
+        for width, height in ((1, 1), (1400, 860)):
+            tag = f"{toolbar}-{width}"
+            root = Path(state) / tag
+            root.mkdir()
+            (root / "settings.json").write_text(json.dumps({
+                "toolbarMode": toolbar, "inactivePaneMuteStrength": 0, "backgroundOpacity": 1,
+            }))
+            local = dict(env, AGTERM_STATE_DIR=str(root), AGTERM_CONTROL_SOCKET=str(root / "agterm.sock"))
+            ready = root / "ready"
+            specimen = root / "specimen.py"
+            specimen.write_text(
+                "import os,sys,pathlib,signal\n"
+                "size=os.get_terminal_size(); rows,cols=size.lines,size.columns\n"
+                "s='\\x1b]11;#00ffff\\x07\\x1b[2J\\x1b[H\\x1b[?25l'\n"
+                "for row,col,color in ((1,cols//2,'255;0;0'),(rows,cols//2,'0;255;0'),"
+                "(rows//2,1,'255;255;0'),(rows//2,cols,'255;0;255')):\n"
+                " s+=f'\\x1b[{row};{col}H\\x1b[48;2;{color}m \\x1b[0m'\n"
+                "os.write(1,s.encode()); pathlib.Path(sys.argv[1]).write_text(f'{cols}x{rows}')\n"
+                "while True: signal.pause()\n")
+            process, app = launch(local)
+            try:
+                window = wait_for(lambda: window_list(local), "no quick-card window")[0]["id"]
+                control_json(local, "window", "resize", window, "--width", str(width), "--height", str(height), "--json")
+                control_json(local, "quick", "show", "--json")
+                card = wait_for(lambda: named(app, "Quick terminal"), "quick card did not map")
+                command = shlex.join(["/usr/bin/python3", str(specimen), str(ready)])
+                type_x11_text(command, process.pid)
+                press_return(process.pid)
+                wait_for(lambda: ready.exists() and ready.read_text(), "quick PTY specimen did not run")
+                xid = subprocess.check_output(["xdotool", "getactivewindow"], text=True, timeout=10).strip()
+                owner = int(subprocess.check_output(["xdotool", "getwindowpid", xid], text=True, timeout=10))
+                assert owner == process.pid, f"capture belongs to PID {owner}, expected {process.pid}"
+
+                def capture(label):
+                    path = artifacts / f"{tag}-{label}.png"
+                    subprocess.run(["import", "-window", xid, str(path)], check=True, timeout=10)
+                    dimensions = tuple(map(int, subprocess.check_output(
+                        ["convert", str(path), "-format", "%w %h", "info:"], text=True, timeout=10).split()))
+                    raw = subprocess.check_output(
+                        ["convert", str(path), "-alpha", "off", "-depth", "8", "rgb:-"], timeout=10)
+                    assert len(raw) == dimensions[0] * dimensions[1] * 3
+                    return dimensions, raw
+
+                def stable_capture(label):
+                    previous = None
+                    matches = 0
+                    def stable():
+                        nonlocal previous, matches
+                        time.sleep(0.15)
+                        current = capture(label)
+                        matches = matches + 1 if current == previous else 0
+                        previous = current
+                        return current if matches >= 2 else None
+                    return wait_for(stable, f"{tag}: {label} pixels never settled")
+
+                dimensions, shown = stable_capture("shown")
+                screen = card.get_component_iface().get_extents(Atspi.CoordType.SCREEN)
+                geometry = dict(line.split("=", 1) for line in subprocess.check_output(
+                    ["xdotool", "getwindowgeometry", "--shell", xid], text=True, timeout=10).splitlines())
+                bounds = (screen.x - int(geometry["X"]), screen.y - int(geometry["Y"]), screen.width, screen.height)
+                control_json(local, "quick", "hide", "--json")
+                hidden_dimensions, hidden = stable_capture("hidden")
+                assert dimensions == hidden_dimensions, "hiding the card resized its window"
+                pixels = list(zip(shown[0::3], shown[1::3], shown[2::3]))
+                counts = Counter(pixels)
+                positions = {color: [(i % dimensions[0], i // dimensions[0]) for i, value in enumerate(pixels)
+                                     if value == color] for color in (cyan, *markers)}
+                assert positions[cyan], "quick terminal's cyan background was not rendered"
+                left = min(x for x, _ in positions[cyan])
+                right = max(x for x, _ in positions[cyan])
+                top = min(y for _, y in positions[cyan])
+                bottom = max(y for _, y in positions[cyan])
+                x, y, card_width, card_height = bounds
+                assert all(x <= px < x + card_width and y <= py < y + card_height
+                           for color in positions for px, py in positions[color]), (
+                    f"{tag}: terminal pixels escaped the actual card bounds {bounds}")
+                marker_sizes = []
+                for color in markers:
+                    points = positions[color]
+                    assert points, f"{tag}: terminal edge marker {color} was clipped away"
+                    marker_width = max(px for px, _ in points) - min(px for px, _ in points) + 1
+                    marker_height = max(py for _, py in points) - min(py for _, py in points) + 1
+                    assert len(points) == marker_width * marker_height, f"{tag}: edge marker {color} is partially clipped"
+                    marker_sizes.append((marker_width, marker_height))
+                assert len(set(marker_sizes)) == 1, f"{tag}: edge cells are clipped differently: {marker_sizes}"
+
+                def pixel(raw, px, py):
+                    offset = (py * dimensions[0] + px) * 3
+                    return tuple(raw[offset:offset + 3])
+
+                corners = ((left + 1, top + 1), (right - 1, top + 1),
+                           (left + 1, bottom - 1), (right - 1, bottom - 1))
+                assert all(pixel(shown, *point) != cyan for point in corners), (
+                    f"{tag}: rounded content clipping absent at {corners}")
+                shadow_points = ((left - 3, (top + bottom) // 2), (right + 3, (top + bottom) // 2),
+                                 ((left + right) // 2, bottom + 3))
+                for point in shadow_points:
+                    assert sum(pixel(shown, *point)) < sum(pixel(hidden, *point)) - 15, (
+                        f"{tag}: outside-card shadow absent at {point}")
+                # The unchanged backdrop identifies its own interior edge; no theme RGB or CSD inset is assumed.
+                mid_y = (top + bottom) // 2
+                backdrop = pixel(hidden, left - 3, mid_y)
+                backdrop_x = [px for px in range(dimensions[0]) if pixel(hidden, px, mid_y) == backdrop]
+                edge_points = ((min(backdrop_x) + 1, mid_y), (max(backdrop_x) - 1, mid_y))
+                for point in edge_points:
+                    if width == 1:
+                        assert sum(pixel(shown, *point)) < sum(pixel(hidden, *point)) - 10, (
+                            f"{tag}: minimum-window shadow did not reach the clipping edge at {point}")
+                    else:
+                        assert pixel(shown, *point) == pixel(hidden, *point), (
+                            f"{tag}: large-window shadow did not clear the window edge at {point}")
+                record = {"case": tag, "client": dimensions, "card": bounds, "tty": ready.read_text(),
+                          "cyan_bounds": [left, top, right, bottom], "marker_sizes": marker_sizes,
+                          "shadow": [(point, pixel(shown, *point), pixel(hidden, *point)) for point in shadow_points],
+                          "window_edges": [(point, pixel(shown, *point), pixel(hidden, *point)) for point in edge_points]}
+                (artifacts / f"{tag}.json").write_text(json.dumps(record, indent=2))
+                print("OK: rendered quick card " + json.dumps(record), flush=True)
+            finally:
+                stop(process)
+    print("OK: quick terminal edge cells remain whole inside rounded cards; only the outward shadow reaches "
+          "minimum-window clipping edges, while large-window shadows clear them")
