@@ -59,12 +59,15 @@ def verify_sidebar_multiselect_autofollow(env):
             assert (active_name(), selected()) == ("af-two", ("af-one", "af-two")), (
                 f"a status on another row collapsed the block before any press: {active_name()!r}, {selected()}")
 
+        idle_trace = []
+
         def hold(then=None):
             def probe():
                 start, timeline = time.monotonic(), []
-                for mark in (0.6, 3.0, 5.6, HOLD_SECONDS):
+                for mark in (0.05, 0.3, 0.6, 3.0, 5.6, HOLD_SECONDS):
                     time.sleep(max(0, start + mark - time.monotonic()))
                     timeline.append((mark, active_name(), selected()))
+                    idle_trace.append((mark, idle()))
                 if then:
                     then()
                 return timeline
@@ -73,12 +76,16 @@ def verify_sidebar_multiselect_autofollow(env):
         def intact(timeline):
             return all(sample[1:] == ("af-two", ("af-one", "af-two")) for sample in timeline)
 
-        def short_press(name, marks=(0.05, 0.6, 1.5)):
+        def idle():
+            tree = window_tree(env, window_id)
+            return tree.get("idleMs"), tree.get("autoFollowMs")
+
+        def short_press(name, marks=(0.05, 0.3, 0.6, 1.5)):
             def probe():
                 start, timeline = time.monotonic(), []
                 for mark in marks:
                     time.sleep(max(0, start + mark - time.monotonic()))
-                    timeline.append((mark, active_name(), selected()))
+                    timeline.append((mark, active_name(), selected(), idle()))
                 return timeline
             before = (active_name(), selected())
             during = mouse_press_probe_release(lambda: sidebar_session_row_label(app, name), process.pid, probe,
@@ -87,12 +94,16 @@ def verify_sidebar_multiselect_autofollow(env):
             return before, during, (active_name(), selected())
 
         build_block()
-        before = (active_name(), selected())
+        before = (active_name(), selected(), idle())
         timeline = mouse_press_probe_release(
             lambda: sidebar_session_row_label(app, "af-two"), process.pid, hold(), dy=row_dy)
         if not intact(timeline):
             # DIAGNOSTIC (temporary): discriminate which press collapses the block on press.
-            print(f"DIAG held af-two: before {before}, timeline {timeline}, after {(active_name(), selected())}")
+            print(f"DIAG held af-two: before {before}, timeline {timeline}, idle {idle_trace}, after {(active_name(), selected(), idle())}")
+            control_json(env, "session", "status", "idle", "--target", blocked_id, "--json")
+            time.sleep(0.5)
+            build_block()   # a FRESH idle->blocked transition, as in the first leg
+            print(f"DIAG press af-two after a fresh blocked transition: {short_press('af-two')}")
             build_block()
             print(f"DIAG press af-one (non-active member): {short_press('af-one')}")
             build_block()
