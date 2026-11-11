@@ -4986,6 +4986,17 @@ def verify_sidebar_incremental(env):
             run_palette_action(app, process.pid, None, "Rename Session")
             return edit_draft(row, draft)
 
+        def begin_workspace_draft(target, name, draft):
+            header = wait_for(lambda: named(app, name, role="label"), "workspace header missing").get_parent()
+            for dy in ABSOLUTE_DYS:
+                mouse_click(lambda: named(app, name, role="label"), process.pid,
+                            button="left", count=2, dy=dy)
+                if poll(lambda: editable_descendant(header) is not None, timeout=2):
+                    break
+                response = control_json(env, "workspace", "expand", "--target", target, "--json")
+                assert response["ok"], response
+            return header, edit_draft(header, draft)
+
         # A session row move reparents the row, so detachGuard must commit while its entry is valid.
         moved_entry = begin_session_draft(ident["two"], "move-committed")
         response = control_json(env, "session", "move", "--to", "top", "--target", ident["two"], "--json")
@@ -5013,11 +5024,8 @@ def verify_sidebar_incremental(env):
         created = control_json(env, "workspace", "new", "rename-victim", "--json")
         assert created["ok"], created
         victim = created["result"]["id"]
-        moving_header = wait_for(lambda: named(app, "inc-workspace", role="label"),
-                                 "workspace header did not reappear").get_parent()
-        control_json(env, "workspace", "select", "--target", workspace_id, "--json")
-        run_palette_action(app, process.pid, None, "Rename Workspace")
-        workspace_draft = edit_draft(moving_header, "reorder-workspace-draft")
+        moving_header, workspace_draft = begin_workspace_draft(
+            workspace_id, "inc-workspace", "reorder-workspace-draft")
         control_json(env, "workspace", "move", "--to", "bottom", "--target", workspace_id, "--json")
         wait_for(lambda: window_tree(env, window_id)["workspaces"][-1]["id"] == workspace_id,
                  "workspace reorder did not occur")
@@ -5025,11 +5033,7 @@ def verify_sidebar_incremental(env):
         press_escape(process.pid)
         wait_for(lambda: not sidebar_accessible_live(workspace_draft), "Escape left the reordered editor alive")
 
-        victim_header = wait_for(lambda: named(app, "rename-victim", role="label"),
-                                 "victim workspace header missing").get_parent()
-        control_json(env, "workspace", "select", "--target", victim, "--json")
-        run_palette_action(app, process.pid, None, "Rename Workspace")
-        victim_entry = edit_draft(victim_header, "removed-workspace-draft")
+        _, victim_entry = begin_workspace_draft(victim, "rename-victim", "removed-workspace-draft")
         response = control_json(env, "workspace", "delete", "--target", victim, "--json")
         assert response["ok"], response
         wait_for(lambda: not sidebar_accessible_live(victim_entry), "deleted workspace retained its editor")
