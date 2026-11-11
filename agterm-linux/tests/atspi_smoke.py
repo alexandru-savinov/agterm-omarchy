@@ -2958,6 +2958,7 @@ def emulate_packaged_launcher(env, root):
     env["AGTERM_ORIG_LD_LIBRARY_PATH"] = LAUNCHER_CALLER_LIBRARY_PATH
     env["AGTERM_COMMIT"] = "atspi-launcher-fixture"
     env["AGTERM_ORIG_UNSET"] = "AGTERM_COMMIT LIBGL_ALWAYS_SOFTWARE"
+    env["AGTERM_ORIG_SET"] = "1"
     return bundle_lib
 
 

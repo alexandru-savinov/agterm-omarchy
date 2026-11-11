@@ -51,6 +51,7 @@ struct LauncherChildEnvironmentTests {
         "AGTERM_ZMX_PATH": "/opt/agterm/bin/zmx",
         "AGTERM_VERSION": "1.2.3",
         "AGTERM_ORIG_UNSET": "LIBGL_ALWAYS_SOFTWARE AGTERM_ZMX_PATH AGTERM_VERSION",
+        "AGTERM_ORIG_SET": "1",
         "AGTERM_SOCKET": "/run/user/1/agterm.sock",
         "PATH": "/usr/bin",
     ]
@@ -79,8 +80,22 @@ struct LauncherChildEnvironmentTests {
     func restoresAnEmptyValue() {
         let child = LauncherChildEnvironment.sanitized([
             "LD_LIBRARY_PATH": "/opt/agterm/lib", "AGTERM_ORIG_LD_LIBRARY_PATH": "", "AGTERM_ORIG_UNSET": "",
+            "AGTERM_ORIG_SET": "1",
         ])
         #expect(child == ["LD_LIBRARY_PATH": ""])
+    }
+
+    /// An agterm started from a pane WITHOUT the launcher (`scripts/run-linux.sh`) inherits the pane's
+    /// blanked record, marker included. Reading it would hand every child `LD_LIBRARY_PATH=""`.
+    @Test("a record whose marker is empty or missing restores nothing and is kept from children")
+    func staleRecordFromAPaneIsIgnored() {
+        let pane = [
+            "LD_LIBRARY_PATH": "/home/u/lib", "LIBGL_ALWAYS_SOFTWARE": "", "AGTERM_ORIG_LD_LIBRARY_PATH": "",
+            "AGTERM_ORIG_LIBGL_ALWAYS_SOFTWARE": "", "AGTERM_ORIG_UNSET": "LD_LIBRARY_PATH",
+        ]
+        let expected = ["LD_LIBRARY_PATH": "/home/u/lib", "LIBGL_ALWAYS_SOFTWARE": ""]
+        #expect(LauncherChildEnvironment.sanitized(pane.merging(["AGTERM_ORIG_SET": ""]) { $1 }) == expected)
+        #expect(LauncherChildEnvironment.sanitized(pane) == expected)
     }
 
     @Test("without bookkeeping nothing is restored")
@@ -94,7 +109,7 @@ struct LauncherChildEnvironmentTests {
     func recordedValueWinsOverUnsetMarker() {
         let child = LauncherChildEnvironment.sanitized([
             "LD_LIBRARY_PATH": "/opt/agterm/lib", "AGTERM_ORIG_LD_LIBRARY_PATH": "/home/u/lib",
-            "AGTERM_ORIG_UNSET": "LD_LIBRARY_PATH",
+            "AGTERM_ORIG_UNSET": "LD_LIBRARY_PATH", "AGTERM_ORIG_SET": "1",
         ])
         #expect(child == ["LD_LIBRARY_PATH": "/home/u/lib"])
     }
@@ -104,13 +119,13 @@ struct LauncherChildEnvironmentTests {
         let child = LauncherChildEnvironment.sanitized([
             "APPDIR": "/tmp/.mount_agterm",
             "LD_LIBRARY_PATH": "/tmp/.mount_agterm/opt/agterm/lib:/tmp/.mount_agterm/usr/lib:/home/u/lib",
-            "AGTERM_ORIG_LD_LIBRARY_PATH": "/tmp/.mount_agterm/usr/lib:/home/u/lib",
+            "AGTERM_ORIG_LD_LIBRARY_PATH": "/tmp/.mount_agterm/usr/lib:/home/u/lib", "AGTERM_ORIG_SET": "1",
         ])
         #expect(child == ["APPDIR": "/tmp/.mount_agterm", "LD_LIBRARY_PATH": "/home/u/lib"])
 
         let unset = LauncherChildEnvironment.sanitized([
             "APPDIR": "/tmp/.mount_agterm", "LD_LIBRARY_PATH": "/tmp/.mount_agterm/opt/agterm/lib",
-            "AGTERM_ORIG_UNSET": "LD_LIBRARY_PATH",
+            "AGTERM_ORIG_UNSET": "LD_LIBRARY_PATH", "AGTERM_ORIG_SET": "1",
         ])
         #expect(unset == ["APPDIR": "/tmp/.mount_agterm"])
     }
@@ -130,7 +145,7 @@ struct LauncherChildEnvironmentTests {
         #expect(surface == [
             "LD_LIBRARY_PATH": "/home/u/lib", "LIBGL_ALWAYS_SOFTWARE": "", "AGTERM_ZMX_PATH": "",
             "AGTERM_VERSION": "pane", "AGTERM_ORIG_LD_LIBRARY_PATH": "", "AGTERM_ORIG_UNSET": "",
-            "GDK_DISABLE": "", "AGTERM_PANE_ID": "p",
+            "AGTERM_ORIG_SET": "", "GDK_DISABLE": "", "AGTERM_PANE_ID": "p",
         ])
     }
 }

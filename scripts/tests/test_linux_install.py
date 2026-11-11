@@ -437,6 +437,7 @@ print(json.dumps({"renderer": os.environ.get("LIBGL_ALWAYS_SOFTWARE"), "args": s
             with self.subTest(name=name):
                 self.assertEqual(seen.get('AGTERM_ORIG_' + name), value)
         self.assertEqual(seen['AGTERM_ORIG_UNSET'], '')
+        self.assertEqual(seen['AGTERM_ORIG_SET'], '1')
 
     def test_launcher_lists_variables_the_caller_never_had(self):
         self.staged_software_launcher()
@@ -444,7 +445,9 @@ print(json.dumps({"renderer": os.environ.get("LIBGL_ALWAYS_SOFTWARE"), "args": s
         self.assertEqual(seen['AGTERM_ORIG_UNSET'].split(' '), [
             'LD_LIBRARY_PATH', 'AGTERM_GHOSTTY_RESOURCES', 'AGTERM_VERSION', 'AGTERM_COMMIT',
             'AGTERM_ZMX_PATH', 'LIBGL_ALWAYS_SOFTWARE'])
-        self.assertEqual([key for key in seen if key.startswith('AGTERM_ORIG_')], ['AGTERM_ORIG_UNSET'])
+        self.assertEqual(sorted(key for key in seen if key.startswith('AGTERM_ORIG_')),
+                         ['AGTERM_ORIG_SET', 'AGTERM_ORIG_UNSET'])
+        self.assertEqual(seen['AGTERM_ORIG_SET'], '1')
         self.assertEqual(seen['LD_LIBRARY_PATH'], f'{self.destination}/lib')
 
     def test_launcher_records_an_empty_caller_value_as_set(self):
@@ -456,8 +459,10 @@ print(json.dumps({"renderer": os.environ.get("LIBGL_ALWAYS_SOFTWARE"), "args": s
 
     def test_launcher_clears_bookkeeping_inherited_from_an_outer_agterm(self):
         self.staged_software_launcher()
+        # A pane of an outer agterm hands on its record blanked, marker included (AGTERM_ORIG_SET="").
         seen = self.launch_environment_probe(AGTERM_ORIG_STALE='outer', AGTERM_ORIG_UNSET='STALE_NAME',
-                                             AGTERM_ORIG_LD_LIBRARY_PATH='/outer/lib')
+                                             AGTERM_ORIG_LD_LIBRARY_PATH='/outer/lib', AGTERM_ORIG_SET='')
+        self.assertEqual(seen['AGTERM_ORIG_SET'], '1')
         self.assertNotIn('AGTERM_ORIG_STALE', seen)
         self.assertNotIn('STALE_NAME', seen['AGTERM_ORIG_UNSET'].split(' '))
         self.assertNotIn('AGTERM_ORIG_LD_LIBRARY_PATH', seen)

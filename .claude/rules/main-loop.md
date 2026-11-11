@@ -57,7 +57,9 @@ paths:
   built by `LauncherChildEnvironment.restore(from:)`): `bin/agterm-linux` records each variable it
   overrides as `AGTERM_ORIG_<NAME>`, or lists it in `AGTERM_ORIG_UNSET`, and children get the caller's
   value back with the bookkeeping removed. A `Process` child and the desktop handler get a real unset; a
-  libghostty surface can only set keys, so there an absent variable arrives as `""`. agterm's own
+  libghostty surface can only set keys, so there an absent variable arrives as `""` — which is why the
+  record is read only when the launcher's `AGTERM_ORIG_SET` marker is non-empty: an agterm started from a
+  pane without the launcher inherits the blanked record and must ignore it. agterm's own
   environ keeps the bundle `LD_LIBRARY_PATH`, `LIBGL_ALWAYS_SOFTWARE` and `AGTERM_*` locations.
 - **Deferred main-actor work goes through `agtermCore`'s `MainTimer` seam — never a dispatch or
   `Task.sleep` timer.**

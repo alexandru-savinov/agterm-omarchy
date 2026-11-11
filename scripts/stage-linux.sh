@@ -92,12 +92,15 @@ fi
 
 cat > "$DEST/bin/agterm-linux" <<'LAUNCH'
 #!/usr/bin/env bash
-HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+HERE="$(CDPATH='' cd -- "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 # Every variable set here is agterm's own. Before overriding one, record the caller's value as
 # AGTERM_ORIG_<NAME>, or list the name in AGTERM_ORIG_UNSET when the caller had none; the app hands those
 # back to every pane, hook, command and zmx daemon (LauncherChildEnvironment). Bookkeeping inherited from
-# an outer agterm is cleared first so it can never describe this launch.
+# an outer agterm is cleared first so it can never describe this launch, and AGTERM_ORIG_SET=1 says this
+# record was written by a launcher: a pane receives it as "", so an agterm started there WITHOUT the
+# launcher ignores the stale record instead of restoring its blanks.
 for name in "${!AGTERM_ORIG_@}"; do unset "$name"; done
+export AGTERM_ORIG_SET=1
 AGTERM_ORIG_UNSET=""
 agterm_set() {
   if [[ -v $1 ]]; then export "AGTERM_ORIG_$1=${!1}"; else AGTERM_ORIG_UNSET+="${AGTERM_ORIG_UNSET:+ }$1"; fi

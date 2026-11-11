@@ -19,12 +19,18 @@ import Glibc
 enum LauncherChildEnvironment {
     static let originalPrefix = "AGTERM_ORIG_"
     static let unsetListKey = "AGTERM_ORIG_UNSET"
+    /// Non-empty only when a launcher wrote the record for THIS process. A pane hands every bookkeeping key
+    /// on as `""` (`surfacePairs`), so an agterm started from a pane without the launcher (the dev loop)
+    /// sees an empty marker and must not read the leftover blanks as "the caller had these set to ''".
+    static let recordMarkerKey = "AGTERM_ORIG_SET"
 
     /// Each variable a child must see restored: a value to set it, a stored `nil` to remove it. An
-    /// environment without launcher bookkeeping or `APPDIR` yields an empty map.
+    /// environment without launcher bookkeeping or `APPDIR` yields an empty map; a record without the
+    /// marker restores nothing and only keeps its bookkeeping keys away from children.
     static func restore(from environment: [String: String]) -> [String: String?] {
         var restore: [String: String?] = [:]
-        let unset = (environment[unsetListKey] ?? "").split(separator: " ").map(String.init)
+        let recorded = environment[recordMarkerKey]?.isEmpty == false
+        let unset = recorded ? (environment[unsetListKey] ?? "").split(separator: " ").map(String.init) : []
         for name in unset where !name.isEmpty {
             restore.updateValue(nil, forKey: name)
         }
@@ -32,7 +38,9 @@ enum LauncherChildEnvironment {
             restore.updateValue(nil, forKey: key)
             let name = String(key.dropFirst(originalPrefix.count))
             // A recorded value wins over a name also (inconsistently) listed as unset.
-            if key != unsetListKey, !name.isEmpty { restore.updateValue(value, forKey: name) }
+            if recorded, key != unsetListKey, key != recordMarkerKey, !name.isEmpty {
+                restore.updateValue(value, forKey: name)
+            }
         }
         // AppImage: whatever library path a child would get, minus the mounted image's own directories.
         if let appDirectory = environment["APPDIR"] {
