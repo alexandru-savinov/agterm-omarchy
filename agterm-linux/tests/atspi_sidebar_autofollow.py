@@ -93,11 +93,26 @@ def verify_sidebar_multiselect_autofollow(env):
             time.sleep(0.5)
             return before, during, (active_name(), selected())
 
+        target_resolution = []
+
+        def hold_target():
+            # Resolve AT-SPI before the final control-only sample: a full tree walk can itself
+            # outlast the idle interval, so a collapsed first hold sample need not be a press bug.
+            started = time.monotonic()
+            target = sidebar_session_row_label(app, "af-two")
+            snapshot = window_tree(env, window_id)
+            active = next((item["name"] for workspace in snapshot["workspaces"]
+                           for item in workspace["sessions"] if item.get("active")), None)
+            target_resolution.append({"elapsed": time.monotonic() - started, "active": active,
+                                      "idleMs": snapshot.get("idleMs")})
+            return target
+
         build_block()
         before = (active_name(), selected(), idle())
         timeline = mouse_press_probe_release(
-            lambda: sidebar_session_row_label(app, "af-two"), process.pid, hold(), dy=row_dy)
+            hold_target, process.pid, hold(), dy=row_dy)
         if not intact(timeline):
+            print(f"DIAG before mousedown, after target resolution: {target_resolution}")
             # DIAGNOSTIC (temporary): discriminate which press collapses the block on press.
             print(f"DIAG held af-two: before {before}, timeline {timeline}, idle {idle_trace}, after {(active_name(), selected(), idle())}")
             control_json(env, "session", "status", "idle", "--target", blocked_id, "--json")
