@@ -246,17 +246,24 @@ def verify_window_close_cancel(env, state):
                             process, app = launch(mode_env)
                         for ident in ids:
                             reply = raw_control_json(mode_env, {"cmd": "zmx.kill", "target": ident,
-                                                     "args": {"window": window, "pane": "left"}})
+                                                     "args": {"window": window, "pane": "left", "force": True}})
                             if not reply.get("ok"):
                                 assert ("no left pane daemon" in reply.get("error", "") or
                                         "no such window" in reply.get("error", "")), reply
                 finally:
-                    if job_fd is not None:
-                        if not select.select([job_fd], [], [], 0)[0]:
-                            signal.pidfd_send_signal(job_fd, signal.SIGTERM)
-                        os.close(job_fd)
-                    if process.poll() is None:
-                        stop(process)
+                    try:
+                        if job_fd is not None:
+                            try:
+                                if not select.select([job_fd], [], [], 0)[0]:
+                                    try:
+                                        signal.pidfd_send_signal(job_fd, signal.SIGTERM)
+                                    except ProcessLookupError:
+                                        pass  # The exact process exited between poll and signal.
+                            finally:
+                                os.close(job_fd)
+                    finally:
+                        if process.poll() is None:
+                            stop(process)
 
 
 def verify_workspace_focus_filters(env):
