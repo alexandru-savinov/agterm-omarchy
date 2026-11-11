@@ -25,7 +25,11 @@ struct ClipboardPromptGTKTests {
         _ = g_object_ref_sink(RAW(dialog))
         let weakDialog = UnsafeMutablePointer<gpointer?>.allocate(capacity: 1)
         weakDialog.initialize(to: RAW(dialog))
-        defer { weakDialog.deinitialize(count: 1); weakDialog.deallocate() }
+        defer {
+            if weakDialog.pointee != nil { g_object_remove_weak_pointer(GOBJ(dialog), weakDialog) }
+            weakDialog.deinitialize(count: 1)
+            weakDialog.deallocate()
+        }
         g_object_add_weak_pointer(GOBJ(dialog), weakDialog)
 
         let responses = ResponseLog()

@@ -79,7 +79,7 @@ final class ClipboardPromptController {
         adw_dialog_present(cast(dialog), W(window(for: requester)))
     }
 
-    static func connectResponse(_ dialog: OpaquePointer, context: ResponseContext) {
+    static func connectResponse(_ dialog: OpaquePointer?, context: ResponseContext) {
         let ctx = Unmanaged.passRetained(context).toOpaque()
         "response".withCString {
             _ = g_signal_connect_data(RAW(dialog), $0,
