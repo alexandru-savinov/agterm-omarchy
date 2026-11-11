@@ -105,12 +105,16 @@ def verify_window_close_cancel(env, state):
                     os.path.join(ROOT, "tests/login_shell_zsh_fixture.c"), "-ldl"], check=True)
 
     for mode in ("none", "rerun", "live"):
-        for exit_kind in ("accept", "SIGTERM", "SIGINT"):
+        for exit_kind in ("accept", "SIGTERM", "SIGINT", "pending-accept", "pending-SIGTERM"):
+            pending = exit_kind.startswith("pending-")
+            if pending and mode != "live":
+                continue
+            exit_action = exit_kind.removeprefix("pending-")
             mode_state = os.path.join(state, f"close-{mode}-{exit_kind}")
             windows = os.path.join(mode_state, "windows")
             os.makedirs(windows)
             with open(os.path.join(mode_state, "settings.json"), "w", encoding="utf-8") as file:
-                json.dump({"restoreMode": mode, "closeGraceUndoEnabled": False}, file)
+                json.dump({"restoreMode": mode, "closeGraceUndoEnabled": pending}, file)
             mode_env = dict(env, AGTERM_STATE_DIR=mode_state,
                             AGTERM_CONTROL_SOCKET=os.path.join(mode_state, "agterm.sock"))
             if mode == "live":
@@ -207,14 +211,61 @@ def verify_window_close_cancel(env, state):
                 with open(f"/proc/{original_pid}/stat", encoding="utf-8") as file:
                     birth = file.read().rsplit(")", 1)[1].split()[19]
                 time.sleep(1.5)
-                if exit_kind == "accept":
+                if pending:
+                    def held_row():
+                        response = raw_control_json(mode_env, {"cmd": "zmx.list"})
+                        assert response["ok"], response
+                        matches = [row for row in response["result"]["zmx"]["entries"]
+                                   if row.get("sessionID", "").casefold() == ids[0].casefold()
+                                   and row.get("pane") == "left"]
+                        assert len(matches) == 1, matches
+                        return matches[0]
+
+                    def soft_close():
+                        assert any(row["id"] == ids[0] and row.get("active") for row in sessions())
+                        started = time.monotonic()
+                        run_palette_action(app, process.pid, None, "Close Session")
+                        wait_for(lambda: all(row["id"] != ids[0] for row in sessions()),
+                                 "GUI close did not remove the held session")
+                        held = held_row()
+                        assert held["state"] == "pendingClose" and held["observation"] == "running", held
+                        assert not select.select([job_fd], [], [], 0)[0], "soft close ended the held job"
+                        return started, held["daemon"]
+
+                    control_json(mode_env, "session", "select", "--target", ids[0], "--window", window, "--json")
+                    time.sleep(1.5)  # Finish selection's scheduled save before observing pending work.
+                    pending_snapshot = structure(mode_state)
+                    observer.drain()
+                    soft_close()
+                    control_json(mode_env, "window", "close", window, "--json")
+                    wait_for(prompt, "pending-work close did not ask to quit")
+                    activate(wait_for(lambda: named(app, "Cancel", role="button"), "pending quit had no Cancel"))
+                    wait_for(lambda: prompt() is None, "Cancel did not dismiss pending-work quit")
+                    assert held_row()["state"] == "pendingClose", "Cancel lost the held close record"
+                    assert structure(mode_state) == pending_snapshot, "Cancel published pending work"
+                    assert not observer.drain(), "Cancel finalized the pending close"
+                    run_palette_action(app, process.pid, None, "Reopen Closed Item")
+                    wait_for(lambda: any(row["id"] == ids[0] and row.get("active") for row in sessions()),
+                             "Undo did not restore and select the held session")
+                    assert not select.select([job_fd], [], [], 0)[0], "Undo replaced the held job"
+                    signal.pidfd_send_signal(job_fd, signal.SIGUSR1)
+                    wait_for(lambda: os.path.exists(pids + ".reply") and
+                             open(pids + ".reply", encoding="utf-8").read().strip() == str(original_pid),
+                             "the original held program did not respond after Cancel and Undo")
+                    observer.drain()
+                    pending_started, pending_daemon = soft_close()
+                if exit_action == "accept":
                     control_json(mode_env, "window", "close", window, "--json")
                     wait_for(prompt, "the second close did not ask to quit")
-                observer.drain()
-                if exit_kind == "accept":
+                if pending:
+                    held = held_row()
+                    assert held["state"] == "pendingClose" and held["observation"] == "running", held
+                else:
+                    observer.drain()
+                if exit_action == "accept":
                     activate(wait_for(lambda: named(app, "Quit", role="button"), "the quit prompt had no Quit"))
                 else:
-                    process.send_signal(getattr(signal, exit_kind))
+                    process.send_signal(getattr(signal, exit_action))
                 events = []
                 deadline = time.monotonic() + 20
                 while process.poll() is None and time.monotonic() < deadline:
@@ -223,7 +274,14 @@ def verify_window_close_cancel(env, state):
                 events.extend(observer.drain())
                 assert process.poll() == 0, f"{exit_kind} did not exit cleanly: {process.poll()}"
                 publications = [(name, cookie) for name, cookie in events if name == record]
-                assert len(publications) == 1, f"{mode}/{exit_kind}: expected one final publication, got {publications}"
+                expected_publications = 2 if pending else 1
+                assert len(publications) == expected_publications, (
+                    f"{mode}/{exit_kind}: expected {expected_publications} publication(s), got {publications}")
+                if pending:
+                    elapsed = time.monotonic() - pending_started
+                    assert elapsed < 3, f"shutdown took {elapsed:.3f}s; natural grace expiry is not excluded"
+                    assert select.select([job_fd], [], [], 0)[0], "quit did not end the pending job"
+                    print(f"measured: pending cleanup plus final flush published twice in {elapsed:.3f}s (<3s grace)")
                 assert len(set(publications)) == len(publications), "duplicate rename identity"
                 observer.close()
                 observer = None
@@ -233,8 +291,16 @@ def verify_window_close_cancel(env, state):
                 mode_status = raw_control_json(mode_env, {"cmd": "restore.mode"})
                 assert mode_status["ok"] and mode_status["result"]["restore"]["active"] == mode, mode_status
                 restored = [row["id"] for row in sessions()]
-                assert restored == ids, f"{mode}: restored {restored}, not {ids}"
+                expected_ids = ids[1:] if pending else ids
+                assert restored == expected_ids, f"{mode}: restored {restored}, not {expected_ids}"
                 answers("restored-shell", [ids[1]])
+                if pending:
+                    response = raw_control_json(mode_env, {"cmd": "zmx.list"})
+                    assert response["ok"], response
+                    assert all(row["observation"] == "absent" for row in response["result"]["zmx"]["entries"]
+                               if row["daemon"] == pending_daemon), "pending daemon survived quit"
+                    print(f"OK: {exit_kind}: Cancel/Undo retained the original job; quit finalized held work once")
+                    continue  # The common finally still verifies identity-scoped cleanup.
                 # Restored hidden sessions are intentionally lazy; selecting is the real user action
                 # that creates their Fresh shell / Re-run prefill / Live attachment.
                 control_json(mode_env, "session", "select", "--target", ids[0], "--window", window, "--json")
