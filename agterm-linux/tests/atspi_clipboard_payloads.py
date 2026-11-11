@@ -75,6 +75,7 @@ def verify_clipboard_payloads(env, state):
         collector.write_text(COLLECTOR)
         local = dict(env, AGTERM_STATE_DIR=str(root), AGTERM_CONTROL_SOCKET=str(root / "agterm.sock"))
         process, app = launch(local)
+        drag_sources = []
 
         def pump():
             context = GLib.MainContext.default()
@@ -111,7 +112,9 @@ def verify_clipboard_payloads(env, state):
             if not drop:
                 press_x11_key("ctrl+shift+v", process.pid)
                 return
-            source = Gtk.Window(title="agterm clipboard drag fixture")
+            title = f"agterm clipboard drag fixture {len(drag_sources)}"
+            source = Gtk.Window(title=title)
+            drag_sources.append(source)
             source.set_default_size(200, 100)
             label = Gtk.Label(label="Drag fixture text")
             source.set_child(label)
@@ -127,7 +130,7 @@ def verify_clipboard_payloads(env, state):
             try:
                 def source_window():
                     found = subprocess.run(["xdotool", "search", "--onlyvisible", "--name",
-                                            "^agterm clipboard drag fixture$"], text=True, capture_output=True)
+                                            "^" + title + "$"], text=True, capture_output=True)
                     return found.stdout.splitlines()[0] if found.returncode == 0 else None
                 source_id = until(source_window, "drag source did not map")
                 subprocess.run(["xdotool", "windowmove", "--sync", source_id, "20", "20"], check=True, timeout=10)
@@ -149,7 +152,6 @@ def verify_clipboard_payloads(env, state):
                 if driver is not None and driver.poll() is None:
                     driver.terminate()
                     driver.wait(timeout=5)
-                source.close()
                 pump()
 
         def remains_empty(output, reason):
@@ -208,4 +210,7 @@ def verify_clipboard_payloads(env, state):
                 print(f"OK: {label}/{kind} actual paste bytes; confirmation={must_ask}", flush=True)
         finally:
             stop(process)
+            for source in drag_sources:
+                source.close()
+            pump()
     print("OK: exact OSC52 text and URI-looking bytes; protected paste cancellation/allow, bracketed and configured policy")
