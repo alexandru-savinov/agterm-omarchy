@@ -189,6 +189,40 @@ def quick_expected(overlay, header):
 
 
 def verify_quick_card_geometry(env, state):
+    import ctypes
+    import subprocess
+
+    class SizeHints(ctypes.Structure):
+        _fields_ = [("flags", ctypes.c_long)] + [(name, ctypes.c_int) for name in (
+            "x", "y", "width", "height", "min_width", "min_height", "max_width", "max_height",
+            "width_inc", "height_inc", "min_aspect_x", "min_aspect_y", "max_aspect_x", "max_aspect_y",
+            "base_width", "base_height", "win_gravity")]
+
+    def minimum_allocation():
+        xid = int(subprocess.check_output(["xdotool", "getactivewindow"], text=True).strip())
+        x11 = ctypes.CDLL("libX11.so.6")
+        x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        x11.XOpenDisplay.restype = ctypes.c_void_p
+        x11.XGetWMNormalHints.argtypes = [ctypes.c_void_p, ctypes.c_ulong,
+                                        ctypes.POINTER(SizeHints), ctypes.POINTER(ctypes.c_long)]
+        x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+        display = x11.XOpenDisplay(None)
+        assert display, "could not open the fixture X11 display"
+        hints, supplied = SizeHints(), ctypes.c_long()
+        try:
+            assert x11.XGetWMNormalHints(display, xid, ctypes.byref(hints), ctypes.byref(supplied)), (
+                "the active window has no WM_NORMAL_HINTS")
+        finally:
+            x11.XCloseDisplay(display)
+        assert hints.flags & (1 << 4) and hints.min_width > 0 and hints.min_height > 0, (
+            "the active window did not publish a positive minimum size")
+        geometry = dict(line.split("=", 1) for line in subprocess.check_output(
+            ["xdotool", "getwindowgeometry", "--shell", str(xid)], text=True).splitlines())
+        actual = int(geometry["WIDTH"]), int(geometry["HEIGHT"])
+        minimum = hints.min_width, hints.min_height
+        assert actual == minimum, f"client allocation {actual} did not reach advertised minimum {minimum}"
+        return actual
+
     settings = os.path.join(state, "settings.json")
     rows = []
     for toolbar in ("normal", "hidden"):
@@ -200,7 +234,8 @@ def verify_quick_card_geometry(env, state):
             control_json(env, "quick", "show", "--json")
             wait_for(lambda: window_tree(env, window).get("quickVisible"), "the quick terminal did not open")
             previous = None
-            for width, height in ((480, 360), (1400, 860)):
+            minimum = None
+            for width, height in ((1, 1), (2, 2), (480, 360), (1400, 860)):
                 control_json(env, "window", "resize", window, "--width", str(width), "--height", str(height), "--json")
 
                 def measure():
@@ -229,10 +264,18 @@ def verify_quick_card_geometry(env, state):
                         return None
                     key = [(box.x, box.y, box.width, box.height) for box in (first[0], first[2])]
                     again = [(box.x, box.y, box.width, box.height) for box in (second[0], second[2])]
-                    return second if key == again and second[0].width != previous else None
+                    return second if key == again and (width == 2 or second[0].width != previous) else None
 
                 overlay, header, card = wait_for(settled, f"the quick card never settled at {width}x{height}", timeout=15)
                 previous = overlay.width
+                if width <= 2:
+                    actual = minimum_allocation()
+                    allocation = actual, overlay.width, overlay.height, card.width, card.height
+                    if minimum is not None:
+                        assert allocation == minimum, f"below-minimum requests did not clamp identically: {minimum} != {allocation}"
+                    minimum = allocation
+                    print(f"{toolbar}: requested {width}x{height}, reached X11 minimum {actual}, "
+                          f"GTK overlay {overlay.width}x{overlay.height}", flush=True)
                 want = quick_expected(overlay, header)
                 got = (card.x - overlay.x, card.y - overlay.y, card.width, card.height)
                 rows.append((toolbar, f"{overlay.width}x{overlay.height}", header, want, got))
@@ -250,5 +293,5 @@ def verify_quick_card_geometry(env, state):
             raise
         finally:
             stop(process)
-    print("OK: quick card matches cardAllocation at small and large windows with normal and hidden toolbars: "
+    print("OK: quick card matches cardAllocation at minimum, small and large windows with normal and hidden toolbars: "
           + "; ".join(f"{t} {o} header={h} card={g}" for t, o, h, _w, g in rows))
