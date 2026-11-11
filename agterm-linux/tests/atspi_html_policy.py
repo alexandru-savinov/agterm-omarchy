@@ -181,7 +181,8 @@ def verify_html_policy(env, state):
             if kind is None:
                 markup = f"<script>setTimeout(()=>{{{body}}},300)</script>"
             elif kind == "click":
-                markup = body.replace("<a ", '<a style="display:block;font-size:64px" ')
+                markup = body.replace("<a ", '<a style="display:block;font-size:64px" '
+                                      'onclick="document.title=\'clicked:\'+event.isTrusted" ')
             else:
                 markup = body
             name = write(f"case{index}.html", f"<!doctype html><title>Case {index}</title>{markup}")
@@ -212,6 +213,9 @@ def verify_html_policy(env, state):
                 activate(named(find_app(process.pid), "Cancel", role="button"))
                 wait_for(lambda: dialog() is None, "external-open prompt did not dismiss")
             state_now = page() or {}
+            if kind == "click":
+                print(f"HTML link delivery: {mode} {label}: title={state_now.get('title')!r}, "
+                      f"prompt={prompt is not None}")
             rows.append((mode, label, expected.split(":", 1)[0], observed, state_now.get("state"),
                          state_now.get("error") or ""))
             close_page()
