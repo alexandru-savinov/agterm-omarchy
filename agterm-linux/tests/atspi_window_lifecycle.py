@@ -110,6 +110,7 @@ def verify_window_close_cancel(env, state):
             observer = None
             job_fd = None
             ids = []
+            cleanup_targets = []
             try:
                 window = first_window(mode_env)
                 control_json(mode_env, "session", "new", "--name", "close-two", "--window", window, "--json")
@@ -120,6 +121,7 @@ def verify_window_close_cancel(env, state):
 
                 wait_for(lambda: len(sessions()) == 2, "the second session never appeared")
                 ids = [row["id"] for row in sessions()]
+                cleanup_targets.extend((window, ident) for ident in ids)
 
                 def answers(tag, targets=None):
                     markers = {ident: os.path.join(mode_state, f"{tag}-{index}")
@@ -159,6 +161,10 @@ def verify_window_close_cancel(env, state):
                 other = control_json(mode_env, "window", "new", "ordinary-close", "--json")["result"]["id"]
                 wait_for(lambda: any(item["id"] == other and item["open"] for item in window_list(mode_env)),
                          "ordinary-close window did not open")
+                other_ids = wait_for(lambda: [row["id"] for workspace in window_tree(mode_env, other)["workspaces"]
+                                               for row in workspace["sessions"]],
+                                     "ordinary-close window never created its session")
+                cleanup_targets.extend((other, ident) for ident in other_ids)
                 time.sleep(1.5)
                 observer.drain()
                 control_json(mode_env, "window", "close", other, "--json")
@@ -248,14 +254,14 @@ def verify_window_close_cancel(env, state):
                 if observer is not None:
                     observer.close()
                 try:
-                    if mode == "live" and ids:
+                    if mode == "live" and cleanup_targets:
                         # Cleanup through the existing identity-scoped host API, even after a failed
                         # post-exit assertion. Never sweep unrelated daemons or signal a bare PID.
                         if process.poll() is not None:
                             process, app = launch(mode_env)
-                        for ident in ids:
+                        for owner_window, ident in cleanup_targets:
                             reply = raw_control_json(mode_env, {"cmd": "zmx.kill", "target": ident,
-                                                     "args": {"window": window, "pane": "left", "force": True}})
+                                                     "args": {"window": owner_window, "pane": "left", "force": True}})
                             if not reply.get("ok"):
                                 assert ("no left pane daemon" in reply.get("error", "") or
                                         "no such window" in reply.get("error", "")), reply
