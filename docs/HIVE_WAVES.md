@@ -41,7 +41,13 @@ At fan-out 10: 100 agents = 2 levels, 1,000 = 3, 10,000 = 4, and GitHub still se
 ## Queue changes (`scripts/github/queue.py`)
 
 - Parse optional `Team: <1–9999>`; show `lead (team of n)` and a total headcount.
-- Fetch comments with `since` = 14 days (claims older than 4 h are stale anyway); report "older observations not loaded" instead of failing at 10,000 comments.
+- Fetch comments with `since` = 14 days and report "older observations not loaded".
+  Only quiet `working` claims become stale after 4 h; omitted older claims are not evidence of availability.
+  The window does not remove the 100-page limit: a full 100th page fails explicitly, including exactly 10,000 comments.
+  No partial snapshot is published and existing local output is left unchanged.
+  The Agent queue workflow fails and skips artifact upload; it does not retrieve a last-success snapshot.
+  Pages tolerates that failure and builds the dated curated roster without a queue overlay (`status.json` has `queue: null`).
+  This is a curated fallback, not a current or cached successful queue snapshot.
 - Trigger: unchanged. At ~2 requests per snapshot (#86) and ≤ 250 lead posts/hour, the per-comment trigger stays well inside the job token's 1,000 requests/hour.
 
 ## Decisions (maintainer, 2026-10-30: «all recommended»)
@@ -52,5 +58,8 @@ At fan-out 10: 100 agents = 2 levels, 1,000 = 3, 10,000 = 4, and GitHub still se
 
 ## Closing checks
 
-- Queue tests: `Team:` parsed and summed; malformed `Team:` is uncertain; `since` window is applied; snapshot with 12,000 synthetic comments in the window succeeds or reports truncation, never fails silently.
+- Queue tests: `Team:` parsed and summed; malformed `Team:` is uncertain; `since` window is applied.
+- Pagination regression: `python3 -I -m unittest discover -s scripts/tests -p 'test_queue_pagination.py' -v`.
+  With in-window synthetic comments, 9,999 publishes every observation; 10,000 and 12,000 fail explicitly after 100 comment requests.
+  Failed fetches write no new snapshot or success summary and preserve existing local output byte-for-byte.
 - A dry wave: 3 leads × synthetic teams, posting per rule 4, keep the hub under 30 posts/hour in the queue's own counters.
