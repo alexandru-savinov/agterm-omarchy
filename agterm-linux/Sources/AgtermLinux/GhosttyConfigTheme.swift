@@ -37,6 +37,16 @@ enum GhosttyConfigTheme {
         }
     }
 
+    /// The finalized `font-size`: the size a surface with no zoom and no per-session pin renders at, after the
+    /// scoped/global Ghostty files and the UI setting (when set) have all been layered.
+    static func fontSize(from config: ghostty_config_t) -> Double? {
+        var size: Float = 0
+        let key = "font-size"
+        guard key.withCString({ ghostty_config_get(config, &size, $0, UInt(key.utf8.count)) }),
+              size.isFinite, size > 0 else { return nil }
+        return Double(size)
+    }
+
     private static func color(from config: ghostty_config_t, key: String) -> RGB? {
         var color = ghostty_config_color_s()
         let found = key.withCString {
