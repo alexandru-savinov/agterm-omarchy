@@ -11,6 +11,10 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERIFY_ARCH="$ROOT/scripts/verify-linux-architecture.sh"
 VERSION="${1#v}"
+if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*))*)?(\+linux\.[1-9][0-9]*)?$ ]]; then
+  echo "invalid package version: $1 (expected MAJOR.MINOR.PATCH[-PRERELEASE][+linux.N]; prerelease identifiers are dot-separated letters and digits without '-', numbers without leading zeros)" >&2
+  exit 2
+fi
 # nFPM's semver schema maps prerelease separators to '~' so prereleases sort before stable versions.
 PACKAGE_VERSION="${VERSION/-/\~}"
 OUT="${2:-dist-linux}"
@@ -31,6 +35,12 @@ done
 for command in dpkg-deb rpm rpm2cpio cpio desktop-file-validate file ldd; do
   command -v "$command" >/dev/null || { echo "$command is required to verify Linux packages" >&2; exit 1; }
 done
+
+# Check the checksum manifest before extracting any artifact or executing a binary it contains.
+(
+  cd "$OUT"
+  sha256sum --check "$(basename "$CHECKSUMS")"
+)
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -115,10 +125,5 @@ rpm --dbpath "$WORK/rpmdb" -qp --requires "$RPM" | grep -Fq 'webkitgtk6.0'
 verify_payload "$WORK/rpm/opt/agterm-linux"
 [[ "$(readlink "$WORK/rpm/usr/bin/agterm-linux")" == '/opt/agterm-linux/bin/agterm-linux' ]]
 [[ "$(readlink "$WORK/rpm/usr/bin/agtermctl")" == '/opt/agterm-linux/bin/agtermctl' ]]
-
-(
-  cd "$OUT"
-  sha256sum --check "$(basename "$CHECKSUMS")"
-)
 
 echo "→ verified tar, DEB, and RPM artifacts"
