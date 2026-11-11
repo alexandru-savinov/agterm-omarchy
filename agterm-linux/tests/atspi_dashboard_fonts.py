@@ -63,8 +63,11 @@ def verify_dashboard_font_restore(env):
         default = new_session("font-default")
         select(pinned)
         unpinned_grid = grid(pinned)
+        unpinned_size = sessions()["font-pinned"]["fontSize"]
         for _ in range(3):
             control_json(env, "font", "inc", "--target", pinned, "--window", window_id, "--json")
+        pinned_size = wait_for(lambda: (size := sessions()["font-pinned"]["fontSize"]) == unpinned_size + 3 and size,
+                               "the three font increments did not reach the live surface")
         pinned_grid = wait_for(lambda: (sample := grid(pinned)) != unpinned_grid and sample,
                                "font inc did not change the pinned session's grid")
         default_grid = grid(default)
@@ -92,12 +95,17 @@ def verify_dashboard_font_restore(env):
                 f"{path} does not list both test sessions: {sorted(found)}")
             return found
 
-        # Positive control: the pinned session's own size reaches the file (after the 0.3 s save debounce),
-        # so the reads below really read the file the app writes.
-        pinned_saved = wait_for(lambda: saved_font_sizes()[pinned.lower()],
+        # A truthy value can still be the pre-increment size while the 0.3 s save is pending.
+        pinned_saved = wait_for(lambda: (size := saved_font_sizes()[pinned.lower()]) == pinned_size and size,
                                 f"the pinned session's font size never reached {windows_dir}")
-        assert saved_font_sizes()[default.lower()] is None, (
-            f"the default session already holds a persisted size: {saved_font_sizes()}")
+        before_settle = saved_font_sizes()
+        time.sleep(1)
+        baseline = saved_font_sizes()
+        print(f"measured: before dashboard, snapshots before/after settle {before_settle} -> {baseline}; "
+              f"default live fontSize {sessions()['font-default'].get('fontSize')}", flush=True)
+        assert baseline[pinned.lower()] == pinned_saved, f"the pinned baseline changed before dashboard: {baseline}"
+        assert baseline[default.lower()] is None, (
+            f"the default session already holds a persisted size before dashboard: {baseline}")
         assert pinned_saved != DASHBOARD_FONT, f"the pinned size {pinned_saved} equals the dashboard size"
         print(f"measured: windows/<id>.json holds pinned fontSize {pinned_saved}, default None")
 
@@ -107,6 +115,8 @@ def verify_dashboard_font_restore(env):
             # Outlast the debounced save, so a late write of the dashboard size has landed before the read.
             time.sleep(1)
             sizes = saved_font_sizes()
+            print(f"measured: after {exit_name}, settled snapshot {sizes}; "
+                  f"default live fontSize {sessions()['font-default'].get('fontSize')}", flush=True)
             assert sizes[pinned.lower()] == pinned_saved and sizes[default.lower()] is None, (
                 f"exit by {exit_name} persisted {sizes}, not pinned {pinned_saved} and default None")
 
