@@ -149,7 +149,11 @@ jobs:
       - name: Install test shell
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends ripgrep zsh
+          apt-get install -y --no-install-recommends ripgrep zsh fish
+      - name: Install Node for OpenCode hook tests
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
       - name: Materialize and verify upstream boundary tag
         run: |
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
@@ -162,6 +166,13 @@ jobs:
         run: |
           useradd --create-home --user-group agterm-test
           chown -R agterm-test:agterm-test "$GITHUB_WORKSPACE"
+          runuser --user agterm-test -- env HOME=/home/agterm-test node -e '
+            const [major, minor] = process.versions.node.split(".").map(Number);
+            if (!(major > 22 || (major === 22 && minor >= 7) || (major === 20 && minor >= 19))) {
+              throw new Error("Core hook tests require Node 22.7+ or Node 20.19+");
+            }
+          '
+          runuser --user agterm-test -- env HOME=/home/agterm-test /usr/bin/fish --version
           runuser --user agterm-test -- env HOME=/home/agterm-test swift test --no-parallel
       - name: Enforce host-free core boundary
         run: scripts/check-linux-core-boundary.sh "$UPSTREAM_BASE_TAG"
