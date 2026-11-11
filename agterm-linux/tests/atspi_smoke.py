@@ -5525,6 +5525,28 @@ def verify_sidebar_width_floor(env):
             control_json(env, "window", "resize", window_id,
                          "--width", str(width), "--height", "700", "--json")
 
+        def hide_show_at_allocation(expected, label):
+            before = wait_for(lambda: sidebar_column_settled(
+                app, lambda width: abs(width - expected) <= SIDEBAR_EDGE_SLACK),
+                f"{label}: sidebar did not settle before hide")
+            frame_before = sidebar_window_frame_width(app)
+            control_json(env, "sidebar", "hide", "--json")
+            wait_for(lambda: not window_tree(env, window_id).get("sidebarVisible"),
+                     f"{label}: sidebar did not hide")
+            control_json(env, "sidebar", "show", "--json")
+            wait_for(lambda: window_tree(env, window_id).get("sidebarVisible"),
+                     f"{label}: sidebar did not show")
+            after = wait_for(lambda: sidebar_column_settled(
+                app, lambda width: abs(width - expected) <= SIDEBAR_EDGE_SLACK),
+                f"{label}: hide/show lost the prior {expected}px allocation")
+            frame_after = sidebar_window_frame_width(app)
+            assert frame_before is not None and frame_after is not None
+            assert abs(frame_after - frame_before) <= SIDEBAR_EDGE_SLACK, (
+                f"{label}: hide/show resized the window from {frame_before} to {frame_after}px")
+            print(f"measured: {label} hide/show requested={SIDEBAR_REQUESTED_WIDTH} "
+                  f"allocated={before}->{after} frame={frame_before}->{frame_after}; "
+                  "persisted width checked after quit")
+
         wide_window = wait_for(lambda: sidebar_window_frame_width(app),
                                "the window frame never reported an allocation")
         resize(360)
@@ -5553,12 +5575,14 @@ def verify_sidebar_width_floor(env):
                 "GtkPaned's `max-position`, so it re-asserts the over-wide position from inside GtkPaned's"
                 " own `size_allocate`, where GTK does not re-clamp it, and the sidebar overhangs the "
                 "window", timeout=8)
+            hide_show_at_allocation(capped, "narrow")
             resize(1100)
             wait_for(lambda: sidebar_column_settled(app, at_request),
                      f"the sidebar stayed at the narrow window's {capped}px cap after the window "
                      f"widened again instead of returning to its {SIDEBAR_REQUESTED_WIDTH}px request — "
                      "`notify::position` does not fire for a widening, so `notify::max-position` is the "
                      "only signal that can pull the divider back up")
+            hide_show_at_allocation(SIDEBAR_REQUESTED_WIDTH, "wide")
     except AssertionError:
         describe_tree(app)
         raise
