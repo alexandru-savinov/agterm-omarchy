@@ -13,6 +13,120 @@ import agtermCore
 // one test's output lands in the other's pipe.
 @Suite(.serialized)
 struct SocketClientTests {
+    @Test func silentResponseHasABoundedDeadline() throws {
+        let release = DispatchSemaphore(value: 0)
+        let server = StubServer(line: Data(), serve: { socket in
+            consumeFixtureRequest(socket)
+            _ = release.wait(timeout: .now() + 1)
+        })
+        try server.start()
+        defer { release.signal(); server.stop() }
+        let error = try #require(throws: SocketClientError.self) {
+            _ = try SocketClient(path: server.path, timeout: 0.15).send(ControlRequest(cmd: .tree))
+        }
+        #expect(error.description.contains("timed out"))
+        #expect(error.description.contains("may have completed"))
+    }
+
+    @Test func partialAndDrippingResponsesDoNotRenewTheDeadline() throws {
+        for dripping in [false, true] {
+            let release = DispatchSemaphore(value: 0)
+            let server = StubServer(line: Data(), serve: { socket in
+                consumeFixtureRequest(socket)
+                guard sendFixtureBytes(Data("{".utf8), socket: socket) else { return }
+                for _ in 0..<20 {
+                    if release.wait(timeout: .now() + 0.05) == .success { return }
+                    if dripping, !sendFixtureBytes(Data(" ".utf8), socket: socket) { return }
+                }
+            })
+            try server.start()
+            defer { release.signal(); server.stop() }
+            let error = try #require(throws: SocketClientError.self) {
+                _ = try SocketClient(path: server.path, timeout: 0.2).send(ControlRequest(cmd: .tree))
+            }
+            #expect(error.description.contains("timed out"))
+        }
+    }
+
+    @Test func aPeerThatDoesNotReadCannotBlockTheRequestWrite() throws {
+        let release = DispatchSemaphore(value: 0)
+        let server = StubServer(line: Data(), serve: { _ in
+            _ = release.wait(timeout: .now() + 1)
+        })
+        try server.start()
+        defer { release.signal(); server.stop() }
+        let request = ControlRequest(cmd: .sessionType, target: "active",
+                                     args: ControlArgs(text: String(repeating: "x", count: 600_000)))
+        let error = try #require(throws: SocketClientError.self) {
+            _ = try SocketClient(path: server.path, timeout: 0.2).send(request)
+        }
+        #expect(error.description.contains("timed out"))
+    }
+
+    @Test func successfulResponseAndEOFKeepTheirExistingSemantics() throws {
+        for line in ["", "{\"ok\":true}", "{\"ok\":true}\n"] {
+            let server = StubServer(line: Data(), serve: { socket in
+                consumeFixtureRequest(socket)
+                _ = sendFixtureBytes(Data(line.utf8), socket: socket)
+            })
+            try server.start()
+            defer { server.stop() }
+            let client = SocketClient(path: server.path, timeout: 1)
+            if line.isEmpty {
+                let error = try #require(throws: SocketClientError.self) {
+                    _ = try client.send(ControlRequest(cmd: .tree))
+                }
+                #expect(error.description.contains("no response"))
+            } else {
+                #expect(try client.send(ControlRequest(cmd: .tree)).response.ok)
+            }
+        }
+    }
+
+    @Test func connectedStreamRemainsBlockingAndCanOutliveTheConnectBudget() throws {
+        let server = StubServer(line: Data(), serve: { socket in
+            Thread.sleep(forTimeInterval: 0.3)
+            _ = sendFixtureBytes(Data([42]), socket: socket)
+        })
+        try server.start()
+        defer { server.stop() }
+        let socket = try SocketClient(path: server.path, timeout: 0.1).connect()
+        defer { close(socket) }
+        #expect(fcntl(socket, F_GETFL) & O_NONBLOCK == 0)
+        var readTimeout = timeval()
+        var size = socklen_t(MemoryLayout<timeval>.size)
+        #expect(getsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &readTimeout, &size) == 0)
+        #expect(readTimeout.tv_sec == 0 && readTimeout.tv_usec == 0)
+        var byte: UInt8 = 0
+        #expect(read(socket, &byte, 1) == 1)
+        #expect(byte == 42)
+    }
+
+    #if os(Linux)
+    @Test func fullUnixBacklogHasABoundedConnectDeadline() throws {
+        let server = try RefusedSocket()
+        defer { server.stop() }
+        let listening = try server.startListening()
+        let queued = try SocketClient(path: server.path, timeout: 1).connect()
+        defer { close(queued) }
+        let release = DispatchSemaphore(value: 0)
+        let finished = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            _ = release.wait(timeout: .now() + 1)
+            let accepted = systemAccept(listening)
+            if accepted >= 0 { close(accepted) }
+            finished.signal()
+        }
+        defer { release.signal(); finished.wait() }
+        let error = try #require(throws: SocketClientError.self) {
+            let unexpected = try SocketClient(path: server.path, timeout: 0.15).connect()
+            close(unexpected)
+        }
+        #expect(error.description.contains("timed out waiting to connect"))
+        #expect(!error.description.contains("may have completed"))
+    }
+    #endif
+
     @Test func formatsCustomCommandErrorOptions() {
         let payload = ControlKeymap(path: "/tmp/keymap.conf", actions: [], commands: [
             ControlKeymapCommand(name: "quiet"),
@@ -1236,6 +1350,11 @@ private final class RefusedSocket {
         return lockFD
     }
 
+    func startListening() throws -> Int32 {
+        guard listen(fd, 0) == 0 else { throw SocketClientError("fixture listen failed") }
+        return fd
+    }
+
     func stop() {
         close(fd)
         unlink(path)
@@ -1274,6 +1393,7 @@ private final class EventReadScript: @unchecked Sendable {
 private final class StubServer: @unchecked Sendable {
     let path: String
     private let canned: Data
+    private let serve: (@Sendable (Int32) -> Void)?
     private var listenFD: Int32 = -1
     private let queue = DispatchQueue(label: "stub.server")
     private let finished = DispatchSemaphore(value: 0)
@@ -1282,8 +1402,9 @@ private final class StubServer: @unchecked Sendable {
     private(set) var received: ControlRequest?
 
     /// Answers with `line` exactly, so a test can send bytes no encoder would produce.
-    init(line: Data) {
+    init(line: Data, serve: (@Sendable (Int32) -> Void)? = nil) {
         self.canned = line
+        self.serve = serve
         self.path = NSTemporaryDirectory() + "agterm-stub-\(UUID().uuidString.prefix(8)).sock"
     }
 
@@ -1328,6 +1449,7 @@ private final class StubServer: @unchecked Sendable {
         if done { if conn >= 0 { close(conn) }; return }
         guard conn >= 0 else { return }
         defer { close(conn) }
+        if let serve { serve(conn); return }
 
         var buffer = Data()
         var byte: UInt8 = 0
@@ -1359,6 +1481,30 @@ private final class StubServer: @unchecked Sendable {
         _ = finished.wait(timeout: .now() + 2)  // join the accept loop before freeing the fd
         close(listenFD); listenFD = -1
         unlink(path)
+    }
+}
+
+private func consumeFixtureRequest(_ socket: Int32) {
+    var timeout = timeval(tv_sec: 1, tv_usec: 0)
+    _ = setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+    var byte: UInt8 = 0
+    while read(socket, &byte, 1) == 1 {
+        if byte == UInt8(ascii: "\n") { return }
+    }
+}
+
+private func sendFixtureBytes(_ data: Data, socket: Int32) -> Bool {
+    #if canImport(Darwin)
+    var noSigPipe: Int32 = 1
+    _ = setsockopt(socket, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+    #endif
+    return data.withUnsafeBytes { buffer in
+        guard let base = buffer.baseAddress, !buffer.isEmpty else { return true }
+        #if canImport(Darwin)
+        return send(socket, base, buffer.count, 0) == buffer.count
+        #else
+        return Glibc.send(socket, base, buffer.count, Int32(MSG_NOSIGNAL)) == buffer.count
+        #endif
     }
 }
 
