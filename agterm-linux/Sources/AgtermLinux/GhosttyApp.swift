@@ -38,6 +38,8 @@ final class GhosttyApp: @unchecked Sendable {
     var currentThemeBackgroundHex: String?
     var currentThemeForegroundHex: String?
     var currentThemePalette: [String] = []
+    /// The finalized base config's `font-size`, refreshed with every base config build.
+    var currentBaseFontSize: Double?
     @MainActor private var appliedAppearanceSide: LinuxAppearanceSide?
 
     @MainActor func start(appearanceSide: LinuxAppearanceSide) {
@@ -51,6 +53,7 @@ final class GhosttyApp: @unchecked Sendable {
         let lines = AppController.ghosttyLines(for: saved, isDark: appearanceSide.isDark)
         guard let cfg = buildConfig(extraLines: lines) else { return }
         currentThemeBackgroundHex = GhosttyConfigTheme.colors(from: cfg).background
+        currentBaseFontSize = GhosttyConfigTheme.fontSize(from: cfg)
 
         var rt = ghostty_runtime_config_s()
         rt.userdata = Unmanaged.passUnretained(self).toOpaque()

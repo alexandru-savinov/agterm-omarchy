@@ -18,10 +18,12 @@ public struct SettingsStore {
     /// Loads the settings, recovering the seeded default on any failure (missing file, unreadable data,
     /// corrupt JSON) so a fresh install opens on the agterm theme rather than ghostty's built-in. An
     /// existing file decodes as-is — an absent `theme` key stays nil = ghostty built-in, so an existing
-    /// user is never silently re-themed.
+    /// user is never silently re-themed. A file that exists but does not decode is moved aside first
+    /// (`StateFileQuarantine`), since the next settings change would save the default over it.
     public func load() -> AppSettings {
-        guard let data = try? Data(contentsOf: fileURL) else { return Self.seededDefault }
-        guard var settings = try? JSONDecoder().decode(AppSettings.self, from: data) else { return Self.seededDefault }
+        guard var settings = StateFileQuarantine.load(fileURL, decode: {
+            try JSONDecoder().decode(AppSettings.self, from: $0)
+        }) else { return Self.seededDefault }
         settings.migrateRestoreMode()
         return settings
     }
