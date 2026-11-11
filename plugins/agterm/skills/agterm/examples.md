@@ -119,7 +119,7 @@ agtermctl restore mode live     # for the next launch
 ## Pin what a pane restores (per-session override)
 
 `session restore` pins a shell line that a pane re-runs on the NEXT launch, overriding the captured
-foreground. It is written now and consumed at the next launch (it never touches the running session), and
+foreground. On Linux the line is pre-filled at the prompt and waits for Enter. It is written now and consumed at the next launch (it never touches the running session), and
 it is sticky — it fires again on every restart until cleared. Read it back on `tree` as the node's
 `restoreCommand` / `splitRestoreCommand`.
 

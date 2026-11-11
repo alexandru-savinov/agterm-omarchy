@@ -3814,9 +3814,15 @@ def verify_surface_configuration_lifetimes(env):
 
     process, _ = launch(env)
     try:
+        # Linux pre-fills a restored command at the prompt: it must NOT run until Enter is pressed.
+        ran_unattended = wait_for(lambda: os.path.exists(restore_marker), "", timeout=5, required=False)
+        assert not ran_unattended, "restored foreground command ran without Enter"
+        control_json(
+            env, "session", "type", "\n", "--target", initial["id"], "--window", window_id, "--json",
+        )
         wait_for(
             lambda: os.path.exists(restore_marker),
-            "restored foreground command was not delivered through initial input",
+            "restored foreground command was not pre-filled through initial input",
         )
         with open(restore_marker, encoding="utf-8") as source:
             assert source.read().strip() == initial["cwd"]

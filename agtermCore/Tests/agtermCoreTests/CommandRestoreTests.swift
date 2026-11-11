@@ -153,6 +153,22 @@ struct CommandRestoreTests {
         #expect(CommandRestore.shouldRestore(argv: ["echo", "naïve — ✓"], denylist: []))
     }
 
+    @Test(arguments: ["\u{80}", "\u{85}", "\u{9B}", "\u{9F}"])
+    func c1ControlCharactersRefused(c1: String) {
+        // C1: U+009B alone opens a CSI sequence, U+0085 is a next-line; both are refused like C0.
+        #expect(!CommandRestore.shouldRestore(argv: ["echo", "a\(c1)b"], denylist: []))
+        #expect(!CommandRestore.shouldRestore(argv: ["ls\(c1)"], denylist: []))
+        #expect(CommandRestore.hasControlCharacter("make\(c1)watch"))
+        #expect(CommandRestore.restoreInput(restoreEnabled: true, restoreOverride: "make\(c1)watch",
+                                            capturedInput: nil) == nil)
+    }
+
+    @Test func c1BoundaryKeepsPrintableLatin1() {
+        // U+00A0 (no-break space) and U+00FF sit just past C1 and are ordinary text.
+        #expect(CommandRestore.shouldRestore(argv: ["echo", "a\u{A0}b\u{FF}"], denylist: []))
+        #expect(!CommandRestore.hasControlCharacter("a\u{A0}b\u{FF}"))
+    }
+
     @Test func shouldRestoreRefusesLossilyDecodedArguments() {
         // the argument bytes must be RAW, not a Swift literal: "\u{FFFD}" encodes as valid UTF-8, which
         // would pin the genuine-U+FFFD case while proving nothing about lossy decoding.
