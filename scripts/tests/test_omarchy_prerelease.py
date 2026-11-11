@@ -192,6 +192,15 @@ class PromotionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 promotion.validate_payload(payload(extra=member), "aarch64", SHA)
 
+    def test_rejects_alternate_spellings_of_one_member(self):
+        cases = (("plain duplicate", tarfile.TarInfo("agterm-stage/bin/zmx"), "Duplicate tar entry"),
+                 ("symlink", self.link("bin/zmx/", "agterm-linux.bin"), "Trailing slash on a non-directory"),
+                 ("regular file", tarfile.TarInfo("agterm-stage/share/agterm/COMMIT/"),
+                  "Trailing slash on a non-directory"))
+        for kind, member, reason in cases:
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, reason):
+                promotion.validate_payload(payload(extra=member), "aarch64", SHA)
+
     def test_ci_gates_cannot_be_skipped(self):
         names = ["Installer and scripts", "SwiftLint (Linux)", "CI"]
         for arch in promotion.ARCHITECTURES:

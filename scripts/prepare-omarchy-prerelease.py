@@ -101,8 +101,11 @@ def validate_payload(data, arch, sha):
             path = PurePosixPath(member.name)
             require(not path.is_absolute() and ".." not in path.parts
                     and path.parts[0] == "agterm-stage", "Unsafe or unexpected tar path")
-            require(member.name not in names, "Duplicate tar entry")
-            names.add(member.name)
+            # Keyed like the link map, so two spellings of one path count as one entry.
+            key = member.name.rstrip("/")
+            require(member.isdir() or key == member.name, "Trailing slash on a non-directory tar entry")
+            require(key not in names, "Duplicate tar entry")
+            names.add(key)
             require(member.isfile() or member.isdir() or member.issym() or member.islnk(), "Special tar entry")
             if member.issym() or member.islnk():
                 target = posixpath.normpath(posixpath.join(str(path.parent), member.linkname)
