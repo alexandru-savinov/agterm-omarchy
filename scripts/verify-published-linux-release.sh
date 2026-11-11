@@ -33,6 +33,12 @@ if [[ "$(printf '%s\n' "$VERSION" '0.33.1' | sort -V | head -n 1)" == "$VERSION"
   expected+=("agterm-v${VERSION}-x86_64.AppImage")
 fi
 payloads=("${expected[@]}")
+# Releases after 0.41.1 carry an attested SPDX SBOM outside the checksum manifest. Every release
+# published before the SBOM job existed, up to and including linux-v0.41.1, shipped without one.
+SBOM_CUTOFF='0.41.1'
+if [[ "$(printf '%s\n' "$VERSION" "$SBOM_CUTOFF" | sort -V | tail -n 1)" == "$VERSION" && "$VERSION" != "$SBOM_CUTOFF" ]]; then
+  expected+=("agterm-linux-v${VERSION}.spdx.json")
+fi
 expected+=("agterm-linux-v${VERSION}-SHA256SUMS")
 
 if [[ -n "$SOURCE" ]]; then

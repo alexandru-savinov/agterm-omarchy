@@ -1,0 +1,61 @@
+name: Release SBOM
+
+# release-linux calls this before publishing, so the SBOM is attested and shipped with the packages.
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/sbom.yml]
+  workflow_call:
+    inputs:
+      ref:
+        description: Fully qualified ref to describe, for example refs/tags/linux-v0.42.0
+        required: true
+        type: string
+    outputs:
+      commit:
+        description: The commit the SBOM describes
+        value: ${{ jobs.sbom.outputs.commit }}
+
+permissions:
+  contents: read
+
+env:
+  SYFT_VERSION: "1.57.1"
+  SYFT_SHA256: "bf52519eb57f675d47c07d43213cb6dff6449f3d6d1147ff6701ed91f44eef0c"
+
+jobs:
+  sbom:
+    name: Generate SPDX SBOM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      # release-linux compares this with the commit it verifies, so the SBOM cannot describe another tree.
+      - name: Record the described commit
+        id: source
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # The repository's allowed-actions list excludes anchore/sbom-action; fetch syft like the other release tools.
+      - name: Generate SPDX with checksum-verified syft
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/syft.tar.gz" \
+            "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          echo "${SYFT_SHA256}  $RUNNER_TEMP/syft.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/syft.tar.gz" -C "$RUNNER_TEMP" syft
+          mkdir -p "$RUNNER_TEMP/sbom"
+          "$RUNNER_TEMP/syft" scan dir:. --quiet --output "spdx-json=$RUNNER_TEMP/sbom/sbom.spdx.json"
+      - name: Require the pinned Swift packages in the SBOM
+        env:
+          SBOM: ${{ runner.temp }}/sbom/sbom.spdx.json
+        run: |
+          jq -e '[.packages[].name] | index("swift-argument-parser") and index("tomldecoder")' "$SBOM" > /dev/null
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sbom
+          path: ${{ runner.temp }}/sbom/sbom.spdx.json
+          if-no-files-found: error
+          retention-days: 14
