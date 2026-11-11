@@ -250,6 +250,58 @@ struct CommandRestoreTests {
         #expect(CommandRestore.shellQuotedLine(["echo", "it's"]) == "'echo' 'it'\\''s'")
     }
 
+    @Test func shellQuotedLineKeepsBackslashesOutsideQuotes() {
+        #expect(CommandRestore.shellQuotedLine(["a\\\\b"]) == "'a'\\\\''\\\\'b'")
+        #expect(CommandRestore.shellQuotedLine(["end\\"]) == "'end'\\\\''")
+        #expect(CommandRestore.shellQuotedLine(["", "plain", "日本語"]) == "'' 'plain' '日本語'")
+    }
+
+    @Test func quotedArgumentsRoundTripThroughPosixShell() throws {
+        try checkQuotedArguments(shell: "/bin/sh")
+    }
+
+    @Test(.enabled(if: CommandRestoreTests.fishPath != nil, "fish is not installed"))
+    func quotedArgumentsRoundTripThroughFish() throws {
+        try checkQuotedArguments(shell: #require(Self.fishPath))
+    }
+
+    private static var fishPath: String? {
+        let directories = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":").map(String.init)
+        return (directories + ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"])
+            .map { ($0 as NSString).appendingPathComponent("fish") }
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+
+    private func checkQuotedArguments(shell: String) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let arguments = ["", "space here", "\\", "\\\\", "end\\", "\\'", "'\\", "a\\\\'b",
+                         "$HOME", "$(false)", "`false`", "; false", "*?[abc]", "日本語",
+                         "'\u{301}", "\u{600}'", "'\u{200D}", "\\\u{301}"]
+        let expected = Data((arguments.joined(separator: "\0") + "\0").utf8)
+        var command = CommandRestore.shellQuotedLine(["printf", "%s\\0"] + arguments)
+        for _ in 0..<3 {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: shell)
+            process.arguments = (shell.hasSuffix("/fish") ? ["--no-config"] : []) + ["-c", command]
+            process.currentDirectoryURL = directory
+            process.environment = ["HOME": directory.path, "PATH": "/usr/bin:/bin", "LC_ALL": "C",
+                                   "XDG_CONFIG_HOME": directory.path, "XDG_DATA_HOME": directory.path,
+                                   "XDG_CACHE_HOME": directory.path]
+            let output = Pipe()
+            process.standardOutput = output
+            process.standardError = FileHandle.nullDevice
+            try process.run()
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            #expect(process.terminationStatus == 0)
+            #expect(data == expected)
+            command = CommandRestore.shellQuotedLine(["/bin/sh", "-c", command])
+        }
+    }
+
     @Test func basenameTakesLastPathComponent() {
         #expect(CommandRestore.basename("/usr/bin/vim") == "vim")
         #expect(CommandRestore.basename("ssh") == "ssh")

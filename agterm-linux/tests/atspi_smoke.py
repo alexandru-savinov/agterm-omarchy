@@ -7602,7 +7602,7 @@ def main():
             "child-gdk-env-inverted", "child-launcher-env",
             "custom-command-failures", "remote-presentation", "control-hooks",
             "surface-lifetimes", "surface-failures",
-            "background-overlay-grid", "zoom-floating-overlay",
+            "background-overlay-grid", "zoom-floating-overlay", "pane-dimming-pixels",
             "sidebar-row-height",
             "sidebar-search-focus",
             "sidebar-narrow-clipping",
@@ -7616,10 +7616,11 @@ def main():
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-picker-cancel", "appearance-reset", "unavailable-font-family", "keymap-config-directory",
             "chrome-interface-controls",
-            "theme-many-sessions",
+            "theme-many-sessions", "clipboard-lifetime",
             "zoom-split-ratio", "zoom-preference-changes", "zoom-primary-promotion",
             "dashboard-font-restore", "dashboard-delayed-clicks",
             "cursor-preferences",
+            "appearance-follow",
         )
         try:
             shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
@@ -7782,6 +7783,9 @@ def main():
         elif scenario == "quick-card-geometry":
             from atspi_window_lifecycle import verify_quick_card_geometry
             verify_quick_card_geometry(env, state)
+        elif scenario == "pane-dimming-pixels":
+            from atspi_pane_dimming import verify_pane_dimming
+            verify_pane_dimming(env, state)
         elif scenario == "recent-clear":
             verify_recent_clear(env)
         elif scenario == "control-picker":
@@ -7828,6 +7832,9 @@ def main():
         elif scenario == "theme-many-sessions":
             from atspi_theme_many_sessions import verify_theme_many_sessions
             verify_theme_many_sessions(env)
+        elif scenario == "clipboard-lifetime":
+            from atspi_clipboard_lifetime import verify_clipboard_lifetime
+            verify_clipboard_lifetime(env)
         elif scenario == "zoom-split-ratio":
             from atspi_zoom_ratio import verify_zoom_split_ratio
             verify_zoom_split_ratio(env)
@@ -7846,6 +7853,9 @@ def main():
         elif scenario == "cursor-preferences":
             from atspi_cursor_preferences import verify_cursor_preferences
             verify_cursor_preferences(env)
+        elif scenario == "appearance-follow":
+            from atspi_appearance_follow import verify_appearance_follow
+            verify_appearance_follow(env)
         elif scenario == "blink-unmapped":
             from atspi_blink_unmapped import verify_blink_unmapped
             verify_blink_unmapped(env)
