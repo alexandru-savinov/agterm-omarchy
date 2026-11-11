@@ -62,7 +62,8 @@ attached to it:
 agtermctl zmx kill --target 3f2a --pane left --force
 ```
 
-On macOS, to move every live session created before the session host under it, so a tool's microphone permission
+On macOS (Linux answers `zmx reset` with `command not yet supported on Linux: zmx.reset`), to move every
+live session created before the session host under it, so a tool's microphone permission
 stops being asked per version, reset them. agterm quits and reopens itself right after the reply, so run
 this from outside the sessions it affects, or expect the calling shell to end:
 
@@ -118,7 +119,7 @@ agtermctl restore mode live     # for the next launch
 ## Pin what a pane restores (per-session override)
 
 `session restore` pins a shell line that a pane re-runs on the NEXT launch, overriding the captured
-foreground. It is written now and consumed at the next launch (it never touches the running session), and
+foreground. On Linux the line is pre-filled at the prompt and waits for Enter. It is written now and consumed at the next launch (it never touches the running session), and
 it is sticky — it fires again on every restart until cleared. Read it back on `tree` as the node's
 `restoreCommand` / `splitRestoreCommand`.
 
@@ -658,7 +659,7 @@ buf=$(agtermctl session copy --target "$other" --json | jq -r '.result.text')
 `session paste` pastes the system clipboard into a session — the socket analogue of ⌘V:
 
 ```bash
-printf 'deploy staging' | pbcopy
+printf 'deploy staging' | pbcopy             # macOS; on Linux: printf 'deploy staging' | wl-copy
 agtermctl session paste --target "$other"   # lands at the prompt, not submitted
 ```
 
@@ -666,7 +667,7 @@ agtermctl session paste --target "$other"   # lands at the prompt, not submitted
 without `session type` submitting it line by line:
 
 ```bash
-pbcopy < notes.md
+pbcopy < notes.md                           # macOS; on Linux: wl-copy < notes.md
 agtermctl session paste --pane right --target "$other"
 agtermctl session text --pane right --target "$other" --json | jq -r '.result.text' | tail -3
 ```
@@ -1111,7 +1112,7 @@ w=$(agtermctl window new "scratch" --json | jq -r '.result.id')
 # or park one in the Dock right after creating it (it appears briefly on its way there):
 # p=$(agtermctl window new "proj-b" --minimized --json | jq -r '.result.id')
 agtermctl window resize "$w" --width 1200 --height 800
-agtermctl window move "$w" --x 100 --y 100 --display 0
+agtermctl window move "$w" --x 100 --y 100 --display 0   # macOS only; Linux refuses window.move
 agtermctl window zoom "$w"                 # maximize-to-screen toggle (call again to restore)
 agtermctl window fullscreen "$w"           # native macOS full screen toggle (⌃⌘F / green button)
 agtermctl window minimize "$w" on          # park it in the Dock (off restores, toggle flips)
@@ -1126,6 +1127,11 @@ first try — no polling needed between them.
 
 One window per project, all on the SAME frame, with everything but the current one parked in the Dock.
 Switching then looks like switching a tab rather than managing five windows.
+
+The align step is macOS only. The GTK Linux frontend omits `geometry` from `window list` and always
+answers `window move` with `window.move is not supported on this platform`, so on Linux the `set --`
+line gets nothing to read and every `window move` fails; leave frame placement to the compositor there.
+The `window new --minimized` and `show` parts use only `window list`, `select` and `minimize`.
 
 ```bash
 # align every window to the active one's frame, so raising one covers the others exactly
@@ -1159,7 +1165,7 @@ show() {
 }
 ```
 
-A minimized window still reports its `geometry`, and `window move`/`window resize` apply to it — a parked
+On macOS, a minimized window still reports its `geometry`, and `window move`/`window resize` apply to it — a parked
 window comes back at whatever frame was written while it sat in the Dock, so re-running the align step
 covers parked windows too. The minimized state is live-only — re-run `show` after restarting agterm.
 

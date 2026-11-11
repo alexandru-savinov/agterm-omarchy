@@ -100,10 +100,17 @@ public struct RecentClosedStore: Sendable {
         self.limit = max(1, limit)
     }
 
+    /// A file that exists but fails to decode, or carries another version, is moved aside first
+    /// (`StateFileQuarantine`): the next `record` would otherwise save over the whole list.
     public func load() -> [RecentClosedItem] {
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        guard let state = try? JSONDecoder().decode(RecentClosedState.self, from: data) else { return [] }
-        guard state.version == RecentClosedState.currentVersion else { return [] }
+        let state = StateFileQuarantine.load(fileURL, supportedVersion: RecentClosedState.currentVersion) { data in
+            let state = try JSONDecoder().decode(RecentClosedState.self, from: data)
+            guard state.version == RecentClosedState.currentVersion else {
+                throw StateFileQuarantine.VersionMismatch(found: state.version)
+            }
+            return state
+        }
+        guard let state else { return [] }
         return Array(state.items.prefix(limit))
     }
 

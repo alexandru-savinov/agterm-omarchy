@@ -38,6 +38,8 @@ final class GhosttyApp: @unchecked Sendable {
     var currentThemeBackgroundHex: String?
     var currentThemeForegroundHex: String?
     var currentThemePalette: [String] = []
+    /// The finalized base config's `font-size`, refreshed with every base config build.
+    var currentBaseFontSize: Double?
     @MainActor private var appliedAppearanceSide: LinuxAppearanceSide?
 
     @MainActor func start(appearanceSide: LinuxAppearanceSide) {
@@ -51,6 +53,7 @@ final class GhosttyApp: @unchecked Sendable {
         let lines = AppController.ghosttyLines(for: saved, isDark: appearanceSide.isDark)
         guard let cfg = buildConfig(extraLines: lines) else { return }
         currentThemeBackgroundHex = GhosttyConfigTheme.colors(from: cfg).background
+        currentBaseFontSize = GhosttyConfigTheme.fontSize(from: cfg)
 
         var rt = ghostty_runtime_config_s()
         rt.userdata = Unmanaged.passUnretained(self).toOpaque()
@@ -390,6 +393,16 @@ final class GhosttyApp: @unchecked Sendable {
     private static func readClipboard(_ ud: UnsafeMutableRawPointer?, _ loc: ghostty_clipboard_e, _ state: UnsafeMutableRawPointer?) -> Bool {
         guard let retained = RetainedGhosttySurface(ud) else { return false }
         nonisolated(unsafe) let requestState = state
+        // a drop armed by `pasteThroughProtection`: answer with it, unconfirmed, so libghostty decides
+        if let dropped = ArmedDropPaste.shared.take(owner: ud) {
+            runOnMain {
+                MainActor.assumeIsolated {
+                    defer { retained.release() }
+                    ClipboardRequest(state: requestState, retained: retained).complete(dropped)
+                }
+            }
+            return true
+        }
         runOnMain {
             MainActor.assumeIsolated {
                 guard let surface = retained.surface.surface else {
@@ -428,7 +441,25 @@ final class GhosttyApp: @unchecked Sendable {
     private static func confirmReadClipboard(_ ud: UnsafeMutableRawPointer?, _ content: UnsafePointer<CChar>?,
                                              _ state: UnsafeMutableRawPointer?, _ request: ghostty_clipboard_request_e) {
         guard let retained = RetainedGhosttySurface(ud) else { return }
-        guard request == GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ else {
+        let route = LinuxClipboardConfirmPolicy.route(for: request)
+        if route == .unsafePaste {
+            let text = content.map { String(cString: $0) } ?? ""
+            nonisolated(unsafe) let requestState = state
+            runOnMain {
+                MainActor.assumeIsolated {
+                    let requester = retained.surface
+                    guard requester.surface != nil else {
+                        retained.release()
+                        return
+                    }
+                    UnsafePasteController.shared.confirm(text, request: requestState, on: requester) {
+                        retained.release()
+                    }
+                }
+            }
+            return
+        }
+        guard route == .clipboardReadConsent else {
             let text = content.map { String(cString: $0) } ?? ""
             nonisolated(unsafe) let requestState = state
             runOnMain {
@@ -538,9 +569,10 @@ final class ClipboardRequest: @unchecked Sendable {
 
     /// Rereads the live surface, which a teardown during the GDK read frees.
     /// The orphaned request state then leaks: no C API frees it without the surface.
+    /// Line endings are normalised so libghostty's paste protection sees CR-only lines (`PasteLineEndings`).
     @MainActor func complete(_ text: String) {
         guard let surface = retained.surface.surface else { return }
-        text.withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, false) }
+        PasteLineEndings.normalized(text).withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, false) }
     }
 }
 

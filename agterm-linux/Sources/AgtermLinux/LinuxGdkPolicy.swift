@@ -22,6 +22,10 @@ enum LinuxGdkPolicy {
         /// unset), so children never inherit agterm's renderer constraints. Derived FROM `assignments`,
         /// so a variable added to the policy later cannot be assigned without also being restored.
         let childRestore: [String: String]
+        /// What the packaged launcher (or an AppImage runtime) overrode, captured from the same pre-launch
+        /// environment by `LauncherChildEnvironment.restore(from:)`; a stored `nil` means "remove". Both
+        /// helpers below apply it, so every site that carries the GDK restore carries this one too.
+        let launcherRestore: [String: String?]
 
         init(gtkMajor: Int, gtkMinor: Int, environment: [String: String]) {
             assignments = LinuxGdkPolicy.assignments(
@@ -31,19 +35,23 @@ enum LinuxGdkPolicy {
             childRestore = assignments.reduce(into: [:]) { restore, assignment in
                 restore[assignment.name] = environment[assignment.name] ?? ""
             }
+            launcherRestore = LauncherChildEnvironment.restore(from: environment)
         }
 
         /// For a caller building a child environment from SCRATCH (`GhosttySurface`): the restore merges
         /// UNDER the caller, so an `AGTERM_*` key wins. A caller starting from agterm's own already-mutated
         /// process environment needs the opposite — `restoringChildEnvironment(_:)`.
         func childEnvironment(merging env: [String: String]) -> [String: String] {
-            childRestore.merging(env) { _, caller in caller }
+            LauncherChildEnvironment.surfacePairs(launcherRestore)
+                .merging(childRestore) { _, gdk in gdk }
+                .merging(env) { _, caller in caller }
         }
 
         /// For an environment COPIED from agterm's own process: the copy already carries the `setenv`'d
-        /// overrides, so here the restore must WIN. Everything else passes through untouched.
+        /// and launcher overrides, so here the restore must WIN. Everything else passes through untouched.
         func restoringChildEnvironment(_ environment: [String: String]) -> [String: String] {
-            environment.merging(childRestore) { _, restore in restore }
+            LauncherChildEnvironment.apply(launcherRestore,
+                                           to: environment.merging(childRestore) { _, restore in restore })
         }
     }
 
