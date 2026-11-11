@@ -34,7 +34,7 @@ extension AppController {
         case .refused(let reason): return err(reason)
         case .daemon(let name, let client):
             return ControlStageHandoff.handOff(LinuxLeadPaneIO.textStage(
-                client: client, name: name, all: all, lines: lines, id: session.uuidString, pane: pane))
+                client: client, name: name, all: all, lines: lines, reply: ControlResult(id: session.uuidString, pane: pane)))
         }
     }
 
@@ -74,14 +74,16 @@ enum LinuxLeadPaneIO {
     /// concurrent `session type` calls cannot interleave their bytes in a pane.
     private static let typing = LeadTypingLock()
 
+    /// `reply` carries the id and pane of the answer; the read fills in its text.
     static func textStage(client: LinuxZmxClient, name: String, all: Bool, lines: Int?,
-                          id: String, pane: String?) -> ControlStage {
+                          reply: ControlResult) -> ControlStage {
         .worker {
             guard let screen = client.screen(name: name, all: all || lines != nil) else {
                 return .done(ControlResponse(ok: false, error: "failed to read surface buffer"))
             }
-            return .done(ControlResponse(ok: true, result: ControlResult(
-                id: id, text: lines.map(screen.lastLines) ?? screen.text, pane: pane)))
+            var result = reply
+            result.text = lines.map(screen.lastLines) ?? screen.text
+            return .done(ControlResponse(ok: true, result: result))
         }
     }
 

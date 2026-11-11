@@ -196,7 +196,6 @@ extension AppController {
         }
     }
 
-
     func attachRemoteSession(host: String, session remoteID: String,
                              tree: ControlRemoteTree) -> ControlResponse {
         guard let remote = tree.sessions.first(where: { $0.id == remoteID }) else {
