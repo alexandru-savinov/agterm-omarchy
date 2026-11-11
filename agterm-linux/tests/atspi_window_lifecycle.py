@@ -266,9 +266,8 @@ def verify_window_close_cancel(env, state):
                 if mode != "live":
                     wait_for(lambda: select.select([job_fd], [], [], 0)[0],
                              f"{mode} left the old foreground job running")
-                # End only this fixture's panes/daemons, including the preserved Live program.
-                for ident in ids:
-                    control_json(mode_env, "session", "close", "--target", ident, "--json")
+                # The same identity-scoped finally cleanup handles success and failure. Keep claims
+                # intact until it records and verifies the owned daemon inventory.
                 print(f"OK: {mode}/{exit_kind}: Cancel preserved shells and bytes, ordinary close saved once, "
                       "final shutdown published one snapshot, and restore behavior matched the mode")
             finally:
