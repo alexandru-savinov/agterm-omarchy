@@ -97,6 +97,8 @@ jobs:
       pull-requests: read
     outputs:
       swift: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.swift == 'true' }}
+      # Only the standalone probe and its Python tests are exempt from native builds.
+      product: ${{ github.event_name == 'workflow_dispatch' || (steps.filter.outputs.swift == 'true' && steps.filter.outputs.swift_count != steps.filter.outputs.native_probe_count) }}
       cookbook: ${{ steps.filter.outputs.cookbook }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -125,6 +127,9 @@ jobs:
               - "agtermUITests/.swiftlint.yml"
               - ".github/workflows/ci.yml"
               - ".github/workflows/release-linux.yml"
+            native_probe:
+              - "scripts/omarchy-config-probe.py"
+              - "scripts/tests/test_omarchy_config_probe.py"
             cookbook:
               - "cookbook/**"
               - ".github/workflows/ci.yml"
@@ -132,7 +137,7 @@ jobs:
   test-linux:
     name: Core tests (${{ matrix.arch }})
     needs: changes
-    if: needs.changes.outputs.swift == 'true'
+    if: needs.changes.outputs.product == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -222,7 +227,7 @@ jobs:
   build-linux:
     name: GTK build and tests (${{ matrix.arch }})
     needs: [changes, scripts, test-linux, lint-linux]
-    if: needs.changes.outputs.swift == 'true'
+    if: needs.changes.outputs.product == 'true'
     strategy:
       fail-fast: false
       matrix:
