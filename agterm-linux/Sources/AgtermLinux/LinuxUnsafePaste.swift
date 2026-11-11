@@ -106,8 +106,9 @@ final class UnsafePasteController {
 
     private static func presentDialog(_ text: String, requester: GhosttySurface?, answer: @escaping Answer) {
         let heading = "Paste multiple lines?"
-        let body = "The program in this terminal has not turned on bracketed paste, so each line of this "
-            + "text may run as a command as soon as it is pasted."
+        // libghostty also flags a bracketed paste carrying the end-of-paste marker, so do not claim why
+        let body = "This text may not reach the program in this terminal as a single paste: each line "
+            + "can run as a command as soon as it is pasted."
         let dialog = OpaquePointer(heading.withCString { h in body.withCString { b in adw_alert_dialog_new(h, b) } })
         cancelResponse.withCString { i in "Cancel".withCString { l in adw_alert_dialog_add_response(cast(dialog), i, l) } }
         pasteResponse.withCString { i in "Paste".withCString { l in adw_alert_dialog_add_response(cast(dialog), i, l) } }
