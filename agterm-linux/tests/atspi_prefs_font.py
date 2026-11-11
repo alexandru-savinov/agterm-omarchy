@@ -69,11 +69,20 @@ def start_specimen(env, label):
     wait_for(ready.exists, "the real PTY did not write the font specimen")
 
 
-def glyph_pixels(process, destination):
+def specimen_window(process):
     windows = subprocess.check_output(
         ["xdotool", "search", "--onlyvisible", "--pid", str(process.pid)], text=True, timeout=10).splitlines()
-    assert len(windows) == 1, f"expected one specimen window, found {windows}"
-    subprocess.run(["import", "-window", windows[0], str(destination)], check=True, timeout=10)
+    # A PID may own auxiliary X windows. Ask the window manager for its active toplevel,
+    # then verify ownership and visibility instead of choosing an arbitrary search result.
+    active = subprocess.check_output(["xdotool", "getactivewindow"], text=True, timeout=10).strip()
+    owner = subprocess.check_output(["xdotool", "getwindowpid", active], text=True, timeout=10).strip()
+    assert owner == str(process.pid), f"active window {active} belongs to PID {owner}, expected {process.pid}"
+    assert active in windows, f"active specimen window {active} is not visible among {windows}"
+    return active
+
+
+def glyph_pixels(process, destination):
+    subprocess.run(["import", "-window", specimen_window(process), str(destination)], check=True, timeout=10)
     width, height = map(int, subprocess.check_output(
         ["convert", str(destination), "-format", "%w %h", "info:"], text=True, timeout=10).split())
     pixels = subprocess.check_output(
