@@ -198,7 +198,7 @@ def verify_quick_card_geometry(env, state):
             "width_inc", "height_inc", "min_aspect_x", "min_aspect_y", "max_aspect_x", "max_aspect_y",
             "base_width", "base_height", "win_gravity")]
 
-    def minimum_allocation():
+    def window_allocation():
         xid = int(subprocess.check_output(["xdotool", "getactivewindow"], text=True).strip())
         owner = int(subprocess.check_output(["xdotool", "getwindowpid", str(xid)], text=True).strip())
         assert owner == process.pid, f"minimum geometry came from PID {owner}, expected {process.pid}"
@@ -222,20 +222,21 @@ def verify_quick_card_geometry(env, state):
             ["xdotool", "getwindowgeometry", "--shell", str(xid)], text=True).splitlines())
         actual = int(geometry["WIDTH"]), int(geometry["HEIGHT"])
         minimum = hints.min_width, hints.min_height
-        assert actual == minimum, f"client allocation {actual} did not reach advertised minimum {minimum}"
-        return actual
+        return actual, minimum
 
     settings = os.path.join(state, "settings.json")
     rows = []
-    for toolbar in ("normal", "hidden"):
+    for toolbar, sidebar in (("normal", True), ("normal", False), ("hidden", True), ("hidden", False)):
         with open(settings, "w", encoding="utf-8") as file:
             json.dump({"toolbarMode": toolbar}, file)
         process, app = launch(env)
         try:
             window = first_window(env)
+            control_json(env, "sidebar", "show" if sidebar else "hide", "--json")
+            wait_for(lambda: window_tree(env, window).get("sidebarVisible") == sidebar,
+                     "sidebar visibility did not settle")
             control_json(env, "quick", "show", "--json")
             wait_for(lambda: window_tree(env, window).get("quickVisible"), "the quick terminal did not open")
-            previous = None
             minimum = None
             for width, height in ((1, 1), (2, 2), (480, 360), (1400, 860)):
                 control_json(env, "window", "resize", window, "--width", str(width), "--height", str(height), "--json")
@@ -266,17 +267,21 @@ def verify_quick_card_geometry(env, state):
                         return None
                     key = [(box.x, box.y, box.width, box.height) for box in (first[0], first[2])]
                     again = [(box.x, box.y, box.width, box.height) for box in (second[0], second[2])]
-                    return second if key == again and (width == 2 or second[0].width != previous) else None
+                    actual, hinted = window_allocation()
+                    expected = max(width, hinted[0]), max(height, hinted[1])
+                    return second if key == again and actual == expected else None
 
                 overlay, header, card = wait_for(settled, f"the quick card never settled at {width}x{height}", timeout=15)
-                previous = overlay.width
+                assert overlay.width >= 640 and overlay.height >= 400, (
+                    f"{toolbar} sidebar={sidebar}: content shrank below upstream minimum: {overlay}")
                 if width <= 2:
-                    actual = minimum_allocation()
+                    actual, hinted = window_allocation()
+                    assert actual == hinted, f"client allocation {actual} did not reach advertised minimum {hinted}"
                     allocation = actual, overlay.width, overlay.height, card.width, card.height
                     if minimum is not None:
                         assert allocation == minimum, f"below-minimum requests did not clamp identically: {minimum} != {allocation}"
                     minimum = allocation
-                    print(f"{toolbar}: requested {width}x{height}, reached X11 minimum {actual}, "
+                    print(f"{toolbar} sidebar={sidebar}: requested {width}x{height}, reached X11 minimum {actual}, "
                           f"GTK overlay {overlay.width}x{overlay.height}", flush=True)
                 want = quick_expected(overlay, header)
                 got = (card.x - overlay.x, card.y - overlay.y, card.width, card.height)
@@ -288,12 +293,12 @@ def verify_quick_card_geometry(env, state):
                     assert header == 0, f"hidden toolbar still measured a {header}px header"
                 else:
                     assert 20 <= header < 120, f"normal toolbar measured an implausible {header}px header"
-                owner = keyboard_owner(os.path.join(state, f"quick-{toolbar}-{width}"), process.pid)
+                owner = keyboard_owner(os.path.join(state, f"quick-{toolbar}-{sidebar}-{width}"), process.pid)
                 assert owner == f"owner=/{window}/", f"typing in the {width}x{height} quick card reached {owner!r}"
         except AssertionError:
             describe_tree(app)
             raise
         finally:
             stop(process)
-    print("OK: quick card matches cardAllocation at minimum, small and large windows with normal and hidden toolbars: "
+    print("OK: quick card matches cardAllocation at minimum, small and large windows with visible/hidden sidebars and toolbars: "
           + "; ".join(f"{t} {o} header={h} card={g}" for t, o, h, _w, g in rows))

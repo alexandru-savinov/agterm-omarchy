@@ -307,6 +307,8 @@ final class AppController {
         // The whole split (sidebar + deck) sits under a GtkOverlay so the quick terminal can float over
         // the FULL window content (matching macOS), not just the deck.
         let windowOverlay = OpaquePointer(gtk_overlay_new())
+        // Match upstream's content minimum even when the sidebar and toolbar are hidden.
+        gtk_widget_set_size_request(W(windowOverlay), 640, 400)
         self.deckOverlay = windowOverlay
         gtk_overlay_set_child(windowOverlay, W(split))
         installQuickCardPlacement(on: windowOverlay)   // percent-sized quick card; see AppControllerCallbacks
