@@ -4783,7 +4783,7 @@ def verify_sidebar_incremental(env):
         def edit_draft(row, draft):
             entry = wait_for(lambda: editable_descendant(row), "inline editor did not appear")
             type_x11_text(draft, process.pid)
-            wait_for(lambda: entry.get_text_iface().get_text(0, -1) == draft,
+            wait_for(lambda: Atspi.Text.get_text(entry, 0, Atspi.Text.get_character_count(entry)) == draft,
                      "physical draft typing did not reach the editor")
             subprocess.run(["xdotool", "key", "--clearmodifiers", "Home", "Right", "Right", "Right"], check=True)
             wait_for(lambda: entry.get_text_iface().get_caret_offset() == 3,
@@ -4793,12 +4793,13 @@ def verify_sidebar_incremental(env):
         def assert_edit_survives(row, entry, draft):
             assert sidebar_accessible_live(entry) and editable_descendant(row) == entry, (
                 "metadata synchronization replaced the captured editor")
-            assert entry.get_text_iface().get_text(0, -1) == draft, "metadata synchronization replaced edited text"
+            assert Atspi.Text.get_text(entry, 0, Atspi.Text.get_character_count(entry)) == draft, (
+                "metadata synchronization replaced edited text")
             assert entry.get_text_iface().get_caret_offset() == 3, "metadata synchronization moved the caret"
             # This physical insertion is the focus oracle: neither a label nor the terminal can satisfy it.
             type_x11_text("X", process.pid)
             expected = draft[:3] + "X" + draft[3:]
-            wait_for(lambda: entry.get_text_iface().get_text(0, -1) == expected,
+            wait_for(lambda: Atspi.Text.get_text(entry, 0, Atspi.Text.get_character_count(entry)) == expected,
                      "post-metadata keyboard input did not reach the preserved editor/caret")
 
         def replace_draft(text):
