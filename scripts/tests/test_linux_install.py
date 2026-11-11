@@ -311,6 +311,27 @@ DESKTOP
         self.install('--uninstall')
         self.assertFalse(marker.exists(), 'installer code must not import from cwd or PYTHONPATH')
 
+    def test_uninstall_reports_the_configuration_path_the_app_uses(self):
+        self.install('--no-build')
+        self.env['XDG_CONFIG_HOME'] = str(self.work / 'xdg-config')
+        result = self.install('--uninstall')
+        self.assertIn(f'Kept configuration in {self.env["HOME"]}/.config/agterm.', result.stdout)
+        self.assertNotIn('xdg-config', result.stdout)
+
+    def test_uninstall_without_python_names_uninstall_and_removes_nothing(self):
+        self.install('--no-build')
+        tools = self.work / 'no-python'
+        tools.mkdir()
+        (tools / 'dirname').symlink_to(shutil.which('dirname'))
+        self.env['PATH'] = str(tools)
+        result = subprocess.run([shutil.which('bash'), str(self.repo / 'scripts/install-linux.sh'),
+                                 '--prefix', str(self.prefix), '--uninstall'],
+                                env=self.env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('python3 is required to uninstall', result.stderr)
+        self.assertNotIn('desktop entries', result.stderr)
+        self.assert_still_installed()
+
     def test_uninstall_option_errors_change_nothing(self):
         for args in (('--uninstall',), ('--purge-state',), ('--uninstall', '--no-build'),
                      ('--uninstall', '--software-rendering'), ('--uninstall', '--payload', str(self.work))):

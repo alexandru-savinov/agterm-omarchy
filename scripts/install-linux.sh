@@ -46,7 +46,14 @@ elif [[ -n "$PAYLOAD" ]]; then
   PAYLOAD="$(CDPATH='' cd -- "$PAYLOAD" && pwd -P)"
   BUILD=false
 fi
-command -v python3 >/dev/null || { echo "python3 is required to install desktop entries" >&2; exit 1; }
+if ! command -v python3 >/dev/null; then
+  if $UNINSTALL; then
+    echo "python3 is required to uninstall: it reads the install manifest that lists the files to remove" >&2
+  else
+    echo "python3 is required to install desktop entries" >&2
+  fi
+  exit 1
+fi
 # Files written outside lib/agterm: recorded in the payload at install, removed exactly at uninstall.
 read -r -d '' DESKTOP_PY <<'PY' || true
 import json, os, pathlib, shutil, sys
@@ -275,7 +282,8 @@ if $UNINSTALL; then
   else
     printf 'Kept state in %s; --purge-state deletes it.\n' "$state"
   fi
-  printf 'Kept configuration in %s.\n' "${XDG_CONFIG_HOME:-$HOME/.config}/agterm"
+  # The app reads ~/.config/agterm regardless of XDG_CONFIG_HOME (agtermCore ConfigPaths).
+  printf 'Kept configuration in %s.\n' "$HOME/.config/agterm"
   exit 0
 fi
 if [[ -z "$RENDERER_MODE" ]]; then
