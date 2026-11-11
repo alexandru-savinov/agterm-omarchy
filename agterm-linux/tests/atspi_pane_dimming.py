@@ -56,7 +56,7 @@ def verify_pane_dimming(env, state):
                                               text=True).splitlines()[-1]
                 sequence = 0
 
-                def pixels(label):
+                def pixels(label, full_rgb=False):
                     nonlocal sequence
                     sequence += 1
                     path = artifacts / f"{opacity}-{strength}-{sequence}-{label}.png"
@@ -70,15 +70,15 @@ def verify_pane_dimming(env, state):
                                       if rgb[channel] > max(rgb[(channel + 1) % 3], rgb[(channel + 2) % 3]) + 40]
                         count, rgb = max(candidates, default=(0, (0, 0, 0)))
                         assert count > 2000, f"{label}: no substantial rendered {'red' if channel == 0 else 'green'} patch"
-                        colors.append(rgb[channel])
+                        colors.append(rgb if full_rgb else rgb[channel])
                     return colors
 
-                def settled(label):
-                    previous = pixels(label)
+                def settled(label, full_rgb=False):
+                    previous = pixels(label, full_rgb)
                     def stable():
                         nonlocal previous
                         time.sleep(0.15)
-                        current = pixels(label)
+                        current = pixels(label, full_rgb)
                         matched = current == previous
                         previous = current
                         return current if matched else None
@@ -129,10 +129,57 @@ def verify_pane_dimming(env, state):
                 assert control_json(local, "surface", "zoom", "hide", "--target", zoom_target, "--json")["ok"]
                 wait_for(lambda: not window_tree(local, window).get("zoomedSurface"), "primary zoom did not clear")
                 assert focus("left") == left, "zoom exit did not restore split contrast"
+
+                def html_pages():
+                    return next(item for workspace in window_tree(local, window)["workspaces"]
+                                for item in workspace["sessions"] if item["id"] == session).get("htmlOverlays", [])
+
+                # Fresh HTML must not borrow a wash left behind by a terminal overlay.
+                for content in ("html", "terminal", "html"):
+                    for pane, color in (("left", "#ff0000"), ("right", "#00ff00")):
+                        if content == "html":
+                            page = root / (pane + ".html")
+                            page.write_text("<!doctype html><title>Wash specimen</title><style>html,body{"
+                                            "margin:0;width:100%;height:100%;background:" + color + "}</style>")
+                            cli("session", "overlay", "open", "--html", str(page), "--pane", pane,
+                                "--chromeless", "--background-color", "#0000ff")
+                            wait_for(lambda: any(p.get("pane") == pane and p["state"] == "loaded"
+                                                 for p in html_pages()), "HTML wash specimen did not load")
+                        else:
+                            command = shlex.join(["/usr/bin/python3", str(specimen), color,
+                                                  str(root / (pane + "-overlay-ready")),
+                                                  str(root / (pane + "-overlay-input"))])
+                            cli("session", "overlay", "open", command, "--pane", pane,
+                                "--background-color", "#0000ff")
+                            wait_for(lambda: (root / (pane + "-overlay-ready")).exists(), "overlay PTY did not run")
+                    samples = []
+                    for selected in ("primary", "split", "primary"):
+                        cli("session", "focus", selected)
+                        node = next(item for workspace in window_tree(local, window)["workspaces"]
+                                    for item in workspace["sessions"] if item["id"] == session)
+                        assert node["splitFocused"] == (selected == "split"), node
+                        sample = settled(content + "-" + selected, full_rgb=True)
+                        if content == "html":
+                            inactive = 1 if selected == "primary" else 0
+                            expected_blue = 255 * strength * 0.08 * opacity
+                            assert abs(sample[inactive][2] - expected_blue) <= 5, (
+                                f"HTML wash differs from policy: {sample}, expected blue {expected_blue}")
+                            assert sample[1 - inactive][2] <= 5, f"active HTML pane is washed: {sample}"
+                        samples.append(sample)
+                    assert samples[0] == samples[2], f"{content} focus reversal did not restore pixels"
+                    if strength == 0:
+                        assert samples[0] == samples[1], f"zero mute changed {content} pixels"
+                    else:
+                        assert samples[0][0][0] > samples[1][0][0] + 15, f"left {content} did not dim"
+                        assert samples[1][1][1] > samples[0][1][1] + 15, f"right {content} did not dim"
+                    for pane in ("left", "right"):
+                        cli("session", "overlay", "close", "--pane", pane)
+                    wait_for(lambda: not html_pages(), "closed HTML panes remain in control state")
+                    assert focus("left") == left, f"{content} teardown left a wash over the terminal"
                 assert settings.read_bytes() == before, "transient focus/cover operations changed settings"
                 records.append({"opacity": opacity, "strength": strength, "left": left, "right": right})
             finally:
                 stop(process)
     (artifacts / "results.json").write_text(json.dumps(records, indent=2) + "\n")
     print("OK: actual X11 split focus and quick/floating cover pixels restore; zero-mute controls pass. "
-          "Desktop-composited translucency and per-pane overlay-wash pixels remain unverified.")
+          "Fresh/reopened HTML wash pixels match policy. Desktop-composited translucency remains separate.")
