@@ -145,38 +145,7 @@ enum ZmxLaunch {
             inheritedZdotdir: runtime.environment["ZDOTDIR"],
             sessionHostExecutablePath: sessionHostExecutablePath(bundleURL: runtime.bundleURL, environment: runtime.environment,
                                                                   allowDebugOverride: runtime.allowDebugOverride),
-            lead: lead,
-            socketDirectory: { ZmxLaunch.verifiedSocketDirectory(forStateDirectory: stateDirectory) }
+            lead: lead
         ))
-    }
-
-    /// The socket directory for `stateDirectory`, chosen once per process (`ZmxSocketDirectory.resolveDarwin`
-    /// documents the order and the upgrade rule) so every pane and the zmx client use the same one.
-    static func socketDirectoryChoice(forStateDirectory stateDirectory: String) -> Result<String, ZmxSocketDirectory.Refusal> {
-        socketDirectoryChoices.choice(for: stateDirectory)
-    }
-
-    /// The chosen directory, re-verified (and re-created as 0700 if it vanished) at this call.
-    static func verifiedSocketDirectory(forStateDirectory stateDirectory: String) -> Result<String, ZmxSocketDirectory.Refusal> {
-        socketDirectoryChoice(forStateDirectory: stateDirectory).flatMap { ZmxSocketDirectory.verify($0) }
-    }
-
-    private static let socketDirectoryChoices = SocketDirectoryChoices()
-
-    private final class SocketDirectoryChoices: @unchecked Sendable {
-        private let lock = NSLock()
-        private var choices: [String: Result<String, ZmxSocketDirectory.Refusal>] = [:]
-
-        func choice(for stateDirectory: String) -> Result<String, ZmxSocketDirectory.Refusal> {
-            let key = URL(fileURLWithPath: stateDirectory, isDirectory: true).standardizedFileURL.path
-            lock.lock()
-            defer { lock.unlock() }
-            if let known = choices[key] { return known }
-            let chosen = ZmxSocketDirectory.resolveDarwin(
-                stateDirectory: key, userTemporaryDirectory: ZmxSocketDirectory.darwinUserTemporaryDirectory()
-            )
-            choices[key] = chosen
-            return chosen
-        }
     }
 }

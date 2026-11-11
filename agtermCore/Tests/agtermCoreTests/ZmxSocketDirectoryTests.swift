@@ -479,7 +479,7 @@ struct ZmxSocketDirectoryTests {
         #expect(result == .success(Self.state + "/zmx"))
     }
 
-    @Test("macOS keeps the old /tmp directory for this user's live daemons, and otherwise never trusts it unverified")
+    @Test("macOS keeps the old /tmp directory while its daemon sockets are owned by this user, and otherwise never trusts it unverified")
     func darwinLegacyRules() {
         let disk = FakeDisk()
         disk.put(Self.userTemporaryStandardized, .directory, mode: 0o700)
@@ -501,15 +501,6 @@ struct ZmxSocketDirectoryTests {
         #expect(ZmxSocketDirectory.resolveDarwin(stateDirectory: Self.state, userTemporaryDirectory: nil,
                                                  fileSystem: planted.fileSystem)
             == .failure(.init(path: Self.legacy, reason: .foreignOwner)))
-    }
-
-    @Test("off macOS the live per-user temporary directory is absent")
-    func darwinUserTemporaryOffDarwin() {
-        #if canImport(Darwin)
-        #expect(ZmxSocketDirectory.darwinUserTemporaryDirectory()?.hasPrefix("/") == true)
-        #else
-        #expect(ZmxSocketDirectory.darwinUserTemporaryDirectory() == nil)
-        #endif
     }
 
     // MARK: sun_path, macOS

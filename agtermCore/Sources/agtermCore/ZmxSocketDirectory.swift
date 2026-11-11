@@ -304,8 +304,9 @@ public enum ZmxSocketDirectory {
     /// Chooses the macOS zmx socket directory for `stateDirectory`; the same rules as `resolveLinux`, in
     /// the same order, with the per-user temporary directory in place of the runtime directory:
     /// `<user temporary directory>/zmx-<8 hex>` (`darwinUserTemporaryLeaf`) when that directory is
-    /// private to this user. `userTemporaryDirectory` is what `darwinUserTemporaryDirectory()` returns;
-    /// it is an input so the choice can be tested anywhere. Call once per process and keep the answer.
+    /// private to this user. `userTemporaryDirectory` is the macOS per-user temporary directory
+    /// (`confstr(_CS_DARWIN_USER_TEMP_DIR)`), supplied by the caller so the choice is a pure function
+    /// that is tested on every platform. Call once per process and keep the answer.
     public static func resolveDarwin(stateDirectory: String, userTemporaryDirectory: String?,
                                      fileSystem: FileSystem = .live) -> Result<String, Refusal> {
         let base = privateBaseDirectory(userTemporaryDirectory, fileSystem: fileSystem).map {
@@ -313,21 +314,6 @@ public enum ZmxSocketDirectory {
         }
         return resolve(stateDirectory: stateDirectory, privateCandidate: base,
                        maximumBytes: darwinMaximumSocketPathBytes, fileSystem: fileSystem)
-    }
-
-    /// macOS's per-user temporary directory, `confstr(_CS_DARWIN_USER_TEMP_DIR)`: created by the system
-    /// as mode 0700 for this user, and, unlike `NSTemporaryDirectory()`, not taken from `$TMPDIR`. Nil
-    /// off macOS and when the system does not provide it.
-    public static func darwinUserTemporaryDirectory() -> String? {
-        #if canImport(Darwin)
-        let size = confstr(_CS_DARWIN_USER_TEMP_DIR, nil, 0)
-        guard size > 1 else { return nil }
-        var buffer = [CChar](repeating: 0, count: size)
-        guard confstr(_CS_DARWIN_USER_TEMP_DIR, &buffer, size) == size else { return nil }
-        return buffer.withUnsafeBufferPointer { pointer in pointer.baseAddress.map { String(cString: $0) } }
-        #else
-        return nil
-        #endif
     }
 
     private static func resolve(stateDirectory: String, privateCandidate: String?, maximumBytes: Int,
