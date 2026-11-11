@@ -56,7 +56,7 @@ struct LinuxHookLauncherTests {
         #expect(run.deliveryFailures.isEmpty)
     }
 
-    @Test("the hook sees the restored GDK environment and the event variables")
+    @Test("the hook sees the restored GDK environment, Linux PATH and event variables")
     func environment() throws {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(atPath: directory) }
@@ -74,6 +74,15 @@ struct LinuxHookLauncherTests {
         #expect(child["AGT_EVENT_KIND"] == ControlEventKind.notify.rawValue)
         #expect(child["AGT_SESSION_ID"] == "session")
         #expect(child["AGT_SOCKET"] == "/tmp/agterm-test.sock")
+        let parent = gdkEnvironment.restoringChildEnvironment(ProcessInfo.processInfo.environment)
+        let home = parent["HOME"] ?? FileManager.default.homeDirectoryForCurrentUser.path
+        let bundled = LinuxCommandPath.bundledCLIDirectory
+        #expect(child["HOME"] == parent["HOME"])
+        #expect(child["PATH"] == LinuxCommandPath.widened(
+            parent["PATH"], bundledCLIDirectory: bundled, homeDirectory: home))
+        let paths = try #require(child["PATH"]).split(separator: ":").map(String.init)
+        #expect(paths.contains((home as NSString).appendingPathComponent(".local/bin")))
+        if let bundled { #expect(paths.first == bundled) }
     }
 
     @Test("the stdin pipe is closed in agterm once the hook exits")

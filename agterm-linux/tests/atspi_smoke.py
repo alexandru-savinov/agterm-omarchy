@@ -7470,6 +7470,7 @@ def main():
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-many-sessions",
+            "cursor-preferences",
             "appearance-follow",
         ):
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
@@ -7639,6 +7640,9 @@ def main():
         elif scenario == "theme-many-sessions":
             from atspi_theme_many_sessions import verify_theme_many_sessions
             verify_theme_many_sessions(env)
+        elif scenario == "cursor-preferences":
+            from atspi_cursor_preferences import verify_cursor_preferences
+            verify_cursor_preferences(env)
         elif scenario == "appearance-follow":
             from atspi_appearance_follow import verify_appearance_follow
             verify_appearance_follow(env)
