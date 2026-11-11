@@ -131,7 +131,15 @@ def verify_quick_card_rendering(env, state):
                 mid_y = (top + bottom) // 2
                 backdrop = pixel(hidden, left - 3, mid_y)
                 backdrop_x = [px for px in range(dimensions[0]) if pixel(hidden, px, mid_y) == backdrop]
-                edge_points = ((min(backdrop_x) + 1, mid_y), (max(backdrop_x) - 1, mid_y))
+                runs = []
+                for px in backdrop_x:
+                    if not runs or px != runs[-1][-1] + 1:
+                        runs.append([])
+                    runs[-1].append(px)
+                interior = max(runs, key=len)
+                assert interior[0] < left - 3 and interior[-1] > right + 3, (
+                    f"{tag}: no continuous backdrop spans the card and its shadow")
+                edge_points = ((interior[0] + 1, mid_y), (interior[-1] - 1, mid_y))
                 for point in edge_points:
                     if width == 1:
                         assert sum(pixel(shown, *point)) < sum(pixel(hidden, *point)) - 10, (
