@@ -885,6 +885,7 @@ final class AppController {
             rendered.followSystemAppearance = nil
         }
         var lines = rendered.ghosttyConfigLines()
+        lines.removeAll { $0.hasPrefix("cursor-style = ") } // MUTANT (#161 negative arm): explicit shape dropped
         if let opacity = settings.backgroundOpacity, opacity < 1 {
             lines.removeAll { $0.hasPrefix("background-opacity = ") }
             lines.append("background-opacity = \(min(1, max(0, opacity)))")
