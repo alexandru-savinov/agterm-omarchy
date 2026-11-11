@@ -1,0 +1,100 @@
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+
+SOURCE = Path(__file__).resolve().parents[1] / 'ci-install-ubuntu-deps.sh'
+
+
+class UbuntuDependencyTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.bin = self.root / 'bin'
+        self.bin.mkdir()
+        self.release = self.root / 'os-release'
+        self.release.write_text('ID=ubuntu\nVERSION_CODENAME=noble\n')
+        self.script = self.root / 'install.sh'
+        self.script.write_text(SOURCE.read_text().replace('/etc/os-release', str(self.release)))
+        self.log = self.root / 'calls.jsonl'
+        self.env = dict(os.environ, PATH=f'{self.bin}:{os.environ["PATH"]}',
+                        CALL_LOG=str(self.log), TEST_ARCH='amd64', TMPDIR=str(self.root))
+        self.executable('dpkg', '#!/bin/sh\nprintf "%s\\n" "$TEST_ARCH"\n')
+        self.executable('apt-get', f'#!{shutil.which("python3")}\n' + '''
+import json, os, pathlib, sys
+args = sys.argv[1:]
+source = next(arg.split('=', 1)[1] for arg in args if arg.startswith('Dir::Etc::sourcelist='))
+with open(os.environ['CALL_LOG'], 'a') as log:
+    log.write(json.dumps({'args': args, 'source': source, 'text': pathlib.Path(source).read_text()}) + '\\n')
+sys.exit(100 if os.environ.get('FAIL_COMMAND') in args else 0)
+''')
+
+    def executable(self, name, text):
+        path = self.bin / name
+        path.write_text(text)
+        path.chmod(0o755)
+
+    def run_install(self, *packages):
+        return subprocess.run(['bash', str(self.script), *packages], env=self.env,
+                              capture_output=True, text=True, timeout=10)
+
+    def calls(self):
+        return [json.loads(line) for line in self.log.read_text().splitlines()]
+
+    def test_architectures_share_verified_sources_for_update_and_install(self):
+        for arch, uri in [('amd64', 'https://mirrors.edge.kernel.org/ubuntu'),
+                          ('arm64', 'https://mirrors.mit.edu/ubuntu-ports')]:
+            with self.subTest(arch=arch):
+                self.log.unlink(missing_ok=True)
+                self.env['TEST_ARCH'] = arch
+                result = self.run_install('fish', 'libgtk-4-dev')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                update, install = self.calls()
+                self.assertEqual(update['source'], install['source'])
+                self.assertEqual(update['text'], install['text'])
+                self.assertIn(f'URIs: {uri}\n', update['text'])
+                self.assertIn('Suites: noble noble-updates noble-security noble-backports\n', update['text'])
+                self.assertIn('Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n', update['text'])
+                for call in (update, install):
+                    self.assertIn('Dir::Etc::sourceparts=-', call['args'])
+                    self.assertIn('APT::Update::Error-Mode=any', call['args'])
+                    lists = next(arg.split('=', 1)[1] for arg in call['args']
+                                 if arg.startswith('Dir::State::lists='))
+                    self.assertEqual(Path(lists).parent, Path(call['source']).parent)
+                self.assertEqual(install['args'][-5:],
+                                 ['install', '-y', '--no-install-recommends', 'fish', 'libgtk-4-dev'])
+                self.assertFalse(Path(update['source']).parent.exists())
+
+    def test_failed_update_never_installs_or_leaves_sources(self):
+        self.env['FAIL_COMMAND'] = 'update'
+        self.assertEqual(self.run_install('fish').returncode, 100)
+        calls = self.calls()
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(Path(calls[0]['source']).parent.exists())
+
+    def test_failed_install_propagates_and_cleans_sources(self):
+        self.env['FAIL_COMMAND'] = 'install'
+        self.assertEqual(self.run_install('fish').returncode, 100)
+        update, install = self.calls()
+        self.assertEqual(update['source'], install['source'])
+        self.assertFalse(Path(install['source']).parent.exists())
+
+    def test_unsupported_release_architecture_and_empty_request_fail_before_apt(self):
+        for release, arch, packages in [('ID=debian\nVERSION_CODENAME=noble\n', 'amd64', ['fish']),
+                                        ('ID=ubuntu\nVERSION_CODENAME=jammy\n', 'amd64', ['fish']),
+                                        ('ID=ubuntu\nVERSION_CODENAME=noble\n', 'riscv64', ['fish']),
+                                        ('ID=ubuntu\nVERSION_CODENAME=noble\n', 'amd64', [])]:
+            with self.subTest(release=release, arch=arch, packages=packages):
+                self.release.write_text(release)
+                self.env['TEST_ARCH'] = arch
+                self.assertNotEqual(self.run_install(*packages).returncode, 0)
+                self.assertFalse(self.log.exists())
+
+
+if __name__ == '__main__':
+    unittest.main()

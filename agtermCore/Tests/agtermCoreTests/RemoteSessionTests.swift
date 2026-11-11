@@ -154,6 +154,49 @@ struct RemoteSessionTests {
         #expect(!RemoteSession.cliPathPrefix.contains(":$PATH\""))
     }
 
+    @Test func remoteCommandsFindTheLinuxUserInstallUsingRemoteHome() throws {
+        let fake = try FakeRemote(directoryName: "remote home \(UUID().uuidString)")
+        defer { fake.cleanUp() }
+        let directory = fake.root.appendingPathComponent(".local/bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let probe = "agterm-path-probe-\(UUID().uuidString)"
+        let executable = directory.appendingPathComponent(probe)
+        try "#!/bin/sh\nprintf '%s\\n' \"$@\"\n".write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        let commands = [
+            try RemoteSession.treeCommand(host: "buildbox"),
+            try RemoteSession.presentCommand(host: "buildbox", session: "work"),
+            try RemoteSession.runJobCommand(host: "buildbox", job: "job")
+        ]
+        let expected = ["zmx\ntree\n--json\n", "zmx\npresent\nwork\n", "session\noverlay\nrun-job\njob\n"]
+        for (command, output) in zip(commands, expected) {
+            let remote = try #require(command.last).replacingOccurrences(of: "agtermctl", with: probe)
+            let run = try fake.runShell(remote, exporting: ["HOME": fake.root.path, "PATH": "/usr/bin:/bin"])
+            #expect(run.status == 0)
+            #expect(run.stdout == output)
+        }
+        let preferred = fake.root.appendingPathComponent(probe)
+        try "#!/bin/sh\nprintf 'preferred\\n'\n".write(to: preferred, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: preferred.path)
+        let remote = try #require(commands[0].last).replacingOccurrences(of: "agtermctl", with: probe)
+        let run = try fake.runShell(remote, exporting: ["HOME": fake.root.path, "PATH": fake.root.path])
+        #expect(run.status == 0)
+        #expect(run.stdout == "preferred\n")
+    }
+
+    @Test func remotePathDoesNotAddARootInstallOrEmptyEntryWithoutHome() throws {
+        let fake = try FakeRemote()
+        defer { fake.cleanUp() }
+        let expected = "/usr/bin:/bin:" + CommandPath.standardDirectories.joined(separator: ":")
+        for unset in ["", "unset HOME; "] {
+            let run = try fake.runShell("PATH=/usr/bin:/bin; " + unset + RemoteSession.cliPathPrefix
+                                           + " && printf '%s' \"$PATH\"",
+                                       exporting: ["HOME": "", "PATH": "/usr/bin:/bin"])
+            #expect(run.status == 0)
+            #expect(run.stdout == expected)
+        }
+    }
+
     // the far side prints a not-ok JSON response to stdout and exits nonzero, so the caller must read the
     // status before the output rather than trusting a well-formed-looking document
     @Test func theFarSidesFailureReachesTheCallerAsANonzeroExit() throws {
