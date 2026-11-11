@@ -223,6 +223,11 @@ def verify_window_close_cancel(env, state):
                 restored = [row["id"] for row in sessions()]
                 assert restored == ids, f"{mode}: restored {restored}, not {ids}"
                 answers("restored-shell", [ids[1]])
+                # Restored hidden sessions are intentionally lazy; selecting is the real user action
+                # that creates their Fresh shell / Re-run prefill / Live attachment.
+                control_json(mode_env, "session", "select", "--target", ids[0], "--window", window, "--json")
+                wait_for(lambda: any(row["id"] == ids[0] and row.get("active") and row.get("realized")
+                                     for row in sessions()), "restored target did not realize after selection")
                 if mode == "rerun":
                     # Re-run deliberately pre-fills the captured command without executing it.
                     wait_for(lambda: select.select([job_fd], [], [], 0)[0], "Re-run left the old job running")
