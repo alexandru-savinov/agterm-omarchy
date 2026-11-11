@@ -65,7 +65,9 @@ on `sancta`'s queue integration in [PR #76](https://github.com/alexandru-savinov
 Its regressions now run with the normal Pages tests; the original proposal remains under `docs/evidence/pages-queue-followup/`.
 
 The Pages workflow builds and tests PR previews, then deploys reviewed changes pushed to `main`.
-Manual runs can refresh the task snapshot and choose 10, 25, or 50 tasks; turn off `deploy` for an artifact-only preview.
+Manual runs can refresh the task snapshot and choose 10, 25, 50, or 100 tasks; turn off `deploy` for an artifact-only preview.
+The builder, CLI and automatic/manual workflow defaults are 100 tasks.
+This bounded snapshot includes the 59 open tasks observed during the November 11 audit; it is not unlimited coverage.
 The existing hourly schedule refreshes the optional queue and deploys from main; issue changes do not themselves trigger publication.
 Every page shows its snapshot time and links to live issues.
 Build artifacts are downloadable for 14 days. The deploy job uses the `github-pages` environment, records its URL,

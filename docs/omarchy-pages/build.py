@@ -10,6 +10,8 @@ import shutil
 
 REPOSITORY = "alexandru-savinov/agterm-omarchy"
 BASE = "https://github.com/" + REPOSITORY
+TASK_LIMITS = (10, 25, 50, 100)
+DEFAULT_TASK_LIMIT = 100
 PHASES = {"working": "Work reported", "assigned": "Assigned · acknowledgment pending",
           "awaiting-review": "Awaiting review / decision", "completed": "Completed report",
           "coordination": "Coordination reported", "historical": "Historical / superseded scope"}
@@ -194,12 +196,12 @@ def team_page(roster, rows, commit, extras=(), queue_available=True):
 </main><footer><a class="wordmark" href="./">agterm<span>/omarchy</span></a><p>Source <a href="{BASE}/commit/{commit}">{commit[:8]}</a> · <a href="status.json">Machine-readable snapshot</a> · <a href="{BASE}/issues/53">Page task #53</a></p></footer></body></html>'''
 
 
-def write_site(destination, pages, commit, limit=25, roster=None, queue=None, queue_unavailable=False):
+def write_site(destination, pages, commit, limit=DEFAULT_TASK_LIMIT, roster=None, queue=None, queue_unavailable=False):
     """`queue_unavailable`: a queue snapshot was requested but could not be read; say so on the page."""
     if not re.fullmatch(r"[0-9a-f]{7,40}", commit):
         raise ValueError("commit must be a hexadecimal Git commit ID")
-    if limit not in (10, 25, 50):
-        raise ValueError("task limit must be 10, 25, or 50")
+    if limit not in TASK_LIMITS:
+        raise ValueError("task limit must be 10, 25, 50, or 100")
     tasks = tasks_from_pages(pages, limit)
     roster = roster_snapshot(roster if roster is not None else
                              json.loads(Path(__file__).with_name("roster.json").read_text()))
@@ -290,7 +292,7 @@ def main():
     parser.add_argument("--issues", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--commit", required=True)
-    parser.add_argument("--limit", type=int, choices=(10, 25, 50), default=25)
+    parser.add_argument("--limit", type=int, choices=TASK_LIMITS, default=DEFAULT_TASK_LIMIT)
     parser.add_argument("--queue", type=Path, help="queue.json from scripts/github/queue.py (optional)")
     args = parser.parse_args()
     queue, unavailable = None, False

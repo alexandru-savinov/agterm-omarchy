@@ -4,6 +4,8 @@ import copy
 from html.parser import HTMLParser
 import json
 import re
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
@@ -179,6 +181,30 @@ class PagesTests(unittest.TestCase):
                 build.write_site(temporary, [], "123abcd", limit=999)
             with self.assertRaises(ValueError):
                 build.write_site(temporary, {}, "123abcd")
+
+    def test_default_and_explicit_hundred_include_late_open_tasks(self):
+        numbers = [*range(1, 54), 305, 310, 313, 318, 320, 323]
+        issues = [{"number": n, "title": str(n), "state": "open"} for n in numbers]
+        issues += [{"number": n, "title": str(n), "state": "closed"} for n in range(400, 461)]
+        issues.append({"number": 330, "title": "PR", "state": "open", "pull_request": {}})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            snapshot = root / "issues.json"
+            snapshot.write_text(json.dumps([issues]))
+            for name, arguments in (("builder-default", None), ("cli-default", []),
+                                    ("cli-hundred", ["--limit", "100"])):
+                with self.subTest(entrypoint=name):
+                    output = root / name
+                    if arguments is None:
+                        build.write_site(output, [issues], "a" * 40)
+                    else:
+                        subprocess.run([sys.executable, "-B", build.__file__, "--issues", str(snapshot),
+                                        "--output", str(output), "--commit", "a" * 40, *arguments],
+                                       check=True, capture_output=True, text=True)
+                    tasks = json.loads((output / "status.json").read_text())["tasks"]
+                    self.assertEqual(len(tasks), 100)
+                    self.assertEqual([task["number"] for task in tasks[:59]], numbers)
+                    self.assertNotIn(330, [task["number"] for task in tasks])
 
     def queue(self, roster, observed_at=None, extra=True):
         from datetime import datetime, timezone
