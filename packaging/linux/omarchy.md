@@ -51,7 +51,7 @@ The Swift platform is explicit because older mise releases construct a nonexiste
 Arch's `libxml2-legacy` supplies Swift's required `libxml2.so.2` ABI.
 Only ncurses aliases live in `~/.local/share/agterm/swift-compat` (or under `XDG_DATA_HOME`);
 the build helpers add that directory to their environment without changing shell startup files.
-Build helpers honor an explicit `SWIFT` executable first, then `swift` on `PATH`, then mise.
+Build helpers honor an explicit `SWIFT` executable first, then `swift` on `PATH` only at 6.3.2, then mise.
 The install example selects Swift 6.3.2 through mise; if `SWIFT` is already set, ensure it also names that version.
 
 The personal installer places the complete runtime under `~/.local/lib/agterm`, commands under
