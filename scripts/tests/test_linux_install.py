@@ -267,11 +267,40 @@ DESKTOP
         self.assert_still_installed()
 
     def test_uninstall_keeps_directories_that_existed_before_install(self):
-        for name in ('bin', 'share/applications', 'lib'):
+        self.use_cache_tools()
+        for name in ('bin', 'share/applications', 'share/icons/hicolor', 'lib'):
             (self.prefix / name).mkdir(parents=True)
         self.install('--no-build')
+        self.assertTrue((self.prefix / 'share/applications/mimeinfo.cache').is_file(), 'install refreshes')
         self.install('--uninstall')
-        self.assertEqual(self.files(), ['bin', 'lib', 'share', 'share/applications'])
+        self.assertEqual(self.files(), ['bin', 'lib', 'share', 'share/applications', 'share/icons',
+                                        'share/icons/hicolor'])
+
+    def test_uninstall_refreshes_caches_that_still_index_other_entries(self):
+        self.use_cache_tools()
+        self.install('--no-build')
+        other = self.prefix / 'share/applications/other.desktop'
+        other.write_text('[Desktop Entry]\n')
+        icon = self.prefix / 'share/icons/hicolor/scalable/actions/other-symbolic.svg'
+        icon.write_text('icon')
+        for cache in ('share/applications/mimeinfo.cache', 'share/icons/hicolor/icon-theme.cache'):
+            (self.prefix / cache).write_text('stale')
+        self.install('--uninstall')
+        self.assertEqual((self.prefix / 'share/applications/mimeinfo.cache').read_text(), 'regenerated\n')
+        self.assertEqual((self.prefix / 'share/icons/hicolor/icon-theme.cache').read_text(), 'regenerated\n')
+        self.assertTrue(other.is_file() and icon.is_file())
+
+    def use_cache_tools(self):
+        # Stand-ins for desktop-file-utils and GTK, so these tests behave the same with or without them.
+        tools = self.work / 'cache-tools'
+        tools.mkdir()
+        for name, cache in (('update-desktop-database', 'mimeinfo.cache'),
+                            ('gtk-update-icon-cache', 'icon-theme.cache')):
+            tool = tools / name
+            tool.write_text(f'#!{sys.executable}\nimport pathlib, sys\n'
+                            f'pathlib.Path(sys.argv[-1], {cache!r}).write_text("regenerated\\n")\n')
+            tool.chmod(0o755)
+        self.env['PATH'] = f'{tools}:{self.env["PATH"]}'
 
     def test_reinstall_keeps_the_record_of_directories_the_first_install_created(self):
         self.install('--no-build')

@@ -263,11 +263,15 @@ elif sys.argv[1] == 'install':
 else:
     uninstall()
 PY
+# A directory with nothing left to index gets no cache: regenerating one after uninstall would
+# leave a file agterm caused in a directory that existed before agterm.
 refresh_caches() {
-  if [[ -d "$PREFIX/share/applications" ]] && command -v update-desktop-database >/dev/null; then
+  if [[ -d "$PREFIX/share/applications" ]] && command -v update-desktop-database >/dev/null \
+    && [[ -n "$(find "$PREFIX/share/applications" -name '*.desktop' -print -quit)" ]]; then
     update-desktop-database "$PREFIX/share/applications" || true
   fi
-  if [[ -d "$PREFIX/share/icons/hicolor" ]] && command -v gtk-update-icon-cache >/dev/null; then
+  if [[ -d "$PREFIX/share/icons/hicolor" ]] && command -v gtk-update-icon-cache >/dev/null \
+    && [[ -n "$(find "$PREFIX/share/icons/hicolor" ! -type d ! -name icon-theme.cache -print -quit)" ]]; then
     gtk-update-icon-cache -f -t "$PREFIX/share/icons/hicolor" || true
   fi
 }
