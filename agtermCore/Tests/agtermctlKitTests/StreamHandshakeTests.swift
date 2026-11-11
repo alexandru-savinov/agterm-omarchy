@@ -163,15 +163,8 @@ struct StreamHandshakeTests {
         }
         try #require(bound == 0)
         try #require(listen(listener, 1) == 0)
-        var directoryURL = Bundle.main.bundleURL
-        var executable: URL?
-        for _ in 0..<6 {
-            let candidate = directoryURL.appendingPathComponent("agtermctl")
-            if FileManager.default.isExecutableFile(atPath: candidate.path) { executable = candidate; break }
-            directoryURL.deleteLastPathComponent()
-        }
         let process = Process()
-        process.executableURL = try #require(executable)
+        process.executableURL = try CLIExecutableFixture.executable()
         process.arguments = (overlay ? ["session", "overlay", "run-job", "fixture"] : ["zmx", "present", "fixture"])
             + ["--socket", path]
         process.standardInput = FileHandle.nullDevice
@@ -210,6 +203,16 @@ struct StreamHandshakeTests {
         #expect(!FileManager.default.fileExists(atPath: marker.path))
     }
 
+    @Test func initiallyNonblockingSocketKeepsItsFlags() throws {
+        try withPeer({ peer in _ = StreamBridge.writeAll(peer, Data(Self.ok.utf8)) }, body: { socket in
+            try #require(fcntl(socket, F_SETFL, fcntl(socket, F_GETFL) | O_NONBLOCK) == 0)
+            let flags = fcntl(socket, F_GETFL)
+            try #require(flags >= 0 && flags & O_NONBLOCK != 0)
+            try StreamBridge(socket: socket, input: -1, output: -1).open(Self.request)
+            #expect(fcntl(socket, F_GETFL) == flags)
+        })
+    }
+
     private func expectTimeout(_ body: () throws -> Void) {
         do {
             try body()
@@ -236,6 +239,18 @@ struct StreamHandshakeTests {
         #endif
         let client = pair[0]
         let peer = pair[1]
+        // Darwin records FWASWRITTEN after write(), independently of user-settable flags.
+        // Prime and drain before the baseline so exact restoration checks retain every bit.
+        do {
+            var byte: UInt8 = 0x61
+            try #require(write(client, &byte, 1) == 1)
+            byte = 0
+            try #require(read(peer, &byte, 1) == 1 && byte == 0x61)
+        } catch {
+            close(client)
+            close(peer)
+            throw error
+        }
         let served = DispatchSemaphore(value: 0)
         let cancel = DispatchSemaphore(value: 0)
         let watched = DispatchSemaphore(value: 0)

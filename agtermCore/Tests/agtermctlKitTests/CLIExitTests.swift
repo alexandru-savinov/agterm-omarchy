@@ -97,18 +97,8 @@ struct CLIExitTests {
     }
 
     private func runCLI(_ arguments: [String]) throws -> (status: Int32, output: String, error: String) {
-        var directory = Bundle.main.bundleURL
-        var executable: URL?
-        for _ in 0..<6 {
-            let candidate = directory.appendingPathComponent("agtermctl")
-            if FileManager.default.isExecutableFile(atPath: candidate.path) {
-                executable = candidate
-                break
-            }
-            directory.deleteLastPathComponent()
-        }
         let process = Process()
-        process.executableURL = try #require(executable, "swift test must build the agtermctl executable")
+        process.executableURL = try CLIExecutableFixture.executable()
         process.arguments = arguments
         process.standardInput = FileHandle.nullDevice
         let output = Pipe()
