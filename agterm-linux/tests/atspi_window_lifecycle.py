@@ -111,6 +111,8 @@ def verify_window_close_cancel(env, state):
 
 
 def verify_workspace_focus_filters(env):
+    from gi.repository import Atspi
+
     process, app = launch(env)
     window = first_window(env)
 
@@ -128,12 +130,26 @@ def verify_workspace_focus_filters(env):
             names = [workspace["name"] for workspace in snapshot["workspaces"]]
             expected = [workspace["name"] for workspace in snapshot["workspaces"]
                         if not snapshot.get("workspaceFilter") or workspace.get("focused")]
-            shown = [name for name in names if named(app, name, role="label")]
+            shown = [name for name in names if (label := named(app, name, role="label"))
+                     and label.get_state_set().contains(Atspi.StateType.SHOWING)]
             active = [workspace["name"] for workspace in snapshot["workspaces"]
                       for row in workspace["sessions"] if row.get("active")]
             return (shown == expected and len(active) == 1 and active[0] in expected), (shown, expected, active)
         wait_for(lambda: matches()[0], f"{step}: sidebar rows/active session disagree with the tree: {matches()[1]}")
         return matches()[1][1]
+
+    def check_empty(step, names, session):
+        snapshot = tree()
+        assert not snapshot.get("workspaceFilter"), f"{step}: empty membership left the filter enabled"
+        assert not any(item.get("focused") for item in snapshot["workspaces"]), (
+            f"{step}: a focus member survived: {snapshot['workspaces']}")
+        assert check(step) == names
+        active = [row["id"] for workspace in tree()["workspaces"] for row in workspace["sessions"]
+                  if row.get("active")]
+        assert active == [session], f"{step}: active session {active} != {session}"
+        marker = os.path.join(env["AGTERM_STATE_DIR"], f"workspace-focus-{step}")
+        owner = keyboard_owner(marker, process.pid)
+        assert owner == f"owner={session}/{window}/left", f"{step}: keyboard reached {owner!r}"
 
     try:
         first = tree()["workspaces"][0]["id"]
@@ -173,8 +189,32 @@ def verify_workspace_focus_filters(env):
         assert [(item["id"], item.get("focused")) for item in tree()["workspaces"]] == focused, tree()["workspaces"]
         assert tree().get("workspaceFilter"), "the relaunch dropped the workspace filter"
         assert check("relaunch") == ["wf-two"]
+
+        selected = next(row["id"] for workspace in tree()["workspaces"] for row in workspace["sessions"]
+                        if row.get("active"))
+        request("workspace.focus", two, {"mode": "off"})
+        check_empty("last-member-unmarked", ["wf-one", "wf-two"], selected)
+        request("workspace.filter", args={"mode": "on"})
+        check_empty("empty-filter-refused", ["wf-one", "wf-two"], selected)
+        stop(process)
+        process, app = launch(env)
+        window = first_window(env)
+        check_empty("empty-membership-reloaded", ["wf-one", "wf-two"], selected)
+
+        request("workspace.focus", two, {"mode": "on"})
+        assert check("refocused before deletion") == ["wf-two"]
+        survivor = next(row["id"] for workspace in tree()["workspaces"] if workspace["id"] == first
+                        for row in workspace["sessions"])
+        request("workspace.delete", two)
+        wait_for(lambda: all(item["id"] != two for item in tree()["workspaces"]), "wf-two was not removed")
+        check_empty("last-member-deleted", ["wf-one"], survivor)
+        stop(process)
+        process, app = launch(env)
+        window = first_window(env)
+        check_empty("last-deletion-reloaded", ["wf-one"], survivor)
         print("OK: Focus Workspace, Add Workspace to Focus and Toggle Workspace Filter keep the sidebar rows and "
-              "active session on the tree's focused/workspaceFilter fields through a member removal and a relaunch")
+              "active session correct through multiple members, final unmark/deletion and reload; "
+              "empty membership disables the filter and physical input reaches the surviving active PTY")
     except AssertionError:
         describe_tree(app)
         raise
