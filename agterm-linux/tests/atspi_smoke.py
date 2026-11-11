@@ -7548,7 +7548,7 @@ def main():
             "sidebar-multiselect",
             "blink-unmapped",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
-            "window-close-cancel", "workspace-focus-filters", "quick-card-geometry",
+            "window-close-cancel", "workspace-focus-filters", "quick-card-geometry", "clipboard-payloads",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-picker-cancel", "appearance-reset", "unavailable-font-family", "keymap-config-directory",
             "chrome-interface-controls",
@@ -7715,6 +7715,9 @@ def main():
         elif scenario == "workspace-focus-filters":
             from atspi_window_lifecycle import verify_workspace_focus_filters
             verify_workspace_focus_filters(env)
+        elif scenario == "clipboard-payloads":
+            from atspi_clipboard_payloads import verify_clipboard_payloads
+            verify_clipboard_payloads(env, state)
         elif scenario == "quick-card-geometry":
             from atspi_window_lifecycle import verify_quick_card_geometry
             verify_quick_card_geometry(env, state)
