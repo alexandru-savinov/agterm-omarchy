@@ -8,6 +8,8 @@ import agtermCore
 @Suite("Real GTK zoom ratio restoration", .serialized,
        .enabled(if: ProcessInfo.processInfo.environment["AGTERM_GTK_TESTS"] == "1"))
 struct ZoomExitRatioGTKTests {
+    private static let ghosttyInitialization = ghostty_init(0, nil)
+
     @Test("a stale zoom callback preserves the replacement host and its pending restore")
     func staleCallbackPreservesReplacement() throws {
         try withController { controller, session, replacement in
@@ -61,6 +63,7 @@ struct ZoomExitRatioGTKTests {
     }
 
     private func withController(_ body: (AppController, Session, OpaquePointer) throws -> Void) throws {
+        try #require(Self.ghosttyInitialization == 0)
         try #require(gtk_init_check() != 0)
         adw_init()
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -81,7 +84,8 @@ struct ZoomExitRatioGTKTests {
         store.workspaces = []
         store.selectedSessionID = nil
         let app = OpaquePointer(try #require(adw_application_new(
-            "io.github.agterm.zoomratiofixture", G_APPLICATION_NON_UNIQUE)))
+            "io.github.agterm.zoomratiofixture.x" + UUID().uuidString.replacingOccurrences(of: "-", with: ""),
+            G_APPLICATION_NON_UNIQUE)))
         defer { g_object_unref(RAW(app)) }
         try #require(g_application_register(GAPP(app), nil, nil) != 0)
         let controller = AppController(app: app, windowID: windowID, library: library)
@@ -99,8 +103,7 @@ struct ZoomExitRatioGTKTests {
         let paned = makePaned()
         defer { g_object_unref(RAW(paned)) }
         controller.sessionPanes[session.id] = paned
-        gtk_stack_add_named(controller.deck, W(paned), "ratio-fixture")
-        gtk_stack_set_visible_child(controller.deck, W(paned))
+        gtk_overlay_add_overlay(controller.deck, W(paned))
         let deadline = Date().addingTimeInterval(3)
         while gtk_widget_get_width(W(paned)) < 500, Date() < deadline { pump(for: 0.01) }
         try #require(gtk_widget_get_width(W(paned)) >= 500)
