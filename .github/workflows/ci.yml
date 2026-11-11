@@ -109,6 +109,7 @@ jobs:
     outputs:
       swift: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.swift == 'true' }}
       cookbook: ${{ steps.filter.outputs.cookbook }}
+      ui_python_only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.ui_python_count > 0 && steps.filter.outputs.ui_python_count == steps.filter.outputs.all_changed_count }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -118,6 +119,10 @@ jobs:
         id: filter
         with:
           filters: |
+            all_changed:
+              - "**"
+            ui_python:
+              - "agterm-linux/tests/*.py"
             swift:
               - "**/*.swift"
               - "agtermCore/**"
@@ -168,6 +173,7 @@ jobs:
         run: |
           scripts/ci-install-ubuntu-deps.sh ripgrep zsh fish
       - name: Install Node for OpenCode hook tests
+        if: needs.changes.outputs.ui_python_only != 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
@@ -179,6 +185,7 @@ jobs:
       # The official Swift container runs as root, which bypasses those permissions, so exercise the
       # package as an ordinary desktop user like the application itself.
       - name: swift test as an unprivileged user
+        if: needs.changes.outputs.ui_python_only != 'true'
         working-directory: agtermCore
         run: |
           useradd --create-home --user-group agterm-test
@@ -216,6 +223,7 @@ jobs:
         run: |
           test "$(swiftlint version)" = "$SWIFTLINT_VERSION"
       - name: swiftlint (strict)
+        if: needs.changes.outputs.ui_python_only != 'true'
         run: swiftlint lint --strict --quiet
       - name: Materialize and verify upstream boundary tag
         run: |
