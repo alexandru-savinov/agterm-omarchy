@@ -11,13 +11,29 @@ import Glibc
 #endif
 
 final class ControlServer: @unchecked Sendable {
+    /// The request-read and shutdown bounds. `requestDeadline` and `shutdownGrace` are owner-tunable
+    /// defaults (#132, #134).
+    struct Timing: Sendable {
+        /// Longest silence between two request bytes.
+        var readTimeoutMS: Int32 = 5_000
+        /// Longest whole request read, so a byte every few seconds cannot hold a worker thread.
+        var requestDeadline: TimeInterval = 30
+        /// How long `stop()` lets a request still waiting on the main thread finish before failing it.
+        var shutdownGrace: TimeInterval = 2
+    }
+
     let path: String
+    let timing: Timing
     private var listenFD: Int32 = -1
     private var lockFD: Int32 = -1
     private var refused = false
     private static let maxLine = 1 << 20
-    private static let readTimeoutMS: Int32 = 5_000
     static let unavailableSuffix = ".unavailable"
+    private let acceptLoops = NSCondition()
+    private var runningAcceptLoops = 0
+    private let pendingLock = NSLock()
+    private var pendingReplies: [ObjectIdentifier: MainReply] = [:]
+    private var stopping = false
 
     private let logger = LinuxStructuredLogger(category: "ControlServer")
     @MainActor lazy var presentationHub = PresentationHub(staleTimeout: 30)
@@ -32,12 +48,19 @@ final class ControlServer: @unchecked Sendable {
     /// shell's `AGTERM_SOCKET` only advertises a socket that exists. Mirrors macOS `boundSocketPath`.
     var boundSocketPath: String? { listenFD >= 0 ? path : nil }
     var resolvedSocketPath: String { refused ? path + Self.unavailableSuffix : path }
+    var activeAcceptLoops: Int {
+        acceptLoops.lock()
+        defer { acceptLoops.unlock() }
+        return runningAcceptLoops
+    }
 
     init(
         path: String? = nil,
-        setSocketPermissions: ((String, Int32) -> Int32)? = nil
+        setSocketPermissions: ((String, Int32) -> Int32)? = nil,
+        timing: Timing = Timing()
     ) {
         self.path = path ?? Self.defaultSocketPath()
+        self.timing = timing
         self.setSocketPermissions = setSocketPermissions ?? { path, _ in
             path.withCString { chmod($0, 0o600) }
         }
@@ -102,13 +125,33 @@ final class ControlServer: @unchecked Sendable {
             return
         }
         listenFD = fd
-        Thread.detachNewThread { [self] in acceptLoop(fd) }
+        pendingLock.lock()
+        stopping = false
+        pendingLock.unlock()
+        acceptLoops.lock()
+        runningAcceptLoops += 1
+        acceptLoops.unlock()
+        Thread.detachNewThread { [self] in
+            acceptLoop(fd)
+            acceptLoops.lock()
+            runningAcceptLoops -= 1
+            acceptLoops.broadcast()
+            acceptLoops.unlock()
+        }
         logger.notice("control socket at \(path)")
     }
 
     func stop() {
         defer { releaseOwnership() }
+        failPendingRepliesAfterGrace()
         guard listenFD >= 0 else { return }
+        // close() alone does not wake a thread blocked in accept() on Linux; that thread would then
+        // accept on whatever socket next reuses the descriptor number.
+        _ = Glibc.shutdown(listenFD, Int32(SHUT_RDWR))
+        let deadline = Date(timeIntervalSinceNow: 2)
+        acceptLoops.lock()
+        while runningAcceptLoops > 0, acceptLoops.wait(until: deadline) {}
+        acceptLoops.unlock()
         close(listenFD)
         listenFD = -1
         unlink(path)
@@ -143,9 +186,9 @@ final class ControlServer: @unchecked Sendable {
         while true {
             let conn = accept(fd, nil, nil)
             if conn < 0 {
-                // a closed listener (stop()) makes accept fail — exit; EINTR (signal) / ECONNABORTED
+                // stop()'s shutdown makes accept fail with EINVAL — exit; EINTR (signal) / ECONNABORTED
                 // are transient, so keep serving instead of dying. Mirrors the macOS accept loop.
-                if errno == EBADF || errno == EINVAL { return }
+                if errno == EBADF || errno == EINVAL || errno == ENOTSOCK { return }
                 continue
             }
             Thread.detachNewThread { [self] in
@@ -162,18 +205,16 @@ final class ControlServer: @unchecked Sendable {
                 let reply = openPresentationOnMain(req.target)
                 guard writeResponse(conn, reply), reply.ok,
                       let id = reply.result?.id.flatMap(UUID.init(uuidString:)) else { return false }
-                adoptPresentationOnMain(conn, session: id)
-                return true
+                return adoptPresentationOnMain(conn, session: id)
             }
             if req.cmd == .sessionOverlayJobRun {
                 let reply = claimOverlayJobOnMain(req.target)
                 let written = writeResponse(conn, reply)
                 guard reply.ok, let job = reply.result?.id else { return false }
-                guard written else {
+                guard written, adoptOverlayJobOnMain(conn, job: job) else {
                     abandonOverlayJobOnMain(job)
                     return false
                 }
-                adoptOverlayJobOnMain(conn, job: job)
                 return true
             }
             response = performRequest(req)
@@ -191,39 +232,59 @@ final class ControlServer: @unchecked Sendable {
         return Self.isRemoteZmxRequest(request) ? dispatchRemoteZmx(request) : dispatchOnMain(request)
     }
 
-    private func restartOnMain(_ request: ControlRequest) -> ControlResponse {
-        let semaphore = DispatchSemaphore(value: 0)
-        let box = ResponseBox()
+    /// Runs `body` on the GTK main thread and blocks until it resolves the reply. After `stop()`, a reply
+    /// still pending once `timing.shutdownGrace` passes resolves as a shutdown failure instead.
+    func awaitMain(_ body: @escaping @MainActor @Sendable (MainReply) -> Void) -> ControlResponse {
+        let reply = MainReply()
+        pendingLock.lock()
+        pendingReplies[ObjectIdentifier(reply)] = reply
+        let failLater = stopping
+        pendingLock.unlock()
+        if failLater { failAfterGrace([reply]) }
         runOnMain {
             MainActor.assumeIsolated {
-                switch Self.route(for: request) {
-                case .controller(let controller?):
-                    controller.restartPane(request) { box.value = $0; semaphore.signal() }
-                case .controller(nil): box.value = ControlResponse(ok: false, error: "no controller"); semaphore.signal()
-                case .failure(let error): box.value = ControlResponse(ok: false, error: error); semaphore.signal()
-                }
+                guard reply.begin() else { return }
+                body(reply)
+                reply.end()
             }
         }
-        semaphore.wait()
-        return box.value
+        let response = reply.wait()
+        pendingLock.lock()
+        pendingReplies[ObjectIdentifier(reply)] = nil
+        pendingLock.unlock()
+        return response
+    }
+
+    private func failPendingRepliesAfterGrace() {
+        pendingLock.lock()
+        stopping = true
+        let replies = Array(pendingReplies.values)
+        pendingLock.unlock()
+        failAfterGrace(replies)
+    }
+
+    private func failAfterGrace(_ replies: [MainReply]) {
+        guard !replies.isEmpty else { return }
+        DispatchQueue.global().asyncAfter(deadline: .now() + timing.shutdownGrace) {
+            for reply in replies { reply.cancel() }
+        }
+    }
+
+    private func restartOnMain(_ request: ControlRequest) -> ControlResponse {
+        awaitMain { reply in
+            switch Self.route(for: request) {
+            case .controller(let controller?): controller.restartPane(request) { reply.resolve($0) }
+            case .controller(nil): reply.resolve(ControlResponse(ok: false, error: "no controller"))
+            case .failure(let error): reply.resolve(ControlResponse(ok: false, error: error))
+            }
+        }
     }
 
     private func clearBrowserOnMain(_ request: ControlRequest) -> ControlResponse {
         if request.target != nil || request.args?.window != nil {
             return ControlResponse(ok: false, error: "browser.clear takes no target or --window")
         }
-        let semaphore = DispatchSemaphore(value: 0)
-        let box = ResponseBox()
-        runOnMain {
-            MainActor.assumeIsolated {
-                LinuxBrowserStore.shared.clear { response in
-                    box.value = response
-                    semaphore.signal()
-                }
-            }
-        }
-        semaphore.wait()
-        return box.value
+        return awaitMain { reply in LinuxBrowserStore.shared.clear { reply.resolve($0) } }
     }
 
     private func writeResponse(_ conn: Int32, _ response: ControlResponse) -> Bool {
@@ -290,35 +351,26 @@ final class ControlServer: @unchecked Sendable {
 
     private func attachRemoteOnMain(host: String, session: String,
                                     tree: ControlRemoteTree, window: String?) -> ControlResponse {
-        let sem = DispatchSemaphore(value: 0)
-        let box = ResponseBox()
-        runOnMain {
-            MainActor.assumeIsolated {
-                let controller: AppController?
-                if let window {
-                    switch gLibrary?.resolveWindow(window) {
-                    case .resolved(let id): controller = gWindows[id]
-                    case .ambiguous(let hits):
-                        box.value = ControlResponse(ok: false,
-                            error: ControlResolve.ambiguousMessage(noun: "window", target: window, hits: hits))
-                        sem.signal()
-                        return
-                    case .notFound, nil:
-                        box.value = ControlResponse(ok: false,
-                            error: ControlResolve.notFoundMessage(noun: "window", target: window))
-                        sem.signal()
-                        return
-                    }
-                } else {
-                    controller = gController
+        awaitMain { reply in
+            let controller: AppController?
+            if let window {
+                switch gLibrary?.resolveWindow(window) {
+                case .resolved(let id): controller = gWindows[id]
+                case .ambiguous(let hits):
+                    reply.resolve(ControlResponse(ok: false,
+                        error: ControlResolve.ambiguousMessage(noun: "window", target: window, hits: hits)))
+                    return
+                case .notFound, nil:
+                    reply.resolve(ControlResponse(ok: false,
+                        error: ControlResolve.notFoundMessage(noun: "window", target: window)))
+                    return
                 }
-                box.value = controller?.attachRemoteSession(host: host, session: session, tree: tree)
-                    ?? ControlResponse(ok: false, error: "window not open")
-                sem.signal()
+            } else {
+                controller = gController
             }
+            reply.resolve(controller?.attachRemoteSession(host: host, session: session, tree: tree)
+                ?? ControlResponse(ok: false, error: "window not open"))
         }
-        sem.wait()
-        return box.value
     }
 
     private static func isPlainRemoteToken(_ value: String) -> Bool {
@@ -329,16 +381,7 @@ final class ControlServer: @unchecked Sendable {
 
     /// Run the dispatch on the GTK main thread and block until it returns.
     private func dispatchOnMain(_ req: ControlRequest) -> ControlResponse {
-        let sem = DispatchSemaphore(value: 0)
-        let box = ResponseBox()
-        runOnMain {
-            MainActor.assumeIsolated {
-                box.value = Self.route(for: req).response(for: req)
-                sem.signal()
-            }
-        }
-        sem.wait()
-        return box.value
+        awaitMain { $0.resolve(Self.route(for: req).response(for: req)) }
     }
 
     private enum ControllerRoute {
@@ -457,9 +500,12 @@ final class ControlServer: @unchecked Sendable {
     private func readLine(_ conn: Int32) -> Data? {
         var buffer = Data()
         var byte: UInt8 = 0
+        let deadline = Date(timeIntervalSinceNow: timing.requestDeadline)
         while true {
+            let remainingMS = deadline.timeIntervalSinceNow * 1_000
+            guard remainingMS > 0 else { return nil }
             var pfd = pollfd(fd: conn, events: Int16(POLLIN), revents: 0)
-            let ready = poll(&pfd, 1, Self.readTimeoutMS)
+            let ready = poll(&pfd, 1, Int32(min(Double(timing.readTimeoutMS), remainingMS.rounded(.up))))
             if ready == 0 { return nil }
             if ready < 0 {
                 if errno == EINTR { continue }
@@ -490,6 +536,61 @@ final class ControlServer: @unchecked Sendable {
     }
 }
 
-private final class ResponseBox: @unchecked Sendable {
-    var value = ControlResponse(ok: false, error: "internal")
+/// One worker's wait for a main-thread reply, resolved exactly once: by the body, or by `cancel()`.
+/// A cancel never interrupts a body mid-turn, so a body that adopts a descriptor cannot also see it closed.
+final class MainReply: @unchecked Sendable {
+    static let shutdown = ControlResponse(ok: false, error: "agterm is shutting down")
+
+    private enum State { case waiting, running(cancelRequested: Bool), awaitingCallback, done }
+    private let lock = NSLock()
+    private let resolved = DispatchSemaphore(value: 0)
+    private var state = State.waiting
+    private var value = ControlResponse(ok: false, error: "internal")
+
+    /// False once a cancel has won, so the body must not run.
+    func begin() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard case .waiting = state else { return false }
+        state = .running(cancelRequested: false)
+        return true
+    }
+
+    /// The body returned; one that has not resolved yet is waiting on an async callback.
+    func end() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard case .running(let cancelRequested) = state else { return }
+        if cancelRequested { finish(Self.shutdown) } else { state = .awaitingCallback }
+    }
+
+    func resolve(_ response: ControlResponse) {
+        lock.lock()
+        defer { lock.unlock() }
+        if case .done = state { return }
+        finish(response)
+    }
+
+    func cancel() {
+        lock.lock()
+        defer { lock.unlock() }
+        switch state {
+        case .waiting, .awaitingCallback: finish(Self.shutdown)
+        case .running: state = .running(cancelRequested: true)
+        case .done: break
+        }
+    }
+
+    func wait() -> ControlResponse {
+        resolved.wait()
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    private func finish(_ response: ControlResponse) {
+        value = response
+        state = .done
+        resolved.signal()
+    }
 }

@@ -1,10 +1,6 @@
 import Foundation
 import agtermCore
 
-private final class PresentationResponseBox: @unchecked Sendable {
-    var value = ControlResponse(ok: false, error: "internal")
-}
-
 @MainActor
 final class LinuxPresentationStream: PresentationSink {
     let session: UUID
@@ -58,27 +54,15 @@ final class LinuxPresentationStream: PresentationSink {
 
 extension ControlServer {
     func openPresentationOnMain(_ target: String?) -> ControlResponse {
-        let sem = DispatchSemaphore(value: 0)
-        let box = PresentationResponseBox()
-        runOnMain {
-            MainActor.assumeIsolated {
-                box.value = self.openPresentation(target)
-                sem.signal()
-            }
-        }
-        sem.wait()
-        return box.value
+        awaitMain { $0.resolve(self.openPresentation(target)) }
     }
 
-    func adoptPresentationOnMain(_ descriptor: Int32, session: UUID) {
-        let sem = DispatchSemaphore(value: 0)
-        runOnMain {
-            MainActor.assumeIsolated {
-                self.adoptPresentationStream(descriptor: descriptor, session: session)
-                sem.signal()
-            }
-        }
-        sem.wait()
+    /// False when shutdown failed the wait before the stream took the descriptor.
+    func adoptPresentationOnMain(_ descriptor: Int32, session: UUID) -> Bool {
+        awaitMain { reply in
+            self.adoptPresentationStream(descriptor: descriptor, session: session)
+            reply.resolve(ControlResponse(ok: true))
+        }.ok
     }
 
     @MainActor
