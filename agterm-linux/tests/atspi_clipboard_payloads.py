@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import subprocess
 import time
 
 from atspi_smoke import (NEGATIVE_SETTLE_SECONDS, activate, control_json, launch, named,
@@ -104,6 +105,51 @@ def verify_clipboard_payloads(env, state):
             assert result["ok"], result
             return session
 
+        def paste(text, drop=False):
+            if not drop:
+                press_x11_key("ctrl+shift+v", process.pid)
+                return
+            source = Gtk.Window(title="agterm clipboard drag fixture")
+            source.set_default_size(200, 100)
+            label = Gtk.Label(label="Drag fixture text")
+            source.set_child(label)
+            drag = Gtk.DragSource.new()
+            drag.set_actions(Gdk.DragAction.COPY)
+            value = GObject.Value(GObject.TYPE_STRING)
+            value.set_string(text)
+            provider = Gdk.ContentProvider.new_for_value(value)
+            drag.connect("prepare", lambda *_args: provider)
+            label.add_controller(drag)
+            source.present()
+            driver = None
+            try:
+                def source_window():
+                    found = subprocess.run(["xdotool", "search", "--onlyvisible", "--name",
+                                            "^agterm clipboard drag fixture$"], text=True, capture_output=True)
+                    return found.stdout.splitlines()[0] if found.returncode == 0 else None
+                source_id = until(source_window, "drag source did not map")
+                subprocess.run(["xdotool", "windowmove", "--sync", source_id, "20", "20"], check=True, timeout=10)
+                target_id = subprocess.check_output(
+                    ["xdotool", "search", "--onlyvisible", "--pid", str(process.pid)], text=True, timeout=10).splitlines()[-1]
+                def center(window_id):
+                    geometry = dict(line.split("=", 1) for line in subprocess.check_output(
+                        ["xdotool", "getwindowgeometry", "--shell", window_id], text=True, timeout=10).splitlines())
+                    return int(geometry["X"]) + int(geometry["WIDTH"]) // 2, int(geometry["Y"]) + int(geometry["HEIGHT"]) // 2
+                sx, sy = center(source_id)
+                tx, ty = center(target_id)
+                driver = subprocess.Popen(["xdotool", "mousemove", "--sync", str(sx), str(sy), "mousedown", "1",
+                                           "sleep", "0.2", "mousemove", "--sync", str(sx + 25), str(sy),
+                                           "sleep", "0.2", "mousemove", "--sync", str(tx), str(ty),
+                                           "sleep", "0.3", "mouseup", "1"])
+                until(lambda: driver.poll() is not None, "drag driver did not finish")
+                assert driver.returncode == 0, "drag input failed"
+            finally:
+                if driver is not None and driver.poll() is None:
+                    driver.terminate()
+                    driver.wait(timeout=5)
+                source.close()
+                pump()
+
         def remains_empty(output, reason):
             deadline = time.monotonic() + NEGATIVE_SETTLE_SECONDS
             while time.monotonic() < deadline:
@@ -133,14 +179,14 @@ def verify_clipboard_payloads(env, state):
                         print(f"OK: exact {kind} OSC52 {response}", flush=True)
             payloads = (("cr", "one\rtwo"), ("lf", "one\ntwo"))
             if label == "protected":
-                payloads += (("uri", uri),)
+                payloads += (("uri", uri), ("drop-cr", "one\rtwo"), ("drop-lf", "one\ntwo"))
             for kind, payload in payloads:
                 ready, output = root / f"{kind}.ready", root / f"{kind}.input"
                 start(["/usr/bin/python3", str(collector), str(ready), str(output), str(bracketed).lower()],
                       f"paste-{label}-{kind}")
                 until(ready.exists, "raw paste receiver did not start")
                 set_text(payload)
-                press_x11_key("ctrl+shift+v", process.pid)
+                paste(payload, drop=kind.startswith("drop-"))
                 must_ask = protection and not (bracketed and trust_bracketed) and kind != "uri"
                 if must_ask:
                     def unsafe_prompt():
@@ -149,7 +195,7 @@ def verify_clipboard_payloads(env, state):
                     until(unsafe_prompt, f"{label}/{kind}: unsafe paste was not confirmed")
                     answer(PASTE_HEADING, "Cancel")
                     remains_empty(output, "cancelled paste delivered bytes")
-                    press_x11_key("ctrl+shift+v", process.pid)
+                    paste(payload, drop=kind.startswith("drop-"))
                     answer(PASTE_HEADING, "Paste")
                 normalized = "/tmp/one\\ two /tmp/three" if kind == "uri" else payload.replace("\r\n", "\n").replace("\r", "\n")
                 expected = (("\x1b[200~" + normalized + "\x1b[201~") if bracketed
