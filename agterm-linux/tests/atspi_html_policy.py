@@ -77,10 +77,10 @@ def verify_html_policy(env, state):
         refused = "rejected:request must come from the file page's main frame"
         write("wrong.html", '<!doctype html><title>Wrong pending</title><script>const results={};' + settle +
               'const native=window.webkit.messageHandlers.agterm;'
-              'Promise.all([settle("wrong-nonce",native.postMessage({nonce:"guess",'
+              'addEventListener("load",()=>setTimeout(()=>Promise.all([settle("wrong-nonce",native.postMessage({nonce:"guess",'
               'request:{cmd:"session.rename",args:{name:"wrong nonce"}}})),'
               'settle("no-envelope",native.postMessage({cmd:"session.rename",args:{name:"no envelope"}}))])'
-              '.then(()=>document.title="wrong:"+JSON.stringify(results))</script>')
+              '.then(()=>document.title="wrong:"+JSON.stringify(results)),300))</script>')
         open_page({"html": os.path.join(pages, "wrong.html"), "cwd": pages, "javascript": True}, "Wrong pending")
         outcome = json.loads(titled("wrong:")[len("wrong:"):])
         assert outcome == {"wrong-nonce": refused, "no-envelope": refused}, outcome
@@ -88,14 +88,14 @@ def verify_html_policy(env, state):
 
         write("child.html", '<!doctype html><title>child</title><script>const results={};' + settle +
               'const own=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.agterm;'
-              'const tries=[];'
+              'const tries=[];addEventListener("load",()=>setTimeout(()=>{'
               'if(own){tries.push(settle("frame-handler",own.postMessage({nonce:"guess",'
               'request:{cmd:"session.rename",args:{name:"frame handler"}}})))}else{results["frame-handler"]="absent"}'
               'try{tries.push(settle("parent-handler",parent.webkit.messageHandlers.agterm.postMessage('
               '{cmd:"session.rename",args:{name:"parent handler"}})))}catch(e){results["parent-handler"]="threw"}'
               'try{tries.push(settle("parent-helper",parent.agterm.request("session.rename",'
               '{args:{name:"parent helper"}})))}catch(e){results["parent-helper"]="threw"}'
-              'Promise.all(tries).then(()=>parent.document.title="frame:"+JSON.stringify(results))</script>')
+              'Promise.all(tries).then(()=>parent.document.title="frame:"+JSON.stringify(results))},300))</script>')
         write("frames.html", '<!doctype html><title>Frames pending</title><iframe src="child.html"></iframe>')
         open_page({"html": os.path.join(pages, "frames.html"), "cwd": pages, "javascript": True}, "Frames pending")
         outcome = json.loads(titled("frame:")[len("frame:"):])
