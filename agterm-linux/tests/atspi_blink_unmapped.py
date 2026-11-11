@@ -44,7 +44,7 @@ class AnimationSettings:
         # Pin the XSETTINGS integer record's endian, padding, serial and Boolean representation.
         expected = bytes.fromhex(
             "00000000070000000100000000001400"
-            "4e65742f456e61626c65416e696d6174696f6e73"
+            "47746b2f456e61626c65416e696d6174696f6e73"
             "0700000000000000")
         assert self.payload(7, False) == expected
         assert self.payload(8, True)[-8:] == bytes.fromhex("0800000001000000")
@@ -90,7 +90,7 @@ class AnimationSettings:
 
     @staticmethod
     def payload(serial, enabled):
-        name = b"Net/EnableAnimations"
+        name = b"Gtk/EnableAnimations"
         return (struct.pack("<B3xII", 0, serial, 1)
                 + struct.pack("<BBH", 0, 0, len(name)) + name + bytes((-len(name)) % 4)
                 + struct.pack("<Ii", serial, int(enabled)))
