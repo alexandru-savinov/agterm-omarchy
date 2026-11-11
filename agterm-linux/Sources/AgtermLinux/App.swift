@@ -194,10 +194,12 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
     )
     gRestoreLaunchDecision = restoreDecision
     let zmxPath = LinuxZmxLaunch.executablePath()
-    let zmxClient = FileManager.default.isExecutableFile(atPath: zmxPath)
+    // A refused socket directory leaves no client: nothing is listed, reaped or killed through it.
+    let zmxSocketDirectory = try? LinuxZmxLaunch.socketDirectoryChoice.get()
+    let zmxClient = FileManager.default.isExecutableFile(atPath: zmxPath) && zmxSocketDirectory != nil
         ? LinuxZmxClient(
             executablePath: zmxPath,
-            socketDirectory: ZmxSupport.socketDirectory(forStateDirectory: stateDirectory.path), sweeper: LinuxProcessSweeper()
+            socketDirectory: zmxSocketDirectory ?? "", sweeper: LinuxProcessSweeper()
         ) : nil
     gZmxClient = zmxClient
     LinuxRemoteLinkObserver.shared.install()
