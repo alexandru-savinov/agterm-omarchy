@@ -24,12 +24,12 @@ jobs:
       - name: Check out the exact upstream contribution
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: 440125bbe41374a7cc480ea17faeb06ccb559c73
+          ref: d66a2673631777ee26df9a206ff83f1597d6736d
           persist-credentials: false
       - name: Record source and toolchain identity
         run: |
           mkdir -p validation-logs
-          test "$(git rev-parse HEAD)" = 440125bbe41374a7cc480ea17faeb06ccb559c73
+          test "$(git rev-parse HEAD)" = d66a2673631777ee26df9a206ff83f1597d6736d
           {
             git rev-parse HEAD
             sw_vers
@@ -107,7 +107,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: upstream-rerun-440125-${{ github.run_id }}-${{ github.run_attempt }}
+          name: upstream-rerun-d66a267-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             validation-logs
             build/DerivedData/Logs/Test
