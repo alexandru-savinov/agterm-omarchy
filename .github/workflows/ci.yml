@@ -330,7 +330,7 @@ jobs:
       - name: GTK AT-SPI smoke tests
         env:
           AGTERM_UI_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/linux-ui
-        run: scripts/test-linux-ui.sh
+        run: python3 scripts/test-linux-ui-parallel.py
       - name: Upload GTK diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
