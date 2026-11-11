@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-extension Agtermctl {
+extension ParsableCommand {
     /// Transport failure is distinct from a decoded server refusal or a command's own exit status.
     public static func mainWithTransportStatus() {
         do {
