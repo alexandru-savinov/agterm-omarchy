@@ -6,6 +6,7 @@ import html
 import json
 import os
 import re
+import unicodedata
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -224,7 +225,11 @@ def snapshot(issues, comments, now=None, since=None):
             notes.append("Uncertain fields: read the source comments")
         if task["state"] == "closed" and active:
             notes.append("Closed issue with a non-complete self-report")
-        if not observations and since is not None and now is not None:
+        task["unverified_claims"] = [claim["latest"] for claim in unverified_claims
+                                     if claim["task"] == task["number"]]
+        if not observations and task["unverified_claims"]:
+            notes.append("No explicit task observation; only unverified check-ins seen, so ownership is unknown")
+        elif not observations and since is not None and now is not None:
             days = round((now - since).total_seconds() / 86400)
             notes.append(f"No explicit task observation; no claim seen in the last {days} days; "
                          "older claims are not loaded, so ownership is unknown")
@@ -233,8 +238,6 @@ def snapshot(issues, comments, now=None, since=None):
         elif not active:
             notes.append("Only complete states observed; availability is not established")
         task["coordination"] = notes
-        task["unverified_claims"] = [claim["latest"] for claim in unverified_claims
-                                     if claim["task"] == task["number"]]
     # Reported headcount: a lead posts for its whole team (docs/HIVE_WAVES.md); workers never post.
     # The newest report wins, so a lead that shrinks its team is counted at its current size.
     teams = {}
@@ -307,7 +310,10 @@ def clip(value):
 
 def markdown(data):
     def escape(value):
-        text = re.sub(r"([\\`*_{}\[\]()#+.!|~-])", r"\\\1", " ".join(str(value).splitlines()))
+        text = " ".join(str(value).splitlines())
+        # Line separators are folded above; any other control character (NUL, ESC, ...) is dropped.
+        text = "".join(char for char in text if unicodedata.category(char) != "Cc")
+        text = re.sub(r"([\\`*_{}\[\]()#+.!|~-])", r"\\\1", text)
         return html.escape(text).replace("@", "&#64;")
     def link(label, url):
         try:

@@ -229,7 +229,8 @@ def write_site(destination, pages, commit, limit=25, roster=None, queue=None, qu
         f'<p class="muted">GitHub account: {escape(entry["account"])}</p></li>'
         for entry in extras)
     if unverified:
-        roster_rows = (f'<li class="queue-note">{unverified} unverified check-in(s) (not a collaborator) are '
+        shown = "99+" if unverified > 99 else str(unverified)  # status.json keeps the true count
+        roster_rows = (f'<li class="queue-note">{shown} unverified check-in(s) (not a collaborator) are '
                        'listed in the queue report, not as cards here.</li>\n' + roster_rows)
     if queue_note:
         roster_rows = f'<li class="queue-note">{escape(queue_note)}</li>\n' + roster_rows

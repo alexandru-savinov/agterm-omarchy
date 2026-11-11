@@ -692,6 +692,18 @@ class HardeningTests(unittest.TestCase):
         self.assertGreaterEqual(output.count("…\\(truncated\\)"), 3)
         self.assertEqual(data["claims"][0]["latest"]["owned_paths"], long_path)  # queue.json keeps it whole
 
+    def test_control_characters_are_dropped_from_the_report(self):
+        issue = {**self.ISSUE, "title": "a\x00b\x1b[31mc\x7fd"}
+        output = markdown({**snapshot([issue], {}, self.NOW), "observed_at": "x"})
+        self.assertFalse(any(ord(char) < 32 and char != "\n" or ord(char) == 127 for char in output))
+        self.assertIn("ab\\[31mcd", output)
+
+    def test_a_task_with_only_unverified_claims_says_so(self):
+        since = self.NOW - datetime.timedelta(days=COMMENT_WINDOW_DAYS)
+        data = snapshot([self.ISSUE], {7: [self.comment(self.body(), 1, "u", "NONE")]}, self.NOW, since=since)
+        self.assertEqual(data["tasks"][0]["coordination"],
+                         ["No explicit task observation; only unverified check-ins seen, so ownership is unknown"])
+
     def test_window_note_only_when_a_window_was_applied(self):
         since = self.NOW - datetime.timedelta(days=COMMENT_WINDOW_DAYS)
         self.assertEqual(snapshot([self.ISSUE], {}, self.NOW)["tasks"][0]["coordination"],

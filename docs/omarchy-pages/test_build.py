@@ -269,6 +269,15 @@ class PagesTests(unittest.TestCase):
                 self.assertIn("2 unverified check-in(s) (not a collaborator)", team)
                 self.assertEqual(team.count('<li class="roster-card"'), len(roster["agents"]))
 
+    def test_unverified_counter_is_capped_for_display(self):
+        for count, shown in ((99, "99"), (100, "99+"), (5000, "99+")):
+            with self.subTest(count=count):
+                queue = self.queue(self.roster())
+                queue["unverified_claims"] = [{"account": "a", "name": "x", "task": 7, "latest": {}}] * count
+                team, data = self.build_team(queue)
+                self.assertIn(f'<li class="queue-note">{shown} unverified check-in(s)', team)
+                self.assertEqual(data["queue"]["unverified_count"], count)
+
     def run_main(self, queue_arg):
         import contextlib, io, sys
         from unittest import mock
