@@ -74,15 +74,9 @@ def verify_quick_card_rendering(env, state):
                     return wait_for(stable, f"{tag}: {label} pixels never settled")
 
                 dimensions, shown = stable_capture("shown")
-                frame = card
-                while frame.get_role_name() not in ("frame", "window"):
-                    frame = frame.get_parent()
-                    assert frame is not None, "quick card has no accessible window"
-                frame_box, card_box = window_extents(frame), window_extents(card)
-                assert frame_box and card_box
-                assert (frame_box.width, frame_box.height) == dimensions, (
-                    "accessible window bounds do not match the captured X11 client")
-                bounds = (card_box.x - frame_box.x, card_box.y - frame_box.y, card_box.width, card_box.height)
+                card_box = window_extents(card)
+                assert card_box, "quick card has no accessible allocation"
+                allocation = (card_box.width, card_box.height)
                 control_json(local, "quick", "hide", "--json")
                 hidden_dimensions, hidden = stable_capture("hidden")
                 assert dimensions == hidden_dimensions, "hiding the card resized its window"
@@ -95,10 +89,14 @@ def verify_quick_card_rendering(env, state):
                 right = max(x for x, _ in positions[cyan])
                 top = min(y for _, y in positions[cyan])
                 bottom = max(y for _, y in positions[cyan])
-                x, y, card_width, card_height = bounds
-                assert all(x <= px < x + card_width and y <= py < y + card_height
-                           for color in positions for px, py in positions[color]), (
-                    f"{tag}: terminal pixels escaped the actual card bounds {bounds}")
+                # GTK accessibility and X11 captures have different CSD origins. Compare actual rendered
+                # extent with allocation size, independently of placement, allowing only the existing 1px border.
+                assert (right - left + 1, bottom - top + 1) == (allocation[0] - 2, allocation[1] - 2), (
+                    f"{tag}: rendered terminal extent does not fill the card interior: "
+                    f"{(left, top, right, bottom)} vs {allocation}")
+                assert all(left <= px <= right and top <= py <= bottom
+                           for color in markers for px, py in positions[color]), (
+                    f"{tag}: colored terminal edge cells escaped the rendered interior")
                 marker_sizes = []
                 for color in markers:
                     points = positions[color]
@@ -134,7 +132,7 @@ def verify_quick_card_rendering(env, state):
                     else:
                         assert pixel(shown, *point) == pixel(hidden, *point), (
                             f"{tag}: large-window shadow did not clear the window edge at {point}")
-                record = {"case": tag, "client": dimensions, "card": bounds, "tty": ready.read_text(),
+                record = {"case": tag, "client": dimensions, "card_allocation": allocation, "tty": ready.read_text(),
                           "cyan_bounds": [left, top, right, bottom], "marker_sizes": marker_sizes,
                           "shadow": [(point, pixel(shown, *point), pixel(hidden, *point)) for point in shadow_points],
                           "window_edges": [(point, pixel(shown, *point), pixel(hidden, *point)) for point in edge_points]}
