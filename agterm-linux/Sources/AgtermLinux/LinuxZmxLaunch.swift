@@ -25,6 +25,17 @@ enum LinuxZmxLaunch {
         }
     }
 
+    /// The socket directory for this process, chosen once (`ZmxSocketDirectory.resolveLinux` documents
+    /// the order and the upgrade rule) so every pane and the zmx client use the same one for the run.
+    static let socketDirectoryChoice: Result<String, ZmxSocketDirectory.Refusal> = ZmxSocketDirectory.resolveLinux(
+        stateDirectory: linuxStateDirectory().path, environment: ProcessInfo.processInfo.environment
+    )
+
+    /// The chosen directory, re-verified (and re-created as 0700 if it vanished) at this call.
+    static func verifiedSocketDirectory() -> Result<String, ZmxSocketDirectory.Refusal> {
+        socketDirectoryChoice.flatMap { ZmxSocketDirectory.verify($0) }
+    }
+
     static func configuration(paneIdentity: UUID, baseEnvironment: [String: String],
                               lead: ZmxLeadAttachment? = nil)
         -> Result<ZmxSupport.Configuration, ZmxSupport.Rejection> {
@@ -40,7 +51,8 @@ enum LinuxZmxLaunch {
             stateDirectory: linuxStateDirectory().path,
             paneIdentity: paneIdentity,
             baseEnvironment: baseEnvironment,
-            inheritedZdotdir: environment["ZDOTDIR"], lead: lead
+            inheritedZdotdir: environment["ZDOTDIR"], lead: lead,
+            socketDirectory: { verifiedSocketDirectory() }
         ))
     }
 

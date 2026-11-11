@@ -7486,18 +7486,21 @@ def main():
             "surface-lifetimes", "surface-failures",
             "background-overlay-grid", "zoom-floating-overlay",
             "sidebar-row-height",
+            "sidebar-search-focus",
             "sidebar-narrow-clipping",
             "sidebar-width-floor",
             "sidebar-click-rename", "sidebar-session-drag", "sidebar-workspace-drag",
             "sidebar-incremental",
             "sidebar-multiselect",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
+            "window-close-cancel", "workspace-focus-filters", "quick-card-geometry",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-picker-cancel", "appearance-reset", "unavailable-font-family", "keymap-config-directory",
             "chrome-interface-controls",
             "theme-many-sessions",
             "zoom-split-ratio", "zoom-preference-changes", "zoom-primary-promotion",
             "dashboard-font-restore", "dashboard-delayed-clicks",
+            "cursor-preferences",
         ):
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             result = subprocess.run([sys.executable, __file__], env=child_env)
@@ -7566,8 +7569,9 @@ def main():
             from atspi_html_v0351 import verify_html_v0351
             verify_html_v0351(env, state)
         elif scenario == "live-restart":
-            from atspi_restart_v0351 import verify_restart_v0351
+            from atspi_restart_v0351 import verify_restart_close_reopen, verify_restart_v0351
             verify_restart_v0351(env, state)
+            verify_restart_close_reopen(env, state)
         elif scenario == "control-ask":
             verify_control_ask(env)
         elif scenario == "dashboard-modal":
@@ -7611,6 +7615,9 @@ def main():
             verify_zoom_floating_overlay(env)
         elif scenario == "sidebar-row-height":
             verify_sidebar_row_height_follows_font_size(env)
+        elif scenario == "sidebar-search-focus":
+            from atspi_sidebar_search_focus import verify_sidebar_search_focus
+            verify_sidebar_search_focus(env)
         elif scenario == "sidebar-narrow-clipping":
             verify_sidebar_narrow_clipping(env)
         elif scenario == "sidebar-width-floor":
@@ -7635,6 +7642,15 @@ def main():
             verify_chrome_focus_popovers(env)
         elif scenario == "auto-follow":
             verify_auto_follow(env, state)
+        elif scenario == "window-close-cancel":
+            from atspi_window_lifecycle import verify_window_close_cancel
+            verify_window_close_cancel(env, state)
+        elif scenario == "workspace-focus-filters":
+            from atspi_window_lifecycle import verify_workspace_focus_filters
+            verify_workspace_focus_filters(env)
+        elif scenario == "quick-card-geometry":
+            from atspi_window_lifecycle import verify_quick_card_geometry
+            verify_quick_card_geometry(env, state)
         elif scenario == "recent-clear":
             verify_recent_clear(env)
         elif scenario == "control-picker":
@@ -7696,6 +7712,9 @@ def main():
         elif scenario == "dashboard-delayed-clicks":
             from atspi_dashboard_clicks import verify_dashboard_delayed_clicks
             verify_dashboard_delayed_clicks(env)
+        elif scenario == "cursor-preferences":
+            from atspi_cursor_preferences import verify_cursor_preferences
+            verify_cursor_preferences(env)
         else:
             raise ValueError(f"unknown AT-SPI scenario: {scenario}")
         print(f"PASS: {scenario}")

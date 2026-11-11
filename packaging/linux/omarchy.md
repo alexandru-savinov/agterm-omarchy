@@ -58,6 +58,8 @@ The personal installer places the complete runtime under `~/.local/lib/agterm`, 
 `~/.local/bin`, and an **agterm** launcher in the desktop application menu.
 The installer builds Release; `--no-build` uses the checkout's existing `.build/release` products,
 and `--payload DIR` installs an extracted archive directory (such as `agterm-stage/`) without building.
+An incomplete payload is rejected before replacement.
+Failed or interrupted upgrades restore the previous payload and managed launcher/icon files; if restoration fails, the installer reports the retained recovery directory.
 Use `--prefix /another/prefix` (or `PREFIX=/another/prefix`) on the install command for another destination;
 the installer warns when that prefix's `share/` is not on the XDG data path, where launchers look.
 `--uninstall` removes exactly the files the installer recorded and keeps state in `~/.local/share/agterm`

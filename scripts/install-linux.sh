@@ -49,7 +49,7 @@ fi
 command -v python3 >/dev/null || { echo "python3 is required to install desktop entries" >&2; exit 1; }
 # Files written outside lib/agterm: recorded in the payload at install, removed exactly at uninstall.
 read -r -d '' DESKTOP_PY <<'PY' || true
-import os, pathlib, shutil, sys
+import json, os, pathlib, shutil, sys
 prefix = pathlib.Path(sys.argv[2])
 payload = prefix / 'lib/agterm'
 manifest_name = 'share/agterm/INSTALLED_FILES'
@@ -91,6 +91,8 @@ def prune(names):
             parent = parent.parent
 
 def install(previous):
+    current = derived(payload)
+    remove(current)
     # A symlinked bin directory resolves relative links from its physical location.
     # Ordinary prefixes still use relative targets and can be moved as a whole.
     for name in ('agterm-linux', 'agtermctl'):
@@ -120,7 +122,7 @@ def install(previous):
                 lines.append(try_exec)
         lines.append(line)
     (prefix / 'share/applications/io.github.melonamin.agterm.desktop').write_text('\n'.join(lines) + '\n')
-    current = derived(payload)
+    (payload / manifest_name).unlink(missing_ok=True)
     (payload / manifest_name).write_text('\n'.join(current) + '\n')
     if previous.is_dir():
         stale = sorted(set(recorded(previous)) - set(current))
@@ -148,7 +150,44 @@ def uninstall():
         shutil.rmtree(payload)
     prune(names + ['lib/agterm'])
 
-if sys.argv[1] == 'install':
+def snapshot(work):
+    staged = (work / 'payload').resolve()
+    for name in ('agterm-linux', 'agterm-linux.bin', 'agtermctl', 'agtermctl.bin', 'zmx'):
+        path = staged / 'bin' / name
+        if not path.is_file() or not os.access(path, os.X_OK) or not path.resolve().is_relative_to(staged):
+            sys.exit(f'incomplete payload: missing executable {path}')
+    for name in ('lib', 'share/agterm', 'share/ghostty', 'share/terminfo', 'share/pixmaps'):
+        if not (staged / name).is_dir() or not (staged / name).resolve().is_relative_to(staged):
+            sys.exit(f'incomplete payload: missing directory {name}')
+    desktop = staged / 'share/applications/io.github.melonamin.agterm.desktop'
+    desktop.read_text()
+    names = sorted(set(derived(staged) + (recorded(payload) if payload.exists() else [])))
+    for name in names:
+        source = prefix / name
+        if source.is_symlink() or source.is_file():
+            backup = work / 'external' / name
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, backup, follow_symlinks=False)
+        elif source.exists():
+            sys.exit(f'refusing non-file installation target: {source}')
+    (work / 'external.json').write_text(json.dumps(names))
+
+def restore(work):
+    names = json.loads((work / 'external.json').read_text())
+    remove(names)
+    for name in names:
+        backup = work / 'external' / name
+        if backup.is_symlink() or backup.is_file():
+            destination = prefix / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(backup, destination, follow_symlinks=False)
+    prune(names + ['lib/agterm'])
+
+if sys.argv[1] == 'snapshot':
+    snapshot(pathlib.Path(sys.argv[3]))
+elif sys.argv[1] == 'restore':
+    restore(pathlib.Path(sys.argv[3]))
+elif sys.argv[1] == 'install':
     install(pathlib.Path(sys.argv[3]))
 else:
     uninstall()
@@ -199,15 +238,26 @@ fi
 mkdir -p "$PREFIX/lib"
 PREFIX="$(cd "$PREFIX" && pwd)"
 WORK="$(mktemp -d "$PREFIX/lib/.agterm-install.XXXXXX")"
+COMMITTED=false
 cleanup() {
   local status=$?
   trap - EXIT
   trap '' HUP INT TERM
-  # Inspect paths rather than a flag: a signal can arrive immediately after either rename.
-  if [[ ! -e "$PREFIX/lib/agterm" && ! -L "$PREFIX/lib/agterm" ]] \
-      && [[ -e "$WORK/previous" || -L "$WORK/previous" ]]; then
-    if ! mv "$WORK/previous" "$PREFIX/lib/agterm"; then
-      printf 'Could not restore previous installation; recover it from %s/previous.\n' "$WORK" >&2
+  if ! $COMMITTED && [[ -f "$WORK/external.json" ]]; then
+    if [[ ! -e "$WORK/payload" ]] && [[ -e "$PREFIX/lib/agterm" || -L "$PREFIX/lib/agterm" ]]; then
+      if ! mv "$PREFIX/lib/agterm" "$WORK/failed"; then
+        printf 'Could not roll back installation; recovery files retained in %s.\n' "$WORK" >&2
+        exit 1
+      fi
+    fi
+    if [[ -e "$WORK/previous" || -L "$WORK/previous" ]]; then
+      if ! mv "$WORK/previous" "$PREFIX/lib/agterm"; then
+        printf 'Could not restore previous installation; recover it from %s/previous.\n' "$WORK" >&2
+        exit 1
+      fi
+    fi
+    if ! python3 -c "$DESKTOP_PY" restore "$PREFIX" "$WORK"; then
+      printf 'Could not restore launcher files; recovery files retained in %s.\n' "$WORK" >&2
       exit 1
     fi
   fi
@@ -223,6 +273,8 @@ if [[ -n "$PAYLOAD" ]]; then
 else
   "$ROOT/scripts/stage-linux.sh" "$WORK/payload"
 fi
+python3 -c "$DESKTOP_PY" snapshot "$PREFIX" "$WORK"
+rm -f "$WORK/payload/share/agterm/RENDERER"
 printf '%s\n' "$RENDERER_MODE" > "$WORK/payload/share/agterm/RENDERER"
 # Finish staging before replacing an installed payload, so a failed build leaves it usable.
 if [[ -e "$PREFIX/lib/agterm" || -L "$PREFIX/lib/agterm" ]]; then
@@ -237,6 +289,7 @@ if [[ -d "$PREFIX/lib/agterm/share/icons" ]]; then
   cp -R "$PREFIX/lib/agterm/share/icons/." "$PREFIX/share/icons/"
 fi
 cp -R "$PREFIX/lib/agterm/share/pixmaps/." "$PREFIX/share/pixmaps/"
+COMMITTED=true
 refresh_caches
 printf 'Installed agterm-linux and agtermctl in %s/bin (payload: %s/lib/agterm).\n' "$PREFIX" "$PREFIX"
 printf 'Add %s/bin to PATH if needed.\n' "$PREFIX"

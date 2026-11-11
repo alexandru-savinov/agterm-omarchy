@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download and authenticate the exact public artifact set for a stable Linux release.
+# Download and authenticate the exact public artifact set for a Linux release.
 # Usage: scripts/verify-published-linux-release.sh TAG
 set -euo pipefail
 
@@ -9,8 +9,8 @@ if (( $# != 1 )); then
 fi
 
 TAG="$1"
-if [[ ! "$TAG" =~ ^linux-(v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?)(\+linux\.[1-9][0-9]*)?$ ]]; then
-  echo "invalid stable Linux release tag: $TAG" >&2
+if [[ ! "$TAG" =~ ^linux-(v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*))*)?)(\+linux\.[1-9][0-9]*)?$ ]]; then
+  echo "invalid Linux release tag: $TAG (expected MAJOR.MINOR.PATCH[-PRERELEASE][+linux.N]; prerelease identifiers are dot-separated letters and digits without '-', numbers without leading zeros)" >&2
   exit 2
 fi
 
@@ -33,6 +33,12 @@ if [[ "$(printf '%s\n' "$VERSION" '0.33.1' | sort -V | head -n 1)" == "$VERSION"
   expected+=("agterm-v${VERSION}-x86_64.AppImage")
 fi
 payloads=("${expected[@]}")
+# Releases after 0.41.1 carry an attested SPDX SBOM outside the checksum manifest. Every release
+# published before the SBOM job existed, up to and including linux-v0.41.1, shipped without one.
+SBOM_CUTOFF='0.41.1'
+if [[ "$(printf '%s\n' "$VERSION" "$SBOM_CUTOFF" | sort -V | tail -n 1)" == "$VERSION" && "$VERSION" != "$SBOM_CUTOFF" ]]; then
+  expected+=("agterm-linux-v${VERSION}.spdx.json")
+fi
 expected+=("agterm-linux-v${VERSION}-SHA256SUMS")
 
 if [[ -n "$SOURCE" ]]; then
@@ -66,7 +72,8 @@ fi
 )
 
 for artifact in "${expected[@]}"; do
-  "$GH" attestation verify "$DOWNLOAD/$artifact" --repo "$REPOSITORY"
+  "$GH" attestation verify "$DOWNLOAD/$artifact" --repo "$REPOSITORY" \
+    --signer-workflow "$REPOSITORY/.github/workflows/release-linux.yml" --source-ref "refs/tags/$TAG"
 done
 
 echo "→ verified public $TAG artifact set, checksums, and attestations"

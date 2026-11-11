@@ -193,4 +193,113 @@ struct RemoteHeldExitTests {
         #expect(host.closed.isEmpty)
         #expect(host.reconciles.isEmpty)
     }
+
+    @Test("link loss survives either callback order and retains its cover",
+          arguments: [false, true], [0, 1, 2])
+    func finalLinkNoticeAfterHeldExit(exitFirst: Bool, attachmentKind: Int) throws {
+        try bind()
+        let pane = try #require(session.splitPaneIdentity)
+        let lead = ZmxLeadAttachment(nonce: "current", claim: true)
+        let book = ZmxLeadBook.shared
+        book.begin(lead, pane: pane, reattaching: attachmentKind == 1)
+        if attachmentKind == 0 {
+            _ = book.apply(try #require(ZmxLeadNotice(title: "zmx-role;current:leader:1")), pane: pane)
+        }
+        defer {
+            book.forget(pane: pane)
+            RemoteReconnectBook.shared.cancel(pane: pane)
+        }
+        let ended = LinuxHeldLeadAttachment()
+        if exitFirst {
+            ended.retain(router.attachmentEnded(split, forSession: session.id))
+            #expect(book.role(pane: pane) == nil)
+            #expect(!book.covered(pane: pane))
+            // Duplicate held callbacks must not discard the surface's retained identity.
+            ended.retain(router.attachmentEnded(split, forSession: session.id))
+        }
+        let notice = try #require(RemoteLinkNotice(title: "agterm-remote;current:lost"))
+        #expect(router.linkLost(notice, from: split, forSession: session.id, heldAttachment: ended))
+        if !exitFirst { _ = router.attachmentEnded(split, forSession: session.id) }
+        let waiting = try #require(RemoteReconnectBook.shared.entries[pane])
+        #expect(waiting.cover == (attachmentKind != 2))
+        #expect(waiting.session == session.id)
+        #expect(waiting.host == "buildbox")
+        #expect(ended.state == nil)
+        let reconciles = host.reconciles.count
+        #expect(!router.linkLost(notice, from: split, forSession: session.id, heldAttachment: ended))
+        ended.retain(router.attachmentEnded(split, forSession: session.id))
+        #expect(!router.linkLost(notice, from: split, forSession: session.id, heldAttachment: ended))
+        #expect(ended.state == nil)
+        #expect(host.reconciles.count == reconciles)
+        RemoteReconnectBook.shared.cancel(pane: pane)
+        ended.retain(router.attachmentEnded(split, forSession: session.id))
+        #expect(!router.linkLost(notice, from: split, forSession: session.id, heldAttachment: ended))
+        #expect(!RemoteReconnectBook.shared.waiting(pane: pane))
+        #expect(book.role(pane: pane) == nil)
+        #expect(store.remotePaneIsHeld(pane, forSession: session.id))
+    }
+
+    @Test("a final title with a wrong nonce cannot reconnect a held pane")
+    func heldWrongNonce() throws {
+        try bind()
+        let pane = session.paneIdentity
+        ZmxLeadBook.shared.begin(ZmxLeadAttachment(nonce: "current", claim: true), pane: pane)
+        defer {
+            ZmxLeadBook.shared.forget(pane: pane)
+            RemoteReconnectBook.shared.cancel(pane: pane)
+        }
+        let ended = LinuxHeldLeadAttachment()
+        ended.retain(router.attachmentEnded(primary, forSession: session.id))
+        let notice = try #require(RemoteLinkNotice(title: "agterm-remote;wrong:lost"))
+        #expect(!router.linkLost(notice, from: primary, forSession: session.id, heldAttachment: ended))
+        #expect(!RemoteReconnectBook.shared.waiting(pane: pane))
+        #expect(!store.remotePaneIsHeld(pane, forSession: session.id))
+        #expect(host.reconciles.isEmpty)
+        #expect(ended.state?.attachment.nonce == "current")
+        let valid = try #require(RemoteLinkNotice(title: "agterm-remote;current:lost"))
+        #expect(router.linkLost(valid, from: primary, forSession: session.id, heldAttachment: ended))
+        #expect(ended.state == nil)
+    }
+
+    @Test("retained ended identity cannot override a newer attachment")
+    func newerAttachmentRejectsEndedNonce() throws {
+        try bind()
+        let pane = session.paneIdentity
+        let book = ZmxLeadBook.shared
+        book.begin(ZmxLeadAttachment(nonce: "old", claim: true), pane: pane)
+        let ended = LinuxHeldLeadAttachment()
+        ended.retain(router.attachmentEnded(primary, forSession: session.id))
+        book.begin(ZmxLeadAttachment(nonce: "new", claim: true), pane: pane)
+        defer {
+            book.forget(pane: pane)
+            RemoteReconnectBook.shared.cancel(pane: pane)
+        }
+        let notice = try #require(RemoteLinkNotice(title: "agterm-remote;old:lost"))
+        #expect(!router.linkLost(notice, from: primary, forSession: session.id, heldAttachment: ended))
+        #expect(book.states[pane]?.attachment.nonce == "new")
+        #expect(!RemoteReconnectBook.shared.waiting(pane: pane))
+    }
+
+    @Test("retired surface callbacks cannot forget or reconnect its replacement")
+    func retiredSurfaceCannotChangeAttachment() throws {
+        try bind()
+        let pane = session.paneIdentity
+        let book = ZmxLeadBook.shared
+        book.begin(ZmxLeadAttachment(nonce: "old", claim: true), pane: pane)
+        let ended = LinuxHeldLeadAttachment()
+        ended.retain(router.attachmentEnded(primary, forSession: session.id))
+        session.surface = HeldSurface()
+        book.begin(ZmxLeadAttachment(nonce: "new", claim: true), pane: pane)
+        defer {
+            book.forget(pane: pane)
+            RemoteReconnectBook.shared.cancel(pane: pane)
+        }
+        #expect(router.attachmentEnded(primary, forSession: session.id) == nil)
+        let notice = try #require(RemoteLinkNotice(title: "agterm-remote;old:lost"))
+        #expect(!router.linkLost(notice, from: primary, forSession: session.id, heldAttachment: ended))
+        #expect(book.states[pane]?.attachment.nonce == "new")
+        #expect(!RemoteReconnectBook.shared.waiting(pane: pane))
+        #expect(host.reconciles.isEmpty)
+    }
+
 }
