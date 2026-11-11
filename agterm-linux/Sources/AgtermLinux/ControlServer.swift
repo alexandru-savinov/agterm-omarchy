@@ -253,7 +253,8 @@ final class ControlServer: @unchecked Sendable {
     private func handle(_ conn: Int32) -> Bool {
         guard let line = readLine(conn) else { return false }
         let response: ControlResponse
-        if let req = try? JSONDecoder().decode(ControlRequest.self, from: line) {
+        switch Result(catching: { try JSONDecoder().decode(ControlRequest.self, from: line) }) {
+        case .success(let req):
             if req.cmd == .zmxPresent {
                 let reply = openPresentationOnMain(req.target)
                 guard writeResponse(conn, reply), reply.ok,
@@ -271,11 +272,22 @@ final class ControlServer: @unchecked Sendable {
                 return true
             }
             response = performRequest(req)
-        } else {
-            response = ControlResponse(ok: false, error: "could not decode request")
+        case .failure(let error):
+            response = ControlResponse(ok: false, error: Self.invalidRequestMessage(error))
         }
         _ = writeResponse(conn, response)
         return false
+    }
+
+    /// The longest decode error sent back. The context can quote a rejected value, and a request may be 1 MiB.
+    static let maxInvalidRequestMessage = 300
+
+    /// Mirrors macOS: the `DecodingError` context names the rejected `cmd`, which tells a caller its agterm is
+    /// older than its agtermctl. It never includes the request body; a quoted value is cut at the bound.
+    static func invalidRequestMessage(_ error: Error) -> String {
+        let message = ControlWire.invalidRequestMessage(error)
+        guard message.count > maxInvalidRequestMessage else { return message }
+        return String(message.prefix(maxInvalidRequestMessage - 1)) + "…"
     }
 
     /// Shared one-request entry point for socket and file-page workers.

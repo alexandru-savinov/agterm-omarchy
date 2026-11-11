@@ -53,7 +53,7 @@ struct ControlServerAcceptLoopTests {
         #expect(server.activeConnectionWorkers == 1)
 
         holder.close()
-        #expect(queued.response(timeout: 5) == ControlResponse(ok: false, error: "could not decode request"))
+        #expect(queued.response(timeout: 5)?.error?.hasPrefix("invalid request: ") == true)
         #expect(waitUntil(timeout: 5) { server.activeConnectionWorkers == 0 })
 
         // Park the loop on a full cap again, then stop: it must not wait out the 2 s stop deadline.
