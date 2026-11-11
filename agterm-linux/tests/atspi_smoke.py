@@ -3092,6 +3092,27 @@ def verify_notification_banner_round_trip(env):
         stop(process)
 
 
+def dismiss_toast(window, message):
+    assert window is not None, "toast owner window is missing"
+    toast_label = named(window, message, role="label")
+    if toast_label is not None:
+        toast_container = toast_label.get_parent()
+        while toast_container is not None and toast_container != window:
+            buttons = [button for button in collect(toast_container, role="push button")
+                       if button.get_state_set().contains(Atspi.StateType.SHOWING)]
+            if buttons:
+                labels = collect(toast_container, role="label")
+                assert len(buttons) == 1 and labels == [toast_label], (
+                    f"toast dismiss control is not uniquely scoped: {message}"
+                )
+                activate(buttons[0])
+                break
+            toast_container = toast_container.get_parent()
+        else:
+            raise AssertionError(f"toast dismiss control is missing: {message}")
+    wait_for(lambda: not named(window, message), f"toast did not dismiss: {message}")
+
+
 def verify_custom_command_failures(env):
     config = os.path.join(env["AGTERM_STATE_DIR"], "config")
     os.makedirs(config)
@@ -3161,25 +3182,7 @@ def verify_custom_command_failures(env):
         control_json(env, "session", "hud", "close", "--target", first_session,
                      "--window", first_window, "--json")
         wait_for(lambda: not command_hud(), "custom-command HUD did not close")
-        origin_frame = frame("command-origin-a")
-        toast_label = named(origin_frame, hud_toast_message, role="label")
-        if toast_label is not None:
-            toast_container = toast_label.get_parent()
-            while toast_container is not None and toast_container != origin_frame:
-                buttons = [button for button in collect(toast_container, role="push button")
-                           if button.get_state_set().contains(Atspi.StateType.SHOWING)]
-                if buttons:
-                    labels = collect(toast_container, role="label")
-                    assert len(buttons) == 1 and labels == [toast_label], (
-                        "HUD companion toast dismiss control is not uniquely scoped"
-                    )
-                    activate(buttons[0])
-                    break
-                toast_container = toast_container.get_parent()
-            else:
-                raise AssertionError("HUD companion toast dismiss control is missing")
-        wait_for(lambda: not named(frame("command-origin-a"), hud_toast_message),
-                 "HUD companion toast did not dismiss before launch-failure check")
+        dismiss_toast(frame("command-origin-a"), hud_toast_message)
         shutil.rmtree(first_cwd)
         shutil.rmtree(second_cwd)
         exit_titles = {}
@@ -3189,13 +3192,14 @@ def verify_custom_command_failures(env):
         ):
             run_palette_action(app, process.pid, title, "Launch Failure", badge="custom")
             launch_prefix = "command failed to launch: Launch Failure —"
-            wait_for(
+            launch_toast = wait_for(
                 lambda: named_prefix(frame(title), launch_prefix),
                 f"launch failure toast did not appear in {title}",
             )
             assert not named_prefix(frame(other_title), launch_prefix), (
                 f"launch failure from {title} leaked into {other_title}"
             )
+            dismiss_toast(frame(title), launch_toast.get_name())
 
             suffix = "a" if window_id == first_window else "b"
             exit_title = f"command-exit-{suffix}"
@@ -3214,6 +3218,7 @@ def verify_custom_command_failures(env):
             assert not named(frame(other_title), exit_message), (
                 f"non-zero failure from {exit_title} leaked into {other_title}"
             )
+            dismiss_toast(frame(exit_title), exit_message)
 
         run_palette_action(app, process.pid, exit_titles[first_window], "Slow Failure", badge="custom")
         control_json(env, "window", "close", first_window, "--json")
