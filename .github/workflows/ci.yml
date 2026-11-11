@@ -266,9 +266,9 @@ jobs:
         run: |
           source linux/arch.sh
           echo "host=$HOST_ARCH" >> "$GITHUB_OUTPUT"
-      - name: Cache vendored Linux runtimes
+      - name: Restore vendored Linux runtimes
         id: ghostty-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             agterm-linux/vendor/ghostty
@@ -288,6 +288,14 @@ jobs:
         run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty
       - name: Verify built zmx cache
         run: scripts/verify-linux-zmx-cache.sh agterm-linux/vendor/zmx
+      - name: Save verified Linux runtimes
+        if: steps.ghostty-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            agterm-linux/vendor/ghostty
+            agterm-linux/vendor/zmx
+          key: ${{ steps.ghostty-cache.outputs.cache-primary-key }}
       - name: Real zmx identity and cleanup controls
         env:
           AGTERM_IDENTITY_TEST_ZMX: ${{ github.workspace }}/agterm-linux/vendor/zmx/zmx
