@@ -7462,6 +7462,7 @@ def main():
             "surface-lifetimes", "surface-failures",
             "background-overlay-grid", "zoom-floating-overlay",
             "sidebar-row-height",
+            "sidebar-search-focus",
             "sidebar-narrow-clipping",
             "sidebar-width-floor",
             "sidebar-click-rename", "sidebar-session-drag", "sidebar-workspace-drag",
@@ -7583,6 +7584,9 @@ def main():
             verify_zoom_floating_overlay(env)
         elif scenario == "sidebar-row-height":
             verify_sidebar_row_height_follows_font_size(env)
+        elif scenario == "sidebar-search-focus":
+            from atspi_sidebar_search_focus import verify_sidebar_search_focus
+            verify_sidebar_search_focus(env)
         elif scenario == "sidebar-narrow-clipping":
             verify_sidebar_narrow_clipping(env)
         elif scenario == "sidebar-width-floor":
