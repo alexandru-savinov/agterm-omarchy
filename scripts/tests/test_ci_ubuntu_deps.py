@@ -31,7 +31,7 @@ args = sys.argv[1:]
 source = next(arg.split('=', 1)[1] for arg in args if arg.startswith('Dir::Etc::sourcelist='))
 with open(os.environ['CALL_LOG'], 'a') as log:
     log.write(json.dumps({'args': args, 'source': source, 'text': pathlib.Path(source).read_text()}) + '\\n')
-sys.exit(100 if os.environ.get('FAIL_UPDATE') and args[-1] == 'update' else 0)
+sys.exit(100 if os.environ.get('FAIL_COMMAND') in args else 0)
 ''')
 
     def executable(self, name, text):
@@ -71,11 +71,18 @@ sys.exit(100 if os.environ.get('FAIL_UPDATE') and args[-1] == 'update' else 0)
                 self.assertFalse(Path(update['source']).parent.exists())
 
     def test_failed_update_never_installs_or_leaves_sources(self):
-        self.env['FAIL_UPDATE'] = '1'
+        self.env['FAIL_COMMAND'] = 'update'
         self.assertEqual(self.run_install('fish').returncode, 100)
         calls = self.calls()
         self.assertEqual(len(calls), 1)
         self.assertFalse(Path(calls[0]['source']).parent.exists())
+
+    def test_failed_install_propagates_and_cleans_sources(self):
+        self.env['FAIL_COMMAND'] = 'install'
+        self.assertEqual(self.run_install('fish').returncode, 100)
+        update, install = self.calls()
+        self.assertEqual(update['source'], install['source'])
+        self.assertFalse(Path(install['source']).parent.exists())
 
     def test_unsupported_release_architecture_and_empty_request_fail_before_apt(self):
         for release, arch, packages in [('ID=debian\nVERSION_CODENAME=noble\n', 'amd64', ['fish']),
