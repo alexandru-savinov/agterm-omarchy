@@ -213,7 +213,15 @@ def verify_window_close_cancel(env, state):
                 assert restored == ids, f"{mode}: restored {restored}, not {ids}"
                 answers("restored-shell", [ids[1]])
                 if mode == "rerun":
-                    wait_for(lambda: len(jobs()) == 2, "Re-run did not restart the captured foreground program")
+                    # Re-run deliberately pre-fills the captured command without executing it.
+                    wait_for(lambda: select.select([job_fd], [], [], 0)[0], "Re-run left the old job running")
+                    deadline = time.monotonic() + 2
+                    while time.monotonic() < deadline:
+                        assert [row["id"] for row in sessions()] == ids
+                        assert jobs() == [original_pid], "Re-run executed before explicit Enter"
+                        time.sleep(0.05)
+                    control_json(mode_env, "session", "type", "\n", "--target", ids[0], "--json")
+                    wait_for(lambda: len(jobs()) == 2, "Enter did not run the pre-filled captured command")
                     assert jobs()[1] != original_pid, "Re-run retained the old process"
                 elif mode == "live":
                     assert jobs() == [original_pid] and not select.select([job_fd], [], [], 0)[0], (
