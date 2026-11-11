@@ -9,7 +9,7 @@ GTK, Zig and the main test tools. Its [publication and original attestation reco
 record source `67f744ba7e60525e92a7a0a635b26eb4aab965b6`. Pull the immutable digest below, not a mutable tag.
 The procedure verifies content identity; it does not perform a fresh signature verification.
 
-Requirements: Linux user/mount/PID namespaces, Bash, Git, Python 3, skopeo, umoci and bubblewrap.
+Requirements: Linux user/mount/PID namespaces, Bash, Git, Python 3.11+, skopeo, umoci and bubblewrap.
 The initial setup used skopeo 1.24.1, umoci 0.6.0 and bubblewrap 0.11.2 without a container daemon.
 Use an ephemeral tool environment rather than changing host services or global policy.
 Allow about 10 GiB before builds: the measured download is 1,707,132,576 bytes; retained original and
