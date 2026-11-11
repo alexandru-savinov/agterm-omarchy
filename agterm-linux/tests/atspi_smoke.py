@@ -7449,7 +7449,7 @@ def main():
     scenario = os.environ.get("AGTERM_ATSPI_SCENARIO")
     if scenario is None:
         failures = []
-        for child_scenario in (
+        scenarios = (
             "normal", "upstream-controls", "html-overlay", "live-restart", "dashboard-modal", "context-menu",
             "window-key-dispatch",
             "split-exit", "split-primary-exit", "window-ownership", "preferences-pages",
@@ -7470,7 +7470,16 @@ def main():
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-many-sessions",
-        ):
+        )
+        try:
+            shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
+            shard_index = int(os.environ.get("AGTERM_ATSPI_SHARD_INDEX", "0"))
+            if not 0 <= shard_index < shard_count <= len(scenarios):
+                raise ValueError("require 0 <= shard index < shard count <= scenario count")
+        except ValueError as error:
+            print(f"FAIL: invalid AT-SPI shard configuration: {error}")
+            return 2
+        for child_scenario in scenarios[shard_index::shard_count]:
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             result = subprocess.run([sys.executable, __file__], env=child_env)
             if result.returncode != 0:
