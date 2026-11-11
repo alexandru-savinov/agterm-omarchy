@@ -56,6 +56,7 @@ jobs:
             scripts/setup-omarchy.sh
             scripts/stage-linux.sh
             scripts/test-linux-resources.sh
+            scripts/test-linux-ghostty-shutdown.sh
             scripts/test-omarchy.sh
             scripts/test-zig-build-linux.sh
             scripts/verify-linux-packages.sh
@@ -79,6 +80,16 @@ jobs:
       - name: Zig transport fallback regression tests
         shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
         run: scripts/test-zig-build-linux.sh
+      - name: Pinned Ghostty shutdown regression and original-queue negative control
+        timeout-minutes: 5
+        shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
+        run: |
+          source linux/ghostty-resources.env
+          source_dir="$(mktemp -d)"
+          trap 'rm -rf "$source_dir"' EXIT
+          git init -q "$source_dir"
+          git -C "$source_dir" fetch --depth 1 --no-tags https://github.com/ghostty-org/ghostty.git "$GHOSTTY_REV"
+          scripts/test-linux-ghostty-shutdown.sh "$source_dir"
       - name: Whitespace
         run: git diff --check
       - name: Summary
