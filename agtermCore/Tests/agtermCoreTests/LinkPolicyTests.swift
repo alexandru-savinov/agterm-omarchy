@@ -51,21 +51,46 @@ struct LinkPolicyTests {
     @Test(arguments: [
         "file:///net/server/share/x.md",         // /net (-hosts) auto-mount root
         "file:///Network/Servers/host/share",     // /Network auto-mount root
-        "file:///home/someone/x.md",              // /home (auto_home) auto-mount root
         "file://localhost/net/server/share",      // local host but an auto-mount path
         "file:///tmp/../net/server/share",        // dot segments resolve INTO /net — must still ignore
         "file:///tmp/%2E%2E/net/server/share",    // percent-encoded `..` decodes BEFORE normalization — still ignore
         "file:///NET/server/share",               // auto-mount match is case-insensitive
         "file:///net",                            // bare root (no child) — exercises the `lower == root` branch
-        "file:///home",                           // bare root
         "file:///network",                        // bare root
-        "file:///System/Volumes/Data/home/someone/x.md",     // canonical Data path where auto_home really mounts
         "file:///System/Volumes/Data/net/server/share",      // canonical Data /net
         "file:///System/Volumes/Data/Network/Servers/host",  // canonical Data /Network/Servers
     ])
     func autoMountPathsIgnored(_ raw: String) {
         #expect(LinkPolicy.disposition(for: raw, localHosts: Self.localHosts) == .ignore)
     }
+
+    #if canImport(Darwin)
+    /// macOS: `/home` is the `auto_home` automount root, ignored with its canonical Data path.
+    @Test(arguments: [
+        "file:///home/someone/x.md",
+        "file:///home",
+        "file:///System/Volumes/Data/home/someone/x.md",
+    ])
+    func homeIsAnAutomountRootOnMacOS(_ raw: String) {
+        #expect(LinkPolicy.disposition(for: raw, localHosts: Self.localHosts) == .ignore)
+    }
+    #else
+    /// Linux: `/home/<user>` holds the user's own files, so a link there gets the same disposition as a
+    /// `/usr` file (reveal), not the macOS `auto_home` ignore.
+    @Test(arguments: [
+        ("file:///home/u/x.md", "file:///home/u/x.md", "file:///usr/share/x.md"),
+        ("file://myhost/home/u/a%20b.md", "file:///home/u/a%20b.md", "file://myhost/usr/a%20b.md"),
+        ("file:///tmp/../home/u/x.md", "file:///home/u/x.md", "file:///tmp/../usr/x.md"),
+    ])
+    func linuxHomeFileRevealsLikeAUsrFile(_ raw: String, _ expected: String, _ usrRaw: String) {
+        let home = LinkPolicy.disposition(for: raw, localHosts: Self.localHosts)
+        guard case let .reveal(url) = home else { Issue.record("expected .reveal for \(raw), got \(home)"); return }
+        #expect(url.absoluteString == expected)
+        guard case .reveal = LinkPolicy.disposition(for: usrRaw, localHosts: Self.localHosts) else {
+            Issue.record("expected .reveal for \(usrRaw)"); return
+        }
+    }
+    #endif
 
     /// Sibling names that merely start with an auto-mount root are NOT auto-mount paths — still revealed.
     /// The last case is the boundary that keeps the Data denylist narrow: a normal file on the Data volume

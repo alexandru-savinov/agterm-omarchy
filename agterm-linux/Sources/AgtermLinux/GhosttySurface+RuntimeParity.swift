@@ -41,8 +41,10 @@ extension GhosttySurface {
 
     /// The live foreground-process argv (via `/proc/<pid>/cmdline`), or nil at the shell prompt — the
     /// Linux analogue of macOS's KERN_PROCARGS2 capture, used for `tree` introspection / restore.
+    /// A retitled process (`CommandRestore.restorableProcCmdline`) captures as nil: not restorable.
     func foregroundCommand(zmxSnapshot: LinuxZmxForegroundResolver.Snapshot?) -> [String]? {
-        guard let argv = foregroundArgv(zmxSnapshot: zmxSnapshot),
+        guard let data = foregroundCmdline(zmxSnapshot: zmxSnapshot),
+              let argv = CommandRestore.restorableProcCmdline(data),
               !CommandRestore.isIdleShell(argv: argv, extra: loginShellName) else { return nil }
         return argv
     }
@@ -60,12 +62,15 @@ extension GhosttySurface {
     }
 
     private func foregroundArgv(zmxSnapshot: LinuxZmxForegroundResolver.Snapshot?) -> [String]? {
+        foregroundCmdline(zmxSnapshot: zmxSnapshot).flatMap(CommandRestore.parseProcCmdline)
+    }
+
+    /// The raw `/proc/<pid>/cmdline` bytes of the pane's foreground process.
+    private func foregroundCmdline(zmxSnapshot: LinuxZmxForegroundResolver.Snapshot?) -> Data? {
         guard let surface,
               let pid = LinuxZmxForegroundResolver.paneForegroundPID(
                   backedByZmx: backedByZmx, paneIdentity: UUID(uuidString: paneToken), snapshot: zmxSnapshot,
-                  localForeground: { Int32(exactly: ghostty_surface_foreground_pid(surface)) }),
-              let data = try? Data(contentsOf: URL(fileURLWithPath: "/proc/\(pid)/cmdline")),
-              let argv = CommandRestore.parseProcCmdline(data) else { return nil }
-        return argv
+                  localForeground: { Int32(exactly: ghostty_surface_foreground_pid(surface)) }) else { return nil }
+        return try? Data(contentsOf: URL(fileURLWithPath: "/proc/\(pid)/cmdline"))
     }
 }

@@ -400,10 +400,10 @@ git tag -a linux-v0.33.1 -m "agterm-linux v0.33.1"
 git push origin linux-v0.33.1
 ```
 
-An existing tag can be rebuilt from the Actions UI or with:
+An existing tag can be rebuilt by running the workflow on that tag ref, so its provenance names the tag:
 
 ```sh
-gh workflow run release-linux.yml --ref linux-port -f tag=linux-v0.33.1
+gh workflow run release-linux.yml --ref linux-v0.33.1 -f tag=linux-v0.33.1
 ```
 
 Verify a downloaded release with either mechanism:
@@ -411,7 +411,9 @@ Verify a downloaded release with either mechanism:
 ```sh
 sha256sum --check agterm-linux-v0.33.1-SHA256SUMS
 gh attestation verify agterm-linux-v0.33.1-x86_64.tar.gz \
-  --repo melonamin/agterm-linux
+  --repo melonamin/agterm-linux \
+  --signer-workflow melonamin/agterm-linux/.github/workflows/release-linux.yml \
+  --source-ref refs/tags/linux-v0.33.1
 ```
 
 The Flatpak manifest remains a local, experimental packaging path.
