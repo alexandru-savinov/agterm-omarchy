@@ -2,7 +2,8 @@
 
 Pointer checks cover Split, Scratch, Quick and New Session; AT-SPI activation covers Split, Scratch,
 Quick, Sidebar and Flagged. Shift+Tab must reach each sensitive button, and every listed button must
-follow its Settings > Interface switch. Other pointer/activation paths are not verified here.
+follow its Settings > Interface switch. Tab+Space activates Split and Flagged. Other
+pointer/activation paths are not verified here.
 """
 
 import time
@@ -107,6 +108,26 @@ def verify_chrome_interface_controls(env):
         assert owner and owner.startswith("owner="), "no terminal took the keyboard after clicking New Session"
         ctx.select_session(ctx.session_id, "the original session could not be reselected")
 
+        # Reach a header and footer control by real Tab traversal, then activate with Space.
+        # FOCUSABLE/FOCUSED alone does not prove the button's keyboard action is connected.
+        keyboard_actions = (
+            ("Toggle Split (Ctrl+Shift+D)", has_split,
+             ("session", "split", "close", "--target", ctx.session_id)),
+            ("Show Flagged Only", lambda: ctx.tree().get("sidebarMode") == "flagged",
+             ("sidebar", "mode", "tree")),
+        )
+        for name, effect, undo in keyboard_actions:
+            assert not effect(), f"{name!r} was already active before its keyboard test"
+            ctx.open_search("before keyboard activation of " + name)
+            ctx.shift_tab_until(lambda: ctx.has_keyboard(button(name)),
+                                f"Shift+Tab never focused {name!r} for keyboard activation")
+            press_x11_key("space", pid)
+            wait_for(effect, f"Space on the Tab-focused {name!r} did not activate it")
+            control_json(env, *undo, "--json")
+            wait_for(lambda: not effect(), f"undoing keyboard activation of {name!r} failed")
+            ctx.select_session(ctx.session_id, "the original session could not be reselected")
+            ctx.close_search("after keyboard activation of " + name)
+
         # Shift+Tab walks backward from the search entry through every visible chrome button.
         reached = set()
         ctx.open_search("to enter the chrome")
@@ -156,7 +177,8 @@ def verify_chrome_interface_controls(env):
             wait_for(lambda name=name: button(name), f"{name!r} did not return with {title!r} on")
         close_preferences(app, pid)
         print("OK: pointer focus for Split/Scratch/Quick/New Session; AT-SPI activation for "
-              "Split/Scratch/Quick/Sidebar/Flagged; sensitive buttons reached by Shift+Tab; "
+              "Split/Scratch/Quick/Sidebar/Flagged; Tab+Space activation for Split/Flagged; "
+              "sensitive buttons reached by Shift+Tab; "
               "all listed Interface visibility switches verified")
     except AssertionError:
         describe_tree(ctx.app)
