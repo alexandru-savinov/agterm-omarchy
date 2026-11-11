@@ -1,0 +1,195 @@
+"""The `blink-unmapped` AT-SPI scenario (#166): the status-glyph pulse stops while its glyph is unmapped.
+
+Opacity and the GLib blink source are invisible to AT-SPI, so the app is launched with the DEBUG-only
+`AGTERM_ATSPI_BLINK_TRACE=1` (`BlinkPhaseTrace.swift`), which writes one stderr line per resync, per
+applied phase and per toplevel unmap. Every negative assertion here ("window A got no late update") is
+measured against a POSITIVE CONTROL instead of a sleep: a second window B keeps one blinking glyph mapped,
+its timer runs on the same main loop at the same half period, and A must stay silent while B applies
+`CLOCK_TICKS` more phases. A's source, had it survived, would fire in between.
+
+Legs: sidebar hide/show, window minimize/restore (X11 iconify under the runner's openbox; native Wayland
+has no minimized state and is not exercised here), window close, and a separate launch with GTK's
+`gtk-enable-animations=false` for reduced motion.
+"""
+
+import os
+import re
+import tempfile
+
+from atspi_smoke import control_json, launch, named, select_window, stop, wait_for, window_list, window_tree
+
+TRACE_KEY = "AGTERM_ATSPI_BLINK_TRACE"
+LINE = re.compile(r"^agterm-blink-trace: window=(\S+) event=(\S+)((?: [a-z]+=\S+)*)$")
+# Four applies on B span at least three half periods (>= 1.8 s on its 0.6 s timer) on one main loop.
+CLOCK_TICKS = 4
+TIMEOUT = 40   # bound for a slow aarch64 runner; every wait below ends on an observed event
+
+
+class Trace:
+    """The app's blink trace lines, read from the shared stderr log starting where this launch began."""
+
+    def __init__(self, path):
+        self.path = path
+        self.offset = os.path.getsize(path) if os.path.exists(path) else 0
+
+    def events(self):
+        with open(self.path, encoding="utf-8", errors="replace") as source:
+            source.seek(self.offset)
+            lines = source.read().splitlines()
+        out = []
+        for line in lines:
+            match = LINE.match(line)
+            if match:
+                fields = dict(item.split("=", 1) for item in match.group(3).split())
+                out.append(dict(fields, window=match.group(1), event=match.group(2)))
+        return out
+
+    def since(self, mark, window, event=None):
+        return [e for e in self.events()[mark:]
+                if e["window"] == window and (event is None or e["event"] == event)]
+
+    def first(self, mark, window, event, **want):
+        for index, entry in enumerate(self.events()[mark:], start=mark):
+            if entry["window"] == window and entry["event"] == event and all(
+                    entry.get(key) == value for key, value in want.items()):
+                return index, entry
+        return None
+
+
+def first_session(env, window_id):
+    sessions = wait_for(lambda: window_tree(env, window_id)["workspaces"][0]["sessions"],
+                        f"window {window_id} never reported a session")
+    return sessions[0]["id"]
+
+
+def blink(env, window_id):
+    control_json(env, "session", "status", "active", "--blink", "--target", first_session(env, window_id),
+                 "--json")
+
+
+def assert_ticking(trace, mark, window, what):
+    """A's pulse is live: two applies after `mark`, alternating, every one on a mapped marked glyph."""
+    applies = wait_for(lambda: (lambda a: a if len(a) >= 2 else None)(trace.since(mark, window, "apply")),
+                       f"{what}: window {window} never applied a blink phase", timeout=TIMEOUT)
+    phases = [entry["phase"] for entry in applies]
+    assert phases[:2] == ["1", "0"], (
+        f"{what}: the re-armed pulse did not start from full opacity and alternate, phases={phases}")
+    for entry in applies:
+        assert entry["marked"] == "1" and entry["mapped"] == "1", (
+            f"{what}: a tick wrote a glyph that was not mapped and marked: {entry}")
+
+
+def assert_silent(trace, mark, quiet, clock, what):
+    """No event of any kind for `quiet` while `clock` applies CLOCK_TICKS phases after `mark`."""
+    wait_for(lambda: len(trace.since(mark, clock, "apply")) >= CLOCK_TICKS,
+             f"{what}: the control window {clock} stopped ticking, so the silence would prove nothing",
+             timeout=TIMEOUT)
+    late = trace.since(mark, quiet, "apply")
+    assert not late, (
+        f"{what}: window {quiet} received {len(late)} blink update(s) after its pulse stopped: {late[:3]}")
+
+
+def await_disarm(trace, mark, window, event, what, **want):
+    found = wait_for(lambda: trace.first(mark, window, event, armed="0", **want),
+                     f"{what}: window {window} never reported its pulse disarmed ({event})", timeout=TIMEOUT)
+    return found[0] + 1
+
+
+def window_open(env, window_id):
+    return next((item.get("open") for item in window_list(env) if item["id"].lower() == window_id), None)
+
+
+def verify_normal(env, trace):
+    process, _app = launch(env)
+    try:
+        a = wait_for(lambda: next((item["id"] for item in window_list(env) if item["open"]), None),
+                     "the launched window never opened").lower()
+        b = control_json(env, "window", "new", "blink-clock", "--json")["result"]["id"].lower()
+        wait_for(lambda: window_open(env, b), "the control window never opened")
+        blink(env, a)
+        blink(env, b)
+        assert_ticking(trace, 0, a, "initial pulse on A")
+        assert_ticking(trace, 0, b, "initial pulse on B")
+        resyncs = trace.since(0, a, "resync")
+        assert resyncs and all(entry["reduced"] == "0" for entry in resyncs), (
+            f"the normal launch reported reduced motion, so the reduced-motion leg's reading is unproven: "
+            f"{resyncs[:3]}")
+
+        # Hide: the column's glyphs unmap synchronously, so this resync must disarm A's timer.
+        select_window(env, a)
+        mark = len(trace.events())
+        control_json(env, "sidebar", "hide", "--json")
+        quiet = await_disarm(trace, mark, a, "resync", "sidebar hide", mapped="0", marked="1")
+        assert_silent(trace, quiet, a, b, "sidebar hidden")
+        mark = len(trace.events())
+        control_json(env, "sidebar", "show", "--json")
+        wait_for(lambda: trace.first(mark, a, "resync", armed="1", mapped="1"),
+                 "sidebar show never re-armed A's pulse", timeout=TIMEOUT)
+        assert_ticking(trace, mark, a, "after sidebar show")
+
+        # Minimize: X11 iconify unmaps the toplevel, and `stopBlinkPhaseForUnmap` must stop A outright.
+        mark = len(trace.events())
+        control_json(env, "window", "minimize", a, "on", "--json")
+        quiet = await_disarm(trace, mark, a, "unmap", "window minimize")
+        assert_silent(trace, quiet, a, b, "window minimized")
+        mark = len(trace.events())
+        control_json(env, "window", "minimize", a, "off", "--json")
+        wait_for(lambda: trace.first(mark, a, "resync", armed="1", mapped="1"),
+                 "restoring the minimized window never re-armed A's pulse", timeout=TIMEOUT)
+        assert_ticking(trace, mark, a, "after window restore")
+
+        # Close: once the window is gone, nothing may reach its destroyed tree.
+        control_json(env, "window", "close", a, "--json")
+        wait_for(lambda: window_open(env, a) is False, "window A never reported closed")
+        quiet = len(trace.events())
+        assert_silent(trace, quiet, a, b, "window closed")
+        late = trace.since(quiet, a)
+        assert not late, f"window closed: window {a} still traced after close: {late[:3]}"
+        print(f"blink-unmapped: hide/show, minimize/restore and close verified on {a} against clock {b}")
+    finally:
+        stop(process)
+
+
+def verify_reduced_motion(env, root):
+    config = os.path.join(root, "reduced-motion-config")
+    state = os.path.join(root, "reduced-motion-state")
+    os.makedirs(os.path.join(config, "gtk-4.0"))
+    os.makedirs(state)
+    with open(os.path.join(config, "gtk-4.0", "settings.ini"), "w", encoding="utf-8") as settings:
+        settings.write("[Settings]\ngtk-enable-animations=false\n")
+    env = dict(env, XDG_CONFIG_HOME=config, AGTERM_STATE_DIR=state,
+               AGTERM_CONTROL_SOCKET=os.path.join(state, "agterm.sock"))
+    trace = Trace(os.environ["AGTERM_UI_APP_STDERR"])
+    process, app = launch(env)
+    try:
+        window = wait_for(lambda: next((item["id"] for item in window_list(env) if item["open"]), None),
+                          "the reduced-motion window never opened").lower()
+        blink(env, window)
+        _, entry = wait_for(lambda: trace.first(0, window, "resync", marked="1", mapped="1"),
+                            "the blinking glyph never reached a resync under reduced motion",
+                            timeout=TIMEOUT)
+        assert entry["reduced"] == "1", f"settings.ini did not reach GTK: the app read {entry}"
+        assert entry["armed"] == "0" and entry["dimmed"] == "0", (
+            f"reduced motion left the pulse armed or the glyph dimmed: {entry}")
+        wait_for(lambda: named(app, "●", role="label"), "the status glyph is not presented under reduced motion")
+        # A second resync with the glyph mapped again (hide, then show) must still decline to arm.
+        mark = len(trace.events())
+        control_json(env, "sidebar", "hide", "--json")
+        control_json(env, "sidebar", "show", "--json")
+        _, again = wait_for(lambda: trace.first(mark, window, "resync", mapped="1"),
+                            "sidebar show never resynced the reduced-motion window", timeout=TIMEOUT)
+        assert again["armed"] == "0" and again["dimmed"] == "0", f"reduced motion re-armed on show: {again}"
+        ticks = [e for e in trace.since(0, window, "apply") if e["phase"] == "1"]
+        assert not ticks, f"reduced motion still dimmed the glyph on a tick: {ticks[:3]}"
+        print(f"blink-unmapped: reduced motion keeps {window}'s glyph static at full opacity")
+    finally:
+        stop(process)
+
+
+def verify_blink_unmapped(env):
+    path = os.environ.get("AGTERM_UI_APP_STDERR")
+    assert path, "AGTERM_UI_APP_STDERR is unset: the blink trace would go to /dev/null and prove nothing"
+    env = dict(env, **{TRACE_KEY: "1"})
+    verify_normal(env, Trace(path))
+    with tempfile.TemporaryDirectory(prefix="agterm-blink-") as root:
+        verify_reduced_motion(env, root)
