@@ -166,7 +166,7 @@ extension AppController {
     }
 }
 
-private func linuxWindowIsMinimized(_ window: OpaquePointer?) -> Bool {
+func linuxWindowIsMinimized(_ window: OpaquePointer?) -> Bool {
     guard let window,
           let surface = gtk_native_get_surface(window) else { return false }
     let state = gdk_toplevel_get_state(surface)

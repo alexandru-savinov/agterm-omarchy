@@ -88,6 +88,17 @@ def wait_for(predicate, message, timeout=12, required=True):
     raise AssertionError(message)
 
 
+def skip_declined_resize(message):
+    """Report a SKIP for a leg whose window resize the host declined, unless the runner says resizes take.
+
+    AGTERM_ATSPI_REQUIRE_RESIZE=1 (scripts/test-linux-ui.sh, the Xvfb + openbox session) turns the SKIP
+    into a failure, so a leg that is the sole cover for a regression cannot pass there without running.
+    """
+    if os.environ.get("AGTERM_ATSPI_REQUIRE_RESIZE") == "1":
+        raise AssertionError(f"{message} (AGTERM_ATSPI_REQUIRE_RESIZE=1: this session must honour resizes)")
+    print(f"SKIP: {message}")
+
+
 def poll(predicate, timeout, interval=0.2):
     """Bool-returning sibling of `wait_for`: True as soon as `predicate()` is truthy, False on
     timeout. Retry sweeps (the dy-offset legs below) need to OBSERVE a timeout and move on to
@@ -2943,6 +2954,72 @@ def verify_child_gdk_environment(env, expected_assignment=None):
         stop(process)
 
 
+LAUNCHER_CALLER_LIBRARY_PATH = "/opt/caller lib"
+
+
+def emulate_packaged_launcher(env, root):
+    """Hand the app what `bin/agterm-linux` exports: its overrides plus the AGTERM_ORIG_* record of the caller.
+
+    The caller had `LD_LIBRARY_PATH` but neither `LIBGL_ALWAYS_SOFTWARE` (which the runner sets, and the app
+    keeps, for its own software GL) nor `AGTERM_COMMIT`. The bundle directory does not exist, so the app's
+    own loading is unaffected. Returns the bundle path a pane must never see.
+    """
+    bundle_lib = os.path.join(root, "bundle", "lib")
+    env["LD_LIBRARY_PATH"] = f"{bundle_lib}:{LAUNCHER_CALLER_LIBRARY_PATH}"
+    env["AGTERM_ORIG_LD_LIBRARY_PATH"] = LAUNCHER_CALLER_LIBRARY_PATH
+    env["AGTERM_COMMIT"] = "atspi-launcher-fixture"
+    env["AGTERM_ORIG_UNSET"] = "AGTERM_COMMIT LIBGL_ALWAYS_SOFTWARE"
+    env["AGTERM_ORIG_SET"] = "1"
+    return bundle_lib
+
+
+def verify_child_launcher_environment(env, bundle_lib):
+    """A pane's shell sees the caller's launcher-overridden values, never the bundle's (issue #270).
+
+    libghostty builds a pane's environment from its snapshot of agterm's environ, so without the restore
+    merged in GhosttySurface.init a `swift build` in a pane would load the bundled runtime and every GL
+    program would be forced to software. libghostty's surface env can only set keys, so a variable the
+    caller never had arrives empty rather than absent; `${VAR:-}` reads both the same way.
+    """
+    readback = os.path.join(env["AGTERM_STATE_DIR"], "launcher-child-env.txt")
+    names = ("LD_LIBRARY_PATH", "LIBGL_ALWAYS_SOFTWARE", "AGTERM_COMMIT",
+             "AGTERM_ORIG_UNSET", "AGTERM_ORIG_LD_LIBRARY_PATH")
+    command = (
+        "printf 'launcher" + "[%s]" * len(names) + "end\\n' "
+        + " ".join(f'"${{{name}:-}}"' for name in names)
+        + f' > "{readback}"\n'
+    )
+    process, app = launch(env)
+    try:
+        tree = control_json(env, "tree", "--json")["result"]["tree"]
+        session_id = tree["workspaces"][0]["sessions"][0]["id"]
+        window_id = next(item["id"] for item in window_list(env) if item["open"])
+        text = None
+        # Re-type until the login shell has a prompt to take the line, as verify_child_gdk_environment does.
+        for _ in range(12):
+            control_json(env, "session", "type", command, "--target", session_id,
+                         "--window", window_id, "--json")
+            time.sleep(1.0)
+            if os.path.exists(readback):
+                with open(readback, encoding="utf-8", errors="replace") as source:
+                    text = source.read()
+                if "end" in text:
+                    break
+        assert text and "end" in text, "the session shell never wrote its launcher environment back"
+        assert bundle_lib not in text, f"pane inherited the bundle library path: {text.strip()!r}"
+        expected = f"launcher[{LAUNCHER_CALLER_LIBRARY_PATH}][][][][]end"
+        assert expected in text, (
+            f"pane did not see the caller's own environment: expected {expected!r}, got {text.strip()!r}"
+        )
+        assert process.poll() is None, "the launcher-environment check terminated the application"
+        print("OK: a pane sees the caller's LD_LIBRARY_PATH and renderer, not the launcher's overrides")
+    except AssertionError:
+        describe_tree(app)
+        raise
+    finally:
+        stop(process)
+
+
 def verify_notification_focus_policy(env):
     with open(os.path.join(env["AGTERM_STATE_DIR"], "settings.json"), "w", encoding="utf-8") as target:
         json.dump({"notificationsEnabled": False}, target)
@@ -3803,9 +3880,15 @@ def verify_surface_configuration_lifetimes(env):
 
     process, _ = launch(env)
     try:
+        # Linux pre-fills a restored command at the prompt: it must NOT run until Enter is pressed.
+        ran_unattended = wait_for(lambda: os.path.exists(restore_marker), "", timeout=5, required=False)
+        assert not ran_unattended, "restored foreground command ran without Enter"
+        control_json(
+            env, "session", "type", "\n", "--target", initial["id"], "--window", window_id, "--json",
+        )
         wait_for(
             lambda: os.path.exists(restore_marker),
-            "restored foreground command was not delivered through initial input",
+            "restored foreground command was not pre-filled through initial input",
         )
         with open(restore_marker, encoding="utf-8") as source:
             assert source.read().strip() == initial["cwd"]
@@ -5430,9 +5513,10 @@ def verify_sidebar_width_floor(env):
         narrowed = wait_for(narrowed_window, "the window never narrowed", timeout=8, required=False)
         if narrowed is None:
             capped = None
-            print(f"SKIP: the compositor kept the window at {wide_window}px instead of the 360px asked "
-                  "for, so the sidebar cannot be capped and the widen-restores-the-request cycle cannot "
-                  "run here (it runs under the Xvfb + openbox session CI uses)")
+            skip_declined_resize(f"the compositor kept the window at {wide_window}px instead of the 360px "
+                                 "asked for, so the sidebar cannot be capped and the widen-restores-the-"
+                                 "request cycle cannot run here (it runs under the Xvfb + openbox session CI "
+                                 "uses)")
         else:
             capped = wait_for(
                 lambda: sidebar_column_settled(
@@ -5956,8 +6040,32 @@ def verify_session_switch_commit(env):
             # A failed assertion must not poison the remainder of the suite or the user's keyboard.
             xdotool("keyup", "Control_L", "Control_R", check=False)
 
+        # Closing the HIGHLIGHTED candidate mid-hold leaves the release nothing to commit to. The commit
+        # above left the MRU `[b, c, a]`, so one Tab highlights preheld-c.
+        held = active_session_name(env, preheld_window)
+        titles = sorted(item.get_name() or "" for item in collect(app, role="frame"))
+        doomed = next(session["id"] for session in window_sessions(env, preheld_window)
+                      if session["name"] == "preheld-c")
+        with ctrl_held(process.pid) as tap:
+            tap("Tab")
+            if not poll(lambda: switcher_overlay_names(app)[1:2] == ["preheld-c"], 12):
+                raise AssertionError(f"Ctrl-Tab did not highlight preheld-c: {switcher_overlay_names(app)}")
+            control_json(env, "session", "close", "--target", doomed, "--window", preheld_window, "--json")
+            wait_for(lambda: all(session["id"] != doomed for session in window_sessions(env, preheld_window)),
+                     "the highlighted candidate did not close mid-hold")
+        time.sleep(NEGATIVE_SETTLE_SECONDS)
+        assert active_session_name(env, preheld_window) == held, (
+            "releasing Ctrl after its highlighted candidate closed selected "
+            f"{active_session_name(env, preheld_window)}, not the held {held}")
+        assert sorted(item.get_name() or "" for item in collect(app, role="frame")) == titles, (
+            "releasing Ctrl after its highlighted candidate closed changed a window title")
+        assert row_selected(app, held), "the sidebar selection moved off the held session"
+        assert not switcher_overlay_names(app) and switcher_dim(app) is None, (
+            "the switcher card outlived a release whose candidate had closed")
+
         print("OK: Ctrl-Tab cycles without selecting, commits once the last Ctrl comes up, reverses, "
-              "survives pre-held Ctrl keys, and Esc / a blur / the dashboard abort")
+              "survives pre-held Ctrl keys, ignores a highlighted candidate closed mid-hold, and Esc / a "
+              "blur / the dashboard abort")
     except AssertionError:
         describe_tree(app)
         raise
@@ -6063,7 +6171,7 @@ def verify_session_switch_scroll(env):
         tall = wait_for(frame_height, "the window frame never reported an allocation")
         control_json(env, "window", "resize", window_id, "--width", "900", "--height", "300", "--json")
         if wait_for(lambda: (frame_height() or tall) < tall - 50, "", timeout=8, required=False) is None:
-            print(f"SKIP: the compositor kept the window {tall}px tall, so ten rows cannot overflow the card")
+            skip_declined_resize(f"the compositor kept the window {tall}px tall, so ten rows cannot overflow the card")
             return
 
         with ctrl_held(process.pid) as tap:
@@ -7435,7 +7543,14 @@ def verify_auto_follow(env, state):
         assert raw_control_json(auto_env, {"cmd": "ask.result", "target": ask["result"]["id"]})[
             "result"]["ask"]["result"] == "pending", "auto-follow cancelled the GUI ask"
         assert raw_control_json(auto_env, {"cmd": "ask.cancel", "target": ask["result"]["id"]})["ok"]
-        print("OK: GTK/GLib auto-follow pauses for Preferences and GUI asks")
+        wait_for(lambda: not named(app, "Auto-follow GUI ask", role="frame"), "GUI ask did not close")
+        # Positive arm: with nothing blocking, a fresh blocked episode must pull the selection after the
+        # s5 grace — otherwise a coordinator that never fires passes both legs above.
+        set_status("idle")
+        set_status("blocked")
+        wait_for(auto_followed, "auto-follow never selected the blocked session with nothing blocking it",
+                 timeout=20)
+        print("OK: GTK/GLib auto-follow pauses for Preferences and GUI asks, then fires once unblocked")
     finally:
         stop(process)
 
@@ -7457,7 +7572,7 @@ def main():
             "session-switch-commit", "session-switch-zoom", "session-switch-scroll",
             "session-switch-sessionless", "session-switch-leader", "leader-repeat", "session-switch-entry",
             "session-switch-deactivate", "child-gdk-env",
-            "child-gdk-env-inverted",
+            "child-gdk-env-inverted", "child-launcher-env",
             "custom-command-failures", "remote-presentation", "control-hooks",
             "surface-lifetimes", "surface-failures",
             "background-overlay-grid", "zoom-floating-overlay",
@@ -7468,10 +7583,15 @@ def main():
             "sidebar-click-rename", "sidebar-session-drag", "sidebar-workspace-drag",
             "sidebar-incremental",
             "sidebar-multiselect",
+            "blink-unmapped",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
             "window-close-cancel", "workspace-focus-filters", "quick-card-geometry",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
+            "theme-picker-cancel", "appearance-reset", "unavailable-font-family", "keymap-config-directory",
+            "chrome-interface-controls",
             "theme-many-sessions",
+            "zoom-split-ratio", "zoom-preference-changes", "zoom-primary-promotion",
+            "dashboard-font-restore", "dashboard-delayed-clicks",
             "cursor-preferences",
             "appearance-follow",
         ):
@@ -7522,6 +7642,7 @@ def main():
         assert "all" in normalized_tokens
         assert not normalized_tokens.intersection(required)
         inverted_assignment = f"agterm: setting {variable}={normalized}"
+    launcher_bundle_lib = emulate_packaged_launcher(env, root) if scenario == "child-launcher-env" else None
     if scenario in ("preferences-pages", "auto-follow"):
         # Page inspection and auto-follow need an already-mapped modal while another process owns focus.
         env["AGTERM_ATSPI_OPEN_PREFERENCES"] = "general"
@@ -7565,6 +7686,8 @@ def main():
             verify_child_gdk_environment(env)
         elif scenario == "child-gdk-env-inverted":
             verify_child_gdk_environment(env, inverted_assignment)
+        elif scenario == "child-launcher-env":
+            verify_child_launcher_environment(env, launcher_bundle_lib)
         elif scenario == "notification-banner":
             verify_notification_banner_round_trip(env)
         elif scenario == "custom-command-failures":
@@ -7652,15 +7775,48 @@ def main():
         elif scenario == "desktop-actions":
             from atspi_desktop_actions import verify_desktop_actions
             verify_desktop_actions(env)
+        elif scenario == "theme-picker-cancel":
+            from atspi_prefs_theme_cancel import verify_theme_picker_cancel
+            verify_theme_picker_cancel(env)
+        elif scenario == "appearance-reset":
+            from atspi_prefs_reset import verify_appearance_reset
+            verify_appearance_reset(env)
+        elif scenario == "unavailable-font-family":
+            from atspi_prefs_font import verify_unavailable_font_family
+            verify_unavailable_font_family(env)
+        elif scenario == "keymap-config-directory":
+            from atspi_prefs_keymap_dir import verify_keymap_config_directory
+            verify_keymap_config_directory(env)
+        elif scenario == "chrome-interface-controls":
+            from atspi_chrome_interface import verify_chrome_interface_controls
+            verify_chrome_interface_controls(env)
         elif scenario == "theme-many-sessions":
             from atspi_theme_many_sessions import verify_theme_many_sessions
             verify_theme_many_sessions(env)
+        elif scenario == "zoom-split-ratio":
+            from atspi_zoom_ratio import verify_zoom_split_ratio
+            verify_zoom_split_ratio(env)
+        elif scenario == "zoom-preference-changes":
+            from atspi_zoom_chrome import verify_zoom_preference_changes
+            verify_zoom_preference_changes(env)
+        elif scenario == "zoom-primary-promotion":
+            from atspi_zoom_promotion import verify_zoom_primary_promotion
+            verify_zoom_primary_promotion(env)
+        elif scenario == "dashboard-font-restore":
+            from atspi_dashboard_fonts import verify_dashboard_font_restore
+            verify_dashboard_font_restore(env)
+        elif scenario == "dashboard-delayed-clicks":
+            from atspi_dashboard_clicks import verify_dashboard_delayed_clicks
+            verify_dashboard_delayed_clicks(env)
         elif scenario == "cursor-preferences":
             from atspi_cursor_preferences import verify_cursor_preferences
             verify_cursor_preferences(env)
         elif scenario == "appearance-follow":
             from atspi_appearance_follow import verify_appearance_follow
             verify_appearance_follow(env)
+        elif scenario == "blink-unmapped":
+            from atspi_blink_unmapped import verify_blink_unmapped
+            verify_blink_unmapped(env)
         else:
             raise ValueError(f"unknown AT-SPI scenario: {scenario}")
         print(f"PASS: {scenario}")

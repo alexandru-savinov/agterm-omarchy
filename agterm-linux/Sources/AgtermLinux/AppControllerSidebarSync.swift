@@ -444,15 +444,22 @@ extension AppController {
         // the first map and the first sync dead.
         let live = gWindows[windowID]
         guard live == nil || live === self else { return }
+        let prefersReducedMotion = linuxPrefersReducedMotion(gtk_settings_get_default())
+        // A minimized window's glyphs still report mapped (see `onWindowSurfaceState`), so none is on screen.
+        let minimized = linuxWindowIsMinimized(windowPointer)
         let shouldRun = LinuxBlinkPolicy.timerShouldRun(
             glyphs: blinkTrackedGlyphs().map {
                 (marked: gtk_widget_has_css_class(W($0), LinuxBlinkPolicy.markerClass) != 0,
-                 mapped: gtk_widget_get_mapped(W($0)) != 0)
+                 mapped: !minimized && gtk_widget_get_mapped(W($0)) != 0)
             },
-            prefersReducedMotion: linuxPrefersReducedMotion(gtk_settings_get_default()))
+            prefersReducedMotion: prefersReducedMotion)
         sidebarRuntime.blinkPhase.resync(shouldRun: shouldRun) { [weak self] phase in
             self?.applyBlinkPhase(phase)
         }
+        #if DEBUG
+        traceBlink("resync", [("armed", sidebarRuntime.blinkPhase.isArmed ? "1" : "0"),
+                              ("reduced", prefersReducedMotion ? "1" : "0")])
+        #endif
     }
 
     private func blinkTrackedGlyphs() -> [OpaquePointer] {
@@ -461,12 +468,28 @@ extension AppController {
             + Array(sidebarRuntime.pickerGlyphs.values)
     }
 
+    /// Minimize stops the pulse like an unmap and restore re-derives it; only the MINIMIZED edges act, so
+    /// the focus changes that also notify `state` neither re-stop nor re-arm a closing window's timer.
+    func surfaceStateDidChange() {
+        let minimized = linuxWindowIsMinimized(windowPointer)
+        guard minimized != surfaceMinimized else { return }
+        surfaceMinimized = minimized
+        if minimized {
+            stopBlinkPhaseForUnmap()
+        } else {
+            resyncBlinkPhase()
+        }
+    }
+
     /// The window is leaving the screen. Stop outright rather than re-deriving: descendants still report
     /// themselves mapped while `unmap` is emitting, so a resync here would keep the timer armed.
     func stopBlinkPhaseForUnmap() {
         guard gWindows[windowID] === self else { return }
         sidebarRuntime.blinkPhase.cancel()
         applyBlinkPhase(false)
+        #if DEBUG
+        traceBlink("unmap", [("armed", sidebarRuntime.blinkPhase.isArmed ? "1" : "0")])
+        #endif
     }
 
     /// Marked labels only, mapped or not: a hidden blinking row must keep step while another visible
@@ -477,5 +500,24 @@ extension AppController {
         for label in blinkTrackedGlyphs() where gtk_widget_has_css_class(W(label), marker) != 0 {
             gtk_widget_set_opacity(W(label), opacity)
         }
+        #if DEBUG
+        traceBlink("apply", [("phase", phase ? "1" : "0")])
+        #endif
     }
+
+    #if DEBUG
+    /// One `BlinkPhaseTrace` line for this window, with the glyph counts every reader needs: tracked
+    /// labels carrying the marker, how many of those are mapped, and how many sit below full opacity.
+    private func traceBlink(_ event: String, _ fields: [(String, String)]) {
+        guard BlinkPhaseTrace.enabled else { return }
+        let marked = blinkTrackedGlyphs().filter {
+            gtk_widget_has_css_class(W($0), LinuxBlinkPolicy.markerClass) != 0
+        }
+        let mapped = marked.filter { gtk_widget_get_mapped(W($0)) != 0 }.count
+        let dimmed = marked.filter { gtk_widget_get_opacity(W($0)) < 1 }.count
+        BlinkPhaseTrace.emit(window: windowID, event: event,
+                             fields: fields + [("marked", "\(marked.count)"), ("mapped", "\(mapped)"),
+                                               ("dimmed", "\(dimmed)")])
+    }
+    #endif
 }

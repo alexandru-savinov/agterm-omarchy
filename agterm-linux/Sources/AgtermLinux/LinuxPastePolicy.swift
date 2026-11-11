@@ -27,12 +27,13 @@ enum PasteDecoder {
 @MainActor
 protocol DropPasteTarget: AnyObject {
     func grabFocus(supersedingPopoverCapture: Bool)
-    func insertPasted(text: String)
+    /// A paste that goes through libghostty's paste protection, never around it.
+    func pasteThroughProtection(text: String)
 }
 
-/// Drops are delivered as a paste, matching macOS (`GhosttySurfaceView.performDragOperation` →
-/// `insertPasted`): a multi-line drop is inserted as text and honours the terminal's bracketed-paste mode.
-/// A drop is exactly as safe as a paste, not safer: with bracketed paste off, lines still submit.
+/// Drops are delivered as a paste, as on macOS (`GhosttySurfaceView.performDragOperation`): a multi-line
+/// drop is inserted as text and honours the terminal's bracketed-paste mode. It is exactly as safe as
+/// Ctrl+Shift+V: when the program has not enabled bracketed paste, a multi-line drop asks first.
 @MainActor
 enum LinuxDropPolicy {
     /// A text/uri-list drop. Sidebar row/workspace ids are refused here as a defensive guard in case a
@@ -54,7 +55,7 @@ enum LinuxDropPolicy {
     private static func paste(_ text: String, to target: some DropPasteTarget) -> Bool {
         guard !text.isEmpty else { return false }
         target.grabFocus(supersedingPopoverCapture: true)
-        target.insertPasted(text: text)
+        target.pasteThroughProtection(text: text)
         return true
     }
 }
