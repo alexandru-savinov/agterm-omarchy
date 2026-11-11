@@ -11,6 +11,8 @@ import shlex
 import subprocess
 import time
 
+from gi.repository import PangoCairo
+
 from atspi_smoke import NEGATIVE_SETTLE_SECONDS, collect, control_json, launch, stop, wait_for, window_list
 from atspi_prefs_combo import (choose_combo, close_preferences, open_preferences, preferences_row,
                                read_settings, seed_settings, settings_path)
@@ -44,11 +46,12 @@ def font_row_shows(app, value):
 
 BACKGROUND = bytes.fromhex("123456")
 SPECIMEN = r"""
-import os, pathlib, sys, time
+import os, pathlib, signal, sys
 os.write(1, b"\x1b]11;#123456\x07\x1b]10;#ffffff\x07\x1b[2J\x1b[H\x1b[?25l"
             b"Hamburgefontsiv 0123456789 iIl1 MW@#%\r\n")
 pathlib.Path(sys.argv[1]).write_text("written")
-time.sleep(120)
+while True:
+    signal.pause()
 """
 
 
@@ -113,8 +116,8 @@ def stable_glyphs(process, destination, expected=None):
 def verify_unavailable_font_family(env):
     artifacts = Path(os.environ.get("AGTERM_UI_ARTIFACT_DIR", env["AGTERM_STATE_DIR"]))
     artifacts.mkdir(parents=True, exist_ok=True)
-    families = sorted(set(subprocess.check_output(
-        ["fc-list", ":spacing=100", "--format", "%{family[0]}\n"], text=True, timeout=10).splitlines()))
+    families = sorted({family.get_name() for family in PangoCairo.FontMap.get_default().list_families()
+                       if family.is_monospace()})
     assert families, "no installed monospace family is available for a rendered reference"
     references = {}
     for index, family in enumerate([MISSING, None] + families):
@@ -153,16 +156,15 @@ def verify_unavailable_font_family(env):
         with open(settings_path(env), "rb") as source:
             assert source.read() == before, "opening Appearance rewrote settings.json"
 
-        families = row_texts(preferences_row(app, "Font"))
-        choose_combo(env, app, process.pid, "Font", ["Default"], 1,
-                     lambda settings: settings.get("fontFamily") == chosen_reference,
-                     search=lambda listed: chosen_reference if chosen_reference in listed else None)
+        row_labels = row_texts(preferences_row(app, "Font"))
+        choose_combo(env, app, process.pid, "Font", ["Default"] + families, families.index(chosen_reference) + 1,
+                     lambda settings: settings.get("fontFamily") == chosen_reference)
         chosen = read_settings(env)["fontFamily"]
         close_preferences(app, process.pid)
         stable_glyphs(process, artifacts / "font-existing-after.png", references[chosen])
         start_specimen(env, "font-new")
         stable_glyphs(process, artifacts / "font-new.png", references[chosen])
-        print(f"measured: chose available family {chosen!r} (row labels before: {families})")
+        print(f"measured: chose available family {chosen!r} (row labels before: {row_labels})")
 
         stop(process)
         process = None
