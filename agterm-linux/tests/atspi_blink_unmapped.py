@@ -16,7 +16,10 @@ not exercised here), window close, and a separate launch with GTK's
 window B is its clock too.
 """
 
+import ctypes
 import os
+import struct
+import time
 import re
 import tempfile
 
@@ -28,6 +31,115 @@ LINE = re.compile(r"^agterm-blink-trace: window=(\S+) event=(\S+)((?: [a-z]+=\S+
 # Four applies on B span at least three half periods (>= 1.8 s on its 0.6 s timer) on one main loop.
 CLOCK_TICKS = 4
 TIMEOUT = 40   # bound for a slow aarch64 runner; every wait below ends on an observed event
+
+
+class AnimationSettings:
+    """One integer on the runner's private X screen; never replace a desktop settings owner.
+
+    Wire format: https://specifications.freedesktop.org/xsettings/0.5/
+    Created before the subject application connects, so it discovers the selection at startup.
+    """
+
+    def __init__(self):
+        # Pin the XSETTINGS integer record's endian, padding, serial and Boolean representation.
+        expected = bytes.fromhex(
+            "00000000070000000100000000001400"
+            "47746b2f456e61626c65416e696d6174696f6e73"
+            "0700000000000000")
+        assert self.payload(7, False) == expected
+        assert self.payload(8, True)[-8:] == bytes.fromhex("0800000001000000")
+        self.x = ctypes.CDLL("libX11.so.6")
+        pointer, xid, integer = ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int
+        signatures = {
+            "XOpenDisplay": ([ctypes.c_char_p], pointer),
+            "XDefaultScreen": ([pointer], integer),
+            "XRootWindow": ([pointer, integer], xid),
+            "XInternAtom": ([pointer, ctypes.c_char_p, integer], xid),
+            "XGetSelectionOwner": ([pointer, xid], xid),
+            "XCreateSimpleWindow": ([pointer, xid, integer, integer, ctypes.c_uint,
+                                     ctypes.c_uint, ctypes.c_uint, xid, xid], xid),
+            "XSetSelectionOwner": ([pointer, xid, xid, xid], integer),
+            "XChangeProperty": ([pointer, xid, xid, xid, integer, integer,
+                                 ctypes.c_char_p, integer], integer),
+            "XSync": ([pointer, integer], integer),
+            "XDestroyWindow": ([pointer, xid], integer),
+            "XCloseDisplay": ([pointer], integer),
+        }
+        for name, (arguments, result) in signatures.items():
+            function = getattr(self.x, name)
+            function.argtypes, function.restype = arguments, result
+        self.display = self.x.XOpenDisplay(None)
+        assert self.display, "live reduced motion requires the runner's X11 display"
+        self.window = 0
+        self.serial = 0
+        try:
+            screen = self.x.XDefaultScreen(self.display)
+            self.selection = self.x.XInternAtom(self.display, f"_XSETTINGS_S{screen}".encode(), 0)
+            assert not self.x.XGetSelectionOwner(self.display, self.selection), (
+                "refusing to replace an existing XSETTINGS manager")
+            self.property = self.x.XInternAtom(self.display, b"_XSETTINGS_SETTINGS", 0)
+            root = self.x.XRootWindow(self.display, screen)
+            self.window = self.x.XCreateSimpleWindow(self.display, root, 0, 0, 1, 1, 0, 0, 0)
+            assert self.window, "could not create the fixture's XSETTINGS window"
+            self.x.XSetSelectionOwner(self.display, self.selection, self.window, 0)
+            self.x.XSync(self.display, 0)
+            self.set_enabled(True)
+        except BaseException:
+            self.close()
+            raise
+
+    @staticmethod
+    def payload(serial, enabled):
+        name = b"Gtk/EnableAnimations"
+        return (struct.pack("<B3xII", 0, serial, 1)
+                + struct.pack("<BBH", 0, 0, len(name)) + name + bytes((-len(name)) % 4)
+                + struct.pack("<Ii", serial, int(enabled)))
+
+    def set_enabled(self, enabled):
+        assert self.x.XGetSelectionOwner(self.display, self.selection) == self.window, (
+            "fixture lost XSETTINGS ownership")
+        self.serial += 1
+        data = self.payload(self.serial, enabled)
+        self.x.XChangeProperty(self.display, self.window, self.property, self.property,
+                               8, 0, data, len(data))
+        self.x.XSync(self.display, 0)
+
+    def close(self):
+        if self.display:
+            # Destroy only our window. If another owner appeared, its selection stays untouched.
+            if self.window:
+                self.x.XDestroyWindow(self.display, self.window)
+            self.x.XCloseDisplay(self.display)
+            self.display = None
+
+
+def verify_live_motion(env, trace, settings, windows):
+    mark = len(trace.events())
+    settings.set_enabled(False)
+    quiet = {
+        window: await_disarm(trace, mark, window, "resync", "live reduced motion", reduced="1", dimmed="0")
+        for window in windows
+    }
+    started = time.monotonic()
+    responses = 0
+
+    def responsive_static_interval():
+        nonlocal responses
+        opened = {key(item["id"]) for item in window_list(env) if item["open"]}
+        assert set(windows) <= opened, "a subject window disappeared during reduced motion"
+        responses += 1
+        for window in windows:
+            assert not trace.since(quiet[window], window, "apply"), "live reduced motion still applied blink phases"
+        return responses >= CLOCK_TICKS and time.monotonic() - started >= CLOCK_TICKS * 0.6
+
+    wait_for(responsive_static_interval, "could not observe a responsive static interval", timeout=TIMEOUT)
+    mark = len(trace.events())
+    settings.set_enabled(True)
+    for window in windows:
+        wait_for(lambda: trace.first(mark, window, "resync", armed="1", reduced="0"),
+                 "reenabling animations did not re-arm the mapped glyph", timeout=TIMEOUT)
+        assert_ticking(trace, mark, window, "after live animations restored")
+    print("blink-unmapped: live XSETTINGS disable/enable disarmed, stayed responsive/static and resumed")
 
 
 class Trace:
@@ -119,7 +231,7 @@ def window_minimized(env, window_id):
     return next((bool(item.get("minimized")) for item in window_list(env) if item["id"] == window_id), None)
 
 
-def verify_normal(env, trace):
+def verify_normal(env, trace, settings):
     """Returns the still-running process and the clock window's trace key: the reduced-motion leg runs
     while this window keeps ticking, so its own negative window has the same positive control."""
     process, _app = launch(env)
@@ -136,6 +248,8 @@ def verify_normal(env, trace):
         assert resyncs and all(entry["reduced"] == "0" for entry in resyncs), (
             f"the normal launch reported reduced motion, so the reduced-motion leg's reading is unproven: "
             f"{resyncs[:3]}")
+
+        verify_live_motion(env, trace, settings, (a, b))
 
         # Hide: `sidebar hide|show` act on the frontmost window, and the column's glyphs unmap
         # synchronously, so this resync must disarm A's timer.
@@ -244,7 +358,11 @@ def verify_blink_unmapped(env):
     assert path, "AGTERM_UI_APP_STDERR is unset: the blink trace would go to /dev/null and prove nothing"
     env = dict(env, **{TRACE_KEY: "1"})
     trace = Trace(path)
-    process, clock = verify_normal(env, trace)
+    settings = AnimationSettings()
+    try:
+        process, clock = verify_normal(env, trace, settings)
+    finally:
+        settings.close()
     try:
         with tempfile.TemporaryDirectory(prefix="agterm-blink-") as root:
             verify_reduced_motion(env, root, trace, clock)
