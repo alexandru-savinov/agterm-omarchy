@@ -222,7 +222,7 @@ class PagesTests(unittest.TestCase):
                     else:
                         subprocess.run([sys.executable, "-B", build.__file__, "--issues", str(snapshot),
                                         "--output", str(output), "--commit", "a" * 40, *arguments],
-                                       check=True, capture_output=True, text=True)
+                                       check=True, capture_output=True, text=True, timeout=10)
                     tasks = json.loads((output / "status.json").read_text())["tasks"]
                     self.assertEqual(len(tasks), 100)
                     self.assertEqual([task["number"] for task in tasks[:59]], numbers)
