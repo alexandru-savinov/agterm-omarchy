@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@Suite(.enabled(if: OpenCodeStatusHookSupport.node != nil || OpenCodeStatusHookSupport.required,
+@Suite(.enabled(if: OpenCodeStatusHookSupport.node != nil,
                 "Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode v2 plugin"))
 struct OpenCodeV2StatusHookTests {
     @Test func cliPluginLifecycleAndRouting() throws {
