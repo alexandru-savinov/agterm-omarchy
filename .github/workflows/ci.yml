@@ -332,6 +332,18 @@ jobs:
           SBOM_COMMIT: ${{ needs.source-sbom.outputs.commit }}
         run: |
           test "$SBOM_COMMIT" = "$(git rev-parse HEAD)"
+          python3 - <<'PYTHON'
+          import json, os, pathlib, shutil, subprocess
+          lock = pathlib.Path('agterm-linux/Package.resolved')
+          committed = json.loads(subprocess.check_output(['git', 'show', 'HEAD:' + str(lock)]))
+          actual = json.loads(lock.read_text())
+          def pins(document):
+              return sorted(({key: pin[key] for key in ('identity', 'kind', 'location', 'state')}
+                             for pin in document['pins']), key=lambda pin: pin['identity'])
+          if pins(actual) != pins(committed):
+              raise SystemExit('Linux build resolved dependencies differ from the scanned checkout lock')
+          shutil.copyfile(lock, pathlib.Path(os.environ['RUNNER_TEMP']) / 'native-sbom' / 'linux.Package.resolved')
+          PYTHON
           python3 scripts/native-sbom.py \
             "$RUNNER_TEMP/native-sbom/sbom.spdx.json" \
             "$RUNNER_TEMP/agterm-stage" \
@@ -364,6 +376,7 @@ jobs:
           if commit != os.environ['SBOM_COMMIT']:
               raise SystemExit('source SBOM checkout mismatch')
           paths = [directory / 'sbom.spdx.json', directory / 'native.spdx.json',
+                   directory / 'linux.Package.resolved',
                    root / ('agterm-omarchy-' + os.environ['BUILD_ARCH'] + '.tar.gz')]
           records = []
           for path in paths:

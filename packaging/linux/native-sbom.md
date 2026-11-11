@@ -30,11 +30,17 @@ Omarchy CI calls the existing source SBOM workflow for its checkout commit, pres
 package check. Each GTK architecture downloads that run's source document, requires the reported commit
 to equal its actual checkout (including the synthetic merge commit on pull requests), then augments the
 validated stage. Source SBOM failure also fails the aggregate CI gate.
+The post-build Linux `Package.resolved` identities, locations, kinds and version/revision states must
+match the scanned checkout's committed Linux lock. Ordering, schema version and `originHash` formatting
+changes do not affect this comparison. Dependency drift fails before native augmentation.
 
 After archiving the tested runtime, a separate `native-sbom-<architecture>-<run>-<attempt>` artifact
-contains `sbom.spdx.json`, `native.spdx.json` and `provenance.json`. The latter records the checkout,
-architecture, repository, run and attempt plus SHA256 hashes of both documents and the exact runtime
-archive uploaded separately. The runtime archive's contents are unchanged.
+contains `sbom.spdx.json`, `native.spdx.json`, the post-build `linux.Package.resolved` and `provenance.json`.
+The latter records the checkout, architecture, repository, run and attempt plus SHA256 hashes of both
+documents, the retained Linux lock and the exact runtime archive uploaded separately. The lock records
+observed resolved revisions; this does not add revision coverage to the source SPDX package records.
+The core package lock is scanned as source, not claimed as independently built by the GTK job.
+The runtime archive's contents are unchanged.
 
 This wiring requires a successful same-run result on both architectures and comparison with the downloaded
 payload before claiming executed coverage. It does not establish native Omarchy runtime acceptance or
