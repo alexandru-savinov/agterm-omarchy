@@ -303,6 +303,9 @@ jobs:
           # Fail if unavailable rather than letting the integration cases silently skip.
           test -x "$AGTERM_IDENTITY_TEST_ZMX"
           python3 -I -m unittest discover -s scripts/tests -p 'test_omarchy_identity.py' -v
+          # Restore pre-fill: a line typed without a newline into a new daemon's shell waits for Enter.
+          command -v zsh
+          python3 -I -m unittest discover -s scripts/tests -p 'test_zmx_prefill.py' -v
       - name: swift test (agterm-linux)
         working-directory: agterm-linux
         run: swift test
