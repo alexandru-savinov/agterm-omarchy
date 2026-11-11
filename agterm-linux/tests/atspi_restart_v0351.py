@@ -101,9 +101,26 @@ def verify_restart_close_reopen(env, state):
             return raw_control_json(env, {"cmd": cmd, "target": target, "args": dict(args or {}, window=window)},
                                     timeout=timeout)
 
-        def row():
+        def row(ident=None):
+            ident = ident or session
             return next((row for workspace in window_tree(env, window)["workspaces"]
-                         for row in workspace["sessions"] if row["id"] == session), None)
+                         for row in workspace["sessions"] if row["id"] == ident), None)
+
+        def wait_realized(ident, message):
+            seen = []
+
+            def realized():
+                current = row(ident)  # one read per poll: a second read can race the tree and see a different row
+                seen.append(current)
+                return current is not None and all(pane.get("paneID") for pane in current["surfaces"]
+                                                   if pane["kind"] == "left")
+
+            try:
+                wait_for(realized, message, timeout=15)
+            except AssertionError as error:
+                vanished = seen[-1] is None and any(item is not None for item in seen)
+                raise AssertionError(f"{error}: first {seen[0]}, last {seen[-1]}"
+                                     + (" (the session appeared, then was closed)" if vanished else "")) from None
 
         def pane_id():
             return next(pane["paneID"] for pane in row()["surfaces"] if pane["kind"] == "left")
@@ -111,6 +128,19 @@ def verify_restart_close_reopen(env, state):
         def leader(daemon):
             entries = request("zmx.list")["result"]["zmx"]["entries"]
             return next((entry.get("leaderPID") for entry in entries if entry["daemon"] == daemon), None)
+
+        # control arm: with no restart in flight, a plain closed session must reopen realized, which
+        # separates a Reopen defect from one the held restart below causes
+        plain = request("session.new", args={"name": "reopen control"})
+        assert plain["ok"], plain
+        plain = plain["result"]["id"]
+        wait_realized(plain, "control: the plain session never realized")
+        assert request("session.close", plain)["ok"]
+        wait_for(lambda: row(plain) is None, "control: the plain session did not close")
+        run_palette_action(app, process.pid, None, "Reopen Last Closed Item")
+        wait_realized(plain, "control: Reopen Last Closed Item did not bring a plain closed session back realized")
+        assert request("session.close", plain)["ok"]
+        wait_for(lambda: row(plain) is None, "control: the reopened plain session did not close")
 
         pids = os.path.join(state, "reopen-jobs")
         signals = os.path.join(state, "reopen-signals")
@@ -155,20 +185,7 @@ def verify_restart_close_reopen(env, state):
         assert request("session.close", session)["ok"]
         wait_for(lambda: row() is None, "the restarting session did not close")
         run_palette_action(app, process.pid, None, "Reopen Last Closed Item")
-        seen = []
-
-        def reopened():
-            current = row()  # one read per poll: a second read can race the tree and see a different row
-            seen.append(current)
-            return current is not None and all(pane.get("paneID") for pane in current["surfaces"]
-                                               if pane["kind"] == "left")
-
-        try:
-            wait_for(reopened, "Reopen Last Closed Item did not bring the realized session back", timeout=15)
-        except AssertionError as error:
-            vanished = seen[-1] is None and any(item is not None for item in seen)
-            raise AssertionError(f"{error}: first {seen[0]}, last {seen[-1]}"
-                                 + (" (the reopened session appeared, then was closed)" if vanished else "")) from None
+        wait_realized(session, "Reopen Last Closed Item did not bring the realized session back")
         assert pane_id() == identity, f"the reopened session took a new pane identity: {pane_id()} != {identity}"
         reopened_shell = wait_for(lambda: leader(daemon), "the reopened pane reported no shell", timeout=15)
         assert worker.is_alive(), f"the restart finished before the reopen: {restart}"
