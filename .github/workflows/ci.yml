@@ -166,6 +166,7 @@ jobs:
         run: |
           useradd --create-home --user-group agterm-test
           chown -R agterm-test:agterm-test "$GITHUB_WORKSPACE"
+          runuser --user agterm-test -- env HOME=/home/agterm-test /usr/bin/env which node
           runuser --user agterm-test -- env HOME=/home/agterm-test node -e '
             const [major, minor] = process.versions.node.split(".").map(Number);
             if (!(major > 22 || (major === 22 && minor >= 7) || (major === 20 && minor >= 19))) {
