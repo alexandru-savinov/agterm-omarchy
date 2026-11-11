@@ -34,6 +34,7 @@ def verify_window_close_cancel(env, state):
     import struct
     import subprocess
     import sys
+    import traceback
 
     class Publications:
         """Watch the directory before an action; replaced inode polling loses rapid publications."""
@@ -260,6 +261,8 @@ def verify_window_close_cancel(env, state):
                 print(f"OK: {mode}/{exit_kind}: Cancel preserved shells and bytes, ordinary close saved once, "
                       "final shutdown published one snapshot, and restore behavior matched the mode")
             finally:
+                if sys.exc_info()[0] is not None:
+                    traceback.print_exc()  # The outer runner prints only the last cleanup exception.
                 if observer is not None:
                     observer.close()
                 try:
@@ -273,7 +276,8 @@ def verify_window_close_cancel(env, state):
                                                      "args": {"window": owner_window, "pane": "left", "force": True}})
                             if not reply.get("ok"):
                                 assert ("no left pane daemon" in reply.get("error", "") or
-                                        "no such window" in reply.get("error", "")), reply
+                                        "no such window" in reply.get("error", "") or
+                                        reply.get("error", "").endswith(" is not running")), reply
                 finally:
                     try:
                         if job_fd is not None:
