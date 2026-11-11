@@ -217,10 +217,12 @@ def choose_combo(env, app, process_id, title, values, index, landed, search=None
     def typed():
         choices = set(added())
         matches = {name for name in choices if name.casefold().startswith(text.casefold())}
+        # libadwaita 1.5 filters substrings; 1.6+ defaults to prefixes. Both require the complete result set.
+        substring_matches = {name for name in choices if text.casefold() in name.casefold()}
         assert text in matches, f"the {title!r} popover lost its search target {text!r}: {choices}"
         type_x11_text(text, process_id)
-        wait_for(lambda: set(added()) & choices == matches,
-                 f"the {title!r} search never exposed the expected filtered choices {sorted(matches)}")
+        wait_for(lambda: set(added()) & choices in (matches, substring_matches),
+                 f"the {title!r} search never exposed complete filtered choices for {text!r}")
         report.append(f"after typing, focus on {focused_node(app)}")
         press_x11_key("Down", process_id)
         press_x11_key("Return", process_id)
