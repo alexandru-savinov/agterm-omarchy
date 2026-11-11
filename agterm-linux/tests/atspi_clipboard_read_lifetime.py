@@ -94,7 +94,7 @@ def verify_clipboard_read_lifetime(env):
     reader.write_text(READER)
     Gtk.init()
     clipboard = Gdk.Display.get_default().get_clipboard()
-    sentinel = "agterm read fixture: spaces, apostrophe ' and unicode λ"
+    sentinel = "agterm read fixture: spaces, apostrophe ' and unicode λ\r\nCRLF\rCR\nLF"
     value = GObject.Value(GObject.TYPE_STRING)
     value.set_string(sentinel)
     clipboard.set(value)
