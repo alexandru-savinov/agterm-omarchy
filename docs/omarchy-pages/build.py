@@ -81,6 +81,9 @@ def tasks_from_pages(pages, limit):
 QUEUE_STATE_PHASE = {"working": "working", "blocked": "awaiting-review",
                      "ready-for-review": "awaiting-review", "complete": "completed"}
 QUEUE_MAX_AGE_SECONDS = 2 * 3600
+# Same set as scripts/github/queue.py TRUSTED_ASSOCIATIONS: only these claims become cards.
+TRUSTED_ASSOCIATIONS = ("OWNER", "MEMBER", "COLLABORATOR")
+QUEUE_UNAVAILABLE = "Queue snapshot unavailable; showing curated phases only."
 
 
 def hours(seconds):
@@ -93,13 +96,18 @@ def queue_overlay(roster, queue, now):
 
     The roster keeps its reviewed prose (role, workstream, work summary). The queue
     supplies the newest self-reported task, state, age and stale flag per account/name.
-    Returns (agents, queue-only agents, freshness note or None)."""
+    Only collaborator claims are overlaid; others are counted, never shown as cards.
+    Returns (agents, queue-only agents, freshness note or None, unverified claim count)."""
     latest, stale = {}, {}
+    unverified = len(queue.get("unverified_claims") or [])
     for claim in queue.get("claims", []):
         record = claim.get("latest") or {}
         url = record.get("url") or ""
         if not url.startswith(BASE + "/issues/") or record.get("created_at") is None:
             continue  # only this repository's issue comments, never remote links
+        if record.get("author_association") not in TRUSTED_ASSOCIATIONS:
+            unverified += 1  # fail closed: a claim without collaborator standing never becomes a card
+            continue
         key = (str(claim.get("account", "")).lower(), str(claim.get("name", "")))
         entry = {"task": claim.get("task"), "state": record.get("state"), "url": url,
                  "created_at": record["created_at"], "age_seconds": record.get("age_seconds"),
@@ -125,7 +133,7 @@ def queue_overlay(roster, queue, now):
     age = (now - observed).total_seconds()
     note = (f"Queue snapshot is {hours(age)} old; claim ages may be behind."
             if age > QUEUE_MAX_AGE_SECONDS else None)
-    return agents, extras, note
+    return agents, extras, note, unverified
 
 
 def queue_line(entry):
@@ -146,7 +154,7 @@ def displayed_phase(agent):
     return QUEUE_STATE_PHASE.get(claim["state"], "coordination") if claim else agent["phase"]
 
 
-def team_page(roster, rows, commit, extras=()):
+def team_page(roster, rows, commit, extras=(), queue_available=True):
     phases = "".join(f'<option value="{key}">{label}</option>' for key, label in PHASES.items())
     streams = "".join(f'<option value="{key}">{label}</option>' for key, label in STREAMS.items())
     count = len(roster["agents"]) + len(extras)
@@ -155,6 +163,12 @@ def team_page(roster, rows, commit, extras=()):
     completed = display_phases.count("completed")
     reviewing = display_phases.count("awaiting-review")
     observed = escape(roster["observed_at"], quote=True)
+    if queue_available:
+        markers = "Markers use the latest available queue claim, falling back to the curated phase."
+        totals = "filters and totals use the latest available queue claim, falling back to the curated phase."
+    else:
+        markers = escape(QUEUE_UNAVAILABLE)
+        totals = "the queue snapshot was unavailable for this build, so filters and totals use the curated phase."
     return f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
@@ -170,17 +184,18 @@ def team_page(roster, rows, commit, extras=()):
 <ol class="pipeline"><li><span class="step">01 / implement</span><strong>Make it portable</strong><p>CPU baseline, queue behavior, and this team page.</p></li><li><span class="step">02 / validate</span><strong>Test the actual bytes</strong><p>Hosted builds, native Wayland, and macOS core checks.</p></li><li><span class="step">03 / review</span><strong>Challenge the claims</strong><p>Read-only audits and source-linked findings.</p></li><li><span class="step">04 / publish</span><strong>Root owns the gate</strong><p>Review, merge, deployment and release decisions.</p></li></ol></section>
 <section class="gate" aria-labelledby="gate-title"><div><p class="eyebrow">Native acceptance / passed at 6775c336</p><h2 id="gate-title">Exact candidate passed.<br>Release work remains.</h2><p>Trusted <a href="{BASE}/actions/runs/41357189891">run 41357189891</a> passed on ARM64 and x86_64 at <a href="{BASE}/commit/6775c33626925adc8a17e9ed7700f296f38d7688"><code>6775c336</code></a>. Both unchanged archives passed provenance, checksum and architecture validation. Root then ran that ARM64 archive (SHA256 prefix <code>2b629e40</code>) on native Omarchy: <strong>7 ordinary and 9 Live checks passed</strong>, with shell PID continuity across restart, positive-control cleanup and preservation of all three protected process identities and the installed app. <a href="{BASE}/issues/185#issuecomment-6565317571">Read the native execution report</a> and <a href="{BASE}/tree/48e70b33651ca8855f8cef5bd57f50afa67ed291/docs/evidence/omarchy-6775c336-2026-11-01">checksummed evidence</a>.</p><p>These runs used software rendering, a process-local zsh fixture and an external private-runtime adapter. Hardware rendering, default-bash Live support and native x86_64 acceptance remain unverified. WebKit checks establish load state, not pixel rendering. The shared generated-config path collision is reproduced in <a href="{BASE}/issues/124">#124</a>. The active application fix is <a href="{BASE}/issues/192">#192</a> / <a href="{BASE}/pull/195">PR #195</a>; <a href="{BASE}/issues/126">#126</a> retains the separate inert proposal. Follow <a href="{BASE}/issues/193">the resumed implementation and review waves</a> and <a href="{BASE}/issues/199">the additional native probe</a> for current owners, findings and gates. Test isolation did not change the accepted application source.</p><p>The accepted source is integrated on <code>main</code> through <a href="{BASE}/pull/6">PR #6</a> at <a href="{BASE}/commit/c88a5b641795a75ebbc0c4e2da1f85f548fb059f"><code>c88a5b64</code></a>. <a href="{BASE}/issues/17">Prerelease publication</a> remains separate; no application release was published in this acceptance snapshot. The evidence review in <a href="{BASE}/pull/189">PR #189</a> uses the shared account and is not independent-account approval.</p></div>
 <div class="evidence-stack"><article><span class="proof good">Passed / exact native ARM64 archive</span><h3>7 ordinary + 9 Live checks</h3><p>Source <code>6775c336</code>: unchanged app and harness, restart continuity, sentinel and separate process cleanup, payload immutability and preservation of existing processes and files. Bundled zmx runs without the earlier SIGILL.</p><a href="{BASE}/pull/189">Inspect the exact-candidate evidence ↗</a></article><article><span class="proof good">Passed / both hosted architectures</span><h3>Trusted build + verified bytes</h3><p>ARM64 and x86_64 required CI gates and both original runtime archives passed validation at the same source. Only the ARM64 archive was executed in the native VM.</p><a href="{BASE}/actions/runs/41357189891">Open the trusted candidate run ↗</a></article><article><span class="proof historical">Historical / earlier hosted payload</span><h3>fd85 acceptance retained</h3><p>The earlier <code>fd85fc58</code> archive passed seven ordinary and nine Live native checks under its own recorded conditions. Its <a href="{BASE}/actions/runs/41335760930">trusted build</a>, <a href="{BASE}/issues/52#issuecomment-6562708234">execution report</a> and archive identities remain unchanged.</p><a href="{BASE}/tree/4d05d60c928c52b04df2ba51c1861cc1b90b8326/docs/evidence/omarchy-fd85fc58-2026-11-01">Inspect the earlier hosted-payload evidence ↗</a></article><article><span class="proof historical">Historical / failed candidate</span><h3>ARM64 pane reconnect</h3><p>Earlier <code>355c82ef</code> failed the reconnect assertion; no ARM64 runtime archive was uploaded. The unchanged assertion passed in later diagnostic and trusted candidate runs. Its original cause remains unclassified.</p><a href="{BASE}/actions/runs/41243677540">Open the retained failed run ↗</a></article><article><span class="proof historical">Historical / different payload</span><h3>Persistent renderer remedy</h3><p>The native-built <code>5e37cb75</code> installation plus wrapper <code>8458e16d</code> passed seven ordinary Wayland checks and an actual desktop-entry launch. The older nine-check Live result is also retained with its own payload identity.</p><a href="{BASE}/issues/56#issuecomment-6560840863">Read the renderer report ↗</a> · <a href="{BASE}/pull/116">Evidence review</a> · <a href="{BASE}/tree/main/docs/evidence/omarchy-arm64-2026-10-29">Older Live evidence</a></article></div></section>
-<section id="roster" aria-labelledby="roster-title"><div class="section-top"><p class="eyebrow">People-shaped responsibilities / agent-sized work</p><h2 id="roster-title">Who is doing what</h2><p class="roster-intro">Roles describe scope. Markers use the latest available queue claim, falling back to the curated phase. Source discussions decide ownership.</p></div>
+<section id="roster" aria-labelledby="roster-title"><div class="section-top"><p class="eyebrow">People-shaped responsibilities / agent-sized work</p><h2 id="roster-title">Who is doing what</h2><p class="roster-intro">Roles describe scope. {markers} Source discussions decide ownership.</p></div>
 <div class="filters" hidden><label>Find a name, role or task<input id="search" type="search" placeholder="Try portability, review, root…"></label><label>Reported phase<select id="phase"><option value="">All phases</option>{phases}</select></label><label>Workstream<select id="stream"><option value="">All workstreams</option>{streams}</select></label><button id="reset" type="button">Reset</button></div>
 <p id="result-count" class="result-count" role="status" aria-live="polite">{count} contributors in this snapshot</p><p id="no-results" hidden>No matching reports. Reset the filters to see the full roster.</p>
 <ul class="roster">{rows}</ul></section>
 <section class="join-panel"><div><p class="eyebrow">There is room for another perspective</p><h2>Pick a task.<br>Bring back evidence.</h2></div><div><p>Read the latest thread, name your scope, and coordinate before editing. Review work can be valuable without claiming source ownership.</p><a class="button" href="{BASE}/issues/1">Join through the GitHub hub ↗</a> <a href="./#join">Copy the check-in format</a></div></section>
 <aside class="snapshot-notes" aria-label="Queue and feature inventory"><strong>Requests and evidence have separate counts.</strong><p>The <a href="{BASE}/pull/121">bounded queue foundation</a> supports planning the 500-agent request; <strong>500 agents have not been launched</strong>. The <a href="{BASE}/blob/67e2d3bccc6e93b7844c1c4188bdbf63c968efed/packaging/linux/github-feature-evidence.md">verified inventory snapshot</a> records 72 proven, 45 pending and 4 unavailable in the stated scopes across 121 rows. This is not exhaustive account-wide feature coverage.</p></aside>
-<aside class="snapshot-notes" aria-label="How to read this snapshot"><strong>Read the timestamp, not an implied heartbeat.</strong><p>Reported state is not proof of present liveness. Each card identifies its GitHub account. Names sharing an account are not separate GitHub identities. A different account alone does not establish independent approval. An open issue can contain completed historical work. Assignment, acknowledgment and review are distinct. Roles and historical reports are curated; filters and totals use the latest available queue claim, falling back to the curated phase. Queue snapshots are not live polling; follow the linked source before acting. Native x86_64 Omarchy runtime acceptance remains unverified.</p></aside>
+<aside class="snapshot-notes" aria-label="How to read this snapshot"><strong>Read the timestamp, not an implied heartbeat.</strong><p>Reported state is not proof of present liveness. Each card identifies its GitHub account. Names sharing an account are not separate GitHub identities. A different account alone does not establish independent approval. An open issue can contain completed historical work. Assignment, acknowledgment and review are distinct. Roles and historical reports are curated; {totals} Queue snapshots are not live polling; follow the linked source before acting. Native x86_64 Omarchy runtime acceptance remains unverified.</p></aside>
 </main><footer><a class="wordmark" href="./">agterm<span>/omarchy</span></a><p>Source <a href="{BASE}/commit/{commit}">{commit[:8]}</a> · <a href="status.json">Machine-readable snapshot</a> · <a href="{BASE}/issues/53">Page task #53</a></p></footer></body></html>'''
 
 
-def write_site(destination, pages, commit, limit=25, roster=None, queue=None):
+def write_site(destination, pages, commit, limit=25, roster=None, queue=None, queue_unavailable=False):
+    """`queue_unavailable`: a queue snapshot was requested but could not be read; say so on the page."""
     if not re.fullmatch(r"[0-9a-f]{7,40}", commit):
         raise ValueError("commit must be a hexadecimal Git commit ID")
     if limit not in (10, 25, 50):
@@ -189,9 +204,9 @@ def write_site(destination, pages, commit, limit=25, roster=None, queue=None):
     roster = roster_snapshot(roster if roster is not None else
                              json.loads(Path(__file__).with_name("roster.json").read_text()))
     generated_at = datetime.now(timezone.utc)
-    queue_note, extras = None, []
+    queue_note, extras, unverified = None, [], 0
     if queue is not None:
-        agents, extras, queue_note = queue_overlay(roster, queue, generated_at)
+        agents, extras, queue_note, unverified = queue_overlay(roster, queue, generated_at)
         roster = {**roster, "agents": agents}
     roster_rows = "\n".join(
         f'<li class="roster-card" data-phase="{displayed_phase(agent)}" data-stream="{agent["workstream"]}">'
@@ -213,8 +228,14 @@ def write_site(destination, pages, commit, limit=25, roster=None, queue=None):
         f'<div class="roster-heading"><h3>{escape(entry["name"])}</h3></div>{queue_line(entry)}'
         f'<p class="muted">GitHub account: {escape(entry["account"])}</p></li>'
         for entry in extras)
+    if unverified:
+        shown = "99+" if unverified > 99 else str(unverified)  # status.json keeps the true count
+        roster_rows = (f'<li class="queue-note">{shown} unverified check-in(s) (not a collaborator) are '
+                       'listed in the queue report, not as cards here.</li>\n' + roster_rows)
     if queue_note:
         roster_rows = f'<li class="queue-note">{escape(queue_note)}</li>\n' + roster_rows
+    if queue is None and queue_unavailable:
+        roster_rows = f'<li class="queue-note queue-unavailable">{escape(QUEUE_UNAVAILABLE)}</li>\n' + roster_rows
     generated = generated_at.isoformat(timespec="seconds")
     rows = "\n".join(
         f'<li><a href="{BASE}/issues/{task["number"]}"><span class="number">#{task["number"]}</span>'
@@ -248,7 +269,8 @@ Next: &lt;concrete action&gt;</code></pre><p>Post progress, blockers, test comma
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     (destination / "index.html").write_text(content)
-    (destination / "team.html").write_text(team_page(roster, roster_rows, commit, extras))
+    (destination / "team.html").write_text(
+        team_page(roster, roster_rows, commit, extras, queue_available=not (queue is None and queue_unavailable)))
     shutil.copyfile(Path(__file__).with_name("style.css"), destination / "style.css")
     for asset in ("team.css", "team.js", "favicon.svg"):
         shutil.copyfile(Path(__file__).with_name(asset), destination / asset)
@@ -257,7 +279,9 @@ Next: &lt;concrete action&gt;</code></pre><p>Post progress, blockers, test comma
         "repository": REPOSITORY, "readiness": "work-in-progress", "upstream_baseline": "v0.35.1",
         "commit": commit, "generated_at": generated, "tasks": tasks, "roster": roster,
         "queue": None if queue is None else {"observed_at": queue["observed_at"], "note": queue_note,
-                                            "queue_only": extras},
+                                            "queue_only": extras, "unverified_count": unverified},
+        # "not-requested": built without --queue; "unavailable": requested but missing or unreadable.
+        "queue_status": "loaded" if queue is not None else "unavailable" if queue_unavailable else "not-requested",
     }, indent=2) + "\n")
 
 
@@ -269,8 +293,18 @@ def main():
     parser.add_argument("--limit", type=int, choices=(10, 25, 50), default=25)
     parser.add_argument("--queue", type=Path, help="queue.json from scripts/github/queue.py (optional)")
     args = parser.parse_args()
-    queue = json.loads(args.queue.read_text()) if args.queue and args.queue.exists() else None
-    write_site(args.output, json.loads(args.issues.read_text()), args.commit, args.limit, queue=queue)
+    queue, unavailable = None, False
+    if args.queue is not None:
+        # Requested but missing or unreadable (the snapshot step is continue-on-error): build, but say so.
+        try:
+            queue = json.loads(args.queue.read_text())
+            if not isinstance(queue, dict) or not isinstance(queue.get("observed_at"), str):
+                raise ValueError("queue snapshot has no observed_at")
+        except (OSError, ValueError) as error:
+            print(f"warning: {QUEUE_UNAVAILABLE} ({type(error).__name__})")
+            queue, unavailable = None, True
+    write_site(args.output, json.loads(args.issues.read_text()), args.commit, args.limit, queue=queue,
+               queue_unavailable=unavailable)
 
 
 if __name__ == "__main__":

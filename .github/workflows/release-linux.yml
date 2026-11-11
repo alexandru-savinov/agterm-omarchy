@@ -65,8 +65,14 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           TAG="$REQUESTED_TAG"
-          if [[ ! "$TAG" =~ ^linux-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?(\+linux\.[1-9][0-9]*)?$ ]]; then
-            echo "invalid Linux release tag: $TAG" >&2
+          # Same grammar as scripts/package-linux.sh; see scripts/tests/test_linux_package_version.py.
+          if [[ ! "$TAG" =~ ^linux-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*))*)?(\+linux\.[1-9][0-9]*)?$ ]]; then
+            echo "invalid Linux release tag: $TAG (expected MAJOR.MINOR.PATCH[-PRERELEASE][+linux.N]; prerelease identifiers are dot-separated letters and digits without '-', numbers without leading zeros)" >&2
+            exit 1
+          fi
+          # Attestations record the run's ref; the published instructions bind verification to the tag.
+          if [[ "$GITHUB_REF" != "refs/tags/$TAG" ]]; then
+            echo "run this workflow on the tag ref itself (gh workflow run release-linux.yml --ref $TAG -f tag=$TAG), not $GITHUB_REF" >&2
             exit 1
           fi
 
@@ -84,10 +90,14 @@ jobs:
 
           VERSION="${TAG#linux-}"
           PACKAGE_VERSION="${VERSION#v}"
+          # A prerelease suffix is the only place the validated grammar allows '-'.
+          PRERELEASE=false
+          [[ "$PACKAGE_VERSION" == *-* ]] && PRERELEASE=true
           {
             echo "tag=$TAG"
             echo "version=$VERSION"
             echo "package_version=$PACKAGE_VERSION"
+            echo "prerelease=$PRERELEASE"
             echo "commit=$COMMIT"
             echo "source_date_epoch=$(git show -s --format=%ct "$COMMIT")"
           } >> "$GITHUB_OUTPUT"
@@ -163,8 +173,9 @@ jobs:
           git diff --check
           git diff --check "$UPSTREAM_BASE_TAG"...HEAD
 
+      # This historical release fixture deliberately asserts the upstream repository name.
       - name: Test published-release verifier
-        run: scripts/test-published-linux-release.sh
+        run: env -u GITHUB_REPOSITORY scripts/test-published-linux-release.sh
 
       - name: Test Linux architecture verification
         run: scripts/test-linux-architecture.sh
@@ -248,4 +259,5 @@ jobs:
           fail_on_unmatched_files: true
           name: agterm-linux ${{ steps.release.outputs.version }}
           body_path: release-notes.md
-          make_latest: true
+          prerelease: ${{ steps.release.outputs.prerelease }}
+          make_latest: ${{ steps.release.outputs.prerelease == 'true' && 'false' || 'true' }}

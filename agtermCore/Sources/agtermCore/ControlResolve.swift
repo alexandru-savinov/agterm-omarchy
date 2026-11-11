@@ -60,12 +60,12 @@ public enum ControlResolve {
         return ambiguousMessage(noun: noun, target: target, hits: hits)
     }
 
-    /// Derive the control socket path. With `stateDir` (the `AGTERM_STATE_DIR` value, if set) it is
+    /// Derive the absolute control socket path. With nonempty `stateDir` (`AGTERM_STATE_DIR`) it is
     /// `<stateDir>/agterm.sock`; otherwise `<appSupport>/agterm.sock`. The app and the CLI both call this
-    /// with the same inputs, so they always rendezvous on the same path.
+    /// with the same inputs. Relative directories resolve against the process's current directory.
     public static func socketPath(stateDir: String?, appSupport: String) -> String {
-        let base = stateDir ?? appSupport
-        return (base as NSString).appendingPathComponent("agterm.sock")
+        let base = stateDir.flatMap { $0.isEmpty ? nil : $0 } ?? appSupport
+        return URL(fileURLWithPath: base, isDirectory: true).appendingPathComponent("agterm.sock").path
     }
 
     /// The control socket's ownership lock path.

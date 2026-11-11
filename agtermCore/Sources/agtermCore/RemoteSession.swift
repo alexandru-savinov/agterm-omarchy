@@ -56,7 +56,7 @@ public enum RemoteSession {
     /// profile, so an installed CLI is otherwise not found and every command exits 127. `CommandPath` owns
     /// where it can live; APPENDED, so a user's own `agtermctl` earlier on PATH still wins.
     static var cliPathPrefix: String {
-        "PATH=\"$PATH:" + CommandPath.standardDirectories.joined(separator: ":") + "\""
+        CommandPath.remoteShellPrefix
     }
 
     /// One ssh invocation attaching to `daemon` on `host`, for the lifetime of the pane.
