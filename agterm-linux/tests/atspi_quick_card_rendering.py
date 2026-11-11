@@ -125,6 +125,8 @@ def verify_quick_card_rendering(env, state):
                 assert len(set(marker_sizes)) == 1, f"{tag}: edge cells are clipped differently: {marker_sizes}"
 
                 def pixel(raw, px, py):
+                    assert 0 <= px < dimensions[0] and 0 <= py < dimensions[1], (
+                        f"{tag}: pixel sample {(px, py)} lies outside capture {dimensions}")
                     offset = (py * dimensions[0] + px) * 3
                     return tuple(raw[offset:offset + 3])
 
@@ -151,17 +153,17 @@ def verify_quick_card_rendering(env, state):
                 for point in edge_points:
                     if width == 1:
                         assert sum(pixel(shown, *point)) < sum(pixel(hidden, *point)) - 10, (
-                            f"{tag}: minimum-window shadow did not reach the clipping edge at {point}")
+                            f"{tag}: minimum-window shadow did not reach the backdrop edge at {point}")
                     else:
                         assert pixel(shown, *point) == pixel(hidden, *point), (
-                            f"{tag}: large-window shadow did not clear the window edge at {point}")
+                            f"{tag}: large-window shadow did not clear the backdrop edge at {point}")
                 record = {"case": tag, "client": dimensions, "card_allocation": allocation, "tty": ready.read_text(),
                           "cyan_bounds": [left, top, right, bottom], "marker_sizes": marker_sizes,
                           "shadow": [(point, pixel(shown, *point), pixel(hidden, *point)) for point in shadow_points],
-                          "window_edges": [(point, pixel(shown, *point), pixel(hidden, *point)) for point in edge_points]}
+                          "backdrop_edges": [(point, pixel(shown, *point), pixel(hidden, *point)) for point in edge_points]}
                 (artifacts / f"{tag}.json").write_text(json.dumps(record, indent=2))
                 print("OK: rendered quick card " + json.dumps(record), flush=True)
             finally:
                 stop(process)
     print("OK: quick terminal edge cells remain whole inside rounded cards; only the outward shadow reaches "
-          "minimum-window clipping edges, while large-window shadows clear them")
+          "minimum-window backdrop edges, while large-window shadows clear them")
