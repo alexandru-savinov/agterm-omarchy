@@ -32,6 +32,7 @@ def verify_window_close_cancel(env, state):
     import shlex
     import signal
     import struct
+    import subprocess
     import sys
 
     class Publications:
@@ -127,8 +128,11 @@ def verify_window_close_cancel(env, state):
                     markers = {ident: os.path.join(mode_state, f"{tag}-{index}")
                                for index, ident in enumerate(targets or ids)}
                     for ident, path in markers.items():
-                        control_json(mode_env, "session", "type", f"echo {tag} > {shlex.quote(path)}\n",
-                                     "--target", ident, "--json")
+                        try:
+                            control_json(mode_env, "session", "type", f"echo {tag} > {shlex.quote(path)}\n",
+                                         "--target", ident, "--json")
+                        except subprocess.CalledProcessError as error:
+                            raise AssertionError(f"{tag}: session {ident}: {error.output!r}; tree={sessions()}") from error
                     for ident, path in markers.items():
                         wait_for(lambda path=path: os.path.exists(path),
                                  f"session {ident} never answered {tag}", timeout=15)
