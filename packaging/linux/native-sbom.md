@@ -20,6 +20,22 @@ Executable checksums are observations; the existing staging notice metadata does
 The original inventory's unresolved coverage is retained, with licenses marked `NOASSERTION` rather than inferred from filenames.
 Source inputs and binary provenance still require the trusted build's separate evidence.
 
-This standalone tool does not change release workflows, attest or publish a release, or complete feature inventory S03.
+This tool does not attest or publish a release, or by itself complete feature inventory S03.
 Its tests use disposable fixture bytes, not application binaries.
 An actual matching build/payload comparison and review are required before claiming build-resolved native coverage.
+
+## Hosted same-build evidence
+
+Omarchy CI calls the existing source SBOM workflow for its checkout commit, preserving its pinned Swift
+package check. Each GTK architecture downloads that run's source document, requires the reported commit
+to equal its actual checkout (including the synthetic merge commit on pull requests), then augments the
+validated stage. Source SBOM failure also fails the aggregate CI gate.
+
+After archiving the tested runtime, a separate `native-sbom-<architecture>-<run>-<attempt>` artifact
+contains `sbom.spdx.json`, `native.spdx.json` and `provenance.json`. The latter records the checkout,
+architecture, repository, run and attempt plus SHA256 hashes of both documents and the exact runtime
+archive uploaded separately. The runtime archive's contents are unchanged.
+
+This wiring requires a successful same-run result on both architectures and comparison with the downloaded
+payload before claiming executed coverage. It does not establish native Omarchy runtime acceptance or
+per-symbol linker provenance; source associations and observed executable hashes retain the limits above.
