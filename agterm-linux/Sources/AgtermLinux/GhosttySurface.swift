@@ -398,7 +398,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
 
     @discardableResult
     func reapplyBackgroundOverlay(windowOpacity: Double? = nil, settings: AppSettings? = nil,
-                                 force: Bool = false, fontSizeOverride: Double? = nil) -> Bool {
+                                  force: Bool = false, fontSizeOverride: Double? = nil) -> Bool {
         guard let surface else { return false }
         let session = controller?.store.session(withID: sessionID)
         let pane = role.statusPane
