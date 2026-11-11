@@ -32,6 +32,7 @@ protocol DropPasteTarget: AnyObject {
 
 /// Drops are delivered as a paste, matching macOS (`GhosttySurfaceView.performDragOperation` →
 /// `insertPasted`): a multi-line drop is inserted as text and honours the terminal's bracketed-paste mode.
+/// A drop is exactly as safe as a paste, not safer: with bracketed paste off, lines still submit.
 @MainActor
 enum LinuxDropPolicy {
     /// A text/uri-list drop. Sidebar row/workspace ids are refused here as a defensive guard in case a
