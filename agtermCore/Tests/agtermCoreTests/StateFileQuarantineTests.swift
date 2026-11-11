@@ -36,7 +36,10 @@ final class StateFileQuarantineTests {
     @Test func aHandEditedSettingsFileWithATypoSurvivesLaterFailures() throws {
         let settingsURL = directory.appendingPathComponent("settings.json")
         let store = SettingsStore(directory: directory)
-        let real = Data(#"{"fontSize": 15, "theme": "Alabaster",}"#.utf8) // trailing comma
+        // an edit cut off mid-object: a trailing comma is not portable (the Linux decoder accepts it), a
+        // missing closing brace is rejected everywhere. Pin that, so the fixture cannot silently decode.
+        let real = Data(#"{"fontSize": 15, "theme": "Alabaster""#.utf8)
+        #expect(throws: (any Error).self) { try JSONDecoder().decode(AppSettings.self, from: real) }
         try real.write(to: settingsURL)
         #expect(store.load() == AppSettings(theme: AppSettings.defaultTheme))
         for attempt in 0..<(StateFileQuarantine.keepPerFile + 2) {
