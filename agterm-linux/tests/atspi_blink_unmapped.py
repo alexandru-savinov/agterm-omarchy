@@ -2,13 +2,16 @@
 
 Opacity and the GLib blink source are invisible to AT-SPI, so the app is launched with the DEBUG-only
 `AGTERM_ATSPI_BLINK_TRACE=1` (`BlinkPhaseTrace.swift`), which writes one stderr line per resync, per
-applied phase and per toplevel unmap. Every negative assertion here ("window A got no late update") is
-measured against a POSITIVE CONTROL instead of a sleep: a second window B keeps one blinking glyph mapped,
-its timer runs on the same main loop at the same half period, and A must stay silent while B applies
-`CLOCK_TICKS` more phases. A's source, had it survived, would fire in between.
+applied phase and per stop (`event=unmap`, also written when the window is minimized). It sees a pulse
+only through the phases it APPLIES: a GLib source that leaked but whose tick the coordinator drops is
+invisible here, and is `BlinkPhaseSourceGLibTests`' job. Every negative assertion ("window A got no late
+update") is measured against a POSITIVE CONTROL instead of a sleep: a second window B keeps one blinking
+glyph mapped, its timer runs on the same main loop at the same half period, and A must apply nothing while
+B applies `CLOCK_TICKS` more phases. A pulse still armed on A would apply a phase in between.
 
-Legs: sidebar hide/show, window minimize/restore (X11 iconify under the runner's openbox; native Wayland
-has no minimized state and is not exercised here), window close, and a separate launch with GTK's
+Legs: sidebar hide/show, window minimize/restore (X11 iconify under the runner's openbox, judged only once
+`window list` reports the window minimized, else UNVERIFIED; native Wayland has no minimized state and is
+not exercised here), window close, and a separate launch with GTK's
 `gtk-enable-animations=false` for reduced motion, run as a second instance beside the first one so
 window B is its clock too.
 """
@@ -152,7 +155,8 @@ def verify_normal(env, trace):
         # actually iconified A (`window list` reads that same bit); a desktop that never does so cannot
         # say anything about the pulse, and the leg then reports UNVERIFIED instead of passing.
         mark = len(trace.events())
-        control_json(env, "window", "minimize", a_id, "on", "--json")
+        response = control_json(env, "window", "minimize", a_id, "on", "--json")
+        assert response.get("ok"), f"window minimize on was refused: {response}"
         legs = "hide/show"
         if wait_for(lambda: window_minimized(env, a_id), "", timeout=10, required=False):
             quiet = await_disarm(trace, mark, a, "unmap", "window minimize")
