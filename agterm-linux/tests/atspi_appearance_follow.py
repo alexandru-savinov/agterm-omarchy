@@ -76,24 +76,28 @@ class Portal:
     def __init__(self, initial):
         self.process = subprocess.Popen(
             [sys.executable, "-I", PORTAL, initial],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
+        self.pending = b""
         self.expect_line("READY", "the appearance portal fixture never owned its bus name")
 
     def expect_line(self, wanted, message, timeout=10):
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            if select.select([self.process.stdout], [], [], max(0.0, deadline - time.monotonic()))[0]:
-                line = self.process.stdout.readline()
-                if not line:
-                    break
-                if line.strip() == wanted:
-                    return
-                raise AssertionError(f"{message}: fixture said {line.strip()!r}")
-        raise AssertionError(f"{message} (exit status {self.process.poll()})")
+        """The fixture's next line, read in raw chunks so a partial line cannot block past the deadline."""
+        deadline, stdout = time.monotonic() + timeout, self.process.stdout.fileno()
+        while b"\n" not in self.pending:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([stdout], [], [], remaining)[0]:
+                raise AssertionError(f"{message}: no full line within {timeout}s "
+                                     f"(partial {self.pending!r}, exit status {self.process.poll()})")
+            chunk = os.read(stdout, 4096)
+            if not chunk:
+                raise AssertionError(f"{message}: fixture closed its output (exit status {self.process.poll()})")
+            self.pending += chunk
+        line, self.pending = self.pending.split(b"\n", 1)
+        if line.decode(errors="replace").strip() != wanted:
+            raise AssertionError(f"{message}: fixture said {line!r}")
 
     def flip(self, side):
-        self.process.stdin.write(side + "\n")
-        self.process.stdin.flush()
+        self.process.stdin.write(side.encode() + b"\n")
         self.expect_line(f"SET {side}", f"the portal fixture did not publish {side}")
 
     def close(self):
