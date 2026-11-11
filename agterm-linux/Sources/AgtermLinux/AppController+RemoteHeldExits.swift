@@ -10,6 +10,15 @@ extension AppController {
     }
 }
 
+/// A held surface keeps its last identity only until one final link notice consumes it.
+@MainActor
+final class LinuxHeldLeadAttachment {
+    private(set) var state: ZmxLeadState?
+
+    func retain(_ state: ZmxLeadState?) { self.state = state ?? self.state }
+    func consume() { state = nil }
+}
+
 /// Routes a replica surface held on its exit prompt to the store. Only the surface still in its slot counts:
 /// a hook that outlived its slot must not mark whatever replaced it.
 @MainActor
@@ -27,12 +36,13 @@ struct LinuxRemoteHeldExitRouter {
     }
 
     func linkLost(_ notice: RemoteLinkNotice, from surface: any TerminalSurface, forSession id: UUID,
-                  heldAttachment: ZmxLeadState?) -> Bool {
+                  heldAttachment: LinuxHeldLeadAttachment) -> Bool {
         guard let pane = paneIdentity(surface, forSession: id),
               let session = store.session(withID: id), let host = session.remoteHost,
-              let attachment = ZmxLeadBook.shared.states[pane] ?? heldAttachment,
+              let attachment = ZmxLeadBook.shared.states[pane] ?? heldAttachment.state,
               notice.nonce == attachment.attachment.nonce else { return false }
         let cover = attachment.role != nil || attachment.reattaching
+        heldAttachment.consume()
         ZmxLeadBook.shared.forget(pane: pane)
         store.remotePaneHeld(pane, forSession: id)
         paneHeld(surface, forSession: id)

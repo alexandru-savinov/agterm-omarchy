@@ -6,7 +6,7 @@ import agtermCore
 extension AppController {
     func remoteLinkLost(_ notice: RemoteLinkNotice, surface: GhosttySurface) {
         guard remoteHeldExits.linkLost(notice, from: surface, forSession: surface.sessionID,
-                                      heldAttachment: surface.heldLeadState) else { return }
+                                      heldAttachment: surface.heldLeadAttachment) else { return }
         surface.syncLeadCover()
         surface.refreshReconnectNote()
         store.leadRoleChanged()

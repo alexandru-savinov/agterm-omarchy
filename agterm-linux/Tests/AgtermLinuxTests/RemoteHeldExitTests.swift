@@ -209,13 +209,13 @@ struct RemoteHeldExitTests {
             book.forget(pane: pane)
             RemoteReconnectBook.shared.cancel(pane: pane)
         }
-        var ended: ZmxLeadState?
+        let ended = LinuxHeldLeadAttachment()
         if exitFirst {
-            ended = router.attachmentEnded(split, forSession: session.id)
+            ended.retain(router.attachmentEnded(split, forSession: session.id))
             #expect(book.role(pane: pane) == nil)
             #expect(!book.covered(pane: pane))
             // Duplicate held callbacks must not discard the surface's retained identity.
-            ended = router.attachmentEnded(split, forSession: session.id) ?? ended
+            ended.retain(router.attachmentEnded(split, forSession: session.id))
         }
         let notice = try #require(RemoteLinkNotice(title: "agterm-remote;current:lost"))
         #expect(router.linkLost(notice, from: split, forSession: session.id, heldAttachment: ended))
@@ -224,6 +224,17 @@ struct RemoteHeldExitTests {
         #expect(waiting.cover == (attachmentKind != 2))
         #expect(waiting.session == session.id)
         #expect(waiting.host == "buildbox")
+        #expect(ended.state == nil)
+        let reconciles = host.reconciles.count
+        #expect(!router.linkLost(notice, from: split, forSession: session.id, heldAttachment: ended))
+        ended.retain(router.attachmentEnded(split, forSession: session.id))
+        #expect(!router.linkLost(notice, from: split, forSession: session.id, heldAttachment: ended))
+        #expect(ended.state == nil)
+        #expect(host.reconciles.count == reconciles)
+        RemoteReconnectBook.shared.cancel(pane: pane)
+        ended.retain(router.attachmentEnded(split, forSession: session.id))
+        #expect(!router.linkLost(notice, from: split, forSession: session.id, heldAttachment: ended))
+        #expect(!RemoteReconnectBook.shared.waiting(pane: pane))
         #expect(book.role(pane: pane) == nil)
         #expect(store.remotePaneIsHeld(pane, forSession: session.id))
     }
@@ -237,12 +248,17 @@ struct RemoteHeldExitTests {
             ZmxLeadBook.shared.forget(pane: pane)
             RemoteReconnectBook.shared.cancel(pane: pane)
         }
-        let ended = router.attachmentEnded(primary, forSession: session.id)
+        let ended = LinuxHeldLeadAttachment()
+        ended.retain(router.attachmentEnded(primary, forSession: session.id))
         let notice = try #require(RemoteLinkNotice(title: "agterm-remote;wrong:lost"))
         #expect(!router.linkLost(notice, from: primary, forSession: session.id, heldAttachment: ended))
         #expect(!RemoteReconnectBook.shared.waiting(pane: pane))
         #expect(!store.remotePaneIsHeld(pane, forSession: session.id))
         #expect(host.reconciles.isEmpty)
+        #expect(ended.state?.attachment.nonce == "current")
+        let valid = try #require(RemoteLinkNotice(title: "agterm-remote;current:lost"))
+        #expect(router.linkLost(valid, from: primary, forSession: session.id, heldAttachment: ended))
+        #expect(ended.state == nil)
     }
 
     @Test("retained ended identity cannot override a newer attachment")
@@ -251,7 +267,8 @@ struct RemoteHeldExitTests {
         let pane = session.paneIdentity
         let book = ZmxLeadBook.shared
         book.begin(ZmxLeadAttachment(nonce: "old", claim: true), pane: pane)
-        let ended = router.attachmentEnded(primary, forSession: session.id)
+        let ended = LinuxHeldLeadAttachment()
+        ended.retain(router.attachmentEnded(primary, forSession: session.id))
         book.begin(ZmxLeadAttachment(nonce: "new", claim: true), pane: pane)
         defer {
             book.forget(pane: pane)
@@ -269,7 +286,8 @@ struct RemoteHeldExitTests {
         let pane = session.paneIdentity
         let book = ZmxLeadBook.shared
         book.begin(ZmxLeadAttachment(nonce: "old", claim: true), pane: pane)
-        let ended = router.attachmentEnded(primary, forSession: session.id)
+        let ended = LinuxHeldLeadAttachment()
+        ended.retain(router.attachmentEnded(primary, forSession: session.id))
         session.surface = HeldSurface()
         book.begin(ZmxLeadAttachment(nonce: "new", claim: true), pane: pane)
         defer {

@@ -106,7 +106,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     private var exitCodeFile: String?
     private var onExitCodeCaptured: ((Int) -> Void)?
     var didHandleProcessExit = false
-    private(set) var heldLeadState: ZmxLeadState?
+    let heldLeadAttachment = LinuxHeldLeadAttachment()
 
     isolated deinit {
         if let surface { ghostty_surface_free(surface) }
@@ -806,7 +806,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     func handleHeldProcessExit() {
         guard waitAfterCommand else { return }
         // The final link-loss title can follow the child-exit callback from the separate PTY reader.
-        heldLeadState = controller?.remoteHeldExits.attachmentEnded(self, forSession: sessionID) ?? heldLeadState
+        heldLeadAttachment.retain(controller?.remoteHeldExits.attachmentEnded(self, forSession: sessionID))
         syncLeadCover()
         controller?.store.leadRoleChanged()
     }
