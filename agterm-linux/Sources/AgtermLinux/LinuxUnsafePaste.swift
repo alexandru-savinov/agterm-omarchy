@@ -14,6 +14,16 @@ enum ClipboardConfirmRoute: Equatable {
     case confirmAsIs
 }
 
+enum PasteLineEndings {
+    /// libghostty's safety check looks only for "\n" (paste.zig `isSafe`) and its encoder leaves a lone
+    /// "\r" alone, so CR-only lines would reach a raw prompt unasked and each CR would submit one.
+    /// Every text the app hands back for a clipboard read is normalised to LF first.
+    static func normalized(_ text: String) -> String {
+        guard text.contains("\r") else { return text }
+        return text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+    }
+}
+
 enum LinuxClipboardConfirmPolicy {
     static func route(for request: ghostty_clipboard_request_e) -> ClipboardConfirmRoute {
         switch request {
@@ -94,9 +104,16 @@ final class UnsafePasteController {
         }
     }
 
-    /// Long pastes are shown truncated; the full text is what gets pasted.
+    /// Long pastes are shown truncated, and the hidden tail is stated, since all of it gets pasted.
     static func preview(_ text: String, limit: Int = 2000) -> String {
-        text.count > limit ? String(text.prefix(limit)) + "\n…" : text
+        guard text.count > limit else { return text }
+        let hidden = text.dropFirst(limit)
+        let hiddenLines = hidden.reduce(0) { $1 == "\n" ? $0 + 1 : $0 }
+        let characters = "\(hidden.count) more character\(hidden.count == 1 ? "" : "s")"
+        let notice = hiddenLines > 0
+            ? "\(hiddenLines) more line\(hiddenLines == 1 ? "" : "s") (\(characters)) not shown"
+            : "\(characters) not shown"
+        return String(text.prefix(limit)) + "\n… " + notice
     }
 
     final class ResponseContext {
@@ -105,7 +122,7 @@ final class UnsafePasteController {
     }
 
     private static func presentDialog(_ text: String, requester: GhosttySurface?, answer: @escaping Answer) {
-        let heading = "Paste multiple lines?"
+        let heading = "Paste this text?"
         // libghostty also flags a bracketed paste carrying the end-of-paste marker, so do not claim why
         let body = "This text may not reach the program in this terminal as a single paste: each line "
             + "can run as a command as soon as it is pasted."

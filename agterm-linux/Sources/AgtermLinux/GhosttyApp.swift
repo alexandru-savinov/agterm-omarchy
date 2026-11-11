@@ -566,9 +566,10 @@ final class ClipboardRequest: @unchecked Sendable {
 
     /// Rereads the live surface, which a teardown during the GDK read frees.
     /// The orphaned request state then leaks: no C API frees it without the surface.
+    /// Line endings are normalised so libghostty's paste protection sees CR-only lines (`PasteLineEndings`).
     @MainActor func complete(_ text: String) {
         guard let surface = retained.surface.surface else { return }
-        text.withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, false) }
+        PasteLineEndings.normalized(text).withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, false) }
     }
 }
 

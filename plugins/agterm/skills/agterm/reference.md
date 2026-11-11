@@ -529,7 +529,9 @@ error keeps those names for compatibility.
 - `session paste [--pane left|right|scratch] [--target] [--window W]` — paste the system clipboard
   (`NSPasteboard.general`) into a pane of the session, the socket analogue of ⌘V / Edit ▸ Paste. Runs
   libghostty's `paste_from_clipboard` (bracketed paste, no prompt), so the text lands at the prompt without
-  auto-submitting. `--pane` (canonical `left`|`right`|`scratch`; role and position aliases above are also
+  auto-submitting. On Linux, a multi-line paste into a pane whose program has NOT enabled bracketed paste
+  first opens a Paste / Cancel dialog (default Cancel); the call returns `ok` before anyone answers, so read
+  the result back with `session text`. `--pane` (canonical `left`|`right`|`scratch`; role and position aliases above are also
   accepted) picks the pane: `right` is the split pane (`session has no split pane` when there is none),
   `scratch` the scratch terminal even while hidden (`session has no scratch terminal` when none opened);
   omitted and `left` are the main pane, which still reaches a promoted split survivor. An unparseable value

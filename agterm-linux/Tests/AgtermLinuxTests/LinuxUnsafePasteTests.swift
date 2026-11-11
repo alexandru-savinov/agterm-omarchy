@@ -110,12 +110,33 @@ struct LinuxUnsafePasteTests {
         #expect(armed.take(owner: owner) == nil)
     }
 
-    @Test("the dialog preview is capped; short text is shown whole")
+    @Test("the dialog preview is capped and states the hidden tail; short text is shown whole")
     func previewCap() {
         #expect(UnsafePasteController.preview("a\nb") == "a\nb")
-        let long = String(repeating: "x", count: 2500)
-        let shown = UnsafePasteController.preview(long)
-        #expect(shown.hasPrefix(String(repeating: "x", count: 2000)))
-        #expect(shown.count == 2002)
+        let exact = String(repeating: "x", count: 2000)
+        #expect(UnsafePasteController.preview(exact) == exact)
+
+        let oneLine = String(repeating: "x", count: 2500)
+        #expect(UnsafePasteController.preview(oneLine) == exact + "\n… 500 more characters not shown")
+
+        // 2000 visible characters, then 3 hidden lines: "\nabc\nde\nf" is 9 characters with 3 line breaks
+        let multi = exact + "\nabc\nde\nf"
+        #expect(UnsafePasteController.preview(multi) == exact + "\n… 3 more lines (9 more characters) not shown")
+        #expect(UnsafePasteController.preview(exact + "\n") == exact + "\n… 1 more line (1 more character) not shown")
+    }
+
+    @Test("CR-only and CRLF line endings become LF, so libghostty's newline check sees them")
+    func lineEndingsNormalised() {
+        #expect(PasteLineEndings.normalized("echo one\recho two\r") == "echo one\necho two\n")
+        #expect(PasteLineEndings.normalized("echo one\r\necho two") == "echo one\necho two")
+        #expect(PasteLineEndings.normalized("mixed\r\nends\rhere\n") == "mixed\nends\nhere\n")
+        #expect(PasteLineEndings.normalized("one line") == "one line")
+        #expect(PasteLineEndings.normalized("a\nb") == "a\nb")
+        // the property that matters: no CR survives, and every former line break is one paste.zig `isSafe` rejects
+        let crOnly = "rm -rf ~/scratch\rmake\r"
+        #expect(!crOnly.contains("\n"))
+        let normalised = PasteLineEndings.normalized(crOnly)
+        #expect(!normalised.unicodeScalars.contains("\r"))
+        #expect(normalised.unicodeScalars.filter { $0 == "\n" }.count == 2)
     }
 }
