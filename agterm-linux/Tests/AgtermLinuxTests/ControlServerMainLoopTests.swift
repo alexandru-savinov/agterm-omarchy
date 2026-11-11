@@ -228,11 +228,11 @@ struct ControlServerMainLoopTests {
 
     @Test("a kill that completes after a swap closes the killed pane in its new role, never the other")
     func killAfterSwapClosesTheKilledPane() throws {
-        let run = try runKill(output: { "killed session \($0[1])" }) { fixture in
+        let run = try runKill(output: { "killed session \($0[1])" }, whileBlocked: { fixture in
             #expect(fixture.store.swapPanes(fixture.session.id) == nil)
             // The role the kill was aimed at now holds the other pane, the one a role lookup would close.
             #expect(fixture.session.surface === fixture.other)
-        }
+        })
         #expect(run.closed == ["right:killed"])
         #expect(run.reply == ControlResponse(ok: true, result: ControlResult(
             id: run.fixture.session.id.uuidString, text: "killed agterm-killed", pane: "left")))
@@ -241,10 +241,10 @@ struct ControlServerMainLoopTests {
     @Test("a kill that completes after its slot was replaced under the same pane id closes nothing")
     func killAfterReplacementClosesNothing() throws {
         let replacement = KillPaneSurface(token: "replacement")
-        let run = try runKill(output: { "killed session \($0[1])" }) { fixture in
+        let run = try runKill(output: { "killed session \($0[1])" }, whileBlocked: { fixture in
             fixture.session.surface = replacement
             #expect(fixture.session.paneIdentity == fixture.claim.paneIdentity)
-        }
+        })
         #expect(run.closed == nil)
         #expect(run.fixture.session.surface === replacement)
         #expect(run.reply?.ok == true)
@@ -252,23 +252,23 @@ struct ControlServerMainLoopTests {
 
     @Test("a kill that completes after its pane was closed closes nothing")
     func killAfterCloseClosesNothing() throws {
-        let run = try runKill(output: { "killed session \($0[1])" }) { fixture in
+        let run = try runKill(output: { "killed session \($0[1])" }, whileBlocked: { fixture in
             fixture.session.surface = nil
-        }
+        })
         #expect(run.closed == nil)
         #expect(run.reply?.ok == true)
     }
 
     @Test("a delayed stale-socket or failed kill closes neither pane")
     func unconfirmedKillClosesNothing() throws {
-        let stale = try runKill(output: { "cleaned up stale session \($0[1])" }) { fixture in
+        let stale = try runKill(output: { "cleaned up stale session \($0[1])" }, whileBlocked: { fixture in
             #expect(fixture.store.swapPanes(fixture.session.id) == nil)
-        }
+        })
         #expect(stale.closed == nil)
         #expect(stale.reply?.ok == false)
         #expect(stale.reply?.error?.contains("agterm-killed") == true)
 
-        let failed = try runKill(output: { _ in throw KillRunnerDown() }) { _ in }
+        let failed = try runKill(output: { _ in throw KillRunnerDown() }, whileBlocked: { _ in })
         #expect(failed.closed == nil)
         #expect(failed.reply?.ok == false)
         #expect(failed.reply?.error?.hasPrefix("could not kill agterm-killed") == true)
@@ -289,9 +289,9 @@ struct ControlServerMainLoopTests {
         let session = fixture.session
         let stage = ZmxKillStage.stage(client: runner.client(), daemon: "agterm-killed",
                                        target: ZmxKillTarget(claim: fixture.claim, in: session),
-                                       session: { _ in session }) { role, surface in
+                                       session: { _ in session }, close: { role, surface in
             closed.set((closed.value ?? []) + ["\(role.rawValue):\(surface.paneToken)"])
-        }
+        })
         let reply = TestSlot<ControlResponse>()
         Thread.detachNewThread { reply.set(server.perform(stage)) }
         #expect(waitUntil(timeout: 5) { !runner.startedArguments.isEmpty })
