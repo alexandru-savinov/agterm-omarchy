@@ -301,7 +301,8 @@ final class ControlServer: @unchecked Sendable {
 
     /// Drives `first` to its one reply on this worker: `.worker` steps run here, `.main` steps hop to GTK
     /// through `awaitMain`. Once `stop()` has begun no new worker step starts, so nothing new is spawned
-    /// against a shutting-down app; a main hop still gets `awaitMain`'s shutdown grace.
+    /// against a shutting-down app; a main hop still gets `awaitMain`'s shutdown grace. A `.stoppableWorker`
+    /// step also gets a check it can read after waiting inside itself.
     func perform(_ first: ControlStage) -> ControlResponse {
         var stage = first
         while true {
@@ -311,6 +312,9 @@ final class ControlServer: @unchecked Sendable {
             case .worker(let step):
                 guard !isStopping else { return MainReply.shutdown }
                 stage = step()
+            case .stoppableWorker(let step):
+                guard !isStopping else { return MainReply.shutdown }
+                stage = step { [self] in isStopping }
             case .main(let step):
                 stage = awaitMainStage(step)
             }

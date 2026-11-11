@@ -11,6 +11,10 @@ enum ControlStage: Sendable {
     case done(ControlResponse)
     case worker(@Sendable () -> ControlStage)
     case main(@MainActor @Sendable () -> ControlStage)
+    /// A worker step that can wait inside itself (for example on a lock) before its first side effect.
+    /// `stopped` reads true once the server's `stop()` has begun, so the step can check it after the wait
+    /// and do nothing instead of acting on a shutting-down app.
+    case stoppableWorker(@Sendable (_ stopped: @Sendable () -> Bool) -> ControlStage)
 
     /// Runs every step on the calling main-thread turn. Only for a caller with no control worker to hand
     /// the work to; the control server never takes this path.
@@ -20,6 +24,7 @@ enum ControlStage: Sendable {
             switch stage {
             case .done(let response): return response
             case .worker(let step): stage = step()
+            case .stoppableWorker(let step): stage = step { false }
             case .main(let step): stage = step()
             }
         }

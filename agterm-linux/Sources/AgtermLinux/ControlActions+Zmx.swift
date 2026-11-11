@@ -146,36 +146,21 @@ extension AppController {
         if let refusal = LinuxControlZmxError.killRefusal(row) {
             return .done(err(refusal))
         }
-        let daemon = row.daemon
-        return .worker {
-            switch client.killConfirmed(name: daemon) {
-            case .killed:
-                return .main { AppController.finishZmxKill(claim: claim, daemon: daemon) }
-            case .staleSocket:
-                return .done(ControlResponse(ok: false, error: "\(daemon) did not confirm the kill; zmx cleaned "
-                    + "up a stale socket and the daemon may still be running"))
-            case .failed(let reason):
-                return .done(ControlResponse(ok: false, error: "could not kill \(daemon): \(reason)"))
+        let session: @MainActor @Sendable (ZmxPaneClaim) -> Session? = { claim in
+            gWindows[claim.windowID]?.store.session(withID: claim.sessionID)
+        }
+        return ZmxKillStage.stage(client: client, daemon: row.daemon,
+                                  target: ZmxKillTarget(claim: claim, in: session(claim)),
+                                  session: session) { role, surface in
+            // The daemon is gone; close its pane only if that is still the zmx-backed surface it fed.
+            guard let controller = gWindows[claim.windowID], let surface = surface as? GhosttySurface,
+                  surface.backedByZmx, surface.claimProcessExit() else { return }
+            if role == .left {
+                controller.closePrimaryPane(claim.sessionID, alreadyFinalized: claim.paneIdentity)
+            } else {
+                controller.closeSplitPane(claim.sessionID, alreadyFinalized: claim.paneIdentity)
             }
         }
-    }
-
-    /// The daemon is gone; close its pane if it is still the zmx-backed surface that claimed it.
-    private static func finishZmxKill(claim: ZmxPaneClaim, daemon: String) -> ControlStage {
-        if let controller = gWindows[claim.windowID],
-           let session = controller.store.session(withID: claim.sessionID) {
-            let surface = (claim.pane == .left ? session.surface : session.splitSurface) as? GhosttySurface
-            if surface?.backedByZmx == true, surface?.claimProcessExit() == true {
-                if claim.pane == .left {
-                    controller.closePrimaryPane(claim.sessionID, alreadyFinalized: claim.paneIdentity)
-                } else {
-                    controller.closeSplitPane(claim.sessionID, alreadyFinalized: claim.paneIdentity)
-                }
-            }
-        }
-        return .done(ControlResponse(ok: true, result: ControlResult(
-            id: claim.sessionID.uuidString, text: "killed \(daemon)", pane: claim.pane.rawValue
-        )))
     }
 
     private func localAttachableSessions(observed: [ZmxSessionRecord], client: LinuxZmxClient) -> ControlResponse {
@@ -253,5 +238,68 @@ extension AppController {
         reconcile()
         sessionFocusTarget(for: created.id, wantSplit: created.splitFocused)?.grabFocus()
         return ControlResponse(ok: true, result: ControlResult(id: created.id.uuidString))
+    }
+}
+
+/// The pane a `zmx.kill` aims at, captured on the main thread before the kill goes to the worker.
+///
+/// GTK keeps running while zmx confirms the kill, so by completion the pane can have swapped roles
+/// (`session swap`), or its slot can hold a replacement that kept the same pane UUID. A role or a UUID alone
+/// can therefore name an unrelated live pane. The target keeps the surface object as well, weakly, and
+/// matches both. Only the main thread reads or writes `surface`.
+final class ZmxKillTarget: @unchecked Sendable {
+    let claim: ZmxPaneClaim
+    private weak var surface: (any TerminalSurface)?
+
+    /// Captures the surface in the claimed slot, or none when that slot no longer carries the claim's identity.
+    @MainActor init(claim: ZmxPaneClaim, in session: Session?) {
+        self.claim = claim
+        surface = Self.slots(of: session).first { $0.role == claim.pane && $0.identity == claim.paneIdentity }?.surface
+    }
+
+    /// The role the captured surface holds now, if it still sits in `session` under the claimed identity.
+    /// Nil when it was closed or replaced, so a completion closes nothing.
+    @MainActor func current(in session: Session?) -> (role: ZmxPaneRole, surface: any TerminalSurface)? {
+        guard let surface else { return nil }
+        return Self.slots(of: session)
+            .first { $0.surface === surface && $0.identity == claim.paneIdentity }
+            .map { (role: $0.role, surface: surface) }
+    }
+
+    @MainActor private static func slots(of session: Session?)
+        -> [(role: ZmxPaneRole, identity: UUID?, surface: any TerminalSurface)] {
+        guard let session else { return [] }
+        var slots: [(role: ZmxPaneRole, identity: UUID?, surface: any TerminalSurface)] = []
+        if let primary = session.surface { slots.append((.left, session.paneIdentity, primary)) }
+        if let split = session.splitSurface { slots.append((.right, session.splitPaneIdentity, split)) }
+        return slots
+    }
+}
+
+/// The worker and completion halves of `zmx.kill`, apart from the app so the completion can be tested.
+enum ZmxKillStage {
+    /// Kills `daemon` on the worker. Only a confirmed kill hops to main, where `close` gets the targeted
+    /// surface in the role it holds now; a pane that was closed or replaced meanwhile is left alone. The
+    /// reply always names the daemon and the role that were requested.
+    static func stage(client: LinuxZmxClient, daemon: String, target: ZmxKillTarget,
+                      session: @escaping @MainActor @Sendable (ZmxPaneClaim) -> Session?,
+                      close: @escaping @MainActor @Sendable (ZmxPaneRole, any TerminalSurface) -> Void) -> ControlStage {
+        .worker {
+            switch client.killConfirmed(name: daemon) {
+            case .killed:
+                return .main {
+                    let claim = target.claim
+                    if let found = target.current(in: session(claim)) { close(found.role, found.surface) }
+                    return .done(ControlResponse(ok: true, result: ControlResult(
+                        id: claim.sessionID.uuidString, text: "killed \(daemon)", pane: claim.pane.rawValue
+                    )))
+                }
+            case .staleSocket:
+                return .done(ControlResponse(ok: false, error: "\(daemon) did not confirm the kill; zmx cleaned "
+                    + "up a stale socket and the daemon may still be running"))
+            case .failed(let reason):
+                return .done(ControlResponse(ok: false, error: "could not kill \(daemon): \(reason)"))
+            }
+        }
     }
 }

@@ -98,13 +98,18 @@ enum LinuxLeadPaneIO {
     }
 
     /// `finish` runs on the main thread once the daemon accepted every byte.
+    ///
+    /// A request can wait on the typing lock while another one types. If `stop()` begins during that wait,
+    /// it types nothing and answers with the shutdown reply. A request that already started typing still
+    /// sends its final Return, so its bytes stay whole.
     static func typeStage(client: LinuxZmxClient, name: String, text: String,
                           finish: @escaping @MainActor @Sendable () -> ControlResponse) -> ControlStage {
-        .worker {
+        .stoppableWorker { stopped in
             let paced = KeystrokeSegments.paced(text)
             let bytes = KeystrokeSegments.ptyBytes(paced.head)
             typing.lock()
             defer { typing.unlock() }
+            guard !stopped() else { return .done(MainReply.shutdown) }
             guard bytes.isEmpty || client.type(name: name, bytes: bytes) else {
                 return .done(ControlResponse(ok: false, error: "the pane's zmx daemon did not accept the input"))
             }
