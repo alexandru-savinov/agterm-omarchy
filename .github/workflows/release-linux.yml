@@ -34,7 +34,8 @@ jobs:
       contents: read
     uses: ./.github/workflows/sbom.yml
     with:
-      ref: ${{ inputs.tag || github.ref_name }}
+      # Fully qualified, so a branch with the same name as the tag cannot be checked out instead.
+      ref: refs/tags/${{ inputs.tag || github.ref_name }}
 
   release-linux:
     name: Build Linux x86_64 release
@@ -132,7 +133,15 @@ jobs:
       - name: Name the SBOM for this release
         env:
           VERSION: ${{ steps.release.outputs.version }}
-        run: mv release-sbom/sbom.spdx.json "release-sbom/agterm-linux-${VERSION}.spdx.json"
+          COMMIT: ${{ steps.release.outputs.commit }}
+          SBOM_COMMIT: ${{ needs.sbom.outputs.commit }}
+        run: |
+          # A tag moved between the two jobs would make the SBOM describe a different tree.
+          if [[ "$SBOM_COMMIT" != "$COMMIT" ]]; then
+            echo "SBOM describes $SBOM_COMMIT, but the release verified $COMMIT" >&2
+            exit 1
+          fi
+          mv release-sbom/sbom.spdx.json "release-sbom/agterm-linux-${VERSION}.spdx.json"
 
       # The Swift container is root, but persistence failure tests intentionally depend on normal-user
       # POSIX write permissions. Run them at the same privilege level as the desktop application.

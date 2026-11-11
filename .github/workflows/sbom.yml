@@ -8,9 +8,13 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: Tag or commit to describe
+        description: Fully qualified ref to describe, for example refs/tags/linux-v0.42.0
         required: true
         type: string
+    outputs:
+      commit:
+        description: The commit the SBOM describes
+        value: ${{ jobs.sbom.outputs.commit }}
 
 permissions:
   contents: read
@@ -24,11 +28,17 @@ jobs:
     name: Generate SPDX SBOM
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
+      # release-linux compares this with the commit it verifies, so the SBOM cannot describe another tree.
+      - name: Record the described commit
+        id: source
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       # The repository's allowed-actions list excludes anchore/sbom-action; fetch syft like the other release tools.
       - name: Generate SPDX with checksum-verified syft
         run: |

@@ -86,26 +86,43 @@ printf 'unexpected\n' > "$FIXTURE/agterm-v0.33.1-x86_64.AppImage"
 must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
   "$VERIFY" linux-v0.33.1
 
-rm -rf "$FIXTURE"
-mkdir -p "$FIXTURE"
-sbom_payloads=(
-  agterm-linux-v0.34.0-x86_64.tar.gz
-  agterm-linux-v0.34.0-x86_64.deb
-  agterm-linux-v0.34.0-x86_64.rpm
-)
-for artifact in "${sbom_payloads[@]}"; do
-  printf 'fixture for %s\n' "$artifact" > "$FIXTURE/$artifact"
+# A fixture with the three packages and the checksum manifest for VERSION, and nothing else.
+make_package_fixture() {
+  local version="$1"
+  local packages=(
+    "agterm-linux-v${version}-x86_64.tar.gz"
+    "agterm-linux-v${version}-x86_64.deb"
+    "agterm-linux-v${version}-x86_64.rpm"
+  )
+  rm -rf "$FIXTURE"
+  mkdir -p "$FIXTURE"
+  for artifact in "${packages[@]}"; do
+    printf 'fixture for %s\n' "$artifact" > "$FIXTURE/$artifact"
+  done
+  (
+    cd "$FIXTURE"
+    sha256sum "${packages[@]}" > "agterm-linux-v${version}-SHA256SUMS"
+  )
+}
+
+# Published releases after 0.33.1+linux.1 that shipped without an SBOM. These are the exact asset
+# names `gh release view` lists for them on melonamin/agterm-linux, and they must keep verifying.
+for version in 0.39.1 0.39.1+linux.1 0.40.0; do
+  make_package_fixture "$version"
+  AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+    "$VERIFY" "linux-v$version" >/dev/null
 done
-(
-  cd "$FIXTURE"
-  sha256sum "${sbom_payloads[@]}" > agterm-linux-v0.34.0-SHA256SUMS
-)
-must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
-  "$VERIFY" linux-v0.34.0
-printf '{}\n' > "$FIXTURE/agterm-linux-v0.34.0.spdx.json"
-AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
-  "$VERIFY" linux-v0.34.0 >/dev/null
-must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
-  AGTERM_TEST_FAIL_ASSET=agterm-linux-v0.34.0.spdx.json "$VERIFY" linux-v0.34.0
+
+# Every version after the cutoff must carry an attested SBOM.
+for version in 0.41.1+linux.1 0.42.0; do
+  make_package_fixture "$version"
+  must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+    "$VERIFY" "linux-v$version"
+  printf '{}\n' > "$FIXTURE/agterm-linux-v${version}.spdx.json"
+  AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+    "$VERIFY" "linux-v$version" >/dev/null
+  must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+    AGTERM_TEST_FAIL_ASSET="agterm-linux-v${version}.spdx.json" "$VERIFY" "linux-v$version"
+done
 
 echo "→ public release verifier accepts the authenticated historical and current artifact sets"
