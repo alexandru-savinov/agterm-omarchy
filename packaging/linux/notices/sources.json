@@ -769,7 +769,7 @@
   ],
   "inventory_sha256": "65716ab36b707eb868b7936313f01e8b108f9dbf864e4b53bf3866d07fd9c802",
   "ghostty_patch_inputs": {
-    "linux/patches/ghostty-clipboard-request-kind.patch": "a0eccd234436b7b1a478f000223008b36202b856838b3335db02391ba3de1281",
+    "linux/patches/ghostty-clipboard-request-kind.patch": "22e082cb54c2d450868c0b6ba91f0162bb2e5e7bdc6554be83fc8ff32f1980aa",
     "linux/patches/ghostty-embedded-input-handoff.patch": "746aabfd306f78563837c9257b22c90cc3ffd6dfe7f1c374f7f0532a3c1bb0fe",
     "linux/patches/ghostty-embedded-opengl.patch": "99cbf56c69c07abb62ee506bd7755a04f1a69b42a613b28b37f29c185f5ccc55",
     "linux/patches/ghostty-lib-resources.patch": "14f31007327295bdca035a75394a4c1a2cfe3671d602c3105aef30823c0e9eab"

@@ -15,10 +15,7 @@ diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
 index 366bb9f..3abf156 100644
 --- a/src/apprt/embedded.zig
 +++ b/src/apprt/embedded.zig
-@@ -1995,6 +1995,12 @@ pub const CAPI = struct {
-         };
-     }
- 
+@@ -1998,3 +1998,9 @@ pub const CAPI = struct {
 +    /// Read the kind while the request is live; completion invalidates its state pointer.
 +    export fn ghostty_clipboard_request_type(state: *const apprt.ClipboardRequest) c_int {
 +        const kind: apprt.ClipboardRequestType = state.*;

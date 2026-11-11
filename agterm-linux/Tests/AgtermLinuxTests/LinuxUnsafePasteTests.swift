@@ -147,6 +147,7 @@ struct LinuxUnsafePasteTests {
             #expect(LinuxClipboardReadPolicy.payload(payload, request: GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ) == payload)
             #expect(LinuxClipboardReadPolicy.payload(payload, request: GHOSTTY_CLIPBOARD_REQUEST_OSC_52_WRITE) == payload)
             #expect(LinuxClipboardReadPolicy.payload(payload, request: nil) == payload)
+            #expect(LinuxClipboardReadPolicy.payload(payload, request: ghostty_clipboard_request_e(rawValue: 99)) == payload)
         }
         #expect(LinuxClipboardReadPolicy.payload(text, request: GHOSTTY_CLIPBOARD_REQUEST_PASTE) == "Unicode λ\nsecond\nthird\n")
         #expect(LinuxClipboardReadPolicy.payload(uri, request: GHOSTTY_CLIPBOARD_REQUEST_PASTE) == #"/tmp/one\ two /tmp/three"#)
