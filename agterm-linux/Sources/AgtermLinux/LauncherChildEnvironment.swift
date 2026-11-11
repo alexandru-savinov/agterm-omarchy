@@ -19,9 +19,8 @@ import Glibc
 enum LauncherChildEnvironment {
     static let originalPrefix = "AGTERM_ORIG_"
     static let unsetListKey = "AGTERM_ORIG_UNSET"
-    /// Non-empty only when a launcher wrote the record for THIS process. A pane hands every bookkeeping key
-    /// on as `""` (`surfacePairs`), so an agterm started from a pane without the launcher (the dev loop)
-    /// sees an empty marker and must not read the leftover blanks as "the caller had these set to ''".
+    /// Non-empty only when a launcher wrote the record for THIS process. Older panes handed bookkeeping
+    /// on as empty strings; a nested dev app must not read those stale blanks as original values.
     static let recordMarkerKey = "AGTERM_ORIG_SET"
 
     /// Each variable a child must see restored: a value to set it, a stored `nil` to remove it. An
@@ -64,12 +63,9 @@ enum LauncherChildEnvironment {
         return result
     }
 
-    /// The same restore as plain pairs for a libghostty surface. Its `env_vars` are put on top of
-    /// libghostty's own snapshot of agterm's environ (`ghostty_init`) and cannot remove a key, so an
-    /// absence becomes `""`: glibc ignores an empty `LD_LIBRARY_PATH`, Mesa reads an empty
-    /// `LIBGL_ALWAYS_SOFTWARE` as false, and every `AGTERM_*` reader treats empty as absent.
+    /// Values for libghostty's unchanged string-pair API; absence travels separately as a deletion.
     static func surfacePairs(_ restore: [String: String?]) -> [String: String] {
-        restore.mapValues { $0 ?? "" }
+        restore.compactMapValues { $0 }
     }
 
     /// A child environment derived from `environment` itself (it is both the capture and the base).

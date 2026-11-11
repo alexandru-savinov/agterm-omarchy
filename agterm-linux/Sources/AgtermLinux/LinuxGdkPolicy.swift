@@ -47,6 +47,13 @@ enum LinuxGdkPolicy {
                 .merging(env) { _, caller in caller }
         }
 
+        func childEnvironmentUnsets(merging env: [String: String]) -> [String] {
+            // An explicit caller value, even empty, wins over the captured absence.
+            launcherRestore.compactMap { key, value in
+                value == nil && env[key] == nil && childRestore[key] == nil ? key : nil
+            }.sorted()
+        }
+
         /// For an environment COPIED from agterm's own process: the copy already carries the `setenv`'d
         /// and launcher overrides, so here the restore must WIN. Everything else passes through untouched.
         func restoringChildEnvironment(_ environment: [String: String]) -> [String: String] {

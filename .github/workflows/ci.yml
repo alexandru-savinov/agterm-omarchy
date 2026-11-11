@@ -56,6 +56,7 @@ jobs:
             scripts/setup-omarchy.sh
             scripts/stage-linux.sh
             scripts/test-linux-resources.sh
+            scripts/test-linux-ghostty-shutdown.sh
             scripts/test-omarchy.sh
             scripts/test-zig-build-linux.sh
             scripts/verify-linux-packages.sh
@@ -79,6 +80,16 @@ jobs:
       - name: Zig transport fallback regression tests
         shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
         run: scripts/test-zig-build-linux.sh
+      - name: Pinned Ghostty shutdown regression and original-queue negative control
+        timeout-minutes: 5
+        shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
+        run: |
+          source linux/ghostty-resources.env
+          source_dir="$(mktemp -d)"
+          trap 'rm -rf "$source_dir"' EXIT
+          git init -q "$source_dir"
+          git -C "$source_dir" fetch --depth 1 --no-tags https://github.com/ghostty-org/ghostty.git "$GHOSTTY_REV"
+          scripts/test-linux-ghostty-shutdown.sh "$source_dir"
       - name: Whitespace
         run: git diff --check
       - name: Summary
@@ -287,7 +298,7 @@ jobs:
           path: |
             agterm-linux/vendor/ghostty
             agterm-linux/vendor/zmx
-          key: linux-runtimes-${{ steps.linux-architecture.outputs.host }}-${{ hashFiles('scripts/setup-linux.sh', 'scripts/verify-linux-vendor-cache.sh', 'scripts/verify-linux-zmx-cache.sh', 'scripts/verify-linux-architecture.sh', 'scripts/verify-linux-resources.sh', 'scripts/linux-notices.py', 'packaging/linux/notices/**', 'scripts/zmx-patches/**/*.patch', 'linux/arch.sh', 'linux/ghostty-resources.env', 'linux/zmx.env', 'linux/patches/ghostty-embedded-opengl.patch', 'linux/patches/ghostty-embedded-input-handoff.patch', 'linux/patches/ghostty-lib-resources.patch') }}
+          key: linux-runtimes-${{ steps.linux-architecture.outputs.host }}-${{ hashFiles('scripts/setup-linux.sh', 'scripts/verify-linux-vendor-cache.sh', 'scripts/verify-linux-zmx-cache.sh', 'scripts/verify-linux-architecture.sh', 'scripts/verify-linux-resources.sh', 'scripts/linux-notices.py', 'packaging/linux/notices/**', 'scripts/zmx-patches/**/*.patch', 'linux/arch.sh', 'linux/ghostty-resources.env', 'linux/zmx.env', 'linux/patches/ghostty-embedded-opengl.patch', 'linux/patches/ghostty-embedded-input-handoff.patch', 'linux/patches/ghostty-lib-resources.patch', 'linux/patches/ghostty-clipboard-request-kind.patch', 'linux/patches/ghostty-surface-env-unset.patch') }}
       - name: Verify restored libghostty cache
         if: steps.ghostty-cache.outputs.cache-hit == 'true'
         run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty

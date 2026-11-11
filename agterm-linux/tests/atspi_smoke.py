@@ -2954,70 +2954,6 @@ def verify_child_gdk_environment(env, expected_assignment=None):
         stop(process)
 
 
-LAUNCHER_CALLER_LIBRARY_PATH = "/opt/caller lib"
-
-
-def emulate_packaged_launcher(env, root):
-    """Hand the app what `bin/agterm-linux` exports: its overrides plus the AGTERM_ORIG_* record of the caller.
-
-    The caller had `LD_LIBRARY_PATH` but neither `LIBGL_ALWAYS_SOFTWARE` (which the runner sets, and the app
-    keeps, for its own software GL) nor `AGTERM_COMMIT`. The bundle directory does not exist, so the app's
-    own loading is unaffected. Returns the bundle path a pane must never see.
-    """
-    bundle_lib = os.path.join(root, "bundle", "lib")
-    env["LD_LIBRARY_PATH"] = f"{bundle_lib}:{LAUNCHER_CALLER_LIBRARY_PATH}"
-    env["AGTERM_ORIG_LD_LIBRARY_PATH"] = LAUNCHER_CALLER_LIBRARY_PATH
-    env["AGTERM_COMMIT"] = "atspi-launcher-fixture"
-    env["AGTERM_ORIG_UNSET"] = "AGTERM_COMMIT LIBGL_ALWAYS_SOFTWARE"
-    env["AGTERM_ORIG_SET"] = "1"
-    return bundle_lib
-
-
-def verify_child_launcher_environment(env, bundle_lib):
-    """A pane's shell sees the caller's launcher-overridden values, never the bundle's (issue #270).
-
-    libghostty builds a pane's environment from its snapshot of agterm's environ, so without the restore
-    merged in GhosttySurface.init a `swift build` in a pane would load the bundled runtime and every GL
-    program would be forced to software. libghostty's surface env can only set keys, so a variable the
-    caller never had arrives empty rather than absent; `${VAR:-}` reads both the same way.
-    """
-    readback = os.path.join(env["AGTERM_STATE_DIR"], "launcher-child-env.txt")
-    names = ("LD_LIBRARY_PATH", "LIBGL_ALWAYS_SOFTWARE", "AGTERM_COMMIT",
-             "AGTERM_ORIG_UNSET", "AGTERM_ORIG_LD_LIBRARY_PATH")
-    command = (
-        "printf 'launcher" + "[%s]" * len(names) + "end\\n' "
-        + " ".join(f'"${{{name}:-}}"' for name in names)
-        + f' > "{readback}"\n'
-    )
-    process, app = launch(env)
-    try:
-        tree = control_json(env, "tree", "--json")["result"]["tree"]
-        session_id = tree["workspaces"][0]["sessions"][0]["id"]
-        window_id = next(item["id"] for item in window_list(env) if item["open"])
-        text = None
-        # Re-type until the login shell has a prompt to take the line, as verify_child_gdk_environment does.
-        for _ in range(12):
-            control_json(env, "session", "type", command, "--target", session_id,
-                         "--window", window_id, "--json")
-            time.sleep(1.0)
-            if os.path.exists(readback):
-                with open(readback, encoding="utf-8", errors="replace") as source:
-                    text = source.read()
-                if "end" in text:
-                    break
-        assert text and "end" in text, "the session shell never wrote its launcher environment back"
-        assert bundle_lib not in text, f"pane inherited the bundle library path: {text.strip()!r}"
-        expected = f"launcher[{LAUNCHER_CALLER_LIBRARY_PATH}][][][][]end"
-        assert expected in text, (
-            f"pane did not see the caller's own environment: expected {expected!r}, got {text.strip()!r}"
-        )
-        assert process.poll() is None, "the launcher-environment check terminated the application"
-        print("OK: a pane sees the caller's LD_LIBRARY_PATH and renderer, not the launcher's overrides")
-    except AssertionError:
-        describe_tree(app)
-        raise
-    finally:
-        stop(process)
 
 
 def verify_notification_focus_policy(env):
@@ -5525,6 +5461,28 @@ def verify_sidebar_width_floor(env):
             control_json(env, "window", "resize", window_id,
                          "--width", str(width), "--height", "700", "--json")
 
+        def hide_show_at_allocation(expected, label):
+            before = wait_for(lambda: sidebar_column_settled(
+                app, lambda width: abs(width - expected) <= SIDEBAR_EDGE_SLACK),
+                f"{label}: sidebar did not settle before hide")
+            frame_before = sidebar_window_frame_width(app)
+            control_json(env, "sidebar", "hide", "--json")
+            wait_for(lambda: not window_tree(env, window_id).get("sidebarVisible"),
+                     f"{label}: sidebar did not hide")
+            control_json(env, "sidebar", "show", "--json")
+            wait_for(lambda: window_tree(env, window_id).get("sidebarVisible"),
+                     f"{label}: sidebar did not show")
+            after = wait_for(lambda: sidebar_column_settled(
+                app, lambda width: abs(width - expected) <= SIDEBAR_EDGE_SLACK),
+                f"{label}: hide/show lost the prior {expected}px allocation")
+            frame_after = sidebar_window_frame_width(app)
+            assert frame_before is not None and frame_after is not None
+            assert abs(frame_after - frame_before) <= SIDEBAR_EDGE_SLACK, (
+                f"{label}: hide/show resized the window from {frame_before} to {frame_after}px")
+            print(f"measured: {label} hide/show requested={SIDEBAR_REQUESTED_WIDTH} "
+                  f"allocated={before}->{after} frame={frame_before}->{frame_after}; "
+                  "persisted width checked after quit")
+
         wide_window = wait_for(lambda: sidebar_window_frame_width(app),
                                "the window frame never reported an allocation")
         resize(360)
@@ -5553,12 +5511,14 @@ def verify_sidebar_width_floor(env):
                 "GtkPaned's `max-position`, so it re-asserts the over-wide position from inside GtkPaned's"
                 " own `size_allocate`, where GTK does not re-clamp it, and the sidebar overhangs the "
                 "window", timeout=8)
+            hide_show_at_allocation(capped, "narrow")
             resize(1100)
             wait_for(lambda: sidebar_column_settled(app, at_request),
                      f"the sidebar stayed at the narrow window's {capped}px cap after the window "
                      f"widened again instead of returning to its {SIDEBAR_REQUESTED_WIDTH}px request — "
                      "`notify::position` does not fire for a widening, so `notify::max-position` is the "
                      "only signal that can pull the divider back up")
+            hide_show_at_allocation(SIDEBAR_REQUESTED_WIDTH, "wide")
     except AssertionError:
         describe_tree(app)
         raise
@@ -7612,7 +7572,7 @@ def main():
             "sidebar-multiselect",
             "blink-unmapped",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
-            "window-close-cancel", "workspace-focus-filters", "quick-card-geometry",
+            "window-close-cancel", "workspace-focus-filters", "quick-card-geometry", "clipboard-payloads",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-picker-cancel", "appearance-reset", "unavailable-font-family", "keymap-config-directory",
             "chrome-interface-controls",
@@ -7678,7 +7638,6 @@ def main():
         assert "all" in normalized_tokens
         assert not normalized_tokens.intersection(required)
         inverted_assignment = f"agterm: setting {variable}={normalized}"
-    launcher_bundle_lib = emulate_packaged_launcher(env, root) if scenario == "child-launcher-env" else None
     if scenario in ("preferences-pages", "auto-follow"):
         # Page inspection and auto-follow need an already-mapped modal while another process owns focus.
         env["AGTERM_ATSPI_OPEN_PREFERENCES"] = "general"
@@ -7723,7 +7682,8 @@ def main():
         elif scenario == "child-gdk-env-inverted":
             verify_child_gdk_environment(env, inverted_assignment)
         elif scenario == "child-launcher-env":
-            verify_child_launcher_environment(env, launcher_bundle_lib)
+            from atspi_launcher_environment import verify_exact_launcher_environment
+            verify_exact_launcher_environment(env)
         elif scenario == "notification-banner":
             verify_notification_banner_round_trip(env)
         elif scenario == "custom-command-failures":
@@ -7780,6 +7740,9 @@ def main():
         elif scenario == "workspace-focus-filters":
             from atspi_window_lifecycle import verify_workspace_focus_filters
             verify_workspace_focus_filters(env)
+        elif scenario == "clipboard-payloads":
+            from atspi_clipboard_payloads import verify_clipboard_payloads
+            verify_clipboard_payloads(env, state)
         elif scenario == "quick-card-geometry":
             from atspi_window_lifecycle import verify_quick_card_geometry
             verify_quick_card_geometry(env, state)
