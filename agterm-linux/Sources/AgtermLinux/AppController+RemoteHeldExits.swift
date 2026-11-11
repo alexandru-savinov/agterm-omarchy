@@ -18,6 +18,35 @@ struct LinuxRemoteHeldExitRouter {
     let closeRemovedPane: (_ local: UUID, _ session: UUID) -> Void
     let reconcile: (_ focusActive: Bool) -> Void
 
+    /// Retain authentication for a final PTY notice while clearing the ended pane's visible role.
+    func attachmentEnded(_ surface: any TerminalSurface, forSession id: UUID) -> ZmxLeadState? {
+        guard let pane = paneIdentity(surface, forSession: id) else { return nil }
+        let state = ZmxLeadBook.shared.states[pane]
+        ZmxLeadBook.shared.forget(pane: pane)
+        return state
+    }
+
+    func linkLost(_ notice: RemoteLinkNotice, from surface: any TerminalSurface, forSession id: UUID,
+                  heldAttachment: ZmxLeadState?) -> Bool {
+        guard let pane = paneIdentity(surface, forSession: id),
+              let session = store.session(withID: id), let host = session.remoteHost,
+              let attachment = ZmxLeadBook.shared.states[pane] ?? heldAttachment,
+              notice.nonce == attachment.attachment.nonce else { return false }
+        let cover = attachment.role != nil || attachment.reattaching
+        ZmxLeadBook.shared.forget(pane: pane)
+        store.remotePaneHeld(pane, forSession: id)
+        paneHeld(surface, forSession: id)
+        RemoteReconnectBook.shared.wait(pane: pane, session: id, host: host, cover: cover, now: Date())
+        return true
+    }
+
+    private func paneIdentity(_ surface: any TerminalSurface, forSession id: UUID) -> UUID? {
+        guard let session = store.session(withID: id) else { return nil }
+        if session.surface === surface { return session.paneIdentity }
+        if session.splitSurface === surface { return session.splitPaneIdentity }
+        return nil
+    }
+
     func paneHeld(_ surface: any TerminalSurface, forSession id: UUID) {
         guard let session = store.session(withID: id), session.remotePresentation != nil else { return }
         let local: UUID
