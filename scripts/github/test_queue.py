@@ -1,5 +1,15 @@
+import contextlib
+import datetime
+import io
+import json
+import os
+import tempfile
 import unittest
-from queue import checkin, fetch, markdown, snapshot
+from pathlib import Path
+from unittest import mock
+
+import queue as queue_module
+from queue import COMMENT_WINDOW_DAYS, checkin, fetch, markdown, snapshot
 
 
 class QueueTests(unittest.TestCase):
@@ -430,6 +440,100 @@ class TeamTests(unittest.TestCase):
         output = markdown(data)
         self.assertIn("Active headcount: 12 across 1 posting agents", output)
         self.assertIn("Comments loaded since 2026-10-16", output)
+
+
+class CommentWindowTests(unittest.TestCase):
+    NOW = datetime.datetime(2026, 10, 30, 12, 0, tzinfo=datetime.timezone.utc)
+    INSIDE = datetime.timedelta(days=13, hours=23)
+    OUTSIDE = datetime.timedelta(days=14, hours=1)
+
+    @staticmethod
+    def stamp(moment):
+        return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _fetch(self, reports, now):
+        """reports: (body, created ago, updated ago or None). The fake applies GitHub's `since`, which filters on updated_at."""
+        issue = {"number": 7, "title": "Task", "state": "open", "html_url": "https://example.test/7"}
+        stream = [{"issue_url": "https://api.github.com/repos/o/r/issues/7", "body": body,
+                   "user": {"login": "shared"}, "html_url": f"https://example.test/c{order}",
+                   "created_at": self.stamp(now - created), "updated_at": self.stamp(now - (updated or created))}
+                  for order, (body, created, updated) in enumerate(reports)]
+        since = now - datetime.timedelta(days=COMMENT_WINDOW_DAYS)
+        def fake_pages(repository, endpoint, token):
+            if endpoint.startswith("issues?"):
+                return [issue]
+            start = endpoint.partition("&since=")[2]
+            return [c for c in stream if c["updated_at"] >= start]
+        return fetch("o/r", "t", fake_pages, since=since), since
+
+    def _queue(self, reports):
+        (issues, comments), since = self._fetch(reports, self.NOW)
+        data = snapshot(issues, comments, self.NOW)
+        data.update(observed_at=self.NOW.isoformat(), comments_since=since.isoformat())
+        return data, markdown(data)
+
+    @staticmethod
+    def body(state):
+        return f"Agent: alpha\nTask: #7\nOwned paths: docs/x.md\nState: {state}"
+
+    def test_a_claim_outside_the_window_is_unknown_never_unowned(self):
+        for state in ("working", "blocked", "ready-for-review", "complete"):
+            with self.subTest(state=state):
+                data, output = self._queue([(self.body(state), self.OUTSIDE, None)])
+                self.assertEqual(data["claims"], [])
+                self.assertEqual(data["tasks"][0]["coordination"],
+                                 ["No explicit task observation; ownership is unknown"])
+                self.assertIn("ownership is unknown", output)
+                self.assertIn("Comments loaded since 2026-10-16T12:00:00+00:00", output)
+                self.assertNotIn("unowned", output.lower())
+
+    def test_a_claim_just_inside_the_window_keeps_its_state_and_age(self):
+        expected = {"working": "Stale working claim: shared/alpha (335h00m",
+                    "blocked": "", "ready-for-review": "",
+                    "complete": "Only complete states observed; availability is not established"}
+        for state, note in expected.items():
+            with self.subTest(state=state):
+                data, output = self._queue([(self.body(state), self.INSIDE, None)])
+                claim = data["tasks"][0]["observed_claims"][0]
+                self.assertEqual((claim["state"], claim["age_seconds"]), (state, 335 * 3600))
+                self.assertEqual(claim["stale"], state == "working")
+                self.assertIn(note, " ".join(data["tasks"][0]["coordination"]))
+                self.assertNotIn("ownership is unknown", output)
+
+    def test_an_edit_brings_an_old_checkin_back_with_its_creation_age(self):
+        data, _ = self._queue([(self.body("blocked"), datetime.timedelta(days=20), datetime.timedelta(hours=1))])
+        self.assertEqual(data["tasks"][0]["observed_claims"][0]["age_seconds"], 20 * 86400)
+
+    def test_a_later_malformed_comment_does_not_erase_an_in_window_claim(self):
+        for state in ("working", "blocked", "ready-for-review", "complete"):
+            with self.subTest(state=state):
+                data, _ = self._queue([(self.body(state), self.INSIDE, None),
+                                       (self.body("waiting"), datetime.timedelta(hours=1), None),
+                                       (self.body("blocked"), self.OUTSIDE, None)])
+                self.assertEqual([claim["latest"]["state"] for claim in data["claims"]], [state])
+                self.assertEqual(len(data["uncertain_observations"]), 1)
+
+    def test_queue_json_and_markdown_carry_the_window_start(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        reports = [(self.body("blocked"), self.INSIDE, None)]
+        real_fetch = queue_module.fetch
+        def windowed_fetch(repository, token, since):
+            self.assertEqual(round((now - since).total_seconds() / 3600), COMMENT_WINDOW_DAYS * 24)
+            return self._fetch(reports, now)[0]
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": "t"}, clear=False), \
+                mock.patch.object(queue_module, "fetch", windowed_fetch), \
+                mock.patch("sys.argv", ["queue.py", "--output", directory]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            os.environ.pop("GITHUB_STEP_SUMMARY", None)
+            queue_module.main()
+            data = json.loads(Path(directory, "queue.json").read_text())
+            report = Path(directory, "queue.md").read_text()
+        self.assertIs(queue_module.fetch, real_fetch)
+        since = datetime.datetime.fromisoformat(data["comments_since"])
+        self.assertEqual(round((now - since).total_seconds() / 3600), COMMENT_WINDOW_DAYS * 24)
+        self.assertIn("Comments loaded since " + data["comments_since"][:10], report)
+        self.assertEqual(data["claims"][0]["latest"]["state"], "blocked")
 
 
 if __name__ == "__main__":
