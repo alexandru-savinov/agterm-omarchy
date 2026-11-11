@@ -121,7 +121,10 @@ extension AppController {
     func openNewWindow() { openWindow(gLibrary.newWindow().id) }
 
     func reopenRecentClosed() {
-        if library.reopenLatestRecentClosed(into: store) { reconcile() }
+        guard let owner = library.reopenLatestRecentClosedReportingWindow(into: store) else { return }
+        // A retained workspace can restore into another window; realize that owner's rebuilt sessions.
+        openWindow(owner)
+        gWindows[owner]?.reconcile()
     }
 
     func clearRecentHistory() {

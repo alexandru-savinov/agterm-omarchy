@@ -248,7 +248,8 @@ def remember_live_daemons():
     global live_endpoint
     inventory = ctl("zmx", "list")["zmx"]
     endpoint = inventory["endpoint"]
-    assert re.fullmatch(r"/tmp/agterm-zmx-[0-9a-f]{16}", endpoint["socketDirectory"])
+    # $XDG_RUNTIME_DIR/agterm-zmx-<hash>, <state>/zmx, or the /tmp name (ZmxSocketDirectory.resolveLinux)
+    assert re.fullmatch(r"/.+/(agterm-zmx-[0-9a-f]{16}|zmx)", endpoint["socketDirectory"])
     assert Path(endpoint["executable"]).is_absolute()
     assert live_endpoint is None or live_endpoint == endpoint, "test zmx endpoint changed"
     if live_endpoint is None:

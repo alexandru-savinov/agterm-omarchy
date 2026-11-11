@@ -28,11 +28,16 @@ public enum ZmxSupport {
         public let sessionHostExecutablePath: String?
         /// Nil leaves the attach unmanaged, as a zmx without explicit leadership expects.
         public let lead: ZmxLeadAttachment?
+        /// Supplies the verified socket directory, run only after every other check passed. Nil keeps
+        /// `socketDirectory(forStateDirectory:)`, the macOS behavior.
+        public let socketDirectory: (@Sendable () -> Result<String, ZmxSocketDirectory.Refusal>)?
 
         public init(zmxExecutablePath: String, passwordDatabaseShell: String?, resourcesDirectory: String?,
                     stateDirectory: String, paneIdentity: UUID, baseEnvironment: [String: String],
                     inheritedZdotdir: String?, sessionHostExecutablePath: String? = nil,
-                    lead: ZmxLeadAttachment? = nil) {
+                    lead: ZmxLeadAttachment? = nil,
+                    socketDirectory: (@Sendable () -> Result<String, ZmxSocketDirectory.Refusal>)? = nil) {
+            self.socketDirectory = socketDirectory
             self.zmxExecutablePath = zmxExecutablePath
             self.passwordDatabaseShell = passwordDatabaseShell
             self.resourcesDirectory = resourcesDirectory
@@ -71,6 +76,7 @@ public enum ZmxSupport {
         case executableUnavailable
         case unsupportedLoginShell
         case missingZshIntegration
+        case socketDirectoryRefused(ZmxSocketDirectory.Refusal)
 
         public var message: String {
             switch self {
@@ -78,6 +84,7 @@ public enum ZmxSupport {
             case .executableUnavailable: "the zmx executable is unavailable"
             case .unsupportedLoginShell: "the password-database login shell is not zsh"
             case .missingZshIntegration: "the bundled zsh integration is unavailable"
+            case .socketDirectoryRefused(let refusal): refusal.message
             }
         }
     }
@@ -103,7 +110,15 @@ public enum ZmxSupport {
         }
 
         let daemonName = daemonName(for: inputs.paneIdentity)
-        let socketDirectory = socketDirectory(forStateDirectory: inputs.stateDirectory)
+        let socketDirectory: String
+        if let verified = inputs.socketDirectory {
+            switch verified() {
+            case .success(let path): socketDirectory = path
+            case .failure(let refusal): return .failure(.socketDirectoryRefused(refusal))
+            }
+        } else {
+            socketDirectory = Self.socketDirectory(forStateDirectory: inputs.stateDirectory)
+        }
 
         let paneID = inputs.paneIdentity.uuidString
         var environment = inputs.baseEnvironment
@@ -181,10 +196,17 @@ public enum ZmxSupport {
         return [shell, "-lic", script]
     }
 
+    /// The directory every version up to this one used, and still the macOS one. Linux resolves its own
+    /// private location through `ZmxSocketDirectory.resolveLinux`, which keeps this one only for
+    /// daemons an earlier version left running this boot.
     public static func socketDirectory(forStateDirectory stateDirectory: String) -> String {
+        "/tmp/" + socketDirectoryLeaf(forStateDirectory: stateDirectory)
+    }
+
+    static func socketDirectoryLeaf(forStateDirectory stateDirectory: String) -> String {
         let canonical = URL(fileURLWithPath: stateDirectory, isDirectory: true)
             .standardizedFileURL.resolvingSymlinksInPath().path
-        return "/tmp/agterm-zmx-\(stableHash(canonical))"
+        return "agterm-zmx-\(stableHash(canonical))"
     }
 
     public static func daemonName(for paneIdentity: UUID) -> String {
