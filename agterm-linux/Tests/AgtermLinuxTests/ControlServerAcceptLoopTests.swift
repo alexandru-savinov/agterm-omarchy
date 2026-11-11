@@ -54,7 +54,12 @@ struct ControlServerAcceptLoopTests {
 
         holder.close()
         #expect(queued.response(timeout: 5)?.error?.hasPrefix("invalid request: ") == true)
-        #expect(waitUntil(timeout: 5) { server.activeConnectionWorkers == 0 })
+        // The accept loop reserves the freed slot before blocking in accept(), so busy need not reach zero.
+        // Serving another request at cap 1 proves the queued request released its worker slot.
+        let probe = try ControlTestClient(path: directory.socket)
+        defer { probe.close() }
+        probe.send("not json\n")
+        #expect(probe.response(timeout: 5)?.error?.hasPrefix("invalid request: ") == true)
 
         // Park the loop on a full cap again, then stop: it must not wait out the 2 s stop deadline.
         let second = try ControlTestClient(path: directory.socket)

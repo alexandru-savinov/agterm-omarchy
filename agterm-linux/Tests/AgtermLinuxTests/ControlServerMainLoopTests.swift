@@ -1,3 +1,4 @@
+import CGtk
 import Foundation
 import Glibc
 import Testing
@@ -79,7 +80,7 @@ struct ControlServerMainLoopTests {
         #expect(runner.finishedCount == 1)
     }
 
-    @Test("a lead-pane type runs its zmx calls on the worker and finishes once on the main thread")
+    @Test("a lead-pane type runs its zmx calls on the worker and finishes once on the GLib main context")
     func leadTypeLeavesTheMainLoopFree() throws {
         let runner = GatedZmxRunner()
         let directory = try ControlSocketDirectory()
@@ -87,11 +88,12 @@ struct ControlServerMainLoopTests {
         let server = ControlServer(path: directory.socket)
         defer { server.stop() }
         let finishes = TestSlot<Int>()
-        let finishedOnMain = TestSlot<Bool>()
+        let finishedOnMainContext = TestSlot<Bool>()
         let done = ControlResponse(ok: true, result: ControlResult(id: "typed"))
         let stage = LinuxLeadPaneIO.typeStage(client: runner.client(), name: "agterm-pane", text: "echo hi") {
             finishes.set((finishes.value ?? 0) + 1)
-            finishedOnMain.set(Thread.isMainThread)
+            // Swift Testing's MainActor thread need not be the OS main thread; pumpGLib owns this context.
+            finishedOnMainContext.set(g_main_context_is_owner(g_main_context_default()) != 0)
             return done
         }
         let result = TestSlot<ControlResponse>()
@@ -106,7 +108,7 @@ struct ControlServerMainLoopTests {
         #expect(pumpGLib(timeout: 10) { result.value != nil })
         #expect(result.value == done)
         #expect(finishes.value == 1)
-        #expect(finishedOnMain.value == true)
+        #expect(finishedOnMainContext.value == true)
         pumpGLib(timeout: 0.2)
         #expect(finishes.value == 1)
     }
