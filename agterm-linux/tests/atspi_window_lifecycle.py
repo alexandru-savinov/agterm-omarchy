@@ -355,15 +355,23 @@ def verify_window_close_cancel(env, state):
                         before = inventory()
                         owned_names = set()
                         for owner_window, ident in cleanup_targets:
-                            matches = [row for row in before if row.get("sessionID", "").casefold() == ident.casefold()
+                            matches = [row for row in inventory() if row.get("sessionID", "").casefold() == ident.casefold()
                                        and row.get("pane") == "left"]
                             assert len(matches) <= 1, f"ambiguous fixture daemon: {matches}"
                             if not matches:
                                 continue  # A normally closed session can have removed its claim already.
                             row = matches[0]
                             assert row.get("windowID", "").casefold() == owner_window.casefold(), row
-                            assert row["state"] == "claimed", row
                             owned_names.add(row["daemon"])
+                            if row["state"] == "pendingClose":
+                                # The kill API refuses held closes; normal shutdown finalizes them.
+                                process.send_signal(signal.SIGTERM)
+                                assert process.wait(timeout=10) == 0, "pending cleanup shutdown failed"
+                                process, app = launch(mode_env)
+                                assert all(item["observation"] == "absent" for item in inventory()
+                                           if item["daemon"] == row["daemon"]), "pending daemon survived cleanup"
+                                continue
+                            assert row["state"] == "claimed", row
                             if row["observation"] == "absent":
                                 continue
                             assert row["observation"] == "running", row
