@@ -36,7 +36,10 @@ set -eu
 mkdir -p "$1/bin" "$1/lib" "$1/share/agterm/agent-skill" "$1/share/agterm/agent-status" \
   "$1/share/ghostty/shell-integration" "$1/share/terminfo/x" "$1/share/applications" \
   "$1/share/pixmaps" "$1/share/icons/hicolor/scalable/actions"
-for name in agterm-linux agtermctl zmx; do printf 'fixture\\n' > "$1/bin/$name"; done
+for name in agterm-linux agterm-linux.bin agtermctl agtermctl.bin zmx; do
+  printf '#!/bin/sh\\nprintf fixture\\n' > "$1/bin/$name"
+  chmod 755 "$1/bin/$name"
+done
 printf library > "$1/lib/libswiftCore.so"
 printf theme > "$1/share/ghostty/theme"
 printf entry > "$1/share/terminfo/x/xterm-ghostty"
@@ -243,7 +246,7 @@ DESKTOP
         self.env.update(FAIL_STAGE='1', SWIFT=str(self.work / 'missing-swift'))
         self.install('--payload', str(archive), '--software-rendering')
         payload = self.prefix / 'lib/agterm'
-        self.assertEqual((payload / 'bin/zmx').read_text(), 'fixture\n')
+        self.assertEqual((payload / 'bin/zmx').read_bytes(), (archive / 'bin/zmx').read_bytes())
         self.assertEqual((payload / 'share/agterm/RENDERER').read_text(), 'software\n')
         self.assertFalse((archive / 'share/agterm/RENDERER').exists())
         self.assertIn(f'Exec="{self.prefix}/bin/agterm-linux"\n',
