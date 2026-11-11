@@ -2,20 +2,29 @@ import Foundation
 import Testing
 @testable import agtermCore
 
-#if !os(Linux)
-// Tests the shipped panel painter `agterm/Resources/hud/hud.sh` by running it against a temp body file and
-// reading the escape stream it writes. It reaches the app target's resource on purpose: the script is the
-// rendering half of the agtermCore `HudLayout` model, and the three contracts (the header line, the
-// rendered body's empty-line separator, the file as the ONLY changing input) only hold if both halves are
-// pinned together.
+// Tests the shipped panel painter by running it against a temp body file and reading the escape stream it
+// writes. It reaches the app target's resource on purpose: the script is the rendering half of the agtermCore
+// `HudLayout` model, and the three contracts (the header line, the rendered body's empty-line separator, the
+// file as the ONLY changing input) only hold if both halves are pinned together.
+//
+// Each platform tests the painter its own app ships: the macOS app bundles `agterm/Resources/hud/hud.sh`, the
+// Linux app bundles its copy from the AgtermLinux target's resources (Package.swift copies Resources/hud).
+// Every test here holds for both; none is platform-only, because the header, the frames and the stream are
+// one shared contract and the copy differs only in how it gets a UTF-8 shell.
 struct HudHelperTests {
+    #if os(Linux)
+    private static let shippedHelper = "agterm-linux/Sources/AgtermLinux/Resources/hud/hud.sh"
+    #else
+    private static let shippedHelper = "agterm/Resources/hud/hud.sh"
+    #endif
+
     private static var helper: String {
         URL(fileURLWithPath: #filePath)      // …/agtermCore/Tests/agtermCoreTests/HudHelperTests.swift
             .deletingLastPathComponent()     // agtermCoreTests
             .deletingLastPathComponent()     // Tests
             .deletingLastPathComponent()     // agtermCore
             .deletingLastPathComponent()     // repo root
-            .appendingPathComponent("agterm/Resources/hud/hud.sh")
+            .appendingPathComponent(shippedHelper)
             .path
     }
 
@@ -118,7 +127,7 @@ struct HudHelperTests {
     // the script is reached through the repository layout, not a bundle, so a move breaks it at run time
     @Test func theShippedHelperIsWhereTheseTestsLookForIt() throws {
         #expect(FileManager.default.isReadableFile(atPath: Self.helper),
-                "no helper at \(Self.helper): agterm/Resources/hud/hud.sh moved, or this file did")
+                "no helper at \(Self.helper): \(Self.shippedHelper) moved, or this file did")
     }
 
     @Test func paintsTheMessage() throws {
@@ -458,4 +467,3 @@ struct HudHelperTests {
         #expect(out.fileHandleForReading.readDataToEndOfFile().isEmpty)
     }
 }
-#endif
