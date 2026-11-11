@@ -245,7 +245,7 @@ struct ConfigPathsTests {
 
     // CI sets AGTERM_REQUIRE_FISH=1 so a missing fish fails at the `#require` below instead of skipping.
     @Test(.enabled(if: ConfigPathsTests.fishPath() != nil
-                       || true, // PROBE: revert
+                       || ProcessInfo.processInfo.environment["AGTERM_REQUIRE_FISH"] == "1",
                    "no non-POSIX login shell (fish) installed — the cross-shell parse assertion is skipped here"))
     func editorCommandWorksUnderNonPosixLoginShell() throws {
         // a non-POSIX login shell (fish) must run the command without choking on `${`.

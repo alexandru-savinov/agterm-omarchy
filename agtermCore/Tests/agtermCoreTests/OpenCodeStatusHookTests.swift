@@ -14,7 +14,7 @@ enum OpenCodeStatusHookSupport {
 
     /// CI sets AGTERM_REQUIRE_NODE=1 so a missing or too-old Node FAILS both OpenCode suites (each test's
     /// `#require(node)` throws) instead of skipping them while the job stays green.
-    static var required: Bool { true } // PROBE: revert
+    static var required: Bool { ProcessInfo.processInfo.environment["AGTERM_REQUIRE_NODE"] == "1" }
 
     private static func whichNode() -> String? {
         let proc = Process()
