@@ -29,9 +29,10 @@ struct BasicOptions: ParsableArguments, ConnectionOptions {
     var json = false
 
     /// Resolve the socket path: explicit `--socket`, else the agtermCore rendezvous resolver. Precedence:
-    /// `--socket` → `<AGTERM_STATE_DIR>/agterm.sock` → `<platform application support>/agterm/agterm.sock` →
-    /// `/tmp/agterm/agterm.sock`. Production asks Foundation for the platform directory; the resolved
-    /// directory is injectable below so macOS and Linux path behavior remain unit-testable.
+    /// `--socket` → a non-empty `AGTERM_CONTROL_SOCKET` → `<AGTERM_STATE_DIR>/agterm.sock` →
+    /// `<platform application support>/agterm/agterm.sock` → `/tmp/agterm/agterm.sock`, so the CLI meets the
+    /// app on the path its control server binds. Production asks Foundation for the platform directory; the
+    /// resolved directory is injectable below so macOS and Linux path behavior remain unit-testable.
     func socketPath(env: [String: String] = ProcessInfo.processInfo.environment) -> String {
         let directory = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
@@ -41,6 +42,7 @@ struct BasicOptions: ParsableArguments, ConnectionOptions {
 
     func socketPath(env: [String: String], applicationSupportDirectory: String?) -> String {
         if let socket { return socket }
+        if let explicit = env["AGTERM_CONTROL_SOCKET"], !explicit.isEmpty { return explicit }
         let appSupport = applicationSupportDirectory ?? "/tmp/agterm"
         return ControlResolve.socketPath(stateDir: env["AGTERM_STATE_DIR"], appSupport: appSupport)
     }

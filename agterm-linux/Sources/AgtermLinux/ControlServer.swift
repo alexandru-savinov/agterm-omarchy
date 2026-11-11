@@ -77,9 +77,12 @@ final class ControlServer: @unchecked Sendable {
         _ = acquireOwnership()
     }
 
-    static func defaultSocketPath() -> String {
-        ControlResolve.socketPath(stateDir: ProcessInfo.processInfo.environment["AGTERM_STATE_DIR"],
-                                  appSupport: PersistenceStore.defaultDirectory.path)
+    /// The socket path the app and agtermctl rendezvous on, with the macOS precedence: a non-empty
+    /// `AGTERM_CONTROL_SOCKET` wins, then `<AGTERM_STATE_DIR>/agterm.sock`, then the app-support default.
+    static func defaultSocketPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
+        if let explicit = environment["AGTERM_CONTROL_SOCKET"], !explicit.isEmpty { return explicit }
+        return ControlResolve.socketPath(stateDir: environment["AGTERM_STATE_DIR"],
+                                         appSupport: PersistenceStore.defaultDirectory.path)
     }
 
     func start() {
