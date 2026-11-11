@@ -12,7 +12,8 @@ from atspi_smoke import ROOT, control_json, launch, raw_control_json, stop, wait
 
 PROBE = r'''
 import json,os,pathlib,sys
-names=("LD_LIBRARY_PATH","LIBGL_ALWAYS_SOFTWARE","AGTERM_COMMIT","GSK_RENDERER")
+names=("LD_LIBRARY_PATH","LIBGL_ALWAYS_SOFTWARE","AGTERM_COMMIT","AGTERM_VERSION",
+       "AGTERM_ZMX_PATH","AGTERM_GHOSTTY_RESOURCES","GSK_RENDERER")
 result={"values":{name:os.environ.get(name) for name in names},
         "bookkeeping":sorted(name for name in os.environ if name.startswith("AGTERM_ORIG_"))}
 path=pathlib.Path(sys.argv[1]); temporary=path.with_suffix(".tmp")
@@ -28,7 +29,8 @@ def verify_exact_launcher_environment(env):
                     os.path.join(ROOT, "tests/login_shell_zsh_fixture.c"), "-ldl"], check=True)
     artifacts = Path(os.environ.get("AGTERM_UI_ARTIFACT_DIR", base)) / "launcher-environment"
     artifacts.mkdir(parents=True, exist_ok=True)
-    names = ("LD_LIBRARY_PATH", "LIBGL_ALWAYS_SOFTWARE", "AGTERM_COMMIT")
+    names = ("LD_LIBRARY_PATH", "LIBGL_ALWAYS_SOFTWARE", "AGTERM_COMMIT", "AGTERM_VERSION",
+             "AGTERM_ZMX_PATH", "AGTERM_GHOSTTY_RESOURCES")
     for mode in ("none", "live"):
         for label, original in (("absent", None), ("empty", ""), ("value", "caller-value")):
             temporary = tempfile.TemporaryDirectory(prefix="env270-", dir="/tmp")
@@ -38,6 +40,8 @@ def verify_exact_launcher_environment(env):
             local.update(AGTERM_STATE_DIR=str(state), AGTERM_CONTROL_SOCKET=str(state / "agterm.sock"),
                          LD_PRELOAD=str(fixture), LD_LIBRARY_PATH="/nonexistent/agterm-bundle/lib",
                          LIBGL_ALWAYS_SOFTWARE="1", AGTERM_COMMIT="launcher-app-commit",
+                         AGTERM_VERSION="270.0", AGTERM_ZMX_PATH=os.path.join(ROOT, "vendor/zmx/zmx"),
+                         AGTERM_GHOSTTY_RESOURCES=env["AGTERM_GHOSTTY_RESOURCES"],
                          AGTERM_ORIG_SET="1", GSK_RENDERER="cairo")
             local["AGTERM_ORIG_UNSET"] = " ".join(names) if original is None else ""
             if original is not None:
