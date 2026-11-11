@@ -57,7 +57,7 @@ struct InlineRenameGTKTests {
                 if remove {
                     store.workspaces.removeFirst()
                 } else {
-                    store.setFocusedWorkspace(store.workspaces[1].id)
+                    store.applyFocusMode(.on, to: store.workspaces[1].id)
                 }
             } else {
                 let id = store.workspaces[0].sessions[0].id
