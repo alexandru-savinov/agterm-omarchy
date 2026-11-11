@@ -34,6 +34,22 @@ struct LinuxRemoteCommandTests {
         #expect(result.status == 124)
     }
 
+    @Test("temp-file setup failure reports status 1 and leaves nothing behind")
+    func setupFailure() throws {
+        let root = try makeDirectory()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let missing = root + "/missing"
+        let inputs: [Data?] = [nil, Data("x".utf8)]
+        for input in inputs {
+            let result = LinuxRemoteCommand.run(["sh", "-c", "printf ran"], deadline: 10, input: input,
+                                                temporaryDirectory: missing)
+            #expect(result == RemoteCommandResult(status: 1, stdout: "",
+                                                  stderr: "could not create command output files"))
+            #expect(try FileManager.default.contentsOfDirectory(atPath: root).isEmpty)
+            #expect(descriptors(into: root).isEmpty)
+        }
+    }
+
     @Test("input and output files are owner-only while the child runs")
     func fileModes() throws {
         let root = try makeDirectory()
