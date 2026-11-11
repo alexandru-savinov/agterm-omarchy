@@ -184,14 +184,14 @@ class PagesTests(unittest.TestCase):
         from datetime import datetime, timezone
         first = roster["agents"][0]
         claims = [{"account": first["account"], "name": first["name"], "task": 999,
-                   "latest": {"state": "working", "url": build.BASE + "/issues/999#issuecomment-1",
+                   "latest": {"author_association": "MEMBER", "state": "working", "url": build.BASE + "/issues/999#issuecomment-1",
                               "created_at": "2026-10-30T01:00:00Z", "age_seconds": 36000, "stale": True}}]
         if extra:
             claims.append({"account": "shared", "name": "newcomer", "task": 7,
-                           "latest": {"state": "ready-for-review", "url": build.BASE + "/issues/7#issuecomment-2",
+                           "latest": {"author_association": "MEMBER", "state": "ready-for-review", "url": build.BASE + "/issues/7#issuecomment-2",
                                       "created_at": "2026-10-30T02:00:00Z", "age_seconds": 100, "stale": False}})
         claims.append({"account": "shared", "name": "evil", "task": 8,
-                       "latest": {"state": "working", "url": "https://evil.example/x",
+                       "latest": {"author_association": "MEMBER", "state": "working", "url": "https://evil.example/x",
                                   "created_at": "2026-10-30T03:00:00Z", "age_seconds": 1, "stale": False}})
         now = observed_at or datetime.now(timezone.utc).isoformat()
         return {"observed_at": now, "claims": claims}
@@ -220,7 +220,7 @@ class PagesTests(unittest.TestCase):
         queue = self.queue(roster)
         first = roster["agents"][0]
         queue["claims"].append({"account": first["account"], "name": first["name"], "task": 1000,
-                                "latest": {"state": "working", "url": build.BASE + "/issues/1000#issuecomment-3",
+                                "latest": {"author_association": "MEMBER", "state": "working", "url": build.BASE + "/issues/1000#issuecomment-3",
                                            "created_at": "2026-10-30T09:00:00Z", "age_seconds": 60, "stale": False}})
         team, data = self.build_team(queue)
         self.assertIn(build.BASE + "/issues/1000#issuecomment-3", team)
@@ -232,7 +232,7 @@ class PagesTests(unittest.TestCase):
         first = roster["agents"][0]
         # Older post, edited last: the queue's (updated_at, url) ordering makes it the latest.
         queue["claims"].append({"account": first["account"], "name": first["name"], "task": 1001,
-                                "latest": {"state": "blocked", "url": build.BASE + "/issues/1001#issuecomment-4",
+                                "latest": {"author_association": "MEMBER", "state": "blocked", "url": build.BASE + "/issues/1001#issuecomment-4",
                                            "created_at": "2026-10-29T00:00:00Z", "updated_at": "2026-10-30T11:00:00Z",
                                            "age_seconds": 50000, "stale": False}})
         team, data = self.build_team(queue)
@@ -247,6 +247,65 @@ class PagesTests(unittest.TestCase):
         team, data = self.build_team(None)
         self.assertNotIn('class="queue', team)
         self.assertIsNone(data["queue"])
+        self.assertEqual(data["queue_status"], "not-requested")
+        self.assertIn("Markers use the latest available queue claim", team)
+
+    def test_only_collaborator_claims_become_cards(self):
+        roster = self.roster()
+        queue = self.queue(roster)
+        newcomer = next(claim for claim in queue["claims"] if claim["name"] == "newcomer")
+        for association in ("NONE", "CONTRIBUTOR", None):
+            with self.subTest(association=association):
+                if association is None:
+                    newcomer["latest"].pop("author_association", None)
+                else:
+                    newcomer["latest"]["author_association"] = association
+                queue["unverified_claims"] = [{"account": "drive-by", "name": "x", "task": 7, "latest": {}}]
+                team, data = self.build_team(queue)
+                self.assertNotIn("newcomer", team)
+                self.assertNotIn("queue-only", team)
+                self.assertEqual(data["queue"]["queue_only"], [])
+                self.assertEqual(data["queue"]["unverified_count"], 2)
+                self.assertIn("2 unverified check-in(s) (not a collaborator)", team)
+                self.assertEqual(team.count('<li class="roster-card"'), len(roster["agents"]))
+
+    def run_main(self, queue_arg):
+        import contextlib, io, sys
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "issues.json").write_text("[]")
+            argv = ["build.py", "--issues", str(root / "issues.json"), "--output", str(root / "site"),
+                    "--commit", "a" * 40] + queue_arg(root)
+            with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+                build.main()
+            return (root / "site" / "team.html").read_text(), json.loads((root / "site" / "status.json").read_text())
+
+    def test_requested_but_missing_or_unreadable_queue_is_visible(self):
+        def missing(root):
+            return ["--queue", str(root / "queue" / "queue.json")]
+        def unreadable(root):
+            (root / "queue.json").write_text("{not json")
+            return ["--queue", str(root / "queue.json")]
+        for case in (missing, unreadable):
+            with self.subTest(case=case.__name__):
+                team, data = self.run_main(case)
+                self.assertEqual(data["queue_status"], "unavailable")
+                self.assertIsNone(data["queue"])
+                self.assertIn("Queue snapshot unavailable; showing curated phases only.", team)
+                self.assertNotIn("Markers use the latest available queue claim", team)
+                self.assertNotIn("totals use the latest available queue claim", team)
+
+    def test_not_requested_and_loaded_queue_statuses(self):
+        team, data = self.run_main(lambda root: [])
+        self.assertEqual(data["queue_status"], "not-requested")
+        self.assertNotIn("Queue snapshot unavailable", team)
+        def loaded(root):
+            (root / "queue.json").write_text(json.dumps(self.queue(self.roster())))
+            return ["--queue", str(root / "queue.json")]
+        team, data = self.run_main(loaded)
+        self.assertEqual(data["queue_status"], "loaded")
+        self.assertNotIn("Queue snapshot unavailable", team)
 
 
 # Adopted from codex_team_pages' #81/#84 proposal after reproducing #79 on main.
@@ -257,7 +316,7 @@ class QueueDisplayRegressionTests(unittest.TestCase):
         agent = roster['agents'][0]
         now = datetime.now(timezone.utc).isoformat()
         def claim(account, name, task):
-            return {'account': account, 'name': name, 'task': task, 'latest': {
+            return {'account': account, 'name': name, 'task': task, 'latest': {'author_association': 'MEMBER',
                 'state': state, 'url': build.BASE + f'/issues/{task}#issuecomment-123',
                 'created_at': now, 'age_seconds': 0, 'stale': False}}
         snapshot = {'observed_at': now, 'claims': [claim(agent['account'], agent['name'], 75),

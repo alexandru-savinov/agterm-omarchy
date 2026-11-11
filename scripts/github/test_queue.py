@@ -17,7 +17,7 @@ class QueueTests(unittest.TestCase):
         issues = [{"number": n, "title": "Task", "state": "open", "html_url": f"https://example.test/{n}"}
                   for n in (2, 1)]
         def comment(name, timestamp):
-            return {"body": f"Agent: **{name}**\nConnected", "user": {"login": "shared-owner"},
+            return {"body": f"Agent: **{name}**\nConnected", "user": {"login": "shared-owner"}, "author_association": "MEMBER",
                     "html_url": "https://example.test/comment", "updated_at": timestamp}
         result = snapshot(issues, {1: [comment("alpha", "2026-10-29T10:00:00Z"),
                                       comment("beta", "2026-10-29T11:00:00Z")],
@@ -29,11 +29,11 @@ class QueueTests(unittest.TestCase):
     def test_prs_and_unnamed_comments_do_not_become_agent_tasks(self):
         result = snapshot([{"pull_request": {}, "number": 6}], {6: [{"body": "Agent: fake"}]})
         self.assertEqual(result, {"headcount": 0, "active_posters": 0, "tasks": [], "agents": [],
-                                  "claims": [], "uncertain_observations": []})
+                                  "claims": [], "unverified_claims": [], "uncertain_observations": []})
 
     def test_same_name_on_another_account_cannot_overwrite_an_agent(self):
         issue = {"number": 1, "title": "Task", "state": "open", "html_url": "https://example.test/1"}
-        comments = [{"body": "Agent: root", "user": {"login": account},
+        comments = [{"body": "Agent: root", "user": {"login": account}, "author_association": "MEMBER",
                      "html_url": "https://example.test/comment", "updated_at": timestamp}
                     for account, timestamp in (("maintainer", "2026-10-29T10:00:00Z"),
                                                ("other-account", "2026-10-29T12:00:00Z"))]
@@ -64,7 +64,7 @@ class ClaimHistoryTests(unittest.TestCase):
 
     @staticmethod
     def comment(body, order=1, account="owner"):
-        return {"body": body, "user": {"login": account},
+        return {"body": body, "user": {"login": account}, "author_association": "MEMBER",
                 "html_url": f"https://example.test/comments/{order}",
                 "updated_at": f"2026-10-29T10:{order:02d}:00Z"}
 
@@ -260,7 +260,7 @@ class ClaimHistoryTests(unittest.TestCase):
         import datetime
         issue = {"number": 7, "title": "Task", "state": "open", "html_url": "https://example.test/7"}
         comments = [{"body": f"Agent: {name}\nTask: #7\nOwned paths: docs/x.md\nState: {state}",
-                     "user": {"login": "shared"}, "html_url": f"https://example.test/{name}",
+                     "user": {"login": "shared"}, "author_association": "MEMBER", "html_url": f"https://example.test/{name}",
                      "created_at": created, "updated_at": updated or created}
                     for name, state, created, updated in reports]
         return snapshot([issue], {7: comments}, datetime.datetime.fromisoformat(now))
@@ -312,7 +312,7 @@ class SessionCollisionTests(unittest.TestCase):
             body = f"Agent: {name}\nTask: #{task}\nOwned paths: docs/x.md\nState: {state}"
             if session is not None:
                 body += f"\nSession: {session}"
-            comments[task].append({"body": body + "\nEvidence: none", "user": {"login": "shared"},
+            comments[task].append({"body": body + "\nEvidence: none", "user": {"login": "shared"}, "author_association": "MEMBER",
                                    "html_url": f"https://example.test/c{order}",
                                    "created_at": created, "updated_at": created})
         return snapshot(issues, comments, datetime.datetime.fromisoformat(self.NOW))
@@ -437,7 +437,7 @@ class FetchTests(unittest.TestCase):
                    "comments": 3} for n in range(1, 41)] + [{"number": 99, "pull_request": {}, "comments": 3}]
         stream = [{"issue_url": f"https://api.github.com/repos/o/r/issues/{n}", "id": n * 10 + k,
                    "body": "Agent: alpha\nTask: #1\nOwned paths: a.py\nState: working",
-                   "user": {"login": "shared"}, "html_url": f"https://example.test/c{n}-{k}",
+                   "user": {"login": "shared"}, "author_association": "MEMBER", "html_url": f"https://example.test/c{n}-{k}",
                    "updated_at": "2026-10-30T10:00:00Z"} for n in list(range(1, 41)) + [99] for k in range(3)]
         requests = []
         def fake_pages(repository, endpoint, token):
@@ -463,7 +463,7 @@ class TeamTests(unittest.TestCase):
         comments = {7: [], 8: []}
         for order, (task, name, state, extra, created) in enumerate(reports):
             body = f"Agent: {name}\nTask: #{task}\nOwned paths: docs/x.md\nState: {state}{extra}\nNext: x"
-            comments[task].append({"body": body, "user": {"login": "shared"},
+            comments[task].append({"body": body, "user": {"login": "shared"}, "author_association": "MEMBER",
                                    "html_url": f"https://example.test/c{order}",
                                    "created_at": created, "updated_at": created})
         return snapshot(issues, comments, datetime.datetime.fromisoformat(now))
@@ -523,7 +523,7 @@ class CommentWindowTests(unittest.TestCase):
         """reports: (body, created ago, updated ago or None). The fake applies GitHub's `since`, which filters on updated_at."""
         issue = {"number": 7, "title": "Task", "state": "open", "html_url": "https://example.test/7"}
         stream = [{"issue_url": "https://api.github.com/repos/o/r/issues/7", "body": body,
-                   "user": {"login": "shared"}, "html_url": f"https://example.test/c{order}",
+                   "user": {"login": "shared"}, "author_association": "MEMBER", "html_url": f"https://example.test/c{order}",
                    "created_at": self.stamp(now - created), "updated_at": self.stamp(now - (updated or created))}
                   for order, (body, created, updated) in enumerate(reports)]
         since = now - datetime.timedelta(days=COMMENT_WINDOW_DAYS)
@@ -536,7 +536,7 @@ class CommentWindowTests(unittest.TestCase):
 
     def _queue(self, reports):
         (issues, comments), since = self._fetch(reports, self.NOW)
-        data = snapshot(issues, comments, self.NOW)
+        data = snapshot(issues, comments, self.NOW, since=since)
         data.update(observed_at=self.NOW.isoformat(), comments_since=since.isoformat())
         return data, markdown(data)
 
@@ -549,8 +549,10 @@ class CommentWindowTests(unittest.TestCase):
             with self.subTest(state=state):
                 data, output = self._queue([(self.body(state), self.OUTSIDE, None)])
                 self.assertEqual(data["claims"], [])
+                # A blocked or ready-for-review claim never goes stale, so the task says the window hid it.
                 self.assertEqual(data["tasks"][0]["coordination"],
-                                 ["No explicit task observation; ownership is unknown"])
+                                 ["No explicit task observation; no claim seen in the last 14 days; "
+                                  "older claims are not loaded, so ownership is unknown"])
                 self.assertIn("ownership is unknown", output)
                 self.assertIn("Comments loaded since 2026-10-16T12:00:00+00:00", output)
                 self.assertNotIn("unowned", output.lower())
@@ -602,6 +604,100 @@ class CommentWindowTests(unittest.TestCase):
         self.assertEqual(round((now - since).total_seconds() / 3600), COMMENT_WINDOW_DAYS * 24)
         self.assertIn("Comments loaded since " + data["comments_since"][:10], report)
         self.assertEqual(data["claims"][0]["latest"]["state"], "blocked")
+
+
+class HardeningTests(unittest.TestCase):
+    NOW = datetime.datetime(2026, 10, 30, 12, 0, tzinfo=datetime.timezone.utc)
+    ISSUE = {"number": 7, "title": "Task", "state": "open", "html_url": "https://example.test/7"}
+
+    @staticmethod
+    def comment(body, order, account="owner", association="MEMBER"):
+        record = {"body": body, "user": {"login": account}, "html_url": f"https://example.test/c{order}",
+                  "created_at": "2026-10-30T11:00:00Z", "updated_at": f"2026-10-30T11:{order:02d}:00Z"}
+        if association is not None:
+            record["author_association"] = association
+        return record
+
+    @staticmethod
+    def body(name="agent", extra=""):
+        return f"Agent: {name}\nTask: #7\nOwned paths: docs/x.md\nState: working{extra}"
+
+    def test_labels_and_names_are_ascii_only_and_never_fail_the_snapshot(self):
+        # Case-insensitive matching must not fold non-ASCII letters onto a label or a name.
+        folded_label = "Agent: a\nTask: #7\nOwned paths: docs/x.md\nſtate: working"
+        self.assertIsNone(checkin(folded_label)["task"])
+        self.assertIsNone(checkin("Agent: K"))
+        data = snapshot([self.ISSUE], {7: [self.comment(self.body(), 1),
+                                           self.comment(folded_label, 2, "other")]}, self.NOW)
+        self.assertEqual([claim["name"] for claim in data["claims"]], ["agent"])
+        self.assertEqual(len(data["uncertain_observations"]), 1)
+        markdown({**data, "observed_at": "x"})
+
+    def test_an_unparseable_comment_becomes_one_uncertain_record(self):
+        real = queue_module.checkin
+        def flaky(body):
+            if "boom" in body:
+                raise ValueError("parser failure")
+            return real(body)
+        comments = [self.comment(self.body(), 1), self.comment("Agent: boom", 2, "other"),
+                    {"body": self.body("ghost"), "user": None, "html_url": "https://example.test/c3",
+                     "updated_at": "2026-10-30T11:03:00Z"}]
+        with mock.patch.object(queue_module, "checkin", flaky):
+            data = snapshot([self.ISSUE], {7: comments}, self.NOW)
+        self.assertEqual([claim["name"] for claim in data["claims"]], ["agent"])
+        self.assertEqual([record["uncertainties"] for record in data["uncertain_observations"]],
+                         [[queue_module.UNPARSEABLE]] * 2)
+        self.assertEqual([record["account"] for record in data["uncertain_observations"]], ["other", "unknown"])
+        self.assertIn("comment could not be parsed", markdown({**data, "observed_at": "x"}))
+
+    def test_only_collaborator_claims_count_and_others_are_shown_as_unverified(self):
+        comments = [self.comment(self.body(), 1)]
+        for order, association in enumerate(("NONE", "CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", None), start=2):
+            comments.append(self.comment(self.body(f"n{order}", "\nTeam: 9999"), order, f"u{order}", association))
+        data = snapshot([self.ISSUE], {7: comments}, self.NOW)
+        self.assertEqual((data["headcount"], data["active_posters"]), (1, 1))
+        self.assertEqual([claim["account"] for claim in data["claims"]], ["owner"])
+        self.assertEqual(sorted(claim["account"] for claim in data["unverified_claims"]), ["u2", "u3", "u4", "u5"])
+        task = data["tasks"][0]
+        self.assertEqual(len(task["observed_claims"]), 1)
+        self.assertEqual(len(task["unverified_claims"]), 4)
+        self.assertNotIn("Potential conflict", " ".join(task["coordination"]))
+        self.assertEqual([agent["account"] for agent in data["agents"]], ["owner"])
+        output = markdown({**data, "observed_at": "x"})
+        section = output.split("## Unverified claims (not a collaborator)")[1].split("## Unassigned")[0]
+        self.assertEqual(section.count("unverified \\(not a collaborator\\)"), 4)
+        for association in ("OWNER", "COLLABORATOR"):
+            trusted = snapshot([self.ISSUE], {7: [self.comment(self.body(), 1),
+                                                  self.comment(self.body("lead", "\nTeam: 5"), 2, "x", association)]},
+                               self.NOW)
+            self.assertEqual(trusted["headcount"], 6, association)
+            self.assertIn("Potential conflict", " ".join(trusted["tasks"][0]["coordination"]))
+
+    def test_unverified_malformed_observations_are_marked(self):
+        data = snapshot([self.ISSUE], {7: [self.comment("Agent: a\nTask: nope\nOwned paths: x\nState: working",
+                                                        1, "u", "NONE")]}, self.NOW)
+        self.assertFalse(data["uncertain_observations"][0]["verified"])
+        unassigned = markdown({**data, "observed_at": "x"}).split("## Unassigned")[1]
+        self.assertIn("unverified \\(not a collaborator\\)", unassigned)
+
+    def test_displayed_raw_fields_are_truncated(self):
+        long_path = "a" * 500
+        data = snapshot([self.ISSUE], {7: [
+            self.comment(f"Agent: {'n' * 300}\nTask: #7\nOwned paths: {long_path}\nState: working", 1),
+            self.comment(f"Agent: b\nTask: {'#' * 400}\nOwned paths: x\nState: working", 2)]}, self.NOW)
+        output = markdown({**data, "observed_at": "x"})
+        self.assertNotIn("a" * (queue_module.MAX_FIELD_CHARS + 1), output)
+        self.assertNotIn("n" * (queue_module.MAX_FIELD_CHARS + 1), output)
+        self.assertNotIn("\\#" * (queue_module.MAX_FIELD_CHARS + 1), output)
+        self.assertGreaterEqual(output.count("…\\(truncated\\)"), 3)
+        self.assertEqual(data["claims"][0]["latest"]["owned_paths"], long_path)  # queue.json keeps it whole
+
+    def test_window_note_only_when_a_window_was_applied(self):
+        since = self.NOW - datetime.timedelta(days=COMMENT_WINDOW_DAYS)
+        self.assertEqual(snapshot([self.ISSUE], {}, self.NOW)["tasks"][0]["coordination"],
+                         ["No explicit task observation; ownership is unknown"])
+        self.assertIn("no claim seen in the last 14 days",
+                      snapshot([self.ISSUE], {}, self.NOW, since=since)["tasks"][0]["coordination"][0])
 
 
 if __name__ == "__main__":
