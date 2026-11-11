@@ -42,8 +42,6 @@ def verify_quick_card_rendering(env, state):
             process, app = launch(local)
             try:
                 window = wait_for(lambda: window_list(local), "no quick-card window")[0]["id"]
-                control_json(local, "sidebar", "hide", "--json")
-                wait_for(lambda: not window_tree(local, window).get("sidebarVisible"), "sidebar did not hide")
                 control_json(local, "window", "resize", window, "--width", str(width), "--height", str(height), "--json")
                 session = next(row["id"] for workspace in window_tree(local, window)["workspaces"]
                                for row in workspace["sessions"] if row["active"])
@@ -139,19 +137,17 @@ def verify_quick_card_rendering(env, state):
                 for point in shadow_points:
                     assert sum(pixel(shown, *point)) < sum(pixel(hidden, *point)) - 15, (
                         f"{tag}: outside-card shadow absent at {point}")
-                # The unchanged backdrop identifies its own interior edge; no theme RGB or CSD inset is assumed.
+                # Each unchanged backdrop identifies its own interior edge; the sidebar and terminal
+                # may have different colors, and isolated CSD decoration pixels do not extend the run.
                 mid_y = (top + bottom) // 2
-                backdrop = pixel(hidden, left - 3, mid_y)
-                backdrop_x = [px for px in range(dimensions[0]) if pixel(hidden, px, mid_y) == backdrop]
-                runs = []
-                for px in backdrop_x:
-                    if not runs or px != runs[-1][-1] + 1:
-                        runs.append([])
-                    runs[-1].append(px)
-                interior = max(runs, key=len)
-                assert interior[0] < left - 3 and interior[-1] > right + 3, (
-                    f"{tag}: no continuous backdrop spans the card and its shadow")
-                edge_points = ((interior[0] + 1, mid_y), (interior[-1] - 1, mid_y))
+                left_edge, right_edge = left - 3, right + 3
+                while left_edge > 0 and pixel(hidden, left_edge - 1, mid_y) == pixel(hidden, left - 3, mid_y):
+                    left_edge -= 1
+                while right_edge + 1 < dimensions[0] and pixel(hidden, right_edge + 1, mid_y) == pixel(hidden, right + 3, mid_y):
+                    right_edge += 1
+                assert left_edge < left - 3 and right_edge > right + 3, (
+                    f"{tag}: no continuous side backdrops outside the card")
+                edge_points = ((left_edge + 1, mid_y), (right_edge - 1, mid_y))
                 for point in edge_points:
                     if width == 1:
                         assert sum(pixel(shown, *point)) < sum(pixel(hidden, *point)) - 10, (
