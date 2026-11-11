@@ -164,7 +164,8 @@ def verify_clipboard_payloads(env, state):
                 driver = subprocess.Popen(["xdotool", "mousemove", "--sync", str(sx), str(sy), "mousedown", "1",
                                            "sleep", "0.2", "mousemove", "--sync", str(sx + 25), str(sy),
                                            "sleep", "0.2", "mousemove", "--sync", str(tx), str(ty),
-                                           "sleep", "0.3", "mouseup", "1"])
+                                           "sleep", "1", "mousemove", "--sync", str(tx + 10), str(ty + 10),
+                                           "sleep", "1", "mouseup", "1"])
                 until(lambda: driver.poll() is not None, "drag driver did not finish")
                 assert driver.returncode == 0, "drag input failed"
                 until(lambda: "begin" in events, "real GTK drag never began")
