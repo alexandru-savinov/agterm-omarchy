@@ -7620,6 +7620,7 @@ def main():
             "zoom-split-ratio", "zoom-preference-changes", "zoom-primary-promotion",
             "dashboard-font-restore", "dashboard-delayed-clicks",
             "cursor-preferences",
+            "appearance-follow",
         )
         try:
             shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
@@ -7846,6 +7847,9 @@ def main():
         elif scenario == "cursor-preferences":
             from atspi_cursor_preferences import verify_cursor_preferences
             verify_cursor_preferences(env)
+        elif scenario == "appearance-follow":
+            from atspi_appearance_follow import verify_appearance_follow
+            verify_appearance_follow(env)
         elif scenario == "blink-unmapped":
             from atspi_blink_unmapped import verify_blink_unmapped
             verify_blink_unmapped(env)
