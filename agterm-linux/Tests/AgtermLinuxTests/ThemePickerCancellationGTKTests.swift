@@ -112,7 +112,8 @@ struct ThemePickerCancellationGTKTests {
             #expect(try Data(contentsOf: directory.appendingPathComponent("settings.json")) == savedBytes)
             try expectChrome(survivors, hex: "#282a36")
             #expect(survivors.allSatisfy { gWindows[$0.windowID] === $0 })
-            print("measured: \(route) cancelled an observed pending callback; late GLib delivery preserved both windows")
+            print("measured: \(route) cancelled=\(cancelled), late delivery=\(delivered), " +
+                  "preview=\(String(describing: AppController.themePreviewSettings?.theme))")
         }
     }
 
