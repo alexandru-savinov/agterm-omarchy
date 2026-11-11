@@ -131,5 +131,8 @@ retroactively describe that earlier build as using the corrected isolation or ac
 Coordinate one compiler owner before building. For the actual Linux CLI, run
 `"$VALIDATION_ROOT/run" /bin/bash -c 'cd /workspace/agterm-linux && swift build --product agtermctl-linux --jobs 2'`.
 Keep that checkout/cache for subsequent reviewed commits, verifying a clean tree and exact SHA each time.
+Keep its HOME path stable too: Clang PCM files embed the module-cache path. The initial move from
+`/home/builder` to `/home/ubuntu` required moving the old isolated `~/.cache/clang/ModuleCache` aside
+and regenerating it. Preserve SwiftPM dependencies and the checkout rather than deleting every cache.
 Do not switch its commit while another process is compiling or testing. Full GTK/vendor builds are a
 separate cost and are not implied by a CLI build. Keep local results separate from hosted and native evidence.
