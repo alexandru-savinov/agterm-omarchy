@@ -48,7 +48,8 @@ At fan-out 10: 100 agents = 2 levels, 1,000 = 3, 10,000 = 4, and GitHub still se
   The Agent queue workflow fails and skips artifact upload; it does not retrieve a last-success snapshot.
   Pages tolerates that failure and builds the dated curated roster without a queue overlay (`status.json` has `queue: null`).
   This is a curated fallback, not a current or cached successful queue snapshot.
-- Trigger: unchanged. At ~2 requests per snapshot (#86) and ≤ 250 lead posts/hour, the per-comment trigger stays well inside the job token's 1,000 requests/hour.
+- Trigger: unchanged; requests scale with issue and comment pagination, not just posting leads.
+  The 9,999-comment fixture uses 101 HTTP requests including its issue page, so per-comment runs do not guarantee staying within the job token's rate budget.
 
 ## Decisions (maintainer, 2026-10-30: «all recommended»)
 
