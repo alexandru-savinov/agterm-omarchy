@@ -8,6 +8,14 @@ import tempfile
 import unittest
 
 SOURCE = Path(__file__).resolve().parents[1] / 'package-linux.sh'
+# Exact exit codes, so a script that fails early for an unrelated reason cannot satisfy these tests.
+# The fakes below own 9 and 8; package-linux.sh's check_output owns 2 (shared with usage errors,
+# so the rejection message is asserted too).
+STAGE_FAILED = 9
+PACKAGER_FAILED = 8
+OUTPUT_REJECTED = 2
+NOT_EMPTY = 'output directory must be empty; existing files are preserved'
+NOT_A_DIRECTORY = 'output must be a real directory, not a file or symlink'
 
 
 class PackageOutputTests(unittest.TestCase):
@@ -35,6 +43,10 @@ class PackageOutputTests(unittest.TestCase):
             args.append(str(output))
         return subprocess.run(args, env=dict(self.env, **env), capture_output=True, text=True, timeout=15)
 
+    def assert_rejected(self, result, message):
+        self.assertEqual(result.returncode, OUTPUT_REJECTED, result.stderr)
+        self.assertIn(message, result.stderr)
+
     def sentinel(self, directory):
         directory.mkdir()
         p = directory / 'keep.txt'
@@ -44,32 +56,35 @@ class PackageOutputTests(unittest.TestCase):
     def test_nonempty_output_preserved_on_stage_failure(self):
         p = self.sentinel(self.out)
         result = self.run_package(self.out, FAIL_STAGE='1')
-        self.assertNotEqual(result.returncode, 0)
+        # check_output rejects the directory (exit 2) before the stage fake can exit 9.
+        self.assert_rejected(result, NOT_EMPTY)
         self.assertEqual(p.read_text(), 'user data')
 
     def test_nonempty_output_rejected_even_when_build_would_succeed(self):
         p = self.sentinel(self.out)
         result = self.run_package(self.out)
-        self.assertNotEqual(result.returncode, 0)
+        self.assert_rejected(result, NOT_EMPTY)
         self.assertEqual(p.read_text(), 'user data')
         self.assertEqual(list(self.out.iterdir()), [p])
 
     def test_empty_output_preserved_on_stage_failure(self):
         self.out.mkdir()
         inode = self.out.stat().st_ino
-        self.assertNotEqual(self.run_package(self.out, FAIL_STAGE='1').returncode, 0)
+        result = self.run_package(self.out, FAIL_STAGE='1')
+        self.assertEqual(result.returncode, STAGE_FAILED, result.stderr)
         self.assertEqual(self.out.stat().st_ino, inode)
         self.assertEqual(list(self.out.iterdir()), [])
 
     def test_missing_output_not_created_on_packager_failure(self):
-        self.assertNotEqual(self.run_package(self.out, FAIL_PACKAGE='1').returncode, 0)
+        result = self.run_package(self.out, FAIL_PACKAGE='1')
+        self.assertEqual(result.returncode, PACKAGER_FAILED, result.stderr)
         self.assertFalse(self.out.exists())
 
     def test_symlink_output_preserves_link_and_target(self):
         target = self.root / 'target'
         p = self.sentinel(target)
         self.out.symlink_to(target, target_is_directory=True)
-        self.assertNotEqual(self.run_package(self.out).returncode, 0)
+        self.assert_rejected(self.run_package(self.out), NOT_A_DIRECTORY)
         self.assertTrue(self.out.is_symlink())
         self.assertEqual(p.read_text(), 'user data')
 

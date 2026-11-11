@@ -12,6 +12,10 @@ enum OpenCodeStatusHookSupport {
         return path
     }
 
+    /// CI sets AGTERM_REQUIRE_NODE=1 so a missing or too-old Node FAILS both OpenCode suites (each test's
+    /// `#require(node)` throws) instead of skipping them while the job stays green.
+    static var required: Bool { ProcessInfo.processInfo.environment["AGTERM_REQUIRE_NODE"] == "1" }
+
     private static func whichNode() -> String? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -63,7 +67,7 @@ enum OpenCodeStatusHookSupport {
 // Exercises the OpenCode plugin shipped by the Help-menu installer: event-to-status mapping and wrapper
 // spawning belong to the installed plugin, not to agterm's runtime status engine. Drives it through Node
 // (the host OpenCode uses) with AGTERM_STATUS_WRAPPER recording argv; skipped when Node is absent.
-@Suite(.enabled(if: OpenCodeStatusHookSupport.node != nil,
+@Suite(.enabled(if: OpenCodeStatusHookSupport.node != nil || OpenCodeStatusHookSupport.required,
                 "Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin"))
 struct OpenCodeStatusHookTests {
     private static var plugin: String {
