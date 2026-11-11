@@ -10,7 +10,7 @@ import time
 from gi.repository import Atspi
 
 from atspi_smoke import (NEGATIVE_SETTLE_SECONDS, ChromeFocus, actionable, activate, control_json, describe_tree,
-                         mouse_click, preferences_window, press_escape, press_x11_key, stop, wait_for)
+                         mouse_click, named, preferences_window, press_escape, press_x11_key, stop, wait_for)
 from atspi_prefs_combo import close_preferences, open_preferences, read_settings
 
 # element raw value, Interface switch title, accessible name
@@ -136,7 +136,10 @@ def verify_chrome_interface_controls(env):
         def invoke(name, route):
             ctx.select_session(ctx.session_id, "the original session could not be reselected")
             if route == "keyboard":
-                ctx.open_search("before " + name)
+                if name == "Recent Sessions (Ctrl+Tab)":
+                    ctx.open_counted_query("before Recent Sessions")
+                else:
+                    ctx.open_search("before " + name)
                 ctx.shift_tab_until(lambda: ctx.has_keyboard(button(name)),
                                     f"Shift+Tab never focused {name!r}")
                 press_x11_key("space", pid)
@@ -153,9 +156,11 @@ def verify_chrome_interface_controls(env):
         for name, routes in (("New Workspace", ("pointer", "keyboard", "accessibility")),
                              ("New Session", ("keyboard", "accessibility"))):
             for route in routes:
+                ctx.select_session(ctx.session_id, "the original session could not be reselected")
                 before = ctx.tree()
                 old_workspaces = {item["id"] for item in before["workspaces"]}
-                old_sessions = {item["id"] for item in ctx.sessions()}
+                old_sessions = {session["id"] for workspace in before["workspaces"]
+                                for session in workspace["sessions"]}
                 invoke(name, route)
                 created = wait_for(lambda: [item for item in ctx.sessions() if item["id"] not in old_sessions],
                                    f"{route} activation of {name} created no session")
@@ -170,13 +175,18 @@ def verify_chrome_interface_controls(env):
                 finish(route)
 
         for route in ("keyboard", "accessibility"):
+            if route == "keyboard":
+                control_json(env, "session", "type", "--target", ctx.session_id, "echo zzq zzq zzq\n", "--json")
             invoke("Recent Sessions (Ctrl+Tab)", route)
             wait_for(ctx.picker_row, f"{route} activation did not open Recent Sessions")
             press_escape(pid)
             wait_for(lambda: ctx.picker_row() is None, "Escape did not dismiss Recent Sessions")
+            if route == "keyboard":
+                ctx.assert_typing_reaches_query("Recent Sessions dismissal did not restore the search query")
+            else:
+                assert ctx.owner_after(f"{route}-recent-dismiss") == ctx.session_owner, (
+                    f"{route} Recent Sessions dismissal did not restore the original terminal")
             finish(route)
-            assert ctx.owner_after(f"{route}-recent-dismiss") == ctx.session_owner, (
-                f"{route} Recent Sessions dismissal did not restore the original terminal")
 
         invoke("Dashboard (Ctrl+Shift+M)", "pointer")
         wait_for(lambda: ctx.tree().get("dashboardMembers"), "pointer activation did not open Dashboard")
@@ -189,15 +199,32 @@ def verify_chrome_interface_controls(env):
                                   if any(session["id"] == ctx.session_id for session in item["sessions"]))
         control_json(env, "workspace", "focus", "on", "--target", original_workspace, "--json")
         control_json(env, "workspace", "filter", "off", "--json")
+        workspaces = ctx.tree()["workspaces"]
+        assert len({item["name"] for item in workspaces}) == len(workspaces), "workspace names are not unique"
+        assert {item["id"] for item in workspaces if item.get("focused")} == {original_workspace}, (
+            "workspace filter fixture must contain exactly one focused member")
+
+        def visible_workspaces_match(filtered):
+            workspaces = ctx.tree()["workspaces"]
+            expected = {item["name"] for item in workspaces if not filtered or item.get("focused")}
+            shown = {item["name"] for item in workspaces
+                     if (header := named(app, item["name"], role="label"))
+                     and header.get_state_set().contains(Atspi.StateType.SHOWING)}
+            return shown == expected
+
         for route in ("pointer", "keyboard", "accessibility"):
             wait_for(lambda: button("Show Only Focused Workspaces"), "workspace filter did not reset")
+            wait_for(lambda: visible_workspaces_match(False), "unfiltered workspace headers are missing")
             invoke("Show Only Focused Workspaces", route)
             wait_for(lambda: button("Show All Workspaces"), f"{route} activation did not enable workspace filter")
+            wait_for(lambda: visible_workspaces_match(True),
+                     f"{route} workspace filter did not show exactly the focused workspace headers")
             if route == "pointer":
                 assert ctx.owner_after("pointer-workspace-filter") == ctx.session_owner, (
                     "clicking the workspace filter moved focus off the terminal")
             control_json(env, "workspace", "filter", "off", "--json")
             wait_for(lambda: button("Show Only Focused Workspaces"), "workspace filter did not turn off")
+            wait_for(lambda: visible_workspaces_match(False), "disabling the filter did not restore all headers")
             finish(route)
 
         # Shift+Tab walks backward from the search entry through every visible chrome button.
