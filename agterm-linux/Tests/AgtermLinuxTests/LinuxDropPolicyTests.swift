@@ -13,7 +13,7 @@ private final class RecordingDropTarget: DropPasteTarget {
     private(set) var calls: [Call] = []
 
     func grabFocus(supersedingPopoverCapture: Bool) { calls.append(.focus(supersedingPopoverCapture: supersedingPopoverCapture)) }
-    func insertPasted(text: String) { calls.append(.paste(text)) }
+    func pasteThroughProtection(text: String) { calls.append(.paste(text)) }
 }
 
 @MainActor

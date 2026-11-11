@@ -193,6 +193,9 @@ paths:
   submit a trailing newline when the program disables mode 2004. Do not reuse `inject`, which intentionally
   translates newline/return into Return for `session.type`. `pasteboardText` remains shared with clipboard
   paste, and `ShellEscape.path` keeps file paths one token; #96 newline escaping remains defense in depth.
+  Linux does NOT drop through `ghostty_surface_text` (its `textCallback` pastes with `allow_unsafe = true`):
+  `pasteThroughProtection` arms the text and fires `paste_from_clipboard`, so libghostty's paste protection
+  decides, and an unsafe paste reaches `UnsafePasteController` (Paste / Cancel, default Cancel).
 - AX exposure (`axExposed` in `GhosttySurfaceView+Accessibility.swift`) rides on FOUR terms: `!viewOnly`,
   `deckVisible`, `surface != nil`, and `window?.isVisible`. Every one drives
   `postAccessibilityExposureChange` behind the `axPostedExposed` latch, so a new term owes a post site;
