@@ -8,6 +8,7 @@ Acceptance remains **incomplete**. This evidence supports [goal #305](https://gi
 | --- | --- | --- |
 | Native ARM ordinary | `bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d`, trusted run [41532553668](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41532553668), attempt 1 | 7/7 checks and independent cleanup pass in both new attempts. |
 | Native ARM Live | Same immutable artifact | 9/9 checks pass twice, including the same shell PID across frontend restart and owned daemon cleanup. |
+| Native actual-bash Live eligibility | Same immutable artifact, unchanged harness, Live preload removed | Primary PTY check passes; requested Live reports active `none` because the passwd login shell is not zsh. Live harness fails with clean teardown, demonstrating the documented eligibility restriction. |
 | Native config, attempt 1 | Same app; original probe `c521ff81…` from the same source | Fails before assertions: probe waited for an unsupported control-socket override. Forced recovery and a generated `dconf` entry remain recorded. |
 | Native config, attempt 2 | Same app; separately reviewed probe from [PR #312](https://github.com/alexandru-savinov/agterm-omarchy/pull/312), `e77b6ad448677e00cafd14a36c557b96affb6678` | 3/4 checks pass. The final noisy-title shutdown exceeds 10 seconds, needs another signal, and retains its generated theme directory. Overall failed. |
 | Installed Mac ordinary comparison | agterm 0.38.1 / `09727610` | 14/14 checks pass; original app/session identities and installed bytes preserved; no test process remains. |
@@ -15,6 +16,7 @@ Acceptance remains **incomplete**. This evidence supports [goal #305](https://gi
 | Original Mac core baseline | `25edfe31a34a9cce9c4cbd68a106222e4d73aea8` | 4,117 passed / 1 failed / 9 skipped; zsh startup bypassed the fake terminfo compiler. |
 | Reviewed Mac core | [PR #311](https://github.com/alexandru-savinov/agterm-omarchy/pull/311), `ab94f48fc94e9a4e2db82f2feb5b8f38d462f341` | 4,129 passed / 0 failed / 9 skipped, out of 4,138 definitions / 182 suites. |
 | Same reviewed core, available zmx staged privately | Same source, installed zmx hash below | Full suite: **4,137 passed / 0 failed / 1 skipped (fish)**. The eight host definitions previously skipped also pass in a separate 26-test group. |
+| Integrated Mac core, available zmx staged privately | `2ddd93af8cd0b09a7c3fe668e6cf1f759949393b` | **4,148 passed / 1 failed / 1 skipped (fish)** out of 4,150 definitions / 182 suites. The known terminfo fixture failure remains; PR #311 is not in this head. All 26 host tests pass. |
 
 The two core revisions have different test inventories. The terminfo test-file blob is identical at the original baseline and PR #311's base; the changed total is not attributed solely to that fixture fix. All full runs were unfiltered. The last run used `--skip-build` with the already built, unchanged reviewed source and a newly satisfied runtime prerequisite.
 
@@ -39,6 +41,8 @@ Two later configuration-only diagnostic replays retain the unchanged probe and p
 
 A separate symbol-bearing diagnostic variant then reproduced the timeout and resolved the waiting calls. Its private payload copy changes only `lib/libghostty.so`, rebuilt natively from the same pinned Ghostty and frozen patches with `-Dstrip=false`; the app image and probe stay unchanged. Main waits in `Surface.deinit` joining the I/O thread; I/O waits in `Exec.threadExit` joining the reader; the reader waits in the full 64-entry app mailbox while delivering an OSC title. GDB verified the diagnostic library mapping and detached successfully. This directly demonstrates the cycle in that variant, with three probe checks passing and final shutdown failing. One recorded recovery signal removed the last owned process; generated config remains as failure evidence. Debugger timing and changed unwind settings prevent treating this as frozen-artifact acceptance or as symbolization of the old library. Both private payloads, protected processes and the real login shell were preserved.
 
+The additional actual-shell lane removes only the outer operator's Live preload assignment. The frozen app executes terminal input, then reports `configured: live`, `active: none` and the documented non-zsh eligibility reason. Both cleanup audits pass without recovery. This failed Live harness verifies the fallback behavior on the VM's unchanged bash account; it does not establish bash Live support. An earlier preparation attempt failed before app launch because a private helper shadowed Python's `operator` module; that failure is retained separately.
+
 ## Mac boundary
 
 Host: macOS 26.7.1 arm64, Apple Swift 6.4, selected Command Line Tools. Full Xcode is absent. There is no fork Debug/Release AppKit build or PR #296 GUI acceptance in this evidence.
@@ -56,8 +60,10 @@ Core tests used the installed CLT framework and macro plugin through command-loc
 - [Native attempt 1](native-attempt-1.json), [attempt 2](native-attempt-2.json), and [revised binding](native-attempt-2-binding.json).
 - Configuration-only [diagnostic replay 1](native-diagnostic-1.json), [replay 2](native-diagnostic-2.json), and [selected backtrace blocks](native-diagnostic-2-threads.txt), with debugger and symbolization limits.
 - The separate [symbol-bearing diagnostic build and replay](native-symbol-diagnostic-1.json) and [selected symbolized stacks](native-symbol-diagnostic-1-threads.txt), including exact compiler/library/patch identities and the earlier supervisor startup failure.
+- [Actual-bash Live eligibility](native-default-shell-live.json), with the unchanged harness, explicit preload-removal binding, original setup failure and actual restore response.
 - [Mac ordinary](mac-ordinary.json), [Live](mac-live.json), and [minimal cleanup reproduction](mac-live-cleanup.json).
 - [Core baseline](mac-core-baseline.json), [reviewed full run](mac-core-reviewed.json), [full run with staged zmx](mac-core-staged.json), and [real host fixtures](mac-host-fixtures.json).
+- [Fresh integrated-main core run](mac-core-integrated-main.json), with its exact failing source, one retained skip, all 26 host test names, binary hashes and private original-log binding.
 - The three `*-tests.log` files contain explicitly labeled test-result extracts. Each carries the original complete log's SHA256; it is not presented as the complete raw log. Literal split completion lines remain intact. [Interleaving support](interleaved-results.json) records all three affected raw fragments and explicitly labeled reconstructions, so an inserted SwiftPM warning does not silently remove a completion or alter the verified totals.
 - [SHA256SUMS](SHA256SUMS) covers the published files. JSON reports select public, relevant fields and retain their private originals' hashes. VM identifiers, private environment values, full desktop images and absolute test-stage paths are excluded.
 
