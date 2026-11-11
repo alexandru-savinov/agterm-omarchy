@@ -7,7 +7,7 @@ import re
 import shlex
 import time
 
-from gi.repository import Gdk, GObject, Gtk
+from gi.repository import Gdk, GLib, GObject, Gtk
 
 from atspi_clipboard_lifetime import read_clipboard
 from atspi_smoke import (NEGATIVE_SETTLE_SECONDS, activate, control_json, launch, named,
@@ -57,6 +57,13 @@ def verify_clipboard_read_lifetime(env):
     assert read_clipboard(clipboard) == sentinel
     process, app = launch(env)
 
+    def read_consent():
+        # This process owns the fixture clipboard and must serve the application's async read.
+        context = GLib.MainContext.default()
+        while context.pending():
+            context.iteration(False)
+        return named(app, HEADING)
+
     def request(window, label):
         response = control_json(env, "session", "new", "--name", label, "--window", window, "--json")
         assert response["ok"], response
@@ -65,7 +72,7 @@ def verify_clipboard_read_lifetime(env):
         command = shlex.join(["/usr/bin/python3", str(reader), str(output)]) + "\n"
         response = control_json(env, "session", "type", command, "--target", session, "--window", window, "--json")
         assert response["ok"], response
-        wait_for(lambda: named(app, HEADING), "OSC 52 read did not present consent")
+        wait_for(read_consent, "OSC 52 read did not present consent")
         assert not output.exists(), "read completed before consent was answered"
         return session, output
 
