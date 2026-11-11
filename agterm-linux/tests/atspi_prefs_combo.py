@@ -8,7 +8,6 @@ extents are relative to that surface and a pointer aimed through `mouse_click` w
 
 import json
 import os
-import time
 
 from gi.repository import Atspi
 
@@ -216,8 +215,12 @@ def choose_combo(env, app, process_id, title, values, index, landed, search=None
     report = [f"opened with focus on {focused_node(app)}", f"item ancestry {item_ancestry(app, text)}"]
 
     def typed():
+        choices = set(added())
+        matches = {name for name in choices if text.casefold() in name.casefold()}
+        assert text in matches, f"the {title!r} popover lost its search target {text!r}: {choices}"
         type_x11_text(text, process_id)
-        time.sleep(1)
+        wait_for(lambda: set(added()) & choices == matches,
+                 f"the {title!r} search never exposed the expected filtered choices {sorted(matches)}")
         report.append(f"after typing, focus on {focused_node(app)}")
         press_x11_key("Down", process_id)
         press_x11_key("Return", process_id)

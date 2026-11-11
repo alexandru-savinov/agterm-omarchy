@@ -1,8 +1,8 @@
-"""Title-bar and sidebar-footer chrome stays reachable by keyboard and AT-SPI without taking the keyboard.
+"""Check chrome focus, selected AT-SPI actions, and Interface visibility switches.
 
-A pointer click must leave the keyboard on a terminal (Space then must not re-fire the button), Shift+Tab
-from the search entry must reach every visible button, each must activate through AT-SPI, and each must
-follow its Settings > Interface switch.
+Pointer checks cover Split, Scratch, Quick and New Session; AT-SPI activation covers Split, Scratch,
+Quick, Sidebar and Flagged. Shift+Tab must reach each sensitive button, and every listed button must
+follow its Settings > Interface switch. Other pointer/activation paths are not verified here.
 """
 
 import time
@@ -155,8 +155,9 @@ def verify_chrome_interface_controls(env):
                      f"turning {title!r} back on did not persist")
             wait_for(lambda name=name: button(name), f"{name!r} did not return with {title!r} on")
         close_preferences(app, pid)
-        print("OK: chrome buttons keep the keyboard on the terminal, are Tab- and AT-SPI-reachable, and follow "
-              "Settings > Interface")
+        print("OK: pointer focus for Split/Scratch/Quick/New Session; AT-SPI activation for "
+              "Split/Scratch/Quick/Sidebar/Flagged; sensitive buttons reached by Shift+Tab; "
+              "all listed Interface visibility switches verified")
     except AssertionError:
         describe_tree(ctx.app)
         raise
