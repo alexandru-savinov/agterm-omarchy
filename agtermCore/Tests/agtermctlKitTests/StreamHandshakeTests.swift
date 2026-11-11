@@ -24,7 +24,7 @@ struct StreamHandshakeTests {
             } else {
                 _ = StreamBridge.writeAll(peer, Data(partial.utf8))
             }
-        }) { socket in
+        }, body: { socket in
             let flags = fcntl(socket, F_GETFL)
             let bridge = StreamBridge(socket: socket, input: -1, output: -1)
             let start = ProcessInfo.processInfo.systemUptime
@@ -33,7 +33,7 @@ struct StreamHandshakeTests {
             }
             #expect(ProcessInfo.processInfo.systemUptime - start < 1)
             #expect(fcntl(socket, F_GETFL) == flags)
-        }
+        })
     }
 
     @Test(arguments: [false, true])
@@ -51,7 +51,7 @@ struct StreamHandshakeTests {
                 usleep(260_000)
             }
             _ = StreamBridge.writeAll(peer, context)
-        }) { socket in
+        }, body: { socket in
             let flags = fcntl(socket, F_GETFL)
             let start = ProcessInfo.processInfo.systemUptime
             expectTimeout {
@@ -60,11 +60,11 @@ struct StreamHandshakeTests {
             // A reset context budget would accept the complete frame sent at about 0.44 seconds.
             #expect(ProcessInfo.processInfo.systemUptime - start < 1)
             #expect(fcntl(socket, F_GETFL) == flags)
-        }
+        })
     }
 
     @Test func stalledRequestWriteIsBounded() throws {
-        try withPeer({ _ in }) { socket in
+        try withPeer({ _ in }, body: { socket in
             var size: Int32 = 1024
             #expect(setsockopt(socket, SOL_SOCKET, SO_SNDBUF, &size, socklen_t(MemoryLayout<Int32>.size)) == 0)
             let flags = fcntl(socket, F_GETFL)
@@ -74,13 +74,13 @@ struct StreamHandshakeTests {
                     .open(request, deadline: ProcessInfo.processInfo.systemUptime + 0.15)
             }
             #expect(fcntl(socket, F_GETFL) == flags)
-        }
+        })
     }
 
     @Test func replyContextAndFollowingFrameRemainSeparate() throws {
         let context = OverlayLaunchContext(command: "exit 7", cwd: "/tmp", sessionEnvironment: [:])
         let bytes = Data(Self.ok.utf8) + (try OverlayJobFrame.context(context).line()) + Data("next-frame\n".utf8)
-        try withPeer({ peer in _ = StreamBridge.writeAll(peer, bytes) }) { socket in
+        try withPeer({ peer in _ = StreamBridge.writeAll(peer, bytes) }, body: { socket in
             let flags = fcntl(socket, F_GETFL)
             let result = try OverlayJobRunner(socket: socket).claim("fixture")
             #expect(result == context)
@@ -89,7 +89,7 @@ struct StreamHandshakeTests {
             let count = read(socket, &next, next.count)
             #expect(count == 11)
             #expect(String(decoding: next.prefix(max(0, count)), as: UTF8.self) == "next-frame\n")
-        }
+        })
     }
 
     @Test func healthyIdleStreamOutlivesHandshakeDeadline() throws {
@@ -98,7 +98,7 @@ struct StreamHandshakeTests {
             usleep(250_000)
             _ = StreamBridge.writeAll(peer, Data("later-frame\n".utf8))
             shutdown(peer, Int32(SHUT_WR))
-        }) { socket in
+        }, body: { socket in
             var input: [Int32] = [-1, -1]
             var output: [Int32] = [-1, -1]
             try #require(pipe(&input) == 0)
@@ -114,13 +114,13 @@ struct StreamHandshakeTests {
             var bytes = [UInt8](repeating: 0, count: 32)
             let count = read(output[0], &bytes, bytes.count)
             #expect(String(decoding: bytes.prefix(max(0, count)), as: UTF8.self) == "later-frame\n")
-        }
+        })
     }
 
     @Test func refusalKeepsItsStatusAndRestoresFlags() throws {
         try withPeer({ peer in
             _ = StreamBridge.writeAll(peer, Data("{\"ok\":false,\"error\":\"refused\"}\n".utf8))
-        }) { socket in
+        }, body: { socket in
             let flags = fcntl(socket, F_GETFL)
             do {
                 try StreamBridge(socket: socket, input: -1, output: -1).open(Self.request)
@@ -130,7 +130,7 @@ struct StreamHandshakeTests {
                 #expect(String(describing: error).contains("refused"))
             }
             #expect(fcntl(socket, F_GETFL) == flags)
-        }
+        })
     }
 
     @Test(arguments: [false, true])
