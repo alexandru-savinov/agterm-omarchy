@@ -1,6 +1,5 @@
 """Rendered quick-terminal content containment and outward shadow at minimum/large sizes."""
 
-from collections import Counter
 import json
 import os
 from pathlib import Path
@@ -81,10 +80,18 @@ def verify_quick_card_rendering(env, state):
                 hidden_dimensions, hidden = stable_capture("hidden")
                 assert dimensions == hidden_dimensions, "hiding the card resized its window"
                 pixels = list(zip(shown[0::3], shown[1::3], shown[2::3]))
-                counts = Counter(pixels)
                 positions = {color: [(i % dimensions[0], i // dimensions[0]) for i, value in enumerate(pixels)
                                      if value == color] for color in (cyan, *markers)}
                 assert positions[cyan], "quick terminal's cyan background was not rendered"
+                remaining = set(positions[cyan])
+                pending = [remaining.pop()]
+                while pending:
+                    px, py = pending.pop()
+                    for neighbor in ((px - 1, py), (px + 1, py), (px, py - 1), (px, py + 1)):
+                        if neighbor in remaining:
+                            remaining.remove(neighbor)
+                            pending.append(neighbor)
+                assert not remaining, f"{tag}: multiple cyan components make the rendered card ambiguous"
                 left = min(x for x, _ in positions[cyan])
                 right = max(x for x, _ in positions[cyan])
                 top = min(y for _, y in positions[cyan])
