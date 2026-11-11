@@ -116,18 +116,20 @@ class AnimationSettings:
 def verify_live_motion(env, trace, settings, windows):
     mark = len(trace.events())
     settings.set_enabled(False)
-    for window in windows:
-        await_disarm(trace, mark, window, "resync", "live reduced motion", reduced="1", dimmed="0")
-    quiet = len(trace.events())
+    quiet = {
+        window: await_disarm(trace, mark, window, "resync", "live reduced motion", reduced="1", dimmed="0")
+        for window in windows
+    }
     started = time.monotonic()
     responses = 0
 
     def responsive_static_interval():
         nonlocal responses
-        assert window_list(env), "the app stopped serving control requests during reduced motion"
+        opened = {key(item["id"]) for item in window_list(env) if item["open"]}
+        assert set(windows) <= opened, "a subject window disappeared during reduced motion"
         responses += 1
         for window in windows:
-            assert not trace.since(quiet, window, "apply"), "live reduced motion still applied blink phases"
+            assert not trace.since(quiet[window], window, "apply"), "live reduced motion still applied blink phases"
         return responses >= CLOCK_TICKS and time.monotonic() - started >= CLOCK_TICKS * 0.6
 
     wait_for(responsive_static_interval, "could not observe a responsive static interval", timeout=TIMEOUT)
