@@ -322,6 +322,9 @@ def verify_window_close_cancel(env, state):
                                         signal.pidfd_send_signal(job_fd, signal.SIGTERM)
                                     except ProcessLookupError:
                                         pass  # The exact process exited between poll and signal.
+                                wait_for(lambda: select.select([job_fd], [], [], 0)[0],
+                                         "fixture foreground job remained alive after cleanup", timeout=5)
+                                print("measured: held foreground process exited after cleanup")
                             finally:
                                 os.close(job_fd)
                     finally:
