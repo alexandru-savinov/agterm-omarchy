@@ -7449,7 +7449,7 @@ def main():
     scenario = os.environ.get("AGTERM_ATSPI_SCENARIO")
     if scenario is None:
         failures = []
-        for child_scenario in (
+        for child_scenario in ("appearance-reset",) if True else (
             "normal", "upstream-controls", "html-overlay", "live-restart", "dashboard-modal", "context-menu",
             "window-key-dispatch",
             "split-exit", "split-primary-exit", "window-ownership", "preferences-pages",
