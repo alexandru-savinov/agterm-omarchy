@@ -92,7 +92,8 @@ def verify_exact_launcher_environment(env):
                     if window is not None and process.poll() is None:
                         rows = [row for workspace in window_tree(local, window)["workspaces"] for row in workspace["sessions"]]
                         for row in rows:
-                            closed = control_json(local, "session", "close", row["id"], "--window", window, "--json")
+                            closed = control_json(local, "session", "close", "--target", row["id"],
+                                                  "--window", window, "--json")
                             assert closed["ok"], closed
                 finally:
                     try:
