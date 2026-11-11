@@ -71,9 +71,12 @@ def verify_dashboard_delayed_clicks(env):
         # A keyboard move inside the delay supersedes the pending click.
         click("click-c", "Left")
         # The highlight clamps at a grid edge, so try directions until one actually moves it.
+        # Each key gets a bounded wait for the highlight to move before the next is pressed, so a slow runner
+        # never stacks keys; 4 x 0.5 s stays inside the widened click delay.
         for key in ("Left", "Right", "Up", "Down"):
             press_x11_key(key, process.pid)
-            if tree().get("dashboardHighlighted") != f"{ids['click-c']}:left":
+            if wait_for(lambda: tree().get("dashboardHighlighted") != f"{ids['click-c']}:left", "",
+                        timeout=0.5, required=False):
                 break
         assert tree().get("dashboardHighlighted") != f"{ids['click-c']}:left", (
             "no arrow key moved the highlight off the clicked cell")

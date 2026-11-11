@@ -138,32 +138,10 @@ def verify_zoom_split_ratio(env):
         control_json(env, "sidebar", "show", "--json")
         wait_for(lambda: window_tree(env, window_id).get("sidebarVisible"), "the sidebar did not return")
 
-        # Replacement split: the restore queued for the old paned must not be applied to the new host. The
-        # control is the same close and re-split with no zoom at all; the zoomed one must land identically.
-        def replace_split():
-            # `split off` only hides the pane; `split close` destroys it, which is what replaces its host.
-            control_json(env, "session", "split", "close", "--target", session_id, "--window", window_id, "--json")
-            wait_for(lambda: not session().get("hasSplit"), "the split did not close")
-            control_json(env, "session", "split", "on", "--target", session_id, "--window", window_id, "--json")
-            wait_for(lambda: session().get("hasSplit"), "the split did not reopen")
-
-        def settled_layout(what):
-            time.sleep(NEGATIVE_SETTLE_SECONDS)
-            return session().get("splitRatio"), measured_ratio()
-
-        replace_split()
-        control_ratio, control_panes = settled_layout("the unzoomed replacement")
-        print(f"measured: unzoomed replacement split -> model {control_ratio}, panes {control_panes}")
-        zoom("primary")
-        replace_split()
-        unzoom("primary")
-        zoomed_ratio, zoomed_panes = settled_layout("the zoomed replacement")
-        assert zoomed_ratio == control_ratio, (
-            f"a replacement split made under zoom holds model ratio {zoomed_ratio}, not the {control_ratio} "
-            "an unzoomed replacement gets")
-        assert abs(zoomed_panes[0] - control_panes[0]) <= RATIO_SLACK, (
-            f"a replacement split made under zoom measures {zoomed_panes}, not the unzoomed {control_panes}")
-        replacement = zoomed_ratio
-        print(f"OK: split ratio 0.31 survives zoom target switches and exits (replacement: {replacement})")
+        # Not covered here: #167's "stale restore must not change a replacement split host". A session's
+        # GtkPaned is built once and dropped only with the session (`ensurePrimary`/`removeSession`), and
+        # `split close` clears the stored ratio, so no control command replaces the host under a pending
+        # restore and the paned-identity guard in `restoreRatioAfterZoomExit` cannot be driven from here.
+        print("OK: split ratio 0.31 survives zoom target switches and exits")
     finally:
         stop(process)

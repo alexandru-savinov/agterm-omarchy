@@ -6,6 +6,7 @@ sized normally: the only thing left that can change its grid between two reads i
 
 import json
 import os
+import time
 
 from atspi_smoke import (activate, named, control_json, launch, press_escape, press_return, stop,
                          wait_for, window_list, window_tree)
@@ -69,17 +70,45 @@ def verify_dashboard_font_restore(env):
         default_grid = grid(default)
         print(f"measured: pinned {pinned_grid} | default {default_grid} | unpinned {unpinned_grid}")
 
-        state_tree = os.path.join(env["AGTERM_STATE_DIR"], "workspaces.json")
+        # The session tree is persisted per window to windows/<id>.json (`WindowLibrary.persistenceStore`);
+        # workspaces.json is only a legacy migration source the app never writes.
+        windows_dir = os.path.join(env["AGTERM_STATE_DIR"], "windows")
+
+        def saved_font_sizes():
+            """{session id: persisted fontSize} from this window's own file. A missing or unreadable file
+            fails: an absent snapshot must never read as "nothing persisted"."""
+            names = [name for name in (os.listdir(windows_dir) if os.path.isdir(windows_dir) else [])
+                     if name.lower() == f"{window_id.lower()}.json"]
+            assert names, f"no windows/<id>.json for window {window_id} in {windows_dir}"
+            path = os.path.join(windows_dir, names[0])
+            try:
+                with open(path, encoding="utf-8") as source:
+                    saved = json.load(source)
+            except (OSError, ValueError) as error:
+                raise AssertionError(f"the window snapshot {path} could not be read: {error}") from error
+            found = {item["id"].lower(): item.get("fontSize") for workspace in saved.get("workspaces", [])
+                     for item in workspace.get("sessions", [])}
+            assert pinned.lower() in found and default.lower() in found, (
+                f"{path} does not list both test sessions: {sorted(found)}")
+            return found
+
+        # Positive control: the pinned session's own size reaches the file (after the 0.3 s save debounce),
+        # so the reads below really read the file the app writes.
+        pinned_saved = wait_for(lambda: saved_font_sizes()[pinned.lower()],
+                                f"the pinned session's font size never reached {windows_dir}")
+        assert saved_font_sizes()[default.lower()] is None, (
+            f"the default session already holds a persisted size: {saved_font_sizes()}")
+        assert pinned_saved != DASHBOARD_FONT, f"the pinned size {pinned_saved} equals the dashboard size"
+        print(f"measured: windows/<id>.json holds pinned fontSize {pinned_saved}, default None")
 
         def assert_nothing_persisted(exit_name):
             assert DASHBOARD_FONT not in font_sizes(read_settings(env)), (
                 f"exit by {exit_name} left the dashboard size in settings.json")
-            try:
-                with open(state_tree, encoding="utf-8") as source:
-                    saved = json.load(source)
-            except (OSError, ValueError):
-                saved = {}
-            assert DASHBOARD_FONT not in font_sizes(saved), f"exit by {exit_name} saved the dashboard size"
+            # Outlast the debounced save, so a late write of the dashboard size has landed before the read.
+            time.sleep(1)
+            sizes = saved_font_sizes()
+            assert sizes[pinned.lower()] == pinned_saved and sizes[default.lower()] is None, (
+                f"exit by {exit_name} persisted {sizes}, not pinned {pinned_saved} and default None")
 
         def open_dashboard(*members):
             control_json(env, "dashboard", *members, "--font-size", str(DASHBOARD_FONT),
@@ -91,9 +120,11 @@ def verify_dashboard_font_restore(env):
 
         def assert_restored(exit_name):
             wait_for(dashboard_closed, f"exit by {exit_name} did not close the dashboard")
+            # The file first: a dashboard size leaked into `session.fontSize` would also hold the grid at
+            # 7 pt, and this order makes the persistence check the one that names that regression.
+            assert_nothing_persisted(exit_name)
             settled_grid(pinned, pinned_grid, f"after exit by {exit_name}, the session with its own font")
             settled_grid(default, default_grid, f"after exit by {exit_name}, the session on the default")
-            assert_nothing_persisted(exit_name)
 
         # Vacuity guard: an open dashboard must really move the grid, or no restore below means anything.
         open_dashboard(pinned, default)
