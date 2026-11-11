@@ -16,11 +16,14 @@ struct StreamBridge: Sendable {
 
     /// Sends `request` and reads its reply. Throws the server's error, or a description of a reply that
     /// never came, and in both cases has written nothing to `output`.
-    func open(_ request: ControlRequest) throws {
+    func open(_ request: ControlRequest, deadline: TimeInterval = ProcessInfo.processInfo.systemUptime + 30) throws {
         var line = try JSONEncoder().encode(request)
         line.append(UInt8(ascii: "\n"))
-        guard Self.writeAll(socket, line) else { throw SocketClientError("could not send the request", kind: .transport) }
-        guard let reply = readReplyLine() else {
+        let reply = try SocketClient.withNonblocking(socket) {
+            try SocketClient.writeAll(socket, line, deadline: deadline)
+            return try Self.readHandshakeLine(socket, deadline: deadline, limit: ControlWire.maxRequestLineBytes)
+        }
+        guard let reply else {
             throw SocketClientError("the app closed the connection without answering", kind: .transport)
         }
         let response: ControlResponse
@@ -62,16 +65,17 @@ struct StreamBridge: Sendable {
 
     /// One byte at a time: a frame can sit right behind the reply in the same packet, and a chunked read
     /// would swallow it.
-    private func readReplyLine() -> Data? {
+    static func readHandshakeLine(_ socket: Int32, deadline: TimeInterval, limit: Int) throws -> Data? {
         var line = Data()
         var byte: UInt8 = 0
         while true {
+            try SocketClient.wait(socket, for: Int16(POLLIN), deadline: deadline, operation: "read stream handshake")
             let count = read(socket, &byte, 1)
-            if count < 0, errno == EINTR { continue }
+            if count < 0, errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK { continue }
             guard count == 1 else { return nil }
             if byte == UInt8(ascii: "\n") { return line }
             line.append(byte)
-            guard line.count <= ControlWire.maxRequestLineBytes else { return nil }
+            guard line.count <= limit else { return nil }
         }
     }
 

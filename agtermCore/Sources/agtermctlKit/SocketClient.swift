@@ -154,6 +154,21 @@ struct SocketClient {
         return ProcessInfo.processInfo.systemUptime + timeout
     }
 
+    static func withNonblocking<T>(_ fd: Int32, _ body: () throws -> T) throws -> T {
+        let flags = try makeNonblocking(fd)
+        do {
+            let result = try body()
+            guard fcntl(fd, F_SETFL, flags) == 0 else {
+                throw SocketClientError("could not restore socket flags: \(String(cString: strerror(errno)))", kind: .transport)
+            }
+            return result
+        } catch {
+            // Preserve the original failure (including timeout ambiguity); the caller closes the socket.
+            _ = fcntl(fd, F_SETFL, flags)
+            throw error
+        }
+    }
+
     private static func makeNonblocking(_ fd: Int32) throws -> Int32 {
         let flags = fcntl(fd, F_GETFL)
         guard flags >= 0, fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0 else {
@@ -171,7 +186,7 @@ struct SocketClient {
         return remaining
     }
 
-    private static func wait(_ fd: Int32, for events: Int16, deadline: TimeInterval, operation: String) throws {
+    static func wait(_ fd: Int32, for events: Int16, deadline: TimeInterval, operation: String) throws {
         while true {
             let interval = try remaining(until: deadline, operation: operation)
             let milliseconds = Int32(min((interval * 1_000).rounded(.up), Double(Int32.max)))
@@ -219,7 +234,7 @@ struct SocketClient {
     }
 
     /// Write all of `data` to `fd`, looping over short writes.
-    private static func writeAll(_ fd: Int32, _ data: Data, deadline: TimeInterval) throws {
+    static func writeAll(_ fd: Int32, _ data: Data, deadline: TimeInterval) throws {
         try data.withUnsafeBytes { raw in
             var offset = 0
             let base = raw.bindMemory(to: UInt8.self).baseAddress!

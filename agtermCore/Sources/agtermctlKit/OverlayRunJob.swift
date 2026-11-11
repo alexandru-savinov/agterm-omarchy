@@ -30,10 +30,13 @@ final class OverlayJobRunner: @unchecked Sendable {
     }
 
     /// Sends the claim and returns the launch context. Throws the app's refusal, having launched nothing.
-    func claim(_ job: String) throws -> OverlayLaunchContext {
+    func claim(_ job: String, deadline: TimeInterval = ProcessInfo.processInfo.systemUptime + 30) throws -> OverlayLaunchContext {
         try StreamBridge(socket: socket, input: -1, output: -1)
-            .open(ControlRequest(cmd: .sessionOverlayJobRun, target: job))
-        guard let line = readLine(), case .context(let context)? = try? JSONDecoder().decode(OverlayJobFrame.self, from: line) else {
+            .open(ControlRequest(cmd: .sessionOverlayJobRun, target: job), deadline: deadline)
+        let line = try SocketClient.withNonblocking(socket) {
+            try StreamBridge.readHandshakeLine(socket, deadline: deadline, limit: PresentationCodec.maxFrameBytes)
+        }
+        guard let line, case .context(let context)? = try? JSONDecoder().decode(OverlayJobFrame.self, from: line) else {
             throw SocketClientError("the app sent no launch context", kind: .transport)
         }
         return context
