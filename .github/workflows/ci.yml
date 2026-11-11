@@ -109,7 +109,8 @@ jobs:
     outputs:
       swift: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.swift == 'true' }}
       cookbook: ${{ steps.filter.outputs.cookbook }}
-      ui_python_only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.ui_python_count > 0 && steps.filter.outputs.ui_python_count == steps.filter.outputs.all_changed_count }}
+      # GitHub caps PR file lists at 3000; an incomplete list must retain full validation.
+      ui_python_only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.ui_python_count > 0 && steps.filter.outputs.all_changed_count < 3000 && steps.filter.outputs.ui_python_count == steps.filter.outputs.all_changed_count }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
