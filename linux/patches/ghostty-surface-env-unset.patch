@@ -1,0 +1,204 @@
+diff --git a/include/ghostty.h b/include/ghostty.h
+index 5171d1e..f0cebe0 100644
+--- a/include/ghostty.h
++++ b/include/ghostty.h
+@@ -1128,6 +1128,10 @@ GHOSTTY_API ghostty_surface_config_s ghostty_surface_config_new();
+
+ GHOSTTY_API ghostty_surface_t ghostty_surface_new(ghostty_app_t,
+                                                      const ghostty_surface_config_s*);
++// Names are copied during creation. Deletions win over inherited/configured values;
++// callers must omit names they explicitly set (including empty values).
++GHOSTTY_API ghostty_surface_t ghostty_surface_new_with_env_unset(
++    ghostty_app_t, const ghostty_surface_config_s*, const char* const*, size_t);
+ GHOSTTY_API void ghostty_surface_free(ghostty_surface_t);
+ GHOSTTY_API void* ghostty_surface_userdata(ghostty_surface_t);
+ GHOSTTY_API ghostty_app_t ghostty_surface_app(ghostty_surface_t);
+diff --git a/src/Surface.zig b/src/Surface.zig
+index 247da08..1145e67 100644
+--- a/src/Surface.zig
++++ b/src/Surface.zig
+@@ -659,6 +659,7 @@ pub fn init(
+             .command = command,
+             .env = env,
+             .env_override = config.env,
++            .env_unset = if (@hasDecl(apprt.Surface, "termioEnvUnset")) rt_surface.termioEnvUnset() else &.{},
+             .shell_integration = config.@"shell-integration",
+             .shell_integration_features = config.@"shell-integration-features",
+             .cursor_blink = config.@"cursor-style-blink",
+diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
+index 3abf156..16bfb4f 100644
+--- a/src/apprt/embedded.zig
++++ b/src/apprt/embedded.zig
+@@ -258,12 +258,16 @@ pub const App = struct {
+
+     /// Create a new surface for the app.
+     fn newSurface(self: *App, opts: Surface.Options) !*Surface {
++        return self.newSurfaceWithEnvUnset(opts, &.{});
++    }
++
++    fn newSurfaceWithEnvUnset(self: *App, opts: Surface.Options, unset: []const ?[*:0]const u8) !*Surface {
+         // Grab a surface allocation because we're going to need it.
+         var surface = try self.core_app.alloc.create(Surface);
+         errdefer self.core_app.alloc.destroy(surface);
+
+         // Create the surface
+-        try surface.init(self, opts);
++        try surface.initWithEnvUnset(self, opts, unset);
+         errdefer surface.deinit();
+
+         return surface;
+@@ -426,6 +430,56 @@ pub const EnvVar = extern struct {
+     value: [*:0]const u8,
+ };
+
++fn environmentUnsetSlice(names: ?[*]const ?[*:0]const u8, count: usize) ![]const ?[*:0]const u8 {
++    if (count == 0) return &.{};
++    if (count > std.math.maxInt(usize) / @sizeOf(?[*:0]const u8)) return error.InvalidEnvironmentNames;
++    return (names orelse return error.InvalidEnvironmentNames)[0..count];
++}
++
++fn copyEnvironmentUnsets(alloc: Allocator, unset: []const ?[*:0]const u8) ![]const [*:0]const u8 {
++    const names = try alloc.alloc([*:0]const u8, unset.len);
++    for (unset, 0..) |name, i| {
++        const value = std.mem.span(name orelse return error.InvalidEnvironmentName);
++        if (value.len == 0 or std.mem.indexOfScalar(u8, value, '=') != null)
++            return error.InvalidEnvironmentName;
++        names[i] = try alloc.dupeZ(u8, value);
++    }
++    return names;
++}
++
++test "environment deletion boundary preserves empty lists and rejects invalid pointers/counts" {
++    try std.testing.expectEqual(@as(usize, 0), (try environmentUnsetSlice(null, 0)).len);
++    try std.testing.expectError(error.InvalidEnvironmentNames, environmentUnsetSlice(null, 1));
++    const names = [_]?[*:0]const u8{"A"};
++    try std.testing.expectEqual(@as(usize, 1), (try environmentUnsetSlice(&names, 1)).len);
++    try std.testing.expectError(error.InvalidEnvironmentNames, environmentUnsetSlice(&names, std.math.maxInt(usize)));
++}
++
++test "environment deletion names are owned and validated" {
++    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
++    defer arena.deinit();
++    var source = [_:0]u8{'A'};
++    const names = try copyEnvironmentUnsets(arena.allocator(), &.{&source});
++    source[0] = 'B';
++    try std.testing.expectEqualStrings("A", std.mem.span(names[0]));
++    try std.testing.expectError(error.InvalidEnvironmentName, copyEnvironmentUnsets(arena.allocator(), &.{null}));
++    try std.testing.expectError(error.InvalidEnvironmentName, copyEnvironmentUnsets(arena.allocator(), &.{""}));
++    try std.testing.expectError(error.InvalidEnvironmentName, copyEnvironmentUnsets(arena.allocator(), &.{"A=B"}));
++}
++
++test "environment deletion allocation failures release the owning arena" {
++    const Check = struct {
++        fn run(allocator: Allocator) !void {
++            var arena = std.heap.ArenaAllocator.init(allocator);
++            defer arena.deinit();
++            const names = try copyEnvironmentUnsets(arena.allocator(), &.{ "LD_LIBRARY_PATH", "AGTERM_ORIG_SET" });
++            try std.testing.expectEqualStrings("LD_LIBRARY_PATH", std.mem.span(names[0]));
++            try std.testing.expectEqualStrings("AGTERM_ORIG_SET", std.mem.span(names[1]));
++        }
++    };
++    try std.testing.checkAllAllocationFailures(std.testing.allocator, Check.run, .{});
++}
++
+ pub const Surface = struct {
+     app: *App,
+     platform: Platform,
+@@ -435,6 +489,8 @@ pub const Surface = struct {
+     size: apprt.SurfaceSize,
+     cursor_pos: apprt.CursorPos,
+     inspector: ?*Inspector = null,
++    environment_arena: ?std.heap.ArenaAllocator = null,
++    environment_unset: []const [*:0]const u8 = &.{},
+
+     /// The current title of the surface. The embedded apprt saves this so
+     /// that getTitle works without the implementer needing to save it.
+@@ -484,6 +540,10 @@ pub const Surface = struct {
+     };
+
+     pub fn init(self: *Surface, app: *App, opts: Options) !void {
++        return self.initWithEnvUnset(app, opts, &.{});
++    }
++
++    fn initWithEnvUnset(self: *Surface, app: *App, opts: Options, unset: []const ?[*:0]const u8) !void {
+         self.* = .{
+             .app = app,
+             .platform = try .init(opts.platform_tag, opts.platform),
+@@ -497,6 +557,15 @@ pub const Surface = struct {
+             .cursor_pos = .{ .x = -1, .y = -1 },
+         };
+
++        // Own deletion names until core IO has stopped; the embedding caller may release its buffers.
++        if (unset.len > 0) {
++            self.environment_arena = std.heap.ArenaAllocator.init(app.core_app.alloc);
++            const alloc = self.environment_arena.?.allocator();
++            errdefer self.environment_arena.?.deinit();
++            self.environment_unset = try copyEnvironmentUnsets(alloc, unset);
++        }
++        errdefer if (self.environment_arena) |*arena| arena.deinit();
++
+         // Add ourselves to the list of surfaces on the app.
+         try app.core_app.addSurface(self);
+         errdefer app.core_app.deleteSurface(self);
+@@ -625,6 +694,7 @@ pub const Surface = struct {
+
+         // Clean up our core surface so that all the rendering and IO stop.
+         self.core_surface.deinit();
++        if (self.environment_arena) |*arena| arena.deinit();
+     }
+
+     /// Initialize the inspector instance. A surface can only have one
+@@ -969,6 +1039,10 @@ pub const Surface = struct {
+         };
+     }
+
++    pub fn termioEnvUnset(self: *const Surface) []const [*:0]const u8 {
++        return self.environment_unset;
++    }
++
+     pub fn defaultTermioEnv(self: *const Surface) !std.process.Environ.Map {
+         _ = self;
+         var env = try global.environMap();
+@@ -1561,6 +1635,20 @@ pub const CAPI = struct {
+         };
+     }
+
++    /// Additive API: existing surface options retain their ABI and empty values still mean empty.
++    export fn ghostty_surface_new_with_env_unset(
++        app: *App,
++        opts: *const apprt.Surface.Options,
++        names: ?[*]const ?[*:0]const u8,
++        count: usize,
++    ) ?*Surface {
++        const unset = environmentUnsetSlice(names, count) catch return null;
++        return app.newSurfaceWithEnvUnset(opts.*, unset) catch |err| {
++            log.err("error initializing surface with environment deletions err={}", .{err});
++            return null;
++        };
++    }
++
+     fn surface_new_(
+         app: *App,
+         opts: *const apprt.Surface.Options,
+diff --git a/src/termio/Exec.zig b/src/termio/Exec.zig
+index 3f0dc1c..4b3bf7b 100644
+--- a/src/termio/Exec.zig
++++ b/src/termio/Exec.zig
+@@ -569,6 +569,7 @@ pub const Config = struct {
+     command: ?configpkg.Command = null,
+     env: EnvMap,
+     env_override: configpkg.RepeatableStringMap = .{},
++    env_unset: []const [*:0]const u8 = &.{},
+     shell_integration: configpkg.Config.ShellIntegration = .detect,
+     shell_integration_features: configpkg.Config.ShellIntegrationFeatures = .{},
+     cursor_blink: ?bool = null,
+@@ -825,6 +826,9 @@ const Subprocess = struct {
+             );
+         }
+
++        // Explicit embedding deletions win over inherited and configured values, including empty ones.
++        for (cfg.env_unset) |name| _ = env.orderedRemove(std.mem.span(name));
++
+         // Build our args list
+         const args: []const [:0]const u8 = execCommand(
+             alloc,

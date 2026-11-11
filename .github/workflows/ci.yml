@@ -287,7 +287,7 @@ jobs:
           path: |
             agterm-linux/vendor/ghostty
             agterm-linux/vendor/zmx
-          key: linux-runtimes-${{ steps.linux-architecture.outputs.host }}-${{ hashFiles('scripts/setup-linux.sh', 'scripts/verify-linux-vendor-cache.sh', 'scripts/verify-linux-zmx-cache.sh', 'scripts/verify-linux-architecture.sh', 'scripts/verify-linux-resources.sh', 'scripts/linux-notices.py', 'packaging/linux/notices/**', 'scripts/zmx-patches/**/*.patch', 'linux/arch.sh', 'linux/ghostty-resources.env', 'linux/zmx.env', 'linux/patches/ghostty-embedded-opengl.patch', 'linux/patches/ghostty-embedded-input-handoff.patch', 'linux/patches/ghostty-lib-resources.patch', 'linux/patches/ghostty-clipboard-request-kind.patch') }}
+          key: linux-runtimes-${{ steps.linux-architecture.outputs.host }}-${{ hashFiles('scripts/setup-linux.sh', 'scripts/verify-linux-vendor-cache.sh', 'scripts/verify-linux-zmx-cache.sh', 'scripts/verify-linux-architecture.sh', 'scripts/verify-linux-resources.sh', 'scripts/linux-notices.py', 'packaging/linux/notices/**', 'scripts/zmx-patches/**/*.patch', 'linux/arch.sh', 'linux/ghostty-resources.env', 'linux/zmx.env', 'linux/patches/ghostty-embedded-opengl.patch', 'linux/patches/ghostty-embedded-input-handoff.patch', 'linux/patches/ghostty-lib-resources.patch', 'linux/patches/ghostty-clipboard-request-kind.patch', 'linux/patches/ghostty-surface-env-unset.patch') }}
       - name: Verify restored libghostty cache
         if: steps.ghostty-cache.outputs.cache-hit == 'true'
         run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty

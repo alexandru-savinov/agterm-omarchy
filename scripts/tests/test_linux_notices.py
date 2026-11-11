@@ -60,7 +60,13 @@ class NoticeTests(unittest.TestCase):
                       self.command('verify-ghostty', self.cache, success=False).stderr)
 
     def test_patch_change_requires_profile_and_new_cache(self):
-        patch = self.repo / 'linux/patches/ghostty-clipboard-request-kind.patch'
+        self.check_patch_change('ghostty-clipboard-request-kind.patch')
+
+    def test_environment_unset_patch_change_requires_new_cache(self):
+        self.check_patch_change('ghostty-surface-env-unset.patch')
+
+    def check_patch_change(self, name):
+        patch = self.repo / 'linux/patches' / name
         patch.write_bytes(patch.read_bytes() + b'\n')
         self.assertIn('stale or changed Ghostty patch inputs',
                       self.command('verify-profile', success=False).stderr)

@@ -7,6 +7,7 @@ PATCH="$ROOT/linux/patches/ghostty-embedded-opengl.patch"
 INPUT_HANDOFF_PATCH="$ROOT/linux/patches/ghostty-embedded-input-handoff.patch"
 RESOURCE_PATCH="$ROOT/linux/patches/ghostty-lib-resources.patch"
 CLIPBOARD_KIND_PATCH="$ROOT/linux/patches/ghostty-clipboard-request-kind.patch"
+ENV_UNSET_PATCH="$ROOT/linux/patches/ghostty-surface-env-unset.patch"
 VENDOR="$ROOT/agterm-linux/vendor/ghostty"
 VERIFY_CACHE="$ROOT/scripts/verify-linux-vendor-cache.sh"
 VERIFY_ZMX_CACHE="$ROOT/scripts/verify-linux-zmx-cache.sh"
@@ -76,6 +77,7 @@ if $need_ghostty; then
   git -C "$GHOSTTY_BUILD" apply "$INPUT_HANDOFF_PATCH"
   git -C "$GHOSTTY_BUILD" apply "$RESOURCE_PATCH"
   git -C "$GHOSTTY_BUILD" apply "$CLIPBOARD_KIND_PATCH"
+  git -C "$GHOSTTY_BUILD" apply "$ENV_UNSET_PATCH"
   echo "building libghostty and generated terminfo source..."
   # Zig defaults to Debug, whose terminal integrity checks make sustained PTY output unusably slow.
   (
