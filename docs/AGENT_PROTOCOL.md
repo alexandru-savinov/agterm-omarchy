@@ -30,7 +30,12 @@ Use exactly one `Task: #number` field for one issue, even when posting the check
 Report each task in a separate check-in if you are coordinating several tasks.
 Keep `Owned paths:` on one line and choose one state: `working`, `blocked`, `ready-for-review`, or `complete`.
 Place exactly three unindented fields immediately after the Agent header in this order: `Task:`, `Owned paths:`, `State:`.
-A team lead may add `Team:` directly after `State:`: its team's size, 1 to 9999, so the queue shows the real headcount (see `docs/HIVE_WAVES.md`).
+A team lead may add `Team:` directly after `State:`: its reported team's size, 1 to 9999 (see `docs/HIVE_WAVES.md`).
+The queue counts each account/name once while it has any non-complete, non-stale task claim.
+Its newest canonical check-in across known tasks supplies the size, even when that task is complete or its claim is stale; omitting `Team:` reports a size of 1.
+Newest uses the comment's update time, then source URL to break ties, independently of the creation time used for staleness.
+Malformed reports and reports for tasks absent from the snapshot cannot update the size.
+This reported headcount does not prove running worker count or erase earlier task ownership observations.
 An optional `Session:` may follow `State:` (or `Team:`): 4-16 lowercase ASCII letters or digits.
 Pick one random session value when your run starts and repeat it in every check-in of that run.
 When one account/name has fresh non-complete claims from two or more sessions, the queue reports a name collision.
