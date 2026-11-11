@@ -15,7 +15,18 @@ ZIG="${ZIG:-$(command -v zig || true)}"
 }
 [[ "$(git -C "$SOURCE" rev-parse "$GHOSTTY_REV^{commit}")" == "$GHOSTTY_REV" ]]
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/agterm-ghostty-shutdown.XXXXXX")"
-trap 'rm -rf "$WORK"' EXIT
+RUNNER_PID=""
+cleanup() {
+  trap '' INT TERM
+  if [[ -n "$RUNNER_PID" ]]; then
+    kill -TERM "$RUNNER_PID" 2>/dev/null || true
+    wait "$RUNNER_PID" 2>/dev/null || true
+  fi
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir "$WORK/source"
 git -C "$SOURCE" archive "$GHOSTTY_REV" | tar -xf - -C "$WORK/source"
 cp "$WORK/source/src/datastruct/blocking_queue.zig" "$WORK/original-queue.zig"
@@ -163,19 +174,80 @@ test "shutdown cancellation preserves blocked peer and app-wide producers" {
 }
 ZIG
 
-# Bound compiler and fixture execution; a hang/compile error cannot count as the
-# expected negative. Each invocation has its own two-job compiler limit.
+# Compile without running the test, then supervise that executable directly.
+# Both phases share one deadline; a hang/compile error is never the expected negative.
 run_test() {
-  python3 - "$ZIG" "$WORK/source/src/shutdown_regression.zig" "$@" <<'PY'
+  python3 - "$ZIG" "$WORK/source/src/shutdown_regression.zig" "$@" <<'PY_SUPERVISOR' &
+import os
+import signal
 import subprocess
 import sys
-try:
-    result = subprocess.run([sys.argv[1], "test", "-j2", sys.argv[2], *sys.argv[3:]], timeout=90)
-except subprocess.TimeoutExpired:
-    print("shutdown regression timed out", file=sys.stderr)
-    sys.exit(124)
-sys.exit(result.returncode)
-PY
+import time
+
+
+class Interrupted(BaseException):
+    def __init__(self, number):
+        self.number = number
+
+
+def interrupt(number, _frame):
+    raise Interrupted(number)
+
+
+def run_command(command, deadline):
+    process = subprocess.Popen(command, start_new_session=True)
+    try:
+        return process.wait(timeout=max(0, deadline - time.monotonic()))
+    except BaseException:
+        # Signal only the session created for this compiler/test invocation.
+        # The emitted test is a direct child, so wait reaps a hung test itself.
+        handlers = {number: signal.signal(number, signal.SIG_IGN)
+                    for number in (signal.SIGINT, signal.SIGTERM)}
+        try:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=5)
+        finally:
+            for number, handler in handlers.items():
+                signal.signal(number, handler)
+        raise
+
+
+def run_tests(zig, source, arguments, timeout=90):
+    executable = source + ".test"
+    deadline = time.monotonic() + timeout
+    commands = (
+        [zig, "test", "-j2", source, *arguments,
+         "--test-no-exec", "-femit-bin=" + executable],
+        [executable],
+    )
+    try:
+        for command in commands:
+            status = run_command(command, deadline)
+            if status:
+                return status
+    except subprocess.TimeoutExpired:
+        print("shutdown regression timed out", file=sys.stderr)
+        return 124
+    return 0
+
+
+if __name__ == "__main__":
+    for number in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(number, interrupt)
+    try:
+        sys.exit(run_tests(sys.argv[1], sys.argv[2], sys.argv[3:]))
+    except Interrupted as exc:
+        print("shutdown regression interrupted", file=sys.stderr)
+        sys.exit(128 + exc.number)
+PY_SUPERVISOR
+  RUNNER_PID=$!
+  local status=0
+  wait "$RUNNER_PID" || status=$?
+  RUNNER_PID=""
+  return "$status"
 }
 
 echo "Pinned Ghostty source: $GHOSTTY_REV"
