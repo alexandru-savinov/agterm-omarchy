@@ -1,4 +1,5 @@
 import Foundation
+import Glibc
 import Testing
 import agtermCore
 @testable import AgtermLinux
@@ -109,9 +110,9 @@ struct LinuxCustomCommandProcessTests {
         #expect(failures.value.last == .exit(19, nil))
     }
 
-    @Test("Foundation launcher rejects a missing executable")
+    @Test("spawn launcher rejects a missing executable")
     func missingExecutable() {
-        let launcher = FoundationLinuxProcessLauncher()
+        let launcher = SpawnLinuxProcessLauncher()
         let request = LinuxProcessLaunchRequest(
             executablePath: "/definitely/missing/agterm-command",
             arguments: [], environment: [:], currentDirectoryPath: nil, standardIO: .null)
@@ -123,9 +124,9 @@ struct LinuxCustomCommandProcessTests {
         }
     }
 
-    @Test("Foundation launcher rejects an invalid working directory")
+    @Test("spawn launcher rejects an invalid working directory")
     func invalidWorkingDirectory() {
-        let launcher = FoundationLinuxProcessLauncher()
+        let launcher = SpawnLinuxProcessLauncher()
         let request = LinuxProcessLaunchRequest(
             executablePath: "/bin/sh", arguments: ["-c", "true"], environment: [:],
             currentDirectoryPath: "/definitely/missing/agterm-cwd", standardIO: .null)
@@ -137,9 +138,9 @@ struct LinuxCustomCommandProcessTests {
         }
     }
 
-    @Test("Foundation launcher reports successful and non-zero termination")
+    @Test("spawn launcher reports successful and non-zero termination")
     func realTermination() async {
-        let launcher = FoundationLinuxProcessLauncher()
+        let launcher = SpawnLinuxProcessLauncher()
         for (line, expected) in [("true", Int32(0)), ("exit 23", Int32(23))] {
             await confirmation { confirmed in
                 let request = LinuxProcessLaunchRequest(
@@ -167,12 +168,64 @@ struct LinuxCustomCommandProcessTests {
         let failure = await withCheckedContinuation { (continuation: CheckedContinuation<LinuxCustomCommandFailure, Never>) in
             LinuxCustomCommandProcess.launch(
                 command: command, context: CommandContext(sessionPWD: "/tmp"),
-                baseEnvironment: [:], launcher: FoundationLinuxProcessLauncher()
+                baseEnvironment: [:], launcher: SpawnLinuxProcessLauncher()
             ) { continuation.resume(returning: $0) }
         }
         #expect(failure == .exit(23, "final diagnostic"))
         #expect(failure.reason == "exit 23")
         #expect(failure.toast(commandName: command.name) == "command failed (exit 23): capture")
+    }
+
+    @Test("the stderr capture is owner-only under umask 0 and unlinked after exit 0 and exit 23")
+    func stderrCapturePrivacy() throws {
+        let launcher = RecordingProcessLauncher()
+        let command = CustomCommand(name: "capture", command: "true", shortcut: "", errorHud: true)
+        for status in [Int32(0), 23] {
+            let previous = umask(0)
+            LinuxCustomCommandProcess.launch(
+                command: command, context: CommandContext(), baseEnvironment: [:], launcher: launcher) { _ in }
+            umask(previous)
+            guard case .stderrFile(let path) = try #require(launcher.requests.last).standardIO else {
+                Issue.record("errorHud did not request a stderr file")
+                return
+            }
+            var info = stat()
+            #expect(stat(path, &info) == 0)
+            #expect(info.st_mode & 0o777 == 0o600)
+            launcher.finish(status: status)
+            #expect(!FileManager.default.fileExists(atPath: path))
+        }
+    }
+
+    @Test("a descendant holding stderr cannot stall completion, and the capture is gone on delivery")
+    func stderrDescendant() async throws {
+        let pidFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("agterm-command-test-\(UUID().uuidString).pid").path
+        defer { try? FileManager.default.removeItem(atPath: pidFile) }
+        let command = CustomCommand(
+            name: "descendant", command: "(sleep 30 >&2 & echo $! > '\(pidFile)'); echo diag >&2; exit 7",
+            shortcut: "", errorHud: true)
+        let launcher = ObservingProcessLauncher()
+        let start = Date()
+        let failure = await withCheckedContinuation { (continuation: CheckedContinuation<LinuxCustomCommandFailure, Never>) in
+            LinuxCustomCommandProcess.launch(
+                command: command, context: CommandContext(sessionPWD: "/tmp"), baseEnvironment: [:], launcher: launcher
+            ) { continuation.resume(returning: $0) }
+        }
+        #expect(Date().timeIntervalSince(start) < 2)
+        #expect(failure == .exit(7, "diag"))
+        guard case .stderrFile(let path) = try #require(launcher.requests.first).standardIO else {
+            Issue.record("errorHud did not request a stderr file")
+            return
+        }
+        #expect(!FileManager.default.fileExists(atPath: path))
+
+        let pid = try #require(pid_t(try String(contentsOfFile: pidFile, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)))
+        #expect(isLiveSleep(pid))
+        #expect(kill(pid, SIGKILL) == 0)
+        for _ in 0..<100 where isLiveSleep(pid) { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(!isLiveSleep(pid))
     }
 
     @Test("closing and reopening the same window id cannot reactivate an old origin")
@@ -204,15 +257,23 @@ struct LinuxCustomCommandProcessTests {
 private final class RecordingProcessLauncher: LinuxProcessLaunching, @unchecked Sendable {
     private let lock = NSLock()
     var error: (any Error)?
+    private var recorded: [LinuxProcessLaunchRequest] = []
     private var completions: [@Sendable (Int32) -> Void] = []
 
+    var requests: [LinuxProcessLaunchRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recorded
+    }
+
     func launch(
-        _: LinuxProcessLaunchRequest,
+        _ request: LinuxProcessLaunchRequest,
         onTermination: @escaping @Sendable (Int32) -> Void
     ) throws {
         lock.lock()
         defer { lock.unlock() }
         if let error { throw error }
+        recorded.append(request)
         completions.append(onTermination)
     }
 
@@ -222,6 +283,33 @@ private final class RecordingProcessLauncher: LinuxProcessLaunching, @unchecked 
         lock.unlock()
         completion(status)
     }
+}
+
+private final class ObservingProcessLauncher: LinuxProcessLaunching, @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [LinuxProcessLaunchRequest] = []
+
+    var requests: [LinuxProcessLaunchRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recorded
+    }
+
+    func launch(_ request: LinuxProcessLaunchRequest, onTermination: @escaping @Sendable (Int32) -> Void) throws {
+        lock.lock()
+        recorded.append(request)
+        lock.unlock()
+        try SpawnLinuxProcessLauncher().launch(request, onTermination: onTermination)
+    }
+}
+
+/// A zombie counts as dead: the orphan's new parent may never reap it.
+private func isLiveSleep(_ pid: pid_t) -> Bool {
+    guard let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8),
+          let close = stat.lastIndex(of: ")"),
+          let cmdline = FileManager.default.contents(atPath: "/proc/\(pid)/cmdline") else { return false }
+    return stat[stat.index(close, offsetBy: 2)...].first != "Z"
+        && String(decoding: cmdline, as: UTF8.self).hasPrefix("sleep\u{0}30")
 }
 
 private final class LockedValue<Value>: @unchecked Sendable {
