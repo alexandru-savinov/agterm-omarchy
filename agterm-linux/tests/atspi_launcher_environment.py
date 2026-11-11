@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
+import tempfile
 
 from atspi_smoke import ROOT, control_json, launch, raw_control_json, stop, wait_for, window_list, window_tree
 
@@ -30,11 +31,11 @@ def verify_exact_launcher_environment(env):
     names = ("LD_LIBRARY_PATH", "LIBGL_ALWAYS_SOFTWARE", "AGTERM_COMMIT")
     for mode in ("none", "live"):
         for label, original in (("absent", None), ("empty", ""), ("value", "caller-value")):
-            state = base / f"launcher-{mode}-{label}"
-            state.mkdir()
+            temporary = tempfile.TemporaryDirectory(prefix="env270-", dir="/tmp")
+            state = Path(temporary.name)
             (state / "settings.json").write_text(json.dumps({"restoreMode": mode, "closeGraceUndoEnabled": False}))
             local = {key: value for key, value in env.items() if not key.startswith("AGTERM_ORIG_")}
-            local.update(AGTERM_STATE_DIR=str(state), AGTERM_CONTROL_SOCKET=str(state / "socket"),
+            local.update(AGTERM_STATE_DIR=str(state), AGTERM_CONTROL_SOCKET=str(state / "agterm.sock"),
                          LD_PRELOAD=str(fixture), LD_LIBRARY_PATH="/nonexistent/agterm-bundle/lib",
                          LIBGL_ALWAYS_SOFTWARE="1", AGTERM_COMMIT="launcher-app-commit",
                          AGTERM_ORIG_SET="1", GSK_RENDERER="cairo")
@@ -46,9 +47,10 @@ def verify_exact_launcher_environment(env):
             output.unlink(missing_ok=True)
             probe = state / "probe.py"
             probe.write_text(PROBE)
-            process, _app = launch(local)
+            process = None
             window = None
             try:
+                process, _app = launch(local)
                 window = wait_for(lambda: next((item["id"] for item in window_list(local) if item["open"]), None),
                                   "launcher matrix window missing")
                 created = control_json(local, "session", "new", "--name", "launcher270", "--window", window, "--json")
@@ -89,4 +91,8 @@ def verify_exact_launcher_environment(env):
                             closed = control_json(local, "session", "close", row["id"], "--window", window, "--json")
                             assert closed["ok"], closed
                 finally:
-                    stop(process)
+                    try:
+                        if process is not None:
+                            stop(process)
+                    finally:
+                        temporary.cleanup()
