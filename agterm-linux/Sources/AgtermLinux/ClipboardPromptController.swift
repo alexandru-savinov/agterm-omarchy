@@ -19,6 +19,7 @@ final class ClipboardPromptController {
         var waiters: [(Bool) -> Void]
     }
 
+    @MainActor
     final class ResponseContext {
         let key: PromptKey
         private let controller: ClipboardPromptController
