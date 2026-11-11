@@ -246,7 +246,7 @@ def verify_quick_card_geometry(env, state):
                         return None
                     overlay = max(panes, key=lambda box: box.width * box.height)
                     header = 0
-                    toggle = named(app, "Toggle Sidebar (Ctrl+Shift+S)")
+                    toggle = named(app, "Toggle Sidebar (Ctrl+Shift+S)") or named(app, "Maximize")
                     node = toggle.get_parent() if toggle and toolbar == "normal" else None
                     while node is not None:
                         box = window_extents(node)
