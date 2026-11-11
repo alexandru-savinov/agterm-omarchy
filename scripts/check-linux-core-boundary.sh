@@ -3,7 +3,7 @@
 # Usage: scripts/check-linux-core-boundary.sh [UPSTREAM_BASE]
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 BASE="${1:-v0.32.0}"
 CORE="$ROOT/agtermCore/Sources/agtermCore"
 PROTECTED_TEST="agtermCore/Tests/agtermCoreTests/ConfigPathsTests.swift"

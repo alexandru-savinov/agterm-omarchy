@@ -2,7 +2,7 @@
 # Build pinned libghostty/resources and zmx into agterm-linux/vendor.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 PATCH="$ROOT/linux/patches/ghostty-embedded-opengl.patch"
 INPUT_HANDOFF_PATCH="$ROOT/linux/patches/ghostty-embedded-input-handoff.patch"
 RESOURCE_PATCH="$ROOT/linux/patches/ghostty-lib-resources.patch"
@@ -19,6 +19,19 @@ ZMX_STAMP="$ZMX_REV $ZMX_PATCH_DIGEST"
 # shellcheck source=../linux/arch.sh
 source "$ROOT/linux/arch.sh"
 ZMX_BUILD_POLICY="target=$ZIG_TARGET cpu=$ZMX_CPU"
+
+# Fetch a pinned archive and refuse to use it unless its SHA-256 matches the recorded pin.
+fetch_verified() {
+  local url="$1" expected="$2" output="$3" actual
+  [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || { echo "no SHA-256 pin recorded for $url" >&2; exit 1; }
+  curl -fsSLo "$output" "$url"
+  actual="$(sha256sum < "$output" | cut -d' ' -f1)"
+  [[ "$actual" == "$expected" ]] || {
+    echo "checksum mismatch for $url: expected $expected, got $actual" >&2
+    rm -f "$output"
+    exit 1
+  }
+}
 
 cache_is_complete() {
   "$VERIFY_CACHE" "$VENDOR" >/dev/null 2>&1
@@ -59,6 +72,8 @@ mkdir -p "$BUILD_DIR/xdg-cache"
 if $need_ghostty; then
   GHOSTTY_BUILD="$BUILD_DIR/ghostty"
   GHOSTTY_STAGE="$BUILD_DIR/ghostty-stage"
+  # Record the inputs before building, so the stamp describes exactly what was patched and compiled.
+  GHOSTTY_STAMP="$("$VERIFY_CACHE" --print-stamp)"
   echo "fetching ghostty $GHOSTTY_REV..."
   git init -q "$GHOSTTY_BUILD"
   git -C "$GHOSTTY_BUILD" remote add origin "$GHOSTTY_REPO"
@@ -104,6 +119,7 @@ if $need_ghostty; then
   cp "$TERMINFO_SOURCE" "$GHOSTTY_BUILD/src/terminfo/ghostty.terminfo"
   tic -x -o "$GHOSTTY_STAGE/share/terminfo" "$GHOSTTY_BUILD/src/terminfo/ghostty.terminfo"
 
+  printf '%s\n' "$GHOSTTY_STAMP" > "$GHOSTTY_STAGE/SOURCE_STAMP"
   "$VERIFY_CACHE" "$GHOSTTY_STAGE"
   rm -rf "$VENDOR"
   mkdir -p "$(dirname "$VENDOR")"
@@ -117,13 +133,18 @@ if $need_zmx; then
   ZMX_SLUG="${ZMX_SLUG%.git}"
   echo "fetching zmx $ZMX_REV..."
   mkdir -p "$ZMX_BUILD"
-  curl -fsSLo "$BUILD_DIR/zmx.tgz" "https://codeload.github.com/$ZMX_SLUG/tar.gz/$ZMX_REV"
+  fetch_verified "https://codeload.github.com/$ZMX_SLUG/tar.gz/$ZMX_REV" "${ZMX_SHA256:-}" "$BUILD_DIR/zmx.tgz"
   tar -xzf "$BUILD_DIR/zmx.tgz" -C "$ZMX_BUILD" --strip-components=1
   ZMX_GHOSTTY_REV="$(sed -n 's|.*ghostty-org/ghostty#\([0-9a-f]\{40\}\)".*|\1|p' "$ZMX_BUILD/build.zig.zon")"
   [[ -n "$ZMX_GHOSTTY_REV" ]] || { echo "missing zmx ghostty revision" >&2; exit 1; }
+  [[ "$ZMX_GHOSTTY_REV" == "${ZMX_GHOSTTY_PIN:-}" ]] || {
+    echo "zmx declares Ghostty $ZMX_GHOSTTY_REV but linux/zmx.env pins ${ZMX_GHOSTTY_PIN:-nothing}" >&2
+    exit 1
+  }
   ZMX_GHOSTTY="$BUILD_DIR/zmx-ghostty"
   mkdir -p "$ZMX_GHOSTTY"
-  curl -fsSLo "$BUILD_DIR/zmx-ghostty.tgz" "https://codeload.github.com/ghostty-org/ghostty/tar.gz/$ZMX_GHOSTTY_REV"
+  fetch_verified "https://codeload.github.com/ghostty-org/ghostty/tar.gz/$ZMX_GHOSTTY_REV" \
+    "${ZMX_GHOSTTY_SHA256:-}" "$BUILD_DIR/zmx-ghostty.tgz"
   tar -xzf "$BUILD_DIR/zmx-ghostty.tgz" -C "$ZMX_GHOSTTY" --strip-components=1
   for ghostty_patch in "$ROOT/scripts/zmx-patches/ghostty"/*.patch; do
     git -C "$ZMX_GHOSTTY" apply --whitespace=nowarn "$ghostty_patch"

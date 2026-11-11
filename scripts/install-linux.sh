@@ -3,7 +3,7 @@
 # Usage: scripts/install-linux.sh [--prefix DIR] [--no-build | --payload DIR] [--software-rendering | --default-rendering]
 #        scripts/install-linux.sh [--prefix DIR] --uninstall [--purge-state]
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 PREFIX="${PREFIX:-$HOME/.local}"
 BUILD=true
 PAYLOAD=""
@@ -43,7 +43,7 @@ elif [[ -n "$PAYLOAD" ]]; then
   $BUILD || { echo "--payload already skips the build; drop --no-build" >&2; exit 2; }
   [[ -x "$PAYLOAD/bin/agterm-linux" && -f "$PAYLOAD/share/applications/io.github.melonamin.agterm.desktop" ]] \
     || { echo "--payload needs an extracted agterm payload containing bin/agterm-linux" >&2; exit 2; }
-  PAYLOAD="$(cd "$PAYLOAD" && pwd -P)"
+  PAYLOAD="$(CDPATH='' cd -- "$PAYLOAD" && pwd -P)"
   BUILD=false
 fi
 command -v python3 >/dev/null || { echo "python3 is required to install desktop entries" >&2; exit 1; }
@@ -53,26 +53,70 @@ import json, os, pathlib, shutil, sys
 prefix = pathlib.Path(sys.argv[2])
 payload = prefix / 'lib/agterm'
 manifest_name = 'share/agterm/INSTALLED_FILES'
+# Directories this installer created below the prefix; only these may be pruned when they empty.
+dirs_name = 'share/agterm/INSTALLED_DIRS'
+launchers = ('bin/agterm-linux', 'bin/agtermctl')
+desktop_entry = 'share/applications/io.github.melonamin.agterm.desktop'
 caches = ('share/icons/hicolor/icon-theme.cache', 'share/applications/mimeinfo.cache')
 
 def derived(root):
-    files = ['bin/agterm-linux', 'bin/agtermctl', 'share/applications/io.github.melonamin.agterm.desktop']
+    files = [*launchers, desktop_entry]
     for shared in ('share/icons', 'share/pixmaps'):
         base = root / shared
         files += sorted(f'{shared}/{path.relative_to(base)}' for path in base.rglob('*')
                         if path.is_file() or path.is_symlink()) if base.is_dir() else []
     return files
 
-def recorded(root):
-    # An installation predating the manifest still uninstalls exactly what its payload implies.
-    manifest = root / manifest_name
-    names = manifest.read_text().splitlines() if manifest.is_file() else derived(root)
-    allowed = ('bin/', 'share/applications/', 'share/icons/', 'share/pixmaps/')
+def manifest_problem(manifest):
+    if not manifest.is_file():
+        return 'it is not a regular file'
+    text = manifest.read_text()
+    names = text.splitlines()
+    # The installer always writes newline-terminated lines that start with both launchers.
+    if not text.endswith('\n'):
+        return 'it is empty or truncated'
+    if any(not name for name in names) or len(set(names)) != len(names):
+        return 'it has blank or duplicate entries'
+    if not set(launchers + (desktop_entry,)) <= set(names):
+        return 'it does not list the launchers and desktop entry'
+    return None
+
+def checked(names):
     for name in names:
         parts = pathlib.PurePosixPath(name).parts
-        if not name.startswith(allowed) or '..' in parts or name.startswith('/'):
+        inside = name in launchers or name.startswith(('share/applications/', 'share/icons/', 'share/pixmaps/'))
+        if not inside or '..' in parts or name.startswith('/'):
             sys.exit(f'refusing manifest entry outside the installer\'s paths: {name!r}')
     return names
+
+def recorded(root, strict=True):
+    # An installation predating the manifest still uninstalls exactly what its payload implies.
+    manifest = root / manifest_name
+    if not (manifest.exists() or manifest.is_symlink()):
+        return checked(derived(root))
+    if manifest.is_file():
+        checked(manifest.read_text().splitlines())
+    problem = manifest_problem(manifest)
+    if problem is None:
+        return manifest.read_text().splitlines()
+    if strict:
+        sys.exit(f'refusing to uninstall: {manifest} is malformed ({problem}); nothing was removed')
+    # Replacing an install only needs its stale launcher files; its payload still implies them.
+    print(f'warning: ignoring malformed {manifest} ({problem}); using the installed payload instead',
+          file=sys.stderr)
+    return checked(derived(root))
+
+def created_dirs(root):
+    record = root / dirs_name
+    # Installations predating the record never prune: their directories may predate agterm.
+    names = record.read_text().splitlines() if record.is_file() else []
+    for name in names:
+        parts = pathlib.PurePosixPath(name).parts
+        inside = name in ('bin', 'lib', 'share') or name.startswith(('share/applications', 'share/icons',
+                                                                      'share/pixmaps'))
+        if not inside or '..' in parts or name.startswith('/'):
+            sys.exit(f'refusing directory record outside the installer\'s paths: {name!r}')
+    return set(names)
 
 def remove(names):
     for name in names:
@@ -80,10 +124,12 @@ def remove(names):
         if path.is_symlink() or path.is_file():
             path.unlink()
 
-def prune(names):
+def prune(names, created):
     for name in sorted(names, key=lambda item: -item.count('/')):
         parent = (prefix / name).parent
         while parent != prefix and prefix in parent.parents:
+            if parent.relative_to(prefix).as_posix() not in created:
+                break
             try:
                 parent.rmdir()
             except OSError:
@@ -92,6 +138,9 @@ def prune(names):
 
 def install(previous):
     current = derived(payload)
+    created = set(json.loads((previous.parent / 'created.json').read_text()))
+    if previous.is_dir():
+        created |= created_dirs(previous)
     remove(current)
     # A symlinked bin directory resolves relative links from its physical location.
     # Ordinary prefixes still use relative targets and can be moved as a whole.
@@ -124,10 +173,12 @@ def install(previous):
     (prefix / 'share/applications/io.github.melonamin.agterm.desktop').write_text('\n'.join(lines) + '\n')
     (payload / manifest_name).unlink(missing_ok=True)
     (payload / manifest_name).write_text('\n'.join(current) + '\n')
+    (payload / dirs_name).unlink(missing_ok=True)
+    (payload / dirs_name).write_text(''.join(name + '\n' for name in sorted(created)))
     if previous.is_dir():
-        stale = sorted(set(recorded(previous)) - set(current))
+        stale = sorted(set(recorded(previous, strict=False)) - set(current))
         remove(stale)
-        prune(stale)
+        prune(stale, created)
     home = pathlib.Path(os.environ['HOME'])
     data_dirs = [os.environ.get('XDG_DATA_HOME') or str(home / '.local/share')]
     data_dirs += (os.environ.get('XDG_DATA_DIRS') or '/usr/local/share:/usr/share').split(':')
@@ -137,6 +188,7 @@ def install(previous):
 
 def uninstall():
     names = recorded(payload)
+    created = created_dirs(payload)
     remove(names)
     for cache in caches:
         directory = (prefix / cache).parent
@@ -148,7 +200,7 @@ def uninstall():
         payload.unlink()
     else:
         shutil.rmtree(payload)
-    prune(names + ['lib/agterm'])
+    prune(names + ['lib/agterm'], created)
 
 def snapshot(work):
     staged = (work / 'payload').resolve()
@@ -161,7 +213,16 @@ def snapshot(work):
             sys.exit(f'incomplete payload: missing directory {name}')
     desktop = staged / 'share/applications/io.github.melonamin.agterm.desktop'
     desktop.read_text()
-    names = sorted(set(derived(staged) + (recorded(payload) if payload.exists() else [])))
+    names = sorted(set(derived(staged) + (recorded(payload, strict=False) if payload.exists() else [])))
+    # Record, before anything is created, which directories this attempt adds below the prefix.
+    candidates = {'bin', 'share/applications', 'share/icons', 'share/pixmaps'}
+    for name in derived(staged):
+        candidates.update(parent.as_posix() for parent in pathlib.PurePosixPath(name).parents
+                          if parent.as_posix() != '.')
+    created = {name for name in candidates if not (prefix / name).exists() and not (prefix / name).is_symlink()}
+    if (work / 'created-lib').exists():
+        created.add('lib')
+    (work / 'created.json').write_text(json.dumps(sorted(created)))
     for name in names:
         source = prefix / name
         if source.is_symlink() or source.is_file():
@@ -181,7 +242,8 @@ def restore(work):
             destination = prefix / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(backup, destination, follow_symlinks=False)
-    prune(names + ['lib/agterm'])
+    created_file = work / 'created.json'
+    prune(names + ['lib/agterm'], set(json.loads(created_file.read_text())) if created_file.is_file() else set())
 
 if sys.argv[1] == 'snapshot':
     snapshot(pathlib.Path(sys.argv[3]))
@@ -202,8 +264,8 @@ refresh_caches() {
 }
 if $UNINSTALL; then
   [[ -e "$PREFIX/lib/agterm" || -L "$PREFIX/lib/agterm" ]] || { echo "no agterm installation in $PREFIX" >&2; exit 1; }
-  PREFIX="$(cd "$PREFIX" && pwd)"
-  python3 -c "$DESKTOP_PY" uninstall "$PREFIX"
+  PREFIX="$(CDPATH='' cd -- "$PREFIX" && pwd)"
+  python3 -I -c "$DESKTOP_PY" uninstall "$PREFIX"
   refresh_caches
   printf 'Removed agterm from %s; the renderer choice is not kept for a later install.\n' "$PREFIX"
   state="${XDG_DATA_HOME:-$HOME/.local/share}/agterm"
@@ -235,9 +297,12 @@ else
   [[ ! -d "$SWIFT_COMPAT" ]] || export LD_LIBRARY_PATH="$SWIFT_COMPAT${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
 
+LIB_CREATED=false
+[[ -e "$PREFIX/lib" || -L "$PREFIX/lib" ]] || LIB_CREATED=true
 mkdir -p "$PREFIX/lib"
-PREFIX="$(cd "$PREFIX" && pwd)"
+PREFIX="$(CDPATH='' cd -- "$PREFIX" && pwd)"
 WORK="$(mktemp -d "$PREFIX/lib/.agterm-install.XXXXXX")"
+! $LIB_CREATED || : > "$WORK/created-lib"
 COMMITTED=false
 cleanup() {
   local status=$?
@@ -256,7 +321,7 @@ cleanup() {
         exit 1
       fi
     fi
-    if ! python3 -c "$DESKTOP_PY" restore "$PREFIX" "$WORK"; then
+    if ! python3 -I -c "$DESKTOP_PY" restore "$PREFIX" "$WORK"; then
       printf 'Could not restore launcher files; recovery files retained in %s.\n' "$WORK" >&2
       exit 1
     fi
@@ -273,7 +338,7 @@ if [[ -n "$PAYLOAD" ]]; then
 else
   "$ROOT/scripts/stage-linux.sh" "$WORK/payload"
 fi
-python3 -c "$DESKTOP_PY" snapshot "$PREFIX" "$WORK"
+python3 -I -c "$DESKTOP_PY" snapshot "$PREFIX" "$WORK"
 rm -f "$WORK/payload/share/agterm/RENDERER"
 printf '%s\n' "$RENDERER_MODE" > "$WORK/payload/share/agterm/RENDERER"
 # Finish staging before replacing an installed payload, so a failed build leaves it usable.
@@ -284,7 +349,7 @@ if ! mv "$WORK/payload" "$PREFIX/lib/agterm"; then
   exit 1
 fi
 mkdir -p "$PREFIX/bin" "$PREFIX/share/applications" "$PREFIX/share/icons" "$PREFIX/share/pixmaps"
-python3 -c "$DESKTOP_PY" install "$PREFIX" "$WORK/previous"
+python3 -I -c "$DESKTOP_PY" install "$PREFIX" "$WORK/previous"
 if [[ -d "$PREFIX/lib/agterm/share/icons" ]]; then
   cp -R "$PREFIX/lib/agterm/share/icons/." "$PREFIX/share/icons/"
 fi

@@ -8,10 +8,30 @@ if (( $# != 1 )); then
   exit 2
 fi
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/agterm-linux"
 DEST="$1"
 [[ "$DEST" = /* ]] || DEST="$ROOT/$DEST"
+
+# Resolve the embedded source commit before staging anything. A failing git lookup must never be
+# recorded as an empty value, and a source archive inside an unrelated checkout must not borrow its HEAD.
+if [[ -n "${AGTERM_PACKAGE_COMMIT:-}" ]]; then
+  COMMIT="$AGTERM_PACKAGE_COMMIT"
+  [[ "$COMMIT" =~ ^[[:graph:]]+$ ]] || {
+    echo "AGTERM_PACKAGE_COMMIT must be a single word without whitespace" >&2
+    exit 1
+  }
+else
+  COMMIT=""
+  if [[ "$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || true)" == "$(CDPATH='' cd -- "$ROOT" && pwd -P)" ]]; then
+    COMMIT="$(git -C "$ROOT" rev-parse --verify -q HEAD || true)"
+  fi
+  [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+    echo "cannot determine the source commit: $ROOT is not the top of a git checkout with a HEAD;" \
+      "set AGTERM_PACKAGE_COMMIT to record one explicitly" >&2
+    exit 1
+  }
+fi
 
 if [[ -d "$DEST" ]] && find "$DEST" -mindepth 1 -print -quit | grep -q .; then
   echo "staging destination is not empty: $DEST" >&2
@@ -69,7 +89,7 @@ cp -R "$ROOT/plugins/agterm/skills/agterm" "$DEST/share/agterm/agent-skill"
 install -m644 "$APP/vendor/zmx/LICENSE" "$DEST/share/agterm/ZMX-LICENSE"
 python3 "$ROOT/scripts/linux-notices.py" stage "$DEST"
 printf '%s\n' "${AGTERM_PACKAGE_VERSION:-dev}" > "$DEST/share/agterm/VERSION"
-printf '%s\n' "${AGTERM_PACKAGE_COMMIT:-$(git -C "$ROOT" rev-parse HEAD)}" > "$DEST/share/agterm/COMMIT"
+printf '%s\n' "$COMMIT" > "$DEST/share/agterm/COMMIT"
 
 DESKTOP="$ROOT/packaging/linux/io.github.melonamin.agterm.desktop"
 install -m644 "$DESKTOP" "$DEST/share/applications/io.github.melonamin.agterm.desktop"
@@ -92,7 +112,7 @@ fi
 
 cat > "$DEST/bin/agterm-linux" <<'LAUNCH'
 #!/usr/bin/env bash
-HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+HERE="$(CDPATH='' cd -- "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 [[ -d "$HERE/share/ghostty" ]] && export AGTERM_GHOSTTY_RESOURCES="$HERE/share/ghostty"
 [[ -f "$HERE/share/agterm/VERSION" ]] && export AGTERM_VERSION="$(cat "$HERE/share/agterm/VERSION")"
@@ -108,7 +128,7 @@ chmod 0755 "$DEST/bin/agterm-linux"
 
 cat > "$DEST/bin/agtermctl" <<'LAUNCH'
 #!/usr/bin/env bash
-HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+HERE="$(CDPATH='' cd -- "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec "$HERE/bin/agtermctl.bin" "$@"
 LAUNCH
