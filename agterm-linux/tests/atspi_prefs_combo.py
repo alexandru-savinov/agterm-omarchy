@@ -179,7 +179,8 @@ def choose_combo(env, app, process_id, title, values, index, landed, search=None
         if search:
             # The row already shows one of `values`, so only a label beyond them proves the list is up.
             return any(name not in values for name in added())
-        return len(added()) >= 2 or sum(1 for node in collect(app, role="label") if node.get_name() in values) >= 2
+        # Only labels the popover ADDED count: other rows on the page can already show these same values.
+        return len(added()) >= 2
 
     def pop_up():
         if popped():
