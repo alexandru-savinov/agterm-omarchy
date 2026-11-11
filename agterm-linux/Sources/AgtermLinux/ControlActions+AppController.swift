@@ -294,7 +294,9 @@ extension AppController: ControlActions {
                 store.moveSession(id, toWorkspace: location.workspace, at: location.index + (after ? 1 : 0))
             }
         }
-        reconcile(preferMoving: [id])
+        // A move changes neither the selection nor the deck page, so it owes nobody the keyboard; a grab
+        // here took it off a live search entry (#164).
+        reconcile(focusActive: false, preferMoving: [id])
         return ok(id)
     }
 
@@ -338,7 +340,7 @@ extension AppController: ControlActions {
                 affected = 0
             }
         }
-        reconcile(preferMoving: Set(ids))
+        reconcile(focusActive: false, preferMoving: Set(ids))   // see moveSession
         return ControlResponse(ok: true, result: ControlResult(affected: affected))
     }
 
