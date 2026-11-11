@@ -3155,9 +3155,31 @@ def verify_custom_command_failures(env):
         )
         assert command_hud().get("detail") == "failure-detail", command_hud()
         assert command_hud().get("position") == "top-right", command_hud()
+        hud_toast_message = "command failed (exit 71): HUD Failure"
+        wait_for(lambda: named(frame("command-origin-a"), hud_toast_message, role="label"),
+                 "HUD failure companion toast did not appear")
         control_json(env, "session", "hud", "close", "--target", first_session,
                      "--window", first_window, "--json")
-        time.sleep(0.5)
+        wait_for(lambda: not command_hud(), "custom-command HUD did not close")
+        origin_frame = frame("command-origin-a")
+        toast_label = named(origin_frame, hud_toast_message, role="label")
+        if toast_label is not None:
+            toast_container = toast_label.get_parent()
+            while toast_container is not None and toast_container != origin_frame:
+                buttons = [button for button in collect(toast_container, role="push button")
+                           if button.get_state_set().contains(Atspi.StateType.SHOWING)]
+                if buttons:
+                    labels = collect(toast_container, role="label")
+                    assert len(buttons) == 1 and labels == [toast_label], (
+                        "HUD companion toast dismiss control is not uniquely scoped"
+                    )
+                    activate(buttons[0])
+                    break
+                toast_container = toast_container.get_parent()
+            else:
+                raise AssertionError("HUD companion toast dismiss control is missing")
+        wait_for(lambda: not named(frame("command-origin-a"), hud_toast_message),
+                 "HUD companion toast did not dismiss before launch-failure check")
         shutil.rmtree(first_cwd)
         shutil.rmtree(second_cwd)
         exit_titles = {}
