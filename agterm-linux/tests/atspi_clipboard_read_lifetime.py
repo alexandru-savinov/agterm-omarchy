@@ -2,12 +2,14 @@
 
 import base64
 import json
+import os
 from pathlib import Path
 import re
 import shlex
+import subprocess
 import time
 
-from gi.repository import Gdk, Gio, GLib, GObject, Gtk
+from gi.repository import Gdk, GLib, GObject, Gtk
 
 from atspi_clipboard_lifetime import read_clipboard
 from atspi_smoke import (NEGATIVE_SETTLE_SECONDS, activate, control_json, launch, named,
@@ -41,53 +43,46 @@ finally:
 '''
 
 
-class HeldClipboard(Gdk.ContentProvider):
-    """Observe a real transfer request, then finish it only when the fixture releases it."""
+class HeldClipboard:
+    """Native provider retains the real GDK callback/data while Python controls the barrier."""
 
-    def __init__(self, text):
-        super().__init__()
-        self.delegate = Gdk.ContentProvider.new_for_bytes("text/plain;charset=utf-8", GLib.Bytes.new(text.encode()))
-        self.pending = []
-        self.completed = 0
-        self.failures = []
-        self.holding = True
+    def __init__(self, directory, text):
+        executable = directory / "clipboard-hold-provider"
+        source = Path(__file__).with_name("clipboard_hold_provider.c")
+        flags = shlex.split(subprocess.check_output(["pkg-config", "--cflags", "--libs", "gtk4"], text=True))
+        subprocess.run(["cc", "-Wall", "-Wextra", "-Werror", str(source), "-o", str(executable)] + flags, check=True)
+        self.errors = (directory / "clipboard-provider.stderr").open("w+")
+        self.process = subprocess.Popen([str(executable), text], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                        stderr=self.errors)
+        os.set_blocking(self.process.stdout.fileno(), False)
+        self.buffer = b""
+        self.events = []
 
-    def do_ref_formats(self):
-        return self.delegate.ref_formats()
-
-    def do_write_mime_type_async(self, mime, stream, priority, cancellable, callback, user_data=None):
-        # Preserve the C caller's opaque data; Gio.Task's Python callback data is a different ABI layer.
-        def deliver(source, result, _):
-            callback(source, result, user_data)
-
-        task = Gio.Task.new(self, cancellable, deliver, None)
-        request = (mime, stream, priority, cancellable, task)
-        if self.holding:
-            self.pending.append(request)
-        else:
-            self.finish(request)
-
-    def finish(self, request):
-        mime, stream, priority, cancellable, task = request
-
-        def completed(provider, result):
-            try:
-                task.return_boolean(provider.write_mime_type_finish(result))
-            except GLib.Error as error:
-                self.failures.append(str(error))
-                task.return_error(error)
-            self.completed += 1
-
-        self.delegate.write_mime_type_async(mime, stream, priority, cancellable, completed)
-
-    def do_write_mime_type_finish(self, result):
-        return result.propagate_boolean()
+    def observe(self, event):
+        assert self.process.poll() is None, "native clipboard provider exited early"
+        try:
+            chunk = os.read(self.process.stdout.fileno(), 4096)
+        except BlockingIOError:
+            chunk = b""
+        self.buffer += chunk
+        while b"\n" in self.buffer:
+            line, self.buffer = self.buffer.split(b"\n", 1)
+            self.events.append(line.decode())
+        return event in self.events
 
     def release(self):
-        self.holding = False
-        pending, self.pending = self.pending, []
-        for request in pending:
-            self.finish(request)
+        self.process.stdin.write(b"RELEASE\n")
+        self.process.stdin.flush()
+
+    def stop(self):
+        self.process.stdin.close()
+        try:
+            self.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            self.process.wait(timeout=5)
+        self.process.stdout.close()
+        self.errors.close()
 
 
 def verify_clipboard_read_lifetime(env):
@@ -105,6 +100,7 @@ def verify_clipboard_read_lifetime(env):
     clipboard.set(value)
     assert read_clipboard(clipboard) == sentinel
     process, app = launch(env)
+    held = None
 
     def pump():
         context = GLib.MainContext.default()
@@ -158,16 +154,16 @@ def verify_clipboard_read_lifetime(env):
             assert read_clipboard(clipboard) == sentinel, "read consent changed clipboard contents"
             time.sleep(0.1)
 
-        held = HeldClipboard(sentinel)
-        assert clipboard.set_content(held)
+        held = HeldClipboard(state, sentinel)
+        wait_for(lambda: held.observe("READY"), "native clipboard owner did not start")
         pending_session, _ = start_request(window, "read-transfer-close")
 
         def transfer_started():
             pump()
-            return len(held.pending) == 1
+            return held.observe("REQUESTED 1")
 
         wait_for(transfer_started, "application never requested the held clipboard bytes")
-        assert held.completed == 0 and named(app, HEADING) is None
+        assert not held.observe("DONE 1") and named(app, HEADING) is None
         response = control_json(env, "session", "close", "--target", pending_session, "--window", window, "--json")
         assert response["ok"], response
         wait_for(lambda: all(item["id"] != pending_session for item in window_sessions(env, window)),
@@ -176,10 +172,11 @@ def verify_clipboard_read_lifetime(env):
 
         def transfer_completed():
             pump()
-            return held.completed == 1
+            return held.observe("DONE 1")
 
         wait_for(transfer_completed, "held clipboard transfer did not complete after release")
-        assert not held.failures, f"held clipboard transfer failed: {held.failures}"
+        assert held.observe("RELEASED")
+        print("measured: provider REQUESTED 1, requester removed, RELEASED, DONE 1", flush=True)
         deadline = time.monotonic() + NEGATIVE_SETTLE_SECONDS
         while time.monotonic() < deadline:
             assert read_consent() is None, "completed GDK read presented consent for a closed requester"
@@ -196,3 +193,5 @@ def verify_clipboard_read_lifetime(env):
         print("OK: held GDK read completes after requester close without stale consent; late consent recovers, live Allow is exact and Deny empty")
     finally:
         stop(process)
+        if held is not None:
+            held.stop()
