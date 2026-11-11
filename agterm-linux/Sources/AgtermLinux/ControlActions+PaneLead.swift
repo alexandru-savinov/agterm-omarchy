@@ -114,7 +114,7 @@ enum LinuxLeadPaneIO {
                     return .done(ControlResponse(ok: false, error: "the pane's zmx daemon did not accept the final Return"))
                 }
             }
-            return .main(finish)
+            return .main { .done(finish()) }
         }
     }
 }
