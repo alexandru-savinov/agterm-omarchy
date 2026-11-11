@@ -149,7 +149,7 @@ jobs:
       - name: Install test shell
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends ripgrep zsh
+          apt-get install -y --no-install-recommends ripgrep zsh fish
       - name: Materialize and verify upstream boundary tag
         run: |
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
