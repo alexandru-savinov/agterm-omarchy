@@ -1,16 +1,16 @@
 """The Key Mapping page follows the configured directory, and bindings follow only a reload.
 
-The directory is pointed at each fixture by editing settings.json underneath the running app, which is
-what the Choose… dialog persists; nothing re-reads bindings until Reload (or Use Default, which reloads by
-design). Bindings are read off `keymap list`, whose cached keymap is what dispatch uses.
+Direct settings.json edits wait for Reload; Use Default and accepting Choose… reload immediately.
+Bindings are read off `keymap list`, whose cached keymap is what dispatch uses.
 """
 
 import json
 import os
 import time
 
-from atspi_smoke import (NEGATIVE_SETTLE_SECONDS, activate, collect, control_json, focus_accessible_window, launch,
-                         named, press_escape, preferences_window, stop, wait_for)
+from atspi_smoke import (NEGATIVE_SETTLE_SECONDS, activate, collect, control_json, editable_descendant,
+                         focus_accessible_window, launch, named, press_escape, press_x11_key,
+                         preferences_window, stop, wait_for)
 from atspi_prefs_combo import preferences_row, read_settings, seed_settings
 
 CHOOSER_TITLE = "Choose the agterm configuration directory"
@@ -101,7 +101,7 @@ def verify_keymap_config_directory(env):
         chooser = wait_for(lambda: named(app, CHOOSER_TITLE, role="dialog") or named(app, CHOOSER_TITLE, role="frame"),
                            "", timeout=10, required=False)
         if chooser is None:
-            print("UNVERIFIED: the folder chooser never appeared under Xvfb; the cancel leg is native-only")
+            print("UNVERIFIED: the folder chooser never appeared; cancel and successful Choose remain unverified")
         else:
             focus_accessible_window(chooser, process.pid)
             press_escape(process.pid)
@@ -110,6 +110,25 @@ def verify_keymap_config_directory(env):
             time.sleep(NEGATIVE_SETTLE_SECONDS)
             assert (read_settings(env).get("configDirectory"), bindings()) == before, (
                 "a cancelled folder chooser changed the directory or the bindings")
+
+            press("Config directory", "Choose…")
+            chooser = wait_for(lambda: named(app, CHOOSER_TITLE, role="dialog")
+                               or named(app, CHOOSER_TITLE, role="frame"), "the folder chooser did not reopen")
+            focus_accessible_window(chooser, process.pid)
+            press_x11_key("ctrl+l", process.pid)
+            location = wait_for(lambda: editable_descendant(chooser), "the chooser has no location entry")
+            assert location.get_editable_text_iface().set_text_contents(fixtures["malformed"])
+            choose = wait_for(lambda: named(chooser, "Choose", role="push button"),
+                              "the folder chooser has no Choose button")
+            activate(choose)
+            wait_for(lambda: not (named(app, CHOOSER_TITLE, role="dialog")
+                                 or named(app, CHOOSER_TITLE, role="frame")), "Choose did not close the chooser")
+            wait_for(lambda: read_settings(env).get("configDirectory") == fixtures["malformed"],
+                     "Choose did not persist the selected directory")
+            assert_page(fixtures["malformed"], "Line 2", "successful Choose")
+            wait_for(lambda: "Malformed Demo" in bindings() and "Valid Demo" not in bindings(),
+                     "Choose did not reload the selected directory's bindings without a Reload click")
+            print("OK: successful Choose persists the directory and refreshes paths, diagnostics and bindings")
         print("OK: the Key Mapping page follows each directory, and bindings change only on reload")
     finally:
         stop(process)
