@@ -9,7 +9,7 @@ import shlex
 import subprocess
 import time
 
-from atspi_smoke import (NEGATIVE_SETTLE_SECONDS, activate, control_json, launch, named,
+from atspi_smoke import (NEGATIVE_SETTLE_SECONDS, activate, control_json, focus_window, launch, named,
                          press_x11_key, stop, wait_for, window_list)
 from gi.repository import Gdk, GLib, GObject, Gtk
 
@@ -114,6 +114,10 @@ def verify_clipboard_payloads(env, state):
             if not drop:
                 press_x11_key("ctrl+shift+v", process.pid)
                 return
+            focus_window(process.pid)
+            target_id = subprocess.check_output(["xdotool", "getactivewindow"], text=True, timeout=10).strip()
+            target_pid = int(subprocess.check_output(["xdotool", "getwindowpid", target_id], text=True, timeout=10))
+            assert target_pid == process.pid, "drag target is not the fixture application"
             title = f"agterm clipboard drag fixture {len(drag_sources)}"
             source = Gtk.Window(title=title)
             drag_sources.append(source)
@@ -125,8 +129,16 @@ def verify_clipboard_payloads(env, state):
             value = GObject.Value(GObject.TYPE_STRING)
             value.set_string(text)
             provider = Gdk.ContentProvider.new_for_value(value)
-            drag.connect("prepare", lambda *_args: provider)
-            label.add_controller(drag)
+            events = []
+            def prepare(*_args):
+                events.append("prepare")
+                print("measured: GTK drag prepared", flush=True)
+                return provider
+            drag.connect("prepare", prepare)
+            drag.connect("drag-begin", lambda *_args: events.append("begin"))
+            drag.connect("drag-end", lambda *_args: events.append("end"))
+            drag.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+            source.add_controller(drag)
             source.present()
             driver = None
             try:
@@ -136,20 +148,22 @@ def verify_clipboard_payloads(env, state):
                     return found.stdout.splitlines()[0] if found.returncode == 0 else None
                 source_id = until(source_window, "drag source did not map")
                 subprocess.run(["xdotool", "windowmove", "--sync", source_id, "20", "20"], check=True, timeout=10)
-                target_id = subprocess.check_output(
-                    ["xdotool", "search", "--onlyvisible", "--pid", str(process.pid)], text=True, timeout=10).splitlines()[-1]
+                subprocess.run(["xdotool", "windowactivate", "--sync", source_id], check=True, timeout=10)
                 def center(window_id):
                     geometry = dict(line.split("=", 1) for line in subprocess.check_output(
                         ["xdotool", "getwindowgeometry", "--shell", window_id], text=True, timeout=10).splitlines())
                     return int(geometry["X"]) + int(geometry["WIDTH"]) // 2, int(geometry["Y"]) + int(geometry["HEIGHT"]) // 2
                 sx, sy = center(source_id)
                 tx, ty = center(target_id)
+                print(f"measured: drag {source_id} at {(sx, sy)} to app {target_id} at {(tx, ty)}", flush=True)
                 driver = subprocess.Popen(["xdotool", "mousemove", "--sync", str(sx), str(sy), "mousedown", "1",
                                            "sleep", "0.2", "mousemove", "--sync", str(sx + 25), str(sy),
                                            "sleep", "0.2", "mousemove", "--sync", str(tx), str(ty),
                                            "sleep", "0.3", "mouseup", "1"])
                 until(lambda: driver.poll() is not None, "drag driver did not finish")
                 assert driver.returncode == 0, "drag input failed"
+                until(lambda: "begin" in events, "real GTK drag never began")
+                print(f"measured: GTK drag events {events}", flush=True)
             finally:
                 if driver is not None and driver.poll() is None:
                     driver.terminate()
