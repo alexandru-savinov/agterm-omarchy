@@ -80,20 +80,14 @@ final class GhosttySurface: PaneRoleMutableSurface {
     /// replaces them or the surface is torn down.
     private var ownedConfigs: [ghostty_config_t] = []
     private var oscBackgroundColorHex: String?
-    var pendingFontRestore: Double?   // internal for GhosttySurface+FontZoom.swift
-    var isResettingFontZoom = false
+    var suppressFontSizePersistence = false
     var dashboardFontOverride: Double? {
         didSet {
             guard dashboardFontOverride != oldValue else { return }
+            // The pinned engine reports CELL_SIZE synchronously while applying this temporary config.
+            suppressFontSizePersistence = true
+            defer { suppressFontSizePersistence = false }
             reapplyBackgroundOverlay(force: true)
-            guard dashboardFontOverride == nil, let cleared = oldValue else {
-                pendingFontRestore = nil
-                return
-            }
-            let sessionFont = controller?.store.session(withID: sessionID)?.fontSize
-            let target = sessionFont ?? linuxSettingsStore().load().fontSize
-                ?? DashboardLayout.ghosttyDefaultFontSize
-            pendingFontRestore = abs(cleared - target) > 0.5 ? target : nil
         }
     }
 
@@ -780,11 +774,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     /// persist it on the session so a relaunch restores the zoom. setFontSize no-ops when unchanged,
     /// so a pure DPI change doesn't write. Per-session (both panes share the size).
     func reportFontSize() {
-        guard dashboardFontOverride == nil, !isResettingFontZoom, let size = currentFontSize(), size > 0 else { return }
-        if let pending = pendingFontRestore {
-            pendingFontRestore = nil
-            if abs(size - pending) <= 0.5 { return }
-        }
+        guard dashboardFontOverride == nil, !suppressFontSizePersistence, let size = currentFontSize(), size > 0 else { return }
         controller?.sessionDidReportFontSize(sessionID, size)
     }
 

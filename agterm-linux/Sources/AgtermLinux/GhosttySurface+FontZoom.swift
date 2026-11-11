@@ -19,9 +19,8 @@ extension GhosttySurface {
         // even when the current size already matches; later config changes must reach this surface.
         // The pinned engine reports CELL_SIZE synchronously from both C calls. Leave no pending latch
         // afterwards: later user/config changes must report normally, even if they revisit this size.
-        pendingFontRestore = nil
-        isResettingFontZoom = true
-        defer { isResettingFontZoom = false }
+        suppressFontSizePersistence = true
+        defer { suppressFontSizePersistence = false }
         guard reapplyBackgroundOverlay(force: true, fontSizeOverride: target) else { return }
         performBindingAction(FontBindingAction.reset)
     }
