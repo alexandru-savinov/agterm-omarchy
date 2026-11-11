@@ -53,22 +53,30 @@ def verify_sidebar_multiselect_autofollow(env):
             else:
                 raise AssertionError(f"shift-click never built the af-one..af-two block: {selected()}")
             control_json(env, "session", "status", "blocked", "--target", blocked_id, "--json")
+            wait_for(lambda: next(item for item in sessions() if item["id"] == blocked_id).get("status") == "blocked",
+                     "af-blocked never took the blocked status")
+            time.sleep(0.5)
+            assert (active_name(), selected()) == ("af-two", ("af-one", "af-two")), (
+                f"a status on another row collapsed the block before any press: {active_name()!r}, {selected()}")
 
         def hold(then=None):
             def probe():
-                time.sleep(HOLD_SECONDS)
-                seen = (active_name(), selected())
+                start, timeline = time.monotonic(), []
+                for mark in (0.6, 3.0, 5.6, HOLD_SECONDS):
+                    time.sleep(max(0, start + mark - time.monotonic()))
+                    timeline.append((mark, active_name(), selected()))
                 if then:
                     then()
-                return seen
+                return timeline
             return probe
 
+        def intact(timeline):
+            return all(sample[1:] == ("af-two", ("af-one", "af-two")) for sample in timeline)
+
         build_block()
-        held_active, held_selection = mouse_press_probe_release(
+        timeline = mouse_press_probe_release(
             lambda: sidebar_session_row_label(app, "af-two"), process.pid, hold(), dy=row_dy)
-        assert (held_active, held_selection) == ("af-two", ("af-one", "af-two")), (
-            f"auto-follow fired during a {HOLD_SECONDS}s press on the selection block: active {held_active!r}, "
-            f"selection {held_selection}")
+        assert intact(timeline), f"the selection block changed during a {HOLD_SECONDS}s held press: {timeline}"
         wait_for(lambda: active_name() == "af-two" and selected() == ("af-two",),
                  f"releasing the held press did not collapse to af-two: active {active_name()!r}, {selected()}")
 
@@ -92,15 +100,14 @@ def verify_sidebar_multiselect_autofollow(env):
                 time.sleep(0.03)
             time.sleep(0.3)
 
-        held_active, held_selection = mouse_press_probe_release(
+        timeline = mouse_press_probe_release(
             lambda: sidebar_session_row_label(app, "af-two"), process.pid, hold(drag_to_bottom_of_blocked), dy=row_dy)
         wait_for(lambda: names() != ["af-one", "af-two", "af-three", "af-blocked"],
                  f"the held block drag moved nothing: {names()}")
         assert names() == ["af-three", "af-blocked", "af-one", "af-two"], (
-            f"a block drag after a {HOLD_SECONDS}s hold dropped {names()} (held active {held_active!r}, "
-            f"selection {held_selection}) instead of moving af-one and af-two below af-blocked")
-        assert (held_active, held_selection) == ("af-two", ("af-one", "af-two")), (
-            f"auto-follow replaced the block during the held drag: active {held_active!r}, {held_selection}")
+            f"a block drag after a {HOLD_SECONDS}s hold dropped {names()} (held {timeline}) instead of moving "
+            "af-one and af-two below af-blocked")
+        assert intact(timeline), f"the block changed during the held drag: {timeline}"
         print(f"OK: a {HOLD_SECONDS}s press on a selection block outlasts the 5s auto-follow idle window; "
               "the release collapses to the pressed row and the drag drops the whole block")
     except AssertionError:

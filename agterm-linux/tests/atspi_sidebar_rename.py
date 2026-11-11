@@ -60,8 +60,8 @@ def verify_sidebar_rename_sync(env):
         def begin_session_rename(key):
             control_json(env, "session", "select", "--target", ident[key], "--json")
             wait_for(lambda: session(ident[key])["active"], f"ren-{key} never became active")
+            row = wait_for(lambda: sidebar_session_row(app, session(ident[key])["name"]), f"the ren-{key} row is missing")
             run_palette_action(app, process.pid, None, "Rename Session")
-            row = sidebar_session_row(app, session(ident[key])["name"])
             return row, wait_for(lambda: editable_descendant(row), f"Rename Session opened no entry in ren-{key}")
 
         def assert_not_stuck(key, step):
