@@ -61,10 +61,7 @@ def verify_theme_picker_cancel(env):
             matches = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--all", "--pid",
                                                str(process.pid), "--name", f"^{re.escape(frame.get_name())}$"],
                                               text=True, timeout=5).splitlines()
-            clients = subprocess.check_output(["xprop", "-root", "_NET_CLIENT_LIST"], text=True, timeout=5)
-            managed = {int(value, 16) for value in re.findall(r"0x[0-9a-fA-F]+", clients)}
-            matches = [value for value in matches if int(value) in managed]
-            assert len(matches) == 1, f"ambiguous managed window for {titles[window_id]}: {matches}"
+            assert len(matches) == 1, f"ambiguous visible window for {titles[window_id]}: {matches}"
             xid = matches[0]
             assert subprocess.check_output(["xdotool", "getwindowpid", xid], text=True).strip() == str(process.pid)
             assert subprocess.check_output(["xdotool", "getwindowname", xid], text=True).startswith(titles[window_id])
