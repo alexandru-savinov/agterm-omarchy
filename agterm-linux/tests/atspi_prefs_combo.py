@@ -10,6 +10,8 @@ import json
 import os
 import time
 
+from gi.repository import Atspi
+
 from atspi_smoke import (activate, collect, mouse_click, press_ctrl_comma, press_escape,
                          press_x11_key, preferences_window, type_x11_text, wait_for)
 
@@ -107,47 +109,129 @@ def label_counts(app):
     return counts
 
 
+def item_ancestry(app, text):
+    """(role, action count, has selection, focused) up from each label named `text`, for a failure report."""
+    chains = []
+    for node in collect(app, role="label", name=text):
+        chain, current = [], node
+        for _ in range(6):
+            try:
+                actions = current.get_action_iface()
+                chain.append((current.get_role_name(), actions.get_n_actions() if actions else 0,
+                              bool(current.get_selection_iface()),
+                              current.get_state_set().contains(Atspi.StateType.FOCUSED)))
+                current = current.get_parent()
+            except Exception:
+                break
+            if current is None:
+                break
+        chains.append(chain)
+    return chains
+
+
+def pick_through_atspi(app, text, landed):
+    """Select the popover item labelled `text` through its list's AT-SPI selection, else its own action."""
+    for node in collect(app, role="label", name=text):
+        child, parent = node, node.get_parent()
+        for _ in range(4):
+            if parent is None:
+                break
+            try:
+                selection = parent.get_selection_iface()
+                if selection and selection.select_child(child.get_index_in_parent()) and wait_for(
+                        landed, "", timeout=3, required=False):
+                    return True
+                actions = child.get_action_iface()
+                if actions and actions.get_n_actions() > 0 and actions.do_action(0) and wait_for(
+                        landed, "", timeout=3, required=False):
+                    return True
+            except Exception:
+                pass
+            child, parent = parent, parent.get_parent()
+    return False
+
+
+def focused_node(app):
+    for node in collect(app):
+        try:
+            if node.get_state_set().contains(Atspi.StateType.FOCUSED):
+                return (node.get_role_name(), node.get_name())
+        except Exception:
+            pass
+    return None
+
+
 def choose_combo(env, app, process_id, title, values, index, landed, search=None):
     """Pick `values[index]` in the combo row `title`, then wait until `landed(settings)` holds.
 
     `search(new_labels)` is for a combo with a search entry (libadwaita adds one past ten values): it gets
-    the labels the popover added and returns the text to type, and the first filtered value is taken.
+    the labels the popover added and returns the text to type. Such a popover opens with the keyboard in
+    its entry, so the plain arrow walk is tried first, then AT-SPI selection, then typing the value.
     """
-    row = wait_for(lambda: preferences_row(app, title), f"Preferences has no {title!r} row")
+    wait_for(lambda: preferences_row(app, title), f"Preferences has no {title!r} row")
     before = label_counts(app)
-    try:
-        has_action = bool(row.get_action_iface() and row.get_action_iface().get_n_actions() > 0)
-    except Exception:
-        has_action = False
-    if has_action:
-        activate(row)
-    else:
-        mouse_click(lambda: preferences_row(app, title), process_id, button="left")
 
     def added():
         after = label_counts(app)
         return [name for name, count in after.items() if name and count > before.get(name, 0)]
 
-    wait_for(lambda: len(added()) >= (1 if search else 2) or
-             sum(1 for node in collect(app, role="label") if node.get_name() in values) >= 2,
-             f"activating the {title!r} row did not pop up its list")
-    if search:
-        listed = added()
-        text = search(listed)
-        assert text, f"the {title!r} popover offered nothing to pick: {listed}"
+    def popped():
+        if search:
+            # The row already shows one of `values`, so only a label beyond them proves the list is up.
+            return any(name not in values for name in added())
+        return len(added()) >= 2 or sum(1 for node in collect(app, role="label") if node.get_name() in values) >= 2
+
+    def pop_up():
+        if popped():
+            return
+        node = preferences_row(app, title)
+        try:
+            has_action = bool(node.get_action_iface() and node.get_action_iface().get_n_actions() > 0)
+        except Exception:
+            has_action = False
+        if has_action:
+            activate(node)
+        else:
+            mouse_click(lambda: preferences_row(app, title), process_id, button="left")
+        wait_for(popped, f"activating the {title!r} row did not pop up its list")
+
+    def arrow_walk():
+        # Down enters the list wherever the popover put focus, Home pins the walk to the first value.
+        press_x11_key("Down", process_id)
+        press_x11_key("Home", process_id)
+        for _ in range(index):
+            press_x11_key("Down", process_id)
+        press_x11_key("Return", process_id)
+
+    pop_up()
+    if not search:
+        arrow_walk()
+        wait_for(lambda: landed(read_settings(env)),
+                 f"choosing entry {index} of {title!r} never reached settings.json: {read_settings(env)}")
+        return
+
+    text = search(added())
+    assert text, f"the {title!r} popover offered nothing to pick: {added()}"
+    report = [f"opened with focus on {focused_node(app)}", f"item ancestry {item_ancestry(app, text)}"]
+
+    def typed():
         type_x11_text(text, process_id)
         time.sleep(1)
-        for keys in (["Return"], ["Down", "Return"], ["Down", "Home", "Return"]):
-            for key in keys:
-                press_x11_key(key, process_id)
-            if wait_for(lambda: landed(read_settings(env)), "", timeout=4, required=False):
-                return
-        raise AssertionError(f"searching {text!r} in {title!r} never reached settings.json: {read_settings(env)}")
-    # Down enters the list wherever the popover put focus, Home pins the walk to the first value.
-    press_x11_key("Down", process_id)
-    press_x11_key("Home", process_id)
-    for _ in range(index):
+        report.append(f"after typing, focus on {focused_node(app)}")
         press_x11_key("Down", process_id)
-    press_x11_key("Return", process_id)
-    wait_for(lambda: landed(read_settings(env)),
-             f"choosing entry {index} of {title!r} never reached settings.json: {read_settings(env)}")
+        press_x11_key("Return", process_id)
+
+    for name, attempt in (("arrows", arrow_walk),
+                          ("atspi", lambda: pick_through_atspi(app, text, lambda: landed(read_settings(env)))),
+                          ("search", typed)):
+        pop_up()
+        attempt()
+        if wait_for(lambda: landed(read_settings(env)), "", timeout=4, required=False):
+            print(f"measured: {title!r} combo picked by {name}")
+            return
+        report.append(f"{name} did not land")
+        if popped():
+            press_escape(process_id)
+            wait_for(lambda: not popped(), "", timeout=3, required=False)
+    raise AssertionError(f"picking {text!r} in {title!r} never reached settings.json: {read_settings(env)}; "
+                         + "; ".join(report))
