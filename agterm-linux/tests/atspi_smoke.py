@@ -7462,6 +7462,7 @@ def main():
             "surface-lifetimes", "surface-failures",
             "background-overlay-grid", "zoom-floating-overlay",
             "sidebar-row-height",
+            "sidebar-search-focus",
             "sidebar-narrow-clipping",
             "sidebar-width-floor",
             "sidebar-click-rename", "sidebar-session-drag", "sidebar-workspace-drag",
@@ -7469,6 +7470,7 @@ def main():
             "sidebar-multiselect",
             "blink-unmapped",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
+            "window-close-cancel", "workspace-focus-filters", "quick-card-geometry",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-many-sessions",
             "cursor-preferences",
@@ -7540,8 +7542,9 @@ def main():
             from atspi_html_v0351 import verify_html_v0351
             verify_html_v0351(env, state)
         elif scenario == "live-restart":
-            from atspi_restart_v0351 import verify_restart_v0351
+            from atspi_restart_v0351 import verify_restart_close_reopen, verify_restart_v0351
             verify_restart_v0351(env, state)
+            verify_restart_close_reopen(env, state)
         elif scenario == "control-ask":
             verify_control_ask(env)
         elif scenario == "dashboard-modal":
@@ -7585,6 +7588,9 @@ def main():
             verify_zoom_floating_overlay(env)
         elif scenario == "sidebar-row-height":
             verify_sidebar_row_height_follows_font_size(env)
+        elif scenario == "sidebar-search-focus":
+            from atspi_sidebar_search_focus import verify_sidebar_search_focus
+            verify_sidebar_search_focus(env)
         elif scenario == "sidebar-narrow-clipping":
             verify_sidebar_narrow_clipping(env)
         elif scenario == "sidebar-width-floor":
@@ -7609,6 +7615,15 @@ def main():
             verify_chrome_focus_popovers(env)
         elif scenario == "auto-follow":
             verify_auto_follow(env, state)
+        elif scenario == "window-close-cancel":
+            from atspi_window_lifecycle import verify_window_close_cancel
+            verify_window_close_cancel(env, state)
+        elif scenario == "workspace-focus-filters":
+            from atspi_window_lifecycle import verify_workspace_focus_filters
+            verify_workspace_focus_filters(env)
+        elif scenario == "quick-card-geometry":
+            from atspi_window_lifecycle import verify_quick_card_geometry
+            verify_quick_card_geometry(env, state)
         elif scenario == "recent-clear":
             verify_recent_clear(env)
         elif scenario == "control-picker":

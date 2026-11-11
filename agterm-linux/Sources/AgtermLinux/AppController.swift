@@ -455,8 +455,12 @@ final class AppController {
     }
 
     func closeSession(_ id: UUID) {
+        // Only closing the SELECTED session changes the deck page and so owes the keyboard a new owner.
+        // A background close must not grab: that took the keyboard off a live search entry (#164). A
+        // stranded focus is still repaired by the sidebar sync's tail (`refocusIfStranded`).
+        let closesSelection = store.selectedSessionID == id
         store.closeSession(id)
-        reconcile()
+        reconcile(focusActive: closesSelection)
     }
     func requestCloseSession(_ id: UUID, closingCoversFirst: Bool = true) {
         if closingCoversFirst, id == store.selectedSessionID {
