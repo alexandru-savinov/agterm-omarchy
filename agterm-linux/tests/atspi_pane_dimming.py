@@ -42,6 +42,10 @@ def verify_pane_dimming(env, state):
                     assert result["ok"], result
                     return result
 
+                def overlay_visible():
+                    return next(item for workspace in window_tree(local, window)["workspaces"]
+                                for item in workspace["sessions"] if item["id"] == session).get("overlay")
+
                 cli("session", "split", "on")
                 for pane, color in (("left", "#ff0000"), ("right", "#00ff00")):
                     command = shlex.join(["/usr/bin/python3", str(specimen), color,
@@ -101,24 +105,27 @@ def verify_pane_dimming(env, state):
                 before = settings.read_bytes()
                 for cover in ("quick", "floating"):
                     if cover == "quick":
-                        control_json(local, "quick", "show", "--json")
+                        assert control_json(local, "quick", "show", "--json")["ok"]
                         wait_for(lambda: window_tree(local, window).get("quickVisible"), "quick did not open")
                     else:
                         cli("session", "overlay", "open", "sleep 120", "--size-percent", "40")
+                        wait_for(overlay_visible, "floating overlay did not become visible in the session")
                     covered = settled(cover)
                     if strength == 0:
                         assert covered == left, f"zero mute cover changed patch colors: {covered}, {left}"
                     else:
                         assert covered[0] < left[0] - 15, f"{cover} did not dim the active terminal: {covered}, {left}"
                     if cover == "quick":
-                        control_json(local, "quick", "hide", "--json")
+                        assert control_json(local, "quick", "hide", "--json")["ok"]
+                        wait_for(lambda: not window_tree(local, window).get("quickVisible"), "quick did not hide")
                     else:
                         cli("session", "overlay", "close")
+                        wait_for(lambda: not overlay_visible(), "floating overlay did not close")
                     assert focus("left") == left, f"{cover} dismissal did not restore contrast"
                 zoom_target = f"surface:{session}:primary"
-                control_json(local, "surface", "zoom", "show", "--target", zoom_target, "--json")
+                assert control_json(local, "surface", "zoom", "show", "--target", zoom_target, "--json")["ok"]
                 wait_for(lambda: window_tree(local, window).get("zoomedSurface"), "primary zoom did not engage")
-                control_json(local, "surface", "zoom", "hide", "--target", zoom_target, "--json")
+                assert control_json(local, "surface", "zoom", "hide", "--target", zoom_target, "--json")["ok"]
                 wait_for(lambda: not window_tree(local, window).get("zoomedSurface"), "primary zoom did not clear")
                 assert focus("left") == left, "zoom exit did not restore split contrast"
                 assert settings.read_bytes() == before, "transient focus/cover operations changed settings"
