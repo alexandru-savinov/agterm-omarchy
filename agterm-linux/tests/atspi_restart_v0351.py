@@ -134,8 +134,14 @@ def verify_restart_close_reopen(env, state):
         wait_for(lambda: leader(daemon), "the restart target's daemon reported no shell")
 
         restart = {}
-        worker = threading.Thread(target=lambda: restart.update(request(
-            "session.restart", session, {"paneID": identity, "command": "sleep 3600"}, timeout=60)))
+        def run_restart():
+            try:
+                restart.update(request("session.restart", session, {"paneID": identity, "command": "sleep 3600"},
+                                       timeout=60))
+            except (AssertionError, OSError) as error:
+                restart["transport"] = f"{type(error).__name__}: {error}"
+
+        worker = threading.Thread(target=run_restart)
         worker.start()
         def ended(pid):
             try:
@@ -149,14 +155,17 @@ def verify_restart_close_reopen(env, state):
         assert request("session.close", session)["ok"]
         wait_for(lambda: row() is None, "the restarting session did not close")
         run_palette_action(app, process.pid, None, "Reopen Last Closed Item")
-        wait_for(lambda: row() is not None, "Reopen Last Closed Item did not bring the session back")
+        wait_for(lambda: row() is not None and all(pane.get("paneID") for pane in row()["surfaces"]
+                                                   if pane["kind"] == "left"),
+                 f"Reopen Last Closed Item did not bring the realized session back: {row()}", timeout=15)
         assert pane_id() == identity, f"the reopened session took a new pane identity: {pane_id()} != {identity}"
         reopened_shell = wait_for(lambda: leader(daemon), "the reopened pane reported no shell", timeout=15)
         assert worker.is_alive(), f"the restart finished before the reopen: {restart}"
         reopened_surfaces = row()["surfaces"]
         worker.join(timeout=60)
         assert not worker.is_alive(), "the held restart never answered"
-        assert not restart.get("ok"), f"a restart whose pane was closed and reopened reported success: {restart}"
+        assert "transport" not in restart, f"the restart request got no control response: {restart}"
+        assert restart.get("ok") is False, f"a restart whose pane was closed and reopened reported success: {restart}"
         assert row() is not None, "the stale restart closed the reopened session"
         assert row()["surfaces"] == reopened_surfaces, (
             f"the stale restart changed the reopened pane: {reopened_surfaces} -> {row()['surfaces']}")

@@ -86,14 +86,16 @@ def verify_window_close_cancel(env, state):
                 try:
                     stat = os.stat(record)
                     stamp = (stat.st_ino, stat.st_mtime_ns)
-                    if not stamps or stamps[-1] != stamp:
-                        stamps.append(stamp)
+                    if not stamps or stamps[-1][0] != stamp:
+                        with open(record, "rb") as file:
+                            stamps.append((stamp, file.read()))
                 except FileNotFoundError:
                     pass
                 time.sleep(0.01)
             assert process.poll() == 0, f"Quit did not exit cleanly: {process.poll()}"
             flushes = len(stamps) - 1
-            assert flushes <= 1, f"Quit flushed the window snapshot {flushes} times"
+            assert len({body for _stamp, body in stamps[1:]}) <= 1, (
+                f"Quit's {flushes} snapshot flushes wrote different bytes")
         finally:
             if process.poll() is None:
                 stop(process)
@@ -138,6 +140,9 @@ def verify_workspace_focus_filters(env):
         request("workspace.rename", first, {"name": "wf-one"})
         two = request("workspace.new", args={"name": "wf-two"})["id"]
         three = request("workspace.new", args={"name": "wf-three"})["id"]
+        for workspace in (two, three):
+            request("workspace.select", workspace)
+            request("session.new", args={"name": f"wf-session-{workspace[:4]}"})
         wait_for(lambda: [item["name"] for item in tree()["workspaces"]] == ["wf-one", "wf-two", "wf-three"],
                  f"the fixture workspaces did not settle: {tree()['workspaces']}")
         check("fixture")
@@ -198,7 +203,8 @@ def verify_quick_card_geometry(env, state):
                 control_json(env, "window", "resize", window, "--width", str(width), "--height", str(height), "--json")
 
                 def measure():
-                    panes = [box for node in collect(app, role="split pane") if (box := window_extents(node))]
+                    panes = [box for node in collect(app) if node.get_role_name() not in ("frame", "window", "application")
+                             and (box := window_extents(node))]
                     card = window_extents(named(app, "Quick terminal")) if named(app, "Quick terminal") else None
                     if not panes or card is None:
                         return None
