@@ -96,6 +96,13 @@ def verify_clipboard_lifetime(env):
         request(session, owner, "must not survive window close")
         response = control_json(env, "window", "close", owner, "--json")
         assert response["ok"], response
+        # AdwDialog consumes the first close request to dismiss consent, leaving its owner open.
+        wait_for(lambda: named(app, HEADING) is None, "owner close did not dismiss clipboard consent")
+        assert any(item["id"] == owner and item.get("open") for item in window_list(env)), (
+            "dismissing clipboard consent unexpectedly closed its owner")
+        unchanged()
+        response = control_json(env, "window", "close", owner, "--json")
+        assert response["ok"], response
         wait_for(lambda: not any(item["id"] == owner and item.get("open") for item in window_list(env)),
                  "clipboard owner window did not close")
         wait_for(lambda: named(app, HEADING) is None, "consent dialog outlived its owner window")
@@ -110,6 +117,6 @@ def verify_clipboard_lifetime(env):
         respond("Allow")
         wait_for(lambda: read_clipboard(clipboard) == expected, "live consent did not update the clipboard")
         assert process.poll() is None, "frontend exited after disposal recovery"
-        print("OK: real clipboard consent survives requester teardown, owner-window disposal and later deny/allow")
+        print("OK: clipboard consent survives requester teardown, modal dismissal, owner close and later deny/allow")
     finally:
         stop(process)
