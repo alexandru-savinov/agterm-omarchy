@@ -65,13 +65,25 @@ public enum LinkPolicy {
     /// Matched EXACT or as a `<root>/…` child, case-insensitively (the boot volume is case-insensitive, so
     /// `/NET/…` mounts too), so `/networkx` is NOT caught; the Data root `/System/Volumes/Data` is
     /// deliberately unlisted, backing every real file. The path must already be dot-normalized.
+    /// The `/home` roots are Darwin-only: `auto_home` is a macOS map, while on Linux `/home/<user>` is
+    /// where the user's own files live, so denying it would ignore every `ls --hyperlink`/eza/rg link to them.
     static func isAutomountPath(_ path: String) -> Bool {
         let lower = path.lowercased()
+        return automountRoots.contains { lower == $0 || lower.hasPrefix($0 + "/") }
+    }
+
+    static let automountRoots: [String] = {
+        #if canImport(Darwin)
         return ["/net", "/network", "/home",
                 "/system/volumes/data/home",
                 "/system/volumes/data/net",
-                "/system/volumes/data/network/servers"].contains { lower == $0 || lower.hasPrefix($0 + "/") }
-    }
+                "/system/volumes/data/network/servers"]
+        #else
+        return ["/net", "/network",
+                "/system/volumes/data/net",
+                "/system/volumes/data/network/servers"]
+        #endif
+    }()
 
     /// Collapse `.`/`..` in an ABSOLUTE path with a purely LEXICAL, string-only normalizer — no filesystem
     /// access (unlike `URL.standardizedFileURL`, which stats the target) and no symlink resolution, so the
@@ -92,7 +104,7 @@ public enum LinkPolicy {
     /// (empty host, or a host in `localHosts`) → `.reveal` of the HOST-STRIPPED, dot-normalized local path,
     /// so Finder only ever sees a plain `/…` path and never leans on the original authority for host
     /// handling; a `file://` with a non-local host, an empty/relative path, a UNC-style `//`-path, an
-    /// auto-mount path (`/net`, `/Network`, `/home`, checked AFTER `..` normalization so `/tmp/../net/x`
+    /// auto-mount path (`/net`, `/Network`, macOS `/home`, checked AFTER `..` normalization so `/tmp/../net/x`
     /// can't sneak through), or any other scheme / schemeless / unparseable input → `.ignore`. `localHosts`
     /// is injected (default: this machine's names) so the decision stays host-free and unit-testable.
     public static func disposition(for raw: String, localHosts: Set<String> = localHostNames) -> LinkDisposition {
