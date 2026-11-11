@@ -5,6 +5,12 @@ Full detail for every `agtermctl` command. See `SKILL.md` for the model and addr
 
 ## Connection and output
 
+- **Exit status and deadlines:** Control-socket connection, I/O, deadline and undecodable-reply
+  failures exit 4; a decoded server refusal or invalid command result exits 1. CLI usage errors exit 64.
+  Command-specific cancellation/escape statuses, Integration statuses and child-process exit statuses
+  remain as documented below. One-shot control transactions and stream-startup waits have 30-second
+  deadlines; established streams and user-response polling do not have a 30-second lifetime limit.
+  A request may have completed before a timeout is reported, so do not retry mutations automatically.
 - **Socket resolution** (when `--socket` is omitted): `AGTERM_SOCKET` is the path the running app
   bound; agtermctl resolves the same rendezvous: `<AGTERM_STATE_DIR>/agterm.sock`, else
   `<$HOME>/Library/Application Support/agterm/agterm.sock` on macOS or
@@ -1292,8 +1298,9 @@ The default call polls until the user answers and prints one bare JSON result:
 {"result":"cancelled"}
 ```
 
-Picked and custom results exit 0. Cancellation exits 2. Protocol, validation, transport, and server
-failures exit 1. The blocking client polls every 100 ms for the first second, then every 500 ms.
+Picked and custom results exit 0. Cancellation exits 2. Control transport or undecodable-reply failures
+exit 4; decoded server and result-validation failures exit 1. CLI usage errors exit 64. The blocking
+client polls every 100 ms for the first second, then every 500 ms.
 
 `--no-block` returns immediately with `{"id":"<pick-id>"}`. Use
 `agtermctl pick result <pick-id> [--window W]` for a one-shot read; it prints the same bare result JSON,
