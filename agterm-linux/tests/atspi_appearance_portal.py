@@ -73,7 +73,9 @@ def main():
 
     node = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION)
     # libadwaita 1.5 (the runner image) never reads the `version` property, so none is served.
-    bus.register_object_with_closures(OBJECT_PATH, node.interfaces[0], method_call, None, None)
+    # PyGObject exposes g_dbus_connection_register_object_with_closures under its rename-to name,
+    # `register_object`; the C name is not an attribute in any PyGObject.
+    bus.register_object(OBJECT_PATH, node.interfaces[0], method_call, None, None)
     reply = bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                           "RequestName", GLib.Variant("(su)", (BUS_NAME, 4)),  # DO_NOT_QUEUE
                           GLib.VariantType.new("(u)"), Gio.DBusCallFlags.NONE, -1, None)
