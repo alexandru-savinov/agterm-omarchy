@@ -47,8 +47,40 @@ final class LinuxBrowserStore {
             self?.clearing = false
             completion(response)
         }
-        webkit_website_data_manager_clear(manager, WEBKIT_WEBSITE_DATA_ALL, 0, nil, onLinuxBrowserClear,
-                                         Unmanaged.passRetained(context).toOpaque())
+        let start = {
+            webkit_website_data_manager_clear(manager, WEBKIT_WEBSITE_DATA_ALL, 0, nil, onLinuxBrowserClear,
+                                             Unmanaged.passRetained(context).toOpaque())
+        }
+        switch LinuxBrowserClearInjection.next() {
+        case nil: start()
+        case .hold: MainTimer.schedule(after: 1) { start() }
+        case .fail:
+            MainTimer.schedule(after: 1) {
+                context.finish(ControlResponse(ok: false,
+                                               error: "browser.clear: injected by \(LinuxBrowserClearInjection.environmentKey)"))
+            }
+        }
+    }
+}
+
+/// Debug/AT-SPI-only: a comma list of `hold`/`fail`, one per started clear, so the smoke can hold the
+/// clearing window open and fail a clear without WebKit's cooperation.
+@MainActor
+enum LinuxBrowserClearInjection {
+    enum Step: String { case hold, fail }
+    static let environmentKey = "AGTERM_ATSPI_BROWSER_CLEAR"
+    private static var steps: [Step]?
+
+    static func next(environment: [String: String] = ProcessInfo.processInfo.environment) -> Step? {
+        #if DEBUG
+        guard environment["AGTERM_ATSPI_SCENARIO"] != nil else { return nil }
+        if steps == nil {
+            steps = (environment[environmentKey] ?? "").split(separator: ",").compactMap { Step(rawValue: String($0)) }
+        }
+        return steps?.isEmpty == false ? steps?.removeFirst() : nil
+        #else
+        return nil
+        #endif
     }
 }
 

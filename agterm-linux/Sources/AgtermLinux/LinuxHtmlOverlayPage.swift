@@ -443,6 +443,17 @@ final class LinuxHtmlOverlayPage {
         }
         let verdict = HtmlNavigationPolicy.decide(
             HtmlNavigationAction(url: url, target: target, userActivated: clicked), overlay: overlay)
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["AGTERM_ATSPI_SCENARIO"] == "html-policy" {
+            let frame = webkit_navigation_action_get_frame_name(action).map { String(cString: $0) } ?? "<nil>"
+            let line = "html-policy: url=\(url.absoluteString) type=\(type) frame=\(frame) "
+                + "navigation=\(webkit_navigation_action_get_navigation_type(action).rawValue) "
+                + "gesture=\(webkit_navigation_action_is_user_gesture(action)) target=\(target) verdict=\(verdict) "
+                + "onScreen=\(onScreen) pending=\(pendingDialog != nil) silenced=\(promptSilenced) "
+                + "controller=\(controller != nil)"
+            FileHandle.standardError.write(Data((line + "\n").utf8))
+        }
+        #endif
         if verdict == .allow {
             webkit_policy_decision_use(cast(decision))
         } else {

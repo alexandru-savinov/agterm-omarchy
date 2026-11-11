@@ -7450,7 +7450,7 @@ def main():
     if scenario is None:
         failures = []
         for child_scenario in (
-            "normal", "upstream-controls", "html-overlay", "live-restart", "dashboard-modal", "context-menu",
+            "normal", "upstream-controls", "html-overlay", "html-policy", "live-restart", "dashboard-modal", "context-menu",
             "window-key-dispatch",
             "split-exit", "split-primary-exit", "window-ownership", "preferences-pages",
             "notification-reveal", "notification-focus", "session-pickers",
@@ -7537,6 +7537,9 @@ def main():
             verify_html_overlay(env, state)
             from atspi_html_v0351 import verify_html_v0351
             verify_html_v0351(env, state)
+        elif scenario == "html-policy":
+            from atspi_html_policy import verify_html_policy
+            verify_html_policy(env, state)
         elif scenario == "live-restart":
             from atspi_restart_v0351 import verify_restart_v0351
             verify_restart_v0351(env, state)

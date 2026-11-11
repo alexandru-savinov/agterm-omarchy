@@ -37,6 +37,25 @@ def verify_html_overlay(env, state):
     with open(os.path.join(state, "outside.js"), "w", encoding="utf-8") as target:
         target.write('document.title = "Unapproved script loaded";')
     os.symlink(os.path.join(state, "outside.js"), os.path.join(pages, "link.js"))
+    grants = os.path.join(pages, "grants.html")
+    escapes = ("%2e%2e%2fescape.js", "%2e%2e/escape.js", "..%2fescape.js", "%2e%2e%2fpages-evil%2fevil.js",
+               "..%2fpages-evil/evil.js", "sibling.js", "fifo.js", "folder.js")
+    with open(grants, "w", encoding="utf-8") as target:
+        target.write('<!doctype html><title>Grants pending</title><script>window.hits=[]</script>'
+                     '<script src="assets/nested.js"></script>'
+                     + "".join(f'<script src="{source}"></script>' for source in escapes)
+                     + '<script>document.title="grants:"+hits.join(",")</script>')
+    os.makedirs(os.path.join(pages, "assets"))
+    with open(os.path.join(pages, "assets", "nested.js"), "w", encoding="utf-8") as target:
+        target.write('hits.push("nested");')
+    with open(os.path.join(state, "escape.js"), "w", encoding="utf-8") as target:
+        target.write('hits.push("parent");')
+    os.makedirs(os.path.join(state, "pages-evil"))
+    with open(os.path.join(state, "pages-evil", "evil.js"), "w", encoding="utf-8") as target:
+        target.write('hits.push("sibling");')
+    os.symlink(os.path.join(state, "pages-evil", "evil.js"), os.path.join(pages, "sibling.js"))
+    os.mkfifo(os.path.join(pages, "fifo.js"))
+    os.makedirs(os.path.join(pages, "folder.js"))
 
     process, app = launch(env)
     try:
@@ -122,6 +141,15 @@ def verify_html_overlay(env, state):
         wait_for(lambda: page() and page()["state"] == "loaded" and
                  page().get("title") == "Granted script loaded",
                  f"WebKit did not load the granted script or loaded an outside file: {page()}")
+        assert control_json(env, "session", "overlay", "close", "--target", session,
+                            "--window", window, "--json")["ok"]
+
+        opened = cli("session", "overlay", "open", "--html", grants,
+                     "--cwd", pages, "--js", "--target", session, "--window", window, "--json")
+        assert opened["ok"], opened
+        wait_for(lambda: page() and page()["state"] == "loaded" and page().get("title", "").startswith("grants:"),
+                 f"grant probe page did not finish: {page()}", timeout=20)
+        assert page()["title"] == "grants:nested", f"encoded, sibling, or nonregular grant escape served: {page()}"
         assert control_json(env, "session", "overlay", "close", "--target", session,
                             "--window", window, "--json")["ok"]
 
@@ -228,6 +256,7 @@ def verify_html_overlay(env, state):
         assert cli("session", "overlay", "close", "--target", session,
                    "--window", window, "--json")["ok"]
 
-        print("OK: WebKit loaded full, floating, pane, and HTTP pages; JavaScript, file grants, and URI-list paste stayed scoped")
+        print("OK: WebKit loaded full, floating, pane, and HTTP pages; JavaScript, file grants (encoded parents, sibling prefix, "
+              "FIFO, directory, nested asset), and URI-list paste stayed scoped")
     finally:
         stop(process)
