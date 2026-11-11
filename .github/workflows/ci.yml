@@ -323,6 +323,9 @@ jobs:
       - name: swift test (agterm-linux)
         working-directory: agterm-linux
         run: swift test
+      - name: GTK clipboard dialog disposal
+        working-directory: agterm-linux
+        run: AGTERM_GTK_TESTS=1 xvfb-run -a swift test --skip-build --filter ClipboardPromptGTKTests
       - name: GTK zoom restoration callback tests
         working-directory: agterm-linux
         run: |
