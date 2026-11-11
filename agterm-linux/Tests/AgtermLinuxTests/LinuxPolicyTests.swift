@@ -66,6 +66,76 @@ struct LinuxPolicyTests {
         #expect(" \n".linuxTrimmedOrNil == nil)
     }
 
+    @Test("Linux keymap and hook starters are inert and contain no macOS instructions")
+    func linuxStarterTemplates() {
+        let keymap = ConfigPaths.linuxStarterKeymapConf()
+        let hooks = ConfigPaths.linuxStarterHooksConf()
+        for template in [keymap, hooks] {
+            for line in template.split(separator: "\n") {
+                #expect(line.trimmingCharacters(in: .whitespaces).hasPrefix("#"))
+            }
+            for artifact in ["launchd", "Homebrew", "/opt/homebrew", "afplay", "/System/Library", "open -a", "cmd+"] {
+                #expect(!template.contains(artifact))
+            }
+        }
+        let (parsedKeymap, keymapDiagnostics) = parseKeymap(keymap)
+        #expect(keymapDiagnostics.isEmpty)
+        #expect(parsedKeymap.builtinOverrides.isEmpty)
+        #expect(parsedKeymap.commands.isEmpty)
+        #expect(parsedKeymap.globalHotkey == nil)
+        let (parsedHooks, hookDiagnostics) = parseHooksConf(hooks)
+        #expect(hookDiagnostics.isEmpty)
+        #expect(parsedHooks.entries.isEmpty)
+        for kind in ControlEventKind.allCases { #expect(hooks.contains(kind.rawValue)) }
+        for token in CommandContext.tokenNames { #expect(keymap.contains("{\(token)}")) }
+    }
+
+    @Test("Linux starter table documents every Linux default with round-tripping syntax")
+    func linuxStarterDefaultTable() throws {
+        let lines = ConfigPaths.linuxStarterKeymapConf().split(separator: "\n")
+        for action in BuiltinAction.allCases {
+            let prefix = "#   \(action.rawValue)  "
+            let matches = lines.filter { $0.hasPrefix(prefix) }
+            #expect(matches.count == 1)
+            let line = try #require(matches.first)
+            let syntax = String(line.dropFirst(prefix.count))
+            if let chord = action.linuxDefaultChord {
+                #expect(parseKeybind(syntax) == [chord])
+            } else {
+                #expect(syntax == "(no default)")
+            }
+        }
+    }
+
+    @Test("Uncommented Linux starter examples survive the Linux keymap loader and hooks parser")
+    func linuxStarterExamples() throws {
+        func examples(_ template: String, verbs: Set<String>) -> String {
+            template.split(separator: "\n").compactMap { line -> String? in
+                let text = line.drop { $0 == "#" || $0.isWhitespace }
+                guard verbs.contains(String(text.prefix { !$0.isWhitespace })),
+                      !text.contains("<") else { return nil }
+                return String(text)
+            }.joined(separator: "\n")
+        }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let keymapText = examples(ConfigPaths.linuxStarterKeymapConf(), verbs: ["map", "command"])
+        #expect(keymapText.split(separator: "\n").count == 3)
+        try keymapText.write(to: ConfigPaths.keymapPath(configDirectory: directory), atomically: true, encoding: .utf8)
+        let (keymap, diagnostics) = loadLinuxKeymap(configDirectory: directory)
+        #expect(diagnostics.isEmpty)
+        #expect(keymap.builtinOverrides[.toggleSplit] == Chord(mods: [.control, .shift], key: "l"))
+        #expect(keymap.commands.count == 2)
+        #expect(keymap.commands.filter { !$0.shortcut.isEmpty }.count == 1)
+        let shortcut = try #require(keymap.commands.first { !$0.shortcut.isEmpty }?.shortcut)
+        #expect(parseKeybind(shortcut) == parseKeybind("ctrl+opt+e"))
+        let hookText = examples(ConfigPaths.linuxStarterHooksConf(), verbs: ["on"])
+        let (hooks, hookDiagnostics) = parseHooksConf(hookText)
+        #expect(hooks.entries.count == 2)
+        #expect(hookDiagnostics.isEmpty)
+    }
+
     @Test("Linux session home honors an isolated launch environment")
     func defaultSessionHome() {
         #expect(ConfigPaths.defaultNewSessionCwd(environment: ["HOME": "/tmp/agterm-home"])
