@@ -27,9 +27,11 @@ try:
         chunk=os.read(fd,4096)
         if not chunk: break
         reply+=chunk
+        pathlib.Path(sys.argv[1]).write_bytes(reply)
         if len(reply)>65536: raise RuntimeError("oversized clipboard reply")
         if reply.endswith(b"\x07") or reply.endswith(b"\x1b\\"): break
     pathlib.Path(sys.argv[1]).write_bytes(reply)
+    pathlib.Path(sys.argv[2]).write_text("complete")
 finally:
     termios.tcsetattr(fd,termios.TCSANOW,previous)
 '''
@@ -166,11 +168,12 @@ def verify_clipboard_payloads(env, state):
                     for response in ("Allow", "Deny"):
                         set_text(payload)
                         output = root / f"read-{kind}-{response}.reply"
-                        start(["/usr/bin/python3", str(reader), str(output)], f"read-{kind}-{response}")
+                        complete = root / f"read-{kind}-{response}.complete"
+                        start(["/usr/bin/python3", str(reader), str(output), str(complete)], f"read-{kind}-{response}")
                         until(lambda: named(app, READ_HEADING), "OSC52 read did not ask permission")
                         assert not output.exists(), "clipboard query completed before consent"
                         answer(READ_HEADING, response)
-                        until(output.exists, "clipboard query did not finish", timeout=25)
+                        until(complete.exists, "clipboard query did not finish", timeout=25)
                         match = re.fullmatch(rb"\x1b\]52;c;([A-Za-z0-9+/=]*)(?:\x07|\x1b\\)", output.read_bytes())
                         assert match, f"invalid OSC52 response: {output.read_bytes()!r}"
                         expected = payload.encode() if response == "Allow" else b""
@@ -179,15 +182,15 @@ def verify_clipboard_payloads(env, state):
                         print(f"OK: exact {kind} OSC52 {response}", flush=True)
             payloads = (("cr", "one\rtwo"), ("lf", "one\ntwo"))
             if label == "protected":
-                payloads += (("uri", uri), ("drop-cr", "one\rtwo"), ("drop-lf", "one\ntwo"))
+                payloads += (("uri", uri), ("drop-cr", "one\rtwo"), ("drop-lf", "one\ntwo"), ("drop-uri", uri))
             for kind, payload in payloads:
                 ready, output = root / f"{kind}.ready", root / f"{kind}.input"
                 start(["/usr/bin/python3", str(collector), str(ready), str(output), str(bracketed).lower()],
                       f"paste-{label}-{kind}")
                 until(ready.exists, "raw paste receiver did not start")
-                set_text(payload)
+                set_text("clipboard-fallback-sentinel-313" if kind.startswith("drop-") else payload)
                 paste(payload, drop=kind.startswith("drop-"))
-                must_ask = protection and not (bracketed and trust_bracketed) and kind != "uri"
+                must_ask = protection and not (bracketed and trust_bracketed) and not kind.endswith("uri")
                 if must_ask:
                     def unsafe_prompt():
                         assert output.read_bytes() == b"", f"{label}/{kind}: unsafe paste reached the PTY before consent"
@@ -197,7 +200,7 @@ def verify_clipboard_payloads(env, state):
                     remains_empty(output, "cancelled paste delivered bytes")
                     paste(payload, drop=kind.startswith("drop-"))
                     answer(PASTE_HEADING, "Paste")
-                normalized = "/tmp/one\\ two /tmp/three" if kind == "uri" else payload.replace("\r\n", "\n").replace("\r", "\n")
+                normalized = "/tmp/one\\ two /tmp/three" if kind.endswith("uri") else payload.replace("\r\n", "\n").replace("\r", "\n")
                 expected = (("\x1b[200~" + normalized + "\x1b[201~") if bracketed
                             else normalized.replace("\n", "\r")).encode()
                 until(lambda: output.read_bytes() == expected, f"{label}/{kind}: paste bytes differ from expected")
