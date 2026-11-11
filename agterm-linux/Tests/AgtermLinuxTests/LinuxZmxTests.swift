@@ -22,10 +22,35 @@ struct LinuxZmxTests {
     func killReadsStderr() throws {
         let zmx = try StderrZmx()
         defer { zmx.remove() }
-        let client = LinuxZmxClient(executablePath: zmx.path, socketDirectory: "/tmp/zmx-test")
+        let sockets = zmx.directory.appendingPathComponent("sockets").path
+        let client = LinuxZmxClient(executablePath: zmx.path, socketDirectory: sockets)
         #expect(client.killConfirmed(name: "agterm-a") == .killed)
         #expect(client.killObservedOrphan(names: ["agterm-b"]) == ["agterm-b": .staleSocket])
         #expect(client.listSessions()?.map(\.name) == ["agterm-c"])
+        // the first real invocation created the missing socket directory private
+        let mode = (try FileManager.default.attributesOfItem(atPath: sockets)[.posixPermissions] as? NSNumber)?.intValue
+        #expect(mode.map { $0 & 0o7777 } == 0o700)
+    }
+
+    @Test("a real invocation into an unverified socket directory runs nothing")
+    func refusedSocketDirectoryRunsNothing() throws {
+        let zmx = try StderrZmx()
+        defer { zmx.remove() }
+        let target = zmx.directory.appendingPathComponent("target").path
+        try FileManager.default.createDirectory(atPath: target, withIntermediateDirectories: false,
+                                                attributes: [.posixPermissions: 0o700])
+        let link = zmx.directory.appendingPathComponent("link").path
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: target)
+        let shared = zmx.directory.appendingPathComponent("shared").path
+        try FileManager.default.createDirectory(atPath: shared, withIntermediateDirectories: false)
+        try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: shared)
+        for directory in [link, shared, "relative"] {
+            let client = LinuxZmxClient(executablePath: zmx.path, socketDirectory: directory)
+            #expect(client.listSessions() == nil, "listed through \(directory)")
+            #expect(client.killConfirmed(name: "agterm-a") != .killed, "killed through \(directory)")
+        }
+        // negative arm: the same helper through the verified directory does run
+        #expect(LinuxZmxClient(executablePath: zmx.path, socketDirectory: target).listSessions()?.map(\.name) == ["agterm-c"])
     }
 
     @Test("only kill invocations merge stderr")
