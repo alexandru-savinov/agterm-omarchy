@@ -43,6 +43,7 @@ jobs:
       - name: Shell syntax and lint
         run: |
           scripts=(
+            scripts/ci-install-ubuntu-deps.sh
             scripts/check-linux-core-boundary.sh
             scripts/install-linux.sh
             scripts/package-linux.sh
@@ -148,8 +149,7 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Install test shell
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends ripgrep zsh
+          scripts/ci-install-ubuntu-deps.sh ripgrep zsh fish
       - name: Materialize and verify upstream boundary tag
         run: |
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
@@ -240,8 +240,7 @@ jobs:
           BUILD_ARCH: ${{ matrix.arch }}
           ZIG_SHA256: ${{ matrix.zig-sha256 }}
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
+          scripts/ci-install-ubuntu-deps.sh \
             libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev libepoxy-dev pkg-config git curl ca-certificates xz-utils ncurses-bin \
             ripgrep zsh gcc file at-spi2-core dbus-x11 gir1.2-atspi-2.0 openbox python3-gi xdotool xvfb xauth \
             libatk-bridge2.0-0 libgl1-mesa-dri libegl-mesa0 mesa-utils imagemagick desktop-file-utils
@@ -368,7 +367,7 @@ jobs:
     name: Cookbook checks
     needs: changes
     if: needs.changes.outputs.cookbook == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -424,8 +423,8 @@ jobs:
         shell: bash
         run: find cookbook -type f -name '*.sh' -print0 | xargs -0 -r shellcheck
       - name: Install recipe shells
-        # neither is on the ubuntu-latest image; fish runs a recipe regression test
-        run: sudo apt-get update && sudo apt-get install -y zsh fish
+        # fish runs a recipe regression test as well as syntax checks.
+        run: sudo scripts/ci-install-ubuntu-deps.sh zsh fish
       - name: zsh syntax check
         # shellcheck cannot parse zsh, so a parse is the only gate .zsh recipes get.
         # -n1 because zsh -n reads one script and treats the rest as its arguments;
