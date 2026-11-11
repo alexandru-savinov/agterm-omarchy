@@ -93,15 +93,26 @@ fi
 cat > "$DEST/bin/agterm-linux" <<'LAUNCH'
 #!/usr/bin/env bash
 HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
-export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-[[ -d "$HERE/share/ghostty" ]] && export AGTERM_GHOSTTY_RESOURCES="$HERE/share/ghostty"
-[[ -f "$HERE/share/agterm/VERSION" ]] && export AGTERM_VERSION="$(cat "$HERE/share/agterm/VERSION")"
-[[ -f "$HERE/share/agterm/COMMIT" ]] && export AGTERM_COMMIT="$(cat "$HERE/share/agterm/COMMIT")"
-export AGTERM_ZMX_PATH="$HERE/bin/zmx"
+# Every variable set here is agterm's own. Before overriding one, record the caller's value as
+# AGTERM_ORIG_<NAME>, or list the name in AGTERM_ORIG_UNSET when the caller had none; the app hands those
+# back to every pane, hook, command and zmx daemon (LauncherChildEnvironment). Bookkeeping inherited from
+# an outer agterm is cleared first so it can never describe this launch.
+for name in "${!AGTERM_ORIG_@}"; do unset "$name"; done
+AGTERM_ORIG_UNSET=""
+agterm_set() {
+  if [[ -v $1 ]]; then export "AGTERM_ORIG_$1=${!1}"; else AGTERM_ORIG_UNSET+="${AGTERM_ORIG_UNSET:+ }$1"; fi
+  export "$1=$2"
+}
+agterm_set LD_LIBRARY_PATH "$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+[[ -d "$HERE/share/ghostty" ]] && agterm_set AGTERM_GHOSTTY_RESOURCES "$HERE/share/ghostty"
+[[ -f "$HERE/share/agterm/VERSION" ]] && agterm_set AGTERM_VERSION "$(cat "$HERE/share/agterm/VERSION")"
+[[ -f "$HERE/share/agterm/COMMIT" ]] && agterm_set AGTERM_COMMIT "$(cat "$HERE/share/agterm/COMMIT")"
+agterm_set AGTERM_ZMX_PATH "$HERE/bin/zmx"
 # This is a data marker, never shell configuration. Default/absent values preserve the caller's choice.
 if [[ -f "$HERE/share/agterm/RENDERER" ]] && [[ "$(cat "$HERE/share/agterm/RENDERER")" == software ]]; then
-  export LIBGL_ALWAYS_SOFTWARE=1
+  agterm_set LIBGL_ALWAYS_SOFTWARE 1
 fi
+export AGTERM_ORIG_UNSET
 exec "$HERE/bin/agterm-linux.bin" "$@"
 LAUNCH
 chmod 0755 "$DEST/bin/agterm-linux"

@@ -53,6 +53,12 @@ paths:
   A new child-spawning site owes one of those three, and a user who set the tokens themselves before
   launch gets THEIR value back, tokens included — that is the restore working as specified, and the one
   place the behaviour differs from upstream's unconditional removal.
+  The same three seams carry the packaged launcher's restore (`PreLaunchEnvironment.launcherRestore`,
+  built by `LauncherChildEnvironment.restore(from:)`): `bin/agterm-linux` records each variable it
+  overrides as `AGTERM_ORIG_<NAME>`, or lists it in `AGTERM_ORIG_UNSET`, and children get the caller's
+  value back with the bookkeeping removed. A `Process` child and the desktop handler get a real unset; a
+  libghostty surface can only set keys, so there an absent variable arrives as `""`. agterm's own
+  environ keeps the bundle `LD_LIBRARY_PATH`, `LIBGL_ALWAYS_SOFTWARE` and `AGTERM_*` locations.
 - **Deferred main-actor work goes through `agtermCore`'s `MainTimer` seam — never a dispatch or
   `Task.sleep` timer.**
   The Linux app hands its main thread to GTK (`g_application_run`), and the GLib main loop drains neither
