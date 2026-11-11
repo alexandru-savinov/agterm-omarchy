@@ -8,28 +8,48 @@ struct LinuxLaunchSeed: Equatable {
 }
 
 /// The pure seed decisions behind a restored Linux pane, kept off the main actor so tests can pin them.
+///
+/// Linux policy: a restored command is PRE-FILLED at the prompt and waits for Enter; it never runs by itself.
+/// Every line typed here therefore ends without CR/LF, and `CommandRestore.shouldRestore` (captures) and
+/// `CommandRestore.restoreInput` (pins) refuse any control character, so nothing inside a line can submit it.
+/// The shared core keeps its newline-terminated input for macOS; the Linux target drops it here.
 enum LinuxRestoreSeed {
-    /// The captured foreground argv as the line typed into a restored login shell, or nil when the launch is
+    /// The captured foreground argv as the line pre-filled into a restored login shell, or nil when the launch is
     /// not in rerun mode or `CommandRestore.shouldRestore` refuses it (denylisted, control character, invalid UTF-8).
     static func restoreLine(_ argv: [String]?, restoreEnabled: Bool, denylist: Set<String>) -> String? {
         guard restoreEnabled, let argv, CommandRestore.shouldRestore(argv: argv, denylist: denylist) else { return nil }
-        return CommandRestore.shellQuotedLine(argv) + "\n"
+        return CommandRestore.shellQuotedLine(argv)
     }
 
-    /// The ordinary (non-zmx) seed for a restore plan.
+    /// The ordinary (non-zmx) seed for a restore plan, with the pinned line's trailing newline removed.
     static func ordinarySeed(_ plan: CommandRestore.RestorePlan) -> LinuxLaunchSeed {
-        LinuxLaunchSeed(command: plan.command, initialInput: plan.initialInput, waitAfterCommand: plan.waitAfterCommand)
+        LinuxLaunchSeed(command: plan.command, initialInput: plan.initialInput.map(prefilled),
+                        waitAfterCommand: plan.waitAfterCommand)
     }
 
     /// The zmx-backed seed. `daemonRunning` is whether the launch inventory listed this pane's daemon (nil: unknown).
-    /// A captured argv, even a denylisted one, preempts the durable creation command after daemon loss.
+    ///
+    /// With a capture, zmx is never handed a command to run: the attach is the plain one, so a missing daemon is
+    /// created with the normal login shell, and the captured line is pre-filled only when the inventory says the
+    /// daemon is gone — typing into a live (or unknown) session would land in whatever it is running. A capture,
+    /// even a refused one, still preempts the durable creation command. Without a capture the session's own
+    /// creation command recreates a lost daemon, as before.
     static func wrappedSeed(_ configuration: ZmxSupport.Configuration, replay: [String]?, durable: String?,
                             denylist: Set<String>, daemonRunning: Bool?) -> LinuxLaunchSeed {
-        LinuxLaunchSeed(
-            command: ZmxSupport.attachCommand(configuration, replaying: replay,
-                                              creationCommand: replay == nil ? durable : nil, denylist: denylist),
-            initialInput: nil, waitAfterCommand: false
-        )
+        guard let replay else {
+            return LinuxLaunchSeed(
+                command: ZmxSupport.attachCommand(configuration, replaying: nil, creationCommand: durable,
+                                                  denylist: denylist),
+                initialInput: nil, waitAfterCommand: false
+            )
+        }
+        let line = daemonRunning == false ? restoreLine(replay, restoreEnabled: true, denylist: denylist) : nil
+        return LinuxLaunchSeed(command: ZmxSupport.attachCommand(configuration, replaying: nil, denylist: denylist),
+                               initialInput: line, waitAfterCommand: false)
+    }
+
+    private static func prefilled(_ input: String) -> String {
+        input.hasSuffix("\n") ? String(input.dropLast()) : input
     }
 }
 
