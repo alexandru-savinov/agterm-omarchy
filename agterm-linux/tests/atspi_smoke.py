@@ -7471,7 +7471,7 @@ def main():
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
             "window-close-cancel", "workspace-focus-filters", "quick-card-geometry",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
-            "theme-many-sessions", "clipboard-lifetime",
+            "theme-many-sessions", "clipboard-lifetime", "clipboard-read-lifetime",
             "cursor-preferences",
         ):
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
@@ -7657,6 +7657,9 @@ def main():
         elif scenario == "clipboard-lifetime":
             from atspi_clipboard_lifetime import verify_clipboard_lifetime
             verify_clipboard_lifetime(env)
+        elif scenario == "clipboard-read-lifetime":
+            from atspi_clipboard_read_lifetime import verify_clipboard_read_lifetime
+            verify_clipboard_read_lifetime(env)
         elif scenario == "cursor-preferences":
             from atspi_cursor_preferences import verify_cursor_preferences
             verify_cursor_preferences(env)
