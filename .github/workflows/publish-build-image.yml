@@ -36,6 +36,22 @@ jobs:
           shellcheck packaging/linux/build-image/probe.sh
           git diff --check
 
+  build-check:
+    name: Build image and probe as non-root
+    if: github.event_name == 'pull_request'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: |
+          docker build --pull --platform linux/amd64 --tag build-check packaging/linux/build-image
+          test "$(docker run --rm build-check id -u)" = 1001
+          docker run --rm --network none --read-only --tmpfs /tmp:exec,size=1g \
+            build-check agterm-build-image-probe
+
   publish:
     name: Build and publish x86_64 toolchain
     if: github.event_name == 'workflow_dispatch' && github.repository == 'alexandru-savinov/agterm-omarchy' && github.ref == 'refs/heads/main'
