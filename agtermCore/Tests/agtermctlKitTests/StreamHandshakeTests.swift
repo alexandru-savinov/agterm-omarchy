@@ -109,6 +109,8 @@ struct StreamHandshakeTests {
             try bridge.open(Self.request, deadline: ProcessInfo.processInfo.systemUptime + 0.1)
             #expect(fcntl(socket, F_GETFL) & O_NONBLOCK == 0)
             bridge.pump()
+            var ready = pollfd(fd: output[0], events: Int16(POLLIN), revents: 0)
+            try #require(poll(&ready, 1, 1_000) > 0, "the healthy stream must deliver its later frame")
             var bytes = [UInt8](repeating: 0, count: 32)
             let count = read(output[0], &bytes, bytes.count)
             #expect(String(decoding: bytes.prefix(max(0, count)), as: UTF8.self) == "later-frame\n")
