@@ -7460,7 +7460,7 @@ def main():
             "child-gdk-env-inverted",
             "custom-command-failures", "remote-presentation", "control-hooks",
             "surface-lifetimes", "surface-failures",
-            "background-overlay-grid", "zoom-floating-overlay",
+            "background-overlay-grid", "zoom-floating-overlay", "pane-dimming-pixels",
             "sidebar-row-height",
             "sidebar-search-focus",
             "sidebar-narrow-clipping",
@@ -7623,6 +7623,9 @@ def main():
         elif scenario == "quick-card-geometry":
             from atspi_window_lifecycle import verify_quick_card_geometry
             verify_quick_card_geometry(env, state)
+        elif scenario == "pane-dimming-pixels":
+            from atspi_pane_dimming import verify_pane_dimming
+            verify_pane_dimming(env, state)
         elif scenario == "recent-clear":
             verify_recent_clear(env)
         elif scenario == "control-picker":
