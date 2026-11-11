@@ -777,7 +777,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     /// persist it on the session so a relaunch restores the zoom. setFontSize no-ops when unchanged,
     /// so a pure DPI change doesn't write. Per-session (both panes share the size).
     func reportFontSize() {
-        guard dashboardFontOverride == nil else { return }
+        // MUTANT neg/pr219: dashboard size leaks into session.fontSize
         guard let size = currentFontSize() else { return }
         guard size > 0 else { return }
         if let pending = pendingFontRestore {
