@@ -124,6 +124,7 @@ jobs:
               - "agtermTests/.swiftlint.yml"
               - "agtermUITests/.swiftlint.yml"
               - ".github/workflows/ci.yml"
+              - ".github/workflows/sbom.yml"
               - ".github/workflows/release-linux.yml"
             cookbook:
               - "cookbook/**"
@@ -219,9 +220,16 @@ jobs:
       - name: Test published-release verifier
         run: env -u GITHUB_REPOSITORY scripts/test-published-linux-release.sh
 
+  source-sbom:
+    needs: changes
+    if: needs.changes.outputs.swift == 'true'
+    uses: ./.github/workflows/sbom.yml
+    with:
+      ref: ${{ github.sha }}
+
   build-linux:
     name: GTK build and tests (${{ matrix.arch }})
-    needs: [changes, scripts, test-linux, lint-linux]
+    needs: [changes, scripts, test-linux, lint-linux, source-sbom]
     if: needs.changes.outputs.swift == 'true'
     strategy:
       fail-fast: false
@@ -324,6 +332,32 @@ jobs:
         run: swift build -c release
       - name: Validate staged Linux payload
         run: scripts/stage-linux.sh "$RUNNER_TEMP/agterm-stage"
+      - name: Download this run's source SBOM
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sbom
+          path: ${{ runner.temp }}/native-sbom
+      - name: Bind source SBOM to this checkout and augment the staged payload
+        env:
+          SBOM_COMMIT: ${{ needs.source-sbom.outputs.commit }}
+        run: |
+          test "$SBOM_COMMIT" = "$(git rev-parse HEAD)"
+          python3 - <<'PYTHON'
+          import json, os, pathlib, shutil, subprocess
+          lock = pathlib.Path('agterm-linux/Package.resolved')
+          committed = json.loads(subprocess.check_output(['git', 'show', 'HEAD:' + str(lock)]))
+          actual = json.loads(lock.read_text())
+          def pins(document):
+              return sorted(({key: pin[key] for key in ('identity', 'kind', 'location', 'state')}
+                             for pin in document['pins']), key=lambda pin: pin['identity'])
+          if pins(actual) != pins(committed):
+              raise SystemExit('Linux build resolved dependencies differ from the scanned checkout lock')
+          shutil.copyfile(lock, pathlib.Path(os.environ['RUNNER_TEMP']) / 'native-sbom' / 'linux.Package.resolved')
+          PYTHON
+          python3 scripts/native-sbom.py \
+            "$RUNNER_TEMP/native-sbom/sbom.spdx.json" \
+            "$RUNNER_TEMP/agterm-stage" \
+            "$RUNNER_TEMP/native-sbom/native.spdx.json"
       - name: GTK AT-SPI smoke tests
         env:
           AGTERM_UI_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/linux-ui
@@ -339,6 +373,39 @@ jobs:
         env:
           BUILD_ARCH: ${{ matrix.arch }}
         run: tar -czf "$RUNNER_TEMP/agterm-omarchy-${BUILD_ARCH}.tar.gz" -C "$RUNNER_TEMP" agterm-stage
+      - name: Record same-build SBOM and archive identities
+        env:
+          BUILD_ARCH: ${{ matrix.arch }}
+          SBOM_COMMIT: ${{ needs.source-sbom.outputs.commit }}
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib, json, os, pathlib, subprocess
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          directory = root / 'native-sbom'
+          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if commit != os.environ['SBOM_COMMIT']:
+              raise SystemExit('source SBOM checkout mismatch')
+          paths = [directory / 'sbom.spdx.json', directory / 'native.spdx.json',
+                   directory / 'linux.Package.resolved',
+                   root / ('agterm-omarchy-' + os.environ['BUILD_ARCH'] + '.tar.gz')]
+          records = []
+          for path in paths:
+              with path.open('rb') as stream:
+                  digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+              records.append({'name': path.name, 'sha256': digest})
+          evidence = {'commit': commit, 'architecture': os.environ['BUILD_ARCH'],
+                      'repository': os.environ['GITHUB_REPOSITORY'],
+                      'run_id': os.environ['GITHUB_RUN_ID'],
+                      'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'], 'files': records}
+          (directory / 'provenance.json').write_text(json.dumps(evidence, indent=2) + '\n')
+          PYTHON
+      - name: Upload same-build SBOM evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: native-sbom-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-sbom
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload tested runtime payload
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -358,7 +425,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [scripts, changes, test-linux, lint-linux, build-linux, cookbook]
+    needs: [scripts, changes, test-linux, lint-linux, source-sbom, build-linux, cookbook]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
