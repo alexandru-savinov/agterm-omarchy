@@ -28,8 +28,10 @@ import subprocess
 import sys
 import time
 
-from atspi_smoke import collect, control_json, launch, stop, wait_for, window_list, window_tree
-from atspi_prefs_combo import choose_combo, close_preferences, open_preferences, read_settings
+from atspi_smoke import (activate, collect, control_json, launch, mouse_click, press_x11_key, stop,
+                         type_x11_text, wait_for, window_list, window_tree)
+from atspi_prefs_combo import (close_preferences, label_counts, open_preferences,
+                              preferences_row, read_settings)
 from atspi_theme_many_sessions import THEMES
 
 LIGHT, DARK = "Atom One Light", "Dracula"
@@ -196,9 +198,25 @@ def verify_appearance_follow(env):
                 # Change away and back so an already-selected row cannot satisfy the persistence check.
                 for target in (original[other], original[field]):
                     before = read_settings(env)
-                    choose_combo(env, app, process.pid, title, [before[field]], 0,
-                                 lambda settings: settings.get(field) == target,
-                                 search=lambda listed: target if target in listed else None)
+                    labels = label_counts(app)
+                    row = wait_for(lambda: preferences_row(app, title), f"missing {title} row")
+                    try:
+                        has_action = bool(row.get_action_iface() and row.get_action_iface().get_n_actions() > 0)
+                    except Exception:
+                        has_action = False
+                    if has_action:
+                        activate(row)
+                    else:
+                        mouse_click(lambda: preferences_row(app, title), process.pid, button="left")
+                    wait_for(lambda: label_counts(app) != labels, f"{title} list did not open")
+                    # Long theme lists expose only visible rows; search before looking for the target.
+                    type_x11_text(target, process.pid)
+                    wait_for(lambda: label_counts(app).get(target, 0) > labels.get(target, 0),
+                             f"{title} search did not expose {target}")
+                    press_x11_key("Down", process.pid)
+                    press_x11_key("Return", process.pid)
+                    wait_for(lambda: read_settings(env).get(field) == target,
+                             f"{title} selection did not persist {target} in {field}")
                     saved = read_settings(env)
                     assert saved.get(other) == before[other], (
                         f"{side} {title} changed the other persisted slot: {before} -> {saved}")
