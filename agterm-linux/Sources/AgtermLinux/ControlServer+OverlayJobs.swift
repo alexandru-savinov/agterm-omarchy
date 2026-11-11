@@ -6,6 +6,8 @@ final class LinuxOverlayJobStream {
     let job: String
     private let owner: LinuxControlStreamOwner
     private weak var server: ControlServer?
+    /// Lines read behind a rejected one are already queued to the main thread; they must not count.
+    private var rejected = false
 
     init(job: String, owner: LinuxControlStreamOwner, server: ControlServer) {
         self.job = job
@@ -18,9 +20,10 @@ final class LinuxOverlayJobStream {
     }
 
     func receive(_ line: Data) {
+        guard !rejected else { return }
         guard let jobs = server?.overlayJobs,
               let frame = try? JSONDecoder().decode(OverlayJobFrame.self, from: line) else {
-            owner.shutdown()
+            reject()
             return
         }
         switch frame {
@@ -28,8 +31,13 @@ final class LinuxOverlayJobStream {
         case .exited(let code): jobs.finish(job, .exited(code))
         case .canceled: jobs.finish(job, .canceled)
         case .launchFailed: jobs.finish(job, .launchFailed)
-        case .context, .cancel: owner.shutdown()
+        case .context, .cancel: reject()
         }
+    }
+
+    private func reject() {
+        rejected = true
+        owner.shutdown()
     }
 
     func shutdown() { owner.shutdown() }

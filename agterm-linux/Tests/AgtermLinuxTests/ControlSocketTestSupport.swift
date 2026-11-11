@@ -189,3 +189,40 @@ func pumpGLib(timeout: TimeInterval, until done: () -> Bool = { false }) -> Bool
     }
     return true
 }
+
+/// Splits a client's stream into lines, keeping bytes past a newline for the next call. One thread at a time.
+final class ControlLineReader: @unchecked Sendable {
+    let client: ControlTestClient
+    private var buffer = Data()
+
+    init(_ client: ControlTestClient) { self.client = client }
+
+    /// The next line, or nil when the peer closes or `timeout` passes first.
+    func next(timeout: TimeInterval) -> Data? {
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        var chunk = [UInt8](repeating: 0, count: 64 * 1024)
+        while true {
+            if let newline = buffer.firstIndex(of: 0x0A) {
+                let line = Data(buffer[buffer.startIndex..<newline])
+                buffer.removeSubrange(buffer.startIndex...newline)
+                return line
+            }
+            guard deadline.timeIntervalSinceNow > 0 else { return nil }
+            var pfd = pollfd(fd: client.fd, events: Int16(POLLIN), revents: 0)
+            guard poll(&pfd, 1, 50) > 0 else { continue }
+            let count = recv(client.fd, &chunk, chunk.count, 0)
+            if count < 0, errno == EINTR { continue }
+            guard count > 0 else { return nil }
+            buffer.append(contentsOf: chunk[0..<count])
+        }
+    }
+}
+
+/// Installs the GLib `MainTimer` seam for `body`, so timers fire when the test pumps GLib.
+@MainActor
+func withGLibMainTimer<R>(_ body: () throws -> R) rethrows -> R {
+    let original = MainTimer.scheduleTimer
+    defer { MainTimer.scheduleTimer = original }
+    installGLibMainTimer()
+    return try body()
+}

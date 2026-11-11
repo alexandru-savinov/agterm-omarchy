@@ -300,6 +300,7 @@ class ClaimHistoryTests(unittest.TestCase):
 
 class SessionCollisionTests(unittest.TestCase):
     NOW = "2026-10-30T12:00:00+00:00"
+    FLAG = "Name collision (informational): shared/codex has live check-ins from sessions a1b2, c3d4."
 
     def _snapshot(self, reports):
         """reports: (task, name, state, session or None, created_at)."""
@@ -323,7 +324,7 @@ class SessionCollisionTests(unittest.TestCase):
         notes = self.notes(self._snapshot([(7, "codex", "working", "a1b2", "2026-10-30T11:00:00Z"),
                                            (8, "codex", "working", "c3d4", "2026-10-30T11:10:00Z")]))
         for number in (7, 8):
-            self.assertIn("Name collision: shared/codex posted from 2 sessions", notes[number])
+            self.assertIn(self.FLAG, notes[number])
 
     def test_one_session_on_two_tasks_is_not_a_collision(self):
         notes = self.notes(self._snapshot([(7, "codex", "working", "a1b2", "2026-10-30T11:00:00Z"),
@@ -344,6 +345,73 @@ class SessionCollisionTests(unittest.TestCase):
                 notes = self.notes(self._snapshot([task7, (8, "codex", "working", "c3d4",
                                                            "2026-10-30T11:10:00Z")]))
                 self.assertNotIn("Name collision", " ".join(notes.values()))
+
+    def test_two_sessions_under_one_name_on_one_task_are_flagged(self):
+        for first in ("working", "blocked", "ready-for-review"):
+            with self.subTest(first=first):
+                result = self._snapshot([(7, "codex", first, "a1b2", "2026-10-30T11:00:00Z"),
+                                         (7, "codex", "working", "c3d4", "2026-10-30T11:10:00Z")])
+                self.assertIn(self.FLAG, self.notes(result)[7])
+                self.assertEqual(len(result["claims"][0]["history"]), 2)
+
+    def test_one_task_repeats_restarts_and_completed_sessions_are_not_a_collision(self):
+        for reports in ([(7, "codex", "working", "a1b2", "2026-10-30T11:00:00Z"),
+                         (7, "codex", "blocked", "a1b2", "2026-10-30T11:10:00Z")],
+                        [(7, "codex", "working", "a1b2", "2026-10-30T07:30:00Z"),
+                         (7, "codex", "working", "c3d4", "2026-10-30T11:10:00Z")],
+                        [(7, "codex", "working", "a1b2", "2026-10-30T10:00:00Z"),
+                         (7, "codex", "complete", "a1b2", "2026-10-30T11:00:00Z"),
+                         (7, "codex", "working", "c3d4", "2026-10-30T11:10:00Z")],
+                        [(7, "codex", "working", "a1b2", "2026-10-30T11:00:00Z"),
+                         (7, "codex", "working", None, "2026-10-30T11:10:00Z")],
+                        [(7, "codex", "working", None, "2026-10-30T11:00:00Z"),
+                         (7, "codex", "working", "a1b2", "2026-10-30T11:10:00Z")]):
+            with self.subTest(reports=reports):
+                self.assertNotIn("Name collision", " ".join(self.notes(self._snapshot(reports)).values()))
+
+    # A restart on one task: a1b2 worked on #7, the run restarted as c3d4 and re-posted (docs/AGENT_PROTOCOL.md).
+    RESTART = [(7, "codex", "working", "a1b2", "2026-10-30T09:00:00Z"),
+               (7, "codex", "working", "c3d4", "2026-10-30T11:00:00Z")]
+
+    def test_restart_note_is_informational_and_names_both_sessions_and_how_it_clears(self):
+        note = self.notes(self._snapshot(self.RESTART))[7]
+        self.assertIn(self.FLAG, note)
+        self.assertIn("Re-posting under a new session does not clear this", note)
+        self.assertIn("posts State: complete under its own Session", note)
+        self.assertIn("4 h once superseded on its task", note)
+        self.assertNotIn("re-post after a restart", note)
+
+    def test_restart_re_posting_under_the_new_session_does_not_clear_the_note(self):
+        for extra in ([(7, "codex", "working", "c3d4", "2026-10-30T11:50:00Z")],
+                      [(7, "codex", "blocked", "c3d4", "2026-10-30T11:50:00Z")],
+                      # `complete` without a Session belongs to no session, so a1b2 still counts.
+                      [(7, "codex", "complete", None, "2026-10-30T11:30:00Z"),
+                       (7, "codex", "working", "c3d4", "2026-10-30T11:50:00Z")]):
+            with self.subTest(extra=extra):
+                self.assertIn(self.FLAG, self.notes(self._snapshot(self.RESTART + extra))[7])
+
+    def test_restart_clears_when_the_earlier_check_in_is_over_four_hours_old(self):
+        for state in ("working", "blocked", "ready-for-review"):
+            with self.subTest(state=state):
+                at_bound = [(7, "codex", state, "a1b2", "2026-10-30T08:00:00Z"), self.RESTART[1]]
+                past = [(7, "codex", state, "a1b2", "2026-10-30T07:59:59Z"), self.RESTART[1]]
+                self.assertIn(self.FLAG, self.notes(self._snapshot(at_bound))[7])
+                self.assertNotIn("Name collision", self.notes(self._snapshot(past))[7])
+
+    def test_restart_clears_when_the_old_session_posts_complete_then_the_claim_is_re_posted(self):
+        result = self._snapshot(self.RESTART + [(7, "codex", "complete", "a1b2", "2026-10-30T11:20:00Z"),
+                                                (7, "codex", "working", "c3d4", "2026-10-30T11:30:00Z")])
+        self.assertNotIn("Name collision", self.notes(result)[7])
+        self.assertEqual((result["claims"][0]["latest"]["state"], result["claims"][0]["latest"]["session"]),
+                         ("working", "c3d4"))
+
+    def test_restart_on_several_tasks_ages_out_only_where_the_claim_was_re_posted(self):
+        # A latest `blocked` never goes stale, so the old session counts until c3d4 supersedes it on #8.
+        old = [(8, "codex", "blocked", "a1b2", "2026-10-30T07:00:00Z"),
+               (7, "codex", "working", "c3d4", "2026-10-30T11:00:00Z")]
+        self.assertIn(self.FLAG, self.notes(self._snapshot(old))[7])
+        re_posted = old + [(8, "codex", "blocked", "c3d4", "2026-10-30T11:05:00Z")]
+        self.assertNotIn("Name collision", " ".join(self.notes(self._snapshot(re_posted)).values()))
 
     def test_different_names_with_different_sessions_are_not_a_collision(self):
         notes = self.notes(self._snapshot([(7, "alpha", "working", "a1b2", "2026-10-30T11:00:00Z"),
