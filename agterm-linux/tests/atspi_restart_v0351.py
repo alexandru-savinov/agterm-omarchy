@@ -155,9 +155,20 @@ def verify_restart_close_reopen(env, state):
         assert request("session.close", session)["ok"]
         wait_for(lambda: row() is None, "the restarting session did not close")
         run_palette_action(app, process.pid, None, "Reopen Last Closed Item")
-        wait_for(lambda: row() is not None and all(pane.get("paneID") for pane in row()["surfaces"]
-                                                   if pane["kind"] == "left"),
-                 f"Reopen Last Closed Item did not bring the realized session back: {row()}", timeout=15)
+        seen = []
+
+        def reopened():
+            current = row()  # one read per poll: a second read can race the tree and see a different row
+            seen.append(current)
+            return current is not None and all(pane.get("paneID") for pane in current["surfaces"]
+                                               if pane["kind"] == "left")
+
+        try:
+            wait_for(reopened, "Reopen Last Closed Item did not bring the realized session back", timeout=15)
+        except AssertionError as error:
+            vanished = seen[-1] is None and any(item is not None for item in seen)
+            raise AssertionError(f"{error}: first {seen[0]}, last {seen[-1]}"
+                                 + (" (the reopened session appeared, then was closed)" if vanished else "")) from None
         assert pane_id() == identity, f"the reopened session took a new pane identity: {pane_id()} != {identity}"
         reopened_shell = wait_for(lambda: leader(daemon), "the reopened pane reported no shell", timeout=15)
         assert worker.is_alive(), f"the restart finished before the reopen: {restart}"

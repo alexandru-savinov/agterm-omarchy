@@ -149,8 +149,12 @@ private final class LinuxPaneRestart {
         }
     }
 
+    /// Close the pane this restart ended, never a successor under the same id: a session closed and
+    /// reopened mid-restart is a NEW object holding the pane the user brought back, while the stale object
+    /// still points at the torn-down surface, so `session.surface === surface` alone would close the reopened one.
     private func closeEnded() {
-        if controller.store.session(withID: session.id) != nil {
+        if let current = controller.store.session(withID: session.id) {
+            guard current === session else { return }
             if session.surface === surface {
                 controller.closePrimaryPane(session.id, alreadyFinalized: identity)
             } else if session.splitSurface === surface {

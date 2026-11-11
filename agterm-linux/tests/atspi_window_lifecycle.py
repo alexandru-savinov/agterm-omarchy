@@ -141,8 +141,9 @@ def verify_workspace_focus_filters(env):
         two = request("workspace.new", args={"name": "wf-two"})["id"]
         three = request("workspace.new", args={"name": "wf-three"})["id"]
         for workspace in (two, three):
-            request("workspace.select", workspace)
-            request("session.new", args={"name": f"wf-session-{workspace[:4]}"})
+            # placed by id: selecting a still-empty workspace has no session to make current, so an
+            # unplaced session.new lands in whichever workspace is current (wf-three, the last created)
+            request("session.new", args={"name": f"wf-session-{workspace[:4]}", "workspace": workspace})
         wait_for(lambda: [item["name"] for item in tree()["workspaces"]] == ["wf-one", "wf-two", "wf-three"],
                  f"the fixture workspaces did not settle: {tree()['workspaces']}")
         check("fixture")
