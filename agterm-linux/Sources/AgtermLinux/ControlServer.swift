@@ -229,7 +229,44 @@ final class ControlServer: @unchecked Sendable {
     func performRequest(_ request: ControlRequest) -> ControlResponse {
         if request.cmd == .sessionRestart { return restartOnMain(request) }
         if request.cmd == .browserClear { return clearBrowserOnMain(request) }
-        return Self.isRemoteZmxRequest(request) ? dispatchRemoteZmx(request) : dispatchOnMain(request)
+        if Self.isRemoteZmxRequest(request) { return dispatchRemoteZmx(request) }
+        if let stage = Self.localZmxStage(request) { return perform(stage) }
+        return dispatchOnMain(request)
+    }
+
+    /// Drives `first` to its one reply on this worker: `.worker` steps run here, `.main` steps hop to GTK
+    /// through `awaitMain`. Once `stop()` has begun no new worker step starts, so nothing new is spawned
+    /// against a shutting-down app; a main hop still gets `awaitMain`'s shutdown grace.
+    func perform(_ first: ControlStage) -> ControlResponse {
+        var stage = first
+        while true {
+            switch stage {
+            case .done(let response):
+                return response
+            case .worker(let step):
+                guard !isStopping else { return MainReply.shutdown }
+                stage = step()
+            case .main(let step):
+                stage = awaitMainStage(step)
+            }
+        }
+    }
+
+    /// One main-thread turn of a staged request. The body runs at most once (`MainReply.begin`); when a
+    /// shutdown cancel wins before it runs, the chain ends with the shutdown reply.
+    private func awaitMainStage(_ step: @escaping @MainActor @Sendable () -> ControlStage) -> ControlStage {
+        let next = ControlStageSlot()
+        let response = awaitMain { reply in
+            next.set(step())
+            reply.resolve(ControlStageSlot.handedOn)
+        }
+        return next.take() ?? .done(response)
+    }
+
+    private var isStopping: Bool {
+        pendingLock.lock()
+        defer { pendingLock.unlock() }
+        return stopping
     }
 
     /// Runs `body` on the GTK main thread and blocks until it resolves the reply. After `stop()`, a reply
@@ -379,12 +416,13 @@ final class ControlServer: @unchecked Sendable {
         }
     }
 
-    /// Run the dispatch on the GTK main thread and block until it returns.
+    /// Run the dispatch on the GTK main thread. A handler that reaches a zmx call hands that tail off
+    /// (`ControlStageHandoff`), and it then runs on this worker instead of the main loop.
     private func dispatchOnMain(_ req: ControlRequest) -> ControlResponse {
-        awaitMain { $0.resolve(Self.route(for: req).response(for: req)) }
+        perform(.main { ControlStageHandoff.collect { Self.route(for: req).response(for: req) } })
     }
 
-    private enum ControllerRoute {
+    enum ControllerRoute {
         case controller(AppController?)
         case failure(String)
 
@@ -398,7 +436,7 @@ final class ControlServer: @unchecked Sendable {
         }
     }
 
-    @MainActor private static func route(for req: ControlRequest) -> ControllerRoute {
+    @MainActor static func route(for req: ControlRequest) -> ControllerRoute {
         if let window = req.args?.window, !window.isEmpty {
             guard let library = gLibrary else {
                 return .failure("window not open")
@@ -533,6 +571,26 @@ final class ControlServer: @unchecked Sendable {
             }
             return true
         }
+    }
+}
+
+/// The next stage a main-thread turn produced, handed back to the waiting worker.
+private final class ControlStageSlot: @unchecked Sendable {
+    /// Resolves the turn's `MainReply`; the worker reads the real result from the slot.
+    static let handedOn = ControlResponse(ok: true)
+    private let lock = NSLock()
+    private var stage: ControlStage?
+
+    func set(_ value: ControlStage) {
+        lock.lock()
+        stage = value
+        lock.unlock()
+    }
+
+    func take() -> ControlStage? {
+        lock.lock()
+        defer { lock.unlock() }
+        return stage
     }
 }
 

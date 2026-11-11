@@ -806,8 +806,8 @@ extension AppController: ControlActions {
                 case .right: splitSurfaces[id]
                 case .scratch: scratchSurfaces[id]
                 }
-                if let surface, var response = leadType(options.text, surface: surface, session: id) {
-                    if response.ok { response.result?.pane = (options.pane ?? .left).rawValue }
+                if let surface, let response = leadType(options.text, surface: surface, session: id,
+                                                        pane: (options.pane ?? .left).rawValue) {
                     return response
                 }
                 if let surface, surface.inject(text: options.text) {
@@ -929,9 +929,8 @@ extension AppController: ControlActions {
                 guard session.scratchSurface != nil else { return err("session has no scratch terminal") }
                 surface = scratchSurfaces[id]
             }
-            if let surface, var response = leadText(surface, session: id,
-                                                    all: options.all, lines: options.lines) {
-                if response.ok { response.result?.pane = session.paneRole(forToken: surface.paneToken)?.rawValue }
+            if let surface, let response = leadText(surface, session: id, all: options.all, lines: options.lines,
+                                                    pane: session.paneRole(forToken: surface.paneToken)?.rawValue) {
                 return response
             }
             guard let text = surface?.readScreenText(all: options.all, lines: options.lines) else {
