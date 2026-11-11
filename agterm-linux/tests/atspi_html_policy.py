@@ -37,7 +37,11 @@ def verify_html_policy(env, state):
         return path
 
     write("other.html", "<!doctype html><title>Policy other</title><p>other</p>")
-    write("framed.html", '<!doctype html><title>framed</title><script>parent.document.title="framed"</script>')
+    # Subframes report through window.postMessage: file pages do not share an origin by path, so a subframe
+    # cannot be assumed to reach parent.document; the parent page turns its own frame's message into its title.
+    write("framed.html", '<!doctype html><title>framed</title><script>parent.postMessage("framed","*")</script>')
+    relay = ('<script>addEventListener("message",event=>{if(event.source===frames[0])'
+             'document.title=String(event.data)})</script>')
 
     process, app = launch(env)
     try:
@@ -95,10 +99,13 @@ def verify_html_policy(env, state):
               '{cmd:"session.rename",args:{name:"parent handler"}})))}catch(e){results["parent-handler"]="threw"}'
               'try{tries.push(settle("parent-helper",parent.agterm.request("session.rename",'
               '{args:{name:"parent helper"}})))}catch(e){results["parent-helper"]="threw"}'
-              'Promise.all(tries).then(()=>parent.document.title="frame:"+JSON.stringify(results))},300))</script>')
-        write("frames.html", '<!doctype html><title>Frames pending</title><iframe src="child.html"></iframe>')
+              'try{results["parent-document"]=typeof parent.document.title}catch(e){results["parent-document"]="threw"}'
+              'Promise.all(tries).then(()=>parent.postMessage("frame:"+JSON.stringify(results),"*"))},300))</script>')
+        write("frames.html",
+              '<!doctype html><title>Frames pending</title>' + relay + '<iframe src="child.html"></iframe>')
         open_page({"html": os.path.join(pages, "frames.html"), "cwd": pages, "javascript": True}, "Frames pending")
         outcome = json.loads(titled("frame:")[len("frame:"):])
+        print(f"HTML subframe bridge outcome: {outcome}")
         time.sleep(0.5)
         frame_name = node().get("name")
         close_page()
@@ -134,7 +141,7 @@ def verify_html_policy(env, state):
             ("file", "cross-origin script redirect", f'location="{other}/other.html?case=f-redirect"', None, "cancel"),
             ("file", "user-clicked http link", f'<a href="{other}/other.html?case=f-link">go</a>', "click",
              "openExternal"),
-            ("file", "same-grant subframe", '<iframe src="framed.html"></iframe>', "html", "allow:framed"),
+            ("file", "same-grant subframe", relay + '<iframe src="framed.html"></iframe>', "html", "allow:framed"),
             ("file", "http subframe", f'<iframe src="{other}/other.html?case=f-frame"></iframe>', "html", "cancel"),
             ("file", "script window.open", f'window.open("{other}/other.html?case=f-open")', None, "cancel"),
             ("file", "target=_blank click", f'<a target="_blank" href="{other}/other.html?case=f-blank">go</a>',
