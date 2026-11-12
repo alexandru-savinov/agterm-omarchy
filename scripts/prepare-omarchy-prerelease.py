@@ -127,6 +127,12 @@ def validate_payload(data, arch, sha):
             header = archive.extractfile(member).read(20)
             require(header[:6] == b"\x7fELF\x02\x01" and len(header) == 20
                     and int.from_bytes(header[18:20], "little") == ARCHITECTURES[arch], f"Wrong ELF architecture: {name}")
+        for name in ("agterm-linux", "agtermctl"):
+            path = "agterm-stage/bin/" + name
+            require(path in names, f"Missing executable wrapper {name}")
+            member = archive.getmember(path)
+            require(member.isfile() and member.mode & 0o111 and member.size > 0,
+                    f"Invalid executable wrapper {name}")
         return version
 
 

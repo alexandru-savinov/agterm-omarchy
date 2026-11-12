@@ -79,7 +79,8 @@ private final class LinuxPaneRestart {
     }
 
     private var stillOwned: Bool {
-        controller.store.session(withID: session.id) === session
+        gWindows[controller.windowID] === controller
+            && controller.store.session(withID: session.id) === session
             && (session.paneIdentity == identity ? session.surface : session.splitSurface) === surface
     }
 
@@ -153,6 +154,7 @@ private final class LinuxPaneRestart {
     /// reopened mid-restart is a NEW object holding the pane the user brought back, while the stale object
     /// still points at the torn-down surface, so `session.surface === surface` alone would close the reopened one.
     private func closeEnded() {
+        guard gWindows[controller.windowID] === controller else { return }
         if let current = controller.store.session(withID: session.id) {
             guard current === session else { return }
             if session.surface === surface {

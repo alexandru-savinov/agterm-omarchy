@@ -88,15 +88,15 @@ struct LinuxRestorePrefillTests {
         #expect(LinuxRestoreSeed.restoreLine(["claude"], restoreEnabled: false, denylist: []) == nil)
     }
 
-    @Test("Live recovery after daemon loss starts a plain shell and pre-fills the captured command")
+    @Test("Live recovery gives only a new daemon the pre-filled captured command")
     func liveRecoveryPrefills() {
         let seed = LinuxRestoreSeed.wrappedSeed(configuration, replay: ["sleep", "100"], durable: "make dev",
                                                 denylist: [], daemonRunning: false)
-        #expect(seed.command == ZmxSupport.attachCommand(configuration, replaying: nil, denylist: []))
+        #expect(seed.command == LinuxZmxLaunch.prefillCommand(configuration, line: "'sleep' '100'"))
         #expect(seed.command?.contains("-lic") == false)
-        #expect(seed.command?.contains("sleep") == false)
+        #expect(seed.command?.contains("AGTERM_LIVE_PREFILL=") == true)
         #expect(seed.command?.contains("make dev") == false, "a capture still preempts the durable command")
-        #expect(seed.initialInput == "'sleep' '100'")
+        #expect(seed.initialInput == nil)
         #expect(!endsLine(seed.initialInput))
     }
 
@@ -108,8 +108,9 @@ struct LinuxRestorePrefillTests {
             sessionHostExecutablePath: "/usr/lib/agterm/host")
         let seed = LinuxRestoreSeed.wrappedSeed(hosted, replay: ["sleep", "100"], durable: nil, denylist: [],
                                                 daemonRunning: false)
-        #expect(seed.command == ZmxSupport.attachCommand(hosted, replaying: nil, denylist: []))
-        #expect(seed.initialInput == "'sleep' '100'")
+        #expect(seed.command == LinuxZmxLaunch.prefillCommand(hosted, line: "'sleep' '100'"))
+        #expect(seed.command?.hasPrefix("'/usr/lib/agterm/host' 'client' 'agterm-pane' '--'") == true)
+        #expect(seed.initialInput == nil)
     }
 
     @Test("reattaching to a live daemon types nothing", arguments: [true as Bool?, nil])
@@ -136,4 +137,46 @@ struct LinuxRestorePrefillTests {
                                                          denylist: []))
         #expect(seed.initialInput == nil)
     }
+
+    @Test("actual Live emitter preserves argv, competing creation and new-shell startup",
+          arguments: [[#"literal\n"#], [#"doubled\\slashes"#], [#"trailing\"#], ["it's here", ""]])
+    func realCreationBoundPrefill(arguments: [String]) throws {
+        let repository = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let zmx = repository.appendingPathComponent("agterm-linux/vendor/zmx/zmx").path
+        try #require(FileManager.default.isExecutableFile(atPath: zmx), "build vendor zmx before this integration test")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("prefill-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let environment = ["SHELL": "/bin/zsh",
+                           "ZDOTDIR": repository.appendingPathComponent("agterm-linux/vendor/ghostty/share/ghostty/shell-integration/zsh").path,
+                           "GHOSTTY_ZSH_ZDOTDIR": directory.appendingPathComponent("z").path]
+        let name = "agterm-prefill-\(UUID().uuidString.prefix(8))"
+        let config = ZmxSupport.Configuration(executablePath: zmx, environment: environment,
+                                             daemonName: name, socketDirectory: directory.appendingPathComponent("s").path,
+                                             paneID: "fixture")
+        let reporter = "import json,os,pathlib,sys; pathlib.Path(os.environ[\"AGTERM_PREFILL_REPORT\"]).write_text(json.dumps(sys.argv[1:]))"
+        let seed = LinuxRestoreSeed.wrappedSeed(config, replay: ["/usr/bin/python3", "-c", reporter] + arguments,
+                                                durable: "false", denylist: [], daemonRunning: false)
+        var invalidEnvironment = environment
+        invalidEnvironment["SHELL"] = "/does/not/exist"
+        let invalidConfig = ZmxSupport.Configuration(executablePath: zmx, environment: invalidEnvironment,
+                                                     daemonName: name, socketDirectory: config.socketDirectory, paneID: "fixture")
+        let failedSeed = LinuxRestoreSeed.wrappedSeed(invalidConfig, replay: ["printf", "FAILURE_MUST_NOT_RUN"],
+                                                      durable: nil, denylist: [], daemonRunning: false)
+        let plan: [String: Any] = ["command": try #require(seed.command), "initialInput": seed.initialInput ?? "",
+                                   "environment": environment, "name": name, "root": directory.path, "zmx": zmx,
+                                   "failedCommand": try #require(failedSeed.command), "expectedArguments": arguments]
+        let path = directory.appendingPathComponent("plan.json")
+        try JSONSerialization.data(withJSONObject: plan).write(to: path)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        process.arguments = [repository.appendingPathComponent("scripts/tests/test_zmx_prefill.py").path,
+                             "--production-plan", path.path]
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0, "real-zmx production emitter regression failed")
+    }
+
 }

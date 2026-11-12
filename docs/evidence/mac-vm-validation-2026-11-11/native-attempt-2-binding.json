@@ -1,0 +1,38 @@
+{
+  "artifact_source_commit": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "artifact_source_run": 41532553668,
+  "probe_source_commit": "e77b6ad448677e00cafd14a36c557b96affb6678",
+  "probe_source_path": "scripts/omarchy-config-probe.py",
+  "probe_sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+  "review_url": "https://github.com/alexandru-savinov/agterm-omarchy/pull/312#pullrequestreview-5864515859",
+  "binding_change": "config-probe.py SHA256 constant only; operator logic unchanged",
+  "templates": {
+    "native-prepare-template.py": {
+      "parent_sha256": "11aabcd0bfcf9fd32cbba21a4025e108cd31c2f4181534a76b290fa8d6238b5f",
+      "bound_sha256": "e403fe3a573d9b763e44bf735fedd671464f92815a5446ef8daab0659d9d0121"
+    },
+    "native-run-template.py": {
+      "parent_sha256": "e8a8cac3a4a7ea0a82a15043c115f8dc0b06de077220150d3ce22969142422ed",
+      "bound_sha256": "44111bba76d7701591f27fce86a049bcdb4ec5e73d610e1aef407057ac53488e"
+    }
+  },
+  "checks": {
+    "test-native-helpers.py": {
+      "exit_code": 0,
+      "summary": [
+        "Ran 29 tests in 0.018s",
+        "",
+        "OK"
+      ]
+    },
+    "test-config-probe-operator.py": {
+      "exit_code": 0,
+      "summary": [
+        "Ran 10 tests in 0.026s",
+        "",
+        "OK"
+      ]
+    }
+  },
+  "generated_prepare_sha256": "1eea819c510d7479c3dc389e621a444eed5a0a99b2b9a08271a11df5d6278094"
+}

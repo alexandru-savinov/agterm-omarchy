@@ -593,7 +593,7 @@ final class ControlServer {
                 .windowNew, .windowList, .windowSelect, .windowGo,
                 .windowClose, .windowRename, .windowDelete, .windowResize, .windowMove, .windowZoom,
                 .windowFullscreen, .windowMinimize,
-                .restoreClear, .restoreCapture, .restoreMode, .zmxList, .zmxPrune, .zmxKill, .zmxReset, .zmxTree,
+                .restoreClear, .recentClear, .restoreCapture, .restoreMode, .zmxList, .zmxPrune, .zmxKill, .zmxReset, .zmxTree,
                 .zmxAttach, .zmxPresent, .zmxScreen, .sessionOverlayJobRun, .dashboard, .version:
             return ControlResponse(ok: false, error: "control dispatcher did not handle \(request.cmd.rawValue)")
         case .debugAppearance:
@@ -654,6 +654,16 @@ final class ControlServer {
                 + "failed; those windows keep their captured commands on disk until they save successfully")
         }
         return ControlResponse(ok: true)
+    }
+
+    /// `recent.clear`: empties the shared recently-closed list and reports how many entries it removed,
+    /// the same answer the Linux host gives.
+    func clearRecentClosedItems() -> ControlResponse {
+        let affected = library.recentClosedItems.count
+        guard library.clearRecentClosedItems() else {
+            return ControlResponse(ok: false, error: RecentClearError.persistenceFailed)
+        }
+        return ControlResponse(ok: true, result: ControlResult(affected: affected))
     }
 
     /// The restore-mode policy: settings, this launch's request, and what it got.

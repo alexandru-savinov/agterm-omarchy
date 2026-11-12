@@ -1,0 +1,38 @@
+{
+  "schema": "agterm-test-log-interleaving/1",
+  "records": [
+    {
+      "extract": "mac-core-reviewed-tests.log",
+      "original_sha256": "375840f7429f423ac2c046b5d00c0943bcbd7a6405a6b05b6f6aa0d95a95b9c6",
+      "original_start_line": 10040,
+      "raw_lines": [
+        "\u2714 Suiwarning: '--build-system native' has been deprecated and will be removed in a future release; please report an issue at https://github.com/swiftlang/swift-package-manager/issues if you are unable to adopt the default build system.",
+        "te AppStoreEventTests passed after 35.662 seconds."
+      ],
+      "normalized_completion": "\u2714 Suite AppStoreEventTests passed after 35.662 seconds.",
+      "normalization": "Remove only the exact interleaved SwiftPM deprecation warning and its newline; join the two literal completion fragments. This is a labeled reconstruction, not raw output."
+    },
+    {
+      "extract": "mac-core-staged-tests.log",
+      "original_sha256": "fad5be9ef827ed14059ededb7915b95ab5cd7f8dae73dcb7613e7a918954f98e",
+      "original_start_line": 10035,
+      "raw_lines": [
+        "\u2714 Test aRemoteRowReportsLeavingOnSoftCloseAndReturninwarning: '--build-system native' has been deprecated and will be removed in a future release; please report an issue at https://github.com/swiftlang/swift-package-manager/issues if you are unable to adopt the default build system.",
+        "gOnUndo() passed after 36.326 seconds."
+      ],
+      "normalized_completion": "\u2714 Test aRemoteRowReportsLeavingOnSoftCloseAndReturningOnUndo() passed after 36.326 seconds.",
+      "normalization": "Remove only the exact interleaved SwiftPM deprecation warning and its newline; join the two literal completion fragments. This is a labeled reconstruction, not raw output."
+    },
+    {
+      "extract": "mac-host-fixtures-tests.log",
+      "original_sha256": "193089c5f4f6a7c1851fd8d72ba9d78a39da29ce18d2fae17613f83eedc23d2b",
+      "original_start_line": 54,
+      "raw_lines": [
+        "\u2714 Tewarning: '--build-system native' has been deprecated and will be removed in a future release; please report an issue at https://github.com/swiftlang/swift-package-manager/issues if you are unable to adopt the default build system.",
+        "st clientIgnoringTermIsKilledAndReapedAfterTheGracePeriod() passed after 0.452 seconds."
+      ],
+      "normalized_completion": "\u2714 Test clientIgnoringTermIsKilledAndReapedAfterTheGracePeriod() passed after 0.452 seconds.",
+      "normalization": "Remove only the exact interleaved SwiftPM deprecation warning and its newline; join the two literal completion fragments. This is a labeled reconstruction, not raw output."
+    }
+  ]
+}

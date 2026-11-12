@@ -1,0 +1,301 @@
+{
+  "schema": "agterm-native-appendix/1",
+  "scope": "Additive recovery and separate renderer evidence for source 77cce43eb791ba1a983c19760c7df5259d0e452d. No new native execution, current-main or integrated-candidate acceptance, trusted hosted release, hardware rendering, or independent-account approval.",
+  "binary_transfer_manifest": {
+    "original_file": "native-log-binary-transfer/manifest-private.json",
+    "original_sha256": "d870b459ca5f09824b0fa179a94306ea8536a1af29e46dfcf2419bc952bf999d",
+    "transport": null,
+    "stdout_encoding": "not a transport wrapper",
+    "observation": {
+      "schema": "agterm-native-log-binary-transfer/1",
+      "files": [
+        {
+          "name": "frontend-attempt2.log",
+          "bytes": 346178,
+          "sha256": "3ec99f3eb35a435f5eb51de1fed8648062103c9e509b0700d3a1cb277ad34526",
+          "source_record": "native-full-build-attempt2-test-private.json",
+          "source_record_sha256": "f7d613de70a4980fedc20680e661b9aedd39a0965421ae815b1a8b127687c548",
+          "recorded_guest_log_sha256": "3ec99f3eb35a435f5eb51de1fed8648062103c9e509b0700d3a1cb277ad34526",
+          "exit_code": 1,
+          "literal_passed_test_lines": 692,
+          "literal_failed_test_lines": 1,
+          "summary_lines": [
+            "\u2718 Test run with 693 tests in 99 suites failed after 37.916 seconds with 1 issue."
+          ],
+          "skip_lines": [
+            "\u25c7 Test \"partial apply results identify failures and skipped operations\" started.",
+            "\u2714 Test \"partial apply results identify failures and skipped operations\" passed after 5.903 seconds."
+          ],
+          "valid_utf8": true
+        },
+        {
+          "name": "frontend-attempt3.log",
+          "bytes": 166173,
+          "sha256": "8ea75f1ea7b0c41dc29065f273f2fee3e74e041f5d50becbff10fc6c5863ca23",
+          "source_record": "native-full-build-continuation3-poll-private.json",
+          "source_record_sha256": "fe6d45d253a89462cbcb2efbbefaee231c546166cecf8add976a36a99e3630b7",
+          "recorded_guest_log_sha256": "8ea75f1ea7b0c41dc29065f273f2fee3e74e041f5d50becbff10fc6c5863ca23",
+          "exit_code": 0,
+          "literal_passed_test_lines": 693,
+          "literal_failed_test_lines": 0,
+          "summary_lines": [
+            "\u2714 Test run with 693 tests in 99 suites passed after 36.660 seconds."
+          ],
+          "skip_lines": [
+            "\u25c7 Test \"partial apply results identify failures and skipped operations\" started.",
+            "\u2714 Test \"partial apply results identify failures and skipped operations\" passed after 5.417 seconds."
+          ],
+          "valid_utf8": true
+        },
+        {
+          "name": "core.log",
+          "bytes": 1660011,
+          "sha256": "1e9dfc9a3b2a79ca90103c50e2a2b63faf2d2b0955c1bb1d432068219f561866",
+          "source_record": "native-core-test-result-private.json",
+          "source_record_sha256": "253cdd1d726040d573b1bc54019281392a38a6fee3d5bf78f7f181ea30226cd9",
+          "recorded_guest_log_sha256": "1e9dfc9a3b2a79ca90103c50e2a2b63faf2d2b0955c1bb1d432068219f561866",
+          "exit_code": 0,
+          "literal_passed_test_lines": 4104,
+          "literal_failed_test_lines": 0,
+          "summary_lines": [
+            "\u2714 Test run with 4105 tests in 179 suites passed after 78.818 seconds."
+          ],
+          "skip_lines": [
+            "\u279c Test editorCommandWorksUnderNonPosixLoginShell() skipped: \"no non-POSIX login shell (fish) installed \u2014 the cross-shell parse assertion is skipped here\"",
+            "\u25c7 Test \"a runtime or state directory too long for sun_path is skipped, never truncated\" started.",
+            "\u2714 Test \"a runtime or state directory too long for sun_path is skipped, never truncated\" passed after 0.001 seconds.",
+            "\u25c7 Test \"a state directory in a world-writable, non-sticky directory is skipped for the /tmp last resort\" started.",
+            "\u2714 Test \"a state directory in a world-writable, non-sticky directory is skipped for the /tmp last resort\" passed after 0.001 seconds.",
+            "\u25c7 Test \"an unsafe state directory or ancestor is skipped\" started.",
+            "\u25c7 Test case passing 1 argument scenario \u2192 \"state-group-writable\" to \"an unsafe state directory or ancestor is skipped\" started.",
+            "\u25c7 Test case passing 1 argument scenario \u2192 \"state-foreign\" to \"an unsafe state directory or ancestor is skipped\" started.",
+            "\u25c7 Test case passing 1 argument scenario \u2192 \"state-symlink\" to \"an unsafe state directory or ancestor is skipped\" started.",
+            "\u25c7 Test case passing 1 argument scenario \u2192 \"state-file\" to \"an unsafe state directory or ancestor is skipped\" started.",
+            "\u25c7 Test case passing 1 argument scenario \u2192 \"ancestor-foreign\" to \"an unsafe state directory or ancestor is skipped\" started.",
+            "\u25c7 Test case passing 1 argument scenario \u2192 \"ancestor-group-writable\" to \"an unsafe state directory or ancestor is skipped\" started.",
+            "\u25c7 Test case passing 1 argument scenario \u2192 \"ancestor-user-sticky\" to \"an unsafe state directory or ancestor is skipped\" started.",
+            "\u25c7 Test case passing 1 argument scenario \u2192 \"ancestor-missing\" to \"an unsafe state directory or ancestor is skipped\" started.",
+            "\u25c7 Test case passing 1 argument scenario \u2192 \"ancestor-symlink\" to \"an unsafe state directory or ancestor is skipped\" started.",
+            "\u2714 Test \"an unsafe state directory or ancestor is skipped\" with 9 test cases passed after 0.001 seconds."
+          ],
+          "valid_utf8": true
+        }
+      ],
+      "source": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "passed": true
+    }
+  },
+  "corrected_collection_comparison": {
+    "original_file": "native-log-binary-transfer/collection-comparison-corrected-private.json",
+    "original_sha256": "836fdab61497854aad9acbc44ae26c6e1e90e795bdb0ce3ec4b8c9699673c16f",
+    "transport": null,
+    "stdout_encoding": "not a transport wrapper",
+    "observation": [
+      {
+        "name": "frontend-attempt2",
+        "collection_field": "/complete_log",
+        "old_matches_universal_newline_normalization": true,
+        "old_matches_exact_decoded_bytes": false,
+        "old_bytes": 346177,
+        "raw_bytes": 346178,
+        "raw_sha256": "3ec99f3eb35a435f5eb51de1fed8648062103c9e509b0700d3a1cb277ad34526",
+        "raw_crlf_count": 1,
+        "old_replacement_characters": 0,
+        "raw_replacement_characters": 0
+      },
+      {
+        "name": "core",
+        "collection_field": "/logs/0/text",
+        "old_matches_universal_newline_normalization": true,
+        "old_matches_exact_decoded_bytes": false,
+        "old_bytes": 1660009,
+        "raw_bytes": 1660011,
+        "raw_sha256": "1e9dfc9a3b2a79ca90103c50e2a2b63faf2d2b0955c1bb1d432068219f561866",
+        "raw_crlf_count": 2,
+        "old_replacement_characters": 1,
+        "raw_replacement_characters": 1
+      }
+    ]
+  },
+  "superseded_text_mode_comparison": {
+    "original_file": "native-log-binary-transfer/collection-comparison-private.json",
+    "original_sha256": "2862ae52c26c99943ee6aac0b4f711b7efe46cce53160b3ad25c46303e2d80ee",
+    "transport": null,
+    "stdout_encoding": "not a transport wrapper",
+    "observation": [
+      {
+        "name": "frontend-attempt2",
+        "collection_field": "/complete_log",
+        "same_after_strip": false,
+        "old_bytes": 346177,
+        "raw_bytes": 346177,
+        "old_replacement_characters": 0,
+        "raw_replacement_characters": 0
+      },
+      {
+        "name": "core",
+        "collection_field": "/logs/0/text",
+        "same_after_strip": false,
+        "old_bytes": 1660009,
+        "raw_bytes": 1660009,
+        "old_replacement_characters": 1,
+        "raw_replacement_characters": 1
+      }
+    ]
+  },
+  "superseded_comparison_note": "First helper read text with newline conversion; historical output retained, not a current mismatch verdict.",
+  "recomputed_raw_log_observations": [
+    {
+      "name": "frontend-attempt2.log",
+      "original_command": {
+        "label": "swift-test",
+        "argv": [
+          "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift",
+          "test",
+          "--cache-path",
+          "<private-stage-002>/swift-cache",
+          "--jobs",
+          "2"
+        ],
+        "cwd": "<private-stage-002>/source/agterm-linux",
+        "started_at": 1794433117.8339071,
+        "timeout_seconds": 2400,
+        "environment_kind": "swift-compat",
+        "log": "<private-stage-002>/logs-2/09-swift-test.log",
+        "pid": "<process-001>",
+        "process_start_ticks": "<process-birth-001>",
+        "exit_code": 1,
+        "seconds": 92.45717930793762,
+        "log_sha256": "3ec99f3eb35a435f5eb51de1fed8648062103c9e509b0700d3a1cb277ad34526",
+        "log_bytes": 346178
+      },
+      "statistics": {
+        "bytes": 346178,
+        "sha256": "3ec99f3eb35a435f5eb51de1fed8648062103c9e509b0700d3a1cb277ad34526",
+        "valid_utf8": true,
+        "characters": 342082,
+        "split_line_count": 4320,
+        "crlf_pairs": 1,
+        "bare_cr": 2,
+        "lf_bytes": 4316,
+        "replacement_characters": 0,
+        "literal_counts": {
+          "test_pass": 692,
+          "suite_pass": 98,
+          "test_skip": 0,
+          "test_fail": 1,
+          "suite_fail": 1
+        },
+        "framework_summary_lines": [
+          "\u2718 Test run with 693 tests in 99 suites failed after 37.916 seconds with 1 issue."
+        ],
+        "actual_skip_lines": []
+      },
+      "previous_collection_utf8_sha256": "e909129e828bb9999f92b5ed91440f7a15a3c05a729a026a11d6024fc3dc5df7"
+    },
+    {
+      "name": "frontend-attempt3.log",
+      "original_command": {
+        "label": "swift-test",
+        "argv": [
+          "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift",
+          "test",
+          "--skip-build",
+          "--cache-path",
+          "<private-stage-002>/swift-cache",
+          "--jobs",
+          "2"
+        ],
+        "cwd": "<private-stage-002>/source/agterm-linux",
+        "started_at": 1794433392.365305,
+        "timeout_seconds": 2400,
+        "environment_kind": "swift-compat",
+        "log": "<private-stage-002>/logs-3/07-swift-test.log",
+        "pid": "<process-002>",
+        "process_start_ticks": "<process-birth-002>",
+        "exit_code": 0,
+        "seconds": 37.83783674240112,
+        "log_sha256": "8ea75f1ea7b0c41dc29065f273f2fee3e74e041f5d50becbff10fc6c5863ca23",
+        "log_bytes": 166173
+      },
+      "statistics": {
+        "bytes": 166173,
+        "sha256": "8ea75f1ea7b0c41dc29065f273f2fee3e74e041f5d50becbff10fc6c5863ca23",
+        "valid_utf8": true,
+        "characters": 162079,
+        "split_line_count": 1784,
+        "crlf_pairs": 1,
+        "bare_cr": 2,
+        "lf_bytes": 1780,
+        "replacement_characters": 0,
+        "literal_counts": {
+          "test_pass": 693,
+          "suite_pass": 99,
+          "test_skip": 0,
+          "test_fail": 0,
+          "suite_fail": 0
+        },
+        "framework_summary_lines": [
+          "\u2714 Test run with 693 tests in 99 suites passed after 36.660 seconds."
+        ],
+        "actual_skip_lines": []
+      }
+    },
+    {
+      "name": "core.log",
+      "original_command": {
+        "label": "core-tests",
+        "argv": [
+          "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift",
+          "test",
+          "--cache-path",
+          "<private-stage-003>/swift-cache",
+          "--jobs",
+          "2",
+          "--no-parallel"
+        ],
+        "cwd": "<private-stage-002>/source/agtermCore",
+        "started_at": 1794433777.0869303,
+        "timeout_seconds": 1800,
+        "environment_kind": "swift-compat",
+        "log": "<private-stage-003>/logs/04-core-tests.log",
+        "pid": "<process-003>",
+        "process_start_ticks": "<process-birth-003>",
+        "exit_code": 0,
+        "seconds": 201.61862468719482,
+        "log_sha256": "1e9dfc9a3b2a79ca90103c50e2a2b63faf2d2b0955c1bb1d432068219f561866",
+        "log_bytes": 1660011
+      },
+      "statistics": {
+        "bytes": 1660011,
+        "sha256": "1e9dfc9a3b2a79ca90103c50e2a2b63faf2d2b0955c1bb1d432068219f561866",
+        "valid_utf8": true,
+        "characters": 1635768,
+        "split_line_count": 19445,
+        "crlf_pairs": 2,
+        "bare_cr": 6,
+        "lf_bytes": 19434,
+        "replacement_characters": 1,
+        "literal_counts": {
+          "test_pass": 4104,
+          "suite_pass": 179,
+          "test_skip": 1,
+          "test_fail": 0,
+          "suite_fail": 0
+        },
+        "framework_summary_lines": [
+          "\u2714 Test run with 4105 tests in 179 suites passed after 78.818 seconds."
+        ],
+        "actual_skip_lines": [
+          "\u279c Test editorCommandWorksUnderNonPosixLoginShell() skipped: \"no non-POSIX login shell (fish) installed \u2014 the cross-shell parse assertion is skipped here\""
+        ]
+      },
+      "previous_collection_utf8_sha256": "c85a51bacf197df99cbc40c8689088ed4e1cea5b3a9810995a41b164f39f4b1c"
+    }
+  ],
+  "historical_previous_package": {
+    "manifest_sha256": "34bce9ff0f5c61ecafe95670b139d34566eb31e8008b5e1ea8c65d69480dbffc",
+    "note": "Previous full-text collection limits remain historically correct. Binary recovery resolves the exact-byte and missing complete attempt3 log gaps without rerunning tests or changing that package."
+  },
+  "selection_note": "Transfer manifest skip_lines is a broad substring search and includes test names. Only anchored actual_skip_lines is used to count skips."
+}
