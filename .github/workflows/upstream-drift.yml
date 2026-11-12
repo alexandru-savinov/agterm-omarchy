@@ -1,0 +1,72 @@
+name: Upstream drift
+
+# Weekly measure of how far main is from melonamin/agterm-linux:linux-port (#380): commits ahead and
+# behind, and the paths a merge would conflict on. Report only; it changes nothing and needs no token
+# beyond read access. The numbers go to the job summary and to upstream-drift.json as an artifact.
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+  # A change to this workflow runs it once on its own pull request.
+  pull_request:
+    paths: ['.github/workflows/upstream-drift.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-drift
+  cancel-in-progress: true
+
+jobs:
+  drift:
+    name: Drift from linux-port
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Measure ahead, behind and conflicting paths
+        env:
+          UPSTREAM_URL: https://github.com/melonamin/agterm-linux.git
+          UPSTREAM_BRANCH: linux-port
+        run: |
+          git fetch --quiet --no-tags "$UPSTREAM_URL" "$UPSTREAM_BRANCH"
+          upstream="$(git rev-parse FETCH_HEAD)"
+          read -r ahead behind < <(git rev-list --left-right --count "HEAD...$upstream")
+          # merge-tree --write-tree exits 1 with a conflict list, 0 for a clean merge, >1 on error.
+          set +e
+          git -c user.name=drift -c user.email=drift@invalid merge-tree --write-tree --name-only \
+            HEAD "$upstream" > merge-tree.out
+          status=$?
+          set -e
+          (( status <= 1 )) || { echo "git merge-tree failed ($status)" >&2; cat merge-tree.out >&2; exit 1; }
+          conflicts="$(sed -n '2,/^$/p' merge-tree.out | sed '/^$/d')"
+          count="$(printf '%s' "$conflicts" | grep -c . || true)"
+          jq -n --arg main "$(git rev-parse HEAD)" --arg upstream "$upstream" \
+            --argjson ahead "$ahead" --argjson behind "$behind" --argjson count "$count" \
+            --arg conflicts "$conflicts" \
+            '{main: $main, upstream: $upstream, ahead: $ahead, behind: $behind,
+              conflicting_paths: ($conflicts | split("\n") | map(select(length > 0))), conflict_count: $count}' \
+            > upstream-drift.json
+          {
+            echo "### Drift from linux-port"
+            echo
+            echo "| main | linux-port | ahead | behind | conflicting paths |"
+            echo "|---|---|---:|---:|---:|"
+            echo "| \`${GITHUB_SHA:0:8}\` | \`${upstream:0:8}\` | $ahead | $behind | $count |"
+            if [[ -n "$conflicts" ]]; then
+              echo
+              echo '```'
+              printf '%s\n' "$conflicts"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat upstream-drift.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: upstream-drift
+          path: upstream-drift.json
+          retention-days: 30
