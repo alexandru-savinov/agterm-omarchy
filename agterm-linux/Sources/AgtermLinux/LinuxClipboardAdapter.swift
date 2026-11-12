@@ -42,14 +42,17 @@ enum LinuxClipboardAdapter {
                               available: copyMimes(confirm.available, count: confirm.available_len))
     }
 
-    static func requestKind(_ request: ghostty_clipboard_request_e) -> ClipboardRequestKind {
+    /// Nil for a kind this revision does not know: the caller denies it, so a Ghostty bump that adds a kind
+    /// fails closed instead of completing unprompted as a paste.
+    static func requestKind(_ request: ghostty_clipboard_request_e) -> ClipboardRequestKind? {
         switch request {
+        case GHOSTTY_CLIPBOARD_REQUEST_PASTE: .paste
         case GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ: .osc52Read
         case GHOSTTY_CLIPBOARD_REQUEST_OSC_52_WRITE: .osc52Write
         case GHOSTTY_CLIPBOARD_REQUEST_KITTY_READ: .kittyRead
         case GHOSTTY_CLIPBOARD_REQUEST_KITTY_WRITE: .kittyWrite
         case GHOSTTY_CLIPBOARD_REQUEST_LIST: .list
-        default: .paste
+        default: nil
         }
     }
 

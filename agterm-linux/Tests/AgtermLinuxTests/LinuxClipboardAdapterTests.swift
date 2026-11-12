@@ -173,7 +173,7 @@ struct LinuxClipboardAdapterTests {
         #expect(copied == ClipboardConfirmation(items: items, available: available))
     }
 
-    @Test("every engine request kind maps, and an unknown one is a paste")
+    @Test("every engine request kind maps, and an unknown one maps to none, so it is denied")
     func requestKinds() {
         #expect(LinuxClipboardAdapter.requestKind(GHOSTTY_CLIPBOARD_REQUEST_PASTE) == .paste)
         #expect(LinuxClipboardAdapter.requestKind(GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ) == .osc52Read)
@@ -181,7 +181,7 @@ struct LinuxClipboardAdapterTests {
         #expect(LinuxClipboardAdapter.requestKind(GHOSTTY_CLIPBOARD_REQUEST_KITTY_READ) == .kittyRead)
         #expect(LinuxClipboardAdapter.requestKind(GHOSTTY_CLIPBOARD_REQUEST_KITTY_WRITE) == .kittyWrite)
         #expect(LinuxClipboardAdapter.requestKind(GHOSTTY_CLIPBOARD_REQUEST_LIST) == .list)
-        #expect(LinuxClipboardAdapter.requestKind(ghostty_clipboard_request_e(rawValue: 99)) == .paste)
+        #expect(LinuxClipboardAdapter.requestKind(ghostty_clipboard_request_e(rawValue: 99)) == nil)
     }
 
     @Test("complete delivers every item, the listing and the confirmation to the engine")

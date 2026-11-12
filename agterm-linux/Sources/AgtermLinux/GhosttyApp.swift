@@ -454,7 +454,12 @@ final class GhosttyApp: @unchecked Sendable {
                 }
                 return
             }
-            guard let access = LinuxClipboardPolicy.access(for: LinuxClipboardAdapter.requestKind(request)) else {
+            // a kind this revision does not know is refused, never completed unprompted
+            guard let kind = LinuxClipboardAdapter.requestKind(request) else {
+                ghostty_surface_deny_clipboard_request(surface, requestState)
+                return
+            }
+            guard let access = LinuxClipboardPolicy.access(for: kind) else {
                 LinuxClipboardAdapter.complete(surface, items: payload.items, available: payload.available,
                                                state: requestState, confirmed: true)
                 return
