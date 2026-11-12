@@ -27,87 +27,397 @@ def structure(state):
 
 
 def verify_window_close_cancel(env, state):
-    for mode in ("default", "live"):
-        mode_state = os.path.join(state, f"close-{mode}")
-        os.makedirs(os.path.join(mode_state, "windows"))
-        if mode == "live":
+    import ctypes
+    import select
+    import shlex
+    import signal
+    import struct
+    import subprocess
+    import sys
+    import traceback
+    from atspi_smoke import ROOT, press_x11_key
+
+    class Publications:
+        """Watch the directory before an action; replaced inode polling loses rapid publications."""
+        def __init__(self, folder):
+            libc = ctypes.CDLL(None, use_errno=True)
+            libc.inotify_init1.argtypes = [ctypes.c_int]
+            libc.inotify_init1.restype = ctypes.c_int
+            libc.inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+            libc.inotify_add_watch.restype = ctypes.c_int
+            self.fd = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+            assert self.fd >= 0, f"inotify_init1: {ctypes.get_errno()}"
+            # Include temporary-file moves so adjacent publications cannot be coalesced.
+            self.watch = libc.inotify_add_watch(self.fd, os.fsencode(folder), 0xC0 | 0x400 | 0x800)
+            if self.watch < 0:
+                os.close(self.fd)
+                raise AssertionError(f"inotify_add_watch: {ctypes.get_errno()}")
+
+        def drain(self):
+            events = []
+            while select.select([self.fd], [], [], 0)[0]:
+                data = os.read(self.fd, 65536)
+                offset = 0
+                while offset < len(data):
+                    assert len(data) - offset >= 16, "truncated inotify header"
+                    watch, mask, cookie, length = struct.unpack_from("iIII", data, offset)
+                    offset += 16
+                    assert offset + length <= len(data), "truncated inotify name"
+                    name = os.fsdecode(data[offset:offset + length].split(b"\0", 1)[0])
+                    offset += length
+                    assert not mask & (0x4000 | 0x8000 | 0x400 | 0x800), f"lost publication watch: {mask:#x}"
+                    assert watch == self.watch, f"unexpected watch {watch}"
+                    if mask & 0x80:
+                        assert cookie, "atomic publication had no rename cookie"
+                        events.append((name, cookie))
+            return events
+
+        def close(self):
+            os.close(self.fd)
+
+    # Prove this observer distinguishes rapid replacements before trusting a single-publication result.
+    watch_dir = os.path.join(state, "publication-self-check")
+    os.makedirs(watch_dir)
+    check = Publications(watch_dir)
+    try:
+        for index in range(3):
+            temporary = os.path.join(watch_dir, f"temporary-{index}")
+            with open(temporary, "w", encoding="utf-8") as file:
+                file.write(str(index))
+            os.replace(temporary, os.path.join(watch_dir, "window.json"))
+        observed = check.drain()
+        assert len(observed) == len(set(observed)) == 3, observed
+        assert all(name == "window.json" for name, _ in observed), observed
+    finally:
+        check.close()
+
+    # A real foreground program gives Live identity and Re-run/Fresh behavior distinct oracles.
+    job = os.path.join(state, "quit-job.py")
+    with open(job, "w", encoding="utf-8") as file:
+        file.write("import os, signal, sys\n"
+                   "def respond(*_):\n    with open(sys.argv[1] + '.reply', 'a') as f: f.write(str(os.getpid()) + '\\n')\n"
+                   "signal.signal(signal.SIGUSR1, respond)\n"
+                   "with open(sys.argv[1], 'a') as f: f.write(str(os.getpid()) + '\\n')\n"
+                   "while True: signal.pause()\n")
+
+    login_fixture = os.path.join(state, "quit-login-shell.so")
+    subprocess.run(["cc", "-shared", "-fPIC", "-o", login_fixture,
+                    os.path.join(ROOT, "tests/login_shell_zsh_fixture.c"), "-ldl"], check=True)
+
+    for mode in ("none", "rerun", "live"):
+        for exit_kind in ("accept", "SIGTERM", "SIGINT", "pending-accept", "pending-SIGTERM"):
+            pending = exit_kind.startswith("pending-")
+            if pending and mode != "live":
+                continue
+            exit_action = exit_kind.removeprefix("pending-")
+            mode_state = os.path.join(state, f"close-{mode}-{exit_kind}")
+            windows = os.path.join(mode_state, "windows")
+            os.makedirs(windows)
             with open(os.path.join(mode_state, "settings.json"), "w", encoding="utf-8") as file:
-                json.dump({"restoreMode": "live", "closeGraceUndoEnabled": False}, file)
-        mode_env = dict(env, AGTERM_STATE_DIR=mode_state, AGTERM_CONTROL_SOCKET=os.path.join(mode_state, "agterm.sock"))
-        process, app = launch(mode_env)
-        try:
-            window = first_window(mode_env)
-            control_json(mode_env, "session", "new", "--name", "close-two", "--window", window, "--json")
+                json.dump({"restoreMode": mode, "closeGraceUndoEnabled": pending}, file)
+            if pending:
+                os.makedirs(os.path.join(mode_state, "config"))
+                with open(os.path.join(mode_state, "config", "keymap.conf"), "w", encoding="utf-8") as file:
+                    file.write("map ctrl+alt+u undo_close\n")
+            mode_env = dict(env, AGTERM_STATE_DIR=mode_state,
+                            AGTERM_CONTROL_SOCKET=os.path.join(mode_state, "agterm.sock"))
+            if mode == "live":
+                mode_env["LD_PRELOAD"] = login_fixture  # Existing process-local eligibility fixture; no account changes.
+            process, app = launch(mode_env)
+            observer = None
+            job_fd = None
+            ids = []
+            cleanup_targets = []
+            try:
+                window = first_window(mode_env)
+                mode_status = raw_control_json(mode_env, {"cmd": "restore.mode"})
+                assert mode_status["ok"] and mode_status["result"]["restore"]["active"] == mode, mode_status
+                control_json(mode_env, "session", "new", "--name", "close-two", "--window", window, "--json")
 
-            def sessions():
-                return [row for workspace in window_tree(mode_env, window)["workspaces"] for row in workspace["sessions"]]
+                def sessions():
+                    return [row for workspace in window_tree(mode_env, window)["workspaces"]
+                            for row in workspace["sessions"]]
 
-            wait_for(lambda: len(sessions()) == 2, "the second session never appeared")
-            ids = [row["id"] for row in sessions()]
+                wait_for(lambda: len(sessions()) == 2, "the second session never appeared")
+                ids = [row["id"] for row in sessions()]
+                cleanup_targets.extend((window, ident) for ident in ids)
 
-            def answers(tag):
-                markers = {ident: os.path.join(mode_state, f"{tag}-{index}") for index, ident in enumerate(ids)}
-                for ident, path in markers.items():
-                    control_json(mode_env, "session", "type", f"echo {tag} > {path}\n", "--target", ident, "--json")
-                for ident, path in markers.items():
-                    wait_for(lambda path=path: os.path.exists(path), f"session {ident} never answered {tag}", timeout=15)
+                def answers(tag, targets=None):
+                    markers = {ident: os.path.join(mode_state, f"{tag}-{index}")
+                               for index, ident in enumerate(targets or ids)}
+                    for ident, path in markers.items():
+                        try:
+                            control_json(mode_env, "session", "type", f"echo {tag} > {shlex.quote(path)}\n",
+                                         "--target", ident, "--json")
+                        except subprocess.CalledProcessError as error:
+                            raise AssertionError(f"{tag}: session {ident}: {error.output!r}; tree={sessions()}") from error
+                    for ident, path in markers.items():
+                        wait_for(lambda path=path: os.path.exists(path),
+                                 f"session {ident} never answered {tag}", timeout=15)
 
-            answers("before")
-            time.sleep(1.5)
-            saved = structure(mode_state)
-            assert saved, "no saved structure to compare against"
+                answers("before")
+                time.sleep(1.5)
+                saved = structure(mode_state)
+                assert saved, "no saved structure to compare against"
+                records = [name for name in os.listdir(windows) if name.casefold() == f"{window.lower()}.json"]
+                assert len(records) == 1, f"missing or ambiguous record for window {window}: {records}"
+                record = records[0]  # Foundation's UUID filename is uppercase; the wire ID may not be.
+                observer = Publications(windows)
 
-            def prompt():
-                return named(app, "Quit agterm?")
+                def prompt():
+                    return named(app, "Quit agterm?")
 
-            control_json(mode_env, "window", "close", window, "--json")
-            wait_for(prompt, "closing the last window did not ask to quit")
-            activate(wait_for(lambda: named(app, "Cancel", role="button"), "the quit prompt had no Cancel"))
-            wait_for(lambda: prompt() is None, "Cancel did not dismiss the quit prompt")
-            assert process.poll() is None, "Cancel quit the app"
-            assert next(item for item in window_list(mode_env) if item["id"] == window)["open"], "Cancel closed the window"
-            assert [row["id"] for row in sessions()] == ids, f"Cancel changed the sessions: {sessions()}"
-            answers("after")
-            time.sleep(1.5)
-            after = structure(mode_state)
-            changed = sorted(name for name in set(saved) | set(after) if saved.get(name) != after.get(name))
-            assert not changed, f"a cancelled close rewrote the saved structure: {changed}"
+                control_json(mode_env, "window", "close", window, "--json")
+                wait_for(prompt, "closing the last window did not ask to quit")
+                activate(wait_for(lambda: named(app, "Cancel", role="button"), "the quit prompt had no Cancel"))
+                wait_for(lambda: prompt() is None, "Cancel did not dismiss the quit prompt")
+                assert process.poll() is None, "Cancel quit the app"
+                assert next(item for item in window_list(mode_env) if item["id"] == window)["open"]
+                assert [row["id"] for row in sessions()] == ids, f"Cancel changed sessions: {sessions()}"
+                answers("after")
+                time.sleep(1.5)
+                assert structure(mode_state) == saved, "Cancel changed saved structure"
+                assert not observer.drain(), "Cancel published a window snapshot"
 
-            record = os.path.join(mode_state, "windows", f"{window.lower()}.json")
-            if not os.path.exists(record):
-                record = next(os.path.join(mode_state, "windows", name) for name in os.listdir(os.path.join(mode_state, "windows"))
-                              if name.endswith(".json"))
-            control_json(mode_env, "window", "close", window, "--json")
-            wait_for(prompt, "the second close did not ask to quit")
-            activate(wait_for(lambda: named(app, "Quit", role="button"), "the quit prompt had no Quit"))
-            stamps = []
-            deadline = time.monotonic() + 15
-            while process.poll() is None and time.monotonic() < deadline:
+                # A non-final close must still publish its own record and leave this window usable.
+                other = control_json(mode_env, "window", "new", "ordinary-close", "--json")["result"]["id"]
+                wait_for(lambda: any(item["id"] == other and item["open"] for item in window_list(mode_env)),
+                         "ordinary-close window did not open")
+                other_ids = wait_for(lambda: [row["id"] for workspace in window_tree(mode_env, other)["workspaces"]
+                                               for row in workspace["sessions"]],
+                                     "ordinary-close window never created its session")
+                cleanup_targets.extend((other, ident) for ident in other_ids)
+                time.sleep(1.5)
+                observer.drain()
+                control_json(mode_env, "window", "close", other, "--json")
+                wait_for(lambda: all(item["id"] != other or not item["open"] for item in window_list(mode_env)),
+                         "ordinary close did not close its window")
+                events = observer.drain()
+                assert sum(name.casefold() == f"{other.lower()}.json" for name, _ in events) == 1, events
+                assert not any(name == record for name, _ in events), events
+                answers("ordinary-close-survivor")
+
+                pids = os.path.join(mode_state, "job-pids")
+                control_json(mode_env, "session", "type",
+                             f"{shlex.quote(sys.executable)} {shlex.quote(job)} {shlex.quote(pids)}\n",
+                             "--target", ids[0], "--json")
+
+                def jobs():
+                    try:
+                        with open(pids, encoding="utf-8") as file:
+                            return [int(line) for line in file if line.strip()]
+                    except FileNotFoundError:
+                        return []
+
+                wait_for(jobs, "foreground marker job did not start")
+                original_pid = jobs()[0]
+                job_fd = os.pidfd_open(original_pid)
+                with open(f"/proc/{original_pid}/stat", encoding="utf-8") as file:
+                    birth = file.read().rsplit(")", 1)[1].split()[19]
+                time.sleep(1.5)
+                if pending:
+                    def pending_key(x11, hypr):
+                        # Palette navigation consumes the real three-second undo grace.
+                        if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+                            subprocess.run(["hyprctl", "dispatch", "sendshortcut", f"{hypr},pid:{process.pid}"],
+                                           check=True, stdout=subprocess.DEVNULL)
+                        else:
+                            press_x11_key(x11, process.pid)
+
+                    def held_row():
+                        response = raw_control_json(mode_env, {"cmd": "zmx.list"})
+                        assert response["ok"], response
+                        matches = [row for row in response["result"]["zmx"]["entries"]
+                                   if row.get("sessionID", "").casefold() == ids[0].casefold()
+                                   and row.get("pane") == "left"]
+                        assert len(matches) == 1, matches
+                        return matches[0]
+
+                    def soft_close():
+                        assert any(row["id"] == ids[0] and row.get("active") for row in sessions())
+                        started = time.monotonic()
+                        pending_key("ctrl+shift+q", "CTRL SHIFT,Q")
+                        wait_for(lambda: all(row["id"] != ids[0] for row in sessions()),
+                                 "GUI close did not remove the held session")
+                        held = held_row()
+                        assert held["state"] == "pendingClose" and held["observation"] == "running", held
+                        assert not select.select([job_fd], [], [], 0)[0], "soft close ended the held job"
+                        return started, held["daemon"]
+
+                    control_json(mode_env, "session", "select", "--target", ids[0], "--window", window, "--json")
+                    time.sleep(1.5)  # Finish selection's scheduled save before observing pending work.
+                    observer.drain()
+                    soft_close()
+                    # Soft close persists recent-closed history; Cancel must preserve that new baseline.
+                    pending_snapshot = structure(mode_state)
+                    assert not observer.drain(), "soft close published the window snapshot before finalization"
+                    control_json(mode_env, "window", "close", window, "--json")
+                    wait_for(prompt, "pending-work close did not ask to quit")
+                    activate(wait_for(lambda: named(app, "Cancel", role="button"), "pending quit had no Cancel"))
+                    wait_for(lambda: prompt() is None, "Cancel did not dismiss pending-work quit")
+                    assert held_row()["state"] == "pendingClose", "Cancel lost the held close record"
+                    assert structure(mode_state) == pending_snapshot, "Cancel published pending work"
+                    assert not observer.drain(), "Cancel finalized the pending close"
+                    pending_key("ctrl+alt+u", "CTRL ALT,U")
+                    wait_for(lambda: any(row["id"] == ids[0] and row.get("active") for row in sessions()),
+                             "Undo did not restore and select the held session")
+                    assert not select.select([job_fd], [], [], 0)[0], "Undo replaced the held job"
+                    signal.pidfd_send_signal(job_fd, signal.SIGUSR1)
+                    wait_for(lambda: os.path.exists(pids + ".reply") and
+                             open(pids + ".reply", encoding="utf-8").read().strip() == str(original_pid),
+                             "the original held program did not respond after Cancel and Undo")
+                    observer.drain()
+                    pending_started, pending_daemon = soft_close()
+                if exit_action == "accept":
+                    control_json(mode_env, "window", "close", window, "--json")
+                    wait_for(prompt, "the second close did not ask to quit")
+                if pending:
+                    held = held_row()
+                    assert held["state"] == "pendingClose" and held["observation"] == "running", held
+                else:
+                    observer.drain()
+                if exit_action == "accept":
+                    activate(wait_for(lambda: named(app, "Quit", role="button"), "the quit prompt had no Quit"))
+                else:
+                    process.send_signal(getattr(signal, exit_action))
+                events = []
+                deadline = time.monotonic() + 20
+                while process.poll() is None and time.monotonic() < deadline:
+                    events.extend(observer.drain())
+                    select.select([observer.fd], [], [], 0.05)
+                events.extend(observer.drain())
+                assert process.poll() == 0, f"{exit_kind} did not exit cleanly: {process.poll()}"
+                publications = [(name, cookie) for name, cookie in events if name == record]
+                expected_publications = 2 if pending else 1
+                assert len(publications) == expected_publications, (
+                    f"{mode}/{exit_kind}: expected {expected_publications} publication(s), got {publications}")
+                if pending:
+                    elapsed = time.monotonic() - pending_started
+                    assert elapsed < 3, f"shutdown took {elapsed:.3f}s; natural grace expiry is not excluded"
+                    assert select.select([job_fd], [], [], 0)[0], "quit did not end the pending job"
+                    print(f"measured: pending cleanup plus final flush published twice in {elapsed:.3f}s (<3s grace)")
+                assert len(set(publications)) == len(publications), "duplicate rename identity"
+                observer.close()
+                observer = None
+
+                process, app = launch(mode_env)
+                window = first_window(mode_env)
+                mode_status = raw_control_json(mode_env, {"cmd": "restore.mode"})
+                assert mode_status["ok"] and mode_status["result"]["restore"]["active"] == mode, mode_status
+                restored = [row["id"] for row in sessions()]
+                expected_ids = ids[1:] if pending else ids
+                assert restored == expected_ids, f"{mode}: restored {restored}, not {expected_ids}"
+                answers("restored-shell", [ids[1]])
+                if pending:
+                    response = raw_control_json(mode_env, {"cmd": "zmx.list"})
+                    assert response["ok"], response
+                    assert all(row["observation"] == "absent" for row in response["result"]["zmx"]["entries"]
+                               if row["daemon"] == pending_daemon), "pending daemon survived quit"
+                    print(f"OK: {exit_kind}: Cancel/Undo retained the original job; quit finalized held work once")
+                    continue  # The common finally still verifies identity-scoped cleanup.
+                # Restored hidden sessions are intentionally lazy; selecting is the real user action
+                # that creates their Fresh shell / Re-run prefill / Live attachment.
+                control_json(mode_env, "session", "select", "--target", ids[0], "--window", window, "--json")
+                wait_for(lambda: any(row["id"] == ids[0] and row.get("active") and row.get("realized")
+                                     for row in sessions()), "restored target did not realize after selection")
+                if mode == "rerun":
+                    # Re-run deliberately pre-fills the captured command without executing it.
+                    wait_for(lambda: select.select([job_fd], [], [], 0)[0], "Re-run left the old job running")
+                    deadline = time.monotonic() + 2
+                    while time.monotonic() < deadline:
+                        assert [row["id"] for row in sessions()] == ids
+                        assert jobs() == [original_pid], "Re-run executed before explicit Enter"
+                        time.sleep(0.05)
+                    control_json(mode_env, "session", "type", "\n", "--target", ids[0], "--json")
+                    wait_for(lambda: len(jobs()) == 2, "Enter did not run the pre-filled captured command")
+                    assert jobs()[1] != original_pid, "Re-run retained the old process"
+                elif mode == "live":
+                    assert jobs() == [original_pid] and not select.select([job_fd], [], [], 0)[0], (
+                        "Live did not preserve the foreground program identity")
+                    with open(f"/proc/{original_pid}/stat", encoding="utf-8") as file:
+                        assert file.read().rsplit(")", 1)[1].split()[19] == birth, "Live PID birth changed"
+                    signal.pidfd_send_signal(job_fd, signal.SIGUSR1)
+                    wait_for(lambda: os.path.exists(pids + ".reply") and
+                             open(pids + ".reply", encoding="utf-8").read().strip() == str(original_pid),
+                             "the preserved Live program did not respond after reopen")
+                else:
+                    answers("fresh-shell", [ids[0]])
+                    assert jobs() == [original_pid], "Fresh re-ran the foreground program"
+                if mode != "live":
+                    wait_for(lambda: select.select([job_fd], [], [], 0)[0],
+                             f"{mode} left the old foreground job running")
+                # The same identity-scoped finally cleanup handles success and failure. Keep claims
+                # intact until it records and verifies the owned daemon inventory.
+                print(f"OK: {mode}/{exit_kind}: Cancel preserved shells and bytes, ordinary close saved once, "
+                      "final shutdown published one snapshot, and restore behavior matched the mode")
+            finally:
+                if sys.exc_info()[0] is not None:
+                    traceback.print_exc()  # The outer runner prints only the last cleanup exception.
+                if observer is not None:
+                    observer.close()
                 try:
-                    stat = os.stat(record)
-                    stamp = (stat.st_ino, stat.st_mtime_ns)
-                    if not stamps or stamps[-1][0] != stamp:
-                        with open(record, "rb") as file:
-                            stamps.append((stamp, file.read()))
-                except FileNotFoundError:
-                    pass
-                time.sleep(0.01)
-            assert process.poll() == 0, f"Quit did not exit cleanly: {process.poll()}"
-            flushes = len(stamps) - 1
-            assert len({body for _stamp, body in stamps[1:]}) <= 1, (
-                f"Quit's {flushes} snapshot flushes wrote different bytes")
-        finally:
-            if process.poll() is None:
-                stop(process)
-        process, app = launch(mode_env)
-        try:
-            window = first_window(mode_env)
-            restored = [row["id"] for workspace in window_tree(mode_env, window)["workspaces"] for row in workspace["sessions"]]
-            assert restored == ids, f"{mode}: the quit snapshot restored {restored}, not {ids}"
-        finally:
-            stop(process)
-        print(f"OK: {mode} mode: Cancel on the last-window quit prompt kept both shells live and the saved structure "
-              f"byte-identical; Quit exited 0 after {flushes} observed snapshot flush(es) and restored the same sessions")
+                    if mode == "live" and cleanup_targets:
+                        # Cleanup through the existing identity-scoped host API, even after a failed
+                        # post-exit assertion. Never sweep unrelated daemons or signal a bare PID.
+                        if process.poll() is not None:
+                            process, app = launch(mode_env)
+                        def inventory():
+                            response = raw_control_json(mode_env, {"cmd": "zmx.list"})
+                            assert response["ok"], response
+                            return response["result"]["zmx"]["entries"]
+
+                        before = inventory()
+                        owned_names = set()
+                        for owner_window, ident in cleanup_targets:
+                            matches = [row for row in inventory() if row.get("sessionID", "").casefold() == ident.casefold()
+                                       and row.get("pane") == "left"]
+                            assert len(matches) <= 1, f"ambiguous fixture daemon: {matches}"
+                            if not matches:
+                                continue  # A normally closed session can have removed its claim already.
+                            row = matches[0]
+                            assert row.get("windowID", "").casefold() == owner_window.casefold(), row
+                            owned_names.add(row["daemon"])
+                            if row["state"] == "pendingClose":
+                                # The kill API refuses held closes; normal shutdown finalizes them.
+                                process.send_signal(signal.SIGTERM)
+                                assert process.wait(timeout=10) == 0, "pending cleanup shutdown failed"
+                                process, app = launch(mode_env)
+                                assert all(item["observation"] == "absent" for item in inventory()
+                                           if item["daemon"] == row["daemon"]), "pending daemon survived cleanup"
+                                continue
+                            assert row["state"] == "claimed", row
+                            if row["observation"] == "absent":
+                                continue
+                            assert row["observation"] == "running", row
+                            # Omit the common open-window selector: this API resolves explicit session
+                            # UUIDs across the inventory, including these verified closed-window claims.
+                            reply = raw_control_json(mode_env, {"cmd": "zmx.kill", "target": ident,
+                                                     "args": {"pane": "left", "force": True}})
+                            assert reply.get("ok") or reply.get("error", "").endswith(" is not running"), reply
+                        after = inventory()
+                        assert all(row["observation"] == "absent" for row in after
+                                   if row["daemon"] in owned_names), after
+                        unrelated = {row["daemon"]: row for row in before if row["daemon"] not in owned_names}
+                        assert {row["daemon"]: row for row in after if row["daemon"] not in owned_names} == unrelated, (
+                            "fixture cleanup changed unrelated daemon inventory")
+                        print(f"measured: cleaned {len(owned_names)} exact fixture daemon identities")
+                finally:
+                    try:
+                        if job_fd is not None:
+                            try:
+                                if not select.select([job_fd], [], [], 0)[0]:
+                                    try:
+                                        signal.pidfd_send_signal(job_fd, signal.SIGTERM)
+                                    except ProcessLookupError:
+                                        pass  # The exact process exited between poll and signal.
+                                wait_for(lambda: select.select([job_fd], [], [], 0)[0],
+                                         "fixture foreground job remained alive after cleanup", timeout=5)
+                                print("measured: held foreground process exited after cleanup")
+                            finally:
+                                os.close(job_fd)
+                    finally:
+                        if process.poll() is None:
+                            stop(process)
 
 
 def verify_workspace_focus_filters(env):
