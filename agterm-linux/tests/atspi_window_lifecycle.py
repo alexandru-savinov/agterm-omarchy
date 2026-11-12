@@ -135,15 +135,37 @@ def verify_workspace_focus_filters(env):
         wait_for(lambda: matches()[0], f"{step}: sidebar rows/active session disagree with the tree: {matches()[1]}")
         return matches()[1][1]
 
+    def targetless_actions(workspace, name):
+        request("workspace.rename", args={"name": name})
+        wait_for(lambda: any(item["id"] == workspace and item["name"] == name
+                             for item in tree()["workspaces"]),
+                 f"targetless rename did not target selected workspace {workspace}")
+        wait_for(lambda: named(app, name, role="label"), "renamed workspace label did not appear")
+        before = {row["id"] for item in tree()["workspaces"] for row in item["sessions"]}
+        run_palette_action(app, process.pid, None, "New Session")
+        def created():
+            return [(item["id"], row) for item in tree()["workspaces"] for row in item["sessions"]
+                    if row["id"] not in before]
+        added = wait_for(created, "targetless New Session did not create a session")
+        assert len(added) == 1 and added[0][0] == workspace and added[0][1].get("active"), (
+            f"targetless New Session did not select a session in {workspace}: {added}")
+
     try:
         first = tree()["workspaces"][0]["id"]
         request("workspace.rename", first, {"name": "wf-one"})
+        selected = next(row["id"] for item in tree()["workspaces"] for row in item["sessions"]
+                        if row.get("active"))
         two = request("workspace.new", args={"name": "wf-two"})["id"]
+        request("workspace.select", first)
+        assert next(row["id"] for item in tree()["workspaces"] for row in item["sessions"]
+                    if row.get("active")) == selected, "same-session workspace selection changed the session"
+        targetless_actions(first, "wf-one-selected")
+        request("workspace.rename", first, {"name": "wf-one"})
         three = request("workspace.new", args={"name": "wf-three"})["id"]
-        for workspace in (two, three):
-            # placed by id: selecting a still-empty workspace has no session to make current, so an
-            # unplaced session.new lands in whichever workspace is current (wf-three, the last created)
-            request("session.new", args={"name": f"wf-session-{workspace[:4]}", "workspace": workspace})
+        request("workspace.select", two)
+        targetless_actions(two, "wf-two-selected")
+        request("workspace.rename", two, {"name": "wf-two"})
+        request("session.new", args={"name": "wf-session-three", "workspace": three})
         wait_for(lambda: [item["name"] for item in tree()["workspaces"]] == ["wf-one", "wf-two", "wf-three"],
                  f"the fixture workspaces did not settle: {tree()['workspaces']}")
         check("fixture")
@@ -156,6 +178,17 @@ def verify_workspace_focus_filters(env):
         select(two)
         run_palette_action(app, process.pid, None, "Focus Workspace")
         assert check("Focus Workspace") == ["wf-two"]
+        hidden = request("workspace.new", args={"name": "wf-hidden"})["id"]
+        select(two)
+        run_palette_action(app, process.pid, None, "Focus Workspace")
+        assert check("hide empty workspace") == ["wf-two"]
+        request("workspace.select", hidden)
+        assert tree().get("workspaceFilter"), "selecting a hidden workspace disabled the filter"
+        assert check("reveal empty workspace") == ["wf-two", "wf-hidden"]
+        targetless_actions(hidden, "wf-hidden-selected")
+        assert check("selected empty workspace populated") == ["wf-two", "wf-hidden-selected"]
+        request("workspace.delete", hidden)
+        select(two)
         run_palette_action(app, process.pid, None, "Toggle Workspace Filter")
         assert check("filter off") == ["wf-one", "wf-two", "wf-three"]
         select(three)
@@ -173,7 +206,8 @@ def verify_workspace_focus_filters(env):
         assert [(item["id"], item.get("focused")) for item in tree()["workspaces"]] == focused, tree()["workspaces"]
         assert tree().get("workspaceFilter"), "the relaunch dropped the workspace filter"
         assert check("relaunch") == ["wf-two"]
-        print("OK: Focus Workspace, Add Workspace to Focus and Toggle Workspace Filter keep the sidebar rows and "
+        print("OK: workspace.select targets same-session, empty and filtered-out workspaces for targetless rename "
+              "and New Session; Focus Workspace, Add Workspace to Focus and Toggle Workspace Filter keep the sidebar rows and "
               "active session on the tree's focused/workspaceFilter fields through a member removal and a relaunch")
     except AssertionError:
         describe_tree(app)
