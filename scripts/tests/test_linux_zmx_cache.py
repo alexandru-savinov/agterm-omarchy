@@ -19,11 +19,14 @@ class ZmxCacheTests(unittest.TestCase):
         self.repo = self.work / 'checkout'
         for name in ('scripts/setup-linux.sh', 'scripts/verify-linux-zmx-cache.sh',
                      'scripts/verify-linux-architecture.sh', 'linux/arch.sh',
-                     'linux/zmx.env', 'linux/ghostty-resources.env'):
+                     'linux/zmx.env', 'linux/ghostty-resources.env', 'linux/ghostty-build.sh'):
             target = self.repo / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, target)
         shutil.copytree(ROOT / 'scripts/zmx-patches', self.repo / 'scripts/zmx-patches')
+        # setup-linux.sh sources linux/ghostty-build.sh, which hashes every Ghostty patch it applies.
+        shutil.copytree(ROOT / 'scripts/ghostty-patches', self.repo / 'scripts/ghostty-patches')
+        shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
         self.vendor = self.repo / 'agterm-linux/vendor/zmx'
         self.vendor.mkdir(parents=True)
         self.bin = self.work / 'bin'
@@ -51,7 +54,8 @@ printf '%s\\n' "$ZMX_DIR" >> "$TEST_HELPER_MARKER"
         digest = hashlib.sha256(b''.join(p.read_bytes() for p in patches)).hexdigest()[:16]
         pin = next(line.split('"')[1] for line in (self.repo / 'linux/zmx.env').read_text().splitlines()
                    if line.startswith('ZMX_REV='))
-        (self.vendor / 'REVISION').write_text(f'{pin} {digest}\n')
+        # The revision stamp names the zmx commit, its explicit Zig target, and the patch digest.
+        (self.vendor / 'REVISION').write_text(f'{pin} {self.env["TEST_HOST"]}-linux-gnu.2.39 {digest}\n')
         self.set_policy()
 
     @staticmethod
