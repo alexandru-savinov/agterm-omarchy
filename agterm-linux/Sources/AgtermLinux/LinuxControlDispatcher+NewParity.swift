@@ -44,20 +44,6 @@ extension LinuxControlDispatcher {
                 return ControlResponse(ok: false, error: "keymap.run requires a command name")
             }
             return actions.runCustomCommand(name: name, target: request.target, window: request.args?.window)
-        case .sessionOverlaySubmit:
-            guard let value = request.args?.value else {
-                return ControlResponse(ok: false, error: OverlayHtmlError.submitValue)
-            }
-            switch parseOverlayPane(request.args?.pane) {
-            case .rejected(let response): return response
-            case .pane(let pane):
-                return actions.submitSessionOverlay(request.target, window: request.args?.window, pane: pane, value: value)
-            }
-        case .sessionOverlayResult where request.args?.page != nil:
-            guard let id = request.args?.page.flatMap(UUID.init(uuidString:)) else {
-                return ControlResponse(ok: false, error: OverlayHtmlError.invalidPageID)
-            }
-            return actions.htmlPageResult(id)
         case .zmxScreen:
             guard let name = request.args?.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty,
                   !name.unicodeScalars.contains(where: { $0.properties.isWhitespace || $0.value < 0x20 || $0.value == 0x7f }) else {
