@@ -9,8 +9,8 @@
 # Only `stage` passes AGTERM_PACKAGE_COMMIT, because a linked worktree's gitdir is not in the container, where
 # stage-linux.sh's `git rev-parse` fallback leaves COMMIT empty. A run refuses a stage without a commit, or one whose
 # commit differs from the live tree in STAGE_SOURCES; it need not be HEAD, since a docs commit leaves a stage valid.
-# Images: `localhost/agterm-linux-ci:latest` has no tracked recipe. It comes from
-# `podman build -t localhost/agterm-linux-ci ~/.local/share/agterm-linux-ci`, a local mirror of ci.yml's app job; on a
+# Images: `localhost/agterm-linux-ci:local` has no tracked recipe. It comes from
+# `podman build -t localhost/agterm-linux-ci:local ~/.local/share/agterm-linux-ci`, a local mirror of ci.yml's app job; on a
 # machine without that file, build the same image from ci.yml's Swift tag, apt list and zig pin. Then, from the root:
 # `podman build -t localhost/agterm-linux-gl-teardown -f agterm-linux/tests/gl-teardown-headless.Containerfile .`
 #
@@ -18,7 +18,7 @@
 # Logs land in artifacts/gl-teardown/<mode>. Nothing here mounts a host display, bus or runtime directory.
 set -euo pipefail
 
-BASE_IMAGE=localhost/agterm-linux-ci:latest
+BASE_IMAGE=localhost/agterm-linux-ci:local
 IMAGE=localhost/agterm-linux-gl-teardown
 RENDER_NODE=/dev/dri/renderD128
 BOUND_SECONDS=15
