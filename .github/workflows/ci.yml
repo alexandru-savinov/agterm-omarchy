@@ -31,7 +31,11 @@ jobs:
   scripts:
     name: Installer and scripts
     runs-on: ubuntu-24.04
-    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
+    # The image runs as the non-root `builder` user (#206). This job alone creates its own unprivileged test
+    # user and runs steps through runuser, which both need root; the tests themselves still run unprivileged.
+    container:
+      image: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
+      options: --user root
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
