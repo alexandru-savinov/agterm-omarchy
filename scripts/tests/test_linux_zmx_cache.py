@@ -54,8 +54,7 @@ printf '%s\\n' "$ZMX_DIR" >> "$TEST_HELPER_MARKER"
         digest = hashlib.sha256(b''.join(p.read_bytes() for p in patches)).hexdigest()[:16]
         pin = next(line.split('"')[1] for line in (self.repo / 'linux/zmx.env').read_text().splitlines()
                    if line.startswith('ZMX_REV='))
-        # The revision stamp names the zmx commit, its explicit Zig target, and the patch digest.
-        (self.vendor / 'REVISION').write_text(f'{pin} {self.env["TEST_HOST"]}-linux-gnu.2.39 {digest}\n')
+        self.zmx_pin, self.patch_digest = pin, digest
         self.set_policy()
 
     @staticmethod
@@ -64,7 +63,11 @@ printf '%s\\n' "$ZMX_DIR" >> "$TEST_HELPER_MARKER"
         path.chmod(0o755)
 
     def set_policy(self, target=None, cpu='baseline'):
-        target = target or f'{self.env["TEST_HOST"]}-linux-gnu.2.39'
+        # The revision stamp names the zmx commit, the host's explicit Zig target, and the patch digest;
+        # BUILD_POLICY separately records the target and CPU the cache was built with.
+        host_target = f'{self.env["TEST_HOST"]}-linux-gnu.2.39'
+        (self.vendor / 'REVISION').write_text(f'{self.zmx_pin} {host_target} {self.patch_digest}\n')
+        target = target or host_target
         (self.vendor / 'BUILD_POLICY').write_text(f'target={target} cpu={cpu}\n')
 
     def verify(self, success=True, message=''):
