@@ -8,6 +8,7 @@ GHOSTTY_PATCHES=(
   "$GHOSTTY_BUILD_ROOT/linux/patches/ghostty-embedded-opengl.patch"
   "$GHOSTTY_BUILD_ROOT/linux/patches/ghostty-embedded-input-handoff.patch"
   "$GHOSTTY_BUILD_ROOT/linux/patches/ghostty-lib-resources.patch"
+  "$GHOSTTY_BUILD_ROOT/linux/patches/ghostty-surface-env-unset.patch"
 )
 GHOSTTY_PATCH_DIGEST="$(cat "${GHOSTTY_PATCHES[@]}" | sha256sum | cut -c1-16)"
 GHOSTTY_STAMP="$GHOSTTY_REV $GHOSTTY_PATCH_DIGEST"

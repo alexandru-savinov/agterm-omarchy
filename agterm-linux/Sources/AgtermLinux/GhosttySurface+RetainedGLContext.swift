@@ -23,7 +23,9 @@ extension GhosttySurface: LinuxEngineSurfaceOwner {
             return nil
         }
         g_object_ref(RAW(owner))
-        guard let created = ghostty_surface_new(app, &config) else {
+        let unsets = configurationStorage?.environmentUnsets
+        guard let created = ghostty_surface_new_with_env_unset(app, &config, unsets?.baseAddress,
+                                                             unsets?.count ?? 0) else {
             g_object_unref(RAW(owner))
             return nil
         }
