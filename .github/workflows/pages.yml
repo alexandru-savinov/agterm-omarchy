@@ -65,10 +65,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p "$RUNNER_TEMP/drift"
-          gh run list --repo "$GITHUB_REPOSITORY" --workflow upstream-drift.yml --branch main --status success \
-            --limit 50 --json databaseId,createdAt,event,headBranch \
-            | jq '[map(select(.headBranch == "main" and (.event == "schedule" or .event == "workflow_dispatch")))
-                   | sort_by(.createdAt) | last | select(. != null)]' > "$RUNNER_TEMP/drift/run.json"
+          # Filter by event on the server, so newer PR runs can never push an eligible run past --limit.
+          for event in schedule workflow_dispatch; do
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow upstream-drift.yml --branch main --status success \
+              --event "$event" --limit 5 --json databaseId,createdAt,event,headBranch
+          done | jq -s '[add | map(select(.headBranch == "main" and (.event == "schedule" or .event == "workflow_dispatch")))
+                        | sort_by(.createdAt) | last | select(. != null)]' > "$RUNNER_TEMP/drift/run.json"
           run_id="$(jq -r '.[0].databaseId // empty' "$RUNNER_TEMP/drift/run.json")"
           if [[ -z "$run_id" ]]; then echo 'No successful scheduled/dispatched upstream-drift run on main.'; exit 0; fi
           gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name upstream-drift --dir "$RUNNER_TEMP/drift/artifact"

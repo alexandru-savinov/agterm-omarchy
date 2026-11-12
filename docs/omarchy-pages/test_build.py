@@ -456,7 +456,10 @@ class UpstreamDriftTests(unittest.TestCase):
         self.assertIn("<strong>2 paths</strong>", index)
         self.assertIn(f'href="{build.BASE}/actions/runs/43000000001"', index)
         self.assertNotIn("evil.example", index)
-        self.assertNotIn("<script>", index)  # path names stay in status.json only
+        # Path names are untrusted text; they stay in the linked run's artifact, never on the page or in status.json.
+        self.assertNotIn("<script>", index)
+        self.assertNotIn("README.md", index)
+        self.assertNotIn("conflicting_paths", data["upstream_drift"])
         self.assertNotIn("drift-notice", index)
         self.assertEqual(data["upstream_drift_status"], "loaded")
         self.assertEqual((data["upstream_drift"]["ahead"], data["upstream_drift"]["behind"],
