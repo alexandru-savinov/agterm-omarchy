@@ -1,0 +1,334 @@
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+[0/1] Planning build
+dbus-daemon[21]: [session uid=1000 pid=21] Activating service name='org.a11y.Bus' requested by ':1.1' (uid=1000 pid=193 comm="/workspace/agterm-linux/.build/x86_64-unknown-linu" label="kernel")
+dbus-daemon[21]: [session uid=1000 pid=21] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[225]: Activating service name='org.a11y.atspi.Registry' requested by ':1.0' (uid=1000 pid=193 comm="/workspace/agterm-linux/.build/x86_64-unknown-linu" label="kernel")
+dbus-daemon[225]: Successfully activated service 'org.a11y.atspi.Registry'
+SpiRegistry daemon is running with well-known name - org.a11y.atspi.Registry
+Test Suite 'Selected tests' started at 2026-11-12 03:27:36.952
+Test Suite 'Selected tests' passed at 2026-11-12 03:27:36.954
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.0 (0.0) seconds
+◇ Test run started.
+↳ Testing Library Version: 6.3.2 (70eff261d7f462c)
+↳ Target Platform: x86_64-unknown-linux-gnu
+◇ Suite "Session switch release callbacks" started.
+◇ Test "the observed true-to-false sequence commits exactly once" started.
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+✘ Test "the observed true-to-false sequence commits exactly once" recorded an issue at SessionSwitchReleaseGTKTests.swift:21:13: Expectation failed: (reader.reads → 0) == 1
+✘ Test "the observed true-to-false sequence commits exactly once" recorded an issue at SessionSwitchReleaseGTKTests.swift:22:29: Expectation failed: (timers.entries → []).first → nil → nil
+✘ Test "the observed true-to-false sequence commits exactly once" failed after 1.196 seconds with 2 issues.
+◇ Test "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+◇ Test case passing 1 argument second → true to "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+◇ Test case passing 1 argument second → nil to "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+✔ Test "true or unavailable recheck never releases a genuinely held second Ctrl" with 2 test cases passed after 0.955 seconds.
+◇ Test "new input or cancellation rejects an already queued initial idle" started.
+◇ Test case passing 1 argument action → "press" to "new input or cancellation rejects an already queued initial idle" started.
+◇ Test case passing 1 argument action → "cancel" to "new input or cancellation rejects an already queued initial idle" started.
+◇ Test case passing 1 argument action → "close" to "new input or cancellation rejects an already queued initial idle" started.
+✔ Test "new input or cancellation rejects an already queued initial idle" with 3 test cases passed after 1.103 seconds.
+◇ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "press" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "release" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "cancel-new-cycle" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "close" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "registry-loss" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+✔ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" with 5 test cases passed after 2.065 seconds.
+◇ Test "the deferred decision still honors a newly active policy gate" started.
+
+(process:193): Gtk-WARNING **: 03:27:42.592: Calling gtk_widget_realize() on a widget that isn't inside a toplevel window is not going to work very well. Widgets must be inside a toplevel container before realizing them.
+
+(process:193): Gtk-CRITICAL **: 03:27:42.593: gtk_widget_get_native: assertion 'GTK_IS_WIDGET (widget)' failed
+
+(process:193): Gtk-CRITICAL **: 03:27:42.593: gtk_native_get_surface: assertion 'GTK_IS_NATIVE (self)' failed
+
+(process:193): Gdk-CRITICAL **: 03:27:42.593: gdk_surface_new_popup: assertion 'GDK_IS_SURFACE (parent)' failed
+swift-runtime: failed to suspend thread 204 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 205 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 206 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 207 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 208 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 209 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 210 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 211 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 212 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 214 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 204 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 205 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 206 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 207 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 208 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 209 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 210 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 211 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 212 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 214 while processing a crash; backtraces will be missing information
+
+*** Signal 11: Backtracing from 0x773b0dbd3e48... done ***
+
+*** Program crashed: Bad pointer dereference at 0xfffffffffffffff8 ***
+
+Platform: x86_64 Linux (Ubuntu 24.04.4 LTS)
+
+Thread 0 "agterm-linuxPac":
+
+  0      0x0000773b038455eb <unknown> in libc.so.6
+  1 [ra] 0x0000773b0fd61718 _dispatch_sigsuspend + 23 in libdispatch.so
+  2 [ra] 0x0000773b0fd5ebe9 _dispatch_sig_thread + 8 in libdispatch.so
+  3 [ra] 0x0000773b03899340 <unknown> in libc.so.6
+  4 [ra] 0x0000773b0382a1d6 <unknown> in libc.so.6
+  5 [ra] 0x0000773b0382a28b <unknown> in libc.so.6
+...
+
+Thread 1:
+
+  0      0x0000773b03898d71 <unknown> in libc.so.6
+  1 [ra] 0x0000773b038a4d93 <unknown> in libc.so.6
+  2 [ra] 0x0000773b0fd68cb1 _dispatch_sema4_timedwait + 80 in libdispatch.so
+  3 [ra] 0x0000773b0fd619b1 _dispatch_semaphore_wait_slow + 32 in libdispatch.so
+  4 [ra] 0x0000773b0fd612be _dispatch_worker_thread + 1037 in libdispatch.so
+  5 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 2:
+
+  0      0x0000773b03898d71 <unknown> in libc.so.6
+  1 [ra] 0x0000773b038a4d93 <unknown> in libc.so.6
+  2 [ra] 0x0000773b0fd68cb1 _dispatch_sema4_timedwait + 80 in libdispatch.so
+  3 [ra] 0x0000773b0fd619b1 _dispatch_semaphore_wait_slow + 32 in libdispatch.so
+  4 [ra] 0x0000773b0fd612be _dispatch_worker_thread + 1037 in libdispatch.so
+  5 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 3:
+
+  0      0x0000773b0392a072 <unknown> in libc.so.6
+  1 [ra] 0x0000773b0fd684c7 _dispatch_event_loop_drain + 54 in libdispatch.so
+  2 [ra] 0x0000773b0fd5dfb2 _dispatch_mgr_invoke + 129 in libdispatch.so
+  3 [ra] 0x0000773b0fd5df1d _dispatch_mgr_thread + 108 in libdispatch.so
+  4 [ra] 0x0000773b0fd61125 _dispatch_worker_thread + 628 in libdispatch.so
+  5 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 4:
+
+  0      0x0000773b03898d71 <unknown> in libc.so.6
+  1 [ra] 0x0000773b038a4d93 <unknown> in libc.so.6
+  2 [ra] 0x0000773b0fd68cb1 _dispatch_sema4_timedwait + 80 in libdispatch.so
+  3 [ra] 0x0000773b0fd619b1 _dispatch_semaphore_wait_slow + 32 in libdispatch.so
+  4 [ra] 0x0000773b0fd612be _dispatch_worker_thread + 1037 in libdispatch.so
+  5 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 5:
+
+  0      0x0000773b03898d71 <unknown> in libc.so.6
+  1 [ra] 0x0000773b038a4d93 <unknown> in libc.so.6
+  2 [ra] 0x0000773b0fd68cb1 _dispatch_sema4_timedwait + 80 in libdispatch.so
+  3 [ra] 0x0000773b0fd619b1 _dispatch_semaphore_wait_slow + 32 in libdispatch.so
+  4 [ra] 0x0000773b0fd612be _dispatch_worker_thread + 1037 in libdispatch.so
+  5 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 6:
+
+  0      0x0000773b03898d71 <unknown> in libc.so.6
+  1 [ra] 0x0000773b038a4d93 <unknown> in libc.so.6
+  2 [ra] 0x0000773b0fd68cb1 _dispatch_sema4_timedwait + 80 in libdispatch.so
+  3 [ra] 0x0000773b0fd619b1 _dispatch_semaphore_wait_slow + 32 in libdispatch.so
+  4 [ra] 0x0000773b0fd612be _dispatch_worker_thread + 1037 in libdispatch.so
+  5 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 7 crashed:
+
+  0                  0x0000773b0dbd3e48 <unknown> in libgtk-4.so.1.1400.5
+  1 [ra]             0x0000773b0fc736bd <unknown> in libgobject-2.0.so.0.8000.0
+  2 [ra]             0x0000773b0fc737c1 <unknown> in libgobject-2.0.so.0.8000.0
+  3 [ra]             0x0000773b0fc73883 <unknown> in libgobject-2.0.so.0.8000.0
+  4 [ra]             0x0000773b0dc8c2cf <unknown> in libgtk-4.so.1.1400.5
+  5 [ra]             0x0000773b0dbd6036 <unknown> in libgtk-4.so.1.1400.5
+  6 [ra]             0x0000773b0fc736bd <unknown> in libgobject-2.0.so.0.8000.0
+  7 [ra]             0x0000773b0fc737c1 <unknown> in libgobject-2.0.so.0.8000.0
+  8 [ra]             0x0000773b0fc73883 <unknown> in libgobject-2.0.so.0.8000.0
+  9 [ra]             0x0000773b0dc8d5ca <unknown> in libgtk-4.so.1.1400.5
+ 10 [ra]             0x00005645d1156016 closure #1 in SessionSwitchReleaseGTKTests.changedPolicy() + 2197 in agterm-linuxPackageTests.xctest at /workspace/agterm-linux/Tests/AgtermLinuxTests/SessionSwitchReleaseGTKTests.swift:128:13
+ 11 [ra] [thunk]     0x00005645d115879c partial apply for closure #1 in SessionSwitchReleaseGTKTests.changedPolicy() + 11 in agterm-linuxPackageTests.xctest at //<compiler-generated>
+ 12 [ra]             0x00005645d114a95c SessionSwitchReleaseGTKTests.withController(_:) + 11003 in agterm-linuxPackageTests.xctest at /workspace/agterm-linux/Tests/AgtermLinuxTests/SessionSwitchReleaseGTKTests.swift:190:13
+ 13 [ra]             0x00005645d115affa SessionSwitchReleaseGTKTests.changedPolicy() + 25 in agterm-linuxPackageTests.xctest at /workspace/agterm-linux/Tests/AgtermLinuxTests/SessionSwitchReleaseGTKTests.swift:119:13
+ 14 [ra]             0x00005645d1154de2 $s16AgtermLinuxTests28SessionSwitchReleaseGTKTestsV13changedPolicy4TestfMp_7__localfMu0_ #1 @Sendable (_:) in static SessionSwitchReleaseGTKTests.$s16AgtermLinuxTests28SessionSwitchReleaseGTKTestsV13changedPolicy4TestfMp_16f3fbea1c74bcef81fMu_@Sendable () + 65 in agterm-linuxPackageTests.xctest at /tmp/swift-generated-sources/@__swiftmacro_16AgtermLinuxTests28SessionSwitchReleaseGTKTestsV13changedPolicy4TestfMp_.swift:5:188
+ 15 [async]          0x00005645d11549a0 static SessionSwitchReleaseGTKTests.$s16AgtermLinuxTests28SessionSwitchReleaseGTKTestsV13changedPolicy4TestfMp_16f3fbea1c74bcef81fMu_@Sendable () in agterm-linuxPackageTests.xctest at /tmp/swift-generated-sources/@__swiftmacro_16AgtermLinuxTests28SessionSwitchReleaseGTKTestsV13changedPolicy4TestfMp_.swift:7
+ 16 [async] [system] 0x00005645d1155260 implicit closure #1 in static SessionSwitchReleaseGTKTests.$s16AgtermLinuxTests28SessionSwitchReleaseGTKTestsV13changedPolicy4TestfMp_25generatorf3fbea1c74bcef81fMu_@Sendable () in agterm-linuxPackageTests.xctest at /tmp/swift-generated-sources/@__swiftmacro_16AgtermLinuxTests28SessionSwitchReleaseGTKTestsV13changedPolicy4TestfMp_.swift
+ 17 [async] [thunk]  0x00005645d1158810 partial apply for implicit closure #1 in static SessionSwitchReleaseGTKTests.$s16AgtermLinuxTests28SessionSwitchReleaseGTKTestsV13changedPolicy4TestfMp_25generatorf3fbea1c74bcef81fMu_@Sendable () in agterm-linuxPackageTests.xctest at //<compiler-generated>
+ 18 [async]          0x0000773b0eb6fc20 closure #1 in closure #1 in closure #1 in closure #1 in static Runner._runTestCase(_:within:context:) in libTesting.so
+ 19 [async] [thunk]  0x0000773b0eb6ff20 partial apply for closure #1 in closure #1 in closure #1 in closure #1 in static Runner._runTestCase(_:within:context:) in libTesting.so
+ 20 [async] [thunk]  0x0000773b0eb6fbf0 thunk for @escaping @callee_guaranteed @Sendable @async () -> (@error @owned Error) in libTesting.so
+ 21 [async]          0x0000773b0eb6ff30 partial apply for thunk for @escaping @callee_guaranteed @Sendable @async () -> (@error @owned Error) in libTesting.so
+ 22 [async]          0x0000773b0eb56370 closure #1 in closure #1 in static Runner._runTestCase(_:within:context:) in libTesting.so
+ 23 [async] [thunk]  0x0000773b0eb6ff00 partial apply for closure #1 in closure #1 in static Runner._runTestCase(_:within:context:) in libTesting.so
+ 24 [async]          0x0000773b0eb0c630 specialized static Issue.withErrorRecording(at:configuration:isolation:_:) in libTesting.so
+ 25 [async]          0x0000773b0eb556a0 closure #1 in static Runner._runTestCase(_:within:context:) in libTesting.so
+ 26 [async] [thunk]  0x0000773b0eb6fef0 partial apply for closure #1 in static Runner._runTestCase(_:within:context:) in libTesting.so
+ 27 [async]          0x0000773b0eb37440 specialized closure #1 in closure #1 in TestCancellable.withCancellationHandling<A>(_:) in libTesting.so
+ 28 [async] [thunk]  0x0000773b0eb39fb0 partial apply for specialized closure #1 in closure #1 in TestCancellable.withCancellationHandling<A>(_:) in libTesting.so
+ 29 [async]          0x0000773b0ff99590 withTaskCancellationHandler<A>(operation:onCancel:isolation:) in libswift_Concurrency.so
+ 30 [async]          0x0000773b0eb37170 specialized TestCancellable.withCancellationHandling<A>(_:) in libTesting.so
+ 31 [async]          0x0000773b0eb49e60 specialized static Test.Case.withCurrent<A>(_:perform:) in libTesting.so
+ 32 [async]          0x0000773b0eb6eb90 specialized static Runner._runTestCase(_:within:context:) in libTesting.so
+ 33 [async]          0x0000773b0eb54b30 closure #4 in static Runner._runTestCases<A>(_:within:context:) in libTesting.so
+ 34 [async] [thunk]  0x0000773b0eb6e0b0 partial apply for closure #4 in static Runner._runTestCases<A>(_:within:context:) in libTesting.so
+ 35 [async] [thunk]  0x0000773b0eb70000 thunk for @escaping @callee_guaranteed @Sendable @async (@unowned Int, @in_guaranteed Test.Case) -> () in libTesting.so
+ 36 [async] [thunk]  0x0000773b0eb6fed0 partial apply for thunk for @escaping @callee_guaranteed @Sendable @async (@unowned Int, @in_guaranteed Test.Case) -> () in libTesting.so
+ 37 [async]          0x0000773b0eb6c400 specialized closure #1 in closure #1 in static Runner._forEach<A, B>(in:namingTasksWith:_:) in libTesting.so
+ 38 [async] [thunk]  0x0000773b0eb6fee0 partial apply for specialized closure #1 in closure #1 in static Runner._forEach<A, B>(in:namingTasksWith:_:) in libTesting.so
+ 39 [async] [system] 0x0000773b0ffd01d0 completeTaskWithClosure(swift::AsyncContext*, swift::SwiftError*) in libswift_Concurrency.so
+...
+
+Thread 8:
+
+  0      0x0000773b0392728d <unknown> in libc.so.6
+  1 [ra] 0x0000773b0e91658b <unknown> in libglib-2.0.so.0.8000.0
+  2 [ra] 0x0000773b0e9165ec <unknown> in libglib-2.0.so.0.8000.0
+  3 [ra] 0x0000773b0d5d00fb <unknown> in libpangoft2-1.0.so.0.5200.1
+  4 [ra] 0x0000773b0e97b0e2 <unknown> in libglib-2.0.so.0.8000.0
+  5 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 9 "pool-spawner":
+
+  0      0x0000773b0392728d <unknown> in libc.so.6
+  1 [ra] 0x0000773b0e91658b <unknown> in libglib-2.0.so.0.8000.0
+  2 [ra] 0x0000773b0e97bec3 <unknown> in libglib-2.0.so.0.8000.0
+  3 [ra] 0x0000773b0e97b0e2 <unknown> in libglib-2.0.so.0.8000.0
+  4 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 10 "gdbus":
+
+  0      0x0000773b0391b4fd <unknown> in libc.so.6
+  1 [ra] 0x0000773b0e9abb4e <unknown> in libglib-2.0.so.0.8000.0
+  2 [ra] 0x0000773b0e94cff7 <unknown> in libglib-2.0.so.0.8000.0
+  3 [ra] 0x0000773b0d6f96c2 <unknown> in libgio-2.0.so.0.8000.0
+  4 [ra] 0x0000773b0e97b0e2 <unknown> in libglib-2.0.so.0.8000.0
+  5 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 11 "dconf worker":
+
+  0      0x0000773b0391b4fd <unknown> in libc.so.6
+  1 [ra] 0x0000773b0e9abb4e <unknown> in libglib-2.0.so.0.8000.0
+  2 [ra] 0x0000773b0e94bad3 <unknown> in libglib-2.0.so.0.8000.0
+  3 [ra] 0x0000773af834c595 <unknown> in libdconfsettings.so
+  4 [ra] 0x0000773b0e97b0e2 <unknown> in libglib-2.0.so.0.8000.0
+  5 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 12 "pool":
+
+  0      0x0000773b0392728d <unknown> in libc.so.6
+  1 [ra] 0x0000773b0e916553 <unknown> in libglib-2.0.so.0.8000.0
+  2 [ra] 0x0000773b0e9806fa <unknown> in libglib-2.0.so.0.8000.0
+  3 [ra] 0x0000773b0e97b0e2 <unknown> in libglib-2.0.so.0.8000.0
+  4 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 13:
+
+  0      0x0000773b0392728d <unknown> in libc.so.6
+  1 [ra] 0x0000773b0e91658b <unknown> in libglib-2.0.so.0.8000.0
+  2 [ra] 0x0000773b0e9165ec <unknown> in libglib-2.0.so.0.8000.0
+  3 [ra] 0x0000773b0d5d00fb <unknown> in libpangoft2-1.0.so.0.5200.1
+  4 [ra] 0x0000773b0e97b0e2 <unknown> in libglib-2.0.so.0.8000.0
+  5 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 14 "pool":
+
+  0      0x0000773b0392728d <unknown> in libc.so.6
+  1 [ra] 0x0000773b0e916553 <unknown> in libglib-2.0.so.0.8000.0
+  2 [ra] 0x0000773b0e9806fa <unknown> in libglib-2.0.so.0.8000.0
+  3 [ra] 0x0000773b0e97b0e2 <unknown> in libglib-2.0.so.0.8000.0
+  4 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 15 "pool":
+
+  0      0x0000773b0392728d <unknown> in libc.so.6
+  1 [ra] 0x0000773b0e916553 <unknown> in libglib-2.0.so.0.8000.0
+  2 [ra] 0x0000773b0e9806fa <unknown> in libglib-2.0.so.0.8000.0
+  3 [ra] 0x0000773b0e97b0e2 <unknown> in libglib-2.0.so.0.8000.0
+  4 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 16 "pool":
+
+  0      0x0000773b0392728d <unknown> in libc.so.6
+  1 [ra] 0x0000773b0e916553 <unknown> in libglib-2.0.so.0.8000.0
+  2 [ra] 0x0000773b0e9166a6 <unknown> in libglib-2.0.so.0.8000.0
+  3 [ra] 0x0000773b0e98053f <unknown> in libglib-2.0.so.0.8000.0
+  4 [ra] 0x0000773b0e97b0e2 <unknown> in libglib-2.0.so.0.8000.0
+  5 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 17 "pool":
+
+  0      0x0000773b0392728d <unknown> in libc.so.6
+  1 [ra] 0x0000773b0e916553 <unknown> in libglib-2.0.so.0.8000.0
+  2 [ra] 0x0000773b0e9806fa <unknown> in libglib-2.0.so.0.8000.0
+  3 [ra] 0x0000773b0e97b0e2 <unknown> in libglib-2.0.so.0.8000.0
+  4 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+Thread 18 "pool":
+
+  0      0x0000773b0392728d <unknown> in libc.so.6
+  1 [ra] 0x0000773b0e916553 <unknown> in libglib-2.0.so.0.8000.0
+  2 [ra] 0x0000773b0e9806fa <unknown> in libglib-2.0.so.0.8000.0
+  3 [ra] 0x0000773b0e97b0e2 <unknown> in libglib-2.0.so.0.8000.0
+  4 [ra] 0x0000773b0389caa4 <unknown> in libc.so.6
+...
+
+
+Registers:
+
+rax 0x0000000000000000  0
+rdx 0x0000773a752b6220  b0 54 ca 76 3a 77 00 00 04 00 00 00 00 00 00 00  °TÊv:w··········
+rcx 0x0000773a752b6220  b0 54 ca 76 3a 77 00 00 04 00 00 00 00 00 00 00  °TÊv:w··········
+rbx 0xffffffffffffffe0  18446744073709551584
+rsi 0x0000000000000000  0
+rdi 0x0000773b0dfbd6b0  6e 6f 74 69 66 79 3a 3a 6d 61 70 70 65 64 00 47  notify::mapped·G
+rbp 0x0000773af9411350  40 15 41 f9 3a 77 00 00 bd 36 c7 0f 3b 77 00 00  @·Aù:w··½6Ç·;w··
+rsp 0x0000773af9411340  90 15 41 f9 3a 77 00 00 40 45 dd e1 3a 77 00 00  ··Aù:w··@EÝá:w··
+ r8 0x0000000000000000  0
+ r9 0x0000000000000002  2
+r10 0x0000773ae268b840  8b 26 ae 73 07 00 00 00 6d 0e d7 df 7c 68 db 95  ·&®s····m·×ß|hÛ·
+r11 0x95db687cdfd70e6d  10798339417091542637
+r12 0x0000773a752b6030  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ················
+r13 0x0000000000000043  67
+r14 0x0000000000000000  0
+r15 0x0000773af94113f0  40 17 41 f9 3a 77 00 00 20 62 2b 75 3a 77 00 00  @·Aù:w·· b+u:w··
+rip 0x0000773b0dbd3e48  48 89 5c 10 18 49 8b 3c 24 48 8d 15 18 27 00 00  H·\··I·<$H···'··
+
+rflags 0x0000000000010246  ZF PF
+
+cs 0x0033  fs 0x0000  gs 0x0000
+
+
+Images (175 omitted):
+
+0x00005645d06ef000–0x00005645d215d248 5298145c2431409827867439538443344ce04c38 agterm-linuxPackageTests.xctest /workspace/agterm-linux/.build/x86_64-unknown-lerror: Process '/workspace/agterm-linux/.build/x86_64-unknown-linux-gnu/debug/agterm-linuxPackageTests.xctest --skip-build --filter SessionSwitchReleaseGTKTests --testing-library swift-testing' exited with unexpected signal code 11
+inux-gnu/debug/agterm-linuxPackageTests.xctest
+0x0000773af8345000–0x0000773af834fb29 d74a43439956b8b9997173d276800f16437a3d74 libdconfsettings.so             /usr/lib/x86_64-linux-gnu/gio/modules/libdconfsettings.so
+0x0000773b03800000–0x0000773b039afd39 8e9fd827446c24067541ac5390e6f527fb5947bb libc.so.6                       /usr/lib/x86_64-linux-gnu/libc.so.6
+0x0000773b0d5c4000–0x0000773b0d5d8685 2dfacc1d29a390d6ddaed0a2a1881a97e2862c59 libpangoft2-1.0.so.0.5200.1     /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0.5200.1
+0x0000773b0d5df000–0x0000773b0d72eb95 883a888602725fb09da80a029fb49ab98717a320 libgio-2.0.so.0.8000.0          /usr/lib/x86_64-linux-gnu/libgio-2.0.so.0.8000.0
+0x0000773b0da00000–0x0000773b0df4a2ed 538868135b1d5ae24f72b913daadd011a577db72 libgtk-4.so.1.1400.5            /usr/lib/x86_64-linux-gnu/libgtk-4.so.1.1400.5
+0x0000773b0e8ef000–0x0000773b0e9ac851 32e71bdc4300e9f407c74441d1b02d962c8af007 libglib-2.0.so.0.8000.0         /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.8000.0
+0x0000773b0ea38000–0x0000773b0ebf4960 07e5d5cb4b3ce828e7052e702fd24311e86e49aa libTesting.so                   /usr/lib/swift/linux/libTesting.so
+0x0000773b0fc3e000–0x0000773b0fc833dd 7f05f3309a67e3e14d21138004573cb76a1cd904 libgobject-2.0.so.0.8000.0      /usr/lib/x86_64-linux-gnu/libgobject-2.0.so.0.8000.0
+0x0000773b0fd2c000–0x0000773b0fd74140 d7ae489314cfc8f51234cfe4dacc68e6afbe7500 libdispatch.so                  /usr/lib/swift/linux/libdispatch.so
+0x0000773b0ff5a000–0x0000773b0ffed138 c1f7b9b1dad5f45b776b8789ef4f80f7d3bf1cb5 libswift_Concurrency.so         /usr/lib/swift/linux/libswift_Concurrency.so
+
+Backtrace took 0.54s
+

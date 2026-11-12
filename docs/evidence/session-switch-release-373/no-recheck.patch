@@ -1,0 +1,11 @@
+--- a/agterm-linux/Sources/AgtermLinux/AppControllerSessionPicker.swift
++++ b/agterm-linux/Sources/AgtermLinux/AppControllerSessionPicker.swift
+@@ -62,7 +62,7 @@
+                       self.sessionSwitchReleaseGeneration == generation else { return }
+                 let held = readControlState()
+                 self.commitSessionSwitch(releasing: keycode, controlStillHeld: held)
+-                guard held == true, self.sessionSwitcher.isActive,
++                guard held == false, self.sessionSwitcher.isActive,
+                       self.sessionSwitchReleaseGeneration == generation else { return }
+                 // GDK's device state can become false after the release idle. Give this release one
+                 // bounded second observation, never a poll or permission to commit a newer cycle.

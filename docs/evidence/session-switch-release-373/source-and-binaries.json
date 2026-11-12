@@ -1,0 +1,15 @@
+{
+  "head": "dee964208603f55e0f04f6c408a8002182b2bfd1",
+  "status": "",
+  "files": {
+    "agterm-linux/Sources/AgtermLinux/AppController.swift": "d58ea908a2d043daffb8bbcf3d8e888ccfeca3331af496af6519cee9c3db9e2f",
+    "agterm-linux/Sources/AgtermLinux/AppController+SessionSwitchCapture.swift": "de9db9fbac88a135a58f69b91ba76e4cc5aba7aedf17d4a5d5a1ff8126d277aa",
+    "agterm-linux/Sources/AgtermLinux/AppControllerSessionPicker.swift": "f55e24fc1b79859dafa4a2b639868d1d63f2a741c6f71c2ef5194620c54757fc",
+    "agterm-linux/Tests/AgtermLinuxTests/SessionSwitchReleaseGTKTests.swift": "6389fd6d30e75807b1cd4065072f5ec3860098d7e6fbbce4c8e2291a547ed787",
+    ".github/workflows/ci.yml": "c85514cc023d99634c344c2b5c0d4050578e2942adddb4c90e5f35ac5275aaa1",
+    "agterm-linux/.build/debug/AgtermLinux": "f1dab53d7e185589ae4357480ebdbff88e76da5d242d960f04deebf7d7964f5c",
+    "agterm-linux/.build/debug/agtermctl-linux": "e5d6b86d971a93d8be475d6006fa7454217e322ca304b11eac1c2c7f75ac47a7",
+    "agterm-linux/vendor/ghostty/lib/libghostty.so": "89e83fe46a13f05157b9d219dfa47e627a89ee65d3ffbe90b033825747c8052b",
+    "agterm-linux/vendor/zmx/zmx": "a1afc7d940d2972a31cfec554a28664c1d47583c49c80abc404fb7642f201a78"
+  }
+}

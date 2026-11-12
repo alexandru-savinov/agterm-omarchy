@@ -1,0 +1,14 @@
+{
+  "README.md": "0d911f4b3506a5f3af84a97dccfd4ffe408321cc56c089b02230ad2241c72863",
+  "SOURCE_STAMP": "f6a7d988cb764cf27a7639754068060efd6dcfb53ac99064483adcc657a87ce4",
+  "agterm-373-core.log": "a146345c821b9435e28aec81f1633405dc61403640ac2e9e88edee3fa8bec624",
+  "agterm-373-final-gtk-ui.log": "423b5ac5c8fcc167d2fe18603477f790583b3203751e60799f1b5f28bb0f918c",
+  "agterm-373-full-linux-lint.log": "fa79496406cace46edf14c25d80a6b6d9affed2626f0982a754412920ef27a52",
+  "agterm-373-negative-no-generation.log": "c3f192daa5e0eab1822ff1cc5fc15abbec41138b3db9bd1962c838425b1903a6",
+  "agterm-373-negative-no-recheck.log": "1d626c84e0bc721d204097550dfd2e9efcfe22e10392c49e429186e3790258f0",
+  "agterm-373-restored.log": "cb7dae8115c3050f1819f1c4027e0643ed4b3dcacc4e80cc26ccea0044bff899",
+  "fixture-development/agterm-373-positive-initial.log": "9e7cd7a984e2ac1312d61f4c543ffe87856751fd297f2d81e225734f1b94962f",
+  "no-generation.patch": "121305813f17a4d47641a4ce396070586b1118bf5adfebb6151d4ef784c10772",
+  "no-recheck.patch": "11d7e00a7ff0ed03c2167e2f26a5b9534f6cb4af47ca07299dabcf231102388b",
+  "source-and-binaries.json": "380ef2319309f78086df24300449e464908eba1bf55c776d1b04c5593275bb2e"
+}

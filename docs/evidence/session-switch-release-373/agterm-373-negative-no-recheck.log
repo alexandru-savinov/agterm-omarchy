@@ -1,0 +1,79 @@
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+[0/1] Planning build
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for debugging...
+[2/8] Write sources
+[3/8] Write swift-version-24593BA9C3E375BF.txt
+[5/9] Emitting module AgtermLinux
+[6/9] Compiling AgtermLinux AppControllerSessionPicker.swift
+[7/15] Write Objects.LinkFileList
+[8/15] Linking AgtermLinux
+[10/16] Emitting module AgtermLinuxTests
+[11/13] Write Objects.LinkFileList
+[12/13] Linking agterm-linuxPackageTests.xctest
+Build complete! (12.51s)
+Test Suite 'Selected tests' started at 2026-11-12 03:29:36.647
+Test Suite 'Selected tests' passed at 2026-11-12 03:29:36.649
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.0 (0.0) seconds
+◇ Test run started.
+↳ Testing Library Version: 6.3.2 (70eff261d7f462c)
+↳ Target Platform: x86_64-unknown-linux-gnu
+➜ Suite "Session switch release callbacks" skipped.
+➜ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" skipped.
+➜ Test "the deferred decision still honors a newly active policy gate" skipped.
+➜ Test "true or unavailable recheck never releases a genuinely held second Ctrl" skipped.
+➜ Test "new input or cancellation rejects an already queued initial idle" skipped.
+➜ Test "the observed true-to-false sequence commits exactly once" skipped.
+✔ Test run with 5 tests in 1 suite passed after 0.001 seconds.
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+[0/1] Planning build
+dbus-daemon[202]: [session uid=1000 pid=202] Activating service name='org.a11y.Bus' requested by ':1.1' (uid=1000 pid=373 comm="/workspace/agterm-linux/.build/x86_64-unknown-linu" label="kernel")
+dbus-daemon[202]: [session uid=1000 pid=202] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[404]: Activating service name='org.a11y.atspi.Registry' requested by ':1.0' (uid=1000 pid=373 comm="/workspace/agterm-linux/.build/x86_64-unknown-linu" label="kernel")
+dbus-daemon[404]: Successfully activated service 'org.a11y.atspi.Registry'
+SpiRegistry daemon is running with well-known name - org.a11y.atspi.Registry
+Test Suite 'Selected tests' started at 2026-11-12 03:29:39.331
+Test Suite 'Selected tests' passed at 2026-11-12 03:29:39.333
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.0 (0.0) seconds
+◇ Test run started.
+↳ Testing Library Version: 6.3.2 (70eff261d7f462c)
+↳ Target Platform: x86_64-unknown-linux-gnu
+◇ Suite "Session switch release callbacks" started.
+◇ Test "the observed true-to-false sequence commits exactly once" started.
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+✘ Test "the observed true-to-false sequence commits exactly once" recorded an issue at SessionSwitchReleaseGTKTests.swift:22:29: Expectation failed: (timers.entries → []).first → nil → nil
+✘ Test "the observed true-to-false sequence commits exactly once" failed after 1.212 seconds with 1 issue.
+◇ Test "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+◇ Test case passing 1 argument second → true to "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+✘ Test "true or unavailable recheck never releases a genuinely held second Ctrl" recorded an issue with 1 argument second → true at SessionSwitchReleaseGTKTests.swift:43:17: Expectation failed: (timers.entries.count → 0) == 1
+◇ Test case passing 1 argument second → nil to "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+✘ Test "true or unavailable recheck never releases a genuinely held second Ctrl" recorded an issue with 1 argument second → nil at SessionSwitchReleaseGTKTests.swift:43:17: Expectation failed: (timers.entries.count → 0) == 1
+✘ Test "true or unavailable recheck never releases a genuinely held second Ctrl" with 2 test cases failed after 0.276 seconds with 2 issues.
+◇ Test "new input or cancellation rejects an already queued initial idle" started.
+◇ Test case passing 1 argument action → "press" to "new input or cancellation rejects an already queued initial idle" started.
+◇ Test case passing 1 argument action → "cancel" to "new input or cancellation rejects an already queued initial idle" started.
+◇ Test case passing 1 argument action → "close" to "new input or cancellation rejects an already queued initial idle" started.
+✔ Test "new input or cancellation rejects an already queued initial idle" with 3 test cases passed after 0.376 seconds.
+◇ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "press" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "press" at SessionSwitchReleaseGTKTests.swift:81:27: Expectation failed: (timers.entries → []).first → nil → nil
+◇ Test case passing 1 argument action → "release" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "release" at SessionSwitchReleaseGTKTests.swift:81:27: Expectation failed: (timers.entries → []).first → nil → nil
+◇ Test case passing 1 argument action → "cancel-new-cycle" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "cancel-new-cycle" at SessionSwitchReleaseGTKTests.swift:81:27: Expectation failed: (timers.entries → []).first → nil → nil
+◇ Test case passing 1 argument action → "close" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "close" at SessionSwitchReleaseGTKTests.swift:81:27: Expectation failed: (timers.entries → []).first → nil → nil
+◇ Test case passing 1 argument action → "registry-loss" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "registry-loss" at SessionSwitchReleaseGTKTests.swift:81:27: Expectation failed: (timers.entries → []).first → nil → nil
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" with 5 test cases failed after 0.747 seconds with 5 issues.
+◇ Test "the deferred decision still honors a newly active policy gate" started.
+✘ Test "the deferred decision still honors a newly active policy gate" recorded an issue at SessionSwitchReleaseGTKTests.swift:124:29: Expectation failed: (timers.entries → []).first → nil → nil
+✘ Test "the deferred decision still honors a newly active policy gate" failed after 0.142 seconds with 1 issue.
+✘ Suite "Session switch release callbacks" failed after 2.756 seconds with 9 issues.
+✘ Test run with 5 tests in 1 suite failed after 2.756 seconds with 9 issues.

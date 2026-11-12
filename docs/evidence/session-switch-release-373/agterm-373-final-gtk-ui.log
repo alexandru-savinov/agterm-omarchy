@@ -1,0 +1,89 @@
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+[0/1] Planning build
+dbus-daemon[22]: [session uid=1000 pid=22] Activating service name='org.a11y.Bus' requested by ':1.1' (uid=1000 pid=197 comm="/workspace/agterm-linux/.build/x86_64-unknown-linu" label="kernel")
+dbus-daemon[22]: [session uid=1000 pid=22] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[228]: Activating service name='org.a11y.atspi.Registry' requested by ':1.0' (uid=1000 pid=197 comm="/workspace/agterm-linux/.build/x86_64-unknown-linu" label="kernel")
+dbus-daemon[228]: Successfully activated service 'org.a11y.atspi.Registry'
+SpiRegistry daemon is running with well-known name - org.a11y.atspi.Registry
+Test Suite 'Selected tests' started at 2026-11-12 03:33:36.851
+Test Suite 'Selected tests' passed at 2026-11-12 03:33:36.852
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.0 (0.0) seconds
+◇ Test run started.
+↳ Testing Library Version: 6.3.2 (70eff261d7f462c)
+↳ Target Platform: x86_64-unknown-linux-gnu
+◇ Suite "Session switch release callbacks" started.
+◇ Test "the observed true-to-false sequence commits exactly once" started.
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+✔ Test "the observed true-to-false sequence commits exactly once" passed after 1.120 seconds.
+◇ Test "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+◇ Test case passing 1 argument second → true to "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+◇ Test case passing 1 argument second → nil to "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+✔ Test "true or unavailable recheck never releases a genuinely held second Ctrl" with 2 test cases passed after 0.260 seconds.
+◇ Test "new input or cancellation rejects an already queued initial idle" started.
+◇ Test case passing 1 argument action → "press" to "new input or cancellation rejects an already queued initial idle" started.
+◇ Test case passing 1 argument action → "cancel" to "new input or cancellation rejects an already queued initial idle" started.
+◇ Test case passing 1 argument action → "close" to "new input or cancellation rejects an already queued initial idle" started.
+✔ Test "new input or cancellation rejects an already queued initial idle" with 3 test cases passed after 0.369 seconds.
+◇ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "press" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "release" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "cancel-new-cycle" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "close" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "registry-loss" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+✔ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" with 5 test cases passed after 0.649 seconds.
+◇ Test "the deferred decision still honors a newly active policy gate" started.
+✔ Test "the deferred decision still honors a newly active policy gate" passed after 0.137 seconds.
+✔ Suite "Session switch release callbacks" passed after 2.539 seconds.
+✔ Test run with 5 tests in 1 suite passed after 2.539 seconds.
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+[0/1] Planning build
+Building for debugging...
+[0/2] Write swift-version-24593BA9C3E375BF.txt
+Build of product 'agtermctl-linux' complete! (1.14s)
+dbus-daemon[300]: [session uid=1000 pid=300] Activating service name='org.a11y.Bus' requested by ':1.0' (uid=1000 pid=319 comm="dbus-send --session --print-reply=literal --dest=o" label="kernel")
+dbus-daemon[300]: [session uid=1000 pid=300] Successfully activated service 'org.a11y.Bus'
+
+(process:331): dbind-WARNING **: 03:33:42.188: AT-SPI: Error in GetItems, sender=:1.3, error=Object does not exist at path “/org/a11y/atspi/cache”
+OK: Ctrl-Tab under terminal zoom opens no switcher, and a zoom mid-hold commits nothing
+PASS: session-switch-zoom
+dbus-daemon[480]: [session uid=1000 pid=480] Activating service name='org.a11y.Bus' requested by ':1.0' (uid=1000 pid=499 comm="dbus-send --session --print-reply=literal --dest=o" label="kernel")
+dbus-daemon[480]: [session uid=1000 pid=480] Successfully activated service 'org.a11y.Bus'
+
+(process:512): dbind-WARNING **: 03:34:07.600: AT-SPI: Error in GetItems, sender=:1.3, error=Object does not exist at path “/org/a11y/atspi/cache”
+OK: a sessionless window runs keymap launchers and commits a Ctrl-Tab cycle
+PASS: session-switch-sessionless
+dbus-daemon[610]: [session uid=1000 pid=610] Activating service name='org.a11y.Bus' requested by ':1.0' (uid=1000 pid=629 comm="dbus-send --session --print-reply=literal --dest=o" label="kernel")
+dbus-daemon[610]: [session uid=1000 pid=610] Successfully activated service 'org.a11y.Bus'
+
+(process:641): dbind-WARNING **: 03:34:11.353: AT-SPI: Error in GetItems, sender=:1.3, error=Object does not exist at path “/org/a11y/atspi/cache”
+OK: Ctrl-Tab cycles without selecting, commits once the last Ctrl comes up, reverses, survives pre-held Ctrl keys, ignores a highlighted candidate closed mid-hold, and Esc / a blur / the dashboard abort
+PASS: session-switch-commit
+dbus-daemon[915]: [session uid=1000 pid=915] Activating service name='org.a11y.Bus' requested by ':1.0' (uid=1000 pid=934 comm="dbus-send --session --print-reply=literal --dest=o" label="kernel")
+dbus-daemon[915]: [session uid=1000 pid=915] Successfully activated service 'org.a11y.Bus'
+
+(process:946): dbind-WARNING **: 03:35:17.508: AT-SPI: Error in GetItems, sender=:1.3, error=Object does not exist at path “/org/a11y/atspi/cache”
+OK: cycling to the last of ten rows scrolls it into the switcher card
+PASS: session-switch-scroll
+dbus-daemon[1154]: [session uid=1000 pid=1154] Activating service name='org.a11y.Bus' requested by ':1.0' (uid=1000 pid=1173 comm="dbus-send --session --print-reply=literal --dest=o" label="kernel")
+dbus-daemon[1154]: [session uid=1000 pid=1154] Successfully activated service 'org.a11y.Bus'
+
+(process:1185): dbind-WARNING **: 03:35:27.887: AT-SPI: Error in GetItems, sender=:1.3, error=Object does not exist at path “/org/a11y/atspi/cache”
+OK: a Ctrl-Tab abandons a half-typed leader
+PASS: session-switch-leader
+dbus-daemon[1281]: [session uid=1000 pid=1281] Activating service name='org.a11y.Bus' requested by ':1.0' (uid=1000 pid=1297 comm="/usr/libexec/at-spi2-registryd" label="kernel")
+dbus-daemon[1281]: [session uid=1000 pid=1281] Successfully activated service 'org.a11y.Bus'
+
+(process:1314): dbind-WARNING **: 03:35:37.011: AT-SPI: Error in GetItems, sender=:1.3, error=Object does not exist at path “/org/a11y/atspi/cache”
+OK: Ctrl-Tab cycles from the search and rename entries, Esc cancels only the cycle, and Preferences refuses it
+PASS: session-switch-entry
+dbus-daemon[1488]: [session uid=1000 pid=1488] Activating service name='org.a11y.Bus' requested by ':1.0' (uid=1000 pid=1507 comm="dbus-send --session --print-reply=literal --dest=o" label="kernel")
+dbus-daemon[1488]: [session uid=1000 pid=1488] Successfully activated service 'org.a11y.Bus'
+
+(process:1519): dbind-WARNING **: 03:36:17.809: AT-SPI: Error in GetItems, sender=:1.3, error=Object does not exist at path “/org/a11y/atspi/cache”
+OK: another window, the palette and a control picker cancel a Ctrl-Tab cycle mid-hold, and Preferences refuses its commit
+PASS: session-switch-deactivate

@@ -1,0 +1,100 @@
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+[0/1] Planning build
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for debugging...
+[2/8] Write sources
+[3/8] Write swift-version-24593BA9C3E375BF.txt
+[5/9] Emitting module AgtermLinux
+[6/9] Compiling AgtermLinux AppControllerSessionPicker.swift
+/workspace/agterm-linux/Sources/AgtermLinux/AppControllerSessionPicker.swift:58:13: warning: initialization of immutable value 'generation' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 56 |     ) {
+ 57 |         invalidateSessionSwitchRelease()
+ 58 |         let generation = sessionSwitchReleaseGeneration
+    |             `- warning: initialization of immutable value 'generation' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 59 |         runOnMain { [weak self] in
+ 60 |             MainActor.assumeIsolated {
+[7/15] Write Objects.LinkFileList
+[8/15] Linking AgtermLinux
+[10/16] Emitting module AgtermLinuxTests
+[11/13] Write Objects.LinkFileList
+[12/13] Linking agterm-linuxPackageTests.xctest
+Build complete! (12.30s)
+Test Suite 'Selected tests' started at 2026-11-12 03:30:13.932
+Test Suite 'Selected tests' passed at 2026-11-12 03:30:13.933
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.0 (0.0) seconds
+◇ Test run started.
+↳ Testing Library Version: 6.3.2 (70eff261d7f462c)
+↳ Target Platform: x86_64-unknown-linux-gnu
+➜ Suite "Session switch release callbacks" skipped.
+➜ Test "the observed true-to-false sequence commits exactly once" skipped.
+➜ Test "new input or cancellation rejects an already queued initial idle" skipped.
+➜ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" skipped.
+➜ Test "true or unavailable recheck never releases a genuinely held second Ctrl" skipped.
+➜ Test "the deferred decision still honors a newly active policy gate" skipped.
+✔ Test run with 5 tests in 1 suite passed after 0.001 seconds.
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+[0/1] Planning build
+dbus-daemon[126]: [session uid=1000 pid=126] Activating service name='org.a11y.Bus' requested by ':1.1' (uid=1000 pid=297 comm="/workspace/agterm-linux/.build/x86_64-unknown-linu" label="kernel")
+dbus-daemon[126]: [session uid=1000 pid=126] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[328]: Activating service name='org.a11y.atspi.Registry' requested by ':1.0' (uid=1000 pid=297 comm="/workspace/agterm-linux/.build/x86_64-unknown-linu" label="kernel")
+dbus-daemon[328]: Successfully activated service 'org.a11y.atspi.Registry'
+SpiRegistry daemon is running with well-known name - org.a11y.atspi.Registry
+Test Suite 'Selected tests' started at 2026-11-12 03:30:16.703
+Test Suite 'Selected tests' passed at 2026-11-12 03:30:16.704
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.0 (0.0) seconds
+◇ Test run started.
+↳ Testing Library Version: 6.3.2 (70eff261d7f462c)
+↳ Target Platform: x86_64-unknown-linux-gnu
+◇ Suite "Session switch release callbacks" started.
+◇ Test "the observed true-to-false sequence commits exactly once" started.
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+✔ Test "the observed true-to-false sequence commits exactly once" passed after 1.183 seconds.
+◇ Test "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+◇ Test case passing 1 argument second → true to "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+◇ Test case passing 1 argument second → nil to "true or unavailable recheck never releases a genuinely held second Ctrl" started.
+✔ Test "true or unavailable recheck never releases a genuinely held second Ctrl" with 2 test cases passed after 0.272 seconds.
+◇ Test "new input or cancellation rejects an already queued initial idle" started.
+◇ Test case passing 1 argument action → "press" to "new input or cancellation rejects an already queued initial idle" started.
+✘ Test "new input or cancellation rejects an already queued initial idle" recorded an issue with 1 argument action → "press" at SessionSwitchReleaseGTKTests.swift:69:13: Expectation failed: (reader.reads → 1) == 0
+◇ Test case passing 1 argument action → "cancel" to "new input or cancellation rejects an already queued initial idle" started.
+✘ Test "new input or cancellation rejects an already queued initial idle" recorded an issue with 1 argument action → "cancel" at SessionSwitchReleaseGTKTests.swift:69:13: Expectation failed: (reader.reads → 1) == 0
+◇ Test case passing 1 argument action → "close" to "new input or cancellation rejects an already queued initial idle" started.
+✘ Test "new input or cancellation rejects an already queued initial idle" with 3 test cases failed after 0.401 seconds with 2 issues.
+◇ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "press" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "press" at SessionSwitchReleaseGTKTests.swift:102:13: Expectation failed: (oldReader.reads → 2) == 1
+↳ stale callback queried a disposed or superseded owner
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "press" at SessionSwitchReleaseGTKTests.swift:103:13: Expectation failed: (controller.sessionSwitchReleaseGeneration → 4) == (generation → 3)
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "press" at SessionSwitchReleaseGTKTests.swift:104:13: Expectation failed: (controller.store.selectedSessionID → F6C51D5D-885E-46C4-B090-8413A16CAF37) == (selection → 58D1ED44-F6C3-4207-BEF4-A108EACFCA0A)
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "press" at SessionSwitchReleaseGTKTests.swift:105:13: Expectation failed: (controller.sessionSwitcher → SessionSwitcherModel(candidates: [], index: 0)) == (cycle → SessionSwitcherModel(candidates: [58D1ED44-F6C3-4207-BEF4-A108EACFCA0A, F6C51D5D-885E-46C4-B090-8413A16CAF37], index: 1))
+◇ Test case passing 1 argument action → "release" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "release" at SessionSwitchReleaseGTKTests.swift:102:13: Expectation failed: (oldReader.reads → 2) == 1
+↳ stale callback queried a disposed or superseded owner
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "release" at SessionSwitchReleaseGTKTests.swift:103:13: Expectation failed: (controller.sessionSwitchReleaseGeneration → 4) == (generation → 3)
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "release" at SessionSwitchReleaseGTKTests.swift:104:13: Expectation failed: (controller.store.selectedSessionID → 724148C2-1394-4A0A-A7D3-5F4CBC72C53C) == (selection → 0A3063A9-CBAD-47F6-8E15-052C6E6C302A)
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "release" at SessionSwitchReleaseGTKTests.swift:105:13: Expectation failed: (controller.sessionSwitcher → SessionSwitcherModel(candidates: [], index: 0)) == (cycle → SessionSwitcherModel(candidates: [0A3063A9-CBAD-47F6-8E15-052C6E6C302A, 724148C2-1394-4A0A-A7D3-5F4CBC72C53C], index: 1))
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "release" at SessionSwitchReleaseGTKTests.swift:108:17: Expectation failed: (controller.cancelSessionSwitchReleaseRecheck → nil) != nil
+↳ old callback cleared the new handle
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "release" at SessionSwitchReleaseGTKTests.swift:110:17: Expectation failed: (nextReader.reads → 1) == 2
+◇ Test case passing 1 argument action → "cancel-new-cycle" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "cancel-new-cycle" at SessionSwitchReleaseGTKTests.swift:102:13: Expectation failed: (oldReader.reads → 2) == 1
+↳ stale callback queried a disposed or superseded owner
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "cancel-new-cycle" at SessionSwitchReleaseGTKTests.swift:103:13: Expectation failed: (controller.sessionSwitchReleaseGeneration → 6) == (generation → 5)
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "cancel-new-cycle" at SessionSwitchReleaseGTKTests.swift:104:13: Expectation failed: (controller.store.selectedSessionID → E03F4F01-D868-4264-8D37-B92DAFA92069) == (selection → 135405F9-E052-4549-9438-4D1BAC553B94)
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "cancel-new-cycle" at SessionSwitchReleaseGTKTests.swift:105:13: Expectation failed: (controller.sessionSwitcher → SessionSwitcherModel(candidates: [], index: 0)) == (cycle → SessionSwitcherModel(candidates: [135405F9-E052-4549-9438-4D1BAC553B94, E03F4F01-D868-4264-8D37-B92DAFA92069], index: 1))
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "cancel-new-cycle" at SessionSwitchReleaseGTKTests.swift:108:17: Expectation failed: (controller.cancelSessionSwitchReleaseRecheck → nil) != nil
+↳ old callback cleared the new handle
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" recorded an issue with 1 argument action → "cancel-new-cycle" at SessionSwitchReleaseGTKTests.swift:110:17: Expectation failed: (nextReader.reads → 1) == 2
+◇ Test case passing 1 argument action → "close" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+◇ Test case passing 1 argument action → "registry-loss" to "forced late callbacks cannot change a newer release, cycle, or closed owner" started.
+✘ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" with 5 test cases failed after 0.722 seconds with 16 issues.
+◇ Test "the deferred decision still honors a newly active policy gate" started.
+✔ Test "the deferred decision still honors a newly active policy gate" passed after 0.175 seconds.
+✘ Suite "Session switch release callbacks" failed after 2.755 seconds with 18 issues.
+✘ Test run with 5 tests in 1 suite failed after 2.755 seconds with 18 issues.

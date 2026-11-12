@@ -1,0 +1,24 @@
+diff --git a/agterm-linux/Sources/AgtermLinux/AppControllerSessionPicker.swift b/agterm-linux/Sources/AgtermLinux/AppControllerSessionPicker.swift
+index 23dc002ed..148c8843f 100644
+--- a/agterm-linux/Sources/AgtermLinux/AppControllerSessionPicker.swift
++++ b/agterm-linux/Sources/AgtermLinux/AppControllerSessionPicker.swift
+@@ -59,16 +59,16 @@ extension AppController {
+         runOnMain { [weak self] in
+             MainActor.assumeIsolated {
+                 guard let self, gWindows[self.windowID] === self,
+-                      self.sessionSwitchReleaseGeneration == generation else { return }
++                      true else { return }
+                 let held = readControlState()
+                 self.commitSessionSwitch(releasing: keycode, controlStillHeld: held)
+                 guard held == true, self.sessionSwitcher.isActive,
+-                      self.sessionSwitchReleaseGeneration == generation else { return }
++                      true else { return }
+                 // GDK's device state can become false after the release idle. Give this release one
+                 // bounded second observation, never a poll or permission to commit a newer cycle.
+                 self.cancelSessionSwitchReleaseRecheck = MainTimer.schedule(after: 0.05) { [weak self] in
+                     guard let self, gWindows[self.windowID] === self,
+-                          self.sessionSwitchReleaseGeneration == generation else { return }
++                          true else { return }
+                     self.cancelSessionSwitchReleaseRecheck = nil
+                     guard self.sessionSwitcher.isActive, readControlState() == false else { return }
+                     self.commitSessionSwitch(releasing: keycode, controlStillHeld: false)

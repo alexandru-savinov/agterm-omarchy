@@ -1,0 +1,1872 @@
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread
+warning: prohibited flag(s): -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -pthread, -mfpmath=sse, -msse, -msse2, -pthread, -pthread, -pthread, -pthread, -Wl,--export-dynamic, -pthread
+[0/1] Planning build
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for debugging...
+[2/9] Write sources
+[4/9] Write swift-version-24593BA9C3E375BF.txt
+[6/10] Emitting module AgtermLinux
+[7/10] Compiling AgtermLinux AppController.swift
+[8/16] Write Objects.LinkFileList
+[9/16] Linking AgtermLinux
+[11/18] Compiling AgtermLinuxTests SessionSwitchReleaseGTKTests.swift
+[12/18] Emitting module AgtermLinuxTests
+[13/15] Write Objects.LinkFileList
+[14/15] Linking agterm-linuxPackageTests.xctest
+Build complete! (13.00s)
+Test Suite 'All tests' started at 2026-11-12 03:32:16.363
+Test Suite 'debug.xctest' started at 2026-11-12 03:32:16.364
+Test Suite 'debug.xctest' passed at 2026-11-12 03:32:16.364
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.0 (0.0) seconds
+Test Suite 'All tests' passed at 2026-11-12 03:32:16.364
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.0 (0.0) seconds
+◇ Test run started.
+↳ Testing Library Version: 6.3.2 (70eff261d7f462c)
+↳ Target Platform: x86_64-unknown-linux-gnu
+◇ Suite "agtermctl shared command executable" started.
+◇ Suite "Linux clipboard consent coalescing and requester lifetime" started.
+◇ Suite "Resolved Ghostty chrome colors" started.
+◇ Suite "Linux control zmx calls stay off the main loop" started.
+◇ Suite "agtermctl integration command" started.
+◇ Suite "Linux structured journal records" started.
+◇ Suite "Linux GDK policy — environment assignments" started.
+◇ Suite GLibMainTimerTests started.
+◇ Suite "Ctrl-Tab session switcher" started.
+◇ Suite "Linux agent-status glyph presentation" started.
+◇ Suite "Linux zmx adapters" started.
+◇ Suite "Linux drops are delivered as paste" started.
+◇ Suite "sidebar sync gate" started.
+◇ Suite "background overlay policy" started.
+◇ Suite AppControllerThemeSettingsTests started.
+◇ Suite "Sidebar scroll-into-view" started.
+◇ Suite "Session overlay exit identity" started.
+◇ Suite "embedded libghostty surface geometry" started.
+◇ Suite "Linux split-pane layout" started.
+◇ Suite "Mouse shape → GTK cursor name (GHOSTTY_ACTION_MOUSE_SHAPE)" started.
+◇ Suite "Linux GDK policy — pre-launch environment capture" started.
+◇ Suite "split ratio restore ownership" started.
+◇ Suite "Linux appearance reload policy" started.
+◇ Suite "Linux-owned policy and adapters" started.
+◇ Suite "sidebar reveal state" started.
+◇ Suite "libghostty buffer lifetimes" started.
+◇ Suite "Pane lead key policy" started.
+◇ Suite "selection re-publish ownership" started.
+◇ Suite "Linux custom-command process launching" started.
+◇ Suite "Linux spawn registry grants for closed and reprioritized panes" started.
+◇ Suite "sidebar diff content ops" started.
+◇ Suite "sidebar metadata refresh gate" started.
+◇ Suite "Linux control stream owner" started.
+◇ Suite "Linux remote command temporary files, output bound, and timeout" started.
+◇ Suite "Linux keymap reload toast" started.
+◇ Suite "sidebar scroll retry ownership" started.
+◇ Suite "sidebar remote rows" started.
+◇ Suite BlinkPhaseSourceGLibTests started.
+◇ Suite "sidebar snapshot diff" started.
+◇ Suite "Linux exit capture policy" started.
+◇ Suite "Linux foreground job cleanup" started.
+◇ Suite "sidebar drag and reorder plans" started.
+◇ Suite "soft-close reconcile ownership" started.
+◇ Suite "selection republish scope" started.
+◇ Suite "local launch directory" started.
+◇ Suite "sidebar snapshot" started.
+◇ Suite "Linux hook launcher child I/O and completion" started.
+◇ Suite "Linux control socket ownership" started.
+◇ Suite "Linux control dispatch covers every command" started.
+◇ Suite "Linux presentation transport" started.
+◇ Suite LinuxProcCmdlineTests started.
+◇ Suite "Linux asks before an unsafe multi-line paste" started.
+◇ Suite "Linux terminal deck presentation" started.
+◇ Suite "Linux presenter frame routing" started.
+◇ Suite "Linux GDK policy — GL context error line" started.
+◇ Suite "Linux overlay-job helper connections" started.
+◇ Suite "zmx.attach request validation" started.
+◇ Suite "Linux overlay exit capture" started.
+◇ Suite "Ghostty config apply policy" started.
+➜ Suite "Real GTK clipboard dialog disposal" skipped.
+◇ Suite "Link hover decision (GHOSTTY_ACTION_MOUSE_OVER_LINK)" started.
+◇ Suite "Linux GDK policy — assignment log line" started.
+◇ Suite "Linux palette row presentation" started.
+◇ Suite "Linux zmx foreground snapshot" started.
+◇ Suite "Linux dashboard presentation" started.
+➜ Suite "Real GTK inline rename effects" skipped.
+◇ Suite "Ghostty reload action policy" started.
+◇ Suite "Linux HUD body storage" started.
+◇ Suite "GTK reparent ref guard" started.
+◇ Suite "Sidebar drop insertion slots" started.
+➜ Suite "Real GTK surface teardown before a spawn grant" skipped.
+➜ Suite "Session switch release callbacks" skipped.
+◇ Suite "Linux quick-terminal card chrome" started.
+◇ Suite "Layout-independent Linux shortcuts" started.
+◇ Suite "Generated Ghostty config storage" started.
+◇ Suite "Sidebar hover CSS" started.
+◇ Suite "Linux control socket accept backoff and worker cap" started.
+◇ Suite "Remote held exits" started.
+◇ Suite "Launcher child environment" started.
+◇ Suite "Sidebar session-click timing" started.
+◇ Suite "Linux control socket framing and bounds" started.
+◇ Suite "Linux surface failure diagnostics" started.
+◇ Suite "blink policy" started.
+◇ Suite "Linux quick-terminal card allocation" started.
+◇ Suite "blink phase coordinator" started.
+◇ Suite "blink phase trace" started.
+◇ Suite "Linux Reduce Motion policy" started.
+◇ Suite LinuxAutoFollowCoordinatorTests started.
+◇ Suite "Linux foreground capture" started.
+◇ Suite "Linux restore pre-fill" started.
+◇ Suite "sidebar snapshot flattenings" started.
+◇ Suite "Linux pane dimming policy under translucent windows" started.
+◇ Suite "Linux launch seed latch" started.
+◇ Suite "Modifier-only key state synthesis (X11 prior-state quirk)" started.
+◇ Suite "AppImage child environment" started.
+◇ Suite "Linux terminal zoom promotion" started.
+◇ Suite "OpenCode Linux integration" started.
+◇ Suite "Linux Pi integration" started.
+◇ Suite "Linux desktop launcher actions" started.
+◇ Suite "Linux integration service" started.
+◇ Suite "Linux integration stale-plan safety" started.
+◇ Suite "Linux keymap compatibility" started.
+◇ Suite "Linux OpenCode major selection" started.
+◇ Suite "Linux integration managed markers" started.
+◇ Suite "Linux integration install copy" started.
+◇ Test "help combines the shared catalog with Linux integration" started.
+◇ Test "theme list and affected results use shared human formatting" started.
+◇ Test "theme light and dark options use the shared request parser" started.
+◇ Test "socket precedence is flag then state directory then Linux XDG application support" started.
+◇ Test "an answered dialog cannot resolve a replacement prompt when its signal is destroyed" started.
+◇ Test "different requesters, and read versus write, open separate prompts" started.
+◇ Test "write consent completion checks the current surface before touching the clipboard" started.
+◇ Test "always-allow and always-deny are remembered per access" started.
+◇ Test "signal destruction denies unresolved coalesced waiters and releases the context" started.
+◇ Test "stable pane tokens reach the shared session status request" started.
+◇ Test "a waiter may destroy its response signal without resolving twice" started.
+◇ Test "one requester and one access share a prompt, and each waiter fires once" started.
+◇ Test "window theme CSS emits the chrome palette and the row-scoped selection tint" started.
+◇ Test "resolved config channels drive the chrome palette" started.
+◇ Test "resolving after teardown reaches the waiter while the requester is still retained, then frees it" started.
+◇ Test "theme file lines resolve the last assignment per key, skipping comments" started.
+◇ Test "sidebar selection derives contrast when the resolved color is absent" started.
+◇ Test "sidebar selection keeps a distinct supplied theme color" started.
+◇ Test "status JSON is stable and independent of the control socket" started.
+◇ Test "a missing theme file falls back to the supplied lines" started.
+◇ Test "conflicts, invalid resources, and failed writes have distinct exits" started.
+◇ Test "hooks CLI installs Pi into isolated HOME" started.
+◇ Test "dry-run JSON previews without mutating HOME" started.
+◇ Test "install applies safe skill targets and reports protected targets" started.
+◇ Test "status accepts the control socket compatibility option" started.
+◇ Test "install rejects unknown integration" started.
+◇ Test "install supports hooks dry-run" started.
+◇ Test "a notice record carries the journal filter fields" started.
+◇ Test "ordinary duplicates and ordering survive while the missing flag is appended" started.
+◇ Test "one required exclusion is removed while ordinary ordering stays intact" started.
+◇ Test "only the missing token is appended to an existing value" started.
+◇ Test "inverted all already selects both required flags on either GTK branch" started.
+◇ Test "a delimiter GDK does not honour is not a token boundary here either" started.
+◇ Test "control diagnostic text survives verbatim" started.
+◇ Test "partial presence in GDK_DEBUG appends only the missing token" started.
+◇ Test "GTK 4.16 and later use the GDK_DISABLE spelling" started.
+◇ Test "a GDK_DEBUG already carrying both tokens yields no assignment" started.
+◇ Test "dedupe matches whole tokens, never substrings" started.
+◇ Test "ordinary exclusions after inverted all do not disturb the required flags" started.
+◇ Test "inverted rewrites have deterministic ordering and canonical separators" started.
+◇ Test "empty tokens inside an existing value are ignored" started.
+◇ Test "a value ending in a delimiter appends without tidying it up" started.
+◇ Test "a value already carrying both tokens yields no assignment" started.
+◇ Test "GTK 4.13 predates both spellings, so nothing is assigned" started.
+◇ Test "a major above 4 counts as at least 4.16" started.
+◇ Test "dedupe sees tokens split by every delimiter GDK honours" started.
+◇ Test "the effective emitted value always selects both policy flags" started.
+◇ Test "dedupe compares case-insensitively, as GDK does" started.
+◇ Test "the branch that is not taken ignores the other variable's value" started.
+◇ Test "an empty existing value yields the bare token list, with no leading comma" started.
+◇ Test "GTK 4.14 and 4.15 use the GDK_DEBUG spelling" started.
+◇ Test "GTK 3 gets no assignments" started.
+◇ Test "required flags are removed from an inverted list instead of appended" started.
+◇ Test "a user's GDK_DEBUG is appended to, never clobbered" started.
+◇ Test "the dim behind the card is macOS's 20% black" started.
+◇ Test "the card takes its colors from the theme, not a fixed dark fill" started.
+◇ Test "zmx.list runs its zmx call on the worker while the main loop keeps turning" started.
+◇ Test "any Ctrl+Tab variant cycles, with Shift reversing, whatever else is held" started.
+◇ Test "settings shape is used before the circle default" started.
+◇ Test "the commit waits for the last held Ctrl key" started.
+◇ Test "the highlighted row is revealed once allocated, after a bounded wait for its height" started.
+◇ Test "a zero-exit kill reports its stderr confirmation; list keeps stderr out" started.
+◇ Test aScheduledFireRunsExactlyOnceOnTheGLibLoop() started.
+◇ Test "per-call shape and color override settings" started.
+◇ Test "only kill invocations merge stderr" started.
+◇ Test "kill output requires an exact confirmation" started.
+◇ Test "Ctrl release commits the highlighted candidate, or nothing" started.
+◇ Test "a real invocation into an unverified socket directory runs nothing" started.
+◇ Test "the development zmx path is absolute" started.
+◇ Test "a sidebar wider than the terminal area cannot push the card out of the window" started.
+◇ Test "proc stat parsing tolerates parentheses in the process name" started.
+◇ Test "the switcher cycles at most ten candidates" started.
+◇ Test "Esc cancels a live cycle and otherwise reaches the focused widget" started.
+◇ Test "the card starts 12% down the window and may run no further than the fitted panel height" started.
+◇ Test "sidebar ids and empty drops are refused without touching the surface" started.
+◇ Test "a file drop pastes the space-joined escaped paths" started.
+◇ Test "a uri-list drop pastes its escaped POSIX paths" started.
+◇ Test "idle has no presentation" started.
+◇ Test "the card centers over the terminal area, or the whole window with no visible sidebar" started.
+◇ Test "the scroller's content bounds give back the card's padding and border, so the whole card fits" started.
+◇ Test "a dropped request leaves no flag for the next unrelated sync to act on" started.
+◇ Test "the switcher runs only when nothing modal owns the keyboard" started.
+◇ Test "Tab without Ctrl and other Ctrl chords pass through" started.
+◇ Test "a latched overlay keeps font size and window opacity" started.
+◇ Test "session switcher starts from the previous MRU entry and wraps" started.
+◇ Test "a multi-line text drop is one paste, not typed lines" started.
+◇ Test "a nested call records itself and the owner drains it" started.
+◇ Test "a pass that keeps re-entering is drained a bounded number of times" started.
+◇ Test "a latched overlay never carries a background key" started.
+◇ Test "window opacity is clamped" started.
+◇ Test "a fixed color wins over the session watermark" started.
+◇ Test "a set latch alone is a reason to reapply" started.
+◇ Test "a forced reapply with no latch and no watermark emits a bare overlay" started.
+◇ Test "without a latch a session color emits background" started.
+◇ Test "a row scrolls only far enough to become fully visible" started.
+◇ Test "a theme name pins one appearance-independent theme and keeps the rest of the settings" started.
+◇ Test "the retry waits for the row's and its list box's allocation, and only for a bounded run of frames" started.
+◇ Test "a current surface's exit closes its slot" started.
+◇ Test "a stale surface's exit leaves a replacement HTML overlay open" started.
+◇ Test "a stale surface's exit leaves an emptied slot alone" started.
+◇ Test "the selected row follows the terminal theme's selection colors" started.
+◇ Test "a stale surface's exit leaves a replacement program overlay open" started.
+◇ Test "surface creation checks own, stored, deck, and clamp sources in order" started.
+◇ Test "creation still clamps to one when neither source is credible" started.
+◇ Test "a stored frame estimate subtracts the frame's measured chrome" started.
+◇ Test "surface creation pushes the fallback through the libghostty size boundary" started.
+◇ Test "a chrome whose subtraction would overflow keeps the request instead of trapping" started.
+◇ Test "an unresolved chrome measurement degrades to the raw request" started.
+◇ Test "an absurd allocation saturates instead of wrapping" started.
+◇ Test "creation treats a half-allocated source as not credible" started.
+◇ Test "non-positive viewport inputs clamp to one" started.
+◇ Test "the latch wins over a session and a fixed color" started.
+◇ Test "a chrome that is not a minority of its box keeps the request, never a credible 1x1" started.
+◇ Test "creation falls back when the widget has no allocation of its own" started.
+◇ Test "GtkGLArea resize dimensions are already backing pixels" started.
+◇ Test "GTK pointer coordinates remain unscaled at the embedded API boundary" started.
+◇ Test "every documented enum value maps to its CSS cursor name" started.
+◇ Test "GTK viewport dimensions convert to backing pixels" started.
+◇ Test "both panes stay hosted through every visibility state" started.
+◇ Test "creation prefers the widget's own allocation over the fallback" started.
+◇ Test "hidden split does not retain a live divider hit target" started.
+◇ Test "inactive-pane opacity is shared by its base and overlay" started.
+◇ Test "DEFAULT maps to the arrow cursor (mouse-tracking mode), not the I-beam fallback" started.
+◇ Test "a GLES-first GTK with nothing set assigns the pair and restores the unset values" started.
+◇ Test "an unknown future enum value falls back to text" started.
+◇ Test "restoring leaves an environment alone when the policy assigned nothing" started.
+◇ Test "a GTK too old for either spelling assigns nothing and leaves children alone" started.
+◇ Test "every assigned variable gets exactly one restore pair, and no unassigned one does" started.
+◇ Test "the caller's own value wins a key collision" started.
+◇ Test "restoring into a copy of the mutated process environment overwrites the override" started.
+◇ Test "an inverted user value is normalized for agterm and restored verbatim to children" started.
+◇ Test "a user's own value is appended to and handed back to children verbatim" started.
+◇ Test "superseding and cancelling restores remove the owned source" started.
+◇ Test "stale generations cannot clear or adopt a newer restore" started.
+◇ Test "a successful apply records the current side" started.
+◇ Test "the restore pairs join the caller's own vars in a spawned shell's environment" started.
+◇ Test "an appearance side preserves the observed darkness" started.
+◇ Test "startup seeding suppresses a same-side appearance event" started.
+◇ Test "startup applies light then reconciles dark" started.
+◇ Test "a same-side duplicate skips an appearance reload" started.
+◇ Test "a missing dark slot still reloads the terminal scheme config" started.
+◇ Test "sync on with both slots accepts a side change" started.
+◇ Test "an opposite-side change reloads" started.
+◇ Test "the first valid appearance event reloads" started.
+◇ Test "an unrecorded failed apply leaves the previous side eligible" started.
+◇ Test "a missing light slot still reloads the terminal scheme config" started.
+◇ Test "HUD geometry refreshes once per positive deck allocation" started.
+◇ Test "a newly selected session reveals its owner once" started.
+◇ Test "a successful re-enable apply restores a later opposite-side flip" started.
+◇ Test "sync off still reloads the terminal scheme config" started.
+◇ Test "sync off plans a config reload with the settled side" started.
+◇ Test "a nil selection clears the gate so the same session reveals again" started.
+◇ Test "Linux keymap and hook starters are inert and contain no macOS instructions" started.
+◇ Test "reveals accumulate, clear per id or wholesale, and drop workspaces the store lost" started.
+◇ Test "collapsing another workspace keeps a reveal; collapsing the revealed one folds it for good" started.
+◇ Test "with the sidebar hidden the current-workspace toggle still expands a revealed workspace" started.
+◇ Test "the effective set is the persisted set widened by the overlay" started.
+◇ Test "an unlisted flagged-mode selection clears the gate, so the trip back to tree reveals it" started.
+◇ Test "collapsing a revealed workspace folds it even though the store write is a no-op" started.
+◇ Test "a nil selection in flagged mode clears the gate and leaves the overlay alone" started.
+◇ Test "notification delivery delegates policy and identity to shared core" started.
+◇ Test "a listed flagged-mode selection advances the gate, so the trip back to tree reveals nothing" started.
+◇ Test "the clamp pins the derived sidebar floor inside the shared width range" started.
+◇ Test "partial configuration allocation releases retained buffers" started.
+◇ Test "an owner-less selection leaves the gate alone" started.
+◇ Test "invalid deletion names fail closed" started.
+◇ Test "the mirror spans every workspace, so a current workspace the focus filter hid reads its reveal" started.
+◇ Test "surface configuration owns every C buffer until repeated release" started.
+◇ Test "every deletion allocation failure releases all previously retained strings" started.
+◇ Test "a fold made under a still-selected session survives a flagged round trip" started.
+◇ Test "deletion names work without set entries and deinit frees their strings" started.
+◇ Test "session reports and pane focus mutate the owning shared model" started.
+◇ Test takeoverRepeatsAreConsumedAcrossTheReattachUntilRelease() started.
+◇ Test "bundled libghostty defaults parse clean and bind physical C/V/A on any layout" started.
+◇ Test "URL decoding honors the explicit byte length" started.
+◇ Test surfaceChangeDoesNotClearTheTakeover() started.
+◇ Test "Linux session home honors an isolated launch environment" started.
+◇ Test onlyTheTakeoverReleaseClearsIt() started.
+◇ Test keymapChordOnCoveredFollowerStaysTheKeymaps(key:state:) started.
+◇ Test "delete prompts use native Linux wording" started.
+◇ Test uncoveredPaneForwardsModifierReleases(role:) started.
+◇ Test takeoverKeyTakesTheLeadOnceAndOtherKeysAreConsumed() started.
+◇ Test coverPressRecordsTheKeyLikeASurfacePress() started.
+◇ Test coveredPaneDropsTheModifierReleasesItsPressesConsumed() started.
+◇ Test nonModifierReleaseEndsTheTakeover() started.
+◇ Test superAndModifierOnlyNeverTakeTheLead() started.
+◇ Test uncoveredPaneKeysPass(role:) started.
+◇ Test "Linux proc cmdline decoding is NUL-delimited" started.
+◇ Test replacementTakesFocusFromTheSurfaceOrItsCover(surface:cover:expected:) started.
+◇ Test "redundant local shell titles preserve cwd-derived session names" started.
+◇ Test pressAfterASeenReleaseIsGenuine() started.
+◇ Test keymapRunsBeforeARecordedTakeoverKey() started.
+◇ Test "a floor-driven divider move is not persisted, so the requested width survives it" started.
+◇ Test "sidebar CSS derives row height from the shared font-size clamp" started.
+◇ Test "HUD presentation is passive while program overlays remain interactive" started.
+◇ Test "every rebuild's arm supersedes the pending re-publish instead of orphaning it" started.
+◇ Test "focused OSC suppression precedes unseen mutation while explicit control delivery bypasses it" started.
+◇ Test "HUD layout uses the stable session font before settings or defaults" started.
+◇ Test "Linux starter table documents every Linux default with round-tripping syntax" started.
+◇ Test "an armed re-publish runs once and leaves nothing to disarm" started.
+◇ Test "pane identities coalesce independently and stale reveal panes fall back safely" started.
+◇ Test "URI lists become POSIX path payloads" started.
+◇ Test "cancel disarms the pending re-publish — the window-close teardown path" started.
+◇ Test "Linux surface roles map every terminal kind deliberately" started.
+◇ Test "spawn errors and non-zero exits report while successful exits stay silent" started.
+◇ Test "Linux bundled libghostty defaults mirror upstream macOS adapted to Linux conventions" started.
+◇ Test "spawn launcher rejects a missing executable" started.
+◇ Test "spawn launcher rejects an invalid working directory" started.
+◇ Test "opt-in failure HUD captures the final stderr diagnostic from a real child" started.
+◇ Test "the stderr capture is owner-only under umask 0 and unlinked after exit 0 and exit 23" started.
+◇ Test "Uncommented Linux starter examples survive the Linux keymap loader and hooks parser" started.
+◇ Test "the request restores the pre-launch GDK environment over a caller's own base" started.
+◇ Test "requests preserve expansion, environment, cwd, pane, and null stdio" started.
+◇ Test "closing and reopening the same window id cannot reactivate an old origin" started.
+◇ Test "deferred workspace row clicks re-read the current setting" started.
+◇ Test "bundled CLI directory requires the resolved absolute executable path" started.
+◇ Test "a descendant holding stderr cannot stall completion, and the capture is gone on delivery" started.
+◇ Test "empty cwd is omitted" started.
+◇ Test "spawn launcher reports successful and non-zero termination" started.
+◇ Test "canceled and deallocated panes never resume; the rest resume once in priority order" started.
+◇ Test "the divider is laid out at the request the floor and the window width both allow" started.
+◇ Test "URI drop paths preserve file boundaries and escape literal filename punctuation" started.
+◇ Test "a selection change is one op carrying the symmetric difference" started.
+◇ Test "Linux starter files remain comment-only or denylist-only" started.
+◇ Test "an unpaced pane is discarded without registering" started.
+◇ Test "a settings-only change updates only the rows whose presentation moved" started.
+◇ Test "resource resolution requires complete sibling resources and preserves precedence" started.
+◇ Test "each header change updates exactly its own header" started.
+◇ Test "custom command PATH is Linux-native, bundled-first, stable, and deduplicated" started.
+◇ Test "each row content change updates exactly its own row" started.
+◇ Test "forced wins across a coalesced burst in either order" started.
+◇ Test "an unforced burst refreshes in place, ungated by an interaction" started.
+◇ Test "an inserted row is built from its content; a moved one still takes its update" started.
+◇ Test "concurrent and late shutdowns close once and never touch a reused descriptor number" started.
+◇ Test "fragmented and coalesced frames arrive in order, byte-exact" started.
+◇ Test "a full queue makes the presentation offer fail and the hub drop the stalled viewer" started.
+◇ Test "a collapse hides the list box AND repaints the header that owns the disclosure arrow" started.
+◇ Test "an oversized frame closes the stream, terminated or not" started.
+◇ Test "a reading peer receives every queued frame" started.
+◇ Test "a stalled peer fills the queue at 64 frames and the send timeout closes the stream" started.
+◇ Test "a failed write shuts the stream down and closes it once" started.
+◇ Test "an oversized argument makes launch throw and removes every temporary file" started.
+◇ Test "a forced refresh waits behind an interaction and stays forced for its retry" started.
+◇ Test "a frame of exactly maxFrameBytes is delivered" started.
+◇ Test "temp-file setup failure reports status 1 and leaves nothing behind" started.
+◇ Test "a TERM-ignoring child and its descendant are killed after the grace" started.
+◇ Test "the bound admits exactly the limit and rejects one byte more, on either stream" started.
+◇ Test "input and output files are owner-only while the child runs" started.
+◇ Test "output over the declared bound fails whole and still cleans up" started.
+◇ Test "a backgrounded descendant neither delays the timeout nor outlives it" started.
+◇ Test "success, nonzero exit, and a missing command each leave nothing behind" started.
+◇ Test "timeout reports 124 and leaves nothing behind" started.
+◇ Test "one diagnostic names the error count in the singular" started.
+◇ Test "a clean load stays silent" started.
+◇ Test "a stale request neither adopts a callback nor clears the live one" started.
+◇ Test "stdin bytes with embedded NULs round-trip through cat" started.
+◇ Test "peer EOF closes the stream once and releases the descriptor" started.
+◇ Test "several diagnostics name the error count in the plural" started.
+◇ Test "a superseding request removes the previous row's callback through that row" started.
+◇ Test "a remote row follows its stream: notice and slashed icon while down, plain cloud when up" started.
+◇ Test "a local row carries no remote marker or notice" started.
+◇ Test "completing removes nothing — the tick and the destroy notify own that themselves" started.
+◇ Test "only leaving connected reconciles the connection effect" started.
+◇ Test "a request whose attempt resolves still supersedes the row waiting before it" started.
+◇ Test "a request whose attach never returned an id cancels without removing anything" started.
+◇ Test "a connection change is one in-place update of that row" started.
+◇ Test "an origin without the stream, or an unbound row, is remote with nothing to say" started.
+◇ Test "cancel() and resync(shouldRun: false) remove the real GLib source while a sibling keeps ticking" started.
+◇ Test "removals precede inserts and moves in a mixed change" started.
+◇ Test "a removed section takes its rows with it, and a survivor elsewhere is an insert" started.
+◇ Test "a plan against a stale snapshot cannot reach the target" started.
+◇ Test "an unchanged snapshot plans nothing" started.
+◇ Test "collapse, expand and the flagged hint carry no row ops" started.
+◇ Test "the quit flush acts only on still-registered windows" started.
+◇ Test "a terminating close captures even with other windows open" started.
+◇ Test "every permutation of up to five rows moves the minimum and reproduces the target" started.
+◇ Test "closing the last open window captures" started.
+◇ Test "the shared remote glyph is the connected sidebar icon" started.
+◇ Test "a flagged remote row keeps its star beside the cloud in tree mode" started.
+◇ Test "a preferMoving hint decides which of two tied rows moves" started.
+◇ Test "a non-last close clears in every mode" started.
+◇ Test "a mode switched off after a Live launch clears at quit" started.
+◇ Test "sections insert, remove and move like rows" started.
+◇ Test "a first sync from an empty snapshot is all inserts" started.
+◇ Test "a mode switched on after a Fresh launch captures at quit" started.
+◇ Test "no window is captured twice in one exit" started.
+◇ Test "configured rerun and live capture at exit, none clears" started.
+◇ Test "one-row moves up and down move exactly the dragged row" started.
+◇ Test "a window reopened after its exit edge captures again" started.
+◇ Test "row insert and remove touch one row each" started.
+◇ Test "a row changing workspace is one move, not a remove and an insert" started.
+◇ Test "a rotation moves one row and a reversal moves the minimum" started.
+◇ Test "a drop into a collapsed workspace is the same moves and leaves it collapsed" started.
+◇ Test "keyboard reorder moves exactly the reordered row and the reordered section" started.
+◇ Test "proc identities exclude zombies and survive command parentheses" started.
+◇ Test "a mode switch rebuilds everything" started.
+◇ Test "stale socket and recycled PID never receive a signal" started.
+◇ Test "confirmed kill hangs up only the snapshot foreground job, including external daemons" started.
+◇ Test "an armed reconcile runs once at the requested delay when nothing is interacting" started.
+◇ Test "a deferred retry is still cancellable" started.
+◇ Test "arming again supersedes the pending reconcile instead of orphaning it" started.
+◇ Test "a dragged block moves only its own rows and keeps its selection" started.
+◇ Test "a fire during a sidebar interaction defers instead of rebuilding" started.
+◇ Test "cancel disarms the pending reconcile — the window-close teardown path" started.
+◇ Test "a header drop appends the whole block as moves into the target workspace" started.
+◇ Test "emptiness is what the sync tail arms on" started.
+◇ Test "with no active session the quick terminal and a new session start in HOME" started.
+◇ Test "an explicit overlay --cwd is kept verbatim on a remote session" started.
+◇ Test "a rebuild's whole-sidebar scope survives a later id-scoped sync" started.
+◇ Test "a remote path missing here starts the local launch in HOME" started.
+◇ Test "id scopes merge instead of superseding each other" started.
+◇ Test "a filtered workspace drag moves only the dragged section" started.
+◇ Test "a local session keeps its reported path verbatim" started.
+◇ Test "a remote path that exists here is kept" started.
+◇ Test "each site reads its own reported input" started.
+◇ Test "a session selected inside a collapsed workspace reveals it without a store write" started.
+◇ Test "the new-session setting still decides before the remote rule" started.
+◇ Test "the caller's expanded set overrides a persisted collapse in section and header" started.
+◇ Test "tree mode follows visible workspace order and expansion" started.
+◇ Test "the focus filter drops non-member workspaces" started.
+◇ Test "flagged mode is one breadcrumb section, hinted when empty" started.
+◇ Test "an idle indicator has no glyph and cannot blink" started.
+◇ Test "renaming marks its row or header and drops the breadcrumb" started.
+◇ Test "revealing a collapsed workspace plans one setExpanded and its header, never a rebuild" started.
+◇ Test "flagged mode reveals nothing and the focus filter never narrows the effective set" started.
+◇ Test "settings drive badge, add button and glyph presentation" started.
+◇ Test "AGTERM_CONTROL_SOCKET wins over AGTERM_STATE_DIR, as on macOS; an empty value is ignored" started.
+◇ Test "a chmod failure removes the socket without listening" started.
+◇ Test "socket permissions are secured before listen" started.
+◇ Test "the snapshot carries the whole multi-row selection, not just the active session" started.
+◇ Test "an event over 64 KiB reaches the hook's stdin whole, newline-terminated" started.
+◇ Test "the parsed command list is the real Command enum" started.
+◇ Test "a command with no handler is reported" started.
+◇ Test "the unsupported answer and the window.move refusal the docs quote still exist" started.
+◇ Test "the scanner counts only top-level, non-forwarding arms of a command switch" started.
+◇ Test "multi-line case lists parse whole, and only the #if branch of a conditional is read" started.
+◇ Test "every command an entry arm routes has an arm in the family switch it is routed to" started.
+◇ Test "every control command has a Linux handler or is listed as unsupported" started.
+◇ Test "stopping an owner releases the lock for a later server" started.
+◇ Test "a classifier predicate counts only where it gates a dispatch call" started.
+◇ Test "a second server refuses an already-owned socket without advertising it" started.
+◇ Test allNulInputIsNotRestorable() started.
+◇ Test "a real child exchanges newline frames and closes after the last frame" started.
+◇ Test "an entry route to a family switch without an arm is reported, at every level" started.
+◇ Test restorableCaptureKeepsOrdinaryArgv() started.
+◇ Test retitledProcessPaddingIsNotReplayedAsArguments() started.
+◇ Test removesTerminator() started.
+◇ Test "a full child pipe drains a short nonblocking write" started.
+◇ Test preservesMiddleEmptyArgumentsForRestore() started.
+◇ Test retitledMultiWordTitleIsNotRestorable() started.
+◇ Test "each unsafe paste is its own question, and an earlier Paste is not remembered" started.
+◇ Test "Cancel, closing the dialog, or any other response delivers nothing" started.
+◇ Test emptyExecutableCannotBecomeAnArgumentExecutable() started.
+◇ Test "Paste delivers the full text to the pending request" started.
+◇ Test singleTrailingEmptyArgumentIsDropped() started.
+◇ Test "only the first answer counts: a destroy after Paste does not also cancel" started.
+◇ Test "a paste libghostty flags as unsafe asks the user; OSC 52 reads keep their consent prompt" started.
+◇ Test "Only known paste requests transform line endings and file-manager URI lists" started.
+◇ Test "normal mode maps and targets only the active session" started.
+◇ Test "CR-only and CRLF line endings become LF, so libghostty's newline check sees them" started.
+◇ Test "an armed drop is taken once, and only by its own surface's clipboard read" started.
+◇ Test "the dialog preview is capped and states the hidden tail; short text is shown whole" started.
+◇ Test "dashboard renders every session beneath its opaque host without accepting input" started.
+◇ Test "losing the presenter takes back the ask and cancels the unclaimed job" started.
+◇ Test "a rejected ask is taken back and the unclaimed overlay job keeps its slot" started.
+◇ Test "no active session hides every page — the soft-closed-last-session case" started.
+◇ Test "an empty message keeps the bare wording, with no dangling colon" started.
+◇ Test "an embedded newline of any spelling stays one stderr line" started.
+◇ Test "a finished overlay job drops its queued helper cancel" started.
+◇ Test "a claimed and adopted helper receives the launch context" started.
+◇ Test "a GError message is appended after the bare wording" started.
+◇ Test "a nil message keeps the bare wording" started.
+◇ Test "a rejection naming another ask changes nothing" started.
+◇ Test "host, session and window are trimmed like the shared dispatcher" started.
+◇ Test "a whitespace-only message keeps the bare wording" started.
+◇ Test "a remote tree request reads the tree and never attaches" started.
+◇ Test "an invalid remote session is refused before any ssh call" started.
+◇ Test "capture consumes the wrapper status file" started.
+◇ Test "a missing host is refused before any ssh call" started.
+◇ Test "a single-window single-surface reload stays at one base application" started.
+◇ Test "surface state follows the reload kind" started.
+◇ Test "appearance reconciliation reasserts complete session overlays on every surface" started.
+◇ Test "non-empty URL with positive len sets hover" started.
+◇ Test "a failed setenv is reported as a failure, not as a setting" started.
+◇ Test "malformed capture is still removed" started.
+◇ Test "a hard reload drives exactly one underlying base update, app level, for every window and surface" started.
+◇ Test "a failed tree read is returned without attaching" started.
+◇ Test "a value carrying a newline still logs as one line" started.
+◇ Test "nil URL pointer never sets hover" started.
+◇ Test "an applied assignment names what was set" started.
+➜ Test "finalizing an unanswered dialog denies every waiter without emitting a response" skipped.
+◇ Test "non-null URL pointer with len 0 clears hover (the libghostty clear signal)" started.
+◇ Test "a bound catalog command carries its chord in kitty syntax" started.
+◇ Test "a closed persisted window is offered as Open Window, not Switch to Window" started.
+◇ Test "an empty query lists an ordinary palette alphabetically" started.
+◇ Test "find-by-chord and the badge filter stay unambiguous across the whole shipped catalog" started.
+◇ Test "an unbound catalog command has no shortcut" started.
+◇ Test "a custom command is badged and shows its own chord" started.
+◇ Test "a chord query still finds its command" started.
+◇ Test "a short query ranks title matches above chord-only matches" started.
+◇ Test "a custom command's shortcut is the raw keymap token, verbatim" started.
+◇ Test "the bare badge word still filters to the custom rows" started.
+◇ Test "a palette-only custom command is badged with no shortcut" started.
+◇ Test "only a row with a badge or a shortcut gains the composite search key" started.
+◇ Test "a context-dependent catalog title flips with the UI state" started.
+◇ Test "a wrapped pane whose daemon lookup fails reports unknown, never the attach client" started.
+◇ Test "a cross-field query still finds a badged custom row" started.
+◇ Test "a failed listing leaves every wrapped pane unknown without re-listing" started.
+◇ Test "a capture pass takes one listing bounded by the capture timeout" started.
+◇ Test "the attention palette keeps its blocked-first order until something is typed" started.
+➜ Test activateAndReentrantLeaveCommitOnce(workspace:) skipped.
+◇ Test "one listing serves every pane of a tree pass" started.
+◇ Test "no local wrapped pane takes no listing" started.
+➜ Test cancelRejectsLaterCommit(workspace:) skipped.
+◇ Test "normal titles add only custom window names" started.
+➜ Test detachCommitsWithoutFocusLeaveFallback(workspace:remove:) skipped.
+◇ Test "cancellation rejects an already scheduled click" started.
+◇ Test "a soft reload adds no surface config update to host appearance reconciliation" started.
+◇ Test "new and replacement bodies are owner-only" started.
+➜ Test focusLeaveCommitsOnce(workspace:) skipped.
+◇ Test "dashboard titles add only custom window names" started.
+◇ Test "the latest click supersedes an older generation" started.
+◇ Test "cross-workspace session drops land before or after the aimed-at row" started.
+◇ Test "y-midpoint maps to an insertion slot: top half before, bottom half (midpoint inclusive) after" started.
+◇ Test theHeldReferenceOutlivesTheParentsAndIsReleasedAtScopeExit() started.
+◇ Test "same-workspace session drops reach the first slot, append at the end, and no-op on own position" started.
+◇ Test "header drops append the whole block and no-op when it already tails the target" started.
+◇ Test "three-workspace reorder pins the old off-by-one and both halves of a far target" started.
+◇ Test "a drag carries the whole selected block only when the pressed row is inside it" started.
+◇ Test "two-workspace reorder: every half of every row resolves to the macOS destinations" started.
+➜ Test "teardown cancels the pending grant and widget destruction releases the surface" skipped.
+◇ Test "focus-filtered workspace drops land adjacent to the visible target, never across hidden rows" started.
+◇ Test "multi-selection blocks keep their order and a block containing the target stays a no-op" started.
+◇ Test "moveSessions ignores a stale id and moves the survivors (agtermCore assumption)" started.
+➜ Test "true or unavailable recheck never releases a genuinely held second Ctrl" skipped.
+◇ Test "an app-scoped hard reload rebuilds the config once from the host" started.
+➜ Test "new input or cancellation rejects an already queued initial idle" skipped.
+➜ Test "the deferred decision still honors a newly active policy gate" skipped.
+◇ Test "quick-card CSS pins the floating chrome contract" started.
+➜ Test "forced late callbacks cannot change a newer release, cycle, or closed owner" skipped.
+➜ Test "the observed true-to-false sequence commits exactly once" skipped.
+◇ Test "keymap lookup stays off the plain typing path" started.
+◇ Test "AltGr symbols use the layout's unmodified base" started.
+◇ Test "non-ASCII layouts reject the ISO section key" started.
+◇ Test "non-ASCII layouts resolve every key by physical position" started.
+◇ Test "Russian-only configuration still resolves physical positions" started.
+◇ Test "Dvorak is ASCII-capable when letters occupy ANSI punctuation positions" started.
+◇ Test "GTK arrow keys normalize to keymap names" started.
+◇ Test "Dvorak keeps the character produced by its ASCII-capable layout" started.
+◇ Test "fixed shortcuts require their exact modifiers" started.
+◇ Test "GTK ISO Left Tab and keypad Tab normalize to tab" started.
+◇ Test "ASCII-capable layouts preserve their produced character" started.
+◇ Test "Hebrew punctuation keys resolve by physical position" started.
+◇ Test "layout capability requires the complete ASCII alphabet" started.
+◇ Test "Hebrew Latin shift levels do not make the layout ASCII-capable" started.
+◇ Test "a replacement at the old directory path is never followed or removed" started.
+◇ Test "Greek punctuation keys resolve by physical position" started.
+◇ Test "failed consumers release their ordinary file and bookkeeping" started.
+◇ Test "cleanup is local to its owner, idempotent, and prevents reuse" started.
+◇ Test "Russian layout resolves the physical J position" started.
+◇ Test "ASCII-capable layouts use the active unshifted punctuation" started.
+◇ Test "two overlapping processes share the desktop root but never their config files" started.
+◇ Test "failed exclusive writes never consume stale input or delete an unrelated entry" started.
+◇ Test "generated files are private and ordinary inputs end at their consumer" started.
+◇ Test "invalid supplied roots fail instead of silently falling back" started.
+◇ Test "missing runtime uses a private fallback without changing the environment" started.
+◇ Test "the sidebar hover rule keys on bare :hover, never .activatable" started.
+◇ Test "1000 rebuilds keep exactly one theme pair and bounded bookkeeping" started.
+◇ Test "the installed app CSS keeps the rename entry in the label's box" started.
+◇ Test "a held replica pane is recorded held, offered for removal, then redrawn without focus" started.
+◇ Test "pinned libghostty replays cloned arguments after temporary input removal" started.
+◇ Test "the installed app CSS carries the sidebar hover rule" started.
+◇ Test "a final title with a wrong nonce cannot reconnect a held pane" started.
+◇ Test "retired surface callbacks cannot forget or reconnect its replacement" started.
+◇ Test "the installed app CSS carries no blink animation" started.
+◇ Test "accept failures: exhaustion backs off within bounds, shutdown exits, the rest retry" started.
+◇ Test "a pane no longer in its session's slots makes no store call" started.
+◇ Test "a held session-wide replica overlay marks its job ended" started.
+◇ Test "a removal that arrived before the exit is closable once the exit is held" started.
+◇ Test "link loss survives either callback order and retains its cover" started.
+◇ Test "a stale overlay hook whose surface left its slot makes no store call" started.
+◇ Test "retained ended identity cannot override a newer attachment" started.
+◇ Test "a surface outside the remote model makes no store call" started.
+◇ Test "a held pane replica overlay marks the job in its current slot ended" started.
+◇ Test "press applies immediately except a plain press inside the current selection, which defers" started.
+◇ Test "selectSession on an already-sole selection is idempotent (agtermCore assumption)" started.
+◇ Test "held exits redraw without focusing, so an inline rename keeps its entry" started.
+◇ Test "an orphaned replica overlay closes on its held exit" started.
+◇ Test "release collapses only after a press that deferred on the same row" started.
+◇ Test "without bookkeeping nothing is restored" started.
+◇ Test "a new press resets a pending collapse a cancelled release left behind" started.
+◇ Test "an empty recorded value is restored as empty, not removed" started.
+◇ Test "a request of exactly 1 MiB is read and dispatched" started.
+◇ Test "CSS and accessibility selection follow single, range, and collapse transitions" started.
+◇ Test "a modifier press applies on press and its release never collapses, whatever the release-time modifiers" started.
+◇ Test "a variable the caller had gets the caller's value back" started.
+◇ Test "surface restoration distinguishes absent, empty, and explicit caller overrides" started.
+◇ Test "only a proven GL context failure is display-wide" started.
+◇ Test "the marker names the class the writer adds and both readers look for" started.
+◇ Test "the timer runs only for a glyph that is both marked and mapped" started.
+◇ Test "the dim phase fades the glyph and the other restores it to full opacity" started.
+◇ Test "only a glyph that renders something can be marked as blinking" started.
+◇ Test "failure injection is gated, role-specific, and distinguishes GL from creation" started.
+◇ Test "the bookkeeping never reaches a child, and unrecorded variables pass through" started.
+◇ Test "inside an AppImage the restored library path still loses the image's directories" started.
+◇ Test "near-Int32.max input stays non-negative without trapping" started.
+◇ Test "both child-environment helpers carry the launcher restore" started.
+◇ Test "a variable the caller never had is removed, not emptied" started.
+◇ Test "a single negative input clamps only its own dimension" started.
+◇ Test "zero header height centers the card in the whole overlay" started.
+◇ Test "card is 90% of the area below the header, centered in it" started.
+◇ Test "header at or beyond the overlay height collapses the card to zero height" started.
+◇ Test "header inset lands 5% bands around the card, below the header" started.
+◇ Test "an empty overlay yields an empty card at the origin" started.
+◇ Test "a record whose marker is empty or missing restores nothing and is kept from children" started.
+◇ Test "negative inputs clamp to an empty card instead of trapping" started.
+◇ Test "a configured percentage replaces the default and is clamped" started.
+◇ Test "a recorded value wins over the same name listed as unset" started.
+◇ Test "a resync that should run arms one source at the half period and applies nothing" started.
+◇ Test "a resync that should not run cancels and restores full opacity" started.
+◇ Test "an orphaned source removes itself on its first fire instead of waking the loop forever" started.
+◇ Test "each tick flips the phase and applies it" started.
+◇ Test "a resync while armed rebinds the apply closure, so the tick reaches the current widget maps" started.
+◇ Test "the card stays centered inside the overlay, below the header" started.
+◇ Test "a resync while armed neither adds a source nor applies a phase" started.
+◇ Test "cancel is idempotent and a late tick is inert — the window-close teardown path" started.
+◇ Test "a resync that should not run while unarmed touches nothing" started.
+◇ Test "cancel drops the apply closure instead of retaining the widget maps it captures" started.
+◇ Test "the legacy GTK animation switch remains the fallback" started.
+◇ Test "the trace line has the exact shape the blink-unmapped AT-SPI scenario parses" started.
+◇ Test firesToTheBlockedSessionWhenIdleAndEnabled() started.
+◇ Test "restore.capture leaves an unconsumed pending argv out of the snapshot and armed" started.
+◇ Test "the preference disarms the blink timer rather than a stylesheet" started.
+◇ Test "an unrealized hidden split keeps pending at exit and nil on demand" started.
+◇ Test "a denylisted foreground is stored raw and preempts the durable command at replay" started.
+◇ Test "the denylist still refuses multiplexers" started.
+◇ Test "Live recovery wraps the session host the same way and still pre-fills" started.
+◇ Test "wrapped panes need the snapshot; ordinary panes do not take one" started.
+◇ Test "normal desktop preferences retain the requested pulse" started.
+◇ Test "an exhausted budget stops reading and keeps pending at exit" started.
+◇ Test "exit capture does not resurrect an argv the factory already consumed" started.
+◇ Test "a denylisted capture after daemon loss gives a plain shell with nothing typed" started.
+◇ Test "a pinned restore command carrying CR or LF is refused" started.
+◇ Test "the dedicated GTK preference disables the status pulse" started.
+◇ Test "a pinned restore command is pre-filled verbatim, without the newline the shared plan adds" started.
+◇ Test "a hidden realized Live split is read" started.
+◇ Test "remote rows are neither read nor counted; the count is slots written" started.
+◇ Test "with no capture, the session's own creation command is still how a lost daemon is recreated" started.
+◇ Test "a hidden non-Live split is not read and drops an earlier capture" started.
+◇ Test "exit capture preserves a hidden split's pending argv when no split surface was built" started.
+◇ Test "a captured argv carrying a C1 control character is neither pre-filled nor replayed" started.
+◇ Test "Rerun types the quoted command with no trailing newline or carriage return" started.
+◇ Test "no accepted line can submit itself" started.
+◇ Test "a Rerun restore plan seeds the pre-filled line as initial input, not a command" started.
+◇ Test "Live recovery after daemon loss starts a plain shell and pre-fills the captured command" started.
+◇ Test "reattaching to a live daemon types nothing" started.
+◇ Test "the planner and the applier read one flattening of every section" started.
+◇ Test "the mute scales by the rendered window opacity and clamps both inputs" started.
+◇ Test "surface opacities dim the unfocused split pane only" started.
+◇ Test "floating frames dim only behind the quick terminal" started.
+◇ Test "only the inactive split pane is washed, and a backdrop clears both" started.
+◇ Test "a Re-run launch keeps replaying after the configured mode switches to Fresh" started.
+◇ Test "restore.set names the launch mode, not the configured one, for set and none" started.
+◇ Test "a captured argv carrying CR or LF is refused in every mode" started.
+◇ Test "the wash colour prefers the overlay's fixed background, then the theme, then black" started.
+◇ Test "non-modifier keys pass the state through unchanged in both directions" started.
+◇ Test "Live launches never enable ordinary replay, active or fallen back" started.
+◇ Test "exit capture preserves an unconsumed pending argv when the read yields nothing" started.
+◇ Test "ctrl release clears only the control bit (raw release state still has it set)" started.
+◇ Test "alt/meta and super/hyper keyvals map to their GDK bits" started.
+◇ Test "shift press sets the shift bit, preserving already-held modifiers" started.
+◇ Test "ctrl press sets the control bit even though the raw state lacks it" started.
+◇ Test "removes AppImage library path from child environment" started.
+◇ Test "floating overlays yield to pane zoom and return on exit or overlay zoom" started.
+◇ Test "a Fresh launch does not replay after the configured mode switches to Re-run" started.
+◇ Test "press is idempotent when the backend already reports the new state (Wayland-style)" started.
+◇ Test "a zoom hides the sibling pane of the pane it targets and leaves session covers alone" started.
+◇ Test "preserves environment outside AppImage" started.
+◇ Test "split and right overlay zoom targets follow primary-pane promotion" started.
+◇ Test "preserves caller library paths when removing AppImage paths" started.
+◇ Test "pane covers keep a base surface visible while terminal zoom hosts it" started.
+◇ Test "plugin installs, updates, and is idempotent" started.
+◇ Test "Dashboard closes its own grid and New Window bypasses window covers" started.
+◇ Test "all declared launcher action arguments reach the matching action" started.
+◇ Test "user-owned plugin is preserved" started.
+◇ Test "a zoom shows the stack page that holds its surface, never moving the surface" started.
+◇ Test "window-scoped actions are inert behind dashboard, zoom, and picker covers" started.
+◇ Test "an unreadable Pi extension is reported and left untouched" started.
+◇ Test "destination mutation after preflight is preserved and rejects the stale plan" started.
+◇ Test "ordinary activation and open paths retain their existing command-line shapes" started.
+◇ Test "invalid launcher actions and mixed invocations fail closed" started.
+◇ Test "AppImage environments recognize an existing agterm-owned launcher" started.
+◇ Test "source mutation after preflight rejects the whole stale plan" started.
+◇ Test "known package tools are detected even when PATH omits them" started.
+◇ Test "retargeting a managed Pi symlink after preflight cannot redirect the write" started.
+◇ Test "skill installation protects unrelated content" started.
+◇ Test "skill installation applies safe targets while preserving a conflicting target" started.
+◇ Test "portable CLI launcher is planned and installed safely" started.
+◇ Test "a dangling write symlink cannot be retargeted after preview" started.
+◇ Test "Pi is unavailable until its agent directory exists" started.
+◇ Test "partial apply results identify failures and skipped operations" started.
+◇ Test "a missing write path cannot become a symlink after preview" started.
+◇ Test "foreign Codex marker blocks are conflicts rather than installed integrations" started.
+◇ Test "an interrupted Pi replacement rolls the prior managed file back" started.
+◇ Test "incomplete shell markers are conflicts rather than installed integrations" started.
+◇ Test "unrelated absolute dangling CLI symlinks are protected" started.
+◇ Test "AppImage hook installs require a persistent CLI" started.
+◇ Test "a user-owned Pi extension is preserved while safe hooks install" started.
+◇ Test "missing shell startup integration makes installed hooks repairable" started.
+◇ Test "a changed destination invalidates a preview" started.
+◇ Test "portable launcher resolves bundled resources through its symlink" started.
+◇ Test "retargeting a skill directory symlink invalidates its preview" started.
+◇ Test "Pi installs idempotently without a backup and becomes current" started.
+◇ Test "mixed-syntax shell aliases leave their shared startup file untouched" started.
+◇ Test "unrelated hook-directory content is never replaced" started.
+◇ Test "agent-root symlink aliases share one skill replacement" started.
+◇ Test "existing ancestor aliases validate before their shared skill changes" started.
+◇ Test "personal installer CLI beside the app is recognized" started.
+◇ Test "shell startup aliases resolving to one file produce one safe write" started.
+◇ Test "a managed older Pi extension reports and applies an update" started.
+◇ Test "shared Claude and Codex skill symlinks produce one replacement" started.
+◇ Test "unrelated CLI launcher is a conflict" started.
+◇ Test "hooks install is safe, backed up, and idempotent" started.
+◇ Test "custom Codex hooks block automatic installation" started.
+◇ Test "partial managed hook assets are repairable" started.
+◇ Test "Flatpak process environments do not offer a host launcher" started.
+◇ Test "failed ownership record write does not leave an unowned launcher" started.
+◇ Test "failed directory rollback preserves the prior installation as a recovery backup" started.
+◇ Test "a Pi write failure is reported after independently safe hook work" started.
+◇ Test "dangling absolute portable launcher remains repairable" started.
+◇ Test "a changed bundled source invalidates a preview" started.
+◇ Test "process environments honor injected HOME, PATH, resources, and version" started.
+◇ Test "AppImage hook installs bake an existing persistent CLI" started.
+◇ Test "managed skills update idempotently without replacing a directory symlink" started.
+◇ Test "retired agterm-managed hook scripts do not block upgrades" started.
+◇ Test "retargeting an existing shared agent root rejects the preview before replacement" started.
+◇ Test "malformed Claude settings are preserved while safe hook targets install" started.
+◇ Test "a backup changed after preview is never overwritten" started.
+◇ Test "an unrelated agterm-named launcher on PATH remains protected" started.
+◇ Test "retargeting a shared shell startup symlink invalidates its preview" started.
+◇ Test "portable CLI launcher repairs a missing ownership record" started.
+◇ Test "portable CLI launcher missing ownership remains repairable on PATH" started.
+◇ Test "an absent Codex installation is unavailable instead of permanently partial" started.
+◇ Test "an earlier portable launcher remains updatable" started.
+◇ Test "in-place personal installer CLI is never replaced by a self-link" started.
+◇ Test "retargeting either shared skill symlink invalidates its preview" started.
+◇ Test "AppImage environments do not offer a launcher into a temporary mount" started.
+◇ Test "AppImage environments recognize an existing persistent CLI on PATH" started.
+◇ Test "hook config symlinks and restrictive modes survive merge" started.
+◇ Test "a current skill target changing invalidates a multi-target preview" started.
+◇ Test "unknown broken CLI symlinks are protected" started.
+◇ Test "a changed durable CLI invalidates a hook repair preview" started.
+◇ Test "keymap.list projects Linux defaults and retained alternatives" started.
+◇ Test "the appended fan-out commands reach their palette rows verbatim" started.
+◇ Test "changed bundled hook assets invalidate a configuration-only preview" started.
+◇ Test "an action with no Linux default chord renders a bare tooltip" started.
+◇ Test "dropping a reserved override does not restore a shadowed Linux default" started.
+◇ Test "every title-bar tooltip renders its exact accessible name" started.
+◇ Test "the error-banner check's malformed line yields exactly the toast the AT-SPI leg waits for" started.
+◇ Test "global-hotkey remains parseable for shared configuration compatibility" started.
+◇ Test "Linux validation drops only conflicting command alternatives" started.
+◇ Test "unknown major skips without replacing user plugins; existing managed v2 can update offline" started.
+◇ Test "an explicitly empty v2 override never falls back to another directory" started.
+◇ Test "real version probe selects v2 and installs its entrypoint idempotently" started.
+◇ Test "incomplete shell marker is malformed" started.
+◇ Test "restoring Open Directory cannot collide with another Linux default" started.
+◇ Test "login-shell PATH and exported v2 directory drive the installer" started.
+◇ Test "chord labels name Linux modifiers, uppercase single keys, and capitalize named keys" started.
+◇ Test "a chorded custom command survives Linux validation and reaches its palette row verbatim" started.
+◇ Test "Codex wrapper must be inside the managed block" started.
+◇ Test "a dangling user skill symlink is reported and preserved" started.
+◇ Test "complete shell block is installed" started.
+◇ Test case passing 1 argument message → "control socket at /run/user/1000/agterm/agterm.sock" to "control diagnostic text survives verbatim" started.
+◇ Test case passing 1 argument message → "control socket path too long (297 bytes): /run/user/1000/agterm/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/сеанс/agterm.sock" to "control diagnostic text survives verbatim" started.
+◇ Test case passing 1 argument message → "control socket() failed: Operation not permitted" to "control diagnostic text survives verbatim" started.
+◇ Test case passing 1 argument message → "control bind(/run/user/1000/agterm/agterm.sock) failed: Address already in use" to "control diagnostic text survives verbatim" started.
+◇ Test case passing 1 argument message → "control chmod(/run/user/1000/agterm/agterm.sock, 0600) failed: Permission denied" to "control diagnostic text survives verbatim" started.
+◇ Test case passing 1 argument message → "control listen() failed: Protocol not supported" to "control diagnostic text survives verbatim" started.
+◇ Test case passing 1 argument minor → 16 to "GTK 4.16 and later use the GDK_DISABLE spelling" started.
+◇ Test case passing 1 argument minor → 22 to "GTK 4.16 and later use the GDK_DISABLE spelling" started.
+◇ Test case passing 1 argument message → "control lock open(/run/user/1000/agterm/agterm.sock.lock) failed: Too many open files" to "control diagnostic text survives verbatim" started.
+◇ Test case passing 1 argument message → "control socket /run/user/1000/agterm/agterm.sock is already served by another instance — not binding" to "control diagnostic text survives verbatim" started.
+◇ Test case passing 1 argument message → "control socket at /tmp/agterm-Fräy—сокет/сеанс‑1.sock" to "control diagnostic text survives verbatim" started.
+◇ Test case passing 1 argument message → "control socket at /tmp/aǵterm/agterm.sock" to "control diagnostic text survives verbatim" started.
+◇ Test case passing 1 argument value → "gles-api,,vulkan" to "empty tokens inside an existing value are ignored" started.
+◇ Test case passing 1 argument value → ",gles-api, ;vulkan," to "empty tokens inside an existing value are ignored" started.
+◇ Test case passing 1 argument value → "gles-api vulkan" to "dedupe sees tokens split by every delimiter GDK honours" started.
+◇ Test case passing 1 argument value → "gles-api;vulkan" to "dedupe sees tokens split by every delimiter GDK honours" started.
+◇ Test case passing 1 argument value → "gles-api:vulkan" to "dedupe sees tokens split by every delimiter GDK honours" started.
+◇ Test case passing 1 argument value → "gles-api	vulkan" to "dedupe sees tokens split by every delimiter GDK honours" started.
+◇ Test case passing 1 argument minor → 14 to "GTK 4.14 and 4.15 use the GDK_DEBUG spelling" started.
+◇ Test case passing 1 argument minor → 15 to "GTK 4.14 and 4.15 use the GDK_DEBUG spelling" started.
+◇ Test case passing 2 arguments input → -0.5, expected → "0" to "window opacity is clamped" started.
+◇ Test case passing 2 arguments input → 1.5, expected → "1" to "window opacity is clamped" started.
+◇ Test case passing 2 arguments input → nan, expected → "1" to "window opacity is clamped" started.
+◇ Test case passing 2 arguments input → inf, expected → "1" to "window opacity is clamped" started.
+◇ Test case passing 2 arguments input → 0.0, expected → "0" to "window opacity is clamped" started.
+◇ Test case passing 2 arguments input → 1.0, expected → "1" to "window opacity is clamped" started.
+◇ Test case passing 1 argument version → (4, 13) to "every assigned variable gets exactly one restore pair, and no unassigned one does" started.
+◇ Test case passing 1 argument version → (4, 14) to "every assigned variable gets exactly one restore pair, and no unassigned one does" started.
+◇ Test case passing 1 argument version → (4, 15) to "every assigned variable gets exactly one restore pair, and no unassigned one does" started.
+◇ Test case passing 1 argument version → (4, 16) to "every assigned variable gets exactly one restore pair, and no unassigned one does" started.
+◇ Test case passing 1 argument version → (4, 22) to "every assigned variable gets exactly one restore pair, and no unassigned one does" started.
+◇ Test case passing 1 argument version → (5, 0) to "every assigned variable gets exactly one restore pair, and no unassigned one does" started.
+◇ Test case passing 1 argument name → "" to "invalid deletion names fail closed" started.
+◇ Test case passing 1 argument name → "A=B" to "invalid deletion names fail closed" started.
+◇ Test case passing 1 argument name → "A◇ Test case passing 1 argument failure → 1 to "every deletion allocation failure releases all previously retained strings" started.
+◇ Test case passing 1 argument failure → 2 to "every deletion allocation failure releases all previously retained strings" started.
+◇ Test case passing 1 argument failure → 3 to "every deletion allocation failure releases all previously retained strings" started.
+◇ Test case passing 1 argument failure → 4 to "every deletion allocation failure releases all previously retained strings" started.
+◇ Test case passing 1 argument failure → 5 to "every deletion allocation failure releases all previously retained strings" started.
+◇ Test case passing 2 arguments key → (keyval: 65289, keycode: 23), state → 4 to keymapChordOnCoveredFollowerStaysTheKeymaps(key:state:) started.
+◇ Test case passing 2 arguments key → (keyval: 49, keycode: 10), state → 4 to keymapChordOnCoveredFollowerStaysTheKeymaps(key:state:) started.
+◇ Test case passing 2 arguments key → (keyval: 97, keycode: 38), state → 4 to keymapChordOnCoveredFollowerStaysTheKeymaps(key:state:) started.
+◇ Test case passing 2 arguments key → (keyval: 98, keycode: 56), state → 0 to keymapChordOnCoveredFollowerStaysTheKeymaps(key:state:) started.
+◇ Test case passing 1 argument role → nil to uncoveredPaneForwardsModifierReleases(role:) started.
+◇ Test case passing 1 argument role → .leader to uncoveredPaneForwardsModifierReleases(role:) started.
+◇ Test case passing 1 argument role → nil to uncoveredPaneKeysPass(role:) started.
+◇ Test case passing 1 argument role → .leader to uncoveredPaneKeysPass(role:) started.
+◇ Test case passing 3 arguments surface → true, cover → false, expected → true to replacementTakesFocusFromTheSurfaceOrItsCover(surface:cover:expected:) started.
+◇ Test case passing 3 arguments surface → false, cover → true, expected → true to replacementTakesFocusFromTheSurfaceOrItsCover(surface:cover:expected:) started.
+◇ Test case passing 3 arguments surface → true, cover → true, expected → true to replacementTakesFocusFromTheSurfaceOrItsCover(surface:cover:expected:) started.
+◇ Test case passing 3 arguments surface → false, cover → false, expected → false to replacementTakesFocusFromTheSurfaceOrItsCover(surface:cover:expected:) started.
+◇ Test case passing 1 argument terminated → true to "an oversized frame closes the stream, terminated or not" started.
+◇ Test case passing 1 argument terminated → false to "an oversized frame closes the stream, terminated or not" started.
+◇ Test case passing 1 argument bound → true to "an origin without the stream, or an unbound row, is remote with nothing to say" started.
+◇ Test case passing 1 argument bound → false to "an origin without the stream, or an unbound row, is remote with nothing to say" started.
+◇ Test case passing 1 argument mode → .none to "a non-last close clears in every mode" started.
+◇ Test case passing 1 argument mode → .rerun to "a non-last close clears in every mode" started.
+◇ Test case passing 1 argument mode → .live to "a non-last close clears in every mode" started.
+◇ Test case passing 2 arguments mode → .rerun, captures → true to "configured rerun and live capture at exit, none clears" started.
+◇ Test case passing 2 arguments mode → .live, captures → true to "configured rerun and live capture at exit, none clears" started.
+◇ Test case passing 2 arguments mode → .none, captures → false to "configured rerun and live capture at exit, none clears" started.
+◇ Test case passing 1 argument name → "agterm-00000000000000000000000000000000" to "confirmed kill hangs up only the snapshot foreground job, including external daemons" started.
+◇ Test case passing 1 argument name → "external" to "confirmed kill hangs up only the snapshot foreground job, including external daemons" started.
+◇ Test case passing 1 argument pane → nil to "an explicit overlay --cwd is kept verbatim on a remote session" started.
+◇ Test case passing 1 argument site → .sessionOverlay to "a remote path missing here starts the local launch in HOME" started.
+◇ Test case passing 1 argument site → .leftPaneOverlay to "a remote path missing here starts the local launch in HOME" started.
+◇ Test case passing 1 argument site → .split to "a remote path missing here starts the local launch in HOME" started.
+◇ Test case passing 1 argument site → .scratch to "a remote path missing here starts the local launch in HOME" started.
+◇ Test case passing 1 argument pane → .left to "an explicit overlay --cwd is kept verbatim on a remote session" started.
+◇ Test case passing 1 argument site → .newSession to "a remote path missing here starts the local launch in HOME" started.
+◇ Test case passing 1 argument site → .quickTerminal to "a remote path missing here starts the local launch in HOME" started.
+◇ Test case passing 1 argument site → .sessionOverlay to "a local session keeps its reported path verbatim" started.
+◇ Test case passing 1 argument site → .leftPaneOverlay to "a local session keeps its reported path verbatim" started.
+◇ Test case passing 1 argument site → .split to "a local session keeps its reported path verbatim" started.
+◇ Test case passing 1 argument site → .scratch to "a local session keeps its reported path verbatim" started.
+◇ Test case passing 1 argument site → .newSession to "a local session keeps its reported path verbatim" started.
+◇ Test case passing 1 argument site → .quickTerminal to "a local session keeps its reported path verbatim" started.
+◇ Test case passing 1 argument site → .sessionOverlay to "a remote path that exists here is kept" started.
+◇ Test case passing 1 argument site → .leftPaneOverlay to "a remote path that exists here is kept" started.
+◇ Test case passing 1 argument site → .split to "a remote path that exists here is kept" started.
+◇ Test case passing 1 argument site → .scratch to "a remote path that exists here is kept" started.
+◇ Test case passing 1 argument site → .newSession to "a remote path that exists here is kept" started.
+◇ Test case passing 1 argument site → .quickTerminal to "a remote path that exists here is kept" started.
+ControlServer-Message: 03:32:17.985: control chmod(/tmp/3A509DA1-247C-41D9-BEDC-7876A2AD91F9/agterm.sock, 0600) failed: Permission denied
+ControlServer-Message: 03:32:17.985: control socket at /tmp/99D0D21B-1E4A-47CD-AE88-AD06DC383403/agterm.sock
+ControlServer-Message: 03:32:18.088: control socket /tmp/D511422B-98EE-4CA9-981A-ABF9AC5F0DFA/agterm.sock is already served by another instance — not binding
+◇ Test case passing 1 argument message → "no GL implementation
+is available
+" to "an embedded newline of any spelling stays one stderr line" started.
+◇ Test case passing 1 argument message → "no GL implementation
+is available" to "an embedded newline of any spelling stays one stderr line" started.
+◇ Test case passing 1 argument message → "no GL implementationis available" to "an embedded newline of any spelling stays one stderr line" started.
+◇ Test case passing 1 argument message → "  no GL implementation is available	" to "an embedded newline of any spelling stays one stderr line" started.
+◇ Test case passing 2 arguments window → " w1 ", expected → "w1" to "host, session and window are trimmed like the shared dispatcher" started.
+◇ Test case passing 2 arguments window → "   ", expected → nil to "host, session and window are trimmed like the shared dispatcher" started.
+◇ Test case passing 2 arguments window → nil, expected → nil to "host, session and window are trimmed like the shared dispatcher" started.
+◇ Test case passing 2 arguments target → nil, error → "zmx.attach requires a remote session" to "an invalid remote session is refused before any ssh call" started.
+◇ Test case passing 2 arguments target → "", error → "zmx.attach requires a remote session" to "an invalid remote session is refused before any ssh call" started.
+◇ Test case passing 2 arguments target → "  
+", error → "zmx.attach requires a remote session" to "an invalid remote session is refused before any ssh call" started.
+◇ Test case passing 2 arguments target → "two words", error → "invalid remote session" to "an invalid remote session is refused before any ssh call" started.
+◇ Test case passing 2 arguments target → "bell", error → "invalid remote session" to "an invalid remote session is refused before any ssh call" started.
+◇ Test case passing 1 argument token → "Ctrl+Shift+E" to "a custom command's shortcut is the raw keymap token, verbatim" started.
+◇ Test case passing 1 argument token → "ctrl+a>g" to "a custom command's shortcut is the raw keymap token, verbatim" started.
+◇ Test case passing 1 argument listingSucceeds → true to "a capture pass takes one listing bounded by the capture timeout" started.
+◇ Test case passing 1 argument listingSucceeds → false to "a capture pass takes one listing bounded by the capture timeout" started.
+◇ Test "a failing staging copy leaves neither a destination nor staging residue" started.
+◇ Test "the single-file install arm routes its staging copy through the copyTree seam" started.
+◇ Test "apply's staging copy defaults to installCopy, not FileManager.copyItem" started.
+◇ Test "directory modes umask cannot produce survive the copy" started.
+◇ Test "the directory install arm routes its staging copy through the copyTree seam" started.
+◇ Test "a read-only source directory is populated before its mode is applied" started.
+◇ Test "copies dotfiles, empty directories, modes and both kinds of symlink" started.
+◇ Test "a missing source propagates its error without creating a destination" started.
+◇ Test "every directory's mode is applied exactly once through the mode seam" started.
+◇ Test case passing 2 arguments exitFirst → false, attachmentKind → 0 to "link loss survives either callback order and retains its cover" started.
+◇ Test case passing 2 arguments exitFirst → false, attachmentKind → 1 to "link loss survives either callback order and retains its cover" started.
+◇ Test case passing 1 argument paneSlot → false to "a stale overlay hook whose surface left its slot makes no store call" started.
+◇ Test case passing 2 arguments exitFirst → false, attachmentKind → 2 to "link loss survives either callback order and retains its cover" started.
+◇ Test case passing 1 argument paneSlot → true to "a stale overlay hook whose surface left its slot makes no store call" started.
+◇ Test case passing 2 arguments exitFirst → true, attachmentKind → 0 to "link loss survives either callback order and retains its cover" started.
+◇ Test case passing 2 arguments exitFirst → true, attachmentKind → 1 to "link loss survives either callback order and retains its cover" started.
+◇ Test case passing 2 arguments exitFirst → true, attachmentKind → 2 to "link loss survives either callback order and retains its cover" started.
+◇ Test case passing 1 argument kind → 0 to "held exits redraw without focusing, so an inline rename keeps its entry" started.
+◇ Test case passing 1 argument kind → 1 to "held exits redraw without focusing, so an inline rename keeps its entry" started.
+◇ Test case passing 1 argument kind → 2 to "held exits redraw without focusing, so an inline rename keeps its entry" started.
+◇ Test case passing 2 arguments size → (1, 1), header → 0 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (1, 1), header → 1 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (1, 1), header → 46 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (1, 1), header → 200 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (7, 9), header → 0 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (7, 9), header → 1 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (7, 9), header → 46 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (7, 9), header → 200 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (320, 240), header → 0 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (320, 240), header → 1 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (320, 240), header → 46 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (320, 240), header → 200 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (1440, 900), header → 0 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (1440, 900), header → 1 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (1440, 900), header → 46 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (1440, 900), header → 200 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (3840, 2160), header → 0 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (3840, 2160), header → 1 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (3840, 2160), header → 46 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 2 arguments size → (3840, 2160), header → 200 to "the card stays centered inside the overlay, below the header" started.
+◇ Test case passing 1 argument preserve → true to "an unrealized hidden split keeps pending at exit and nil on demand" started.
+◇ Test case passing 1 argument preserve → false to "an unrealized hidden split keeps pending at exit and nil on demand" started.
+◇ Test case passing 1 argument pin → "make
+watch" to "a pinned restore command carrying CR or LF is refused" started.
+◇ Test case passing 1 argument pin → "make watch" to "a pinned restore command carrying CR or LF is refused" started.
+◇ Test case passing 1 argument c1 → "" to "a captured argv carrying a C1 control character is neither pre-filled nor replayed" started.
+◇ Test case passing 1 argument c1 → "" to "a captured argv carrying a C1 control character is neither pre-filled nor replayed" started.
+◇ Test case passing 1 argument daemonRunning → true to "reattaching to a live daemon types nothing" started.
+◇ Test case passing 1 argument daemonRunning → nil to "reattaching to a live daemon types nothing" started.
+◇ Test case passing 3 arguments mute → 0.5, window → 0.8, expected → 0.4 to "the mute scales by the rendered window opacity and clamps both inputs" started.
+◇ Test case passing 3 arguments mute → 0.5, window → 1.0, expected → 0.5 to "the mute scales by the rendered window opacity and clamps both inputs" started.
+◇ Test case passing 3 arguments mute → 0.5, window → 0.0, expected → 0.0 to "the mute scales by the rendered window opacity and clamps both inputs" started.
+◇ Test case passing 3 arguments mute → 1.5, window → 0.5, expected → 0.5 to "the mute scales by the rendered window opacity and clamps both inputs" started.
+◇ Test case passing 3 arguments mute → -0.2, window → 0.8, expected → 0.0 to "the mute scales by the rendered window opacity and clamps both inputs" started.
+◇ Test case passing 3 arguments mute → 0.5, window → 2.0, expected → 0.5 to "the mute scales by the rendered window opacity and clamps both inputs" started.
+◇ Test case passing 1 argument argv → ["echo", "a\nb"] to "a captured argv carrying CR or LF is refused in every mode" started.
+◇ Test case passing 1 argument argv → ["echo", "a\rb"] to "a captured argv carrying CR or LF is refused in every mode" started.
+◇ Test case passing 1 argument argv → ["printf\n"] to "a captured argv carrying CR or LF is refused in every mode" started.
+◇ Test case passing 1 argument argv → ["x", "\r\n"] to "a captured argv carrying CR or LF is refused in every mode" started.
+◇ Test case passing 1 argument argv → ["sleep", "1\n"] to "a captured argv carrying CR or LF is refused in every mode" started.
+◇ Test case passing 1 argument reason → nil to "Live launches never enable ordinary replay, active or fallen back" started.
+◇ Test case passing 1 argument reason → "unsupported shell" to "Live launches never enable ordinary replay, active or fallen back" started.
+◇ Test case passing 1 argument existingSkill → false to "existing ancestor aliases validate before their shared skill changes" started.
+◇ Test case passing 1 argument existingSkill → true to "existing ancestor aliases validate before their shared skill changes" started.
+✔ Test "help combines the shared catalog with Linux integration" passed after 10.359 seconds.
+✔ Test "theme light and dark options use the shared request parser" passed after 10.360 seconds.
+✔ Test "window theme CSS emits the chrome palette and the row-scoped selection tint" passed after 10.359 seconds.
+✔ Test "resolved config channels drive the chrome palette" passed after 10.359 seconds.
+✔ Test "stable pane tokens reach the shared session status request" passed after 10.359 seconds.
+✔ Test "sidebar selection derives contrast when the resolved color is absent" passed after 10.359 seconds.
+✔ Test "theme file lines resolve the last assignment per key, skipping comments" passed after 10.360 seconds.
+✔ Test "sidebar selection keeps a distinct supplied theme color" passed after 10.360 seconds.
+✔ Test "theme list and affected results use shared human formatting" passed after 10.360 seconds.
+✔ Test "socket precedence is flag then state directory then Linux XDG application support" passed after 10.360 seconds.
+✔ Test "dry-run JSON previews without mutating HOME" passed after 10.359 seconds.
+✔ Test "a missing theme file falls back to the supplied lines" passed after 10.360 seconds.
+✔ Test "status JSON is stable and independent of the control socket" passed after 10.360 seconds.
+✔ Test "status accepts the control socket compatibility option" passed after 10.360 seconds.
+✔ Test "install supports hooks dry-run" passed after 10.360 seconds.
+✔ Test "install rejects unknown integration" passed after 10.360 seconds.
+✔ Test "a notice record carries the journal filter fields" passed after 10.360 seconds.
+✔ Test "ordinary duplicates and ordering survive while the missing flag is appended" passed after 10.360 seconds.
+✔ Test "one required exclusion is removed while ordinary ordering stays intact" passed after 10.360 seconds.
+✔ Test "only the missing token is appended to an existing value" passed after 10.360 seconds.
+✔ Test "inverted all already selects both required flags on either GTK branch" passed after 10.360 seconds.
+✔ Test "a delimiter GDK does not honour is not a token boundary here either" passed after 10.360 seconds.
+✔ Test "partial presence in GDK_DEBUG appends only the missing token" passed after 10.360 seconds.
+✔ Test "control diagnostic text survives verbatim" with 10 test cases passed after 10.360 seconds.
+✔ Test "GTK 4.16 and later use the GDK_DISABLE spelling" with 2 test cases passed after 10.360 seconds.
+✔ Test "a GDK_DEBUG already carrying both tokens yields no assignment" passed after 10.360 seconds.
+✔ Test "dedupe matches whole tokens, never substrings" passed after 10.360 seconds.
+✔ Test "ordinary exclusions after inverted all do not disturb the required flags" passed after 10.360 seconds.
+✔ Test "inverted rewrites have deterministic ordering and canonical separators" passed after 10.360 seconds.
+✔ Test "empty tokens inside an existing value are ignored" with 2 test cases passed after 10.360 seconds.
+✔ Test "a value ending in a delimiter appends without tidying it up" passed after 10.360 seconds.
+✔ Test "a value already carrying both tokens yields no assignment" passed after 10.360 seconds.
+✔ Test "GTK 4.13 predates both spellings, so nothing is assigned" passed after 10.360 seconds.
+✔ Test "a major above 4 counts as at least 4.16" passed after 10.360 seconds.
+✔ Test "dedupe sees tokens split by every delimiter GDK honours" with 4 test cases passed after 10.360 seconds.
+✔ Test "the effective emitted value always selects both policy flags" passed after 10.360 seconds.
+✔ Test "dedupe compares case-insensitively, as GDK does" passed after 10.360 seconds.
+✔ Test "an empty existing value yields the bare token list, with no leading comma" passed after 10.360 seconds.
+✔ Test "the branch that is not taken ignores the other variable's value" passed after 10.360 seconds.
+✔ Test "GTK 4.14 and 4.15 use the GDK_DEBUG spelling" with 2 test cases passed after 10.360 seconds.
+✔ Test "required flags are removed from an inverted list instead of appended" passed after 10.360 seconds.
+✔ Test "GTK 3 gets no assignments" passed after 10.360 seconds.
+✔ Test "a user's GDK_DEBUG is appended to, never clobbered" passed after 10.360 seconds.
+✔ Test "the dim behind the card is macOS's 20% black" passed after 10.360 seconds.
+✔ Test "the card takes its colors from the theme, not a fixed dark fill" passed after 10.360 seconds.
+✔ Test "any Ctrl+Tab variant cycles, with Shift reversing, whatever else is held" passed after 10.360 seconds.
+✔ Test "settings shape is used before the circle default" passed after 10.360 seconds.
+✔ Test "the commit waits for the last held Ctrl key" passed after 10.360 seconds.
+✔ Test "the highlighted row is revealed once allocated, after a bounded wait for its height" passed after 10.360 seconds.
+✔ Test "conflicts, invalid resources, and failed writes have distinct exits" passed after 10.362 seconds.
+✔ Test "per-call shape and color override settings" passed after 10.360 seconds.
+✔ Test "only kill invocations merge stderr" passed after 10.360 seconds.
+✔ Test "kill output requires an exact confirmation" passed after 10.360 seconds.
+✔ Test "Ctrl release commits the highlighted candidate, or nothing" passed after 10.360 seconds.
+✔ Test "install applies safe skill targets and reports protected targets" passed after 10.362 seconds.
+✔ Test "the development zmx path is absolute" passed after 10.360 seconds.
+✔ Test "a sidebar wider than the terminal area cannot push the card out of the window" passed after 10.360 seconds.
+✔ Test "proc stat parsing tolerates parentheses in the process name" passed after 10.360 seconds.
+✔ Test "the switcher cycles at most ten candidates" passed after 10.360 seconds.
+✔ Test "Esc cancels a live cycle and otherwise reaches the focused widget" passed after 10.360 seconds.
+✔ Test "the card starts 12% down the window and may run no further than the fitted panel height" passed after 10.360 seconds.
+✔ Test "idle has no presentation" passed after 10.360 seconds.
+✔ Test "the card centers over the terminal area, or the whole window with no visible sidebar" passed after 10.360 seconds.
+✔ Test "the scroller's content bounds give back the card's padding and border, so the whole card fits" passed after 10.360 seconds.
+✔ Test "a dropped request leaves no flag for the next unrelated sync to act on" passed after 10.360 seconds.
+✔ Test "the switcher runs only when nothing modal owns the keyboard" passed after 10.360 seconds.
+✔ Test "Tab without Ctrl and other Ctrl chords pass through" passed after 10.360 seconds.
+✔ Test "a latched overlay keeps font size and window opacity" passed after 10.360 seconds.
+✔ Test "session switcher starts from the previous MRU entry and wraps" passed after 10.360 seconds.
+✔ Test "a nested call records itself and the owner drains it" passed after 10.360 seconds.
+✔ Test "a pass that keeps re-entering is drained a bounded number of times" passed after 10.360 seconds.
+✔ Test "a latched overlay never carries a background key" passed after 10.360 seconds.
+✔ Test "a fixed color wins over the session watermark" passed after 10.360 seconds.
+✔ Test "window opacity is clamped" with 6 test cases passed after 10.360 seconds.
+ControlServer-Message: 03:32:26.824: control socket at /tmp/EB345C31-1FEF-4D3D-8748-2C29A3851B7D/agterm.sock
+✔ Test "a set latch alone is a reason to reapply" passed after 10.362 seconds.
+✔ Test "a forced reapply with no latch and no watermark emits a bare overlay" passed after 10.362 seconds.
+✔ Test "without a latch a session color emits background" passed after 10.362 seconds.
+✔ Test "a row scrolls only far enough to become fully visible" passed after 10.362 seconds.
+✔ Test "the retry waits for the row's and its list box's allocation, and only for a bounded run of frames" passed after 10.362 seconds.
+✔ Test "the selected row follows the terminal theme's selection colors" passed after 10.362 seconds.
+✔ Test "surface creation checks own, stored, deck, and clamp sources in order" passed after 10.361 seconds.
+✔ Test "creation still clamps to one when neither source is credible" passed after 10.361 seconds.
+✔ Test "a stored frame estimate subtracts the frame's measured chrome" passed after 10.361 seconds.
+✔ Test "surface creation pushes the fallback through the libghostty size boundary" passed after 10.361 seconds.
+✔ Test "a chrome whose subtraction would overflow keeps the request instead of trapping" passed after 10.361 seconds.
+✔ Test "an unresolved chrome measurement degrades to the raw request" passed after 10.361 seconds.
+✔ Test "an absurd allocation saturates instead of wrapping" passed after 10.362 seconds.
+✔ Test "creation treats a half-allocated source as not credible" passed after 10.361 seconds.
+✔ Test "non-positive viewport inputs clamp to one" passed after 10.361 seconds.
+✔ Test "the latch wins over a session and a fixed color" passed after 10.362 seconds.
+✔ Test "a chrome that is not a minority of its box keeps the request, never a credible 1x1" passed after 10.361 seconds.
+✔ Test "creation falls back when the widget has no allocation of its own" passed after 10.361 seconds.
+✔ Test "GtkGLArea resize dimensions are already backing pixels" passed after 10.361 seconds.
+✔ Test "GTK pointer coordinates remain unscaled at the embedded API boundary" passed after 10.361 seconds.
+✔ Test "every documented enum value maps to its CSS cursor name" passed after 10.361 seconds.
+✔ Test "GTK viewport dimensions convert to backing pixels" passed after 10.361 seconds.
+✔ Test "both panes stay hosted through every visibility state" passed after 10.361 seconds.
+✔ Test "creation prefers the widget's own allocation over the fallback" passed after 10.361 seconds.
+✔ Test "DEFAULT maps to the arrow cursor (mouse-tracking mode), not the I-beam fallback" passed after 10.361 seconds.
+✔ Test "a GLES-first GTK with nothing set assigns the pair and restores the unset values" passed after 10.361 seconds.
+✔ Test "an unknown future enum value falls back to text" passed after 10.361 seconds.
+✔ Test "restoring leaves an environment alone when the policy assigned nothing" passed after 10.361 seconds.
+✔ Test "a GTK too old for either spelling assigns nothing and leaves children alone" passed after 10.361 seconds.
+✔ Test "every assigned variable gets exactly one restore pair, and no unassigned one does" with 6 test cases passed after 10.361 seconds.
+✔ Test "the caller's own value wins a key collision" passed after 10.361 seconds.
+✔ Test "restoring into a copy of the mutated process environment overwrites the override" passed after 10.361 seconds.
+✔ Test "an inverted user value is normalized for agterm and restored verbatim to children" passed after 10.361 seconds.
+✔ Test "a user's own value is appended to and handed back to children verbatim" passed after 10.361 seconds.
+✔ Test "a successful apply records the current side" passed after 10.361 seconds.
+✔ Test "the restore pairs join the caller's own vars in a spawned shell's environment" passed after 10.361 seconds.
+✔ Test "an appearance side preserves the observed darkness" passed after 10.361 seconds.
+✔ Test "startup seeding suppresses a same-side appearance event" passed after 10.361 seconds.
+✔ Test "startup applies light then reconciles dark" passed after 10.361 seconds.
+✔ Test "a same-side duplicate skips an appearance reload" passed after 10.361 seconds.
+✔ Test "a missing dark slot still reloads the terminal scheme config" passed after 10.361 seconds.
+✔ Test "sync on with both slots accepts a side change" passed after 10.361 seconds.
+✔ Test "an opposite-side change reloads" passed after 10.361 seconds.
+✔ Test "the first valid appearance event reloads" passed after 10.361 seconds.
+✔ Test "an unrecorded failed apply leaves the previous side eligible" passed after 10.361 seconds.
+✔ Test "a missing light slot still reloads the terminal scheme config" passed after 10.361 seconds.
+✔ Test "a newly selected session reveals its owner once" passed after 10.361 seconds.
+✔ Test "a successful re-enable apply restores a later opposite-side flip" passed after 10.361 seconds.
+✔ Test "sync off still reloads the terminal scheme config" passed after 10.361 seconds.
+✔ Test "sync off plans a config reload with the settled side" passed after 10.361 seconds.
+✔ Test "a nil selection clears the gate so the same session reveals again" passed after 10.361 seconds.
+✔ Test "Linux keymap and hook starters are inert and contain no macOS instructions" passed after 10.361 seconds.
+✔ Test "partial configuration allocation releases retained buffers" passed after 10.360 seconds.
+✔ Test "an owner-less selection leaves the gate alone" passed after 10.360 seconds.
+✔ Test "invalid deletion names fail closed" with 3 test cases passed after 10.360 seconds.
+✔ Test "surface configuration owns every C buffer until repeated release" passed after 10.360 seconds.
+✔ Test "every deletion allocation failure releases all previously retained strings" with 5 test cases passed after 10.360 seconds.
+✔ Test "deletion names work without set entries and deinit frees their strings" passed after 10.360 seconds.
+✔ Test "a real invocation into an unverified socket directory runs nothing" passed after 10.364 seconds.
+✔ Test "URL decoding honors the explicit byte length" passed after 10.360 seconds.
+✔ Test "Linux session home honors an isolated launch environment" passed after 10.360 seconds.
+✔ Test "delete prompts use native Linux wording" passed after 10.360 seconds.
+✔ Test "Linux proc cmdline decoding is NUL-delimited" passed after 10.360 seconds.
+✔ Test "redundant local shell titles preserve cwd-derived session names" passed after 10.360 seconds.
+✔ Test "sidebar CSS derives row height from the shared font-size clamp" passed after 10.360 seconds.
+✔ Test "Linux starter table documents every Linux default with round-tripping syntax" passed after 10.359 seconds.
+✔ Test "pane identities coalesce independently and stale reveal panes fall back safely" passed after 10.359 seconds.
+✔ Test "URI lists become POSIX path payloads" passed after 10.359 seconds.
+✔ Test "Linux surface roles map every terminal kind deliberately" passed after 10.359 seconds.
+✔ Test "spawn errors and non-zero exits report while successful exits stay silent" passed after 10.359 seconds.
+✔ Test "Linux bundled libghostty defaults mirror upstream macOS adapted to Linux conventions" passed after 10.359 seconds.
+✔ Test "spawn launcher rejects a missing executable" passed after 10.359 seconds.
+✔ Test "spawn launcher rejects an invalid working directory" passed after 10.359 seconds.
+✔ Test "the stderr capture is owner-only under umask 0 and unlinked after exit 0 and exit 23" passed after 10.359 seconds.
+✔ Test "bundled libghostty defaults parse clean and bind physical C/V/A on any layout" passed after 10.361 seconds.
+✔ Test "the request restores the pre-launch GDK environment over a caller's own base" passed after 10.359 seconds.
+✔ Test "requests preserve expansion, environment, cwd, pane, and null stdio" passed after 10.359 seconds.
+✔ Test "bundled CLI directory requires the resolved absolute executable path" passed after 10.359 seconds.
+✔ Test "empty cwd is omitted" passed after 10.359 seconds.
+✔ Test "URI drop paths preserve file boundaries and escape literal filename punctuation" passed after 10.359 seconds.
+✔ Test "Linux starter files remain comment-only or denylist-only" passed after 10.359 seconds.
+✔ Test "resource resolution requires complete sibling resources and preserves precedence" passed after 10.359 seconds.
+✔ Test "custom command PATH is Linux-native, bundled-first, stable, and deduplicated" passed after 10.359 seconds.
+✔ Test "forced wins across a coalesced burst in either order" passed after 10.359 seconds.
+✔ Test "an unforced burst refreshes in place, ungated by an interaction" passed after 10.359 seconds.
+✔ Test "Uncommented Linux starter examples survive the Linux keymap loader and hooks parser" passed after 10.360 seconds.
+✔ Test "concurrent and late shutdowns close once and never touch a reused descriptor number" passed after 10.359 seconds.
+✔ Test "a zero-exit kill reports its stderr confirmation; list keeps stderr out" passed after 10.366 seconds.
+✔ Test "an oversized frame closes the stream, terminated or not" with 2 test cases passed after 10.359 seconds.
+✔ Test "a reading peer receives every queued frame" passed after 10.359 seconds.
+✔ Test "fragmented and coalesced frames arrive in order, byte-exact" passed after 10.359 seconds.
+✔ Test "an oversized argument makes launch throw and removes every temporary file" passed after 10.360 seconds.
+✔ Test "a forced refresh waits behind an interaction and stays forced for its retry" passed after 10.360 seconds.
+✔ Test "a failed write shuts the stream down and closes it once" passed after 10.360 seconds.
+✔ Test "temp-file setup failure reports status 1 and leaves nothing behind" passed after 10.360 seconds.
+✔ Test "a frame of exactly maxFrameBytes is delivered" passed after 10.360 seconds.
+✔ Test "the bound admits exactly the limit and rejects one byte more, on either stream" passed after 10.360 seconds.
+✔ Test "input and output files are owner-only while the child runs" passed after 10.360 seconds.
+✔ Test "output over the declared bound fails whole and still cleans up" passed after 10.360 seconds.
+✔ Test "hooks CLI installs Pi into isolated HOME" passed after 10.370 seconds.
+✔ Test "success, nonzero exit, and a missing command each leave nothing behind" passed after 10.360 seconds.
+✔ Test "a TERM-ignoring child and its descendant are killed after the grace" passed after 10.360 seconds.
+✔ Test "one diagnostic names the error count in the singular" passed after 10.360 seconds.
+✔ Test "a clean load stays silent" passed after 10.360 seconds.
+✔ Test "stdin bytes with embedded NULs round-trip through cat" passed after 10.360 seconds.
+✔ Test "timeout reports 124 and leaves nothing behind" passed after 10.360 seconds.
+✔ Test "several diagnostics name the error count in the plural" passed after 10.360 seconds.
+✔ Test "proc identities exclude zombies and survive command parentheses" passed after 10.359 seconds.
+✔ Test "stale socket and recycled PID never receive a signal" passed after 10.359 seconds.
+✔ Test "confirmed kill hangs up only the snapshot foreground job, including external daemons" with 2 test cases passed after 10.359 seconds.
+✔ Test "emptiness is what the sync tail arms on" passed after 10.358 seconds.
+✔ Test "a rebuild's whole-sidebar scope survives a later id-scoped sync" passed after 10.358 seconds.
+✔ Test "id scopes merge instead of superseding each other" passed after 10.358 seconds.
+✔ Test "AGTERM_CONTROL_SOCKET wins over AGTERM_STATE_DIR, as on macOS; an empty value is ignored" passed after 10.358 seconds.
+✔ Test "a chmod failure removes the socket without listening" passed after 10.358 seconds.
+✔ Test "socket permissions are secured before listen" passed after 10.358 seconds.
+✔ Test "the parsed command list is the real Command enum" passed after 10.358 seconds.
+✔ Test "a command with no handler is reported" passed after 10.358 seconds.
+✔ Test "the unsupported answer and the window.move refusal the docs quote still exist" passed after 10.358 seconds.
+✔ Test "the scanner counts only top-level, non-forwarding arms of a command switch" passed after 10.358 seconds.
+✔ Test "multi-line case lists parse whole, and only the #if branch of a conditional is read" passed after 10.358 seconds.
+✔ Test "every command an entry arm routes has an arm in the family switch it is routed to" passed after 10.358 seconds.
+✔ Test "peer EOF closes the stream once and releases the descriptor" passed after 10.361 seconds.
+✔ Test "stopping an owner releases the lock for a later server" passed after 10.358 seconds.
+✔ Test "a second server refuses an already-owned socket without advertising it" passed after 10.358 seconds.
+✔ Test "a classifier predicate counts only where it gates a dispatch call" passed after 10.358 seconds.
+✔ Test allNulInputIsNotRestorable() passed after 10.358 seconds.
+✔ Test "an entry route to a family switch without an arm is reported, at every level" passed after 10.358 seconds.
+✔ Test restorableCaptureKeepsOrdinaryArgv() passed after 10.357 seconds.
+✔ Test retitledProcessPaddingIsNotReplayedAsArguments() passed after 10.357 seconds.
+✔ Test removesTerminator() passed after 10.358 seconds.
+✔ Test preservesMiddleEmptyArgumentsForRestore() passed after 10.357 seconds.
+✔ Test retitledMultiWordTitleIsNotRestorable() passed after 10.357 seconds.
+✔ Test emptyExecutableCannotBecomeAnArgumentExecutable() passed after 10.357 seconds.
+✔ Test singleTrailingEmptyArgumentIsDropped() passed after 10.357 seconds.
+✔ Test "normal mode maps and targets only the active session" passed after 10.357 seconds.
+✔ Test "dashboard renders every session beneath its opaque host without accepting input" passed after 10.357 seconds.
+✔ Test "no active session hides every page — the soft-closed-last-session case" passed after 10.357 seconds.
+✔ Test "an empty message keeps the bare wording, with no dangling colon" passed after 10.357 seconds.
+✔ Test "an embedded newline of any spelling stays one stderr line" with 4 test cases passed after 10.357 seconds.
+✔ Test "a GError message is appended after the bare wording" passed after 10.357 seconds.
+✔ Test "a nil message keeps the bare wording" passed after 10.357 seconds.
+✔ Test "host, session and window are trimmed like the shared dispatcher" with 3 test cases passed after 10.357 seconds.
+✔ Test "a whitespace-only message keeps the bare wording" passed after 10.357 seconds.
+✔ Test "a remote tree request reads the tree and never attaches" passed after 10.357 seconds.
+✔ Test "an invalid remote session is refused before any ssh call" with 5 test cases passed after 10.357 seconds.
+✔ Test "capture consumes the wrapper status file" passed after 10.357 seconds.
+✔ Test "a missing host is refused before any ssh call" passed after 10.357 seconds.
+✔ Test "a single-window single-surface reload stays at one base application" passed after 10.357 seconds.
+✔ Test "surface state follows the reload kind" passed after 10.357 seconds.
+✔ Test "appearance reconciliation reasserts complete session overlays on every surface" passed after 10.357 seconds.
+✔ Test "non-empty URL with positive len sets hover" passed after 10.357 seconds.
+✔ Test "a failed setenv is reported as a failure, not as a setting" passed after 10.357 seconds.
+✔ Test "malformed capture is still removed" passed after 10.357 seconds.
+✔ Test "a hard reload drives exactly one underlying base update, app level, for every window and surface" passed after 10.357 seconds.
+✔ Test "a failed tree read is returned without attaching" passed after 10.357 seconds.
+✔ Test "a value carrying a newline still logs as one line" passed after 10.357 seconds.
+✔ Test "nil URL pointer never sets hover" passed after 10.357 seconds.
+✔ Test "an applied assignment names what was set" passed after 10.357 seconds.
+✔ Test "non-null URL pointer with len 0 clears hover (the libghostty clear signal)" passed after 10.357 seconds.
+✔ Test "a bound catalog command carries its chord in kitty syntax" passed after 10.357 seconds.
+✔ Test "a closed persisted window is offered as Open Window, not Switch to Window" passed after 10.357 seconds.
+✔ Test "an empty query lists an ordinary palette alphabetically" passed after 10.357 seconds.
+✔ Test "find-by-chord and the badge filter stay unambiguous across the whole shipped catalog" passed after 10.357 seconds.
+✔ Test "an unbound catalog command has no shortcut" passed after 10.357 seconds.
+✔ Test "a custom command is badged and shows its own chord" passed after 10.357 seconds.
+✔ Test "a chord query still finds its command" passed after 10.357 seconds.
+✔ Test "a short query ranks title matches above chord-only matches" passed after 10.357 seconds.
+✔ Test "a custom command's shortcut is the raw keymap token, verbatim" with 2 test cases passed after 10.357 seconds.
+✔ Test "a palette-only custom command is badged with no shortcut" passed after 10.357 seconds.
+✔ Test "the bare badge word still filters to the custom rows" passed after 10.357 seconds.
+✔ Test "only a row with a badge or a shortcut gains the composite search key" passed after 10.357 seconds.
+✔ Test "a context-dependent catalog title flips with the UI state" passed after 10.357 seconds.
+✔ Test "a cross-field query still finds a badged custom row" passed after 10.357 seconds.
+✔ Test "the attention palette keeps its blocked-first order until something is typed" passed after 10.356 seconds.
+✔ Test "normal titles add only custom window names" passed after 10.381 seconds.
+✔ Test "cancellation rejects an already scheduled click" passed after 10.454 seconds.
+✔ Test "a soft reload adds no surface config update to host appearance reconciliation" passed after 10.473 seconds.
+✔ Test "new and replacement bodies are owner-only" passed after 10.473 seconds.
+✔ Test "dashboard titles add only custom window names" passed after 10.473 seconds.
+✔ Test "the latest click supersedes an older generation" passed after 10.473 seconds.
+✔ Test "cross-workspace session drops land before or after the aimed-at row" passed after 10.473 seconds.
+✔ Test "y-midpoint maps to an insertion slot: top half before, bottom half (midpoint inclusive) after" passed after 10.473 seconds.
+✔ Test theHeldReferenceOutlivesTheParentsAndIsReleasedAtScopeExit() passed after 10.473 seconds.
+✔ Test "same-workspace session drops reach the first slot, append at the end, and no-op on own position" passed after 10.473 seconds.
+✔ Test "header drops append the whole block and no-op when it already tails the target" passed after 10.473 seconds.
+✔ Test "three-workspace reorder pins the old off-by-one and both halves of a far target" passed after 10.473 seconds.
+✔ Test "a drag carries the whole selected block only when the pressed row is inside it" passed after 10.473 seconds.
+✔ Test "two-workspace reorder: every half of every row resolves to the macOS destinations" passed after 10.473 seconds.
+✔ Test "focus-filtered workspace drops land adjacent to the visible target, never across hidden rows" passed after 10.473 seconds.
+✔ Test "multi-selection blocks keep their order and a block containing the target stays a no-op" passed after 10.473 seconds.
+✔ Test "an app-scoped hard reload rebuilds the config once from the host" passed after 10.473 seconds.
+✔ Test "quick-card CSS pins the floating chrome contract" passed after 10.473 seconds.
+✔ Test "keymap lookup stays off the plain typing path" passed after 10.473 seconds.
+✔ Test "AltGr symbols use the layout's unmodified base" passed after 10.473 seconds.
+✔ Test "non-ASCII layouts reject the ISO section key" passed after 10.473 seconds.
+✔ Test "non-ASCII layouts resolve every key by physical position" passed after 10.473 seconds.
+✔ Test "Russian-only configuration still resolves physical positions" passed after 10.473 seconds.
+✔ Test "Dvorak is ASCII-capable when letters occupy ANSI punctuation positions" passed after 10.473 seconds.
+✔ Test "GTK arrow keys normalize to keymap names" passed after 10.473 seconds.
+✔ Test "Dvorak keeps the character produced by its ASCII-capable layout" passed after 10.473 seconds.
+✔ Test "fixed shortcuts require their exact modifiers" passed after 10.473 seconds.
+✔ Test "GTK ISO Left Tab and keypad Tab normalize to tab" passed after 10.473 seconds.
+✔ Test "ASCII-capable layouts preserve their produced character" passed after 10.473 seconds.
+✔ Test "Hebrew punctuation keys resolve by physical position" passed after 10.473 seconds.
+✔ Test "layout capability requires the complete ASCII alphabet" passed after 10.473 seconds.
+✔ Test "Hebrew Latin shift levels do not make the layout ASCII-capable" passed after 10.473 seconds.
+✔ Test "a replacement at the old directory path is never followed or removed" passed after 10.473 seconds.
+✔ Test "Greek punctuation keys resolve by physical position" passed after 10.473 seconds.
+✔ Test "failed consumers release their ordinary file and bookkeeping" passed after 10.473 seconds.
+✔ Test "every control command has a Linux handler or is listed as unsupported" passed after 10.479 seconds.
+✔ Test "Russian layout resolves the physical J position" passed after 10.473 seconds.
+✔ Test "ASCII-capable layouts use the active unshifted punctuation" passed after 10.473 seconds.
+✔ Test "a backgrounded descendant neither delays the timeout nor outlives it" passed after 10.482 seconds.
+✔ Test "cleanup is local to its owner, idempotent, and prevents reuse" passed after 10.473 seconds.
+✔ Test "generated files are private and ordinary inputs end at their consumer" passed after 10.473 seconds.
+✔ Test "failed exclusive writes never consume stale input or delete an unrelated entry" passed after 10.473 seconds.
+✔ Test "missing runtime uses a private fallback without changing the environment" passed after 10.473 seconds.
+✔ Test "the sidebar hover rule keys on bare :hover, never .activatable" passed after 10.473 seconds.
+✔ Test "invalid supplied roots fail instead of silently falling back" passed after 10.473 seconds.
+✔ Test "the installed app CSS keeps the rename entry in the label's box" passed after 10.473 seconds.
+✔ Test "1000 rebuilds keep exactly one theme pair and bounded bookkeeping" passed after 10.473 seconds.
+✔ Test "the installed app CSS carries the sidebar hover rule" passed after 10.473 seconds.
+✔ Test "the installed app CSS carries no blink animation" passed after 10.473 seconds.
+✔ Test "press applies immediately except a plain press inside the current selection, which defers" passed after 10.473 seconds.
+✔ Test "release collapses only after a press that deferred on the same row" passed after 10.472 seconds.
+✔ Test "without bookkeeping nothing is restored" passed after 10.472 seconds.
+✔ Test "a new press resets a pending collapse a cancelled release left behind" passed after 10.473 seconds.
+✔ Test "an empty recorded value is restored as empty, not removed" passed after 10.473 seconds.
+✔ Test "CSS and accessibility selection follow single, range, and collapse transitions" passed after 10.473 seconds.
+✔ Test "a modifier press applies on press and its release never collapses, whatever the release-time modifiers" passed after 10.472 seconds.
+✔ Test "a variable the caller had gets the caller's value back" passed after 10.472 seconds.
+✔ Test "surface restoration distinguishes absent, empty, and explicit caller overrides" passed after 10.472 seconds.
+✔ Test "only a proven GL context failure is display-wide" passed after 10.472 seconds.
+✔ Test "the marker names the class the writer adds and both readers look for" passed after 10.472 seconds.
+✔ Test "the timer runs only for a glyph that is both marked and mapped" passed after 10.472 seconds.
+✔ Test "the dim phase fades the glyph and the other restores it to full opacity" passed after 10.472 seconds.
+✔ Test "only a glyph that renders something can be marked as blinking" passed after 10.473 seconds.
+✔ Test "failure injection is gated, role-specific, and distinguishes GL from creation" passed after 10.473 seconds.
+✔ Test "the bookkeeping never reaches a child, and unrecorded variables pass through" passed after 10.472 seconds.
+✔ Test "inside an AppImage the restored library path still loses the image's directories" passed after 10.473 seconds.
+✔ Test "near-Int32.max input stays non-negative without trapping" passed after 10.472 seconds.
+✔ Test "both child-environment helpers carry the launcher restore" passed after 10.473 seconds.
+✔ Test "a variable the caller never had is removed, not emptied" passed after 10.472 seconds.
+✔ Test "a single negative input clamps only its own dimension" passed after 10.472 seconds.
+✔ Test "zero header height centers the card in the whole overlay" passed after 10.472 seconds.
+✔ Test "card is 90% of the area below the header, centered in it" passed after 10.472 seconds.
+✔ Test "header at or beyond the overlay height collapses the card to zero height" passed after 10.472 seconds.
+✔ Test "header inset lands 5% bands around the card, below the header" passed after 10.472 seconds.
+✔ Test "an empty overlay yields an empty card at the origin" passed after 10.472 seconds.
+✔ Test "a record whose marker is empty or missing restores nothing and is kept from children" passed after 10.472 seconds.
+✔ Test "negative inputs clamp to an empty card instead of trapping" passed after 10.472 seconds.
+✔ Test "a configured percentage replaces the default and is clamped" passed after 10.472 seconds.
+✔ Test "a recorded value wins over the same name listed as unset" passed after 10.472 seconds.
+✔ Test "the card stays centered inside the overlay, below the header" with 20 test cases passed after 10.472 seconds.
+✔ Test "the legacy GTK animation switch remains the fallback" passed after 10.472 seconds.
+✔ Test "the trace line has the exact shape the blink-unmapped AT-SPI scenario parses" passed after 10.472 seconds.
+✔ Test "the preference disarms the blink timer rather than a stylesheet" passed after 10.472 seconds.
+✔ Test "the denylist still refuses multiplexers" passed after 10.472 seconds.
+✔ Test "Live recovery wraps the session host the same way and still pre-fills" passed after 10.472 seconds.
+✔ Test "normal desktop preferences retain the requested pulse" passed after 10.472 seconds.
+✔ Test "a denylisted capture after daemon loss gives a plain shell with nothing typed" passed after 10.471 seconds.
+✔ Test "a pinned restore command carrying CR or LF is refused" with 2 test cases passed after 10.472 seconds.
+✔ Test "the dedicated GTK preference disables the status pulse" passed after 10.471 seconds.
+✔ Test "a pinned restore command is pre-filled verbatim, without the newline the shared plan adds" passed after 10.471 seconds.
+✔ Test "with no capture, the session's own creation command is still how a lost daemon is recreated" passed after 10.471 seconds.
+✔ Test "a captured argv carrying a C1 control character is neither pre-filled nor replayed" with 2 test cases passed after 10.471 seconds.
+✔ Test "Rerun types the quoted command with no trailing newline or carriage return" passed after 10.471 seconds.
+✔ Test "no accepted line can submit itself" passed after 10.471 seconds.
+✔ Test "a Rerun restore plan seeds the pre-filled line as initial input, not a command" passed after 10.471 seconds.
+✔ Test "Live recovery after daemon loss starts a plain shell and pre-fills the captured command" passed after 10.471 seconds.
+✔ Test "reattaching to a live daemon types nothing" with 2 test cases passed after 10.471 seconds.
+✔ Test "the planner and the applier read one flattening of every section" passed after 10.471 seconds.
+✔ Test "a captured argv carrying CR or LF is refused in every mode" with 5 test cases passed after 10.471 seconds.
+✔ Test "non-modifier keys pass the state through unchanged in both directions" passed after 10.471 seconds.
+✔ Test "ctrl release clears only the control bit (raw release state still has it set)" passed after 10.471 seconds.
+✔ Test "alt/meta and super/hyper keyvals map to their GDK bits" passed after 10.471 seconds.
+✔ Test "shift press sets the shift bit, preserving already-held modifiers" passed after 10.471 seconds.
+✔ Test "ctrl press sets the control bit even though the raw state lacks it" passed after 10.471 seconds.
+✔ Test "removes AppImage library path from child environment" passed after 10.470 seconds.
+✔ Test "press is idempotent when the backend already reports the new state (Wayland-style)" passed after 10.470 seconds.
+✔ Test "preserves environment outside AppImage" passed after 10.470 seconds.
+✔ Test "preserves caller library paths when removing AppImage paths" passed after 10.470 seconds.
+✔ Test "plugin installs, updates, and is idempotent" passed after 10.470 seconds.
+✔ Test "Dashboard closes its own grid and New Window bypasses window covers" passed after 10.470 seconds.
+✔ Test "all declared launcher action arguments reach the matching action" passed after 10.470 seconds.
+✔ Test "user-owned plugin is preserved" passed after 10.470 seconds.
+✔ Test "window-scoped actions are inert behind dashboard, zoom, and picker covers" passed after 10.470 seconds.
+✔ Test "two overlapping processes share the desktop root but never their config files" passed after 10.476 seconds.
+✔ Test "an unreadable Pi extension is reported and left untouched" passed after 10.470 seconds.
+✔ Test "ordinary activation and open paths retain their existing command-line shapes" passed after 10.470 seconds.
+✔ Test "pinned libghostty replays cloned arguments after temporary input removal" passed after 10.475 seconds.
+✔ Test "invalid launcher actions and mixed invocations fail closed" passed after 10.470 seconds.
+✔ Test "AppImage environments recognize an existing agterm-owned launcher" passed after 10.470 seconds.
+✔ Test "destination mutation after preflight is preserved and rejects the stale plan" passed after 10.470 seconds.
+✔ Test "source mutation after preflight rejects the whole stale plan" passed after 10.470 seconds.
+✔ Test "known package tools are detected even when PATH omits them" passed after 10.470 seconds.
+✔ Test "skill installation applies safe targets while preserving a conflicting target" passed after 10.470 seconds.
+✔ Test "skill installation protects unrelated content" passed after 10.470 seconds.
+✔ Test "a dangling write symlink cannot be retargeted after preview" passed after 10.470 seconds.
+✔ Test "retargeting a managed Pi symlink after preflight cannot redirect the write" passed after 10.470 seconds.
+✔ Test "partial apply results identify failures and skipped operations" passed after 10.470 seconds.
+✔ Test "a missing write path cannot become a symlink after preview" passed after 10.470 seconds.
+✔ Test "an interrupted Pi replacement rolls the prior managed file back" passed after 10.470 seconds.
+✔ Test "portable CLI launcher is planned and installed safely" passed after 10.470 seconds.
+✔ Test "Pi is unavailable until its agent directory exists" passed after 10.470 seconds.
+✔ Test "unrelated absolute dangling CLI symlinks are protected" passed after 10.470 seconds.
+✔ Test "incomplete shell markers are conflicts rather than installed integrations" passed after 10.470 seconds.
+✔ Test "foreign Codex marker blocks are conflicts rather than installed integrations" passed after 10.470 seconds.
+✔ Test "AppImage hook installs require a persistent CLI" passed after 10.470 seconds.
+✔ Test "a changed destination invalidates a preview" passed after 10.470 seconds.
+✔ Test "portable launcher resolves bundled resources through its symlink" passed after 10.470 seconds.
+✔ Test "retargeting a skill directory symlink invalidates its preview" passed after 10.470 seconds.
+✔ Test "a user-owned Pi extension is preserved while safe hooks install" passed after 10.470 seconds.
+✔ Test "missing shell startup integration makes installed hooks repairable" passed after 10.470 seconds.
+✔ Test "mixed-syntax shell aliases leave their shared startup file untouched" passed after 10.470 seconds.
+✔ Test "agent-root symlink aliases share one skill replacement" passed after 10.470 seconds.
+✔ Test "existing ancestor aliases validate before their shared skill changes" with 2 test cases passed after 10.470 seconds.
+✔ Test "unrelated hook-directory content is never replaced" passed after 10.470 seconds.
+✔ Test "Pi installs idempotently without a backup and becomes current" passed after 10.470 seconds.
+✔ Test "personal installer CLI beside the app is recognized" passed after 10.470 seconds.
+✔ Test "shell startup aliases resolving to one file produce one safe write" passed after 10.470 seconds.
+✔ Test "a managed older Pi extension reports and applies an update" passed after 10.470 seconds.
+✔ Test "shared Claude and Codex skill symlinks produce one replacement" passed after 10.470 seconds.
+✔ Test "unrelated CLI launcher is a conflict" passed after 10.470 seconds.
+✔ Test "hooks install is safe, backed up, and idempotent" passed after 10.470 seconds.
+✔ Test "custom Codex hooks block automatic installation" passed after 10.470 seconds.
+✔ Test "failed ownership record write does not leave an unowned launcher" passed after 10.470 seconds.
+✔ Test "failed directory rollback preserves the prior installation as a recovery backup" passed after 10.470 seconds.
+✔ Test "partial managed hook assets are repairable" passed after 10.470 seconds.
+✔ Test "Flatpak process environments do not offer a host launcher" passed after 10.470 seconds.
+✔ Test "a changed bundled source invalidates a preview" passed after 10.470 seconds.
+✔ Test "process environments honor injected HOME, PATH, resources, and version" passed after 10.470 seconds.
+✔ Test "dangling absolute portable launcher remains repairable" passed after 10.470 seconds.
+✔ Test "a Pi write failure is reported after independently safe hook work" passed after 10.470 seconds.
+✔ Test "AppImage hook installs bake an existing persistent CLI" passed after 10.470 seconds.
+✔ Test "retargeting an existing shared agent root rejects the preview before replacement" passed after 10.470 seconds.
+✔ Test "managed skills update idempotently without replacing a directory symlink" passed after 10.470 seconds.
+✔ Test "retired agterm-managed hook scripts do not block upgrades" passed after 10.470 seconds.
+✔ Test "malformed Claude settings are preserved while safe hook targets install" passed after 10.470 seconds.
+✔ Test "a backup changed after preview is never overwritten" passed after 10.470 seconds.
+✔ Test "an unrelated agterm-named launcher on PATH remains protected" passed after 10.470 seconds.
+✔ Test "portable CLI launcher repairs a missing ownership record" passed after 10.470 seconds.
+✔ Test "retargeting a shared shell startup symlink invalidates its preview" passed after 10.470 seconds.
+✔ Test "portable CLI launcher missing ownership remains repairable on PATH" passed after 10.470 seconds.
+✔ Test "an absent Codex installation is unavailable instead of permanently partial" passed after 10.470 seconds.
+✔ Test "retargeting either shared skill symlink invalidates its preview" passed after 10.470 seconds.
+✔ Test "an earlier portable launcher remains updatable" passed after 10.470 seconds.
+✔ Test "in-place personal installer CLI is never replaced by a self-link" passed after 10.470 seconds.
+✔ Test "AppImage environments recognize an existing persistent CLI on PATH" passed after 10.470 seconds.
+✔ Test "AppImage environments do not offer a launcher into a temporary mount" passed after 10.470 seconds.
+✔ Test "a current skill target changing invalidates a multi-target preview" passed after 10.470 seconds.
+✔ Test "hook config symlinks and restrictive modes survive merge" passed after 10.470 seconds.
+✔ Test "keymap.list projects Linux defaults and retained alternatives" passed after 10.470 seconds.
+✔ Test "the appended fan-out commands reach their palette rows verbatim" passed after 10.470 seconds.
+✔ Test "unknown broken CLI symlinks are protected" passed after 10.470 seconds.
+✔ Test "an action with no Linux default chord renders a bare tooltip" passed after 10.470 seconds.
+✔ Test "dropping a reserved override does not restore a shadowed Linux default" passed after 10.470 seconds.
+✔ Test "every title-bar tooltip renders its exact accessible name" passed after 10.470 seconds.
+✔ Test "the error-banner check's malformed line yields exactly the toast the AT-SPI leg waits for" passed after 10.470 seconds.
+✔ Test "global-hotkey remains parseable for shared configuration compatibility" passed after 10.470 seconds.
+✔ Test "Linux validation drops only conflicting command alternatives" passed after 10.470 seconds.
+✔ Test "a changed durable CLI invalidates a hook repair preview" passed after 10.470 seconds.
+✔ Test "changed bundled hook assets invalidate a configuration-only preview" passed after 10.470 seconds.
+✔ Test "unknown major skips without replacing user plugins; existing managed v2 can update offline" passed after 10.470 seconds.
+✔ Test "incomplete shell marker is malformed" passed after 10.470 seconds.
+✔ Test "restoring Open Directory cannot collide with another Linux default" passed after 10.470 seconds.
+✔ Test "an explicitly empty v2 override never falls back to another directory" passed after 10.470 seconds.
+✔ Test "chord labels name Linux modifiers, uppercase single keys, and capitalize named keys" passed after 10.470 seconds.
+✔ Test "a chorded custom command survives Linux validation and reaches its palette row verbatim" passed after 10.470 seconds.
+✔ Test "Codex wrapper must be inside the managed block" passed after 10.470 seconds.
+✔ Test "real version probe selects v2 and installs its entrypoint idempotently" passed after 10.470 seconds.
+✔ Test "complete shell block is installed" passed after 10.469 seconds.
+✔ Test "hidden split does not retain a live divider hit target" passed after 10.493 seconds.
+✔ Test "inactive-pane opacity is shared by its base and overlay" passed after 10.493 seconds.
+✔ Test "superseding and cancelling restores remove the owned source" passed after 10.492 seconds.
+✔ Test "stale generations cannot clear or adopt a newer restore" passed after 10.492 seconds.
+✔ Test "HUD geometry refreshes once per positive deck allocation" passed after 10.492 seconds.
+✔ Test "reveals accumulate, clear per id or wholesale, and drop workspaces the store lost" passed after 10.492 seconds.
+✔ Test "collapsing another workspace keeps a reveal; collapsing the revealed one folds it for good" passed after 10.492 seconds.
+✔ Test "opt-in failure HUD captures the final stderr diagnostic from a real child" passed after 10.489 seconds.
+✔ Test "with the sidebar hidden the current-workspace toggle still expands a revealed workspace" passed after 10.492 seconds.
+✔ Test "the effective set is the persisted set widened by the overlay" passed after 10.492 seconds.
+✔ Test "an unlisted flagged-mode selection clears the gate, so the trip back to tree reveals it" passed after 10.492 seconds.
+✔ Test "collapsing a revealed workspace folds it even though the store write is a no-op" passed after 10.492 seconds.
+✔ Test "a nil selection in flagged mode clears the gate and leaves the overlay alone" passed after 10.492 seconds.
+✔ Test "notification delivery delegates policy and identity to shared core" passed after 10.492 seconds.
+✔ Test "a listed flagged-mode selection advances the gate, so the trip back to tree reveals nothing" passed after 10.492 seconds.
+✔ Test "the clamp pins the derived sidebar floor inside the shared width range" passed after 10.492 seconds.
+✔ Test "the mirror spans every workspace, so a current workspace the focus filter hid reads its reveal" passed after 10.491 seconds.
+✔ Test "a fold made under a still-selected session survives a flagged round trip" passed after 10.492 seconds.
+✔ Test "session reports and pane focus mutate the owning shared model" passed after 10.491 seconds.
+✔ Test "a floor-driven divider move is not persisted, so the requested width survives it" passed after 10.490 seconds.
+✔ Test "HUD presentation is passive while program overlays remain interactive" passed after 10.490 seconds.
+✔ Test "focused OSC suppression precedes unseen mutation while explicit control delivery bypasses it" passed after 10.490 seconds.
+✔ Test "HUD layout uses the stable session font before settings or defaults" passed after 10.490 seconds.
+✔ Test "deferred workspace row clicks re-read the current setting" passed after 10.490 seconds.
+✔ Test "the divider is laid out at the request the floor and the window width both allow" passed after 10.489 seconds.
+✔ Test "a full queue makes the presentation offer fail and the hub drop the stalled viewer" passed after 10.489 seconds.
+✔ Test "a stale request neither adopts a callback nor clears the live one" passed after 10.488 seconds.
+✔ Test "a superseding request removes the previous row's callback through that row" passed after 10.488 seconds.
+✔ Test "completing removes nothing — the tick and the destroy notify own that themselves" passed after 10.488 seconds.
+✔ Test "a request whose attempt resolves still supersedes the row waiting before it" passed after 10.488 seconds.
+✔ Test "a request whose attach never returned an id cancels without removing anything" passed after 10.488 seconds.
+✔ Test "a failing staging copy leaves neither a destination nor staging residue" passed after 8.849 seconds.
+✔ Test "the single-file install arm routes its staging copy through the copyTree seam" passed after 8.851 seconds.
+✔ Test "apply's staging copy defaults to installCopy, not FileManager.copyItem" passed after 8.851 seconds.
+✔ Test "directory modes umask cannot produce survive the copy" passed after 8.851 seconds.
+✔ Test "the directory install arm routes its staging copy through the copyTree seam" passed after 8.851 seconds.
+✔ Test "a read-only source directory is populated before its mode is applied" passed after 8.851 seconds.
+✔ Test "copies dotfiles, empty directories, modes and both kinds of symlink" passed after 8.851 seconds.
+✔ Test "a missing source propagates its error without creating a destination" passed after 8.851 seconds.
+✔ Test "every directory's mode is applied exactly once through the mode seam" passed after 8.851 seconds.
+✔ Test "a real child exchanges newline frames and closes after the last frame" passed after 10.486 seconds.
+✔ Test "a full child pipe drains a short nonblocking write" passed after 10.486 seconds.
+✔ Test "moveSessions ignores a stale id and moves the survivors (agtermCore assumption)" passed after 10.483 seconds.
+✔ Test "selectSession on an already-sole selection is idempotent (agtermCore assumption)" passed after 10.481 seconds.
+✔ Test "floating overlays yield to pane zoom and return on exit or overlay zoom" passed after 10.477 seconds.
+✔ Test "a zoom hides the sibling pane of the pane it targets and leaves session covers alone" passed after 10.477 seconds.
+✔ Test "split and right overlay zoom targets follow primary-pane promotion" passed after 10.477 seconds.
+✔ Test "pane covers keep a base surface visible while terminal zoom hosts it" passed after 10.477 seconds.
+✔ Test "a zoom shows the stack page that holds its surface, never moving the surface" passed after 10.477 seconds.
+✔ Suite "agtermctl shared command executable" passed after 10.508 seconds.
+✔ Suite "Resolved Ghostty chrome colors" passed after 10.508 seconds.
+✔ Suite "agtermctl integration command" passed after 10.508 seconds.
+✔ Suite "Linux structured journal records" passed after 10.508 seconds.
+✔ Suite "Linux GDK policy — environment assignments" passed after 10.508 seconds.
+✔ Suite "Ctrl-Tab session switcher" passed after 10.508 seconds.
+✔ Suite "Linux agent-status glyph presentation" passed after 10.508 seconds.
+✔ Suite "Linux zmx adapters" passed after 10.508 seconds.
+✔ Suite "sidebar sync gate" passed after 10.508 seconds.
+✔ Suite "background overlay policy" passed after 10.508 seconds.
+✔ Suite "Sidebar scroll-into-view" passed after 10.508 seconds.
+✔ Suite "embedded libghostty surface geometry" passed after 10.508 seconds.
+✔ Suite "Mouse shape → GTK cursor name (GHOSTTY_ACTION_MOUSE_SHAPE)" passed after 10.508 seconds.
+✔ Suite "Linux GDK policy — pre-launch environment capture" passed after 10.508 seconds.
+✔ Suite "Linux appearance reload policy" passed after 10.508 seconds.
+✔ Suite "libghostty buffer lifetimes" passed after 10.508 seconds.
+✔ Suite "sidebar metadata refresh gate" passed after 10.508 seconds.
+✔ Suite "Linux remote command temporary files, output bound, and timeout" passed after 10.508 seconds.
+✔ Suite "Linux keymap reload toast" passed after 10.508 seconds.
+✔ Suite "Linux foreground job cleanup" passed after 10.508 seconds.
+✔ Suite "selection republish scope" passed after 10.508 seconds.
+✔ Suite "Linux control socket ownership" passed after 10.508 seconds.
+✔ Suite "Linux control dispatch covers every command" passed after 10.508 seconds.
+✔ Suite LinuxProcCmdlineTests passed after 10.508 seconds.
+✔ Suite "Linux terminal deck presentation" passed after 10.508 seconds.
+✔ Suite "Linux GDK policy — GL context error line" passed after 10.508 seconds.
+✔ Suite "zmx.attach request validation" passed after 10.507 seconds.
+✔ Suite "Linux overlay exit capture" passed after 10.508 seconds.
+✔ Suite "Ghostty config apply policy" passed after 10.507 seconds.
+✔ Suite "Link hover decision (GHOSTTY_ACTION_MOUSE_OVER_LINK)" passed after 10.507 seconds.
+✔ Suite "Linux GDK policy — assignment log line" passed after 10.507 seconds.
+✔ Suite "Linux palette row presentation" passed after 10.508 seconds.
+✔ Test "a descendant holding stderr cannot stall completion, and the capture is gone on delivery" passed after 10.494 seconds.
+✔ Suite "Linux dashboard presentation" passed after 10.508 seconds.
+✔ Suite "Ghostty reload action policy" passed after 10.508 seconds.
+✔ Suite "Linux HUD body storage" passed after 10.508 seconds.
+✔ Suite "GTK reparent ref guard" passed after 10.508 seconds.
+✔ Suite "Linux quick-terminal card chrome" passed after 10.508 seconds.
+✔ Suite "Layout-independent Linux shortcuts" passed after 10.508 seconds.
+✔ Suite "Generated Ghostty config storage" passed after 10.508 seconds.
+✔ Suite "Sidebar hover CSS" passed after 10.508 seconds.
+✔ Suite "Launcher child environment" passed after 10.508 seconds.
+✔ Suite "Linux surface failure diagnostics" passed after 10.508 seconds.
+✔ Suite "blink policy" passed after 10.508 seconds.
+✔ Suite "Linux quick-terminal card allocation" passed after 10.508 seconds.
+✔ Suite "Linux Reduce Motion policy" passed after 10.508 seconds.
+✔ Suite "blink phase trace" passed after 10.508 seconds.
+✔ Suite "Linux restore pre-fill" passed after 10.508 seconds.
+✔ Suite "sidebar snapshot flattenings" passed after 10.508 seconds.
+✔ Suite "Modifier-only key state synthesis (X11 prior-state quirk)" passed after 10.507 seconds.
+✔ Suite "AppImage child environment" passed after 10.507 seconds.
+✔ Suite "OpenCode Linux integration" passed after 10.507 seconds.
+✔ Suite "Linux desktop launcher actions" passed after 10.508 seconds.
+✔ Suite "Linux Pi integration" passed after 10.508 seconds.
+✔ Suite "Linux integration service" passed after 10.507 seconds.
+✔ Suite "Linux keymap compatibility" passed after 10.508 seconds.
+✔ Suite "Linux integration managed markers" passed after 10.507 seconds.
+✔ Suite "Linux split-pane layout" passed after 10.510 seconds.
+✔ Suite "split ratio restore ownership" passed after 10.510 seconds.
+✔ Suite "sidebar reveal state" passed after 10.510 seconds.
+✔ Suite "Linux-owned policy and adapters" passed after 10.510 seconds.
+✔ Suite "sidebar scroll retry ownership" passed after 10.510 seconds.
+✔ Suite "Linux integration install copy" passed after 10.506 seconds.
+✔ Suite "Linux presentation transport" passed after 10.510 seconds.
+✔ Suite "Sidebar drop insertion slots" passed after 10.509 seconds.
+✔ Suite "Sidebar session-click timing" passed after 10.509 seconds.
+✔ Suite "Linux terminal zoom promotion" passed after 10.508 seconds.
+✔ Test "spawn launcher reports successful and non-zero termination" passed after 10.562 seconds.
+✔ Test "a dangling user skill symlink is reported and preserved" passed after 10.588 seconds.
+✔ Suite "Linux integration stale-plan safety" passed after 10.619 seconds.
+✔ Test "login-shell PATH and exported v2 directory drive the installer" passed after 10.676 seconds.
+✔ Suite "Linux OpenCode major selection" passed after 10.707 seconds.
+✔ Test "a stalled peer fills the queue at 64 frames and the send timeout closes the stream" passed after 10.788 seconds.
+✔ Suite "Linux control stream owner" passed after 10.804 seconds.
+ControlServer-Message: 03:32:30.592: control socket at /tmp/B5FF0CEE-4872-4195-BF58-9489C1DD6A22/agterm.sock
+ControlServer-Message: 03:32:30.935: control socket at /tmp/0BDE25F8-2E91-4A8E-808D-EA62AA212097/agterm.sock
+✔ Test "an answered dialog cannot resolve a replacement prompt when its signal is destroyed" passed after 15.278 seconds.
+✔ Test "write consent completion checks the current surface before touching the clipboard" passed after 15.278 seconds.
+✔ Test "signal destruction denies unresolved coalesced waiters and releases the context" passed after 15.278 seconds.
+✔ Test "a waiter may destroy its response signal without resolving twice" passed after 15.278 seconds.
+✔ Test "one requester and one access share a prompt, and each waiter fires once" passed after 15.278 seconds.
+✔ Test "always-allow and always-deny are remembered per access" passed after 15.278 seconds.
+✔ Test "resolving after teardown reaches the waiter while the requester is still retained, then frees it" passed after 15.278 seconds.
+✔ Test "different requesters, and read versus write, open separate prompts" passed after 15.278 seconds.
+✔ Test aScheduledFireRunsExactlyOnceOnTheGLibLoop() passed after 15.276 seconds.
+✔ Test "a file drop pastes the space-joined escaped paths" passed after 15.275 seconds.
+✔ Test "sidebar ids and empty drops are refused without touching the surface" passed after 15.275 seconds.
+✔ Test "a multi-line text drop is one paste, not typed lines" passed after 15.275 seconds.
+✔ Test "zmx.list runs its zmx call on the worker while the main loop keeps turning" passed after 15.276 seconds.
+✔ Test "a theme name pins one appearance-independent theme and keeps the rest of the settings" passed after 15.274 seconds.
+✔ Test "a uri-list drop pastes its escaped POSIX paths" passed after 15.275 seconds.
+✔ Suite "Linux clipboard consent coalescing and requester lifetime" passed after 15.285 seconds.
+◇ Test "an empty or absent name clears back to ghostty's built-in default" started.
+◇ Test cancellingBeforeTheTimeoutStopsTheFire() started.
+◇ Test "a lead-pane type runs its zmx calls on the worker and finishes once on the GLib main context" started.
+✔ Suite "Linux drops are delivered as paste" passed after 15.284 seconds.
+✔ Test "cancel disarms the pending re-publish — the window-close teardown path" passed after 15.270 seconds.
+✔ Test "canceled and deallocated panes never resume; the rest resume once in priority order" passed after 15.270 seconds.
+✔ Test "every rebuild's arm supersedes the pending re-publish instead of orphaning it" passed after 15.271 seconds.
+✔ Test "a selection change is one op carrying the symmetric difference" passed after 15.269 seconds.
+✔ Test "an armed re-publish runs once and leaves nothing to disarm" passed after 15.271 seconds.
+✔ Test "an unpaced pane is discarded without registering" passed after 15.270 seconds.
+✔ Test "each row content change updates exactly its own row" passed after 15.269 seconds.
+✔ Test "each header change updates exactly its own header" passed after 15.269 seconds.
+✔ Test "an inserted row is built from its content; a moved one still takes its update" passed after 15.269 seconds.
+✔ Test "a collapse hides the list box AND repaints the header that owns the disclosure arrow" passed after 15.269 seconds.
+✔ Test "a settings-only change updates only the rows whose presentation moved" passed after 15.269 seconds.
+✔ Suite "selection re-publish ownership" passed after 15.284 seconds.
+✔ Suite "sidebar diff content ops" passed after 15.284 seconds.
+✔ Suite "Linux spawn registry grants for closed and reprioritized panes" passed after 15.284 seconds.
+✔ Test "cancel() and resync(shouldRun: false) remove the real GLib source while a sibling keeps ticking" passed after 15.268 seconds.
+✔ Test "removals precede inserts and moves in a mixed change" passed after 15.268 seconds.
+✔ Test "an unchanged snapshot plans nothing" passed after 15.268 seconds.
+✔ Test "a plan against a stale snapshot cannot reach the target" passed after 15.268 seconds.
+✔ Test "a removed section takes its rows with it, and a survivor elsewhere is an insert" passed after 15.268 seconds.
+✔ Test "collapse, expand and the flagged hint carry no row ops" passed after 15.268 seconds.
+✔ Test "the quit flush acts only on still-registered windows" passed after 15.268 seconds.
+✔ Test "a terminating close captures even with other windows open" passed after 15.268 seconds.
+✔ Test "every permutation of up to five rows moves the minimum and reproduces the target" passed after 15.268 seconds.
+✔ Test "closing the last open window captures" passed after 15.268 seconds.
+✔ Test "a preferMoving hint decides which of two tied rows moves" passed after 15.268 seconds.
+✔ Test "closing and reopening the same window id cannot reactivate an old origin" passed after 15.271 seconds.
+✔ Test "a non-last close clears in every mode" with 3 test cases passed after 15.268 seconds.
+✔ Test "a mode switched off after a Live launch clears at quit" passed after 15.268 seconds.
+✔ Test "sections insert, remove and move like rows" passed after 15.268 seconds.
+✔ Test "a first sync from an empty snapshot is all inserts" passed after 15.268 seconds.
+✔ Test "a mode switched on after a Fresh launch captures at quit" passed after 15.268 seconds.
+✔ Test "no window is captured twice in one exit" passed after 15.268 seconds.
+✔ Test "one-row moves up and down move exactly the dragged row" passed after 15.268 seconds.
+✔ Test "configured rerun and live capture at exit, none clears" with 3 test cases passed after 15.268 seconds.
+✔ Test "a window reopened after its exit edge captures again" passed after 15.268 seconds.
+✔ Test "a row changing workspace is one move, not a remove and an insert" passed after 15.268 seconds.
+✔ Test "row insert and remove touch one row each" passed after 15.268 seconds.
+✔ Test "a rotation moves one row and a reversal moves the minimum" passed after 15.268 seconds.
+✔ Test "keyboard reorder moves exactly the reordered row and the reordered section" passed after 15.268 seconds.
+✔ Test "a mode switch rebuilds everything" passed after 15.268 seconds.
+✔ Test "a drop into a collapsed workspace is the same moves and leaves it collapsed" passed after 15.268 seconds.
+✔ Test "an armed reconcile runs once at the requested delay when nothing is interacting" passed after 15.268 seconds.
+✔ Test "a deferred retry is still cancellable" passed after 15.268 seconds.
+✔ Test "arming again supersedes the pending reconcile instead of orphaning it" passed after 15.268 seconds.
+✔ Test "a dragged block moves only its own rows and keeps its selection" passed after 15.268 seconds.
+✔ Test "cancel disarms the pending reconcile — the window-close teardown path" passed after 15.267 seconds.
+✔ Test "a fire during a sidebar interaction defers instead of rebuilding" passed after 15.268 seconds.
+✔ Test "a header drop appends the whole block as moves into the target workspace" passed after 15.267 seconds.
+✔ Test "with no active session the quick terminal and a new session start in HOME" passed after 15.267 seconds.
+✔ Test "an explicit overlay --cwd is kept verbatim on a remote session" with 2 test cases passed after 15.267 seconds.
+✔ Test "a remote path missing here starts the local launch in HOME" with 6 test cases passed after 15.267 seconds.
+✔ Test "a filtered workspace drag moves only the dragged section" passed after 15.268 seconds.
+✔ Suite BlinkPhaseSourceGLibTests passed after 15.285 seconds.
+✔ Test "a session selected inside a collapsed workspace reveals it without a store write" passed after 15.267 seconds.
+✔ Test "a remote path that exists here is kept" with 6 test cases passed after 15.267 seconds.
+✔ Test "each site reads its own reported input" passed after 15.267 seconds.
+✔ Test "the new-session setting still decides before the remote rule" passed after 15.267 seconds.
+✔ Test "the caller's expanded set overrides a persisted collapse in section and header" passed after 15.267 seconds.
+✔ Test "a local session keeps its reported path verbatim" with 6 test cases passed after 15.267 seconds.
+✔ Test "tree mode follows visible workspace order and expansion" passed after 15.267 seconds.
+✔ Test "the focus filter drops non-member workspaces" passed after 15.267 seconds.
+✔ Test "flagged mode is one breadcrumb section, hinted when empty" passed after 15.267 seconds.
+✔ Test "revealing a collapsed workspace plans one setExpanded and its header, never a rebuild" passed after 15.267 seconds.
+✔ Test "renaming marks its row or header and drops the breadcrumb" passed after 15.267 seconds.
+✔ Test "an idle indicator has no glyph and cannot blink" passed after 15.267 seconds.
+✔ Test "flagged mode reveals nothing and the focus filter never narrows the effective set" passed after 15.267 seconds.
+✔ Test "the snapshot carries the whole multi-row selection, not just the active session" passed after 15.267 seconds.
+✔ Test "settings drive badge, add button and glyph presentation" passed after 15.267 seconds.
+✔ Suite "Linux custom-command process launching" passed after 15.286 seconds.
+✔ Suite "sidebar snapshot diff" passed after 15.286 seconds.
+✔ Suite "soft-close reconcile ownership" passed after 15.286 seconds.
+✔ Suite "sidebar drag and reorder plans" passed after 15.286 seconds.
+✔ Suite "local launch directory" passed after 15.286 seconds.
+✔ Suite "sidebar snapshot" passed after 15.285 seconds.
+✔ Suite "Linux exit capture policy" passed after 15.286 seconds.
+✔ Test "Cancel, closing the dialog, or any other response delivers nothing" passed after 15.576 seconds.
+✔ Test "Only known paste requests transform line endings and file-manager URI lists" passed after 15.576 seconds.
+✔ Test "each unsafe paste is its own question, and an earlier Paste is not remembered" passed after 15.576 seconds.
+✔ Test "only the first answer counts: a destroy after Paste does not also cancel" passed after 15.576 seconds.
+✔ Test "a paste libghostty flags as unsafe asks the user; OSC 52 reads keep their consent prompt" passed after 15.576 seconds.
+✔ Test "Paste delivers the full text to the pending request" passed after 15.576 seconds.
+✔ Test "CR-only and CRLF line endings become LF, so libghostty's newline check sees them" passed after 15.576 seconds.
+✔ Test "an armed drop is taken once, and only by its own surface's clipboard read" passed after 15.576 seconds.
+✔ Test "the dialog preview is capped and states the hidden tail; short text is shown whole" passed after 15.576 seconds.
+✔ Suite "Linux asks before an unsafe multi-line paste" passed after 15.596 seconds.
+✔ Test "a claimed and adopted helper receives the launch context" passed after 15.576 seconds.
+✔ Test "a wrapped pane whose daemon lookup fails reports unknown, never the attach client" passed after 15.575 seconds.
+✔ Test "a capture pass takes one listing bounded by the capture timeout" with 2 test cases passed after 15.574 seconds.
+✔ Test "no local wrapped pane takes no listing" passed after 15.574 seconds.
+✔ Test "a failed listing leaves every wrapped pane unknown without re-listing" passed after 15.574 seconds.
+✔ Test "one listing serves every pane of a tree pass" passed after 15.574 seconds.
+◇ Test "a helper gone before its claim reply releases the claim as unknown" started.
+✔ Suite "Linux zmx foreground snapshot" passed after 15.596 seconds.
+✔ Test "accept failures: exhaustion backs off within bounds, shutdown exits, the rest retry" passed after 15.601 seconds.
+◇ Test "beyond the worker cap a connection waits in the backlog, then is served; stop still wakes the loop" started.
+✔ Test "an orphaned source removes itself on its first fire instead of waking the loop forever" passed after 15.692 seconds.
+✔ Test "a request of exactly 1 MiB is read and dispatched" passed after 15.693 seconds.
+✔ Test "a resync that should not run cancels and restores full opacity" passed after 15.692 seconds.
+✔ Test "each tick flips the phase and applies it" passed after 15.692 seconds.
+✔ Test "a resync while armed neither adds a source nor applies a phase" passed after 15.692 seconds.
+✔ Test "a resync while armed rebinds the apply closure, so the tick reaches the current widget maps" passed after 15.692 seconds.
+✔ Test "cancel is idempotent and a late tick is inert — the window-close teardown path" passed after 15.692 seconds.
+✔ Test "a resync that should not run while unarmed touches nothing" passed after 15.692 seconds.
+✔ Test firesToTheBlockedSessionWhenIdleAndEnabled() passed after 15.692 seconds.
+✔ Test "cancel drops the apply closure instead of retaining the widget maps it captures" passed after 15.692 seconds.
+✔ Test "a resync that should run arms one source at the half period and applies nothing" passed after 15.692 seconds.
+✔ Test "a denylisted foreground is stored raw and preempts the durable command at replay" passed after 15.692 seconds.
+✔ Test "an unrealized hidden split keeps pending at exit and nil on demand" with 2 test cases passed after 15.692 seconds.
+✔ Test "restore.capture leaves an unconsumed pending argv out of the snapshot and armed" passed after 15.692 seconds.
+✔ Test "wrapped panes need the snapshot; ordinary panes do not take one" passed after 15.692 seconds.
+✔ Test "a hidden non-Live split is not read and drops an earlier capture" passed after 15.691 seconds.
+✔ Test "remote rows are neither read nor counted; the count is slots written" passed after 15.691 seconds.
+✔ Test "exit capture preserves a hidden split's pending argv when no split surface was built" passed after 15.691 seconds.
+✔ Test "an exhausted budget stops reading and keeps pending at exit" passed after 15.692 seconds.
+✔ Test "surface opacities dim the unfocused split pane only" passed after 15.691 seconds.
+✔ Test "a hidden realized Live split is read" passed after 15.691 seconds.
+✔ Test "the mute scales by the rendered window opacity and clamps both inputs" with 6 test cases passed after 15.691 seconds.
+✔ Test "floating frames dim only behind the quick terminal" passed after 15.691 seconds.
+✔ Test "exit capture does not resurrect an argv the factory already consumed" passed after 15.692 seconds.
+✔ Test "only the inactive split pane is washed, and a backdrop clears both" passed after 15.691 seconds.
+✔ Test "restore.set names the launch mode, not the configured one, for set and none" passed after 15.691 seconds.
+✔ Test "the wash colour prefers the overlay's fixed background, then the theme, then black" passed after 15.691 seconds.
+✔ Test "a Re-run launch keeps replaying after the configured mode switches to Fresh" passed after 15.691 seconds.
+✔ Test "Live launches never enable ordinary replay, active or fallen back" with 2 test cases passed after 15.691 seconds.
+✔ Test "exit capture preserves an unconsumed pending argv when the read yields nothing" passed after 15.691 seconds.
+✔ Test "a Fresh launch does not replay after the configured mode switches to Re-run" passed after 15.690 seconds.
+✔ Test "a stale surface's exit leaves a replacement HTML overlay open" passed after 15.710 seconds.
+✔ Test "a current surface's exit closes its slot" passed after 15.710 seconds.
+✔ Test "a stale surface's exit leaves an emptied slot alone" passed after 15.710 seconds.
+✔ Test takeoverRepeatsAreConsumedAcrossTheReattachUntilRelease() passed after 15.707 seconds.
+✔ Test "a stale surface's exit leaves a replacement program overlay open" passed after 15.710 seconds.
+✔ Test onlyTheTakeoverReleaseClearsIt() passed after 15.707 seconds.
+✔ Test surfaceChangeDoesNotClearTheTakeover() passed after 15.707 seconds.
+✔ Test keymapChordOnCoveredFollowerStaysTheKeymaps(key:state:) with 4 test cases passed after 15.707 seconds.
+✔ Test takeoverKeyTakesTheLeadOnceAndOtherKeysAreConsumed() passed after 15.707 seconds.
+✔ Test coverPressRecordsTheKeyLikeASurfacePress() passed after 15.707 seconds.
+✔ Test superAndModifierOnlyNeverTakeTheLead() passed after 15.707 seconds.
+✔ Test coveredPaneDropsTheModifierReleasesItsPressesConsumed() passed after 15.707 seconds.
+✔ Test uncoveredPaneKeysPass(role:) with 2 test cases passed after 15.707 seconds.
+✔ Test replacementTakesFocusFromTheSurfaceOrItsCover(surface:cover:expected:) with 4 test cases passed after 15.707 seconds.
+✔ Test uncoveredPaneForwardsModifierReleases(role:) with 2 test cases passed after 15.707 seconds.
+✔ Test nonModifierReleaseEndsTheTakeover() passed after 15.707 seconds.
+✔ Test keymapRunsBeforeARecordedTakeoverKey() passed after 15.707 seconds.
+✔ Test "a connection change is one in-place update of that row" passed after 15.704 seconds.
+✔ Test pressAfterASeenReleaseIsGenuine() passed after 15.707 seconds.
+✔ Test "only leaving connected reconciles the connection effect" passed after 15.704 seconds.
+✔ Test "an origin without the stream, or an unbound row, is remote with nothing to say" with 2 test cases passed after 15.704 seconds.
+✔ Test "a flagged remote row keeps its star beside the cloud in tree mode" passed after 15.704 seconds.
+✔ Test "a local row carries no remote marker or notice" passed after 15.704 seconds.
+✔ Test "an event over 64 KiB reaches the hook's stdin whole, newline-terminated" passed after 15.701 seconds.
+✔ Test "a rejected ask is taken back and the unclaimed overlay job keeps its slot" passed after 15.699 seconds.
+✔ Test "the shared remote glyph is the connected sidebar icon" passed after 15.703 seconds.
+✔ Test "a finished overlay job drops its queued helper cancel" passed after 15.699 seconds.
+✔ Test "a rejection naming another ask changes nothing" passed after 15.699 seconds.
+✔ Test "losing the presenter takes back the ask and cancels the unclaimed job" passed after 15.700 seconds.
+✔ Test "a held replica pane is recorded held, offered for removal, then redrawn without focus" passed after 15.695 seconds.
+✔ Test "a final title with a wrong nonce cannot reconnect a held pane" passed after 15.695 seconds.
+✔ Test "retired surface callbacks cannot forget or reconnect its replacement" passed after 15.695 seconds.
+✔ Test "a pane no longer in its session's slots makes no store call" passed after 15.695 seconds.
+✔ Test "link loss survives either callback order and retains its cover" with 6 test cases passed after 15.695 seconds.
+✔ Test "a stale overlay hook whose surface left its slot makes no store call" with 2 test cases passed after 15.695 seconds.
+✔ Test "a surface outside the remote model makes no store call" passed after 15.695 seconds.
+✔ Test "retained ended identity cannot override a newer attachment" passed after 15.695 seconds.
+✔ Test "a held pane replica overlay marks the job in its current slot ended" passed after 15.695 seconds.
+✔ Test "a held session-wide replica overlay marks its job ended" passed after 15.695 seconds.
+✔ Test "an orphaned replica overlay closes on its held exit" passed after 15.695 seconds.
+✔ Test "a removal that arrived before the exit is closable once the exit is held" passed after 15.695 seconds.
+✔ Test "held exits redraw without focusing, so an inline rename keeps its entry" with 3 test cases passed after 15.695 seconds.
+✔ Test "a remote row follows its stream: notice and slashed icon while down, plain cloud when up" passed after 15.704 seconds.
+✔ Suite "blink phase coordinator" passed after 15.719 seconds.
+✔ Suite "Linux launch seed latch" passed after 15.719 seconds.
+✔ Suite "Linux pane dimming policy under translucent windows" passed after 15.719 seconds.
+✔ Suite "Session overlay exit identity" passed after 15.721 seconds.
+✔ Suite "Linux foreground capture" passed after 15.719 seconds.
+✔ Suite "Linux presenter frame routing" passed after 15.720 seconds.
+✔ Suite "Pane lead key policy" passed after 15.721 seconds.
+✔ Suite "Remote held exits" passed after 15.719 seconds.
+✔ Suite "sidebar remote rows" passed after 15.721 seconds.
+◇ Test "one byte over 1 MiB closes the connection without a response" started.
+◇ Test "a hook that closes stdin early swallows EPIPE and exits once" started.
+◇ Test doesNotFireWhenDisabled() started.
+ControlServer-Message: 03:32:32.379: control socket at /tmp/B05B2D8B-9D74-4600-85AA-F548EB3F55C1/agterm.sock
+ControlServer-Message: 03:32:32.585: control socket at /tmp/8FAD59C4-DCCA-49D5-BA03-7FA765368DD3/agterm.sock
+✔ Test "a lead-pane type runs its zmx calls on the worker and finishes once on the GLib main context" passed after 1.853 seconds.
+✔ Test "an empty or absent name clears back to ghostty's built-in default" passed after 1.853 seconds.
+✔ Test cancellingBeforeTheTimeoutStopsTheFire() passed after 1.853 seconds.
+✔ Test "beyond the worker cap a connection waits in the backlog, then is served; stop still wakes the loop" passed after 1.510 seconds.
+✔ Test "a helper gone before its claim reply releases the claim as unknown" passed after 1.540 seconds.
+✔ Suite "Linux control socket accept backoff and worker cap" passed after 17.136 seconds.
+ControlServer-Message: 03:32:33.591: control socket at /tmp/14081328-F8B4-499D-830B-4A6C30D25660/agterm.sock
+◇ Test "stop during an in-flight zmx call answers the client exactly once" started.
+◇ Test "preview-path readers see the live preview, and the persisted theme once it is cleared" started.
+◇ Test "a helper that drops after adoption ends its job unknown" started.
+◇ Test cancellingAfterTheFireIsInertAndLeavesOtherTimersAlone() started.
+✔ Test doesNotFireWhenDisabled() passed after 2.675 seconds.
+✔ Test "one byte over 1 MiB closes the connection without a response" passed after 2.675 seconds.
+✔ Test "a hook that closes stdin early swallows EPIPE and exits once" passed after 2.675 seconds.
+◇ Test "malformed JSON is refused without a main-thread dispatch" started.
+◇ Test "a nonzero hook reports its status once" started.
+◇ Test disablingCancelsAPendingFire() started.
+ControlServer-Message: 03:32:34.851: control socket at /tmp/BFBBE2F8-3463-4E95-AB86-15D48BAF6F16/agterm.sock
+ControlServer-Message: 03:32:35.655: control socket at /tmp/96FA2B8E-839D-42AE-87DC-D86951E97E49/agterm.sock
+✔ Test "stop during an in-flight zmx call answers the client exactly once" passed after 2.271 seconds.
+✔ Test "preview-path readers see the live preview, and the persisted theme once it is cleared" passed after 2.271 seconds.
+✔ Test cancellingAfterTheFireIsInertAndLeavesOtherTimersAlone() passed after 2.271 seconds.
+✔ Suite AppControllerThemeSettingsTests passed after 19.410 seconds.
+✔ Test "a helper that drops after adoption ends its job unknown" passed after 2.271 seconds.
+◇ Test outOfRangeDelaysAreClampedInsteadOfTrapping() started.
+◇ Test "after stop no further worker step starts, and the reply resolves once" started.
+◇ Test "a cancel before adoption reaches the helper right after its context" started.
+ControlServer-Message: 03:32:35.863: control socket at /tmp/0A87B73D-0631-4619-B8B2-D211B1F74AB0/agterm.sock
+✔ Test "malformed JSON is refused without a main-thread dispatch" passed after 1.334 seconds.
+◇ Test "a decode failure names the rejected cmd, bounded and without the request body" started.
+✔ Test disablingCancelsAPendingFire() passed after 1.642 seconds.
+◇ Test stopCancelsAPendingFire() started.
+ControlServer-Message: 03:32:36.498: control socket at /tmp/881515B1-572C-45E5-B895-04643CC8A7A6/agterm.sock
+✔ Test outOfRangeDelaysAreClampedInsteadOfTrapping() passed after 1.343 seconds.
+✔ Suite GLibMainTimerTests passed after 20.754 seconds.
+✔ Test "after stop no further worker step starts, and the reply resolves once" passed after 1.343 seconds.
+✔ Test "a cancel before adoption reaches the helper right after its context" passed after 1.343 seconds.
+✔ Test "a nonzero hook reports its status once" passed after 2.356 seconds.
+◇ Test "a collected dispatch hands its stage to the worker; outside a dispatch it runs inline" started.
+◇ Test "malformed or origin-only frames close the helper stream" started.
+◇ Test "a launch failure throws and never reports an exit" started.
+◇ Test case passing 1 argument line → "not json
+" to "malformed or origin-only frames close the helper stream" started.
+ControlServer-Message: 03:32:37.208: control socket at /tmp/EE0F5D1A-F7A8-49A2-B805-10A230F45CF1/agterm.sock
+✔ Test "a decode failure names the rejected cmd, bounded and without the request body" passed after 1.397 seconds.
+◇ Test "a connection carries one request, and a fresh client is served after it" started.
+✔ Test stopCancelsAPendingFire() passed after 1.089 seconds.
+◇ Test doesNotFireWhileSuppressedAndFiresAfterResumeAndActivity() started.
+ControlServer-Message: 03:32:37.583: control socket at /tmp/0D4FAA9D-C72E-4E27-80FE-6B5F2F3881D1/agterm.sock
+✔ Test "a collected dispatch hands its stage to the worker; outside a dispatch it runs inline" passed after 0.581 seconds.
+◇ Test "a type waiting on the typing lock types nothing once stop has begun, and replies once" started.
+✔ Test "a launch failure throws and never reports an exit" passed after 0.786 seconds.
+◇ Test case passing 1 argument line → "{"kind":"bogus"}
+" to "malformed or origin-only frames close the helper stream" started.
+◇ Test "the hook sees the restored GDK environment, Linux PATH and event variables" started.
+ControlServer-Message: 03:32:37.994: control socket at /tmp/F230C970-0DF7-4F93-9F66-EB0A3463DC1D/agterm.sock
+✔ Test doesNotFireWhileSuppressedAndFiresAfterResumeAndActivity() passed after 1.562 seconds.
+✔ Test "a connection carries one request, and a fresh client is served after it" passed after 1.563 seconds.
+◇ Test aBlockThatLandsWhileAlreadyIdleIsFollowed() started.
+◇ Test "silent and drip-feeding clients do not starve a valid client" started.
+✔ Test "a type waiting on the typing lock types nothing once stop has begun, and replies once" passed after 1.356 seconds.
+◇ Test "a kill that completes after a swap closes the killed pane in its new role, never the other" started.
+ControlServer-Message: 03:32:39.146: control socket at /tmp/E9A85CFC-797D-44BC-8202-423D0373CC6E/agterm.sock
+◇ Test case passing 1 argument line → "{"kind":"cancel"}
+" to "malformed or origin-only frames close the helper stream" started.
+ControlServer-Message: 03:32:40.001: control socket at /tmp/56B9AC54-91D8-49CC-B428-E90C0E6F309E/agterm.sock
+✔ Test "the hook sees the restored GDK environment, Linux PATH and event variables" passed after 8.026 seconds.
+✔ Test aBlockThatLandsWhileAlreadyIdleIsFollowed() passed after 6.874 seconds.
+✔ Test "silent and drip-feeding clients do not starve a valid client" passed after 6.874 seconds.
+✔ Test "a kill that completes after a swap closes the killed pane in its new role, never the other" passed after 6.874 seconds.
+◇ Test "a kill that completes after its slot was replaced under the same pane id closes nothing" started.
+◇ Test "a drip-feeding client is closed at the request deadline; a slow complete request is still served" started.
+◇ Test "the stdin pipe is closed in agterm once the hook exits" started.
+◇ Test staysOnAnActiveCurrentOnlyUnderStayOnActive() started.
+ControlServer-Message: 03:32:46.021: control socket at /tmp/41DFC838-CFCF-4C23-B730-3D67DBD56FC7/agterm.sock
+◇ Test case passing 1 argument line → "{"kind":"context","context":{"cwd":"\/tmp","command":"true","environment":{"AGTERM_OVL_CMD":"true"}}}
+" to "malformed or origin-only frames close the helper stream" started.
+ControlServer-Message: 03:32:46.243: control socket at /tmp/136B1FB5-4C4C-4B24-BD30-F8C80C894899/agterm.sock
+✔ Test "a drip-feeding client is closed at the request deadline; a slow complete request is still served" passed after 2.320 seconds.
+✔ Test "a kill that completes after its slot was replaced under the same pane id closes nothing" passed after 2.320 seconds.
+◇ Test "stop ends the accept loop, and the same server can start and serve again" started.
+◇ Test "a kill that completes after its pane was closed closes nothing" started.
+✔ Test staysOnAnActiveCurrentOnlyUnderStayOnActive() passed after 2.630 seconds.
+◇ Test doesNotLeaveABlockedCurrentSession() started.
+ControlServer-Message: 03:32:48.651: control socket at /tmp/4F942364-36AA-4E96-A1A0-0EB78F6D2066/agterm.sock
+✔ Test "the stdin pipe is closed in agterm once the hook exits" passed after 2.836 seconds.
+✔ Test "malformed or origin-only frames close the helper stream" with 4 test cases passed after 11.650 seconds.
+✔ Suite "Linux hook launcher child I/O and completion" passed after 32.404 seconds.
+◇ Test "exited before started finishes once, and a duplicate exited changes nothing" started.
+ControlServer-Message: 03:32:48.858: control socket at /tmp/725BAC8D-B727-4B50-9BD3-762554A494F4/agterm.sock
+ControlServer-Message: 03:32:48.858: control socket at /tmp/725BAC8D-B727-4B50-9BD3-762554A494F4/agterm.sock
+✔ Test "stop ends the accept loop, and the same server can start and serve again" passed after 0.848 seconds.
+✔ Test doesNotLeaveABlockedCurrentSession() passed after 0.539 seconds.
+✔ Test "a kill that completes after its pane was closed closes nothing" passed after 0.848 seconds.
+◇ Test "a stale stop leaves a newer owner's socket alone" started.
+◇ Test aConsumedBlockIsNotFollowedAgainUntilItReentersBlocked() started.
+◇ Test "a delayed stale-socket or failed kill closes neither pane" started.
+ControlServer-Message: 03:32:49.191: control socket at /tmp/67F21172-098C-48F7-B574-2D0A6519BF74/agterm.sock
+✔ Test "exited before started finishes once, and a duplicate exited changes nothing" passed after 0.537 seconds.
+◇ Test "a valid exited behind a malformed line in the same write does not count" started.
+ControlServer-Message: 03:32:49.396: control socket at /tmp/3F2B9F1B-BAA7-49AF-8286-80F9FF4CC50C/agterm.sock
+ControlServer-Message: 03:32:49.396: control socket at /tmp/3F2B9F1B-BAA7-49AF-8286-80F9FF4CC50C/agterm.sock
+✔ Test aConsumedBlockIsNotFollowedAgainUntilItReentersBlocked() passed after 0.595 seconds.
+✔ Test "a delayed stale-socket or failed kill closes neither pane" passed after 0.595 seconds.
+✔ Suite LinuxAutoFollowCoordinatorTests passed after 33.330 seconds.
+✔ Suite "Linux control zmx calls stay off the main loop" passed after 33.333 seconds.
+✔ Test "a stale stop leaves a newer owner's socket alone" passed after 0.595 seconds.
+ControlServer-Message: 03:32:49.786: control socket at /tmp/24FBB983-12C2-4E66-92EE-E9C5A437DC12/agterm.sock
+◇ Test "a request the main loop never serves resolves after stop's grace" started.
+✔ Test "a valid exited behind a malformed line in the same write does not count" passed after 0.595 seconds.
+◇ Test "the start window expires a silent claim on the GLib timer, while a started job keeps running" started.
+✔ Test "a request the main loop never serves resolves after stop's grace" passed after 1.407 seconds.
+◇ Test "a reply the main loop delivers within the grace wins over shutdown" started.
+ControlServer-Message: 03:32:51.193: control socket at /tmp/375D9153-48AB-486B-AB75-4652A56808A5/agterm.sock
+✔ Test "the start window expires a silent claim on the GLib timer, while a started job keeps running" passed after 12.009 seconds.
+✔ Suite "Linux overlay-job helper connections" passed after 45.547 seconds.
+✔ Test "a reply the main loop delivers within the grace wins over shutdown" passed after 11.010 seconds.
+◇ Test "a main reply resolves exactly once whichever side finishes first" started.
+✔ Test "a main reply resolves exactly once whichever side finishes first" passed after 0.001 seconds.
+✔ Suite "Linux control socket framing and bounds" passed after 45.749 seconds.
+✔ Test run with 727 tests in 105 suites passed after 45.752 seconds.
