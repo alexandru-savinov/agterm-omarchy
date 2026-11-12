@@ -14,7 +14,13 @@ struct InlineRenameGTKTests {
     func activateAndReentrantLeaveCommitOnce(workspace: Bool) throws {
         try withEditor(workspace: workspace) { controller, entry, effects in
             effects.reenter = { controller.commitInlineRename(RAW(entry)) }
-            #expect(gtk_widget_activate(W(entry)) != 0)
+            let signal = g_signal_lookup("activate", gtk_entry_get_type())
+            try #require(signal != 0)
+            var instance = GValue()
+            g_value_init(&instance, gtk_entry_get_type())
+            g_value_set_object(&instance, RAW(entry))
+            defer { g_value_unset(&instance) }
+            g_signal_emitv(&instance, signal, 0, nil)
             pump(for: 0.1)
             #expect(effects.names == ["edited draft"])
             #expect(controller.renaming == nil)
@@ -128,6 +134,8 @@ struct InlineRenameGTKTests {
         defer {
             controller.onCommitRename = nil
             controller.onWorkspaceRename = nil
+            controller.cancelInlineRename()
+            pump(for: 0.05)
             store.workspaces = []
             controller.windowWillClose()
             gtk_window_destroy(WIN(controller.windowPointer))
@@ -143,8 +151,11 @@ struct InlineRenameGTKTests {
         let entry = try #require(controller.renameEntry)
         _ = g_object_ref(RAW(entry))
         defer { g_object_unref(RAW(entry)) }
-        try #require(gtk_widget_has_focus(W(entry)) != 0 || gtk_widget_is_ancestor(
-            gtk_window_get_focus(WIN(controller.windowPointer)), W(entry)) != 0)
+        try pumpUntil {
+            if gtk_widget_has_focus(W(entry)) != 0 { return true }
+            guard let focus = gtk_window_get_focus(WIN(controller.windowPointer)) else { return false }
+            return gtk_widget_is_ancestor(focus, W(entry)) != 0
+        }
         gtk_editable_set_text(entry, "edited draft")
         let effects = RenameEffects()
         defer { effects.reenter = nil }
@@ -164,6 +175,12 @@ struct InlineRenameGTKTests {
         while Date() < deadline {
             if g_main_context_iteration(nil, 0) == 0 { usleep(1_000) }
         }
+    }
+
+    private func pumpUntil(_ condition: () -> Bool) throws {
+        let deadline = Date().addingTimeInterval(3)
+        while !condition(), Date() < deadline { pump(for: 0.01) }
+        try #require(condition())
     }
 }
 
