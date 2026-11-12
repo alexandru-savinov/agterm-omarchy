@@ -43,7 +43,7 @@ jobs:
           {
             printf 'build_source=%s\nworkflow_source=%s\nworkflow_ref=%s\nrun=%s\nattempt=%s\n' \
               "$BUILD_SOURCE" "$WORKFLOW_SOURCE" "$WORKFLOW_REF" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
-            git rev-parse HEAD HEAD^{tree}
+            git rev-parse HEAD 'HEAD^{tree}'
             sw_vers
             uname -m
             xcodebuild -version
@@ -70,7 +70,7 @@ jobs:
           brew install xcodegen 2>&1 | tee validation-logs/prerequisites.log
           xcodegen --version | tee -a validation-logs/prerequisites.log
       - name: Cache pinned GhosttyKit and resources
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             GhosttyKit.xcframework
@@ -79,7 +79,7 @@ jobs:
             .ghostty-build-stamp
           key: mac296-macos26-${{ runner.arch }}-ghostty-${{ steps.revisions.outputs.ghostty }}-${{ hashFiles('scripts/setup.sh', 'scripts/ghostty-patches/*.patch') }}
       - name: Cache pinned zmx
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             agterm/Resources/zmx
