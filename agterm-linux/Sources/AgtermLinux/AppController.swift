@@ -177,6 +177,8 @@ final class AppController {
     var backgroundSettingsSource: guint = 0
     var confirmedClose = false                       // set once the quit-confirm is accepted
     var sessionSwitcher = SessionSwitcherModel()                                  // Ctrl-Tab hold-to-cycle state
+    var sessionSwitchReleaseGeneration: UInt64 = 0
+    var cancelSessionSwitchReleaseRecheck: (@MainActor () -> Void)?
     var heldControlKeys = HeldControlKeys()                      // which Ctrl keys are down (the commit signal)
     var contextMenuPopover: OpaquePointer?                       // live row context menu
     var popoverTookKeyboardFromSearchEntry = false               // set at popup: it took the keyboard from a live search
