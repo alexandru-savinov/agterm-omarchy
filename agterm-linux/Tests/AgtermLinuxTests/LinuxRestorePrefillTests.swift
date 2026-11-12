@@ -157,8 +157,15 @@ struct LinuxRestorePrefillTests {
                                              paneID: "fixture")
         let seed = LinuxRestoreSeed.wrappedSeed(config, replay: ["/bin/sh", "-c", "printf %s CREATION_BOUND_OK > \"$AGTERM_PREFILL_REPORT\""],
                                                 durable: "false", denylist: [], daemonRunning: false)
+        var invalidEnvironment = environment
+        invalidEnvironment["SHELL"] = "/does/not/exist"
+        let invalidConfig = ZmxSupport.Configuration(executablePath: zmx, environment: invalidEnvironment,
+                                                     daemonName: name, socketDirectory: config.socketDirectory, paneID: "fixture")
+        let failedSeed = LinuxRestoreSeed.wrappedSeed(invalidConfig, replay: ["printf", "FAILURE_MUST_NOT_RUN"],
+                                                      durable: nil, denylist: [], daemonRunning: false)
         let plan: [String: Any] = ["command": try #require(seed.command), "initialInput": seed.initialInput ?? "",
-                                   "environment": environment, "name": name, "root": directory.path, "zmx": zmx]
+                                   "environment": environment, "name": name, "root": directory.path, "zmx": zmx,
+                                   "failedCommand": try #require(failedSeed.command)]
         let path = directory.appendingPathComponent("plan.json")
         try JSONSerialization.data(withJSONObject: plan).write(to: path)
         let process = Process()

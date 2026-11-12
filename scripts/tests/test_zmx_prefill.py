@@ -143,14 +143,21 @@ def production_plan(path):
             RealZmxPrefillTests.close_client(*clients.pop())
 
     try:
+        inventory = subprocess.run([plan['zmx'], 'list'], env=env, capture_output=True, timeout=5)
+        assert inventory.returncode == 0, inventory.stderr
+        assert plan['name'].encode() not in inventory.stdout
         # A competing creator wins after the Swift plan captured an absent inventory.
         recorder = root / 'recorder.py'
-        recorder.write_text("import os,tty\ntty.setraw(0)\nos.write(1,b'RECORDER_READY')\n"
+        recorder.write_text("import os,tty,pathlib\ntty.setraw(0)\n"
+                            "pathlib.Path(" + repr(str(root / 'ready')) + ").touch()\n"
+                            "os.write(1,b'RECORDER_READY')\n"
                             "with open(" + repr(str(root / 'received')) + ", 'wb', buffering=0) as f:\n"
                             " while True: f.write(os.read(0,4096))\n")
-        first = spawn([plan['zmx'], 'attach', plan['name'], '/usr/bin/python3', str(recorder)])
-        ready = RealZmxPrefillTests.read_until(first, b'RECORDER_READY', 5)
-        assert b'RECORDER_READY' in ready, repr(ready)
+        spawn([plan['zmx'], 'attach', plan['name'], '/usr/bin/python3', str(recorder)])
+        deadline = time.monotonic() + 5
+        while not (root / 'ready').exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert (root / 'ready').exists(), 'competing recorder did not become ready'
         second = attach()
         assert b'RECORDER_READY' in RealZmxPrefillTests.read_until(second, b'RECORDER_READY', 5)
         RealZmxPrefillTests.read_until(second, b'IMPOSSIBLE_RECORDER_OUTPUT', 0.5)
@@ -163,20 +170,31 @@ def production_plan(path):
         fd = attach()
         before = RealZmxPrefillTests.read_until(fd, b'READY> ', 5)
         assert b'READY> ' in before, repr(before)
+        RealZmxPrefillTests.read_until(fd, b'IMPOSSIBLE_OUTPUT', 0.25)
         assert not (root / 'executed').exists(), 'capture executed before Enter'
         assert trace.read_text().splitlines() == ['.zshenv', '.zprofile', '.zshrc', '.zlogin']
         child_env = (root / 'startup.env').read_text()
         assert 'AGTERM_LIVE_PREFILL=' not in child_env, child_env
+        assert 'AGTERM_LIVE_INTEGRATION=' not in child_env, child_env
         os.write(fd, b'\r')
         deadline = time.monotonic() + 5
-        while not (root / 'executed').exists() and time.monotonic() < deadline:
+        while time.monotonic() < deadline:
+            if (root / 'executed').exists() and (root / 'executed').read_text() == 'CREATION_BOUND_OK':
+                break
             time.sleep(0.02)
         assert (root / 'executed').read_text() == 'CREATION_BOUND_OK'
         os.write(fd, b"printf '\\nCONTRACT:%s:%s:%s\\n' \"$PWD\" \"$ZDOTDIR\" \"${AGTERM_LIVE_PREFILL+present}\"\r")
-        contract = f"CONTRACT:{root / 'cwd with spaces'}:{root / 'z'}:".encode()
+        contract = f"CONTRACT:{root / 'cwd with spaces'}:{root / 'z'}:\r\n".encode()
         output = RealZmxPrefillTests.read_until(fd, contract, 5)
         assert contract in output, repr(output)
         print('PASS new shell: Enter required, startup order, cwd, ZDOTDIR, payload unexported/unset', flush=True)
+        cleanup()
+        trace.unlink()
+        failed = spawn(['/bin/sh', '-c', plan['failedCommand']])
+        error = RealZmxPrefillTests.read_until(failed, b'No such file', 5)
+        assert b'No such file' in error or b'FileNotFound' in error, repr(error)
+        assert not trace.exists(), 'failed shell creation ran user startup'
+        print('PASS failed shell creation: diagnostic observed, no user startup', flush=True)
     finally:
         cleanup()
 
