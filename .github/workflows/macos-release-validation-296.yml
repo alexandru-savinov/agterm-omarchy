@@ -153,7 +153,7 @@ jobs:
                   arch, code = command(label + '-arch', ['lipo', '-archs', str(image)])
                   if code == 0 and arch.strip() != b'arm64':
                       record['failures'].append(label + ': unexpected architecture')
-                  entitlements, code = command(label + '-entitlements', ['codesign', '-d', '--entitlements', '-', target])
+                  entitlements, code = command(label + '-entitlements', ['codesign', '-d', '--entitlements', '-', '--xml', target])
                   if code == 0:
                       try:
                           record['images'][label]['entitlements'] = check_entitlements(label, entitlements, expected if label == 'app' else {})
