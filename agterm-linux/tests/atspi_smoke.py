@@ -2954,70 +2954,6 @@ def verify_child_gdk_environment(env, expected_assignment=None):
         stop(process)
 
 
-LAUNCHER_CALLER_LIBRARY_PATH = "/opt/caller lib"
-
-
-def emulate_packaged_launcher(env, root):
-    """Hand the app what `bin/agterm-linux` exports: its overrides plus the AGTERM_ORIG_* record of the caller.
-
-    The caller had `LD_LIBRARY_PATH` but neither `LIBGL_ALWAYS_SOFTWARE` (which the runner sets, and the app
-    keeps, for its own software GL) nor `AGTERM_COMMIT`. The bundle directory does not exist, so the app's
-    own loading is unaffected. Returns the bundle path a pane must never see.
-    """
-    bundle_lib = os.path.join(root, "bundle", "lib")
-    env["LD_LIBRARY_PATH"] = f"{bundle_lib}:{LAUNCHER_CALLER_LIBRARY_PATH}"
-    env["AGTERM_ORIG_LD_LIBRARY_PATH"] = LAUNCHER_CALLER_LIBRARY_PATH
-    env["AGTERM_COMMIT"] = "atspi-launcher-fixture"
-    env["AGTERM_ORIG_UNSET"] = "AGTERM_COMMIT LIBGL_ALWAYS_SOFTWARE"
-    env["AGTERM_ORIG_SET"] = "1"
-    return bundle_lib
-
-
-def verify_child_launcher_environment(env, bundle_lib):
-    """A pane's shell sees the caller's launcher-overridden values, never the bundle's (issue #270).
-
-    libghostty builds a pane's environment from its snapshot of agterm's environ, so without the restore
-    merged in GhosttySurface.init a `swift build` in a pane would load the bundled runtime and every GL
-    program would be forced to software. libghostty's surface env can only set keys, so a variable the
-    caller never had arrives empty rather than absent; `${VAR:-}` reads both the same way.
-    """
-    readback = os.path.join(env["AGTERM_STATE_DIR"], "launcher-child-env.txt")
-    names = ("LD_LIBRARY_PATH", "LIBGL_ALWAYS_SOFTWARE", "AGTERM_COMMIT",
-             "AGTERM_ORIG_UNSET", "AGTERM_ORIG_LD_LIBRARY_PATH")
-    command = (
-        "printf 'launcher" + "[%s]" * len(names) + "end\\n' "
-        + " ".join(f'"${{{name}:-}}"' for name in names)
-        + f' > "{readback}"\n'
-    )
-    process, app = launch(env)
-    try:
-        tree = control_json(env, "tree", "--json")["result"]["tree"]
-        session_id = tree["workspaces"][0]["sessions"][0]["id"]
-        window_id = next(item["id"] for item in window_list(env) if item["open"])
-        text = None
-        # Re-type until the login shell has a prompt to take the line, as verify_child_gdk_environment does.
-        for _ in range(12):
-            control_json(env, "session", "type", command, "--target", session_id,
-                         "--window", window_id, "--json")
-            time.sleep(1.0)
-            if os.path.exists(readback):
-                with open(readback, encoding="utf-8", errors="replace") as source:
-                    text = source.read()
-                if "end" in text:
-                    break
-        assert text and "end" in text, "the session shell never wrote its launcher environment back"
-        assert bundle_lib not in text, f"pane inherited the bundle library path: {text.strip()!r}"
-        expected = f"launcher[{LAUNCHER_CALLER_LIBRARY_PATH}][][][][]end"
-        assert expected in text, (
-            f"pane did not see the caller's own environment: expected {expected!r}, got {text.strip()!r}"
-        )
-        assert process.poll() is None, "the launcher-environment check terminated the application"
-        print("OK: a pane sees the caller's LD_LIBRARY_PATH and renderer, not the launcher's overrides")
-    except AssertionError:
-        describe_tree(app)
-        raise
-    finally:
-        stop(process)
 
 
 def verify_notification_focus_policy(env):
@@ -3169,6 +3105,27 @@ def verify_notification_banner_round_trip(env):
         stop(process)
 
 
+def dismiss_toast(window, message):
+    assert window is not None, "toast owner window is missing"
+    toast_label = named(window, message, role="label")
+    if toast_label is not None:
+        toast_container = toast_label.get_parent()
+        while toast_container is not None and toast_container != window:
+            buttons = [button for button in collect(toast_container, role="push button")
+                       if button.get_state_set().contains(Atspi.StateType.SHOWING)]
+            if buttons:
+                labels = collect(toast_container, role="label")
+                assert len(buttons) == 1 and labels == [toast_label], (
+                    f"toast dismiss control is not uniquely scoped: {message}"
+                )
+                activate(buttons[0])
+                break
+            toast_container = toast_container.get_parent()
+        else:
+            raise AssertionError(f"toast dismiss control is missing: {message}")
+    wait_for(lambda: not named(window, message), f"toast did not dismiss: {message}")
+
+
 def verify_custom_command_failures(env):
     config = os.path.join(env["AGTERM_STATE_DIR"], "config")
     os.makedirs(config)
@@ -3232,9 +3189,13 @@ def verify_custom_command_failures(env):
         )
         assert command_hud().get("detail") == "failure-detail", command_hud()
         assert command_hud().get("position") == "top-right", command_hud()
+        hud_toast_message = "command failed (exit 71): HUD Failure"
+        wait_for(lambda: named(frame("command-origin-a"), hud_toast_message, role="label"),
+                 "HUD failure companion toast did not appear")
         control_json(env, "session", "hud", "close", "--target", first_session,
                      "--window", first_window, "--json")
-        time.sleep(0.5)
+        wait_for(lambda: not command_hud(), "custom-command HUD did not close")
+        dismiss_toast(frame("command-origin-a"), hud_toast_message)
         shutil.rmtree(first_cwd)
         shutil.rmtree(second_cwd)
         exit_titles = {}
@@ -3244,13 +3205,14 @@ def verify_custom_command_failures(env):
         ):
             run_palette_action(app, process.pid, title, "Launch Failure", badge="custom")
             launch_prefix = "command failed to launch: Launch Failure —"
-            wait_for(
+            launch_toast = wait_for(
                 lambda: named_prefix(frame(title), launch_prefix),
                 f"launch failure toast did not appear in {title}",
             )
             assert not named_prefix(frame(other_title), launch_prefix), (
                 f"launch failure from {title} leaked into {other_title}"
             )
+            dismiss_toast(frame(title), launch_toast.get_name())
 
             suffix = "a" if window_id == first_window else "b"
             exit_title = f"command-exit-{suffix}"
@@ -3269,6 +3231,7 @@ def verify_custom_command_failures(env):
             assert not named(frame(other_title), exit_message), (
                 f"non-zero failure from {exit_title} leaked into {other_title}"
             )
+            dismiss_toast(frame(exit_title), exit_message)
 
         run_palette_action(app, process.pid, exit_titles[first_window], "Slow Failure", badge="custom")
         control_json(env, "window", "close", first_window, "--json")
@@ -3763,7 +3726,7 @@ def verify_surface_configuration_lifetimes(env):
     with open(runner, "w", encoding="utf-8") as target:
         target.write(
             "#!/bin/sh\n"
-            "printf '%s\\n' \"$PWD\" > \"$1\"\n"
+            "printf '%s\\n' \"$PWD\" > \"$1.tmp\" && mv \"$1.tmp\" \"$1\"\n"
             "sleep 0.4\n"
         )
     os.chmod(runner, 0o755)
@@ -3815,7 +3778,10 @@ def verify_surface_configuration_lifetimes(env):
         )
         wait_for(lambda: os.path.exists(command_marker), "session --command did not run")
         with open(command_marker, encoding="utf-8") as source:
-            assert source.read().strip() == command_cwd
+            observed_cwd = source.read().strip()
+            assert observed_cwd == command_cwd, (
+                f"session command cwd: expected {command_cwd!r}, observed {observed_cwd!r}"
+            )
 
         # --size-percent makes this the FLOATING overlay: a framed card added to the deck overlay and
         # clipped to its rounded corners (GTK_OVERFLOW_HIDDEN in syncOverlay). --follow selects the
@@ -3835,7 +3801,10 @@ def verify_surface_configuration_lifetimes(env):
         )
         wait_for(lambda: os.path.exists(overlay_marker), "overlay command did not run")
         with open(overlay_marker, encoding="utf-8") as source:
-            assert source.read().strip() == overlay_cwd
+            observed_cwd = source.read().strip()
+            assert observed_cwd == overlay_cwd, (
+                f"floating overlay cwd: expected {overlay_cwd!r}, observed {observed_cwd!r}"
+            )
 
         # The floating card is one of TWO overlay shapes, and this scenario is the suite's only
         # `session overlay open`, so the un-sized DEFAULT shape has to run here as well or it has no
@@ -3858,7 +3827,10 @@ def verify_surface_configuration_lifetimes(env):
         )
         wait_for(lambda: os.path.exists(full_overlay_marker), "full-pane overlay command did not run")
         with open(full_overlay_marker, encoding="utf-8") as source:
-            assert source.read().strip() == overlay_cwd
+            observed_cwd = source.read().strip()
+            assert observed_cwd == overlay_cwd, (
+                f"full-pane overlay cwd: expected {overlay_cwd!r}, observed {observed_cwd!r}"
+            )
         wait_for(lambda: not overlay_open(), "full-pane overlay stayed open after its command exited")
     finally:
         stop(process)
@@ -3891,7 +3863,10 @@ def verify_surface_configuration_lifetimes(env):
             "restored foreground command was not pre-filled through initial input",
         )
         with open(restore_marker, encoding="utf-8") as source:
-            assert source.read().strip() == initial["cwd"]
+            observed_cwd = source.read().strip()
+            assert observed_cwd == initial["cwd"], (
+                f"restored command cwd: expected {initial['cwd']!r}, observed {observed_cwd!r}"
+            )
         wait_for(
             lambda: os.path.exists(url_callback_marker),
             "runtime URL action did not reach the Linux launch boundary",
@@ -4753,6 +4728,32 @@ def verify_sidebar_incremental(env):
                  "session.flag never added the star image to the inc-two row IN PLACE")
         survived("a session.flag toggle")
 
+        def edit_draft(row, draft):
+            entry = wait_for(lambda: editable_descendant(row), "inline editor did not appear")
+            type_x11_text(draft, process.pid)
+            wait_for(lambda: Atspi.Text.get_text(entry, 0, Atspi.Text.get_character_count(entry)) == draft,
+                     "physical draft typing did not reach the editor")
+            subprocess.run(["xdotool", "key", "--clearmodifiers", "Home", "Right", "Right", "Right"], check=True)
+            wait_for(lambda: entry.get_text_iface().get_caret_offset() == 3,
+                     "the draft caret did not move to its measured interior position")
+            return entry
+
+        def assert_edit_survives(row, entry, draft):
+            assert sidebar_accessible_live(entry) and editable_descendant(row) == entry, (
+                "metadata synchronization replaced the captured editor")
+            assert Atspi.Text.get_text(entry, 0, Atspi.Text.get_character_count(entry)) == draft, (
+                "metadata synchronization replaced edited text")
+            assert entry.get_text_iface().get_caret_offset() == 3, "metadata synchronization moved the caret"
+            # This physical insertion is the focus oracle: neither a label nor the terminal can satisfy it.
+            type_x11_text("X", process.pid)
+            expected = draft[:3] + "X" + draft[3:]
+            wait_for(lambda: Atspi.Text.get_text(entry, 0, Atspi.Text.get_character_count(entry)) == expected,
+                     "post-metadata keyboard input did not reach the preserved editor/caret")
+
+        def replace_draft(text):
+            subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+a"], check=True)
+            type_x11_text(text, process.pid)
+
         # The inline rename is the one per-row structural edit: the name label is swapped for an
         # entry inside the SAME row, survives unrelated churn, and swaps back on commit.
         row_dy = calibrate_row_click(app, process.pid, label["two"])
@@ -4760,12 +4761,15 @@ def verify_sidebar_incremental(env):
                     button="left", count=2, dy=row_dy)
         wait_for(lambda: editable_descendant(rows["two"]),
                  "double-clicking the inc-two name did not open an inline rename entry in its row")
+        session_entry = edit_draft(rows["two"], "session-draft")
         control_json(env, "session", "status", "blocked", "--target", ident["three"], "--json")
         wait_for(lambda: glyphed("three"),
                  "a status on another session never reached its row while a rename was in flight")
-        assert editable_descendant(rows["two"]) is not None, (
-            "an unrelated session.status destroyed the in-flight inline rename entry")
-        type_x11_text("inc-renamed", process.pid)
+        control_json(env, "session", "status", "idle", "--target", ident["two"], "--json")
+        wait_for(lambda: not glyphed("two"), "the editing session's status did not reach its row")
+        assert_edit_survives(rows["two"], session_entry, "session-draft")
+        assert label["two"] in names(), "metadata churn committed an unfinished session draft"
+        replace_draft("inc-renamed")
         press_return(process.pid)
         wait_for(lambda: "inc-renamed" in names(), "the inline rename never committed to the model")
         wait_for(lambda: sidebar_accessible_live(rows["two"], "inc-renamed"),
@@ -4786,7 +4790,13 @@ def verify_sidebar_incremental(env):
                          "a missed header double-click collapsed the workspace for good")
         assert editable_descendant(header) is not None, (
             "double-clicking the workspace name never opened its inline rename entry")
-        type_x11_text("inc-workspace", process.pid)
+        workspace_entry = edit_draft(header, "workspace-draft")
+        original_workspace_name = workspace()["name"]
+        control_json(env, "session", "status", "idle", "--target", ident["three"], "--json")
+        wait_for(lambda: not glyphed("three"), "metadata churn did not clear the child's status")
+        assert_edit_survives(header, workspace_entry, "workspace-draft")
+        assert workspace()["name"] == original_workspace_name, "metadata churn committed an unfinished workspace draft"
+        replace_draft("inc-workspace")
         press_return(process.pid)
         wait_for(lambda: workspace()["name"] == "inc-workspace",
                  "the workspace rename never committed to the model")
@@ -4911,6 +4921,80 @@ def verify_sidebar_incremental(env):
         wait_for(lambda: sidebar_row_name_order(app)
                  == [label[key] for key in ("one", "two", "three")],
                  "switching back to tree mode did not restore the rows")
+
+        def session_name(session_id):
+            return next((session["name"] for section in window_tree(env, window_id)["workspaces"]
+                         for session in section["sessions"] if session["id"] == session_id), None)
+
+        def begin_session_draft(session_id, draft):
+            name = session_name(session_id)
+            row = wait_for(lambda: sidebar_session_row(app, name), f"row {name} did not appear")
+            response = control_json(env, "session", "select", "--target", session_id, "--json")
+            assert response["ok"], response
+            run_palette_action(app, process.pid, None, "Rename Session")
+            return edit_draft(row, draft)
+
+        def begin_workspace_draft(target, name, draft):
+            header = wait_for(lambda: named(app, name, role="label"), "workspace header missing").get_parent()
+            for dy in ABSOLUTE_DYS:
+                mouse_click(lambda: named(app, name, role="label"), process.pid,
+                            button="left", count=2, dy=dy)
+                if poll(lambda: editable_descendant(header) is not None, timeout=2):
+                    break
+                response = control_json(env, "workspace", "expand", "--target", target, "--json")
+                assert response["ok"], response
+            return header, edit_draft(header, draft)
+
+        # A session row move reparents the row, so detachGuard must commit while its entry is valid.
+        moved_entry = begin_session_draft(ident["two"], "move-committed")
+        response = control_json(env, "session", "move", "--to", "top", "--target", ident["two"], "--json")
+        assert response["ok"], response
+        wait_for(lambda: session_name(ident["two"]) == "move-committed", "moving an edited row lost its draft")
+        wait_for(lambda: not sidebar_accessible_live(moved_entry), "the moved row retained its stale editor")
+        control_json(env, "session", "rename", "after-move", "--target", ident["two"], "--json")
+        time.sleep(NEGATIVE_SETTLE_SECONDS)
+        assert session_name(ident["two"]) == "after-move", "a late rename callback overwrote the later name"
+
+        hidden_entry = begin_session_draft(ident["two"], "hide-committed")
+        control_json(env, "workspace", "collapse", "--target", workspace_id, "--json")
+        wait_for(lambda: session_name(ident["two"]) == "hide-committed", "hiding an edited row lost its draft")
+        control_json(env, "workspace", "expand", "--target", workspace_id, "--json")
+        wait_for(lambda: sidebar_session_row(app, "hide-committed"), "expanded row lost its committed name")
+        wait_for(lambda: not sidebar_accessible_live(hidden_entry), "expansion revived the hidden editor")
+
+        removed_entry = begin_session_draft(ident["three"], "removed-session-draft")
+        response = control_json(env, "session", "close", "--target", ident["three"], "--json")
+        assert response["ok"], response
+        wait_for(lambda: session_name(ident["three"]) is None, "the edited session did not close")
+        wait_for(lambda: not sidebar_accessible_live(removed_entry), "the removed session retained its editor")
+
+        # Workspace reordering is an in-place GtkBox reorder, unlike session-row reparenting.
+        created = control_json(env, "workspace", "new", "rename-victim", "--json")
+        assert created["ok"], created
+        victim = created["result"]["id"]
+        moving_header, workspace_draft = begin_workspace_draft(
+            workspace_id, "inc-workspace", "reorder-workspace-draft")
+        control_json(env, "workspace", "move", "--to", "bottom", "--target", workspace_id, "--json")
+        wait_for(lambda: window_tree(env, window_id)["workspaces"][-1]["id"] == workspace_id,
+                 "workspace reorder did not occur")
+        assert_edit_survives(moving_header, workspace_draft, "reorder-workspace-draft")
+        press_escape(process.pid)
+        wait_for(lambda: not sidebar_accessible_live(workspace_draft), "Escape left the reordered editor alive")
+
+        _, victim_entry = begin_workspace_draft(victim, "rename-victim", "removed-workspace-draft")
+        response = control_json(env, "workspace", "delete", "--target", victim, "--json")
+        assert response["ok"], response
+        wait_for(lambda: not sidebar_accessible_live(victim_entry), "deleted workspace retained its editor")
+        control_json(env, "session", "rename", "after-removal", "--target", ident["two"], "--json")
+        time.sleep(NEGATIVE_SETTLE_SECONDS)
+        assert all(section["id"] != victim for section in window_tree(env, window_id)["workspaces"]), (
+            "a stale rename resurrected the removed workspace")
+        assert session_name(ident["three"]) is None, "a stale rename resurrected the removed session"
+        assert session_name(ident["two"]) == "after-removal", "a stale callback overwrote the surviving row"
+        # Same-value model renames are idempotent: this proves single visible outcomes/no late overwrite,
+        # not an internal callback invocation count.
+        print("OK: session/workspace drafts retain entry, text, caret and input across metadata; "
+              "row move/hide commits, workspace reorder preserves editing, removals leave no late overwrite")
 
         print("OK: sidebar rows and headers update in place across status, name, badge, flag, "
               "rename, reorder, collapse (which declines an unreachable rename) and an auto-reset click "
@@ -5498,6 +5582,28 @@ def verify_sidebar_width_floor(env):
             control_json(env, "window", "resize", window_id,
                          "--width", str(width), "--height", "700", "--json")
 
+        def hide_show_at_allocation(expected, label):
+            before = wait_for(lambda: sidebar_column_settled(
+                app, lambda width: abs(width - expected) <= SIDEBAR_EDGE_SLACK),
+                f"{label}: sidebar did not settle before hide")
+            frame_before = sidebar_window_frame_width(app)
+            control_json(env, "sidebar", "hide", "--json")
+            wait_for(lambda: not window_tree(env, window_id).get("sidebarVisible"),
+                     f"{label}: sidebar did not hide")
+            control_json(env, "sidebar", "show", "--json")
+            wait_for(lambda: window_tree(env, window_id).get("sidebarVisible"),
+                     f"{label}: sidebar did not show")
+            after = wait_for(lambda: sidebar_column_settled(
+                app, lambda width: abs(width - expected) <= SIDEBAR_EDGE_SLACK),
+                f"{label}: hide/show lost the prior {expected}px allocation")
+            frame_after = sidebar_window_frame_width(app)
+            assert frame_before is not None and frame_after is not None
+            assert abs(frame_after - frame_before) <= SIDEBAR_EDGE_SLACK, (
+                f"{label}: hide/show resized the window from {frame_before} to {frame_after}px")
+            print(f"measured: {label} hide/show requested={SIDEBAR_REQUESTED_WIDTH} "
+                  f"allocated={before}->{after} frame={frame_before}->{frame_after}; "
+                  "persisted width checked after quit")
+
         wide_window = wait_for(lambda: sidebar_window_frame_width(app),
                                "the window frame never reported an allocation")
         resize(360)
@@ -5526,12 +5632,14 @@ def verify_sidebar_width_floor(env):
                 "GtkPaned's `max-position`, so it re-asserts the over-wide position from inside GtkPaned's"
                 " own `size_allocate`, where GTK does not re-clamp it, and the sidebar overhangs the "
                 "window", timeout=8)
+            hide_show_at_allocation(capped, "narrow")
             resize(1100)
             wait_for(lambda: sidebar_column_settled(app, at_request),
                      f"the sidebar stayed at the narrow window's {capped}px cap after the window "
                      f"widened again instead of returning to its {SIDEBAR_REQUESTED_WIDTH}px request — "
                      "`notify::position` does not fire for a widening, so `notify::max-position` is the "
                      "only signal that can pull the divider back up")
+            hide_show_at_allocation(SIDEBAR_REQUESTED_WIDTH, "wide")
     except AssertionError:
         describe_tree(app)
         raise
@@ -7564,7 +7672,7 @@ def main():
     scenario = os.environ.get("AGTERM_ATSPI_SCENARIO")
     if scenario is None:
         failures = []
-        for child_scenario in (
+        scenarios = (
             "normal", "upstream-controls", "html-overlay", "live-restart", "dashboard-modal", "context-menu",
             "window-key-dispatch",
             "split-exit", "split-primary-exit", "window-ownership", "preferences-pages",
@@ -7575,7 +7683,7 @@ def main():
             "child-gdk-env-inverted", "child-launcher-env",
             "custom-command-failures", "remote-presentation", "control-hooks",
             "surface-lifetimes", "surface-failures",
-            "background-overlay-grid", "zoom-floating-overlay",
+            "background-overlay-grid", "zoom-floating-overlay", "pane-dimming-pixels",
             "sidebar-row-height",
             "sidebar-search-focus",
             "sidebar-narrow-clipping",
@@ -7585,15 +7693,25 @@ def main():
             "sidebar-multiselect",
             "blink-unmapped",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
-            "window-close-cancel", "workspace-focus-filters", "quick-card-geometry",
+            "window-close-cancel", "workspace-focus-filters", "quick-card-geometry", "clipboard-payloads",
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-picker-cancel", "appearance-reset", "unavailable-font-family", "keymap-config-directory",
             "chrome-interface-controls",
-            "theme-many-sessions",
+            "theme-many-sessions", "clipboard-lifetime",
             "zoom-split-ratio", "zoom-preference-changes", "zoom-primary-promotion",
             "dashboard-font-restore", "dashboard-delayed-clicks",
             "cursor-preferences",
-        ):
+            "appearance-follow",
+        )
+        try:
+            shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
+            shard_index = int(os.environ.get("AGTERM_ATSPI_SHARD_INDEX", "0"))
+            if not 0 <= shard_index < shard_count <= len(scenarios):
+                raise ValueError("require 0 <= shard index < shard count <= scenario count")
+        except ValueError as error:
+            print(f"FAIL: invalid AT-SPI shard configuration: {error}")
+            return 2
+        for child_scenario in scenarios[shard_index::shard_count]:
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             result = subprocess.run([sys.executable, __file__], env=child_env)
             if result.returncode != 0:
@@ -7641,7 +7759,6 @@ def main():
         assert "all" in normalized_tokens
         assert not normalized_tokens.intersection(required)
         inverted_assignment = f"agterm: setting {variable}={normalized}"
-    launcher_bundle_lib = emulate_packaged_launcher(env, root) if scenario == "child-launcher-env" else None
     if scenario in ("preferences-pages", "auto-follow"):
         # Page inspection and auto-follow need an already-mapped modal while another process owns focus.
         env["AGTERM_ATSPI_OPEN_PREFERENCES"] = "general"
@@ -7686,7 +7803,8 @@ def main():
         elif scenario == "child-gdk-env-inverted":
             verify_child_gdk_environment(env, inverted_assignment)
         elif scenario == "child-launcher-env":
-            verify_child_launcher_environment(env, launcher_bundle_lib)
+            from atspi_launcher_environment import verify_exact_launcher_environment
+            verify_exact_launcher_environment(env)
         elif scenario == "notification-banner":
             verify_notification_banner_round_trip(env)
         elif scenario == "custom-command-failures":
@@ -7743,9 +7861,15 @@ def main():
         elif scenario == "workspace-focus-filters":
             from atspi_window_lifecycle import verify_workspace_focus_filters
             verify_workspace_focus_filters(env)
+        elif scenario == "clipboard-payloads":
+            from atspi_clipboard_payloads import verify_clipboard_payloads
+            verify_clipboard_payloads(env, state)
         elif scenario == "quick-card-geometry":
             from atspi_window_lifecycle import verify_quick_card_geometry
             verify_quick_card_geometry(env, state)
+        elif scenario == "pane-dimming-pixels":
+            from atspi_pane_dimming import verify_pane_dimming
+            verify_pane_dimming(env, state)
         elif scenario == "recent-clear":
             verify_recent_clear(env)
         elif scenario == "control-picker":
@@ -7792,6 +7916,9 @@ def main():
         elif scenario == "theme-many-sessions":
             from atspi_theme_many_sessions import verify_theme_many_sessions
             verify_theme_many_sessions(env)
+        elif scenario == "clipboard-lifetime":
+            from atspi_clipboard_lifetime import verify_clipboard_lifetime
+            verify_clipboard_lifetime(env)
         elif scenario == "zoom-split-ratio":
             from atspi_zoom_ratio import verify_zoom_split_ratio
             verify_zoom_split_ratio(env)
@@ -7810,6 +7937,9 @@ def main():
         elif scenario == "cursor-preferences":
             from atspi_cursor_preferences import verify_cursor_preferences
             verify_cursor_preferences(env)
+        elif scenario == "appearance-follow":
+            from atspi_appearance_follow import verify_appearance_follow
+            verify_appearance_follow(env)
         elif scenario == "blink-unmapped":
             from atspi_blink_unmapped import verify_blink_unmapped
             verify_blink_unmapped(env)

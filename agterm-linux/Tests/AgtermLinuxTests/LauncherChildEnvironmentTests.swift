@@ -139,13 +139,29 @@ struct LauncherChildEnvironmentTests {
         #expect(copied == ["LD_LIBRARY_PATH": "/home/u/lib", "AGTERM_SOCKET": "/run/user/1/agterm.sock",
                            "PATH": "/usr/bin", "GDK_DISABLE": ""])
 
-        // libghostty puts these pairs over its own environ snapshot and cannot unset: absence is `""`,
-        // and the caller's own per-pane keys still win.
+        // Explicit values and deletions travel separately; per-pane keys still win.
         let surface = captured.childEnvironment(merging: ["AGTERM_PANE_ID": "p", "AGTERM_VERSION": "pane"])
         #expect(surface == [
-            "LD_LIBRARY_PATH": "/home/u/lib", "LIBGL_ALWAYS_SOFTWARE": "", "AGTERM_ZMX_PATH": "",
-            "AGTERM_VERSION": "pane", "AGTERM_ORIG_LD_LIBRARY_PATH": "", "AGTERM_ORIG_UNSET": "",
-            "AGTERM_ORIG_SET": "", "GDK_DISABLE": "", "AGTERM_PANE_ID": "p",
+            "LD_LIBRARY_PATH": "/home/u/lib", "AGTERM_VERSION": "pane", "GDK_DISABLE": "", "AGTERM_PANE_ID": "p",
         ])
+        #expect(captured.childEnvironmentUnsets(merging: ["AGTERM_VERSION": "pane"]) ==
+                ["AGTERM_ORIG_LD_LIBRARY_PATH", "AGTERM_ORIG_SET", "AGTERM_ORIG_UNSET",
+                 "AGTERM_ZMX_PATH", "LIBGL_ALWAYS_SOFTWARE"])
+    }
+
+    @Test("surface restoration distinguishes absent, empty, and explicit caller overrides")
+    func surfaceAbsenceAndEmptyAreDistinct() {
+        let captured = LinuxGdkPolicy.PreLaunchEnvironment(gtkMajor: 4, gtkMinor: 12, environment: [
+            "AGTERM_ORIG_SET": "1", "AGTERM_ORIG_UNSET": "LIBGL_ALWAYS_SOFTWARE",
+            "AGTERM_ORIG_LD_LIBRARY_PATH": "", "LD_LIBRARY_PATH": "/bundle/lib",
+        ])
+        #expect(captured.childEnvironment(merging: [:]) == ["LD_LIBRARY_PATH": ""])
+        #expect(captured.childEnvironmentUnsets(merging: [:]).contains("LIBGL_ALWAYS_SOFTWARE"))
+        #expect(!captured.childEnvironmentUnsets(merging: [:]).contains("LD_LIBRARY_PATH"))
+        #expect(!captured.childEnvironmentUnsets(merging: ["LIBGL_ALWAYS_SOFTWARE": ""])
+            .contains("LIBGL_ALWAYS_SOFTWARE"))
+        #expect(captured.childEnvironment(merging: ["LIBGL_ALWAYS_SOFTWARE": ""]) ==
+                ["LD_LIBRARY_PATH": "", "LIBGL_ALWAYS_SOFTWARE": ""])
+        #expect(captured.childEnvironment(merging: ["LD_LIBRARY_PATH": "/caller/lib"])["LD_LIBRARY_PATH"] == "/caller/lib")
     }
 }

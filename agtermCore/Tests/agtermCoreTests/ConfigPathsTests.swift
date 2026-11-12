@@ -165,9 +165,8 @@ struct ConfigPathsTests {
 
     // MARK: - Cross-shell behavioral tests
     //
-    // These run the command exactly as libghostty does (`/bin/sh -c "<cmd>"`). The `vi` fallback is
-    // deliberately not exercised behaviorally: a login shell's path_helper reorders PATH so the real,
-    // tty-blocking `/usr/bin/vi` would win over a fake one. The golden test above pins it literally instead.
+    // These run the command exactly as libghostty does (`/bin/sh -c "<cmd>"`), with private recorder
+    // editors. The golden test above pins the `vi` fallback literally.
 
     /// Writes an executable recorder at `<dir>/<name>` that records its first argument to `<dir>/<name>.got`,
     /// returning the script path and the marker URL.
@@ -186,8 +185,8 @@ struct ConfigPathsTests {
     }
 
     /// Runs `editorCommand(forPath:)` under `/bin/sh -c` with `overrides` merged onto the process env;
-    /// EDITOR/VISUAL are cleared first (so only `overrides` set them) and the login-shell rc is isolated to
-    /// `tmp` via HOME/ZDOTDIR/XDG_CONFIG_HOME. Returns the exit status; a nil value in `overrides` removes a key.
+    /// EDITOR/VISUAL are cleared first (so only `overrides` set them). Private zsh startup restores these
+    /// inputs after global zshenv and keeps private login/interactive rc files active. A nil override removes a key.
     @discardableResult
     private func runEditorCommand(forPath path: String, tmp: URL, env overrides: [String: String?]) throws -> Int32 {
         let proc = Process()
@@ -202,6 +201,23 @@ struct ConfigPathsTests {
         for (key, value) in overrides {
             if let value { env[key] = value } else { env.removeValue(forKey: key) }
         }
+        // A private HOME/ZDOTDIR cannot prevent /etc/zshenv from replacing inherited editor settings.
+        // Restore fixture inputs from the environment, not literal expected recorder paths. Leave RCS
+        // enabled so the rc-only test still depends on the real interactive shell reading .zshrc.
+        var startup = ["unsetopt GLOBAL_RCS"]
+        for key in ["EDITOR", "VISUAL", "PATH"] {
+            let fixtureKey = "AGTERM_TEST_\(key)"
+            env[fixtureKey] = env[key]
+            startup.append("""
+            if (( ${+\(fixtureKey)} )); then
+                export \(key)="$\(fixtureKey)"
+            else
+                unset \(key)
+            fi
+            """)
+        }
+        try (startup.joined(separator: "\n") + "\n")
+            .write(to: tmp.appendingPathComponent(".zshenv"), atomically: true, encoding: .utf8)
         proc.environment = env
         try proc.run()
         proc.waitUntilExit()

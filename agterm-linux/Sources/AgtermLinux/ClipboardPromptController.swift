@@ -19,9 +19,22 @@ final class ClipboardPromptController {
         var waiters: [(Bool) -> Void]
     }
 
+    @MainActor
     final class ResponseContext {
         let key: PromptKey
-        init(key: PromptKey) { self.key = key }
+        private let controller: ClipboardPromptController
+        private var resolved = false
+
+        init(key: PromptKey, controller: ClipboardPromptController) {
+            self.key = key
+            self.controller = controller
+        }
+
+        func resolve(_ response: String) {
+            guard !resolved else { return }
+            resolved = true
+            controller.resolve(key, response: response)
+        }
     }
 
     private var policy = ClipboardPromptPolicy()
@@ -62,21 +75,26 @@ final class ClipboardPromptController {
         "allow".withCString { adw_alert_dialog_set_response_appearance(cast(dialog), $0, ADW_RESPONSE_SUGGESTED) }
         "always-deny".withCString { adw_alert_dialog_set_response_appearance(cast(dialog), $0, ADW_RESPONSE_DESTRUCTIVE) }
         "deny".withCString { adw_alert_dialog_set_close_response(cast(dialog), $0) }
-        let ctx = Unmanaged.passRetained(ResponseContext(key: key)).toOpaque()
-        connect(dialog, "response",
-                unsafeBitCast(onClipboardPromptResponse as @convention(c) (OpaquePointer?, UnsafePointer<CChar>?, gpointer?) -> Void,
-                              to: GCallback.self),
-                ctx)
+        connectResponse(dialog, context: ResponseContext(key: key, controller: .shared))
         adw_dialog_present(cast(dialog), W(window(for: requester)))
     }
 
+    static func connectResponse(_ dialog: OpaquePointer?, context: ResponseContext) {
+        let ctx = Unmanaged.passRetained(context).toOpaque()
+        "response".withCString {
+            _ = g_signal_connect_data(RAW(dialog), $0,
+                unsafeBitCast(onClipboardPromptResponse, to: GCallback.self), ctx,
+                onClipboardPromptDestroyed, GConnectFlags(rawValue: 0))
+        }
+    }
+
     func resolve(_ key: PromptKey, response: String) {
+        guard let entry = pending.removeValue(forKey: key) else { return }
         let allowed = response == "allow" || response == "always-allow"
         if response == "always-allow" || response == "always-deny" {
             policy.remember(key.access, allow: allowed)
         }
-        let entry = pending.removeValue(forKey: key)
-        for waiter in entry?.waiters ?? [] { waiter(allowed) }
+        for waiter in entry.waiters { waiter(allowed) }
     }
 
     private static func window(for requester: GhosttySurface?) -> OpaquePointer? {
@@ -86,9 +104,15 @@ final class ClipboardPromptController {
     }
 }
 
-private let onClipboardPromptResponse: @MainActor @convention(c) (OpaquePointer?, UnsafePointer<CChar>?, gpointer?) -> Void = { _, response, data in
+let onClipboardPromptResponse: @MainActor @convention(c) (OpaquePointer?, UnsafePointer<CChar>?, gpointer?) -> Void = { _, response, data in
+    guard let data else { return }
+    let ctx = Unmanaged<ClipboardPromptController.ResponseContext>.fromOpaque(data).takeUnretainedValue()
+    let id = response.map { String(cString: $0) } ?? "deny"
+    MainActor.assumeIsolated { ctx.resolve(id) }
+}
+
+let onClipboardPromptDestroyed: @convention(c) (gpointer?, UnsafeMutablePointer<GClosure>?) -> Void = { data, _ in
     guard let data else { return }
     let ctx = Unmanaged<ClipboardPromptController.ResponseContext>.fromOpaque(data).takeRetainedValue()
-    let id = response.map { String(cString: $0) } ?? "deny"
-    MainActor.assumeIsolated { ClipboardPromptController.shared.resolve(ctx.key, response: id) }
+    MainActor.assumeIsolated { ctx.resolve("deny") }
 }
