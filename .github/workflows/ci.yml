@@ -388,7 +388,8 @@ jobs:
 
   ci:
     name: CI
-    if: always()
+    # Superseded runs must not hold the concurrency slot while this job waits for a runner.
+    if: ${{ !cancelled() }}
     needs: [scripts, changes, test-linux, lint-linux, build-linux, cookbook]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
