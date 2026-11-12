@@ -64,9 +64,11 @@ jobs:
           zmx=$(sed -nE 's/^ZMX_REV="([^"]+)".*/\1/p' scripts/setup.sh)
           target=$(sed -nE 's/^ZMX_TARGET="([^"]+)".*/\1/p' scripts/setup.sh)
           test -n "$ghostty" && test -n "$zmx" && test -n "$target"
-          echo "ghostty=$ghostty" >> "$GITHUB_OUTPUT"
-          echo "zmx=$zmx" >> "$GITHUB_OUTPUT"
-          echo "target=$target" >> "$GITHUB_OUTPUT"
+          {
+            echo "ghostty=$ghostty"
+            echo "zmx=$zmx"
+            echo "target=$target"
+          } >> "$GITHUB_OUTPUT"
       - name: Cache pinned GhosttyKit and resources
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
