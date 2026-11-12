@@ -1,0 +1,129 @@
+{
+  "schema": "agterm-native-shutdown-symbol-diagnostic/1",
+  "diagnostic_only": true,
+  "variant": "frozen payload copy with only a separately rebuilt symbol-bearing libghostty.so",
+  "artifact_source_commit": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "ghostty_source_commit": "0ba6250388641f52135414b38c4259aa682c489b",
+  "probe_source_commit": "e77b6ad448677e00cafd14a36c557b96affb6678",
+  "probe_sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+  "app_sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+  "original_libghostty_sha256": "baf8ba1957bd9bcf140d455f309e16f510f66261ff684f5fd4503586e44bfd6c",
+  "diagnostic_libghostty_sha256": "4626e8bb80c5072e2d3ea41400ac440a039e0695b0e82056178e8e5b8020c9c7",
+  "original_private_report_sha256": "8e6f186b71760aa1d485c893578de406fec01d5b38d8c33aeec2c6495d454fe4",
+  "original_private_preparation_sha256": "eb043e3f62ead61df1fd14ba4cc5e49b601a1af0711cb902040d36af4c09b315",
+  "original_private_ghostty_preparation_sha256": "fb2427e2271dfc53cfeeda30c13c1be562902f6a3124399cde26c76ebe6895af",
+  "observer_source_sha256": "7692e56d310067b0437750f07d0c2a7d4ea62ba7b899a6bea8b609f0b312af73",
+  "original_payload_unchanged": true,
+  "changed_payload_files": [
+    "lib/libghostty.so"
+  ],
+  "build": {
+    "state": "complete",
+    "exit_code": 0,
+    "started_at": 1794428367.9452844,
+    "finished_at": 1794428576.7628236,
+    "elapsed_seconds": 208.8175392150879,
+    "argv": [
+      "scripts/zig-build-linux.sh",
+      "-Doptimize=ReleaseFast",
+      "-Dapp-runtime=none",
+      "-Dtarget=aarch64-linux-gnu.2.39",
+      "-Demit-themes=false",
+      "-Demit-terminfo=true",
+      "-Dstrip=false",
+      "-j2"
+    ],
+    "zig_version": "0.16.0",
+    "zig_sha256": "c5f9d2d72f401bfe522f3aac3411781ae26c16cc179a1a7989096cbe0da27836",
+    "library_bytes": 131277736,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "verified_elf_sections": [
+      ".eh_frame_hdr",
+      ".eh_frame",
+      ".debug_info",
+      ".debug_frame",
+      ".symtab"
+    ],
+    "prior_supervisor_attempt": "SyntaxError before compiler launch; retained privately, corrected in the private supervisor before the successful build",
+    "frozen_patch_sha256": {
+      "ghostty-embedded-opengl.patch": "99cbf56c69c07abb62ee506bd7755a04f1a69b42a613b28b37f29c185f5ccc55",
+      "ghostty-embedded-input-handoff.patch": "746aabfd306f78563837c9257b22c90cc3ffd6dfe7f1c374f7f0532a3c1bb0fe",
+      "ghostty-lib-resources.patch": "14f31007327295bdca035a75394a4c1a2cfe3671d602c3105aef30823c0e9eab"
+    }
+  },
+  "observer": {
+    "captured": true,
+    "errors": [],
+    "started_at": 1794428894.586532,
+    "ended_at": 1794428910.9433703,
+    "operator_exit_code": 1,
+    "control_socket_unlinked": true,
+    "gdb_exit_code": 0,
+    "backtrace_sha256": "8b7f31ba18e3d8acb5a317e71bb27c8561a19d673b8d8859bfe16b9688b623f5",
+    "mapped_library_sha256": "4626e8bb80c5072e2d3ea41400ac440a039e0695b0e82056178e8e5b8020c9c7",
+    "library_mapping_count": 7
+  },
+  "operator": {
+    "passed": false,
+    "errors": [
+      "RuntimeError: Config probe failed"
+    ],
+    "remaining_owned_processes": [],
+    "preservation": {
+      "passed": true,
+      "protected_process_count": 2,
+      "lost": {}
+    },
+    "payload_unchanged": true,
+    "login_shell_unchanged": true
+  },
+  "probe": {
+    "passed": false,
+    "started_at_utc": "2026-11-11T20:28:14.783980+00:00",
+    "ended_at_utc": "2026-11-11T20:28:30.590377+00:00",
+    "checks": [
+      "two exact mapped instances with private disjoint config paths and PTY execution",
+      "idle first shutdown cleans its config while peer remains usable",
+      "32 config reloads and OSC background updates preserve bounded usable theme files"
+    ],
+    "errors": [
+      "TimeoutError: graceful app shutdown"
+    ],
+    "forced_recovery": true,
+    "remaining_generated_paths": [
+      "agterm-ghostty-jB0edP"
+    ],
+    "socket_directory_removed": true,
+    "sentinel_preserved": true,
+    "noisy_titles_written_before_shutdown": 100,
+    "apps": [
+      {
+        "name": "left",
+        "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+        "native_wayland": true,
+        "realized": true,
+        "shutdown_seconds": 0.05917907599996397
+      },
+      {
+        "name": "right",
+        "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+        "native_wayland": true,
+        "realized": true
+      }
+    ],
+    "cleanup_signals": [
+      15
+    ]
+  },
+  "confirmed_diagnostic_waits": {
+    "main": "onShutdown -> GhosttySurface.teardown -> ghostty_surface_free -> Surface.deinit:817 -> Thread.join",
+    "io": "Termio.threadExit -> Exec.threadExit:229 -> Thread.join",
+    "io-reader": "OSC windowTitle -> surfaceMessageWriter:124 -> mailbox push -> BlockingQueue(App.Message,64).push:115 -> Condition.waitUncancelable",
+    "io-gather": "Exec.ReadThread.gatherMainPosix:1559 -> Condition.waitUncancelable"
+  },
+  "limits": [
+    "This rebuild changes frame pointers and unwind settings; its addresses are not used to symbolize the stripped shipped library.",
+    "Debugger attachment may affect timing. This is diagnosis, not acceptance of the frozen artifact or current main.",
+    "The original stripped-artifact failed acceptance and separate intermittent pass remain unchanged."
+  ]
+}

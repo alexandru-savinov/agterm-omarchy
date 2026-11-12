@@ -1,0 +1,445 @@
+{
+  "schema": "agterm-mac-main-4ff-core/1",
+  "source": "4ffbe4bd2aec1216b2d7a31b043ff2f96fff036b",
+  "core_tree": "c13d56d551676c0a35398af00d7f21ee97b6fef3",
+  "scope": "Isolated compiler and complete unfiltered core package tests on pinned integrated-main source; no GUI, installed agterm helper/app, VM, real configuration change, upstream write or installed-runtime acceptance. Same-account execution evidence, not independent approval.",
+  "overall_verdict": "failed: two source tests report three issues in the final isolated serial run",
+  "source_unchanged": true,
+  "prerequisites": {
+    "swift": {
+      "argv": [
+        "/usr/bin/swift",
+        "--version"
+      ],
+      "stdout": "Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)\nTarget: arm64-apple-macosx26.0\n",
+      "stderr": "swift-driver version: 1.168.6 "
+    },
+    "sdk_version": "27.0",
+    "compiler_images": {
+      "swift": {
+        "sha256": "cf81104bf554eef05e28a8bb5285c763f1323b4511b944d755d8bdd6cb8db717",
+        "bytes": 173118384
+      },
+      "swift-frontend": {
+        "sha256": "cf81104bf554eef05e28a8bb5285c763f1323b4511b944d755d8bdd6cb8db717",
+        "bytes": 173118384
+      }
+    },
+    "package_resolved_sha256": "fa84d54ac853e595dfdf2c2669bf472dedc6c021cb0615a0c05b14d34c6ab5fa",
+    "package_manifest_sha256": "cc26ce26278a3231e7f351f2ee6b0cac2d579db5d353d036217be43cb60fcdb0",
+    "installed_zmx_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+    "node_version": "v26.5.0",
+    "node_image_sha256": "70851490e028b3d699a8d6d4e1de909af2a989359ae807974c92af9c6580a8e8",
+    "node_qualification": "Attempt1 minimal PATH hid Node; attempt2 copied executable failed its relative library lookup; attempt3 used a successful private symlink to the unchanged existing Node loader context. Fish absent."
+  },
+  "ancestry": {
+    "PR311": {
+      "head": "ab94f48fc94e9a4e2db82f2feb5b8f38d462f341",
+      "ancestor": false,
+      "method": "local git merge-base --is-ancestor exit 1"
+    },
+    "PR283": {
+      "head": "fd60ab9dfcfe8dd49876cba7600f89700b368c67",
+      "ancestor": false,
+      "method": "exact GitHub compare diverged; local object absent",
+      "merge_base": "9cf42b07ceb266bf1839bed93ba6d1179fb01133"
+    },
+    "neither_applied": true
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "source": "4ffbe4bd2aec1216b2d7a31b043ff2f96fff036b",
+      "source_config_sha256": "6d2119960d2e9abfc81f4632fd687e09a7abe3bf029a6a2b694aee88399af439",
+      "result_sha256": "8af23bea321fd52044005b3ef9a7d500839f684408ad18cc069fdefbbfbb527c",
+      "raw_log_sha256": "e7968be39c3b0a31b19dff6eba573d7f448851948cadf1615dfe73784f48dd38",
+      "raw_log_bytes": 1673894,
+      "started_at": "2026-11-11T22:38:54.401070+00:00",
+      "finished_at": "2026-11-11T22:42:04.770003+00:00",
+      "wall_seconds": 190.38158087499323,
+      "exit_code": 1,
+      "timed_out": false,
+      "unfiltered": true,
+      "no_parallel": false,
+      "private_environment": "fresh private HOME/cache/build roots; only package fixtures in disposable namespaces; original values retained privately",
+      "parsed_results_sha256": "b43030649bbadab24541a9ef24eb95ce9aff32bcba4685b114456db1e31fadfb",
+      "counts": {
+        "test_pass": 4073,
+        "suite_pass": 178,
+        "test_fail": 2,
+        "suite_fail": 2,
+        "test_skip": 18,
+        "suite_skip": 2,
+        "test_start": 4135,
+        "test_issue": 3
+      },
+      "framework_headlines": [
+        {
+          "tests": 4153,
+          "suites": 182,
+          "verdict": "failed",
+          "seconds": 65.123,
+          "issues": 3,
+          "record": "\u2718 Test run with 4153 tests in 182 suites failed after 65.123 seconds with 3 issues."
+        }
+      ],
+      "outcome_marker_gap": 60,
+      "build_summaries": [
+        "Build complete! (110.87s)"
+      ],
+      "observed_test_start_count": 4135,
+      "new_commandrestore_records": [
+        {
+          "line": 16526,
+          "character_offset": 1390332,
+          "record": "\u2714 Test shellQuotedLineKeepsBackslashesOutsideQuotes() passed after 34.915 seconds.",
+          "begins_line": true
+        },
+        {
+          "line": 16527,
+          "character_offset": 1390415,
+          "record": "\u2714 Test quotedArgumentsRoundTripThroughPosixShell() passed after 34.915 seconds.",
+          "begins_line": true
+        },
+        {
+          "line": 12320,
+          "character_offset": 924949,
+          "record": "\u279c Test quotedArgumentsRoundTripThroughFish() skipped: \"fish is not installed\"",
+          "begins_line": true
+        }
+      ],
+      "failures": [
+        {
+          "line": 16174,
+          "character_offset": 1359936,
+          "record": "\u2718 Test theRemoteCommandCompilesTheSourceUnderEveryLoginShell(_:) with 6 test cases failed after 34.913 seconds with 1 issue.",
+          "begins_line": true
+        },
+        {
+          "line": 19582,
+          "character_offset": 1649039,
+          "record": "\u2718 Test editorCommandResolvesExportedEditorAndPreservesPath() failed after 65.082 seconds with 2 issues.",
+          "begins_line": true
+        }
+      ],
+      "skips": [
+        {
+          "line": 10927,
+          "character_offset": 840061,
+          "record": "\u279c Test turnAfterAnErrorCompletesNormally() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10931,
+          "character_offset": 840380,
+          "record": "\u279c Test pluginIsSilentNoOpOutsideAgterm() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10933,
+          "character_offset": 840577,
+          "record": "\u279c Test sessionErrorStaysBlockedThroughFollowingIdle() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10935,
+          "character_offset": 840785,
+          "record": "\u279c Test pluginExportsOnlyPluginFunctions() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10937,
+          "character_offset": 840992,
+          "record": "\u279c Test abortErrorDoesNotLatchBlocked() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10945,
+          "character_offset": 841526,
+          "record": "\u279c Test interleavedTopLevelSessionsCompleteOnlyWhenAllIdle() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10946,
+          "character_offset": 841691,
+          "record": "\u279c Test idleWithoutPrecedingBusyIsIgnored() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10951,
+          "character_offset": 842123,
+          "record": "\u279c Test ignoresDeprecatedSessionIdleAndNonStatusNoise() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10953,
+          "character_offset": 842359,
+          "record": "\u279c Test siblingIdleDoesNotCompleteOverAnotherSessionsError() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10954,
+          "character_offset": 842524,
+          "record": "\u279c Test lifecycleEventsDriveOnlyTheGenericStatusWrapper() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10961,
+          "character_offset": 843047,
+          "record": "\u279c Test contextOverflowFollowedByBusyDoesNotPaintBlocked() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10962,
+          "character_offset": 843210,
+          "record": "\u279c Test defaultWrapperPathIsUsedWhenStatusWrapperUnset() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10967,
+          "character_offset": 843617,
+          "record": "\u279c Test contextOverflowFollowedByIdleReportsBlocked() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10972,
+          "character_offset": 843991,
+          "record": "\u279c Test reportsRunStrictlyInOrder() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 10974,
+          "character_offset": 844186,
+          "record": "\u279c Test subagentIdleDoesNotCompleteWhileParentIsActive() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode status plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 12320,
+          "character_offset": 924949,
+          "record": "\u279c Test quotedArgumentsRoundTripThroughFish() skipped: \"fish is not installed\"",
+          "begins_line": true
+        },
+        {
+          "line": 12439,
+          "character_offset": 932374,
+          "record": "\u279c Test cliPluginLifecycleAndRouting() skipped: \"Node.js 22.7+ (or 20.19+ on the 20.x line) is required to exercise the OpenCode v2 plugin\"",
+          "begins_line": true
+        },
+        {
+          "line": 13489,
+          "character_offset": 995214,
+          "record": "\u279c Test editorCommandWorksUnderNonPosixLoginShell() skipped: \"no non-POSIX login shell (fish) installed \u2014 the cross-shell parse assertion is skipped here\"",
+          "begins_line": true
+        }
+      ]
+    },
+    {
+      "attempt": 2,
+      "source": "4ffbe4bd2aec1216b2d7a31b043ff2f96fff036b",
+      "source_config_sha256": "ba5afc3f17648280086b82feaaf657a715be6506ec4d49bbf6e42ea7cbba1be8",
+      "result_sha256": "1a65cd0f8885da9b12e204a00062428d2edc297a640eeb94269dbb091214463f",
+      "raw_log_sha256": "2174f32be2155c9bf70bcfcafc8ccddda7c0c5dc391120506dc9340174654476",
+      "raw_log_bytes": 51749,
+      "started_at": "2026-11-11T22:48:09.415730+00:00",
+      "finished_at": "2026-11-11T22:48:59.989906+00:00",
+      "wall_seconds": 50.573841292003635,
+      "exit_code": -15,
+      "timed_out": false,
+      "unfiltered": true,
+      "no_parallel": true,
+      "private_environment": "fresh private HOME/cache/build roots; only package fixtures in disposable namespaces; original values retained privately",
+      "test_execution_started": false,
+      "disposition": "Private copied Node failed loader preflight; orchestration incorrectly advanced, so only the exact owned compilation group was stopped before any test start. All three later-observed compiler descendants exited; the follow-up found zero remaining.",
+      "node_preflight_exit": -6,
+      "node_preflight_diagnosis": "@rpath/libnode.147.dylib not found after relocating the executable copy",
+      "operator_stop_sha256": "7b113df0970ea32199fad9df0808c5d2fba64c8faa3fe3976b79550d15e0f9e3",
+      "post_abort_cleanup_sha256": "4ae1a8938cdcbd4374d616443d038c213695607c089a211432089236437f7cdf"
+    },
+    {
+      "attempt": 3,
+      "source": "4ffbe4bd2aec1216b2d7a31b043ff2f96fff036b",
+      "source_config_sha256": "b866e8df8364c3ac33285e4e31e045f8d45ad1e264f257e9aeebe1651c829259",
+      "result_sha256": "fb033d4a202897bb9ca7c115e339097ac5f09ee9aeaaf850b951d95f755bcd73",
+      "raw_log_sha256": "b22363b154681ff226dc3b0a469d140e5457adbc08e71bb9ad315263af885888",
+      "raw_log_bytes": 1676038,
+      "started_at": "2026-11-11T22:50:17.953840+00:00",
+      "finished_at": "2026-11-11T22:54:43.526464+00:00",
+      "wall_seconds": 265.57077858399134,
+      "exit_code": 1,
+      "timed_out": false,
+      "unfiltered": true,
+      "no_parallel": true,
+      "private_environment": "fresh private HOME/cache/build roots; only package fixtures in disposable namespaces; original values retained privately",
+      "parsed_results_sha256": "5a4c4276eeb39977f566b27500541ab93a1cb6e44f7493b756b16a30cb120dca",
+      "counts": {
+        "test_pass": 4149,
+        "suite_pass": 180,
+        "test_fail": 2,
+        "suite_fail": 2,
+        "test_skip": 2,
+        "suite_skip": 0,
+        "test_start": 4150,
+        "test_issue": 3
+      },
+      "framework_headlines": [
+        {
+          "tests": 4153,
+          "suites": 182,
+          "verdict": "failed",
+          "seconds": 128.395,
+          "issues": 3,
+          "record": "\u2718 Test run with 4153 tests in 182 suites failed after 128.395 seconds with 3 issues."
+        }
+      ],
+      "outcome_marker_gap": 0,
+      "build_summaries": [
+        "Build complete! (124.99s)"
+      ],
+      "observed_test_start_count": 4150,
+      "new_commandrestore_records": [
+        {
+          "line": 12214,
+          "character_offset": 971568,
+          "record": "\u2714 Test shellQuotedLineKeepsBackslashesOutsideQuotes() passed after 0.001 seconds.",
+          "begins_line": true
+        },
+        {
+          "line": 12216,
+          "character_offset": 971710,
+          "record": "\u2714 Test quotedArgumentsRoundTripThroughPosixShell() passed after 0.021 seconds.",
+          "begins_line": true
+        },
+        {
+          "line": 12217,
+          "character_offset": 971789,
+          "record": "\u279c Test quotedArgumentsRoundTripThroughFish() skipped: \"fish is not installed\"",
+          "begins_line": true
+        }
+      ],
+      "failures": [
+        {
+          "line": 12280,
+          "character_offset": 977398,
+          "record": "\u2718 Test editorCommandResolvesExportedEditorAndPreservesPath() failed after 30.367 seconds with 2 issues.",
+          "begins_line": true
+        },
+        {
+          "line": 17435,
+          "character_offset": 1467776,
+          "record": "\u2718 Test theRemoteCommandCompilesTheSourceUnderEveryLoginShell(_:) with 6 test cases failed after 1.692 seconds with 1 issue.",
+          "begins_line": true
+        }
+      ],
+      "skips": [
+        {
+          "line": 12217,
+          "character_offset": 971789,
+          "record": "\u279c Test quotedArgumentsRoundTripThroughFish() skipped: \"fish is not installed\"",
+          "begins_line": true
+        },
+        {
+          "line": 12285,
+          "character_offset": 977786,
+          "record": "\u279c Test editorCommandWorksUnderNonPosixLoginShell() skipped: \"no non-POSIX login shell (fish) installed \u2014 the cross-shell parse assertion is skipped here\"",
+          "begins_line": true
+        }
+      ]
+    }
+  ],
+  "coverage": {
+    "source_delta_from_2ddd93af": "Two CommandRestore source/test files, 64 additions and 3 deletions. Two new portable tests passed; fish counterpart skipped.",
+    "source_delta_sha256": "aa5a3a9deade2fda3927178cc6819b5630cd088b9879933ef7946a16bc25aeba",
+    "new_portable_checks_passed": 2,
+    "new_fish_check_skipped": 1,
+    "source_host_tests_passed": 26,
+    "source_host_test_names": [
+      "existingDaemonDoesNotSpawnOrReplay",
+      "leaderOnSecondPollCreatesOnceAndReleasesOnlyTheClient",
+      "readinessTimeoutIsStartedAndNeverRetries",
+      "earlyClientExitIsStartedAndReaped",
+      "unreadableInitialInventoryCannotCreateAnything",
+      "exhaustedInspectionBudgetDoesNotStartAClient",
+      "wrongExecutableOrNamespaceIsRejectedBeforeSpawn",
+      "relativeExecutableCannotPassCanonicalPathValidation",
+      "stopRefusesLiveRootedAndUnknownInventory",
+      "stopAllowsEmptyOrPositivelyUnrelatedInventory",
+      "stopChecksTheDaemonEvenWhenItsLeaderHasAnotherRoot",
+      "clientIgnoringTermIsKilledAndReapedAfterTheGracePeriod",
+      "fastSideEffectingClientIsNotRunAgain",
+      "startupErrorAfterASideEffectDoesNotAuthorizeReplay",
+      "lostReplyAfterFastCommandDoesNotRunItsPayloadAgain",
+      "descriptorPreparationFailureRetainsTheChildForCleanup",
+      "exitedChildReportsItsWaitStatus",
+      "childThatCannotExecReportsThePreExecErrno",
+      "hostSocketIsNotEnumeratedByStockZmx",
+      "malformedOversizedAndPartialConnectionsDoNotStopTheHost",
+      "stalledPeerHitsItsDeadlineAndOnlyThatConnectionCloses",
+      "forgedHelloDoesNotOverrideTheActualPeerImage",
+      "stopKeepsLockInodesForTheNextHost",
+      "killedHostReleasesLockAndListenerWhileDaemonAndShellSurvive",
+      "oversizedRequestPeerClosureDoesNotKillTheClient",
+      "failedFixtureClientCannotPassAsAnEmptyReply"
+    ],
+    "previous_node_skips_now_passed": 16
+  },
+  "failures": [
+    {
+      "test": "theRemoteCommandCompilesTheSourceUnderEveryLoginShell(_:)",
+      "case": "/bin/zsh",
+      "source": "TerminfoInstallTests.swift:103",
+      "reason": "tic.args was not created; NSCocoaErrorDomain 260",
+      "issues": 1
+    },
+    {
+      "test": "editorCommandResolvesExportedEditorAndPreservesPath()",
+      "source": "ConfigPathsTests.swift:217-218",
+      "reason": "status was 1 and the expected recorder output did not match the requested path",
+      "issues": 2,
+      "qualification": "Repeated in both recorded isolated environments, including serial execution. ConfigPaths did not change since the earlier 2ddd source, so this observation alone is not evidence of a new 4ff code regression; cause unresolved."
+    }
+  ],
+  "log_qualifications": [
+    "Raw log bytes are retained and strictly UTF-8 decoded without newline conversion.",
+    "First completed run has 60 absent completion markers relative to its framework headline; no missing pass is inferred.",
+    "Final run has 4149 pass, 2 failure and 2 skip records, exactly 4153 outcomes. One attachEchoesTheLocalSessionItCreated start record is visibly truncated; its literal pass record is retained.",
+    "A parser draft counted the generic Test run start header; the initial parsed result remains retained separately and the corrected parser excludes it."
+  ],
+  "preservation": {
+    "protected_installed_processes": 1,
+    "protected_processes_preserved": true,
+    "installed_images_unchanged": true,
+    "installed_image_count": 4,
+    "observed_process_families": {
+      "attempt1": 344,
+      "attempt3": 562
+    },
+    "remaining_observed_processes_final": 0,
+    "remaining_private_images_final": 0,
+    "remaining_shs_directories_final": 0,
+    "source_fixture_data": {
+      "observed_at": "2026-11-11T22:58:13.661905+00:00",
+      "archived_targets": 2274,
+      "archived_entries": 4770,
+      "archive_sha256": "a71ab6436f9951a316b36c630795fef15c182b8da0436a4f5f11e7313273b71e",
+      "archive_bytes": 448384,
+      "removed_attempt1": 1137,
+      "removed_attempt3": 1137,
+      "remaining": [],
+      "existing_unattributed_temporary_data_untouched": true,
+      "passed": true
+    },
+    "checkout_clean": true,
+    "temporary_build_symlink_removed": true,
+    "temporary_staged_zmx_removed": true,
+    "private_builds_and_raw_records_retained": true,
+    "frozen_native_manifest_sha256": "34bce9ff0f5c61ecafe95670b139d34566eb31e8008b5e1ea8c65d69480dbffc",
+    "frozen_native_deliverables_verified": 9,
+    "frozen_native_originals_verified": 38
+  },
+  "original_record_locations": [
+    "retry-mac-main-4ff-pi1111ecf617",
+    "retry-mac-main-4ff-pi1111ecf617-attempt2",
+    "retry-mac-main-4ff-pi1111ecf617-attempt3"
+  ],
+  "public_data_policy": "Focused derived summary. Full raw observations, local paths, process identities and private environment remain in the separately hash-bound private records; they are not reproduced here."
+}
