@@ -1,0 +1,190 @@
+name: Isolated Release compilation for PR 296
+
+# Temporary validation branch only. This file is not proposed for main or upstream.
+"on":
+  push:
+    branches: [ci/macos-release-validation-296-075c280c]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-release-validation-296-075c280c-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BUILD_SOURCE: 075c280c419a057c7a8204eafaeaa0e6f27486a7
+
+jobs:
+  release:
+    if: github.repository == 'alexandru-savinov/agterm-omarchy' && github.ref == 'refs/heads/ci/macos-release-validation-296-075c280c'
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the immutable PR source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 075c280c419a057c7a8204eafaeaa0e6f27486a7
+          persist-credentials: false
+      - name: Record source, toolchain and dependency identities
+        id: revisions
+        env:
+          WORKFLOW_SOURCE: ${{ github.workflow_sha }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          set -euo pipefail
+          mkdir -p validation-logs
+          test "$(git rev-parse HEAD)" = "$BUILD_SOURCE"
+          test "$(uname -m)" = arm64
+          {
+            printf 'build_source=%s\nworkflow_source=%s\nworkflow_ref=%s\nrun=%s\nattempt=%s\n' \
+              "$BUILD_SOURCE" "$WORKFLOW_SOURCE" "$WORKFLOW_REF" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            git rev-parse HEAD HEAD^{tree}
+            sw_vers
+            uname -m
+            xcodebuild -version
+            xcrun --sdk macosx --show-sdk-version
+            swift --version
+          } > validation-logs/identity.log 2>&1
+          cat validation-logs/identity.log
+          ghostty=$(sed -nE 's/^GHOSTTY_REV="([^"]+)".*/\1/p' scripts/setup.sh)
+          zmx=$(sed -nE 's/^ZMX_REV="([^"]+)".*/\1/p' scripts/setup.sh)
+          target=$(sed -nE 's/^ZMX_TARGET="([^"]+)".*/\1/p' scripts/setup.sh)
+          test -n "$ghostty" && test -n "$zmx" && test -n "$target"
+          {
+            echo "ghostty=$ghostty"
+            echo "zmx=$zmx"
+            echo "target=$target"
+          } | tee validation-logs/vendor-pins.log >> "$GITHUB_OUTPUT"
+          shasum -a 256 Makefile scripts/setup.sh scripts/build.sh project.yml \
+            agterm/agterm.entitlements agtermCore/Package.resolved \
+            scripts/zmx-patches/*.patch scripts/zmx-patches/ghostty/*.patch \
+            > validation-logs/build-inputs.sha256
+      - name: Install the Release project generator
+        run: |
+          set -euo pipefail
+          brew install xcodegen 2>&1 | tee validation-logs/prerequisites.log
+          xcodegen --version | tee -a validation-logs/prerequisites.log
+      - name: Cache pinned GhosttyKit and resources
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            GhosttyKit.xcframework
+            agterm/Resources/ghostty
+            agterm/Resources/terminfo
+            .ghostty-build-stamp
+          key: mac296-macos26-${{ runner.arch }}-ghostty-${{ steps.revisions.outputs.ghostty }}-${{ hashFiles('scripts/setup.sh', 'scripts/ghostty-patches/*.patch') }}
+      - name: Cache pinned zmx
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            agterm/Resources/zmx
+            .zmx-build-stamp
+          key: mac296-macos26-${{ runner.arch }}-zmx-${{ steps.revisions.outputs.zmx }}-${{ steps.revisions.outputs.target }}-${{ hashFiles('scripts/setup.sh', 'scripts/zmx-patches/**/*.patch') }}
+      - name: Build through the actual Release target
+        id: release
+        run: |
+          set -euo pipefail
+          make release 2>&1 | tee validation-logs/make-release.log
+      - name: Inspect existing Release signatures, entitlements and images
+        id: inspect
+        if: ${{ !cancelled() && steps.release.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, plistlib, subprocess
+          root = pathlib.Path('validation-logs')
+          app = pathlib.Path('build/DerivedData/Build/Products/Release/agterm.app')
+          record = {'source': os.environ['BUILD_SOURCE'], 'configuration': 'Release',
+                    'commands': [], 'images': {}, 'failures': [], 'product_executed': False}
+          def command(label, argv):
+              try:
+                  result = subprocess.run(argv, capture_output=True, timeout=30)
+                  code, stdout, stderr = result.returncode, result.stdout, result.stderr
+              except (OSError, subprocess.TimeoutExpired) as error:
+                  code = None
+                  stdout = getattr(error, 'stdout', None) or b''
+                  stderr = (getattr(error, 'stderr', None) or b'') + str(error).encode()
+              (root / (label + '.stdout')).write_bytes(stdout)
+              (root / (label + '.stderr')).write_bytes(stderr)
+              record['commands'].append({'label': label, 'argv': argv, 'returncode': code})
+              if code != 0:
+                  record['failures'].append(label + ': command failed')
+              return stdout, code
+          def check_entitlements(label, data, expected):
+              found = plistlib.loads(data) if data.strip() else {}
+              if not isinstance(found, dict):
+                  raise ValueError('entitlements are not a dictionary')
+              if label == 'app':
+                  task_key = 'com.apple.security.get-task-allow'
+                  if task_key in found:
+                      if type(found[task_key]) is not bool or found[task_key] is not True:
+                          raise ValueError('unexpected ad hoc task entitlement value')
+                      found = {key: value for key, value in found.items() if key != task_key}
+              if json.dumps(found, sort_keys=True) != json.dumps(expected, sort_keys=True):
+                  raise ValueError('signed entitlement values differ')
+              return found
+          try:
+              expected = plistlib.loads(pathlib.Path('agterm/agterm.entitlements').read_bytes())
+              if len(expected) != 7 or any(type(value) is not bool or value is not True for value in expected.values()):
+                  raise ValueError('unexpected shipping entitlement source')
+              info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
+              record['info'] = {key: info.get(key) for key in
+                                ('CFBundleIdentifier', 'CFBundleVersion', 'CFBundleShortVersionString', 'GitCommit')}
+              commit = info.get('GitCommit', '')
+              if info.get('CFBundleIdentifier') != 'com.umputun.agterm' or len(commit) < 7 or not os.environ['BUILD_SOURCE'].startswith(commit):
+                  raise ValueError('Release bundle/source identity differs')
+              if (app / 'Contents/MacOS/agterm.debug.dylib').exists():
+                  raise ValueError('unexpected Debug dylib in Release output')
+              for label, leaf in [('app', 'agterm'), ('agtermctl', 'agtermctl'),
+                                  ('session-host', 'agterm-session-host'), ('zmx', 'zmx')]:
+                  image = app / 'Contents/MacOS' / leaf
+                  if image.is_symlink() or not image.is_file():
+                      raise ValueError('missing or linked image: ' + leaf)
+                  record['images'][label] = {'path': str(image), 'sha256': hashlib.sha256(image.read_bytes()).hexdigest()}
+                  target = str(app if label == 'app' else image)
+                  command(label + '-signature-verify', ['codesign', '--verify', '--strict', '--verbose=4'] + (['--deep'] if label == 'app' else []) + [target])
+                  command(label + '-signature-display', ['codesign', '--display', '--verbose=4', target])
+                  command(label + '-file', ['file', str(image)])
+                  arch, code = command(label + '-arch', ['lipo', '-archs', str(image)])
+                  if code == 0 and arch.strip() != b'arm64':
+                      record['failures'].append(label + ': unexpected architecture')
+                  entitlements, code = command(label + '-entitlements', ['codesign', '-d', '--entitlements', '-', target])
+                  if code == 0:
+                      try:
+                          record['images'][label]['entitlements'] = check_entitlements(label, entitlements, expected if label == 'app' else {})
+                      except (ValueError, plistlib.InvalidFileException) as error:
+                          record['failures'].append(label + ': ' + str(error))
+              for stamp in ('.ghostty-build-stamp', '.zmx-build-stamp'):
+                  (root / (stamp[1:] + '.txt')).write_bytes(pathlib.Path(stamp).read_bytes())
+              command('tracked-build-contracts', ['git', 'diff', '--exit-code', '--', 'Makefile', 'scripts/setup.sh',
+                      'scripts/build.sh', 'project.yml', 'agterm/agterm.entitlements', 'agtermCore/Package.resolved'])
+          except Exception as error:
+              record['failures'].append(type(error).__name__ + ': ' + str(error))
+          record['passed'] = not record['failures']
+          (root / 'release-inspection.json').write_text(json.dumps(record, indent=2) + '\n')
+          print(json.dumps(record, indent=2))
+          raise SystemExit(0 if record['passed'] else 1)
+          PY
+      - name: Retain the built Release bundle without executing it
+        if: ${{ !cancelled() && steps.release.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          ditto -c -k --keepParent build/DerivedData/Build/Products/Release/agterm.app \
+            validation-logs/agterm-release-app.zip
+          shasum -a 256 validation-logs/agterm-release-app.zip \
+            > validation-logs/agterm-release-app.zip.sha256
+      - name: Retain Release build evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: pr296-release-075c280c-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            validation-logs
+            build/DerivedData/Logs/Build
+          retention-days: 7
+          if-no-files-found: error
