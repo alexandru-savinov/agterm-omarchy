@@ -32,9 +32,14 @@ Its single reviewed exception in `packaging/linux/core-fixture-exceptions.tsv` p
 upstream Git blob, accepted fixture Git blob and task rationale; wildcards, additional records,
 malformed fields, different bases and any further content change fail.
 The file must remain regular and non-executable, and the host import/API checks still apply.
-This exception covers [#343](https://github.com/alexandru-savinov/agterm-omarchy/issues/343):
+The exception retains [#343](https://github.com/alexandru-savinov/agterm-omarchy/issues/343):
 a portable test fixture restores its editor environment after global zsh startup while preserving
 the product command, private login/interactive rc sourcing and every existing assertion.
-The accepted bytes are the reviewed `c5262fe4` fixture; this is not an exemption for other core changes.
-Remove the exception when the upstream base includes the fixture correction.
+The replacement pair under [#368](https://github.com/alexandru-savinov/agterm-omarchy/issues/368) additionally
+allows the fixture to discover an executable fish on the caller's PATH before its existing fixed fallbacks.
+Discovery regressions use explicit inputs and inert files without changing the process environment.
+The enabled/require gates, actual login-shell command, recorder and output assertions remain unchanged.
+The single TSV row pins the complete accepted fixture blob and retains the original upstream blob.
+This is not an exemption for other core changes.
+Remove the exception when the upstream base includes both fixture corrections.
 Any replacement pair needs an explicit review and rationale rather than updating hashes to silence a failure.

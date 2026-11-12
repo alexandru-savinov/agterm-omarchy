@@ -436,14 +436,16 @@ class PayloadStageTests(unittest.TestCase):
             script = self.repo / 'scripts' / name
             script.write_text('#!/bin/sh\nexit 0\n')
             script.chmod(0o755)
-        for directory in ('agterm-linux/.build/release/agterm-linux_AgtermLinux.resources/hud',
+        for directory in ('agterm-linux/.build/release/agterm-linux_AgtermLinux.resources/live-prefill',
+                          'agterm-linux/.build/release/agterm-linux_AgtermLinux.resources/hud',
                           'agterm-linux/vendor/ghostty/share/ghostty',
                           'agterm-linux/vendor/ghostty/share/terminfo',
                           'agterm-linux/vendor/zmx', 'agterm/Resources/agent-status',
                           'plugins/agterm/skills/agterm', 'agterm/AppIcon.icon/Assets',
                           'packaging/linux'):
             (self.repo / directory).mkdir(parents=True, exist_ok=True)
-        for name in ('AgtermLinux', 'agtermctl-linux', 'agterm-linux_AgtermLinux.resources/hud/hud.sh'):
+        for name in ('AgtermLinux', 'agtermctl-linux', 'agterm-linux_AgtermLinux.resources/hud/hud.sh',
+                     'agterm-linux_AgtermLinux.resources/live-prefill/.zshenv'):
             (self.repo / 'agterm-linux/.build/release' / name).write_text('fixture')
         for name in ('zmx', 'LICENSE'):
             (self.repo / 'agterm-linux/vendor/zmx' / name).write_text('fixture')
@@ -467,6 +469,17 @@ class PayloadStageTests(unittest.TestCase):
     def stage(self):
         return subprocess.run(['bash', str(self.repo / 'scripts/stage-linux.sh'), str(self.destination)],
                               env=self.env, text=True, capture_output=True)
+
+    def test_hidden_prefill_resource_is_staged_and_required(self):
+        result = self.stage()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.destination / 'bin/agterm-linux_AgtermLinux.resources/live-prefill/.zshenv').read_text(),
+                         'fixture')
+        shutil.rmtree(self.destination)
+        (self.repo / 'agterm-linux/.build/release/agterm-linux_AgtermLinux.resources/live-prefill/.zshenv').unlink()
+        result = self.stage()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('no agterm-linux resource bundle', result.stderr)
 
     def test_bundles_compatibility_library(self):
         result = self.stage()

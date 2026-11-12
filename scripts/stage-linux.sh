@@ -49,7 +49,7 @@ APP_RESOURCES="$APP/.build/release/agterm-linux_AgtermLinux.resources"
   echo "no agtermctl-linux release build found — run 'swift build -c release' in agterm-linux/ first" >&2
   exit 1
 }
-[[ -r "$APP_RESOURCES/hud/hud.sh" ]] || {
+[[ -r "$APP_RESOURCES/hud/hud.sh" && -s "$APP_RESOURCES/live-prefill/.zshenv" ]] || {
   echo "no agterm-linux resource bundle found — run 'swift build -c release' in agterm-linux/ first" >&2
   exit 1
 }
