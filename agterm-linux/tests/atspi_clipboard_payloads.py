@@ -96,6 +96,16 @@ def verify_clipboard_payloads(env, state):
             clipboard.set(value)
             assert clipboard.is_local(), "fixture clipboard ownership failed"
 
+        def set_copied_files(text):
+            """A file-manager copy: text/uri-list beside a text form, as Nautilus offers it."""
+            value = GObject.Value(GObject.TYPE_STRING)
+            value.set_string(text)
+            clipboard.set_content(Gdk.ContentProvider.new_union([
+                Gdk.ContentProvider.new_for_bytes("text/uri-list", GLib.Bytes.new(text.encode())),
+                Gdk.ContentProvider.new_for_value(value)]))
+            assert clipboard.is_local(), "fixture clipboard ownership failed"
+            assert clipboard.get_formats().contain_mime_type("text/uri-list"), "fixture uri-list not advertised"
+
         def answer(heading, response):
             until(lambda: named(app, heading), f"{heading} did not appear")
             activate(until(lambda: named(app, response, role="button"), f"{response} button missing"))
@@ -215,7 +225,11 @@ def verify_clipboard_payloads(env, state):
                 start(["/usr/bin/python3", str(collector), str(ready), str(output), str(bracketed).lower()],
                       f"paste-{label}-{kind}")
                 until(ready.exists, "raw paste receiver did not start")
-                set_text("clipboard-fallback-sentinel-313" if kind.startswith("drop-") else payload)
+                if kind == "uri":
+                    # Conversion keys on the advertised uri-list; plain file:// text round-trips as literal text.
+                    set_copied_files(payload)
+                else:
+                    set_text("clipboard-fallback-sentinel-313" if kind.startswith("drop-") else payload)
                 paste(payload, drop=kind.startswith("drop-"))
                 must_ask = protection and not (bracketed and trust_bracketed) and not kind.endswith("uri")
                 if must_ask:
