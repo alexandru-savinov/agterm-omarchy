@@ -755,6 +755,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
 
     func applyTitle(_ title: String) {
         if let notice = RemoteLinkNotice(title: title) {
+            FileHandle.standardError.write(Data(("DIAG239 link-title surface=\(ObjectIdentifier(self)) pane=\(paneToken) controller=\(controller != nil) t=\(ProcessInfo.processInfo.systemUptime)" + "\n").utf8))
             controller?.remoteLinkLost(notice, surface: self)
             return
         }
@@ -796,6 +797,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     }
 
     func handleHeldProcessExit() {
+        FileHandle.standardError.write(Data(("DIAG239 held-exit surface=\(ObjectIdentifier(self)) pane=\(paneToken) wait=\(waitAfterCommand) t=\(ProcessInfo.processInfo.systemUptime)" + "\n").utf8))
         guard waitAfterCommand else { return }
         // The final link-loss title can follow the child-exit callback from the separate PTY reader.
         heldLeadAttachment.retain(controller?.remoteHeldExits.attachmentEnded(self, forSession: sessionID))

@@ -52,15 +52,17 @@ extension AppController {
     func scheduleSessionSwitchCommit(releasing keycode: UInt32) {
         runOnMain { [weak self] in
             MainActor.assumeIsolated {
-                self?.commitSessionSwitch(
-                    releasing: keycode, controlStillHeld: ModifierKeyMods.currentControlIsHeld()
-                )
+                let held = ModifierKeyMods.currentControlIsHeld()
+                FileHandle.standardError.write(Data(("DIAG328 idle keycode=\(keycode) owner=\(self != nil) held=\(String(describing: held)) active=\(self?.sessionSwitcher.isActive == true) zoom=\(self?.terminalZoom.target != nil) t=\(ProcessInfo.processInfo.systemUptime)" + "\n").utf8))
+                self?.commitSessionSwitch(releasing: keycode, controlStillHeld: held)
             }
         }
     }
 
     private func commitSessionSwitch(releasing keycode: UInt32, controlStillHeld: Bool?) {
-        guard heldControlKeys.released(keycode: keycode, controlStillHeld: controlStillHeld) else { return }
+        let finalRelease = heldControlKeys.released(keycode: keycode, controlStillHeld: controlStillHeld)
+        FileHandle.standardError.write(Data(("DIAG328 decision finalRelease=\(finalRelease) active=\(sessionSwitcher.isActive) allowed=\(sessionSwitchAllowed) t=\(ProcessInfo.processInfo.systemUptime)" + "\n").utf8))
+        guard finalRelease else { return }
         guard sessionSwitcher.isActive else { return }
         // A zoom, pick or dialog that arrived mid-hold commits nothing, as macOS resets on `flagsChanged`.
         guard sessionSwitchAllowed else { cancelSessionSwitch(); return }

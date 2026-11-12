@@ -31,15 +31,21 @@ struct LinuxRemoteHeldExitRouter {
     func attachmentEnded(_ surface: any TerminalSurface, forSession id: UUID) -> ZmxLeadState? {
         guard let pane = paneIdentity(surface, forSession: id) else { return nil }
         let state = ZmxLeadBook.shared.states[pane]
+        FileHandle.standardError.write(Data(("DIAG239 retain pane=\(pane) attachment=\(state != nil) t=\(ProcessInfo.processInfo.systemUptime)" + "\n").utf8))
         ZmxLeadBook.shared.forget(pane: pane)
         return state
     }
 
     func linkLost(_ notice: RemoteLinkNotice, from surface: any TerminalSurface, forSession id: UUID,
                   heldAttachment: LinuxHeldLeadAttachment) -> Bool {
-        guard let pane = paneIdentity(surface, forSession: id),
-              let session = store.session(withID: id), let host = session.remoteHost,
-              let attachment = ZmxLeadBook.shared.states[pane] ?? heldAttachment.state,
+        let observedPane = paneIdentity(surface, forSession: id)
+        let observedSession = store.session(withID: id)
+        let observedLive = observedPane.flatMap { ZmxLeadBook.shared.states[$0] }
+        let observedAttachment = observedLive ?? heldAttachment.state
+        FileHandle.standardError.write(Data(("DIAG239 router currentSlot=\(observedPane != nil) session=\(observedSession != nil) host=\(observedSession?.remoteHost != nil) live=\(observedLive != nil) held=\(heldAttachment.state != nil) nonceMatches=\(observedAttachment?.attachment.nonce == notice.nonce) t=\(ProcessInfo.processInfo.systemUptime)" + "\n").utf8))
+        guard let pane = observedPane,
+              let session = observedSession, let host = session.remoteHost,
+              let attachment = observedAttachment,
               notice.nonce == attachment.attachment.nonce else { return false }
         let cover = attachment.role != nil || attachment.reattaching
         heldAttachment.consume()
