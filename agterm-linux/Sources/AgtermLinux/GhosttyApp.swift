@@ -495,7 +495,9 @@ final class GhosttyApp: @unchecked Sendable {
                     retained.release()
                     return
                 }
-                let answer = gSurfaceQuarantine.writeAnswer(key: retained.key) { LinuxClipboardAdapter.setClipboard(items, loc: loc) }
+                let answer = gSurfaceQuarantine.writeAnswer(key: retained.key, isLive: { MainActor.assumeIsolated { requester.surface != nil } }) {
+                    LinuxClipboardAdapter.setClipboard(items, loc: loc)
+                }
                 ClipboardPromptController.shared.request(.write, requester: requester) { allowed in
                     defer { retained.release() }
                     answer(allowed)

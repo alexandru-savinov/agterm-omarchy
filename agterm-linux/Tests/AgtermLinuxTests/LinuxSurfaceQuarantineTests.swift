@@ -77,7 +77,7 @@ struct LinuxSurfaceQuarantineTests {
         let lines = Lines()
         let quarantine = LinuxSurfaceQuarantine<String>(log: lines.append)
         var writes = 0
-        let answer = quarantine.writeAnswer(key: key) { writes += 1 }
+        let answer = quarantine.writeAnswer(key: key, isLive: { true }) { writes += 1 }
 
         quarantine.insert("record", key: key)
         answer(true)
@@ -90,13 +90,27 @@ struct LinuxSurfaceQuarantineTests {
     func liveWritePrompt() {
         let quarantine = LinuxSurfaceQuarantine<String>(log: { _ in })
         var writes = 0
-        let answer = quarantine.writeAnswer(key: key) { writes += 1 }
+        let answer = quarantine.writeAnswer(key: key, isLive: { true }) { writes += 1 }
 
         answer(false)
         #expect(writes == 0)
 
         answer(true)
         #expect(writes == 1)
+    }
+
+    @Test("a write prompt torn down without quarantine while shown writes nothing on Allow")
+    func tornDownWritePrompt() {
+        let quarantine = LinuxSurfaceQuarantine<String>(log: { _ in })
+        var isLive = true
+        var writes = 0
+        let answer = quarantine.writeAnswer(key: key, isLive: { isLive }) { writes += 1 }
+
+        isLive = false
+        answer(true)
+
+        #expect(!quarantine.contains(key))
+        #expect(writes == 0)
     }
 
     @Test("a close hop queued before quarantine runs no exit capture and no onExit")

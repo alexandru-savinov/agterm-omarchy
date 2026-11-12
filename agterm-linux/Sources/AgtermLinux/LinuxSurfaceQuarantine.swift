@@ -56,9 +56,11 @@ final class LinuxSurfaceQuarantine<Record>: @unchecked Sendable {
     }
 
     /// The write prompt's response. Its entry checks ran when the prompt was shown, not at the answer.
-    func writeAnswer(key: UInt, write: @escaping () -> Void) -> (Bool) -> Void {
+    func writeAnswer(key: UInt, isLive: @escaping () -> Bool, write: @escaping () -> Void) -> (Bool) -> Void {
         { [self] allowed in
             guard allowed, !drops(key, kind: "clipboard write") else { return }
+            // Ordinary teardown clears the surface without adding a quarantine record.
+            guard isLive() else { return }
             write()
         }
     }
