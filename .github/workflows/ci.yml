@@ -56,6 +56,7 @@ jobs:
             scripts/setup-omarchy.sh
             scripts/stage-linux.sh
             scripts/test-linux-resources.sh
+            scripts/test-linux-ghostty-shutdown.sh
             scripts/test-omarchy.sh
             scripts/test-zig-build-linux.sh
             scripts/verify-linux-packages.sh
@@ -79,6 +80,16 @@ jobs:
       - name: Zig transport fallback regression tests
         shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
         run: scripts/test-zig-build-linux.sh
+      - name: Pinned Ghostty shutdown regression and original-queue negative control
+        timeout-minutes: 5
+        shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
+        run: |
+          source linux/ghostty-resources.env
+          source_dir="$(mktemp -d)"
+          trap 'rm -rf "$source_dir"' EXIT
+          git init -q "$source_dir"
+          git -C "$source_dir" fetch --depth 1 --no-tags https://github.com/ghostty-org/ghostty.git "$GHOSTTY_REV"
+          scripts/test-linux-ghostty-shutdown.sh "$source_dir"
       - name: Whitespace
         run: git diff --check
       - name: Summary
@@ -98,6 +109,8 @@ jobs:
     outputs:
       swift: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.swift == 'true' }}
       cookbook: ${{ steps.filter.outputs.cookbook }}
+      # GitHub caps PR file lists at 3000; an incomplete list must retain full validation.
+      ui_python_only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.ui_python_count > 0 && steps.filter.outputs.all_changed_count < 3000 && steps.filter.outputs.ui_python_count == steps.filter.outputs.all_changed_count }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -107,6 +120,10 @@ jobs:
         id: filter
         with:
           filters: |
+            all_changed:
+              - "**"
+            ui_python:
+              - "agterm-linux/tests/*.py"
             swift:
               - "**/*.swift"
               - "agtermCore/**"
@@ -157,6 +174,7 @@ jobs:
         run: |
           scripts/ci-install-ubuntu-deps.sh ripgrep zsh fish
       - name: Install Node for OpenCode hook tests
+        if: needs.changes.outputs.ui_python_only != 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
@@ -168,6 +186,7 @@ jobs:
       # The official Swift container runs as root, which bypasses those permissions, so exercise the
       # package as an ordinary desktop user like the application itself.
       - name: swift test as an unprivileged user
+        if: needs.changes.outputs.ui_python_only != 'true'
         working-directory: agtermCore
         run: |
           useradd --create-home --user-group agterm-test
@@ -205,6 +224,7 @@ jobs:
         run: |
           test "$(swiftlint version)" = "$SWIFTLINT_VERSION"
       - name: swiftlint (strict)
+        if: needs.changes.outputs.ui_python_only != 'true'
         run: swiftlint lint --strict --quiet
       - name: Materialize and verify upstream boundary tag
         run: |
@@ -221,7 +241,8 @@ jobs:
 
   build-linux:
     name: GTK build and tests (${{ matrix.arch }})
-    needs: [changes, scripts, test-linux, lint-linux]
+    # Independent checks run concurrently; the final CI gate still requires every result.
+    needs: changes
     if: needs.changes.outputs.swift == 'true'
     strategy:
       fail-fast: false
@@ -287,7 +308,7 @@ jobs:
           path: |
             agterm-linux/vendor/ghostty
             agterm-linux/vendor/zmx
-          key: linux-runtimes-${{ steps.linux-architecture.outputs.host }}-${{ hashFiles('scripts/setup-linux.sh', 'scripts/verify-linux-vendor-cache.sh', 'scripts/verify-linux-zmx-cache.sh', 'scripts/verify-linux-architecture.sh', 'scripts/verify-linux-resources.sh', 'scripts/linux-notices.py', 'packaging/linux/notices/**', 'scripts/zmx-patches/**/*.patch', 'linux/arch.sh', 'linux/ghostty-resources.env', 'linux/zmx.env', 'linux/patches/ghostty-embedded-opengl.patch', 'linux/patches/ghostty-embedded-input-handoff.patch', 'linux/patches/ghostty-lib-resources.patch') }}
+          key: linux-runtimes-${{ steps.linux-architecture.outputs.host }}-${{ hashFiles('scripts/setup-linux.sh', 'scripts/verify-linux-vendor-cache.sh', 'scripts/verify-linux-zmx-cache.sh', 'scripts/verify-linux-architecture.sh', 'scripts/verify-linux-resources.sh', 'scripts/linux-notices.py', 'packaging/linux/notices/**', 'scripts/zmx-patches/**/*.patch', 'linux/arch.sh', 'linux/ghostty-resources.env', 'linux/zmx.env', 'linux/patches/ghostty-embedded-opengl.patch', 'linux/patches/ghostty-embedded-input-handoff.patch', 'linux/patches/ghostty-lib-resources.patch', 'linux/patches/ghostty-clipboard-request-kind.patch', 'linux/patches/ghostty-surface-env-unset.patch') }}
       - name: Verify restored libghostty cache
         if: steps.ghostty-cache.outputs.cache-hit == 'true'
         run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty
@@ -339,6 +360,14 @@ jobs:
             XDG_CACHE_HOME="$fixture_root/cache" XDG_RUNTIME_DIR="$fixture_root/runtime" \
             AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" \
             swift test --skip-build --filter ThemePickerCancellationGTKTests
+      - name: GTK pending spawn teardown
+        working-directory: agterm-linux
+        run: |
+          fixture="$(mktemp -d)"
+          trap 'rm -rf "$fixture"' EXIT
+          HOME="$fixture" XDG_CONFIG_HOME="$fixture/config" AGTERM_STATE_DIR="$fixture/state" \
+            AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" AGTERM_GTK_TESTS=1 \
+            xvfb-run -a swift test --skip-build --filter LinuxSpawnRegistryGTKTests
       - name: swift build (agterm-linux)
         working-directory: agterm-linux
         run: swift build
@@ -347,6 +376,18 @@ jobs:
         run: swift build -c release
       - name: Validate staged Linux payload
         run: scripts/stage-linux.sh "$RUNNER_TEMP/agterm-stage"
+      - name: GTK inline rename effect tests
+        working-directory: agterm-linux
+        run: |
+          fixture_root=$(mktemp -d)
+          trap 'rm -rf "$fixture_root"' EXIT
+          mkdir -p "$fixture_root"/{home,state,config,data,cache,runtime}
+          chmod 700 "$fixture_root/runtime"
+          xvfb-run -a dbus-run-session -- env AGTERM_RENAME_GTK_TESTS=1 GDK_BACKEND=x11 \
+            HOME="$fixture_root/home" AGTERM_STATE_DIR="$fixture_root/state" \
+            XDG_CONFIG_HOME="$fixture_root/config" XDG_DATA_HOME="$fixture_root/data" \
+            XDG_CACHE_HOME="$fixture_root/cache" XDG_RUNTIME_DIR="$fixture_root/runtime" \
+            swift test --skip-build --filter InlineRenameGTKTests
       - name: GTK AT-SPI smoke tests
         env:
           AGTERM_UI_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/linux-ui
@@ -380,7 +421,8 @@ jobs:
 
   ci:
     name: CI
-    if: always()
+    # Superseded runs must not hold the concurrency slot while this job waits for a runner.
+    if: ${{ !cancelled() }}
     needs: [scripts, changes, test-linux, lint-linux, build-linux, cookbook]
     runs-on: ubuntu-24.04
     timeout-minutes: 5

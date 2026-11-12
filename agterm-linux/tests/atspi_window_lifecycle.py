@@ -135,15 +135,37 @@ def verify_workspace_focus_filters(env):
         wait_for(lambda: matches()[0], f"{step}: sidebar rows/active session disagree with the tree: {matches()[1]}")
         return matches()[1][1]
 
+    def targetless_actions(workspace, name):
+        request("workspace.rename", args={"name": name})
+        wait_for(lambda: any(item["id"] == workspace and item["name"] == name
+                             for item in tree()["workspaces"]),
+                 f"targetless rename did not target selected workspace {workspace}")
+        wait_for(lambda: named(app, name, role="label"), "renamed workspace label did not appear")
+        before = {row["id"] for item in tree()["workspaces"] for row in item["sessions"]}
+        run_palette_action(app, process.pid, None, "New Session")
+        def created():
+            return [(item["id"], row) for item in tree()["workspaces"] for row in item["sessions"]
+                    if row["id"] not in before]
+        added = wait_for(created, "targetless New Session did not create a session")
+        assert len(added) == 1 and added[0][0] == workspace and added[0][1].get("active"), (
+            f"targetless New Session did not select a session in {workspace}: {added}")
+
     try:
         first = tree()["workspaces"][0]["id"]
         request("workspace.rename", first, {"name": "wf-one"})
+        selected = next(row["id"] for item in tree()["workspaces"] for row in item["sessions"]
+                        if row.get("active"))
         two = request("workspace.new", args={"name": "wf-two"})["id"]
+        request("workspace.select", first)
+        assert next(row["id"] for item in tree()["workspaces"] for row in item["sessions"]
+                    if row.get("active")) == selected, "same-session workspace selection changed the session"
+        targetless_actions(first, "wf-one-selected")
+        request("workspace.rename", first, {"name": "wf-one"})
         three = request("workspace.new", args={"name": "wf-three"})["id"]
-        for workspace in (two, three):
-            # placed by id: selecting a still-empty workspace has no session to make current, so an
-            # unplaced session.new lands in whichever workspace is current (wf-three, the last created)
-            request("session.new", args={"name": f"wf-session-{workspace[:4]}", "workspace": workspace})
+        request("workspace.select", two)
+        targetless_actions(two, "wf-two-selected")
+        request("workspace.rename", two, {"name": "wf-two"})
+        request("session.new", args={"name": "wf-session-three", "workspace": three})
         wait_for(lambda: [item["name"] for item in tree()["workspaces"]] == ["wf-one", "wf-two", "wf-three"],
                  f"the fixture workspaces did not settle: {tree()['workspaces']}")
         check("fixture")
@@ -156,6 +178,17 @@ def verify_workspace_focus_filters(env):
         select(two)
         run_palette_action(app, process.pid, None, "Focus Workspace")
         assert check("Focus Workspace") == ["wf-two"]
+        hidden = request("workspace.new", args={"name": "wf-hidden"})["id"]
+        select(two)
+        run_palette_action(app, process.pid, None, "Focus Workspace")
+        assert check("hide empty workspace") == ["wf-two"]
+        request("workspace.select", hidden)
+        assert tree().get("workspaceFilter"), "selecting a hidden workspace disabled the filter"
+        assert check("reveal empty workspace") == ["wf-two", "wf-hidden"]
+        targetless_actions(hidden, "wf-hidden-selected")
+        assert check("selected empty workspace populated") == ["wf-two", "wf-hidden-selected"]
+        request("workspace.delete", hidden)
+        select(two)
         run_palette_action(app, process.pid, None, "Toggle Workspace Filter")
         assert check("filter off") == ["wf-one", "wf-two", "wf-three"]
         select(three)
@@ -173,7 +206,8 @@ def verify_workspace_focus_filters(env):
         assert [(item["id"], item.get("focused")) for item in tree()["workspaces"]] == focused, tree()["workspaces"]
         assert tree().get("workspaceFilter"), "the relaunch dropped the workspace filter"
         assert check("relaunch") == ["wf-two"]
-        print("OK: Focus Workspace, Add Workspace to Focus and Toggle Workspace Filter keep the sidebar rows and "
+        print("OK: workspace.select targets same-session, empty and filtered-out workspaces for targetless rename "
+              "and New Session; Focus Workspace, Add Workspace to Focus and Toggle Workspace Filter keep the sidebar rows and "
               "active session on the tree's focused/workspaceFilter fields through a member removal and a relaunch")
     except AssertionError:
         describe_tree(app)
@@ -189,6 +223,42 @@ def quick_expected(overlay, header):
 
 
 def verify_quick_card_geometry(env, state):
+    import ctypes
+    import subprocess
+
+    class SizeHints(ctypes.Structure):
+        _fields_ = [("flags", ctypes.c_long)] + [(name, ctypes.c_int) for name in (
+            "x", "y", "width", "height", "min_width", "min_height", "max_width", "max_height",
+            "width_inc", "height_inc", "min_aspect_x", "min_aspect_y", "max_aspect_x", "max_aspect_y",
+            "base_width", "base_height", "win_gravity")]
+
+    def minimum_allocation():
+        xid = int(subprocess.check_output(["xdotool", "getactivewindow"], text=True).strip())
+        owner = int(subprocess.check_output(["xdotool", "getwindowpid", str(xid)], text=True).strip())
+        assert owner == process.pid, f"minimum geometry came from PID {owner}, expected {process.pid}"
+        x11 = ctypes.CDLL("libX11.so.6")
+        x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        x11.XOpenDisplay.restype = ctypes.c_void_p
+        x11.XGetWMNormalHints.argtypes = [ctypes.c_void_p, ctypes.c_ulong,
+                                        ctypes.POINTER(SizeHints), ctypes.POINTER(ctypes.c_long)]
+        x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+        display = x11.XOpenDisplay(None)
+        assert display, "could not open the fixture X11 display"
+        hints, supplied = SizeHints(), ctypes.c_long()
+        try:
+            assert x11.XGetWMNormalHints(display, xid, ctypes.byref(hints), ctypes.byref(supplied)), (
+                "the active window has no WM_NORMAL_HINTS")
+        finally:
+            x11.XCloseDisplay(display)
+        assert hints.flags & (1 << 4) and hints.min_width > 0 and hints.min_height > 0, (
+            "the active window did not publish a positive minimum size")
+        geometry = dict(line.split("=", 1) for line in subprocess.check_output(
+            ["xdotool", "getwindowgeometry", "--shell", str(xid)], text=True).splitlines())
+        actual = int(geometry["WIDTH"]), int(geometry["HEIGHT"])
+        minimum = hints.min_width, hints.min_height
+        assert actual == minimum, f"client allocation {actual} did not reach advertised minimum {minimum}"
+        return actual
+
     settings = os.path.join(state, "settings.json")
     rows = []
     for toolbar in ("normal", "hidden"):
@@ -200,7 +270,8 @@ def verify_quick_card_geometry(env, state):
             control_json(env, "quick", "show", "--json")
             wait_for(lambda: window_tree(env, window).get("quickVisible"), "the quick terminal did not open")
             previous = None
-            for width, height in ((480, 360), (1400, 860)):
+            minimum = None
+            for width, height in ((1, 1), (2, 2), (480, 360), (1400, 860)):
                 control_json(env, "window", "resize", window, "--width", str(width), "--height", str(height), "--json")
 
                 def measure():
@@ -211,7 +282,7 @@ def verify_quick_card_geometry(env, state):
                         return None
                     overlay = max(panes, key=lambda box: box.width * box.height)
                     header = 0
-                    toggle = named(app, "Toggle Sidebar (Ctrl+Shift+S)")
+                    toggle = named(app, "Toggle Sidebar (Ctrl+Shift+S)") or named(app, "Maximize")
                     node = toggle.get_parent() if toggle and toolbar == "normal" else None
                     while node is not None:
                         box = window_extents(node)
@@ -229,10 +300,18 @@ def verify_quick_card_geometry(env, state):
                         return None
                     key = [(box.x, box.y, box.width, box.height) for box in (first[0], first[2])]
                     again = [(box.x, box.y, box.width, box.height) for box in (second[0], second[2])]
-                    return second if key == again and second[0].width != previous else None
+                    return second if key == again and (width == 2 or second[0].width != previous) else None
 
                 overlay, header, card = wait_for(settled, f"the quick card never settled at {width}x{height}", timeout=15)
                 previous = overlay.width
+                if width <= 2:
+                    actual = minimum_allocation()
+                    allocation = actual, overlay.width, overlay.height, card.width, card.height
+                    if minimum is not None:
+                        assert allocation == minimum, f"below-minimum requests did not clamp identically: {minimum} != {allocation}"
+                    minimum = allocation
+                    print(f"{toolbar}: requested {width}x{height}, reached X11 minimum {actual}, "
+                          f"GTK overlay {overlay.width}x{overlay.height}", flush=True)
                 want = quick_expected(overlay, header)
                 got = (card.x - overlay.x, card.y - overlay.y, card.width, card.height)
                 rows.append((toolbar, f"{overlay.width}x{overlay.height}", header, want, got))
@@ -250,5 +329,5 @@ def verify_quick_card_geometry(env, state):
             raise
         finally:
             stop(process)
-    print("OK: quick card matches cardAllocation at small and large windows with normal and hidden toolbars: "
+    print("OK: quick card matches cardAllocation at minimum, small and large windows with normal and hidden toolbars: "
           + "; ".join(f"{t} {o} header={h} card={g}" for t, o, h, _w, g in rows))

@@ -1,0 +1,12 @@
+{
+  "schema": "agterm-mac-vm-evidence/core-baseline/1",
+  "source_commit": "25edfe31a34a9cce9c4cbd68a106222e4d73aea8",
+  "passed": 4117,
+  "failed": 1,
+  "explicit_skips": 9,
+  "total_definitions": 4127,
+  "suites": 180,
+  "failure": "TerminfoInstallTests.theRemoteCommandCompilesTheSourceUnderEveryLoginShell zsh fixture resolves host tic after startup PATH reset",
+  "original_log_sha256": "f021f31e87bdb52a85a499ee42f2a88bd2f816ed26fb807624be129482072a7d",
+  "public_report": "https://github.com/alexandru-savinov/agterm-omarchy/issues/305#issuecomment-6805318995"
+}

@@ -24,7 +24,7 @@ import uuid
 
 
 SOURCE = Path(__file__).resolve().parents[1] / "test-omarchy.sh"
-PYTHON = SOURCE.read_text().split("exec python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+PYTHON = SOURCE.read_text().split("exec python3 -I - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
 MODULE = ast.parse(PYTHON)
 HELPERS = [node for node in MODULE.body if isinstance(node, ast.FunctionDef) or (
     isinstance(node, ast.Assign) and [getattr(t, "id", None) for t in node.targets] == ["SENTINEL_PREFIX"])]

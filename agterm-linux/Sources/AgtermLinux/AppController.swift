@@ -145,6 +145,9 @@ final class AppController {
         var isWorkspace: Bool { if case .workspace = self { return true }; return false }
     }
     var renaming: RenameTarget?
+    // Accepted-effect seams: model events cannot reveal duplicate same-value rename dispatches.
+    var onCommitRename: ((UUID, String) -> Void)?
+    var onWorkspaceRename: ((UUID, String) -> Void)?
     var renameEntry: OpaquePointer?  // the live rename GtkEntry (focused after rebuild)
     var sidebarScroller: OpaquePointer?               // the sidebar's GtkScrolledWindow (scroll-to-selected)
     var contextMenuSession: UUID?                     // the session a row context menu targets
@@ -730,7 +733,9 @@ final class AppController {
         renameEntry = nil
         resumeAutoFollow()
         if !text.isEmpty {
-            if target.isWorkspace { store.renameWorkspace(target.id, to: text) } else { store.renameSession(target.id, to: text) }
+            let commit = target.isWorkspace
+                ? (onWorkspaceRename ?? store.renameWorkspace) : (onCommitRename ?? store.renameSession)
+            commit(target.id, text)
         }
         runOnMain { [weak self] in MainActor.assumeIsolated { self?.rebuildAfterRename() } }
     }

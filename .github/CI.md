@@ -26,3 +26,15 @@ This closes the real-helper coverage gap without requiring a graphical applicati
 
 The existing aggregate CI gate still requires these jobs to succeed.
 Hosted checks and archives do not establish native Omarchy/Wayland acceptance for the produced payload.
+
+The core boundary guard keeps `ConfigPathsTests.swift` identical to the upstream base by default.
+Its single reviewed exception in `packaging/linux/core-fixture-exceptions.tsv` pins the exact path,
+upstream Git blob, accepted fixture Git blob and task rationale; wildcards, additional records,
+malformed fields, different bases and any further content change fail.
+The file must remain regular and non-executable, and the host import/API checks still apply.
+This exception covers [#343](https://github.com/alexandru-savinov/agterm-omarchy/issues/343):
+a portable test fixture restores its editor environment after global zsh startup while preserving
+the product command, private login/interactive rc sourcing and every existing assertion.
+The accepted bytes are the reviewed `c5262fe4` fixture; this is not an exemption for other core changes.
+Remove the exception when the upstream base includes the fixture correction.
+Any replacement pair needs an explicit review and rationale rather than updating hashes to silence a failure.

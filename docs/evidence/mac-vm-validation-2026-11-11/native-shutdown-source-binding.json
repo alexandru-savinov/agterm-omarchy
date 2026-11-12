@@ -1,0 +1,43 @@
+{
+  "schema": "agterm-public-shutdown-evidence/1",
+  "evidence_kind": "retained original extract",
+  "new_execution": false,
+  "full_current_source_acceptance": false,
+  "sources": [],
+  "bindings": [
+    {
+      "ref": "fd72c31902029e6d228ab3a254c37e28b9655ab3",
+      "path": "linux/patches/ghostty-embedded-opengl.patch",
+      "git_blob": "de5ac39250d30fd94b13c786b5087cbe22226a64",
+      "sha256": "5acad8dff653d70056471520270d03c1df59aa7d6112e895f10d3c903bea6ba9",
+      "url": "https://github.com/alexandru-savinov/agterm-omarchy/blob/fd72c31902029e6d228ab3a254c37e28b9655ab3/linux/patches/ghostty-embedded-opengl.patch"
+    },
+    {
+      "ref": "fd72c31902029e6d228ab3a254c37e28b9655ab3",
+      "path": "scripts/test-linux-ghostty-shutdown.sh",
+      "git_blob": "cf25377762e676d2a4e43b6fc751799c1eeecf69",
+      "sha256": "b2dd3598b9c0ce7d4a9c5527512c8b345be04f9ffd9a77e7396d2a2312bd760d",
+      "url": "https://github.com/alexandru-savinov/agterm-omarchy/blob/fd72c31902029e6d228ab3a254c37e28b9655ab3/scripts/test-linux-ghostty-shutdown.sh"
+    },
+    {
+      "ref": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/patches/ghostty-embedded-opengl.patch",
+      "git_blob": "de5ac39250d30fd94b13c786b5087cbe22226a64",
+      "sha256": "5acad8dff653d70056471520270d03c1df59aa7d6112e895f10d3c903bea6ba9",
+      "url": "https://github.com/alexandru-savinov/agterm-omarchy/blob/77cce43eb791ba1a983c19760c7df5259d0e452d/linux/patches/ghostty-embedded-opengl.patch"
+    },
+    {
+      "ref": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "scripts/test-linux-ghostty-shutdown.sh",
+      "git_blob": "efbb0fc48f22add9bdb32960cc1cc77d2fb1e339",
+      "sha256": "0953dd05550ab81b99f24f5d2c7686e3cc2a73e5f9e3a08d04cf971c418b3f58",
+      "url": "https://github.com/alexandru-savinov/agterm-omarchy/blob/77cce43eb791ba1a983c19760c7df5259d0e452d/scripts/test-linux-ghostty-shutdown.sh"
+    }
+  ],
+  "native_library_and_queue_source": "fd72c31902029e6d228ab3a254c37e28b9655ab3",
+  "corrected_runner_source": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+  "corrected_runner_executed_by_these_native_originals": false,
+  "separate_corrected_runner_owner_handoff": "https://github.com/alexandru-savinov/agterm-omarchy/pull/322#issuecomment-6806905406",
+  "separate_corrected_runner_review": "https://github.com/alexandru-savinov/agterm-omarchy/pull/322#pullrequestreview-5865363876",
+  "limit": "The old native queue success does not validate timeout cleanup; corrected runner controls are separately reported and reviewed."
+}

@@ -13,7 +13,7 @@
 # with `xcrun notarytool store-credentials` (default name: agterm-notary,
 # override with AGTERM_NOTARY_PROFILE).
 set -euo pipefail
-cd "$(dirname "$0")/.."
+CDPATH='' cd -- "$(dirname "$0")/.."
 ROOT="$PWD"
 BUILD_DIR="$ROOT/build"
 
