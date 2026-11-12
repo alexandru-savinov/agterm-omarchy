@@ -2,7 +2,7 @@
 # Exercise the Linux architecture contract with real x86_64 and aarch64 ELF objects.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 VERIFY="$ROOT/scripts/verify-linux-architecture.sh"
 ZIG="$(command -v zig || true)"
 [[ -x "$ZIG" ]] || { echo "zig is required to test Linux architecture verification" >&2; exit 1; }

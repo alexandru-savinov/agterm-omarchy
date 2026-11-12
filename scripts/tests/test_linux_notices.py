@@ -27,6 +27,7 @@ class NoticeTests(unittest.TestCase):
             shutil.copy2(ROOT / 'linux' / name, self.repo / 'linux' / name)
         shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
         shutil.copytree(ROOT / 'scripts/zmx-patches', self.repo / 'scripts/zmx-patches')
+        shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
         shutil.copytree(ROOT / 'packaging/linux/notices', self.repo / 'packaging/linux/notices')
         shutil.copy2(ROOT / 'LICENSE', self.repo / 'LICENSE')
         self.notices = self.repo / 'packaging/linux/notices'
@@ -40,6 +41,9 @@ class NoticeTests(unittest.TestCase):
         (self.destination / 'lib').mkdir(parents=True)
         (self.destination / 'lib/libswiftCore.so').write_bytes(b'fixture runtime')
         self.command('cache-ghostty', self.cache, self.notices / 'ghostty')
+        stamp = subprocess.run(['bash', str(self.repo / 'scripts/verify-linux-vendor-cache.sh'), '--print-stamp'],
+                               text=True, capture_output=True, check=True, timeout=10).stdout
+        (self.vendor / 'SOURCE_STAMP').write_text(stamp)
 
     def command(self, *arguments, success=True):
         result = subprocess.run([sys.executable, str(self.repo / 'scripts/linux-notices.py'), *map(str, arguments)],

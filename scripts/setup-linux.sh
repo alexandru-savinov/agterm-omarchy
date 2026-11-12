@@ -2,7 +2,7 @@
 # Build pinned libghostty/resources and zmx into agterm-linux/vendor.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 PATCH="$ROOT/linux/patches/ghostty-embedded-opengl.patch"
 INPUT_HANDOFF_PATCH="$ROOT/linux/patches/ghostty-embedded-input-handoff.patch"
 RESOURCE_PATCH="$ROOT/linux/patches/ghostty-lib-resources.patch"
@@ -22,8 +22,29 @@ ZMX_STAMP="$ZMX_REV $ZMX_PATCH_DIGEST"
 source "$ROOT/linux/arch.sh"
 ZMX_BUILD_POLICY="target=$ZIG_TARGET cpu=$ZMX_CPU"
 
+# Fetch one pinned commit and refuse it unless the checked-out HEAD is exactly that commit; the commit id
+# identifies the content, so no archive checksum is needed. The checkout is then detached from git so
+# the build sees a plain source tree.
+fetch_pinned_commit() {
+  local url="$1" rev="$2" directory="$3"
+  [[ "$rev" =~ ^[0-9a-f]{40}$ ]] || { echo "no pinned 40-hex commit recorded for $url" >&2; exit 1; }
+  git init -q "$directory"
+  git -C "$directory" remote add origin "$url"
+  git -C "$directory" fetch -q --depth 1 origin "$rev"
+  git -C "$directory" -c advice.detachedHead=false checkout -q FETCH_HEAD
+  [[ "$(git -C "$directory" rev-parse HEAD)" == "$rev" ]] || {
+    echo "fetched $url at $(git -C "$directory" rev-parse HEAD), not the pinned commit $rev" >&2
+    exit 1
+  }
+  rm -rf "${directory:?}/.git"
+}
+
 cache_is_complete() {
-  "$VERIFY_CACHE" "$VENDOR" >/dev/null 2>&1
+  local reason
+  reason="$("$VERIFY_CACHE" "$VENDOR" 2>&1 >/dev/null)" && return 0
+  # Say once why an existing cache is rebuilt; a fresh checkout simply has nothing to reuse.
+  [[ ! -d "$VENDOR" ]] || printf 'rebuilding vendored libghostty:\n%s\n' "$reason" >&2
+  return 1
 }
 
 zmx_cache_is_complete() {
@@ -61,6 +82,8 @@ mkdir -p "$BUILD_DIR/xdg-cache"
 if $need_ghostty; then
   GHOSTTY_BUILD="$BUILD_DIR/ghostty"
   GHOSTTY_STAGE="$BUILD_DIR/ghostty-stage"
+  # Record the inputs before building, so the stamp describes exactly what was patched and compiled.
+  GHOSTTY_STAMP="$("$VERIFY_CACHE" --print-stamp)"
   echo "fetching ghostty $GHOSTTY_REV..."
   git init -q "$GHOSTTY_BUILD"
   git -C "$GHOSTTY_BUILD" remote add origin "$GHOSTTY_REPO"
@@ -108,6 +131,7 @@ if $need_ghostty; then
   cp "$TERMINFO_SOURCE" "$GHOSTTY_BUILD/src/terminfo/ghostty.terminfo"
   tic -x -o "$GHOSTTY_STAGE/share/terminfo" "$GHOSTTY_BUILD/src/terminfo/ghostty.terminfo"
 
+  printf '%s\n' "$GHOSTTY_STAMP" > "$GHOSTTY_STAGE/SOURCE_STAMP"
   "$VERIFY_CACHE" "$GHOSTTY_STAGE"
   rm -rf "$VENDOR"
   mkdir -p "$(dirname "$VENDOR")"
@@ -117,18 +141,16 @@ fi
 if $need_zmx; then
   ZMX_BUILD="$BUILD_DIR/zmx"
   ZMX_STAGE="$BUILD_DIR/zmx-stage"
-  ZMX_SLUG="${ZMX_REPO#https://github.com/}"
-  ZMX_SLUG="${ZMX_SLUG%.git}"
   echo "fetching zmx $ZMX_REV..."
-  mkdir -p "$ZMX_BUILD"
-  curl -fsSLo "$BUILD_DIR/zmx.tgz" "https://codeload.github.com/$ZMX_SLUG/tar.gz/$ZMX_REV"
-  tar -xzf "$BUILD_DIR/zmx.tgz" -C "$ZMX_BUILD" --strip-components=1
+  fetch_pinned_commit "$ZMX_REPO" "${ZMX_REV:-}" "$ZMX_BUILD"
   ZMX_GHOSTTY_REV="$(sed -n 's|.*ghostty-org/ghostty#\([0-9a-f]\{40\}\)".*|\1|p' "$ZMX_BUILD/build.zig.zon")"
   [[ -n "$ZMX_GHOSTTY_REV" ]] || { echo "missing zmx ghostty revision" >&2; exit 1; }
+  [[ "$ZMX_GHOSTTY_REV" == "${ZMX_GHOSTTY_PIN:-}" ]] || {
+    echo "zmx declares Ghostty $ZMX_GHOSTTY_REV but linux/zmx.env pins ${ZMX_GHOSTTY_PIN:-nothing}" >&2
+    exit 1
+  }
   ZMX_GHOSTTY="$BUILD_DIR/zmx-ghostty"
-  mkdir -p "$ZMX_GHOSTTY"
-  curl -fsSLo "$BUILD_DIR/zmx-ghostty.tgz" "https://codeload.github.com/ghostty-org/ghostty/tar.gz/$ZMX_GHOSTTY_REV"
-  tar -xzf "$BUILD_DIR/zmx-ghostty.tgz" -C "$ZMX_GHOSTTY" --strip-components=1
+  fetch_pinned_commit "$GHOSTTY_REPO" "$ZMX_GHOSTTY_PIN" "$ZMX_GHOSTTY"
   for ghostty_patch in "$ROOT/scripts/zmx-patches/ghostty"/*.patch; do
     git -C "$ZMX_GHOSTTY" apply --whitespace=nowarn "$ghostty_patch"
   done

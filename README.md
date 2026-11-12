@@ -293,8 +293,9 @@ source linux/swift-env.sh
 
 `scripts/setup-linux.sh` builds the pinned libghostty and zmx revisions and stages Ghostty's exact theme
 dependency, shell integration, and compiled `xterm-ghostty` terminfo.
-It reuses vendored caches only when libghostty matches the current architecture, the Ghostty resources are
-complete, and the zmx revision matches; release staging rejects a partial cache.
+It reuses vendored caches only when libghostty matches the current architecture and was built from the current
+Ghostty revision and patches, the Ghostty resources are complete, and the zmx revision matches; release staging
+rejects a partial cache.
 At runtime Linux advertises `TERM=xterm-ghostty` only when both shell integration and the sibling terminfo database
 resolve, and safely uses `TERM=xterm-256color` when they do not.
 
@@ -312,6 +313,7 @@ scripts/dist-linux.sh
 ```
 
 The release set uses one staged payload for tar, DEB, and RPM.
+Staging records the checkout's full `HEAD` commit; outside a git checkout, set `AGTERM_PACKAGE_COMMIT` to record one.
 It additionally requires nFPM, ImageMagick, RPM tools, and `cpio`.
 Choose a version for your package; this example labels a development build:
 
