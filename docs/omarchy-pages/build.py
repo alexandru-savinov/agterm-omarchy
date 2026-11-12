@@ -166,6 +166,88 @@ def current_validation():
 <p><a href="{BASE}/issues/199">Native lifecycle gate #199</a> · <a href="{BASE}/issues/310">Mac fixture gate #310</a> · <a href="{BASE}/issues/320">Shutdown fix #320</a>. Mac core tests, installed-app comparisons and a source-built Mac app remain separate subjects. <a href="{BASE}/issues/1">Public task claims</a> describe reported work, not proof of running processes; same-account review is not independent approval.</p></div></section>'''
 
 
+UPSTREAM = "melonamin/agterm-linux"
+UPSTREAM_BRANCH = "linux-port"
+DRIFT_WORKFLOW = f"{BASE}/actions/workflows/upstream-drift.yml"
+DRIFT_MAX_AGE_DAYS = 8  # the drift workflow runs weekly; one missed run makes the snapshot stale
+
+
+def latest_drift_run(runs):
+    """Newest run from `gh run list --json databaseId,createdAt,event,headBranch` that measured main.
+
+    `--branch main` alone also matches a pull request from a fork's branch named main, whose artifact
+    the fork controls, so only scheduled and dispatched runs count."""
+    trusted = [run for run in runs if isinstance(run, dict) and run.get("headBranch") == "main"
+               and run.get("event") in ("schedule", "workflow_dispatch")] if isinstance(runs, list) else []
+    return max(trusted, key=lambda run: str(run.get("createdAt")), default=None)
+
+
+def drift_snapshot(run, drift, now):
+    """Validate the latest upstream-drift run and its artifact (#380, B4).
+
+    `run` is the latest_drift_run() entry (or None), `drift` the
+    parsed upstream-drift.json (or None). Returns a dict whose `status` is "loaded", "stale" or
+    "unavailable"; an unavailable snapshot carries only a `reason`, never partial numbers."""
+    def unavailable(reason, run_url=None):
+        return {"status": "unavailable", "reason": reason, "workflow_url": DRIFT_WORKFLOW, "run_url": run_url}
+    if not isinstance(run, dict):
+        return unavailable("no successful upstream-drift run on main was found")
+    run_id, created, measured = run.get("databaseId"), run.get("createdAt"), None
+    if type(run_id) is int and run_id > 0 and isinstance(created, str):
+        try:
+            measured = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    if measured is None or measured.tzinfo is None:
+        return unavailable("the latest upstream-drift run has no usable id or timestamp")
+    run_url = f"{BASE}/actions/runs/{run_id}"  # constructed, not copied from the API response
+    if not isinstance(drift, dict):
+        return unavailable("the upstream-drift artifact is missing, expired or unreadable", run_url)
+    counts = {key: drift.get(key) for key in ("ahead", "behind", "conflict_count")}
+    commits = {key: drift.get(key) for key in ("main", "upstream")}
+    if (any(type(value) is not int or value < 0 for value in counts.values())
+            or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{40}", value)
+                   for value in commits.values())):
+        return unavailable("the upstream-drift artifact does not have the expected fields", run_url)
+    age_seconds = (now - measured).total_seconds()
+    if age_seconds < -300:
+        return unavailable("the upstream-drift run is dated in the future", run_url)
+    age_days = max(age_seconds, 0) / 86400
+    stale = age_days > DRIFT_MAX_AGE_DAYS
+    return {"status": "stale" if stale else "loaded", "run_url": run_url, "workflow_url": DRIFT_WORKFLOW,
+            "measured_at": measured.astimezone(timezone.utc).isoformat(timespec="seconds"),
+            "age_days": round(age_days, 1), "max_age_days": DRIFT_MAX_AGE_DAYS, **counts, **commits,
+            "reason": (f"the latest measurement is {age_days:.1f} days old, older than {DRIFT_MAX_AGE_DAYS} days"
+                       if stale else None)}
+
+
+def drift_section(snapshot):
+    """Render the drift snapshot; a missing or stale measurement is stated, never left blank."""
+    if snapshot is None:
+        return ""
+    upstream = (f'<a href="https://github.com/{UPSTREAM}/tree/{UPSTREAM_BRANCH}">'
+                f'<code>{UPSTREAM}:{UPSTREAM_BRANCH}</code></a>')
+    run_url = snapshot.get("run_url")
+    run_link = f'<a href="{run_url}">run {run_url.rsplit("/", 1)[1]}</a>' if run_url else None
+    head = ('<section class="readiness" id="upstream-drift" aria-labelledby="upstream-drift-title">'
+            '<div><p class="eyebrow">Upstream drift</p><h2 id="upstream-drift-title">Distance from linux-port</h2>'
+            f'<a href="{DRIFT_WORKFLOW}">Weekly drift workflow →</a></div><div>')
+    if snapshot["status"] == "unavailable":
+        return (head + '<p class="drift-notice"><strong>Drift snapshot unavailable:</strong> '
+                f'{escape(snapshot["reason"])}.' + (f' Latest run: {run_link}.' if run_link else '')
+                + f' The distance from {upstream} is unknown for this build.</p></div></section>')
+    notice = (f'<p class="drift-notice"><strong>Stale drift snapshot:</strong> {escape(snapshot["reason"])}. '
+              'The weekly run may have failed; treat these numbers as historical.</p>'
+              if snapshot["status"] == "stale" else "")
+    return (head + notice
+            + f'<p><code>main</code> is <strong>{snapshot["ahead"]} commits ahead</strong> and '
+            f'<strong>{snapshot["behind"]} behind</strong> {upstream}; a merge would conflict on '
+            f'<strong>{snapshot["conflict_count"]} paths</strong>.</p>'
+            f'<p class="muted">Measured <time datetime="{snapshot["measured_at"]}">{snapshot["measured_at"]}</time> '
+            f'at <code>{snapshot["main"][:8]}</code> against <code>{snapshot["upstream"][:8]}</code> by {run_link}. '
+            'The run is report-only and changes nothing.</p></div></section>')
+
+
 def team_page(roster, rows, commit, extras=(), queue_available=True):
     phases = "".join(f'<option value="{key}">{label}</option>' for key, label in PHASES.items())
     streams = "".join(f'<option value="{key}">{label}</option>' for key, label in STREAMS.items())
@@ -207,8 +289,10 @@ def team_page(roster, rows, commit, extras=(), queue_available=True):
 </main><footer><a class="wordmark" href="./">agterm<span>/omarchy</span></a><p>Source <a href="{BASE}/commit/{commit}">{commit[:8]}</a> · <a href="status.json">Machine-readable snapshot</a> · <a href="{BASE}/issues/53">Page task #53</a></p></footer></body></html>'''
 
 
-def write_site(destination, pages, commit, limit=DEFAULT_TASK_LIMIT, roster=None, queue=None, queue_unavailable=False):
-    """`queue_unavailable`: a queue snapshot was requested but could not be read; say so on the page."""
+def write_site(destination, pages, commit, limit=DEFAULT_TASK_LIMIT, roster=None, queue=None, queue_unavailable=False,
+               drift=None):
+    """`queue_unavailable`: a queue snapshot was requested but could not be read; say so on the page.
+    `drift`: a drift_snapshot() result, or None when no drift snapshot was requested."""
     if not re.fullmatch(r"[0-9a-f]{7,40}", commit):
         raise ValueError("commit must be a hexadecimal Git commit ID")
     if limit not in TASK_LIMITS:
@@ -267,6 +351,7 @@ def write_site(destination, pages, commit, limit=DEFAULT_TASK_LIMIT, roster=None
 <p class="lead">Bringing agterm’s workspace and session model to Omarchy, with native ARM64 and x86_64 builds and real Hyprland testing.</p>
 <div class="actions"><a class="button" href="{BASE}/issues/1">Open the orchestration hub</a><a href="{BASE}/pull/6">Review the port →</a></div></section>
 {current_validation()}
+{drift_section(drift)}
 <section class="readiness" aria-labelledby="readiness-title"><div><p class="eyebrow">Readiness</p><h2 id="readiness-title">Historical candidate verified</h2></div><div><p>This is a development port, not a verified stable release. Trusted <a href="{BASE}/actions/runs/41357189891">run 41357189891</a> passed both hosted architectures at <a href="{BASE}/commit/6775c33626925adc8a17e9ed7700f296f38d7688"><code>6775c336</code></a>; both original archives passed provenance, checksum and architecture validation. Root ran that unchanged ARM64 archive (SHA256 prefix <code>2b629e40</code>) on native Omarchy: <strong>7 ordinary and 9 Live checks passed</strong>, including shell PID continuity across frontend restart, sentinel and separate process cleanup, payload immutability and preservation of all three protected process identities and the installed app. <a href="{BASE}/issues/185#issuecomment-6565317571">The execution report</a> and <a href="{BASE}/tree/48e70b33651ca8855f8cef5bd57f50afa67ed291/docs/evidence/omarchy-6775c336-2026-11-01">checksummed evidence</a> bind the exact bytes and conditions.</p><p>The native runs used software rendering, a process-local zsh fixture and an external private-runtime adapter; the actual account remained bash. Hardware rendering, default-bash Live support and native x86_64 acceptance remain unverified. WebKit checks establish load state, not pixel rendering. The separately reproduced shared generated-config path collision is tracked in <a href="{BASE}/issues/124">#124</a> and its active fix in <a href="{BASE}/issues/192">#192</a> / <a href="{BASE}/pull/195">PR #195</a>; <a href="{BASE}/issues/126">#126</a> retains the separate inert proposal. Follow <a href="{BASE}/issues/193">the resumed implementation and review waves</a> and <a href="{BASE}/issues/199">the additional native probe</a> for current owners, findings and gates. Test isolation did not change the accepted application source. The accepted source is integrated on <code>main</code> through <a href="{BASE}/pull/6">PR #6</a> at <a href="{BASE}/commit/c88a5b641795a75ebbc0c4e2da1f85f548fb059f"><code>c88a5b64</code></a>; <a href="{BASE}/issues/17">prerelease publication</a> remains pending. No application release was published in this acceptance snapshot.</p><p>Historical evidence is retained: the earlier <code>fd85fc58</code> archive passed seven ordinary and nine Live checks, bound to <a href="{BASE}/actions/runs/41335760930">run 41335760930</a>, its <a href="{BASE}/issues/52#issuecomment-6562708234">execution report</a> and <a href="{BASE}/tree/4d05d60c928c52b04df2ba51c1861cc1b90b8326/docs/evidence/omarchy-fd85fc58-2026-11-01">unchanged evidence bundle</a>. Separately, <a href="{BASE}/actions/runs/41243677540">run 41243677540</a> at <code>355c82ef</code> failed ARM64 reconnect with no ARM64 runtime archive; its cause remains unclassified although the unchanged assertion passed later. The older native-built <code>5e37cb75</code> installation plus wrapper <code>8458e16d</code> passed seven ordinary Wayland checks and an actual desktop-entry launch (<a href="{BASE}/issues/56#issuecomment-6560840863">report</a>, <a href="{BASE}/pull/116">evidence review</a>); its nine-check Live evidence has a separate payload identity. The shared Linux baseline is <strong>agterm v0.35.1</strong>; this documentation deployment is not another runtime test.</p><a href="{BASE}/pull/189">Exact-candidate evidence review</a> · <a href="{BASE}/tree/main/docs/evidence/omarchy-arm64-2026-10-29">Older native Live evidence</a> · <a href="{BASE}/issues/17">Track the prerelease</a></div></section>
 <section id="team" aria-labelledby="team-title"><p class="eyebrow">Inside the team room</p><h2 id="team-title">Who is doing what</h2><p>{len(roster['agents']) + len(extras)} named contributors. Implementation, validation, review and integration, with responsibilities and source-linked handoffs.</p><p class="muted">Evidence snapshot: {escape(roster['observed_at'])}. Reported work is not proof of present liveness.</p><p>The <a href="{BASE}/pull/121">bounded queue foundation</a> supports the 500-agent request; <strong>500 agents have not been launched</strong>.</p><a class="button" href="team.html">Explore the team room →</a></section>
 <section id="join" class="join"><div><p class="eyebrow">Contribute as a person or an agent</p><h2>Claim a task.<br>Leave evidence.</h2><p>GitHub issues are the task queue and communication record. Start in the hub, identify your execution environment, then claim an issue and the files you own before editing.</p></div><div><pre><code>Agent: &lt;name&gt;
@@ -296,6 +381,9 @@ Next: &lt;concrete action&gt;</code></pre><p>Post progress, blockers, test comma
                                             "queue_only": extras, "unverified_count": unverified},
         # "not-requested": built without --queue; "unavailable": requested but missing or unreadable.
         "queue_status": "loaded" if queue is not None else "unavailable" if queue_unavailable else "not-requested",
+        # Same vocabulary plus "stale" (older than DRIFT_MAX_AGE_DAYS; the numbers are kept, flagged).
+        "upstream_drift": drift,
+        "upstream_drift_status": "not-requested" if drift is None else drift["status"],
     }, indent=2) + "\n")
 
 
@@ -306,7 +394,22 @@ def main():
     parser.add_argument("--commit", required=True)
     parser.add_argument("--limit", type=int, choices=TASK_LIMITS, default=DEFAULT_TASK_LIMIT)
     parser.add_argument("--queue", type=Path, help="queue.json from scripts/github/queue.py (optional)")
+    parser.add_argument("--drift-run", type=Path,
+                        help="`gh run list --json databaseId,createdAt,event,headBranch` output for "
+                             "upstream-drift.yml (optional)")
+    parser.add_argument("--drift", type=Path, help="upstream-drift.json from that run's artifact")
     args = parser.parse_args()
+    drift = None
+    if args.drift_run is not None or args.drift is not None:
+        # Either input may be missing (the fetch step is continue-on-error); drift_snapshot says which.
+        def load(path):
+            try:
+                return json.loads(path.read_text()) if path is not None else None
+            except (OSError, ValueError):
+                return None
+        drift = drift_snapshot(latest_drift_run(load(args.drift_run)), load(args.drift), datetime.now(timezone.utc))
+        if drift["status"] != "loaded":
+            print(f"warning: upstream drift {drift['status']}: {drift['reason']}")
     queue, unavailable = None, False
     if args.queue is not None:
         # Requested but missing or unreadable (the snapshot step is continue-on-error): build, but say so.
@@ -318,7 +421,7 @@ def main():
             print(f"warning: {QUEUE_UNAVAILABLE} ({type(error).__name__})")
             queue, unavailable = None, True
     write_site(args.output, json.loads(args.issues.read_text()), args.commit, args.limit, queue=queue,
-               queue_unavailable=unavailable)
+               queue_unavailable=unavailable, drift=drift)
 
 
 if __name__ == "__main__":
