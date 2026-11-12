@@ -227,8 +227,13 @@ final class GhosttyApp: @unchecked Sendable {
                 Self.wrapper(fromTarget: target)?.queueRender()
                 return true
             case GHOSTTY_ACTION_SET_TITLE:
-                guard let w = Self.wrapper(fromTarget: target), let ptr = action.action.set_title.title else { return true }
-                w.applyTitle(String(cString: ptr))
+                let wrapper = Self.wrapper(fromTarget: target)
+                let title = action.action.set_title.title.map { String(cString: $0) }
+                let link = title.flatMap(RemoteLinkNotice.init(title:)) != nil
+                let prefix = title?.hasPrefix("agterm-remote;") == true
+                FileHandle.standardError.write(Data(("DIAG357 set-title incarnation=\(wrapper?.diagnosticIncarnation ?? "none") pane=\(wrapper?.paneToken ?? "none") wrapper=\(wrapper != nil) title=\(title != nil) link=\(link) reservedPrefix=\(prefix) t=\(ProcessInfo.processInfo.systemUptime)\n").utf8))
+                guard let w = wrapper, let title else { return true }
+                w.applyTitle(title)
                 return true
             case GHOSTTY_ACTION_PWD:
                 guard let w = Self.wrapper(fromTarget: target), let ptr = action.action.pwd.pwd else { return true }
