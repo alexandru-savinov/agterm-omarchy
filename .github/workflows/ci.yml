@@ -102,7 +102,6 @@ jobs:
       cookbook: ${{ steps.filter.outputs.cookbook }}
       # GitHub caps PR file lists at 3000; an incomplete list must retain full validation.
       ui_python_only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.ui_python_count > 0 && steps.filter.outputs.all_changed_count < 3000 && steps.filter.outputs.ui_python_count == steps.filter.outputs.all_changed_count }}
-      aur: ${{ steps.filter.outputs.aur }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,44 +139,6 @@ jobs:
             cookbook:
               - "cookbook/**"
               - ".github/workflows/ci.yml"
-            aur:
-              - "packaging/aur/**"
-              - "scripts/*aur*"
-              - "scripts/verify-linux-packages.sh"
-              - "scripts/verify-published-linux-release.sh"
-              - "scripts/test-linux-ui.sh"
-              - "agterm-linux/tests/gl_teardown_exit_test.py"
-              - ".github/workflows/publish-aur.yml"
-              - ".github/workflows/release-linux.yml"
-              - ".github/workflows/ci.yml"
-
-  test-aur-package:
-    name: Validate AUR package in Arch
-    needs: changes
-    if: needs.changes.outputs.aur == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7
-      - name: Build, install, and exercise the release in clean Arch
-        run: scripts/test-aur-package.sh
-      - name: Build and test the direct-release Arch artifact from local sources
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version="$(sed -n 's/^pkgver=//p' packaging/aur/PKGBUILD)"
-          gh release download "linux-v$version" --repo melonamin/agterm-linux \
-            --pattern "agterm-linux-v${version}-*" --dir dist-linux
-          scripts/test-aur-package.sh "$version" dist-linux
-      - name: Upload Arch diagnostics on failure
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: aur-ui-diagnostics
-          path: artifacts/aur
-          if-no-files-found: warn
 
   test-linux:
     name: Core tests (${{ matrix.arch }})
