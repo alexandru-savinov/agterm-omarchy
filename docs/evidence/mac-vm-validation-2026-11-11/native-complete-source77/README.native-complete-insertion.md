@@ -1,0 +1,34 @@
+### Complete native source77 evidence
+
+The privately built native branch at `77cce43eb791ba1a983c19760c7df5259d0e452d` passed the recorded software-rendered runtime checks. This is an additive subject beside the original frozen `bec375d7` failure and the diagnostic one-library hybrid. The original report retains `diagnostic_only: true` and limits acceptance to this complete native branch build. It does not certify a later integrated candidate, current `main`, a trusted hosted release archive, hardware rendering, bash Live support, every UI feature, or an independent account approval. [Exact runtime result](https://github.com/alexandru-savinov/agterm-omarchy/pull/322#issuecomment-6808145530).
+
+The records preserve the failed attempts and their corrections:
+
+- **Private compiler:** the official Swift 6.3.2 Ubuntu 24.04 aarch64 archive passed signature verification against fingerprint `52BB7E3DE28A71BE22EC05FFEF80A866B47A981F`, then its first version invocation exited 127 because `libncurses.so.6` was missing. The same archive subsequently passed version/compile/smoke checks with two privately extracted, hash-bound Ubuntu compatibility packages. Archive SHA256 is `34ef6e0b78bc264321c701b20de452a8a0740f493e1849eab18c7b6a91a57e50`; Swift frontend SHA256 is `7b4d04babb4f0ecdb0271d7af2371e4a55140c8e2d30a30b6fddd742f7913a62`.
+- **Build attempt 1:** the native vendor build completed, but the queue regression invocation omitted its required source-path argument and exited 1. This was an operator invocation error before the Swift suite ran.
+- **Build attempt 2:** the corrected queue invocation and supervisor regression passed. The frontend suite produced **692 literal test passes and one failure** (`SharedCommandProcessTests.swift:67:6`, socket precedence fixture, `.pathTooLong`) with the long private temporary root.
+- **Build attempt 3:** the unchanged source, 11 input hashes, compiler identities and already compiled test suite were retried with a fresh short temporary root and `swift test --skip-build`. The retained completion excerpt reports **693 tests in 99 suites passed**, followed by successful debug build, release build and staging. The package retains all 769 staged file hashes and the status-digest chain back to both prior attempts. This is a recount of the failed attempt and verification of the successful attempt's recorded completion excerpt; the complete third-attempt test log is not among these collected inputs.
+- **Separate native core run:** the unfiltered `agtermCore` invocation records **4104 literal test passes, one explicit missing-fish skip and 179 passed suites**. The framework headline includes the skipped definition in its 4105-test total. The retained log reports 122.24s build time and 78.818s test time. [Original core result](https://github.com/alexandru-savinov/agterm-omarchy/issues/305#issuecomment-6808024877).
+
+The complete staged payload then passed **ordinary 7/7, process-local zsh-fixture Live 9/9, and five fresh configuration runs at 4/4 each**. Ordinary mode used no shell preload. Each configuration run observed 100 noisy titles with the tagged producer still live at the checkpoint; all report no forced recovery, no recovery signals and no remaining owned processes. The exact noisy shutdown durations are `2.7000543759986613`, `0.06282280099912896`, `2.4702953069991054`, `0.73787086899938` and `0.8180511880000267` seconds. The independent image observer completed with **13 expected/observed frontend identities and 91 library mapping rows**, all matching the staged app/library hashes. The two protected processes, built/frozen/installed payloads, shared runtime and real bash login shell were preserved. [Operator review](https://github.com/alexandru-savinov/agterm-omarchy/issues/305#issuecomment-6807859789) is an existing 58-method synthetic review under the same GitHub account; it is separate from these recorded native outcomes.
+
+| Payload file | SHA256 |
+| --- | --- |
+| `bin/agterm-linux.bin` | `ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5` |
+| `bin/agtermctl.bin` | `27d6c608638a7f942db518d4ccc4406a8a545f968825a2f743fd6a9fa00e0107` |
+| `bin/zmx` | `8b73d34daad6c039032bb851f8c52a898cdddd908e0dc65bf50c7cf0cf913a01` |
+| `lib/libghostty.so` | `a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72` |
+
+`native-toolchain.json`, `native-build.json`, `native-core.json` and `native-runtime.json` retain every field of all 20 original collection documents, including transport results and full collected logs where available. JSON-valued transport stdout is decoded for inspection. `native-bindings.json` binds the operator, 14 worker/helper/test source files, three retained helper logs and 13 exact Git source inputs; `public-operator-review.json` is the existing public review snapshot. Source workers were read and hashed, never imported or executed during preparation.
+
+`package-manifest.json` records all 38 original file hashes/sizes and every deliverable hash/size. Personal home/stage/runtime paths, process IDs/birth ticks/UID, local generated identifiers and linker load addresses use stable declared aliases shared across the package. UTC times, durations, counts, verdicts, errors, cleanup actions, source/payload hashes and other observation values remain unchanged. Alias maps and raw desktop/private environment values are not published.
+
+Two collected log strings are not byte-identical to their recorded guest files: frontend attempt 2 has 346177 collected UTF-8 bytes versus 346178 recorded; core has 1660009 versus 1660011 and contains one pre-existing Unicode replacement character. Their recorded guest digests remain `3ec99f3eb35a435f5eb51de1fed8648062103c9e509b0700d3a1cb277ad34526` and `1e9dfc9a3b2a79ca90103c50e2a2b63faf2d2b0955c1bb1d432068219f561866`. The collected-text digests are separately retained as `e909129e828bb9999f92b5ed91440f7a15a3c05a729a026a11d6024fc3dc5df7` and `c85a51bacf197df99cbc40c8689088ed4e1cea5b3a9810995a41b164f39f4b1c`. Preparation preserves this existing collection limitation and does not claim to recompute original guest-file bytes from normalized text.
+
+With access to the retained originals and local Git objects for source77 and the probe pin, run:
+
+```sh
+python3 verify-native-complete.py --original-root /path/to/private-validation-output --repository /path/to/local-checkout
+```
+
+The verifier reads files and runs bounded `git cat-file` reads only. It compares every serialized observation against a fresh transformation of the immutable originals, checks the build/status/runtime identities and literal test counts, verifies declared privacy substitutions and rejects six in-memory tampering/privacy controls. `verification.json` records its exact counts. No VM, compiler, build, runtime, network, credentials, original-file edits or new native failure is involved. Same-account preparation and review remain explicit.

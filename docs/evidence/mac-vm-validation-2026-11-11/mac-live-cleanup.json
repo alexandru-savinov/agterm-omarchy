@@ -1,0 +1,48 @@
+{
+  "platform": "macOS arm64",
+  "scope": "installed Mac Live comparison with private shell startup; not fork GUI acceptance",
+  "started_at": 1794426563.15678,
+  "checks": [
+    {
+      "name": "private Live application identity",
+      "passed": true,
+      "seconds": 0.0
+    },
+    {
+      "name": "complete fresh private daemon namespace",
+      "passed": true,
+      "seconds": 0.0
+    }
+  ],
+  "failures": [],
+  "forced_cleanup": true,
+  "protected_process_count": 1,
+  "protected_current_window_session_count": 7,
+  "app_sha256": "04abc755511fb07456070cc8b12348c2674dd1ad0530f78d9a36837b43e72306",
+  "bundled_zmx_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+  "session_host_sha256": "2865953dd40bed50a9557a8b344e13fb1a6167ac8babd8444560e91dc96152d7",
+  "identity": {
+    "app": {
+      "version": "0.38.1",
+      "commit": "09727610"
+    },
+    "installed": {
+      "version": "0.38.1",
+      "commit": "09727610"
+    }
+  },
+  "daemon_inventory_empty_after_cleanup": true,
+  "survivors_before_recovery": [
+    {
+      "executable": "agterm-session-host"
+    }
+  ],
+  "owned_processes_remaining": 0,
+  "protected_processes_preserved": true,
+  "protected_current_window_sessions_preserved": true,
+  "app_binary_unchanged": true,
+  "finished_at": 1794426569.876935,
+  "passed": false,
+  "schema": "agterm-mac-vm-evidence/installed-mac-summary/1",
+  "original_private_report_sha256": "b4e976124e89a26d53840d7968522dc359ddb1efee7713c68f2e10d978512497"
+}

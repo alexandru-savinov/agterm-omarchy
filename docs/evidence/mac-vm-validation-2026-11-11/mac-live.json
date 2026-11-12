@@ -1,0 +1,88 @@
+{
+  "platform": "macOS arm64",
+  "scope": "installed Mac Live comparison with private shell startup; not fork GUI acceptance",
+  "started_at": 1794426386.093944,
+  "checks": [
+    {
+      "name": "private Live application identity",
+      "passed": true,
+      "seconds": 0.0
+    },
+    {
+      "name": "complete fresh private daemon namespace",
+      "passed": true,
+      "seconds": 0.0
+    },
+    {
+      "name": "primary is backed by bundled zmx",
+      "passed": true,
+      "seconds": 0.022
+    },
+    {
+      "name": "long creation command executed once",
+      "passed": true,
+      "seconds": 1.021
+    },
+    {
+      "name": "persistent shell runs real PTY input",
+      "passed": true,
+      "seconds": 1.034
+    },
+    {
+      "name": "split is independently backed by zmx",
+      "passed": true,
+      "seconds": 0.05
+    },
+    {
+      "name": "hidden split restart replaces shell and keeps pane",
+      "passed": true,
+      "seconds": 0.841
+    },
+    {
+      "name": "unknown pane id restart refuses",
+      "passed": true,
+      "seconds": 0.0
+    },
+    {
+      "name": "shell survives graceful frontend quit",
+      "passed": true,
+      "seconds": 0.021
+    },
+    {
+      "name": "new frontend restores same private session and daemon",
+      "passed": true,
+      "seconds": 0.035
+    },
+    {
+      "name": "restored PTY runs in original shell without command replay",
+      "passed": true,
+      "seconds": 0.0
+    }
+  ],
+  "failures": [],
+  "forced_cleanup": true,
+  "protected_process_count": 1,
+  "protected_current_window_session_count": 7,
+  "app_sha256": "04abc755511fb07456070cc8b12348c2674dd1ad0530f78d9a36837b43e72306",
+  "bundled_zmx_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+  "session_host_sha256": "2865953dd40bed50a9557a8b344e13fb1a6167ac8babd8444560e91dc96152d7",
+  "identity": {
+    "app": {
+      "commit": "09727610",
+      "version": "0.38.1"
+    },
+    "installed": {
+      "commit": "09727610",
+      "version": "0.38.1"
+    }
+  },
+  "daemon_inventory_empty_after_cleanup": true,
+  "owned_processes_remaining": 0,
+  "protected_processes_preserved": true,
+  "protected_current_window_sessions_preserved": true,
+  "app_binary_unchanged": true,
+  "finished_at": 1794426397.375384,
+  "passed": false,
+  "schema": "agterm-mac-vm-evidence/installed-mac-summary/1",
+  "original_private_report_sha256": "a007cdb39be275f1d89fff246d3ad08673fc18b16b88304675a278cdd256451a"
+}

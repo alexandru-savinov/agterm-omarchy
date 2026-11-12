@@ -1892,6 +1892,19 @@ struct CommandsTests {
             env: env, applicationSupportDirectory: "/ignored") == "/tmp/explicit.sock")
     }
 
+    @Test func socketPathControlSocketOverStateDir() throws {
+        let command = try Tree.parse([])
+        let env = ["AGTERM_CONTROL_SOCKET": "/tmp/override.sock", "AGTERM_STATE_DIR": "/tmp/state"]
+        #expect(command.options.basic.socketPath(
+            env: env, applicationSupportDirectory: "/ignored") == "/tmp/override.sock")
+        let flagged = try Tree.parse(["--socket", "/tmp/explicit.sock"])
+        #expect(flagged.options.basic.socketPath(
+            env: env, applicationSupportDirectory: "/ignored") == "/tmp/explicit.sock")
+        let empty = ["AGTERM_CONTROL_SOCKET": "", "AGTERM_STATE_DIR": "/tmp/state"]
+        #expect(command.options.basic.socketPath(
+            env: empty, applicationSupportDirectory: "/ignored") == "/tmp/state/agterm.sock")
+    }
+
     @Test func socketPathStateDirOverHome() throws {
         let command = try Tree.parse([])
         let env = ["AGTERM_STATE_DIR": "/tmp/state", "HOME": "/Users/x"]

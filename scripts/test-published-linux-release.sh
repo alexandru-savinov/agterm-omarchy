@@ -2,7 +2,7 @@
 # Fixture coverage for the public Linux release verifier.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 VERIFY="$ROOT/scripts/verify-published-linux-release.sh"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/agterm-linux-release-test.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT

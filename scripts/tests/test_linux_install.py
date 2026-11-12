@@ -222,6 +222,147 @@ DESKTOP
                 self.assertTrue((self.prefix / 'lib/agterm/bin/zmx').exists())
         self.assertEqual(outside.read_text(), 'preserve')
 
+    def assert_still_installed(self):
+        for name in ('bin/agterm-linux', 'bin/agtermctl'):
+            self.assertTrue((self.prefix / name).is_symlink(), name)
+        self.assertTrue((self.prefix / 'share/applications/io.github.melonamin.agterm.desktop').is_file())
+        self.assertTrue((self.prefix / 'lib/agterm/bin/zmx').is_file())
+
+    def test_uninstall_refuses_an_empty_or_truncated_manifest_and_removes_nothing(self):
+        self.install('--no-build')
+        manifest = self.prefix / 'lib/agterm/share/agterm/INSTALLED_FILES'
+        complete = manifest.read_text()
+        for kind, text, reason in (('empty', '', 'is incomplete (it is empty)'),
+                                   ('cut mid-line', complete[:len('bin/agterm-li')], 'is incomplete (it ends mid-line)'),
+                                   ('cut at a line', 'bin/agterm-linux\n', 'is incomplete (it does not list'),
+                                   ('no trailing newline', complete.rstrip('\n'), 'is incomplete (it ends mid-line)'),
+                                   ('blank line', '\n' + complete, 'is malformed (it has blank')):
+            with self.subTest(kind=kind):
+                manifest.write_text(text)
+                result = self.install('--uninstall', success=False)
+                self.assertIn(reason, result.stderr)
+                self.assertIn('nothing was removed', result.stderr)
+                self.assert_still_installed()
+        manifest.write_text(complete)
+        self.install('--uninstall')
+        self.assertEqual(self.files(), [])
+
+    def test_reinstall_over_a_malformed_manifest_uses_the_payload(self):
+        self.install('--no-build')
+        (self.prefix / 'lib/agterm/share/agterm/INSTALLED_FILES').write_text('')
+        result = self.install('--no-build')
+        self.assertIn('ignoring incomplete', result.stderr)
+        self.install('--uninstall')
+        self.assertEqual(self.files(), [])
+
+    def test_uninstall_refuses_bin_entries_the_installer_never_writes(self):
+        self.install('--no-build')
+        tool = self.prefix / 'bin/other-tool'
+        tool.write_text('preserve')
+        manifest = self.prefix / 'lib/agterm/share/agterm/INSTALLED_FILES'
+        manifest.write_text(manifest.read_text() + 'bin/other-tool\n')
+        result = self.install('--uninstall', success=False)
+        self.assertIn("refusing manifest entry outside the installer's paths: 'bin/other-tool'", result.stderr)
+        self.assertEqual(tool.read_text(), 'preserve')
+        self.assert_still_installed()
+
+    def test_uninstall_keeps_directories_that_existed_before_install(self):
+        self.use_cache_tools()
+        for name in ('bin', 'share/applications', 'share/icons/hicolor', 'lib'):
+            (self.prefix / name).mkdir(parents=True)
+        self.install('--no-build')
+        self.assertTrue((self.prefix / 'share/applications/mimeinfo.cache').is_file(), 'install refreshes')
+        self.install('--uninstall')
+        self.assertEqual(self.files(), ['bin', 'lib', 'share', 'share/applications', 'share/icons',
+                                        'share/icons/hicolor'])
+
+    def test_uninstall_refreshes_caches_that_still_index_other_entries(self):
+        self.use_cache_tools()
+        self.install('--no-build')
+        other = self.prefix / 'share/applications/other.desktop'
+        other.write_text('[Desktop Entry]\n')
+        icon = self.prefix / 'share/icons/hicolor/scalable/actions/other-symbolic.svg'
+        icon.write_text('icon')
+        for cache in ('share/applications/mimeinfo.cache', 'share/icons/hicolor/icon-theme.cache'):
+            (self.prefix / cache).write_text('stale')
+        self.install('--uninstall')
+        self.assertEqual((self.prefix / 'share/applications/mimeinfo.cache').read_text(), 'regenerated\n')
+        self.assertEqual((self.prefix / 'share/icons/hicolor/icon-theme.cache').read_text(), 'regenerated\n')
+        self.assertTrue(other.is_file() and icon.is_file())
+
+    def use_cache_tools(self):
+        # Stand-ins for desktop-file-utils and GTK, so these tests behave the same with or without them.
+        tools = self.work / 'cache-tools'
+        tools.mkdir()
+        for name, cache in (('update-desktop-database', 'mimeinfo.cache'),
+                            ('gtk-update-icon-cache', 'icon-theme.cache')):
+            tool = tools / name
+            tool.write_text(f'#!{sys.executable}\nimport pathlib, sys\n'
+                            f'pathlib.Path(sys.argv[-1], {cache!r}).write_text("regenerated\\n")\n')
+            tool.chmod(0o755)
+        self.env['PATH'] = f'{tools}:{self.env["PATH"]}'
+
+    def test_reinstall_keeps_the_record_of_directories_the_first_install_created(self):
+        self.install('--no-build')
+        self.install('--no-build')
+        record = (self.prefix / 'lib/agterm/share/agterm/INSTALLED_DIRS').read_text().splitlines()
+        self.assertIn('bin', record)
+        self.assertIn('lib', record)
+        self.install('--uninstall')
+        self.assertEqual(self.files(), [])
+
+    def test_uninstall_of_an_install_without_directory_record_prunes_nothing(self):
+        self.install('--no-build')
+        (self.prefix / 'lib/agterm/share/agterm/INSTALLED_DIRS').unlink()
+        self.install('--uninstall')
+        self.assertFalse((self.prefix / 'bin/agtermctl').exists())
+        self.assertFalse((self.prefix / 'lib/agterm').exists())
+        self.assertTrue((self.prefix / 'bin').is_dir(), 'directories of unknown origin are kept')
+
+    def test_relative_prefix_resolves_with_cdpath_set(self):
+        self.install('--no-build')
+        elsewhere = self.work / 'elsewhere'
+        (elsewhere / self.prefix.name).mkdir(parents=True)
+        self.env['CDPATH'] = f'{elsewhere}:.'
+        result = subprocess.run(['bash', str(self.repo / 'scripts/install-linux.sh'), '--prefix', self.prefix.name,
+                                 '--uninstall'], cwd=self.work, env=self.env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.files(), [])
+        self.assertTrue((elsewhere / self.prefix.name).is_dir())
+
+    def test_embedded_python_ignores_modules_in_the_working_directory(self):
+        planted = self.work / 'planted'
+        planted.mkdir()
+        marker = self.work / 'planted-module-ran'
+        (planted / 'json.py').write_text(f'open({str(marker)!r}, "w").close()\nfrom _json import *\n')
+        self.env['PYTHONPATH'] = str(planted)
+        result = subprocess.run(['bash', str(self.repo / 'scripts/install-linux.sh'), '--prefix', str(self.prefix),
+                                 '--no-build'], cwd=planted, env=self.env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.install('--uninstall')
+        self.assertFalse(marker.exists(), 'installer code must not import from cwd or PYTHONPATH')
+
+    def test_uninstall_reports_the_configuration_path_the_app_uses(self):
+        self.install('--no-build')
+        self.env['XDG_CONFIG_HOME'] = str(self.work / 'xdg-config')
+        result = self.install('--uninstall')
+        self.assertIn(f'Kept configuration in {self.env["HOME"]}/.config/agterm.', result.stdout)
+        self.assertNotIn('xdg-config', result.stdout)
+
+    def test_uninstall_without_python_names_uninstall_and_removes_nothing(self):
+        self.install('--no-build')
+        tools = self.work / 'no-python'
+        tools.mkdir()
+        (tools / 'dirname').symlink_to(shutil.which('dirname'))
+        self.env['PATH'] = str(tools)
+        result = subprocess.run([shutil.which('bash'), str(self.repo / 'scripts/install-linux.sh'),
+                                 '--prefix', str(self.prefix), '--uninstall'],
+                                env=self.env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('python3 is required to uninstall', result.stderr)
+        self.assertNotIn('desktop entries', result.stderr)
+        self.assert_still_installed()
+
     def test_uninstall_option_errors_change_nothing(self):
         for args in (('--uninstall',), ('--purge-state',), ('--uninstall', '--no-build'),
                      ('--uninstall', '--software-rendering'), ('--uninstall', '--payload', str(self.work))):
@@ -289,6 +430,7 @@ class PayloadStageTests(unittest.TestCase):
         shutil.copytree(ROOT / 'packaging/linux/notices', self.repo / 'packaging/linux/notices')
         (self.repo / 'linux').mkdir()
         shutil.copy2(ROOT / 'linux/ghostty-resources.env', self.repo / 'linux/ghostty-resources.env')
+        shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
         shutil.copy2(ROOT / 'LICENSE', self.repo / 'LICENSE')
         for name in ('verify-linux-resources.sh', 'verify-linux-zmx-cache.sh'):
             script = self.repo / 'scripts' / name
@@ -339,6 +481,46 @@ class PayloadStageTests(unittest.TestCase):
         self.assertTrue((notices / 'icu-76.1/LICENSE').is_file())
         provenance = json.loads((notices / 'payload.json').read_text())
         self.assertEqual(provenance['bundled_libraries'][0]['file'], 'libncurses.so.6')
+
+    def git(self, directory, *args):
+        env = dict(self.env, GIT_AUTHOR_NAME='fixture', GIT_AUTHOR_EMAIL='fixture@invalid',
+                   GIT_COMMITTER_NAME='fixture', GIT_COMMITTER_EMAIL='fixture@invalid',
+                   GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1')
+        return subprocess.run(['git', '-C', str(directory), *args], env=env, text=True,
+                              capture_output=True, check=True).stdout.strip()
+
+    def test_source_archive_without_git_fails_before_staging(self):
+        del self.env['AGTERM_PACKAGE_COMMIT']
+        result = self.stage()
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('cannot determine the source commit', result.stderr)
+        self.assertFalse(self.destination.exists(), 'nothing may be staged without a source commit')
+
+    def test_source_archive_inside_unrelated_checkout_does_not_borrow_its_head(self):
+        del self.env['AGTERM_PACKAGE_COMMIT']
+        self.git(self.work, 'init', '-q')
+        self.git(self.work, 'commit', '-q', '--allow-empty', '-m', 'unrelated')
+        result = self.stage()
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('cannot determine the source commit', result.stderr)
+
+    def test_git_checkout_records_full_head_commit(self):
+        del self.env['AGTERM_PACKAGE_COMMIT']
+        self.git(self.repo, 'init', '-q')
+        self.git(self.repo, 'commit', '-q', '--allow-empty', '-m', 'fixture')
+        result = self.stage()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.destination / 'share/agterm/COMMIT').read_text(),
+                         self.git(self.repo, 'rev-parse', 'HEAD') + '\n')
+
+    def test_explicit_commit_override_is_recorded_and_must_be_one_word(self):
+        result = self.stage()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.destination / 'share/agterm/COMMIT').read_text(), 'fixture\n')
+        shutil.rmtree(self.destination)
+        self.env['AGTERM_PACKAGE_COMMIT'] = 'two\nlines'
+        self.assertNotEqual(self.stage().returncode, 0)
+        self.assertFalse(self.destination.exists())
 
     def test_rejects_missing_runtime_library(self):
         self.env['FAKE_DEPENDENCIES'] += '\nlibxml2.so.2 => not found'

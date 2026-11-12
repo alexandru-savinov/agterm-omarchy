@@ -1,0 +1,45 @@
+{
+  "schema": "agterm-native-complete-publication/1",
+  "passed": true,
+  "checks": {
+    "comparison": 12658,
+    "evidence": 186,
+    "git_binding": 13,
+    "immutable": 38,
+    "manifest": 21,
+    "preservation": 10462,
+    "privacy": 130
+  },
+  "original_files": 38,
+  "collected_json_records": 20,
+  "bound_operator_json_records": 1,
+  "retained_helper_logs": 3,
+  "worker_operator_test_source_files": 14,
+  "pinned_git_source_bindings": 13,
+  "negative_controls_rejected": [
+    "changed numeric observation",
+    "removed observation field",
+    "removed array element",
+    "personal path",
+    "raw desktop assignment",
+    "credential-shaped synthetic token"
+  ],
+  "alias_categories": {
+    "generated-config": 5,
+    "guest-home": 2,
+    "host-home": 2,
+    "load-address": 49,
+    "local-uuid": 68,
+    "private-runtime": 2,
+    "private-stage": 7,
+    "private-zmx-endpoint": 3,
+    "process": 309,
+    "process-birth": 286,
+    "process-uid": 1,
+    "run": 2,
+    "sentinel": 1,
+    "session-runtime": 1,
+    "short-temporary-root": 2
+  },
+  "scope": "Retained complete source77 native branch evidence. No new native execution, current-main/integrated-candidate acceptance, trusted hosted release, hardware rendering, bash Live support, or independent account approval is claimed."
+}
