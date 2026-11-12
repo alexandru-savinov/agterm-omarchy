@@ -15,8 +15,8 @@ on:
       task_limit:
         description: Number of tasks to show in the refreshed issue snapshot
         type: choice
-        options: ['10', '25', '50']
-        default: '25'
+        options: ['10', '25', '50', '100']
+        default: '100'
       deploy:
         description: Deploy after building (main branch only); otherwise upload a preview
         type: boolean
@@ -56,7 +56,7 @@ jobs:
         run: python3 scripts/github/queue.py --output "$RUNNER_TEMP/queue"
       - name: Build static site
         env:
-          TASK_LIMIT: ${{ inputs.task_limit || '25' }}
+          TASK_LIMIT: ${{ inputs.task_limit || '100' }}
         run: |
           python3 docs/omarchy-pages/build.py --issues "$RUNNER_TEMP/issues.json" \
             --queue "$RUNNER_TEMP/queue/queue.json" \
