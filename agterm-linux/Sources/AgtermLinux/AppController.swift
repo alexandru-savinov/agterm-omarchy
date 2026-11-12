@@ -381,7 +381,6 @@ final class AppController {
         updateRecentSessionsButton()
         syncSidebar()
     }
-
     func navigate(_ dir: SessionNavigation, userInitiated: Bool = true) {
         if userInitiated { noteUserActivity() }
         store.navigateSession(dir)
