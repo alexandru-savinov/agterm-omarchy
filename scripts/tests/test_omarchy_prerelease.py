@@ -27,6 +27,7 @@ def payload(arch="aarch64", sha=SHA, extra=None):
         files = {"share/agterm/COMMIT": sha.encode(), "share/agterm/VERSION": b"dev"}
         header = bytearray(b"\x7fELF\x02\x01" + b"\0" * 14)
         header[18:20] = promotion.ARCHITECTURES[arch].to_bytes(2, "little")
+        files.update({"bin/" + name: b"#!/bin/sh\n" for name in ("agterm-linux", "agtermctl")})
         files.update({"bin/" + name: bytes(header) for name in ("agterm-linux.bin", "agtermctl.bin", "zmx")})
         for name, data in files.items():
             member = tarfile.TarInfo("agterm-stage/" + name)
@@ -68,6 +69,35 @@ class PromotionTests(unittest.TestCase):
     def test_both_architectures(self):
         for arch in promotion.ARCHITECTURES:
             self.assertEqual(promotion.validate_payload(payload(arch), arch, SHA), "dev")
+
+    def test_rejects_missing_or_invalid_launch_wrappers(self):
+        for arch in promotion.ARCHITECTURES:
+            for name in ("agterm-linux", "agtermctl"):
+                for kind in ("missing", "non-executable", "empty", "symlink", "hardlink", "directory"):
+                    with self.subTest(arch=arch, name=name, kind=kind):
+                        output = io.BytesIO()
+                        with tarfile.open(fileobj=io.BytesIO(payload(arch)), mode="r:gz") as source, \
+                                tarfile.open(fileobj=output, mode="w:gz") as target:
+                            for member in source.getmembers():
+                                data = source.extractfile(member).read()
+                                if member.name == "agterm-stage/bin/" + name:
+                                    if kind == "missing":
+                                        continue
+                                    if kind == "non-executable":
+                                        member.mode = 0o644
+                                    elif kind == "empty":
+                                        data = b""
+                                    elif kind in ("symlink", "hardlink", "directory"):
+                                        member.type = {"symlink": tarfile.SYMTYPE, "hardlink": tarfile.LNKTYPE,
+                                                       "directory": tarfile.DIRTYPE}[kind]
+                                        # Valid internal targets isolate wrapper checks from link safety checks.
+                                        member.linkname = (name + ".bin" if kind == "symlink" else
+                                                           "agterm-stage/bin/" + name + ".bin" if kind == "hardlink" else "")
+                                        data = b""
+                                    member.size = len(data)
+                                target.addfile(member, io.BytesIO(data))
+                        with self.assertRaisesRegex(ValueError, "executable wrapper " + name):
+                            promotion.validate_payload(output.getvalue(), arch, SHA)
 
     def test_rejects_wrong_source_and_architecture(self):
         with self.assertRaises(ValueError):
@@ -138,7 +168,8 @@ class PromotionTests(unittest.TestCase):
             header[18:20] = promotion.ARCHITECTURES["aarch64"].to_bytes(2, "little")
             for name, data in {"share/agterm/COMMIT": SHA.encode() + b"\n", "share/agterm/VERSION": b"dev\n",
                                "lib/libswiftCore.so.1": b"library", "bin/agterm-linux.bin": bytes(header),
-                               "bin/agtermctl.bin": bytes(header), "bin/zmx": bytes(header)}.items():
+                               "bin/agtermctl.bin": bytes(header), "bin/zmx": bytes(header),
+                               "bin/agterm-linux": b"#!/bin/sh\n", "bin/agtermctl": b"#!/bin/sh\n"}.items():
                 path = stage / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(data)

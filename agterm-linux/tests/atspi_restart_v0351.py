@@ -87,12 +87,20 @@ def verify_restart_v0351(env, state):
 
 
 def verify_restart_close_reopen(env, state):
+    fixture = os.path.join(state, "restart-login-shell.so")
+    for boundary in ("session", "window"):
+        case_state = os.path.join(state, f"restart-reopen-{boundary}")
+        os.makedirs(case_state)
+        _verify_restart_close_reopen(env, case_state, fixture, boundary)
+
+
+def _verify_restart_close_reopen(env, state, fixture, boundary):
     from atspi_smoke import run_palette_action
 
-    fixture = os.path.join(state, "restart-login-shell.so")
     with open(os.path.join(state, "settings.json"), "w", encoding="utf-8") as file:
         json.dump({"restoreMode": "live", "closeGraceUndoEnabled": False}, file)
-    env = dict(env, LD_PRELOAD=fixture, AGTERM_ATSPI_RESTART_HOLD="6")
+    env = dict(env, LD_PRELOAD=fixture, AGTERM_ATSPI_RESTART_HOLD="6", AGTERM_STATE_DIR=state,
+               AGTERM_CONTROL_SOCKET=os.path.join(state, "agterm.sock"))
     process, app = launch(env)
     try:
         window = next(row["id"] for row in window_list(env) if row["open"])
@@ -175,7 +183,7 @@ def verify_restart_close_reopen(env, state):
         old_job = jobs()[0]
         identity = pane_id()
         daemon = "agterm-" + identity.replace("-", "").lower()
-        wait_for(lambda: leader(daemon), "the restart target's daemon reported no shell")
+        old_shell = wait_for(lambda: leader(daemon), "the restart target's daemon reported no shell")
 
         restart = {}
         def run_restart():
@@ -196,12 +204,21 @@ def verify_restart_close_reopen(env, state):
 
         wait_for(lambda: ended(old_job), "the restart never ended the old job", timeout=15)
         assert worker.is_alive(), f"the restart finished before the close/reopen window: {restart}"
-        assert request("session.close", session)["ok"]
-        wait_for(lambda: row() is None, "the restarting session did not close")
-        reopen_from_other_window()
+        if boundary == "session":
+            assert request("session.close", session)["ok"]
+            wait_for(lambda: row() is None, "the restarting session did not close")
+            reopen_from_other_window()
+        else:
+            assert request("window.close", window)["ok"]
+            wait_for(lambda: any(item["id"] == window and not item["open"] for item in window_list(env)),
+                     "the restarting window did not close")
+            assert process.poll() is None, "closing the restart window exited the keeper app"
+            reopened = raw_control_json(env, {"cmd": "window.select", "target": window})
+            assert reopened["ok"], reopened
         wait_realized(session, "Reopen Last Closed Item did not bring the realized session back")
         assert pane_id() == identity, f"the reopened session took a new pane identity: {pane_id()} != {identity}"
         reopened_shell = wait_for(lambda: leader(daemon), "the reopened pane reported no shell", timeout=15)
+        assert reopened_shell != old_shell, "reopening did not create a new shell incarnation"
         assert worker.is_alive(), f"the restart finished before the reopen: {restart}"
         reopened_surfaces = row()["surfaces"]
         worker.join(timeout=60)
@@ -219,7 +236,7 @@ def verify_restart_close_reopen(env, state):
                 signalled = [int(line) for line in file if line.strip()]
         assert set(signalled) <= {old_job}, f"signals reached jobs other than the old one {old_job}: {signalled}"
         later = [job for job in jobs() if job != old_job]
-        print(f"OK: a restart across close/reopen of the same pane ID failed ({restart.get('error')!r}), left the "
+        print(f"OK: a restart across {boundary} close/reopen of the same pane ID failed ({restart.get('error')!r}), left the "
               f"reopened pane and shell {reopened_shell} untouched, and signalled only the old job "
               f"(reopened jobs {later})")
     finally:
