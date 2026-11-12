@@ -1,5 +1,5 @@
 {
-  "schema": "agterm-mac-admin-context-publication/<pid-004>",
+  "schema": "agterm-mac-admin-context-publication/1",
   "boundary": "Historical prerequisite/context diagnostics only. No host administrative-stop request or stopped reply was reached. No product stop failure/pass, OS-policy cause, current-source app build, native release acceptance or independent approval is established.",
   "comparison_result": {
     "original": {
@@ -88,7 +88,7 @@
           ],
           "recovery_errors": [],
           "remaining_direct_children": [],
-          "retained_prior_sample": "mac-private-zmx-diagnostic-<pid-004>/sample-private.txt",
+          "retained_prior_sample": "mac-private-zmx-diagnostic-1/sample-private.txt",
           "started_at": 1794436888.298252,
           "status": "observation-timeout",
           "stderr": "",
@@ -167,7 +167,7 @@
           "recovery": [],
           "recovery_errors": [],
           "remaining_direct_children": [],
-          "retained_prior_sample": "mac-private-zmx-diagnostic-<pid-004>/sample-private.txt",
+          "retained_prior_sample": "mac-private-zmx-diagnostic-1/sample-private.txt",
           "started_at": 1794436885.419667,
           "status": "exited",
           "stderr": "no sessions found in <stage-005>/s/z\n",
@@ -250,7 +250,7 @@
           ],
           "recovery_errors": [],
           "remaining_direct_children": [],
-          "retained_prior_sample": "mac-private-zmx-diagnostic-<pid-004>/sample-private.txt",
+          "retained_prior_sample": "mac-private-zmx-diagnostic-1/sample-private.txt",
           "started_at": 1794436891.638103,
           "status": "observation-timeout",
           "stderr": "",

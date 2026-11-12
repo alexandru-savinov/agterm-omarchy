@@ -2,40 +2,40 @@
   "schema": "agterm-mac-admin-context-manifest/1",
   "files": {
     "README.mac-admin-context-insertion.md": {
-      "bytes": 5314,
-      "sha256": "4d52ec8a53270c36638351da60fdc782cb116bc149943e23e35929a32275b570"
+      "bytes": 6053,
+      "sha256": "23d83e954cc7dc646d2b246faad999c93c18ff548b4f4668413d3f5d54615315"
     },
     "mac-admin-bundle-retry.json": {
-      "bytes": 68343,
-      "sha256": "bc54cd74961491f925ecad9abd650b40c8bbe8de63049a0b7f8fe60ddc80d5ba"
+      "bytes": 68335,
+      "sha256": "2b2aed3dc31d16d23c23ee262361d539e274fc75c2d5e1fa0847838276ac8e5b"
     },
     "mac-admin-prerequisites.json": {
-      "bytes": 18336,
-      "sha256": "86c18c3d0f3748152ed5da9d8f4c3430a3c02edc1499d078ca09a4864c6346e5"
+      "bytes": 18296,
+      "sha256": "46fa88e5cc9e07b2a83af06b5e1e139c519000a85f2d220c4a6c08526cf5330e"
     },
     "mac-admin-provenance.json": {
-      "bytes": 8815,
-      "sha256": "69f3d8913dc3a767a8e363458df7f587901c7dabb524cb2d20a5ed92915ffe21"
+      "bytes": 8807,
+      "sha256": "e1e1a9acc9694adbffdfbffb86beec77a718b964b2e2e3d04a4d68d6339c714b"
     },
     "mac-zmx-context.json": {
-      "bytes": 21409,
-      "sha256": "4dba70a08380be4ba678f102dfdc2d47f0e88cb44aa5f056393a9e1d9e572aef"
+      "bytes": 21377,
+      "sha256": "457daab580ba2f6e500efea7a445f2a84076c75c73a3bd80cd88e1496ef331f5"
     },
     "original-bindings.json": {
       "bytes": 480352,
       "sha256": "8955c4d110baf5c46db0bbf330d441256ef7499ff934c8db0629699908a3160e"
     },
     "selected-log-projections.json": {
-      "bytes": 10504,
-      "sha256": "3bc8b3151bc0116caf99ded819dcd7b7fc5caadd2e6f1d8b679209aa68c99e77"
+      "bytes": 10472,
+      "sha256": "5e01769dd81538ccd5a022f824efdc5ce10460df73f1604291efc744100f376b"
     },
     "verification.json": {
-      "bytes": 792,
-      "sha256": "609274b6dcd1035298f4af105d253eddf33694e62c7613d078283efa5cb19e6a"
+      "bytes": 1033,
+      "sha256": "b338dcbc64505621ea9c5fcdfa1001ff3135c87d323540cca593848cc025d657"
     },
     "verify-mac-admin-context.py": {
-      "bytes": 28181,
-      "sha256": "50d22c63a9ae3ecd9819b3a0e2a4793a29dc053d5ffd1fbc01ee5fa4ff5810e5"
+      "bytes": 36537,
+      "sha256": "225f984d4eefa18457590a8bbbedcd5caa5c7d4fb25e899c5111861d3c2e2f39"
     }
   },
   "original_bindings_sha256": "8955c4d110baf5c46db0bbf330d441256ef7499ff934c8db0629699908a3160e",

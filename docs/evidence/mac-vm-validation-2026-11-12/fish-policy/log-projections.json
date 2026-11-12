@@ -1,0 +1,668 @@
+{
+  "schema": "agterm-fish-policy-log-projections/1",
+  "streams": {
+    "native-help/service.log": {
+      "original_record": "native-fish-help-final-private.json",
+      "extraction": "JSON(stdout).logs[service.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "0008dfd08b3a87eab578aea662cadf79caebf803bb1b7fadc7ebe0d5466c04db",
+        "bytes": 1790
+      },
+      "retained_decoded_utf8": {
+        "bytes": 1790,
+        "sha256": "0008dfd08b3a87eab578aea662cadf79caebf803bb1b7fadc7ebe0d5466c04db"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 27,
+      "lines": [
+        {
+          "line": 1,
+          "text": "Running as unit: <HELP_UNIT>\n"
+        },
+        {
+          "line": 2,
+          "text": "Traceback (most recent call last):\n"
+        },
+        {
+          "line": 3,
+          "text": "  File \"<HELP_STAGE>/fixture_runner.py\", line 26, in <module>\n"
+        },
+        {
+          "line": 4,
+          "text": "    command('core-'+settings['mode'],argv,45)\n"
+        },
+        {
+          "line": 5,
+          "text": "    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        },
+        {
+          "line": 6,
+          "text": "  File \"<HELP_STAGE>/fixture_runner.py\", line 19, in command\n"
+        },
+        {
+          "line": 7,
+          "text": "    p=subprocess.run(argv,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,timeout=timeout)\n"
+        },
+        {
+          "line": 8,
+          "text": "  File \"/usr/lib/python3.14/subprocess.py\", line 557, in run\n"
+        },
+        {
+          "line": 9,
+          "text": "    stdout, stderr = process.communicate(input, timeout=timeout)\n"
+        },
+        {
+          "line": 10,
+          "text": "                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        },
+        {
+          "line": 11,
+          "text": "  File \"/usr/lib/python3.14/subprocess.py\", line 1221, in communicate\n"
+        },
+        {
+          "line": 12,
+          "text": "    stdout, stderr = self._communicate(input, endtime, timeout)\n"
+        },
+        {
+          "line": 13,
+          "text": "                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        },
+        {
+          "line": 14,
+          "text": "  File \"/usr/lib/python3.14/subprocess.py\", line 2179, in _communicate\n"
+        },
+        {
+          "line": 15,
+          "text": "    self.wait(timeout=self._remaining_time(endtime))\n"
+        },
+        {
+          "line": 16,
+          "text": "    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        },
+        {
+          "line": 17,
+          "text": "  File \"/usr/lib/python3.14/subprocess.py\", line 1279, in wait\n"
+        },
+        {
+          "line": 18,
+          "text": "    return self._wait(timeout=timeout)\n"
+        },
+        {
+          "line": 19,
+          "text": "           ~~~~~~~~~~^^^^^^^^^^^^^^^^^\n"
+        },
+        {
+          "line": 20,
+          "text": "  File \"/usr/lib/python3.14/subprocess.py\", line 2076, in _wait\n"
+        },
+        {
+          "line": 21,
+          "text": "    raise TimeoutExpired(self.args, timeout)\n"
+        },
+        {
+          "line": 22,
+          "text": "subprocess.TimeoutExpired: Command '['<SOURCE77>/agtermCore/.build/aarch64-unknown-linux-gnu/debug/agtermCorePackageTests.xctest', '--testing-library', 'swift-testing', '--help']' timed out after 45 seconds\n"
+        },
+        {
+          "line": 23,
+          "text": "          Finished with result: exit-code\n"
+        },
+        {
+          "line": 24,
+          "text": "Main processes terminated with: code=exited, status=1/FAILURE\n"
+        },
+        {
+          "line": 25,
+          "text": "               Service runtime: 45.208s\n"
+        },
+        {
+          "line": 26,
+          "text": "             CPU time consumed: 16.927s\n"
+        },
+        {
+          "line": 27,
+          "text": "                   Memory peak: 351.2M (swap: 0B)\n"
+        }
+      ]
+    },
+    "native-help/operator.log": {
+      "original_record": "native-fish-help-final-private.json",
+      "extraction": "JSON(stdout).logs[operator.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "dc7430b8a77bf2041c4812cbb13b30a880e167c52dda4d6b31def14385f6fc1f",
+        "bytes": 48
+      },
+      "retained_decoded_utf8": {
+        "bytes": 48,
+        "sha256": "dc7430b8a77bf2041c4812cbb13b30a880e167c52dda4d6b31def14385f6fc1f"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 1,
+      "lines": [
+        {
+          "line": 1,
+          "text": "{\"passed\": false, \"errors\": [], \"mode\": \"help\"}\n"
+        }
+      ]
+    },
+    "native-help/work/fish-version.log": {
+      "original_record": "native-fish-help-final-private.json",
+      "extraction": "JSON(stdout).logs[work/fish-version.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "fc79a435305c528cd86b86eba89ad5e27bea927491038a3beadab0f17017c73d",
+        "bytes": 20
+      },
+      "retained_decoded_utf8": {
+        "bytes": 20,
+        "sha256": "fc79a435305c528cd86b86eba89ad5e27bea927491038a3beadab0f17017c73d"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 1,
+      "lines": [
+        {
+          "line": 1,
+          "text": "fish, version 4.9.3\n"
+        }
+      ]
+    },
+    "native-help/work/core-help.log": {
+      "original_record": "native-fish-help-final-private.json",
+      "extraction": "JSON(stdout).logs[work/core-help.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "c66b2fd15b67bbe9a919cd693b4cfcade88a9ead708813e195b63c46611303c9",
+        "bytes": 895419
+      },
+      "retained_decoded_utf8": {
+        "bytes": 895417,
+        "sha256": "63a214f0cd4cfcc91708bdf44ff6f3b2b01d0fa3197c3d30303653a7bf7c52eb"
+      },
+      "decoded_capture_matches_raw_receipt": false,
+      "coverage": "explicit selected lines",
+      "original_line_count": 10003,
+      "lines": [
+        {
+          "line": 1,
+          "text": "\u25c7 Test run started.\n"
+        },
+        {
+          "line": 2,
+          "text": "\u21b3 Testing Library Version: 6.3.2 (70eff261d7f462c)\n"
+        },
+        {
+          "line": 3,
+          "text": "\u21b3 Target Platform: aarch64-unknown-linux-gnu\n"
+        },
+        {
+          "line": 183,
+          "text": "\u25c7 Test controlTreeReportsUnseenCountWhenPositive() started.\n"
+        },
+        {
+          "line": 184,
+          "text": "\u25c7 Test terminalAskProjectionFollowsPaneIdentityAndOmitsResolvedAsks() started.\n"
+        },
+        {
+          "line": 10000,
+          "text": "\u2714 Test theTerminalTypeComesFromTheHelpersOwnTerminal() passed after 5.033 seconds.\n"
+        },
+        {
+          "line": 10002,
+          "text": "\u2714 Test theProgramGetsTheHelpersEnvironmentUnderTheContext() passed after 5.049 seconds.\n"
+        }
+      ]
+    },
+    "native-list/service.log": {
+      "original_record": "native-fish-list-result-private.json",
+      "extraction": "JSON(stdout).logs[service.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "65b25b538e23330adfc2bdb5a7a7c764527f73f77f09eb8bbfa38b07ad561aa9",
+        "bytes": 287
+      },
+      "retained_decoded_utf8": {
+        "bytes": 287,
+        "sha256": "65b25b538e23330adfc2bdb5a7a7c764527f73f77f09eb8bbfa38b07ad561aa9"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 6,
+      "lines": [
+        {
+          "line": 1,
+          "text": "Running as unit: <LIST_UNIT>\n"
+        },
+        {
+          "line": 2,
+          "text": "          Finished with result: success\n"
+        },
+        {
+          "line": 3,
+          "text": "Main processes terminated with: code=exited, status=0/SUCCESS\n"
+        },
+        {
+          "line": 4,
+          "text": "               Service runtime: 233ms\n"
+        },
+        {
+          "line": 5,
+          "text": "             CPU time consumed: 188ms\n"
+        },
+        {
+          "line": 6,
+          "text": "                   Memory peak: 206.9M (swap: 0B)\n"
+        }
+      ]
+    },
+    "native-list/operator.log": {
+      "original_record": "native-fish-list-result-private.json",
+      "extraction": "JSON(stdout).logs[operator.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "8324676393a3b79e75cbb3037e5835fc1d956c887dbdec4ae1a2cce1b8788187",
+        "bytes": 47
+      },
+      "retained_decoded_utf8": {
+        "bytes": 47,
+        "sha256": "8324676393a3b79e75cbb3037e5835fc1d956c887dbdec4ae1a2cce1b8788187"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 1,
+      "lines": [
+        {
+          "line": 1,
+          "text": "{\"passed\": true, \"errors\": [], \"mode\": \"list\"}\n"
+        }
+      ]
+    },
+    "native-list/work/fish-version.log": {
+      "original_record": "native-fish-list-result-private.json",
+      "extraction": "JSON(stdout).logs[work/fish-version.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "fc79a435305c528cd86b86eba89ad5e27bea927491038a3beadab0f17017c73d",
+        "bytes": 20
+      },
+      "retained_decoded_utf8": {
+        "bytes": 20,
+        "sha256": "fc79a435305c528cd86b86eba89ad5e27bea927491038a3beadab0f17017c73d"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 1,
+      "lines": [
+        {
+          "line": 1,
+          "text": "fish, version 4.9.3\n"
+        }
+      ]
+    },
+    "native-list/work/core-list.log": {
+      "original_record": "native-fish-list-result-private.json",
+      "extraction": "JSON(stdout).logs[work/core-list.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "b917e7be5393767b94fd67bdb4e0f9b741995789678f47263722866bf1c22ebc",
+        "bytes": 323251
+      },
+      "retained_decoded_utf8": {
+        "bytes": 323251,
+        "sha256": "b917e7be5393767b94fd67bdb4e0f9b741995789678f47263722866bf1c22ebc"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "explicit selected lines",
+      "original_line_count": 4105,
+      "lines": [
+        {
+          "line": 1145,
+          "text": "agtermCoreTests.ConfigPathsTests/editorCommandWorksUnderNonPosixLoginShell()\n"
+        }
+      ]
+    },
+    "native-fixture/service.log": {
+      "original_record": "native-fish-fixture-result-private.json",
+      "extraction": "JSON(stdout).logs[service.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "a730ebec67d7e73dc337971c3970eb74c90b89dbbdb60a298dadb87c334f2c4f",
+        "bytes": 287
+      },
+      "retained_decoded_utf8": {
+        "bytes": 287,
+        "sha256": "a730ebec67d7e73dc337971c3970eb74c90b89dbbdb60a298dadb87c334f2c4f"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 6,
+      "lines": [
+        {
+          "line": 1,
+          "text": "Running as unit: <FIXTURE_UNIT>\n"
+        },
+        {
+          "line": 2,
+          "text": "          Finished with result: success\n"
+        },
+        {
+          "line": 3,
+          "text": "Main processes terminated with: code=exited, status=0/SUCCESS\n"
+        },
+        {
+          "line": 4,
+          "text": "               Service runtime: 269ms\n"
+        },
+        {
+          "line": 5,
+          "text": "             CPU time consumed: 233ms\n"
+        },
+        {
+          "line": 6,
+          "text": "                   Memory peak: 206.7M (swap: 0B)\n"
+        }
+      ]
+    },
+    "native-fixture/operator.log": {
+      "original_record": "native-fish-fixture-result-private.json",
+      "extraction": "JSON(stdout).logs[operator.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "be44bd3716d734cda535b60993586eba866dc32ee274fce9875bccaac49f0a09",
+        "bytes": 51
+      },
+      "retained_decoded_utf8": {
+        "bytes": 51,
+        "sha256": "be44bd3716d734cda535b60993586eba866dc32ee274fce9875bccaac49f0a09"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 1,
+      "lines": [
+        {
+          "line": 1,
+          "text": "{\"passed\": false, \"errors\": [], \"mode\": \"fixture\"}\n"
+        }
+      ]
+    },
+    "native-fixture/work/fish-version.log": {
+      "original_record": "native-fish-fixture-result-private.json",
+      "extraction": "JSON(stdout).logs[work/fish-version.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "fc79a435305c528cd86b86eba89ad5e27bea927491038a3beadab0f17017c73d",
+        "bytes": 20
+      },
+      "retained_decoded_utf8": {
+        "bytes": 20,
+        "sha256": "fc79a435305c528cd86b86eba89ad5e27bea927491038a3beadab0f17017c73d"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 1,
+      "lines": [
+        {
+          "line": 1,
+          "text": "fish, version 4.9.3\n"
+        }
+      ]
+    },
+    "native-fixture/work/core-fixture.log": {
+      "original_record": "native-fish-fixture-result-private.json",
+      "extraction": "JSON(stdout).logs[work/core-fixture.log].text",
+      "recorded_raw_receipt": {
+        "sha256": "b805941d305d7f7d3c7f7275aeb0471ae62fd639d78c4c9b8e0b6fad9e3cebf0",
+        "bytes": 420
+      },
+      "retained_decoded_utf8": {
+        "bytes": 420,
+        "sha256": "b805941d305d7f7d3c7f7275aeb0471ae62fd639d78c4c9b8e0b6fad9e3cebf0"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 8,
+      "lines": [
+        {
+          "line": 1,
+          "text": "\u25c7 Test run started.\n"
+        },
+        {
+          "line": 2,
+          "text": "\u21b3 Testing Library Version: 6.3.2 (70eff261d7f462c)\n"
+        },
+        {
+          "line": 3,
+          "text": "\u21b3 Target Platform: aarch64-unknown-linux-gnu\n"
+        },
+        {
+          "line": 4,
+          "text": "\u25c7 Suite ConfigPathsTests started.\n"
+        },
+        {
+          "line": 5,
+          "text": "\u25c7 Test editorCommandWorksUnderNonPosixLoginShell() started.\n"
+        },
+        {
+          "line": 6,
+          "text": "\u2714 Test editorCommandWorksUnderNonPosixLoginShell() passed after 0.031 seconds.\n"
+        },
+        {
+          "line": 7,
+          "text": "\u2714 Suite ConfigPathsTests passed after 0.031 seconds.\n"
+        },
+        {
+          "line": 8,
+          "text": "\u2714 Test run with 1 test in 1 suite passed after 0.031 seconds.\n"
+        }
+      ]
+    },
+    "native-help-interim/core-log": {
+      "original_record": "native-fish-help-result-private.json",
+      "extraction": "JSON(stdout).logs[work/core-help.log]",
+      "recorded_raw_receipt": null,
+      "retained_decoded_utf8": {
+        "bytes": 894663,
+        "sha256": "222c85d8105bd60d53d2c0da9797bb26ced0e6ff24c8af1e4a594e919b0d105e"
+      },
+      "decoded_capture_matches_raw_receipt": null,
+      "coverage": "explicit selected lines",
+      "original_line_count": 9993,
+      "lines": [
+        {
+          "line": 1,
+          "text": "\u25c7 Test run started.\n"
+        },
+        {
+          "line": 2,
+          "text": "\u21b3 Testing Library Version: 6.3.2 (70eff261d7f462c)\n"
+        },
+        {
+          "line": 3,
+          "text": "\u21b3 Target Platform: aarch64-unknown-linux-gnu\n"
+        }
+      ]
+    },
+    "mac/standalone-image-stdout.log": {
+      "original_record": "mac-private-policy-assessment-01/standalone-image-stdout.log",
+      "extraction": "complete raw log file",
+      "recorded_raw_receipt": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "retained_decoded_utf8": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 0,
+      "lines": []
+    },
+    "mac/standalone-image-stderr.log": {
+      "original_record": "mac-private-policy-assessment-01/standalone-image-stderr.log",
+      "extraction": "complete raw log file",
+      "recorded_raw_receipt": {
+        "bytes": 153,
+        "sha256": "22328af17fd8549f9343d0b448ee7ababd32981db613e701e553a6c183643ca0"
+      },
+      "retained_decoded_utf8": {
+        "bytes": 153,
+        "sha256": "22328af17fd8549f9343d0b448ee7ababd32981db613e701e553a6c183643ca0"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "explicit selected lines",
+      "original_line_count": 2,
+      "lines": [
+        {
+          "line": 1,
+          "text": "<MAC_ASSESSMENT_STAGE>/s/zmx: rejected (the code is valid but does not seem to be an app)\n"
+        }
+      ]
+    },
+    "mac/pristine-bundle-stdout.log": {
+      "original_record": "mac-private-policy-assessment-01/pristine-bundle-stdout.log",
+      "extraction": "complete raw log file",
+      "recorded_raw_receipt": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "retained_decoded_utf8": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 0,
+      "lines": []
+    },
+    "mac/pristine-bundle-stderr.log": {
+      "original_record": "mac-private-policy-assessment-01/pristine-bundle-stderr.log",
+      "extraction": "complete raw log file",
+      "recorded_raw_receipt": {
+        "bytes": 139,
+        "sha256": "781edc4dca4980fc3c204e7008997e4aadd3c7f3c096b5cdce62e239abf5bc77"
+      },
+      "retained_decoded_utf8": {
+        "bytes": 139,
+        "sha256": "781edc4dca4980fc3c204e7008997e4aadd3c7f3c096b5cdce62e239abf5bc77"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "explicit selected lines",
+      "original_line_count": 3,
+      "lines": [
+        {
+          "line": 1,
+          "text": "<MAC_ASSESSMENT_STAGE>/p/agterm.app: accepted\n"
+        },
+        {
+          "line": 2,
+          "text": "source=Notarized Developer ID\n"
+        }
+      ]
+    },
+    "mac/pristine-image-stdout.log": {
+      "original_record": "mac-private-policy-assessment-01/pristine-image-stdout.log",
+      "extraction": "complete raw log file",
+      "recorded_raw_receipt": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "retained_decoded_utf8": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 0,
+      "lines": []
+    },
+    "mac/pristine-image-stderr.log": {
+      "original_record": "mac-private-policy-assessment-01/pristine-image-stderr.log",
+      "extraction": "complete raw log file",
+      "recorded_raw_receipt": {
+        "bytes": 179,
+        "sha256": "f5bdab13416e78622cf17c3a0e86105ce14a45a56bffc0c4941aa1a50c359769"
+      },
+      "retained_decoded_utf8": {
+        "bytes": 179,
+        "sha256": "f5bdab13416e78622cf17c3a0e86105ce14a45a56bffc0c4941aa1a50c359769"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "explicit selected lines",
+      "original_line_count": 2,
+      "lines": [
+        {
+          "line": 1,
+          "text": "<MAC_ASSESSMENT_STAGE>/p/agterm.app/Contents/MacOS/zmx: rejected (the code is valid but does not seem to be an app)\n"
+        }
+      ]
+    },
+    "mac/with-peer-bundle-stdout.log": {
+      "original_record": "mac-private-policy-assessment-01/with-peer-bundle-stdout.log",
+      "extraction": "complete raw log file",
+      "recorded_raw_receipt": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "retained_decoded_utf8": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 0,
+      "lines": []
+    },
+    "mac/with-peer-bundle-stderr.log": {
+      "original_record": "mac-private-policy-assessment-01/with-peer-bundle-stderr.log",
+      "extraction": "complete raw log file",
+      "recorded_raw_receipt": {
+        "bytes": 80,
+        "sha256": "e3c43696da9591fa99fbcee664c1b8440522bdcb15573799fdebe517e2654b61"
+      },
+      "retained_decoded_utf8": {
+        "bytes": 80,
+        "sha256": "e3c43696da9591fa99fbcee664c1b8440522bdcb15573799fdebe517e2654b61"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 1,
+      "lines": [
+        {
+          "line": 1,
+          "text": "<MAC_ASSESSMENT_STAGE>/a/agterm.app: a sealed resource is missing or invalid\n"
+        }
+      ]
+    },
+    "mac/with-peer-image-stdout.log": {
+      "original_record": "mac-private-policy-assessment-01/with-peer-image-stdout.log",
+      "extraction": "complete raw log file",
+      "recorded_raw_receipt": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "retained_decoded_utf8": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "complete",
+      "original_line_count": 0,
+      "lines": []
+    },
+    "mac/with-peer-image-stderr.log": {
+      "original_record": "mac-private-policy-assessment-01/with-peer-image-stderr.log",
+      "extraction": "complete raw log file",
+      "recorded_raw_receipt": {
+        "bytes": 179,
+        "sha256": "5ccbfe724bd2ecc37a9ea71006e8245d23c02a9606d41172180eed08c5d91ef6"
+      },
+      "retained_decoded_utf8": {
+        "bytes": 179,
+        "sha256": "5ccbfe724bd2ecc37a9ea71006e8245d23c02a9606d41172180eed08c5d91ef6"
+      },
+      "decoded_capture_matches_raw_receipt": true,
+      "coverage": "explicit selected lines",
+      "original_line_count": 2,
+      "lines": [
+        {
+          "line": 1,
+          "text": "<MAC_ASSESSMENT_STAGE>/a/agterm.app/Contents/MacOS/zmx: rejected (the code is valid but does not seem to be an app)\n"
+        }
+      ]
+    }
+  }
+}

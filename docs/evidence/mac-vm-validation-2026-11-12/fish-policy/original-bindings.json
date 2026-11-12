@@ -1,0 +1,134 @@
+{
+  "schema": "agterm-fish-policy-bindings/1",
+  "original_records_drivers_and_logs": {
+    "assess-mac-private-contexts.py": {
+      "bytes": 4821,
+      "sha256": "a51fbeea4954a23631c32be6a2f44273f5af6ad0b704a2d3c8e3725b5789e107"
+    },
+    "mac-private-policy-assessment-01/pristine-bundle-stderr.log": {
+      "bytes": 139,
+      "sha256": "781edc4dca4980fc3c204e7008997e4aadd3c7f3c096b5cdce62e239abf5bc77"
+    },
+    "mac-private-policy-assessment-01/pristine-bundle-stdout.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "mac-private-policy-assessment-01/pristine-image-stderr.log": {
+      "bytes": 179,
+      "sha256": "f5bdab13416e78622cf17c3a0e86105ce14a45a56bffc0c4941aa1a50c359769"
+    },
+    "mac-private-policy-assessment-01/pristine-image-stdout.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "mac-private-policy-assessment-01/result.json": {
+      "bytes": 4696,
+      "sha256": "fcdb14d9a15412110af6e24663bdf01bffdb0327d2433cdc40ceacc6134c5196"
+    },
+    "mac-private-policy-assessment-01/standalone-image-stderr.log": {
+      "bytes": 153,
+      "sha256": "22328af17fd8549f9343d0b448ee7ababd32981db613e701e553a6c183643ca0"
+    },
+    "mac-private-policy-assessment-01/standalone-image-stdout.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "mac-private-policy-assessment-01/with-peer-bundle-stderr.log": {
+      "bytes": 80,
+      "sha256": "e3c43696da9591fa99fbcee664c1b8440522bdcb15573799fdebe517e2654b61"
+    },
+    "mac-private-policy-assessment-01/with-peer-bundle-stdout.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "mac-private-policy-assessment-01/with-peer-image-stderr.log": {
+      "bytes": 179,
+      "sha256": "5ccbfe724bd2ecc37a9ea71006e8245d23c02a9606d41172180eed08c5d91ef6"
+    },
+    "mac-private-policy-assessment-01/with-peer-image-stdout.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "native-fish-fixture-launch-private.json": {
+      "bytes": 329,
+      "sha256": "d0936e5bcadbf93d926d6251b7657bebbebb09ca9083976c3469af3e7468fb61"
+    },
+    "native-fish-fixture-post-verification.json": {
+      "bytes": 1617,
+      "sha256": "3f81c9ab7a2e06e6e2496322a88d41a06f9f52e60a08c7c27938cafc90145856"
+    },
+    "native-fish-fixture-result-private.json": {
+      "bytes": 6811,
+      "sha256": "69ccb9bc62fa2836176771d049073bf5c3f2395eae7a298dd04c26a242dcbb2a"
+    },
+    "native-fish-help-administrative-stop-private.json": {
+      "bytes": 510,
+      "sha256": "015c74140224ba37dfdcb77761edfedc2de04e9cd7ae363f26cef324b95ba581"
+    },
+    "native-fish-help-final-private.json": {
+      "bytes": 1246147,
+      "sha256": "a47de2509ec0961580624f1d6a5954d78f8488c9f097d1e86474dbd1a39092e6"
+    },
+    "native-fish-help-launch-private.json": {
+      "bytes": 326,
+      "sha256": "82a1b5edad9b6bc7970fffe45d8400cd91df65f939119a7c750009059468f8f9"
+    },
+    "native-fish-help-result-private.json": {
+      "bytes": 975693,
+      "sha256": "2e5f5a1e91637cf2538392f6b1018b12e0e7a1a312c24d446c6567e4a28216b3"
+    },
+    "native-fish-list-launch-private.json": {
+      "bytes": 326,
+      "sha256": "f6243166a0b621eb41c0c5a575c6ba1ed7bdf63ae1b159dd8da108f6c775e507"
+    },
+    "native-fish-list-result-private.json": {
+      "bytes": 337568,
+      "sha256": "64786fd610a42d66ccbada90782de0f755a329fde5c51ae773b420be1b91192f"
+    },
+    "native-fish-package-plan-private.json": {
+      "bytes": 2249,
+      "sha256": "f48aef57c9167581f26c5dce78c54cc02410915a9b2e2a42b76f678f01775b43"
+    },
+    "native-fish-preparation-launch-private.json": {
+      "bytes": 3791,
+      "sha256": "d844096eeac90127c9e4bb8087c60a191b17f1712f228d79dd0b3d0c2de9608d"
+    },
+    "native-fish-preparation-result-private.json": {
+      "bytes": 49874,
+      "sha256": "581f7892932bc255d4452d870fe4f5275b67472ccbdbe4b3d4e6f6a975a69c21"
+    },
+    "prepare-native-fish.py": {
+      "bytes": 5262,
+      "sha256": "ba319a6edf2f64c46012a6a0391e2c242112b87b5d3511e5ff2321908b3dc31c"
+    },
+    "run-native-fish-fixture-v2.py": {
+      "bytes": 10487,
+      "sha256": "6324c88858b9ad3ea27defc462bdb3696496631920b78273b1cbdbfa416d79cf"
+    },
+    "run-native-fish-fixture.py": {
+      "bytes": 10323,
+      "sha256": "5ae34ac9c969d8ece1ff8298fbdc821b9741c3f779a2d81e74e1311b261bf303"
+    },
+    "scanner-zmx-context-diagnostic-sf79c3480ffb/manifest.json": {
+      "bytes": 446899,
+      "sha256": "bb299e7b294f20a28a7ab4196aff5ecb4e1c730552c7bb8bb490233bf00348f0"
+    }
+  },
+  "source_fixture": {
+    "source": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+    "path": "agtermCore/Tests/agtermCoreTests/ConfigPathsTests.swift",
+    "bytes": 15227,
+    "sha256": "8b873b5ad6ab08986b341abcd3413b0fdfcf50423a0d079ea4df6b1fc1207cb2"
+  },
+  "transitive_mac_context_inputs": {
+    "manifest": "scanner-zmx-context-diagnostic-sf79c3480ffb/manifest.json",
+    "manifest_entries_rehashed": 2065,
+    "entry_bytes_rehashed": 202310665,
+    "context_image_sha256": {
+      "pristine": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+      "standalone": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+      "with-peer": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01"
+    }
+  },
+  "privacy": "Complete original bytes remain private. Published record fields are selected; log line selections and text/raw byte differences are explicit."
+}

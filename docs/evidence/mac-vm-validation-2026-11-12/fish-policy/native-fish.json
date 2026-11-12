@@ -1,0 +1,381 @@
+{
+  "schema": "agterm-fish-additive-evidence/1",
+  "source": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+  "native_test_binary_sha256": "2d03a4919f219239fda740b3f0e3f62134f97e9c0569d5c899a25663eca533d2",
+  "source_fixture": {
+    "bytes": 15227,
+    "sha256": "8b873b5ad6ab08986b341abcd3413b0fdfcf50423a0d079ea4df6b1fc1207cb2",
+    "git_blob": "60fe0f4f69c528b29be47287ecd06e0414c1ed7b"
+  },
+  "image_binding_scope": "Native image/package digests are historical receipts cross-checked across attempts; this verifier does not access the guest binaries.",
+  "dependency_preparation": {
+    "package": {
+      "name": "fish",
+      "version": "4.9.3-1",
+      "url": "https://de3.mirror.archlinuxarm.org/aarch64/extra/fish-4.9.3-1-aarch64.pkg.tar.xz",
+      "sha256": "c0fb16a8077312f6541ff1ef7208a3ecf5b9db5763269ceaefe2eeaba6dc3834",
+      "desc_sha256": "5d5e403c025bbfc8a31016766368900ae7d9bf39b4d7a0f3bbdac9f9d6111ad7"
+    },
+    "host_driver_sha256": "ba319a6edf2f64c46012a6a0391e2c242112b87b5d3511e5ff2321908b3dc31c",
+    "worker_source_sha256": "48fd117297e7f37d1beb83f8844f9138140737242b6748df55c449f77694deca",
+    "subprocess_bounds_seconds": {
+      "keyring_conversion": 15,
+      "each_download": 50,
+      "signature_verification": 15
+    },
+    "passed": true,
+    "executed_package_during_preparation": false,
+    "signature_sha256": "a40dd39034b4cdd7f5013ba76b7f04673c790aec8bd602b817cabf0473f6625f",
+    "public_keyring_sha256": "9403f923eed777ba0896a0b225e1522d3a7625234694c753ae26b27c29672aae",
+    "source_public_keyring_sha256": "6ce771e853f04a38a5b533cb33e61f877b9b06b58b6db051eb8a15d737a2332f",
+    "source_keyring_unchanged": true,
+    "valid_signature_fingerprints": [
+      "68B3537F39A313B3E574D06777193F152BDBE6A6"
+    ],
+    "signature_verification_exit_code": 0,
+    "archive_members": 339,
+    "extracted_file_records": 317,
+    "fish_sha256": "676028c5be037d08361e1c95affc92f3c7548293d809cb6d19c3a4a2bb9b2583"
+  },
+  "attempts": {
+    "help": {
+      "original_aggregate_passed": false,
+      "original_test_selection_verified": false,
+      "service_exit_code": 1,
+      "service_seconds": 45.258803241998976,
+      "driver_sha256": "5ae34ac9c969d8ece1ff8298fbdc821b9741c3f779a2d81e74e1311b261bf303",
+      "bounds": {
+        "core_child_seconds": 45,
+        "fish_version_child_seconds": 10,
+        "operator_service_wait_seconds": 115,
+        "service_runtime_max_seconds": 90,
+        "service_stop_seconds": 5
+      },
+      "errors": [],
+      "worker_completed": false,
+      "worker_commands": [
+        {
+          "label": "fish-version",
+          "argv": [
+            "/usr/local/bin/fish",
+            "--version"
+          ],
+          "exit_code": 0,
+          "log_sha256": "fc79a435305c528cd86b86eba89ad5e27bea927491038a3beadab0f17017c73d"
+        },
+        {
+          "label": "core-help",
+          "argv": [
+            "<SOURCE77>/agtermCore/.build/aarch64-unknown-linux-gnu/debug/agtermCorePackageTests.xctest",
+            "--testing-library",
+            "swift-testing",
+            "--help"
+          ]
+        }
+      ],
+      "worker_readonly": {
+        "source_readonly": true,
+        "fish_mount_readonly": true,
+        "installed_readonly": true
+      },
+      "worker_non_root": true,
+      "private_namespace_comparisons": {
+        "mnt": true,
+        "pid": true,
+        "net": true,
+        "ipc": true
+      },
+      "preservation": {
+        "source_unchanged": true,
+        "installed_unchanged": true,
+        "payload_unchanged": true,
+        "private_package_unchanged": true,
+        "protected_preserved": true,
+        "login_shell_unchanged": true,
+        "global_fish_absent": true,
+        "usr_local_unchanged": true,
+        "unit_cgroup_absent": true
+      },
+      "unit_after": {
+        "exit_code": 0,
+        "stdout": "LoadState=not-found\nActiveState=inactive\nMainPID=0\nControlGroup=\n",
+        "stderr": ""
+      },
+      "fixture_remainders": {
+        "count": 1134,
+        "categories": {
+          "agterm-run-job-<fixture-id>.pid": 1,
+          "agterm-tests-<fixture-id>": 1097,
+          "agterm-zmx-lifecycle-<fixture-id>": 9,
+          "terminfo-install-<fixture-id>": 27
+        },
+        "canonical_list_binding": {
+          "bytes": 59155,
+          "sha256": "a12c9ebe5f1f6eb19efd51b7c1e7ebefd7eac37a920ca72b986d6cf2ecba7b92"
+        },
+        "scope": "Selected count/categories; exact private names remain in the bound original record."
+      },
+      "recorded_partial_literal_pass_count": 4102,
+      "recorded_literal_skip_count": 0,
+      "log_projections": {
+        "service.log": "native-help/service.log",
+        "operator.log": "native-help/operator.log",
+        "work/fish-version.log": "native-help/work/fish-version.log",
+        "work/core-help.log": "native-help/work/core-help.log"
+      },
+      "outcome": "failed_incomplete_accidental_full_selection",
+      "raw_log_byte_identity_established_from_capture": false
+    },
+    "list": {
+      "original_aggregate_passed": true,
+      "original_test_selection_verified": true,
+      "service_exit_code": 0,
+      "service_seconds": 0.29006266099895583,
+      "driver_sha256": "6324c88858b9ad3ea27defc462bdb3696496631920b78273b1cbdbfa416d79cf",
+      "bounds": {
+        "core_child_seconds": 45,
+        "fish_version_child_seconds": 10,
+        "operator_service_wait_seconds": 115,
+        "service_runtime_max_seconds": 90,
+        "service_stop_seconds": 5
+      },
+      "errors": [],
+      "worker_completed": true,
+      "worker_commands": [
+        {
+          "label": "fish-version",
+          "argv": [
+            "/usr/local/bin/fish",
+            "--version"
+          ],
+          "exit_code": 0,
+          "log_sha256": "fc79a435305c528cd86b86eba89ad5e27bea927491038a3beadab0f17017c73d"
+        },
+        {
+          "label": "core-list",
+          "argv": [
+            "<SOURCE77>/agtermCore/.build/aarch64-unknown-linux-gnu/debug/agtermCorePackageTests.xctest",
+            "--testing-library",
+            "swift-testing",
+            "--list-tests"
+          ],
+          "exit_code": 0,
+          "log_sha256": "b917e7be5393767b94fd67bdb4e0f9b741995789678f47263722866bf1c22ebc"
+        }
+      ],
+      "worker_readonly": {
+        "source_readonly": true,
+        "fish_mount_readonly": true,
+        "installed_readonly": true
+      },
+      "worker_non_root": true,
+      "private_namespace_comparisons": {
+        "mnt": true,
+        "pid": true,
+        "net": true,
+        "ipc": true
+      },
+      "preservation": {
+        "source_unchanged": true,
+        "installed_unchanged": true,
+        "payload_unchanged": true,
+        "private_package_unchanged": true,
+        "protected_preserved": true,
+        "login_shell_unchanged": true,
+        "global_fish_absent": true,
+        "usr_local_unchanged": true,
+        "unit_cgroup_absent": true
+      },
+      "unit_after": {
+        "exit_code": 0,
+        "stdout": "LoadState=not-found\nActiveState=inactive\nMainPID=0\nControlGroup=\n",
+        "stderr": ""
+      },
+      "fixture_remainders": {
+        "count": 0,
+        "categories": {},
+        "canonical_list_binding": {
+          "bytes": 2,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "scope": "Selected count/categories; exact private names remain in the bound original record."
+      },
+      "recorded_partial_literal_pass_count": 0,
+      "recorded_literal_skip_count": 0,
+      "log_projections": {
+        "service.log": "native-list/service.log",
+        "operator.log": "native-list/operator.log",
+        "work/fish-version.log": "native-list/work/fish-version.log",
+        "work/core-list.log": "native-list/work/core-list.log"
+      },
+      "outcome": "listing_only",
+      "identifier_count": 4105,
+      "requested_identifier_count": 1
+    },
+    "fixture": {
+      "original_aggregate_passed": false,
+      "original_test_selection_verified": false,
+      "service_exit_code": 0,
+      "service_seconds": 0.31974964999972144,
+      "driver_sha256": "6324c88858b9ad3ea27defc462bdb3696496631920b78273b1cbdbfa416d79cf",
+      "bounds": {
+        "core_child_seconds": 45,
+        "fish_version_child_seconds": 10,
+        "operator_service_wait_seconds": 115,
+        "service_runtime_max_seconds": 90,
+        "service_stop_seconds": 5
+      },
+      "errors": [],
+      "worker_completed": true,
+      "worker_commands": [
+        {
+          "label": "fish-version",
+          "argv": [
+            "/usr/local/bin/fish",
+            "--version"
+          ],
+          "exit_code": 0,
+          "log_sha256": "fc79a435305c528cd86b86eba89ad5e27bea927491038a3beadab0f17017c73d"
+        },
+        {
+          "label": "core-fixture",
+          "argv": [
+            "<SOURCE77>/agtermCore/.build/aarch64-unknown-linux-gnu/debug/agtermCorePackageTests.xctest",
+            "--testing-library",
+            "swift-testing",
+            "--no-parallel",
+            "--repetitions",
+            "1",
+            "--filter",
+            "^agtermCoreTests\\.ConfigPathsTests/editorCommandWorksUnderNonPosixLoginShell\\(\\)(/|$)"
+          ],
+          "exit_code": 0,
+          "log_sha256": "b805941d305d7f7d3c7f7275aeb0471ae62fd639d78c4c9b8e0b6fad9e3cebf0"
+        }
+      ],
+      "worker_readonly": {
+        "source_readonly": true,
+        "fish_mount_readonly": true,
+        "installed_readonly": true
+      },
+      "worker_non_root": true,
+      "private_namespace_comparisons": {
+        "mnt": true,
+        "pid": true,
+        "net": true,
+        "ipc": true
+      },
+      "preservation": {
+        "source_unchanged": true,
+        "installed_unchanged": true,
+        "payload_unchanged": true,
+        "private_package_unchanged": true,
+        "protected_preserved": true,
+        "login_shell_unchanged": true,
+        "global_fish_absent": true,
+        "usr_local_unchanged": true,
+        "unit_cgroup_absent": true
+      },
+      "unit_after": {
+        "exit_code": 0,
+        "stdout": "LoadState=not-found\nActiveState=inactive\nMainPID=0\nControlGroup=\n",
+        "stderr": ""
+      },
+      "fixture_remainders": {
+        "count": 0,
+        "categories": {},
+        "canonical_list_binding": {
+          "bytes": 2,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "scope": "Selected count/categories; exact private names remain in the bound original record."
+      },
+      "recorded_partial_literal_pass_count": 2,
+      "recorded_literal_skip_count": 0,
+      "log_projections": {
+        "service.log": "native-fixture/service.log",
+        "operator.log": "native-fixture/operator.log",
+        "work/fish-version.log": "native-fixture/work/fish-version.log",
+        "work/core-fixture.log": "native-fixture/work/core-fixture.log"
+      },
+      "outcome": "literal_single_test_pass_with_failed_original_aggregate",
+      "original_literal_passes": [
+        "editorCommandWorksUnderNonPosixLoginShell()",
+        "run with 1 test in 1 suite"
+      ],
+      "independent_file_only_recount": {
+        "test_starts": 1,
+        "test_passes": 1,
+        "test_failures": 0,
+        "test_skips": 0,
+        "suite_count": 1,
+        "test_seconds": 0.031
+      }
+    }
+  },
+  "interim_help_receipt": {
+    "final_outcome_available": false,
+    "record_binding": {
+      "bytes": 975693,
+      "sha256": "2e5f5a1e91637cf2538392f6b1018b12e0e7a1a312c24d446c6567e4a28216b3"
+    },
+    "log_projection": "native-help-interim/core-log"
+  },
+  "later_stop_check": {
+    "already_inactive": true,
+    "cgroup_absent": true,
+    "before": {
+      "code": 0,
+      "stdout": "LoadState=not-found\nActiveState=inactive\nControlGroup=\n",
+      "stderr": ""
+    },
+    "scope": "The later administrative check found the service inactive; root reported sending no signal."
+  },
+  "retained_read_only_recount": {
+    "schema": "agterm-native-fish-post-verification/1",
+    "original_record_sha256": "69ccb9bc62fa2836176771d049073bf5c3f2395eae7a298dd04c26a242dcbb2a",
+    "source": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+    "binary_sha256": "2d03a4919f219239fda740b3f0e3f62134f97e9c0569d5c899a25663eca533d2",
+    "fish_sha256": "676028c5be037d08361e1c95affc92f3c7548293d809cb6d19c3a4a2bb9b2583",
+    "test_log_sha256": "b805941d305d7f7d3c7f7275aeb0471ae62fd639d78c4c9b8e0b6fad9e3cebf0",
+    "literal_test_passes": 1,
+    "literal_test_failures": 0,
+    "literal_test_skips": 0,
+    "suite_count": 1,
+    "test_seconds": 0.031,
+    "service_seconds": 0.31974964999972144,
+    "exit_code": 0,
+    "original_aggregate_passed": false,
+    "original_test_selection_verified": false,
+    "original_aggregate_defect": "The broad literal-pass regex also counted the final Test run with headline as a second test. The original failed aggregate remains unchanged.",
+    "post_run_verification_passed": true,
+    "runtime_repeated": false,
+    "negative_controls": {
+      "missing_pass": true,
+      "extra_test": true,
+      "missing_summary": true,
+      "nonzero_exit": true,
+      "changed_input": true
+    },
+    "preservation": {
+      "source_unchanged": true,
+      "installed_unchanged": true,
+      "payload_unchanged": true,
+      "private_package_unchanged": true,
+      "protected_preserved": true,
+      "login_shell_unchanged": true,
+      "global_fish_absent": true,
+      "usr_local_unchanged": true,
+      "unit_cgroup_absent": true
+    },
+    "scope": "One unchanged source77 core fish fixture using a private package in an isolated service; not a new full suite or current candidate."
+  },
+  "record_scope": "Selected original fields and explicit derivations; private identity values are omitted.",
+  "limits": [
+    "The accidental help invocation remains failed/incomplete with nonempty recorded temporary remainders.",
+    "The original selected-run aggregate remains false; the literal test pass and later read-only recount are separate evidence.",
+    "The accidental core-log decoded text is not byte-identical to its recorded raw receipt; both identities are retained distinctly.",
+    "No runtime was repeated by the recount or this publication preparation.",
+    "One supplementary test does not relabel the earlier full-core run or certify a newer candidate."
+  ]
+}

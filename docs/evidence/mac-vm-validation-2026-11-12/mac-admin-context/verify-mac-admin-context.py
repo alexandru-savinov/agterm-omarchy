@@ -23,6 +23,9 @@ DIAGNOSTIC = 'mac-private-zmx-diagnostic-1'
 RUN = CONTEXT + '/runs/root-context-01'
 ZMX = '4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01'
 SCHEMA = 'agterm-mac-admin-context-publication/1'
+RECEIPT_COUNTS = {'mac-admin-prerequisites.json': 9, 'mac-admin-bundle-retry.json': 6,
+                  'mac-zmx-context.json': 10, 'mac-admin-provenance.json': 5,
+                  'selected-log-projections.json': 20}
 BOUNDARY = ('Historical prerequisite/context diagnostics only. No host administrative-stop request '
             'or stopped reply was reached. No product stop failure/pass, OS-policy cause, '
             'current-source app build, native release acceptance or independent approval is established.')
@@ -64,8 +67,21 @@ class Checks:
 
 
 class Aliases:
-    """Reversible, shared aliases. Original values and this map stay private."""
+    """Shared aliases with numeric identities restricted to declared positions.
+
+    Reversibility alone does not establish that a number was a process ID.
+    Generic strings and keys never receive numeric substitutions.
+    Original values and this map stay private.
+    """
     identity_keys = {'pid', 'ppid', 'parent', 'host_pid', 'peer_pid'}
+    error_paths = {
+        ('mac-admin-prerequisites.json', 'synthetic_attempts', '*', 'value', 'errors', '*'),
+        ('mac-admin-bundle-retry.json', 'retry_result', 'value', 'errors', '*'),
+        ('mac-admin-bundle-retry.json', 'retained_result_projection', 'value', 'reported_errors', '*'),
+        ('selected-log-projections.json', 'logs', '*', 'selected_lines', '*', 'text'),
+    }
+    sample_path = ('mac-admin-prerequisites.json', 'fifteen_second_diagnostic',
+                   'value', 'sample', 'stderr')
 
     def __init__(self, root):
         self.tables = collections.defaultdict(dict)
@@ -104,20 +120,38 @@ class Aliases:
                     ('sample-thread', r'Thread_\d+')]
         for kind, pattern in patterns:
             value = re.sub(pattern, lambda match: self.alias(kind, match[0]), value)
-        for number, alias in self.tables['pid'].items():
-            value = re.sub(r'(?<![\w.])' + re.escape(number) + r'(?![\w.])', alias, value)
         return value
 
-    def walk(self, value, key=None):
+    def known_pid(self, number):
+        require(number in self.tables['pid'], 'text/key PID lacks a typed identity binding')
+        return self.tables['pid'][number]
+
+    def pid_text(self, value, path):
+        patterns = []
+        if path in self.error_paths:
+            patterns = [r'(?m)^(TimeoutError: owned process did not exit: )([0-9]+)(?=\r?$)']
+        elif path == self.sample_path:
+            patterns = [r'(?m)^(Sampling process )([0-9]+)(?= for )',
+                        r'(?m)^(Sample analysis of process )([0-9]+)(?= written to file )']
+        for pattern in patterns:
+            value = re.sub(pattern, lambda match: match[1] + self.known_pid(match[2]), value)
+        return value
+
+    def walk(self, value, key=None, path=()):
         if isinstance(value, dict):
-            return {self.text(k): self.walk(v, k) for k, v in value.items()}
+            # These result dictionaries are explicitly keyed by process ID.
+            # Numeric dictionary keys elsewhere are ordinary metadata.
+            if key == 'exit_codes':
+                require(all(k.isdecimal() for k in value), 'non-numeric original exit-code PID key')
+                return {self.known_pid(k): self.walk(v, k, path + (k,)) for k, v in value.items()}
+            return {self.text(k): self.walk(v, k, path + (k,)) for k, v in value.items()}
         if isinstance(value, list):
-            return [self.walk(item) for item in value]
+            return [self.walk(item, key, path + ('*',)) for item in value]
         if type(value) is int and key in self.identity_keys:
             return self.alias('pid', value)
         if type(value) is int and key == 'uid':
             return self.alias('uid', value)
-        return self.text(value) if isinstance(value, str) else value
+        return self.pid_text(self.text(value), path) if isinstance(value, str) else value
 
     def reverse_text(self, value):
         pairs = [(alias, original) for original, alias in self.fixed.items()]
@@ -143,6 +177,7 @@ def read_inputs(root, public, checks):
     raw_index = (public / 'original-bindings.json').read_bytes()
     checks.check(digest(raw_index) == INDEX_SHA256, 'frozen original index', 'input')
     index = json.loads(raw_index)
+    checks.check(index['schema'] == 'agterm-mac-admin-context-originals/1', 'original index schema', 'schema')
     checks.check(index['file_count'] == len(index['files']) == 2089, 'original count', 'input')
     data = {}
     for relative, receipt in index['files'].items():
@@ -365,7 +400,7 @@ def make_documents(root, public, checks):
     aliases = Aliases(root)
     for document in originals.values():
         aliases.seed(document)
-    documents = {name: aliases.walk(document) for name, document in originals.items()}
+    documents = {name: aliases.walk(document, path=(name,)) for name, document in originals.items()}
     for name in originals:
         checks.compare(originals[name], aliases.reverse(documents[name]), name, 'reverse_alias')
     for name, document in documents.items():
@@ -376,10 +411,87 @@ def make_documents(root, public, checks):
     return documents, aliases, index
 
 
+def validate_public_shape(documents, index, checks):
+    """Semantic checks independent of both alias generation and reversibility."""
+    checks.check(set(documents) == set(RECEIPT_COUNTS), 'projected document set', 'schema')
+    for name, document in documents.items():
+        checks.check(document['schema'] == SCHEMA, 'literal publication schema: ' + name, 'schema')
+        receipts = []
+        def visit(value):
+            if isinstance(value, dict):
+                if set(value) == {'path', 'sha256', 'bytes'}:
+                    receipts.append(value)
+                for child in value.values():
+                    visit(child)
+            elif isinstance(value, list):
+                for child in value:
+                    visit(child)
+        visit(document)
+        checks.check(len(receipts) == RECEIPT_COUNTS[name], 'public receipt count: ' + name, 'original_resolution')
+        for receipt in receipts:
+            path = receipt['path']
+            checks.check(path in index['files'], 'public original path resolves: ' + path, 'original_resolution')
+            checks.check(receipt == {'path': path, **index['files'][path]},
+                         'public original receipt matches: ' + path, 'original_resolution')
+
+
+def check_numeric_collisions(checks):
+    """PID 1 is deliberately equal to schema/version/count/path components."""
+    aliases = Aliases(Path('.'))
+    before = {
+        'schema': SCHEMA, 'version': '1', 'count': 1, 'count_text': '1',
+        'path': 'mac-private-zmx-diagnostic-1/result-private.json',
+        'duration': '1 second with 1 millisecond', '1': 'numeric metadata key',
+        'other_message': 'TimeoutError: owned process did not exit: 1',
+        'synthetic_attempts': [{'value': {
+            'pid': 1, 'ppid': 1, 'parent': 1, 'host_pid': 1, 'peer_pid': 1, 'uid': 1,
+            'exit_codes': {'1': -15}, 'count': 1,
+            'errors': ['TimeoutError: owned process did not exit: 1']}}],
+        'fifteen_second_diagnostic': {'value': {'sample': {'stderr':
+            'Sampling process 1 for 1 second with 1 millisecond of run time between samples\n'
+            'Sample analysis of process 1 written to file mac-private-zmx-diagnostic-1/sample-private.txt\n'}}},
+    }
+    aliases.seed(before)
+    expected = copy.deepcopy(before)
+    identity = expected['synthetic_attempts'][0]['value']
+    for key in Aliases.identity_keys:
+        identity[key] = '<pid-001>'
+    identity['uid'] = '<uid-001>'
+    identity['exit_codes'] = {'<pid-001>': -15}
+    identity['errors'] = ['TimeoutError: owned process did not exit: <pid-001>']
+    expected['fifteen_second_diagnostic']['value']['sample']['stderr'] = (
+        'Sampling process <pid-001> for 1 second with 1 millisecond of run time between samples\n'
+        'Sample analysis of process <pid-001> written to file mac-private-zmx-diagnostic-1/sample-private.txt\n')
+    actual = aliases.walk(before, path=('mac-admin-prerequisites.json',))
+    checks.compare(expected, actual, 'PID 1 scoped substitutions', 'numeric_collision')
+    checks.compare(before, aliases.reverse(actual), 'PID 1 reverse substitutions', 'numeric_collision')
+    for message, path in [
+        ('TimeoutError: owned process did not exit: 1\n',
+         ('selected-log-projections.json', 'logs', '*', 'selected_lines', '*', 'text')),
+        ('TimeoutError: owned process did not exit: 1',
+         ('mac-admin-bundle-retry.json', 'retained_result_projection', 'value', 'reported_errors', '*')),
+    ]:
+        checks.check(aliases.walk(message, path=path) == message.replace(': 1', ': <pid-001>'),
+                     'identified error PID aliased', 'numeric_collision')
+    for label, value, key, path in [
+        ('unbound exit-code PID', {'2': -15}, 'exit_codes', ()),
+        ('unbound error PID', 'TimeoutError: owned process did not exit: 2', None,
+         ('mac-admin-prerequisites.json', 'synthetic_attempts', '*', 'value', 'errors', '*')),
+    ]:
+        rejected = False
+        try:
+            aliases.walk(value, key=key, path=path)
+        except ValueError:
+            rejected = True
+        checks.check(rejected, label, 'negative_controls')
+
+
 def verify(root, public, check_manifest=True):
     checks = Checks()
     documents, aliases, index = make_documents(root, public, checks)
     actual = {name: json.loads((public / name).read_bytes()) for name in documents}
+    validate_public_shape(actual, index, checks)
+    check_numeric_collisions(checks)
     for name in documents:
         checks.compare(documents[name], actual[name], name)
     # Pure in-memory negative controls; no driver, child, runtime, compiler or file mutation.
@@ -400,8 +512,36 @@ def verify(root, public, check_manifest=True):
         except ValueError:
             rejected = True
         checks.check(rejected, label, 'negative_controls')
+    # These controls exercise semantic validators, not equality to regenerated JSON.
+    shape_controls = []
+    for name in documents:
+        shape_controls.append(('aliased schema ' + name, name,
+                               lambda d: d.__setitem__('schema', 'agterm-mac-admin-context-publication/<pid-004>')))
+    shape_controls.append(('unresolved diagnostic result receipt', 'mac-admin-prerequisites.json',
+        lambda d: d['fifteen_second_diagnostic']['original'].__setitem__(
+            'path', 'mac-private-zmx-diagnostic-<pid-004>/result-private.json')))
+    for stream in ['stdout.log', 'stderr.log', 'sample-private.txt']:
+        def corrupt_log(d, stream=stream):
+            row = next(row for row in d['logs'] if row['original']['path'] == DIAGNOSTIC + '/' + stream)
+            row['original']['path'] = 'mac-private-zmx-diagnostic-<pid-004>/' + stream
+        shape_controls.append(('unresolved diagnostic log receipt ' + stream,
+                               'selected-log-projections.json', corrupt_log))
+    shape_controls.append(('resolved receipt with wrong digest', 'mac-admin-prerequisites.json',
+        lambda d: d['fifteen_second_diagnostic']['original'].__setitem__('sha256', '0' * 64)))
+    for label, name, change in shape_controls:
+        wrong = copy.deepcopy(actual)
+        change(wrong[name])
+        rejected = False
+        try:
+            validate_public_shape(wrong, index, Checks())
+        except ValueError:
+            rejected = True
+        checks.check(rejected, label, 'negative_controls')
     if check_manifest:
         manifest = json.loads((public / 'manifest.json').read_bytes())
+        checks.check(manifest['schema'] == 'agterm-mac-admin-context-manifest/1', 'manifest schema', 'schema')
+        recorded = json.loads((public / 'verification.json').read_bytes())
+        checks.check(recorded['schema'] == SCHEMA, 'recorded verification schema', 'schema')
         allowed = set(documents) | {'original-bindings.json', 'README.mac-admin-context-insertion.md',
                                    'verify-mac-admin-context.py', 'verification.json'}
         checks.check(set(manifest['files']) == allowed, 'complete public manifest', 'manifest')
@@ -414,6 +554,9 @@ def verify(root, public, check_manifest=True):
             checks.check(len(data) == entry['bytes'] and digest(data) == entry['sha256'], 'public manifest binding: ' + name, 'manifest')
     return {'schema': SCHEMA, 'passed': True, 'counts': dict(checks.counts),
             'original_files_rehashed': index['file_count'], 'original_bytes_rehashed': index['total_bytes'],
+             'public_original_receipts_resolved': sum(RECEIPT_COUNTS.values()),
+             'numeric_pid_aliases_scoped_to_identity_positions': True,
+             'pid1_schema_version_path_count_controls_passed': True,
             'alias_categories': {kind: len(table) for kind, table in aliases.tables.items()},
             'same_account_not_independent_approval': True, 'no_new_runtime_or_compiler_execution': True,
             'historical_standalone_driver_receipt_missing': True}

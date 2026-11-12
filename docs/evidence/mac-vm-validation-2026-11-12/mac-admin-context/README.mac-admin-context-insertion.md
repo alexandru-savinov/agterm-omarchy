@@ -40,6 +40,9 @@ The JSON files identify complete-document alias transformations versus selected 
 Exception tracebacks and sample headers are intentionally partial projections; the raw files remain bound in `original-bindings.json`.
 Private stage/bundle identifiers, process/user IDs and load addresses use reversible aliases.
 The alias map stays private; the verifier reconstructs it in memory and checks both transformed and reversed observations.
+Numeric PID aliases apply only to integer identity fields, process-keyed exit-code maps, and the identified process-ID positions in timeout/sample messages.
+Schema versions, original-file receipt names, sample durations, counts and unrelated numeric text retain their original values.
+The verifier independently checks all five literal publication schemas and resolves all 50 public original-file receipts to the unchanged original index.
 
 Run the read-only verifier with the retained validation directory supplied as `ORIGINALS`:
 
@@ -47,7 +50,9 @@ Run the read-only verifier with the retained validation directory supplied as `O
 python3 verify-mac-admin-context.py --original-root "$ORIGINALS"
 ```
 
-It rehashes 2,089 original files, validates actual retained input-tree modes/types/content, joins driver/result/source/image receipts, checks deadlines/signals/failure boundaries, and rejects six in-memory corruptions.
+It rehashes 2,089 original files, validates actual retained input-tree modes/types/content, joins driver/result/source/image receipts, checks deadlines/signals/failure boundaries, and rejects eighteen in-memory corruptions.
+The controls include the prior schema/path corruption, mismatched receipt hashes, and process IDs without typed identity bindings.
+A separate PID 1 collision fixture checks identity replacement alongside unchanged schema/version/path/count strings, numeric metadata keys and sampling durations.
 It uses the Python standard library and never imports an original helper, runs an application/compiler, contacts a service, or writes to an original package.
 The original standalone result has no separate driver/deadline receipt in this input set; that gap is explicit, and the later driver is never substituted for it.
 

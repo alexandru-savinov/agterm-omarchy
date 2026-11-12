@@ -1,5 +1,5 @@
 {
-  "schema": "agterm-mac-admin-context-publication/<pid-004>",
+  "schema": "agterm-mac-admin-context-publication/1",
   "projection_boundary": "Selected UTF-8 lines with original line endings. Aliases are reversible; omitted traceback/sample lines are not published or claimed as complete logs.",
   "logs": [
     {
@@ -151,7 +151,7 @@
     },
     {
       "original": {
-        "path": "mac-private-zmx-diagnostic-<pid-004>/stdout.log",
+        "path": "mac-private-zmx-diagnostic-1/stdout.log",
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "bytes": 0
       },
@@ -163,7 +163,7 @@
     },
     {
       "original": {
-        "path": "mac-private-zmx-diagnostic-<pid-004>/stderr.log",
+        "path": "mac-private-zmx-diagnostic-1/stderr.log",
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "bytes": 0
       },
@@ -175,7 +175,7 @@
     },
     {
       "original": {
-        "path": "mac-private-zmx-diagnostic-<pid-004>/sample-private.txt",
+        "path": "mac-private-zmx-diagnostic-1/sample-private.txt",
         "sha256": "0aa3afa73c7fac1c637d58805bf39a298619eb7e0da7f8c4f755aee258db9cb1",
         "bytes": 922
       },

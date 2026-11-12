@@ -1,5 +1,5 @@
 {
-  "schema": "agterm-mac-admin-context-publication/<pid-004>",
+  "schema": "agterm-mac-admin-context-publication/1",
   "boundary": "Historical prerequisite/context diagnostics only. No host administrative-stop request or stopped reply was reached. No product stop failure/pass, OS-policy cause, current-source app build, native release acceptance or independent approval is established.",
   "release_artifact_observation": {
     "original": {

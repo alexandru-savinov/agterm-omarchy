@@ -1,0 +1,29 @@
+{
+  "schema": "agterm-fish-policy-publication/1",
+  "files": {
+    "README.fish-policy.md": {
+      "bytes": 6462,
+      "sha256": "27e12101a59efef6e20f08fe1e7a0042e94affb13fbeaee26c7d5119b1e27799"
+    },
+    "log-projections.json": {
+      "bytes": 22593,
+      "sha256": "ddaf30224900bb8c311ee5d524bc21e852de7a26af32f7eb8d511e98b4cae6ad"
+    },
+    "mac-policy.json": {
+      "bytes": 4364,
+      "sha256": "c1ff96233bc81be8fd14d1052e7708a480a3ee001b3749dff9307cafe81b0e89"
+    },
+    "native-fish.json": {
+      "bytes": 14289,
+      "sha256": "cef3a922d14aff91897d989f7700786d3119fff510dfd1559fb1d9d4bbab741c"
+    },
+    "original-bindings.json": {
+      "bytes": 5647,
+      "sha256": "e47fbaab63c1c74c960546aca82dd3c3fc9ab7254c88f9769de624021d930841"
+    },
+    "verify-fish-policy.py": {
+      "bytes": 37573,
+      "sha256": "a83df6875d375461dc3ca17f927e6deba920518a6976b3dd9feae10828724a04"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "schema": "agterm-mac-admin-context-publication/<pid-004>",
+  "schema": "agterm-mac-admin-context-publication/1",
   "boundary": "Historical prerequisite/context diagnostics only. No host administrative-stop request or stopped reply was reached. No product stop failure/pass, OS-policy cause, current-source app build, native release acceptance or independent approval is established.",
   "synthetic_attempts": [
     {
@@ -241,7 +241,7 @@
   ],
   "fifteen_second_diagnostic": {
     "original": {
-      "path": "mac-private-zmx-diagnostic-<pid-004>/result-private.json",
+      "path": "mac-private-zmx-diagnostic-1/result-private.json",
       "sha256": "4cd22881ddd7ada07e9de2472048a416df54caf9bc3a8bb2dc1e47e9deb7746f",
       "bytes": 1095
     },
@@ -272,7 +272,7 @@
       "sample": {
         "exit_code": 0,
         "stdout": "",
-        "stderr": "Sampling process <pid-007> for <pid-004> second with <pid-004> millisecond of run time between samples\nCouldn't find _sigtramp symbol in expected dylibs\nSampling completed, processing symbols...\nSample analysis of process <pid-007> written to file <validation-output-root>/mac-private-zmx-diagnostic-<pid-004>/sample-private.txt\n"
+        "stderr": "Sampling process <pid-007> for 1 second with 1 millisecond of run time between samples\nCouldn't find _sigtramp symbol in expected dylibs\nSampling completed, processing symbols...\nSample analysis of process <pid-007> written to file <validation-output-root>/mac-private-zmx-diagnostic-1/sample-private.txt\n"
       },
       "exit_code": -15,
       "seconds": 15.00586199760437,

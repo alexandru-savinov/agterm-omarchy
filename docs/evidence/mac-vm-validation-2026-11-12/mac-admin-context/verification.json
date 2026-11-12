@@ -3,6 +3,7 @@
   "passed": true,
   "counts": {
     "input": 6269,
+    "schema": 7,
     "evidence": 88,
     "cross_binding": 426,
     "tree_preservation": 7912,
@@ -10,11 +11,16 @@
     "source_binding": 8,
     "reverse_alias": 4608,
     "privacy": 35,
-    "comparison": 4608,
-    "negative_controls": 6
+    "original_resolution": 105,
+    "numeric_collision": 110,
+    "negative_controls": 18,
+    "comparison": 4608
   },
   "original_files_rehashed": 2089,
   "original_bytes_rehashed": 225449514,
+  "public_original_receipts_resolved": 50,
+  "numeric_pid_aliases_scoped_to_identity_positions": true,
+  "pid1_schema_version_path_count_controls_passed": true,
   "alias_categories": {
     "pid": 16,
     "uid": 1,

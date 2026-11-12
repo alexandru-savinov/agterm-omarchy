@@ -1,0 +1,145 @@
+{
+  "schema": "agterm-mac-policy-assessment/1",
+  "assessment_only": true,
+  "administrative_stop_acceptance": false,
+  "launch_delay_causation_established": false,
+  "driver_sha256": "a51fbeea4954a23631c32be6a2f44273f5af6ad0b704a2d3c8e3725b5789e107",
+  "source_diagnostic_manifest_sha256": "bb299e7b294f20a28a7ab4196aff5ecb4e1c730552c7bb8bb490233bf00348f0",
+  "assessments": [
+    {
+      "context": "standalone",
+      "target_kind": "image",
+      "exit_code": 3,
+      "seconds": 0.3041801670042332,
+      "timeout_seconds": 30,
+      "argv": [
+        "/usr/sbin/spctl",
+        "--assess",
+        "--type",
+        "execute",
+        "-vv",
+        "<MAC_ASSESSMENT_STAGE>/s/zmx"
+      ],
+      "log_projections": {
+        "stdout": "mac/standalone-image-stdout.log",
+        "stderr": "mac/standalone-image-stderr.log"
+      }
+    },
+    {
+      "context": "pristine",
+      "target_kind": "bundle",
+      "exit_code": 0,
+      "seconds": 0.2601943749759812,
+      "timeout_seconds": 30,
+      "argv": [
+        "/usr/sbin/spctl",
+        "--assess",
+        "--type",
+        "execute",
+        "-vv",
+        "<MAC_ASSESSMENT_STAGE>/p/agterm.app"
+      ],
+      "log_projections": {
+        "stdout": "mac/pristine-bundle-stdout.log",
+        "stderr": "mac/pristine-bundle-stderr.log"
+      }
+    },
+    {
+      "context": "pristine",
+      "target_kind": "image",
+      "exit_code": 3,
+      "seconds": 0.07943754200823605,
+      "timeout_seconds": 30,
+      "argv": [
+        "/usr/sbin/spctl",
+        "--assess",
+        "--type",
+        "execute",
+        "-vv",
+        "<MAC_ASSESSMENT_STAGE>/p/agterm.app/Contents/MacOS/zmx"
+      ],
+      "log_projections": {
+        "stdout": "mac/pristine-image-stdout.log",
+        "stderr": "mac/pristine-image-stderr.log"
+      }
+    },
+    {
+      "context": "with-peer",
+      "target_kind": "bundle",
+      "exit_code": 1,
+      "seconds": 0.14481062500271946,
+      "timeout_seconds": 30,
+      "argv": [
+        "/usr/sbin/spctl",
+        "--assess",
+        "--type",
+        "execute",
+        "-vv",
+        "<MAC_ASSESSMENT_STAGE>/a/agterm.app"
+      ],
+      "log_projections": {
+        "stdout": "mac/with-peer-bundle-stdout.log",
+        "stderr": "mac/with-peer-bundle-stderr.log"
+      }
+    },
+    {
+      "context": "with-peer",
+      "target_kind": "image",
+      "exit_code": 3,
+      "seconds": 0.09011854100390337,
+      "timeout_seconds": 30,
+      "argv": [
+        "/usr/sbin/spctl",
+        "--assess",
+        "--type",
+        "execute",
+        "-vv",
+        "<MAC_ASSESSMENT_STAGE>/a/agterm.app/Contents/MacOS/zmx"
+      ],
+      "log_projections": {
+        "stdout": "mac/with-peer-image-stdout.log",
+        "stderr": "mac/with-peer-image-stderr.log"
+      }
+    }
+  ],
+  "contexts": {
+    "standalone": {
+      "tree_unchanged": true,
+      "attributes_unchanged": true
+    },
+    "pristine": {
+      "tree_unchanged": true,
+      "attributes_unchanged": true
+    },
+    "with-peer": {
+      "tree_unchanged": true,
+      "attributes_unchanged": true
+    }
+  },
+  "preservation": {
+    "installed_tree_unchanged": true,
+    "installed_attributes_unchanged": true,
+    "originals_unchanged": true,
+    "prepared_package_unchanged": true,
+    "protected_preserved": true
+  },
+  "protected_process_count_recorded": 1,
+  "errors": [],
+  "complete": true,
+  "retained_input_verification": {
+    "manifest_entries_rehashed": 2065,
+    "entry_bytes_rehashed": 202310665,
+    "context_image_sha256": {
+      "pristine": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+      "standalone": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+      "with-peer": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01"
+    }
+  },
+  "limits": [
+    "These commands assess signatures/policy; they do not execute the target helper or reach an administrative-stop request.",
+    "The pristine bundle is accepted; the disclosed peer addition invalidates the augmented aggregate resource seal.",
+    "All three individual images receive the same not-an-app result, including the previously successful standalone context.",
+    "No launch-delay cause, stopped reply, or release acceptance follows.",
+    "Context/installed/protected preservation fields are historical observations; retained assessment stages are not claimed deleted."
+  ]
+}
