@@ -20,7 +20,8 @@ enum SessionSwitchDiagnostic {
         guard enabled else { return }
         var focusKind = "none"
         var active = false
-        if let owner {
+        let registered = owner.map { gWindows[$0.windowID] === $0 } ?? false
+        if let owner, registered {
             active = gtk_window_is_active(WIN(owner.windowPointer)) != 0
             if let focus = gtk_window_get_focus(WIN(owner.windowPointer)),
                let cssName = gtk_widget_get_css_name(focus) {
@@ -30,7 +31,7 @@ enum SessionSwitchDiagnostic {
         }
         let window = owner?.windowID.uuidString ?? "none"
         let fields = "pid=\(ProcessInfo.processInfo.processIdentifier) t=\(ProcessInfo.processInfo.systemUptime) "
-            + "event=\(event) seq=\(sequence) input=\(inputGeneration) owner=\(owner != nil) "
+            + "event=\(event) seq=\(sequence) input=\(inputGeneration) ownerPresent=\(owner != nil) registered=\(registered) "
             + "window=\(window) windowActive=\(active) focusKind=\(focusKind) "
             + "cycle=\(owner?.sessionSwitcher.isActive == true) \(extra)"
         FileHandle.standardError.write(Data(("switch-diag: " + fields + "\n").utf8))
@@ -41,6 +42,10 @@ enum SessionSwitchDiagnostic {
         let generation = inputGeneration
         // One observation only. Never feeds a value back into commit/cancel or held-key tracking.
         MainTimer.schedule(after: 0.05) { [weak owner] in
+            guard let owner, gWindows[owner.windowID] === owner else {
+                emit("followup-disposed", owner: owner, sequence: sequence)
+                return
+            }
             let held = ModifierKeyMods.currentControlIsHeld()
             emit("followup", owner: owner, sequence: sequence,
                  extra: "held=\(String(describing: held)) interveningControl=\(inputGeneration != generation)")

@@ -53,11 +53,15 @@ extension AppController {
         SessionSwitchDiagnostic.emit("schedule", owner: self, sequence: traceSequence)
         runOnMain { [weak self] in
             MainActor.assumeIsolated {
-                // Preserve the original single sample used by the decision.
+                guard let self else {
+                    SessionSwitchDiagnostic.emit("idle-owner-released", owner: nil, sequence: traceSequence)
+                    return
+                }
+                // Preserve the original optional-self gate and single sample used by the decision.
                 let held = ModifierKeyMods.currentControlIsHeld()
                 SessionSwitchDiagnostic.emit("idle", owner: self, sequence: traceSequence,
                                              extra: "held=\(String(describing: held))")
-                self?.commitSessionSwitch(releasing: keycode, controlStillHeld: held, traceSequence: traceSequence)
+                self.commitSessionSwitch(releasing: keycode, controlStillHeld: held, traceSequence: traceSequence)
                 SessionSwitchDiagnostic.observeLater(owner: self, sequence: traceSequence, initialHeld: held)
             }
         }
