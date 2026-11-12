@@ -171,7 +171,7 @@ jobs:
 
   build-linux:
     name: Build app (Linux GTK)
-    needs: [changes, test-linux, lint-linux]
+    needs: [changes, test-linux]
     if: needs.changes.outputs.swift == 'true'
     runs-on: ubuntu-24.04
     # A cold Ghostty/Swift build takes about 24 minutes before the 72-scenario UI suite.
