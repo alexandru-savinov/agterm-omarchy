@@ -1,0 +1,171 @@
+{
+  "schema": "agterm-macos-integrated-core/1",
+  "source_commit": "2ddd93af8cd0b09a7c3fe668e6cf1f759949393b",
+  "repository_tree": "d271e7b2177a834575f4a77c16883f00d02f4f71",
+  "package_tree": "c1da396ea846d3b76a133a4b514ce9684b5e6194",
+  "platform": {
+    "macos": "ProductName:\t\tmacOS\nProductVersion:\t\t26.7.1\nBuildVersion:\t\t25G241\n",
+    "architecture": "arm64",
+    "swift": "swift-driver version: 1.168.6 Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)\nTarget: arm64-apple-macosx26.0",
+    "developer_directory": "/Library/Developer/CommandLineTools"
+  },
+  "original_private_manifest_sha256": "5416ad43f2fe977756a8240730b79dcf2d2a2d787a0ca52ca38a52602884f0c4",
+  "original_full_log_sha256": "cada0ed8f43410e8a0067a45c16209ef6947a7d0d15a3b0d4284383464f71a48",
+  "original_result_sha256": "4653e9a618495006dba9a2dc7e3ac70e9f17669851f074fc33295f60045ada62",
+  "original_parsed_results_sha256": "459c23566027a5701f9b5a48b83fbf53eb13c4e0c22da79756e865baec3b11cc",
+  "argv": [
+    "swift",
+    "test",
+    "--package-path",
+    "$CHECKOUT/agtermCore",
+    "--cache-path",
+    "$PRIVATE_SWIFT_CACHE",
+    "--build-system",
+    "native",
+    "--disable-sandbox",
+    "--disable-automatic-resolution",
+    "--jobs",
+    "2",
+    "-Xswiftc",
+    "-F",
+    "-Xswiftc",
+    "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+    "-Xswiftc",
+    "-plugin-path",
+    "-Xswiftc",
+    "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+    "-Xlinker",
+    "-F",
+    "-Xlinker",
+    "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+    "-Xlinker",
+    "-rpath",
+    "-Xlinker",
+    "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
+  ],
+  "counts": {
+    "passed_test_definitions": 4148,
+    "failed_test_definitions": 1,
+    "explicit_skipped_definitions": 1,
+    "issues": 1,
+    "total_test_definitions": 4150,
+    "suites": 182
+  },
+  "run": {
+    "variant": "unfiltered pinned main with private unchanged installed-zmx prerequisite; fish unavailable",
+    "started_at": "2026-11-11T20:32:07.803310+00:00",
+    "finished_at": "2026-11-11T20:34:54.722087+00:00",
+    "wall_seconds": 166.92015858300147,
+    "exit_code": 1,
+    "installed_zmx_sha256_after": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+    "staged_zmx_sha256_after": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+    "git_status_after": "",
+    "new_fixture_directories_remaining": []
+  },
+  "build_seconds": 117.6,
+  "test_seconds": 46.739,
+  "source_hashes": {
+    "agtermCore/Package.swift": "cc26ce26278a3231e7f351f2ee6b0cac2d579db5d353d036217be43cb60fcdb0",
+    "agtermCore/Package.resolved": "fa84d54ac853e595dfdf2c2669bf472dedc6c021cb0615a0c05b14d34c6ab5fa",
+    "agtermCore/Tests/agtermCoreTests/TerminfoInstallTests.swift": "df544d30cef139051e2c4101729f7d780da240d4121cd06e6289b27cd98ef763",
+    "agtermCore/Tests/agtermCoreTests/ConfigPathsTests.swift": "8b873b5ad6ab08986b341abcd3413b0fdfcf50423a0d079ea4df6b1fc1207cb2",
+    "agtermCore/Tests/SessionHostRuntimeTests/SessionHostServerTests.swift": "a8fc15eefee4ce38c8ebdb5522910272e588dc2125c3c1367d77fff1c3b0e965",
+    "AGENTS.md": "081f9f38839c434a03280f1b8341e3713eda74c113e7ade9ad4ea8eab60667f7",
+    "docs/AGENT_PROTOCOL.md": "6fe8c936d76aee9cd1a3483845b0916a2ab3d09bd72a0244a790d147bd38a586"
+  },
+  "binaries": {
+    "agtermctl": {
+      "sha256": "305501f6f1e0e76f85765ca1fff8d117e30c258d5b59f70494df725881359ff9",
+      "unchanged_after": true
+    },
+    "agterm-session-host": {
+      "sha256": "c0163e4c8135710a323f86c13ad3793655e6424f36d9ec99c99bc059b425a374",
+      "unchanged_after": true
+    },
+    "session-host-test-client": {
+      "sha256": "0e0888911ac0c2ec71875a6fbd32cdeabbf40ef887421649cec35bb58a319ec5",
+      "unchanged_after": true
+    },
+    "session-host-pty-probe": {
+      "sha256": "56ae366ca0846ee5e864eb977826d8a79d805ba395176cbb0ba4ca172fa4d9d9",
+      "unchanged_after": true
+    }
+  },
+  "host_runtime": {
+    "test_definitions": 26,
+    "all_passed": true,
+    "formerly_gated_test_definitions": 8,
+    "prerequisite_identity": "Private copy of unchanged installed zmx; not a zmx build from this source head."
+  },
+  "host_passing_test_names": [
+    "childThatCannotExecReportsThePreExecErrno",
+    "clientIgnoringTermIsKilledAndReapedAfterTheGracePeriod",
+    "descriptorPreparationFailureRetainsTheChildForCleanup",
+    "earlyClientExitIsStartedAndReaped",
+    "exhaustedInspectionBudgetDoesNotStartAClient",
+    "existingDaemonDoesNotSpawnOrReplay",
+    "exitedChildReportsItsWaitStatus",
+    "failedFixtureClientCannotPassAsAnEmptyReply",
+    "fastSideEffectingClientIsNotRunAgain",
+    "forgedHelloDoesNotOverrideTheActualPeerImage",
+    "hostSocketIsNotEnumeratedByStockZmx",
+    "killedHostReleasesLockAndListenerWhileDaemonAndShellSurvive",
+    "leaderOnSecondPollCreatesOnceAndReleasesOnlyTheClient",
+    "lostReplyAfterFastCommandDoesNotRunItsPayloadAgain",
+    "malformedOversizedAndPartialConnectionsDoNotStopTheHost",
+    "oversizedRequestPeerClosureDoesNotKillTheClient",
+    "readinessTimeoutIsStartedAndNeverRetries",
+    "relativeExecutableCannotPassCanonicalPathValidation",
+    "stalledPeerHitsItsDeadlineAndOnlyThatConnectionCloses",
+    "startupErrorAfterASideEffectDoesNotAuthorizeReplay",
+    "stopAllowsEmptyOrPositivelyUnrelatedInventory",
+    "stopChecksTheDaemonEvenWhenItsLeaderHasAnotherRoot",
+    "stopKeepsLockInodesForTheNextHost",
+    "stopRefusesLiveRootedAndUnknownInventory",
+    "unreadableInitialInventoryCannotCreateAnything",
+    "wrongExecutableOrNamespaceIsRejectedBeforeSpawn"
+  ],
+  "integration": {
+    "reviewed_pr311": {
+      "head": "ab94f48fc94e9a4e2db82f2feb5b8f38d462f341",
+      "is_ancestor_of_pinned_main": false
+    },
+    "validated_pr283": {
+      "head": "fd60ab9dfcfe8dd49876cba7600f89700b368c67",
+      "is_ancestor_of_pinned_main": false
+    },
+    "terminfo_test_blob": "6a485fda41ed9afc7b368fece6147eca1860f217"
+  },
+  "failure": {
+    "test": "TerminfoInstallTests.theRemoteCommandCompilesTheSourceUnderEveryLoginShell",
+    "parameter": "/bin/zsh",
+    "observed_error": "NSCocoaErrorDomain260: fake tic.args recorder missing",
+    "issue": 310,
+    "reviewed_correction_pr": 311
+  },
+  "skip": {
+    "test": "ConfigPathsTests.editorCommandWorksUnderNonPosixLoginShell",
+    "reason": "fish unavailable on PATH and13 known installed locations"
+  },
+  "framework_summary": [
+    "\u2718 Test run with 4150 tests in 182 suites failed after 46.739 seconds with 1 issue."
+  ],
+  "normalization_applied": false,
+  "cleanup": {
+    "observed_at": "2026-11-11T20:38:34.251936+00:00",
+    "staged_copy_removed": true,
+    "retained_zmx_copy_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+    "installed_zmx_sha256_after_cleanup": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+    "fixture_directories_remaining": [],
+    "owned_swift_process_completed": true,
+    "git_status": "",
+    "remaining_owned_fixture_processes": []
+  },
+  "remaining_gaps": [
+    "TerminfoInstallTests zsh fixture failure is still present at this exact main",
+    "Fish unavailable after PATH and 13 known-location checks; one explicit skip retained",
+    "PR #311 and PR #283 are not ancestors of this pinned main; their prior evidence is not reused as current-main validation",
+    "No GUI, installed-app, live-session or VM operation in this assignment",
+    "Same-account validation, not independent approval"
+  ]
+}
