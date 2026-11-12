@@ -102,6 +102,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     private var onExitCodeCaptured: ((Int) -> Void)?
     var didHandleProcessExit = false
     let heldLeadAttachment = LinuxHeldLeadAttachment()
+    let diagnosticIncarnation: String
 
     isolated deinit {
         if let surface { ghostty_surface_free(surface) }
@@ -115,6 +116,8 @@ final class GhosttySurface: PaneRoleMutableSurface {
          role: LinuxSurfaceRole = .main, reportsPaneState: Bool = true,
          fontSize: Double? = nil, initialInput: String? = nil, backgroundColor: String? = nil,
          usesSessionWatermark: Bool = true, backedByZmx: Bool = false) {
+        let diagnosticIncarnation = UUID().uuidString
+        self.diagnosticIncarnation = diagnosticIncarnation
         self.sessionID = sessionID
         self.controller = controller
         self.role = role
@@ -127,7 +130,9 @@ final class GhosttySurface: PaneRoleMutableSurface {
         self.reportsPaneState = reportsPaneState
         self.fontSize = fontSize
         self.initialInput = initialInput
-        self.env = gdkEnvironment.childEnvironment(merging: env)
+        var diagnosticEnvironment = gdkEnvironment.childEnvironment(merging: env)
+        diagnosticEnvironment["AGTERM_DIAG357_INCARNATION"] = diagnosticIncarnation
+        self.env = diagnosticEnvironment
         rootWidget = OpaquePointer(gtk_overlay_new())
         glArea = OpaquePointer(gtk_gl_area_new())
         gtk_overlay_set_child(rootWidget, W(glArea))
@@ -755,6 +760,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
 
     func applyTitle(_ title: String) {
         if let notice = RemoteLinkNotice(title: title) {
+            FileHandle.standardError.write(Data(("DIAG357 link-title incarnation=\(diagnosticIncarnation) pane=\(paneToken) controller=\(controller != nil) t=\(ProcessInfo.processInfo.systemUptime)" + "\n").utf8))
             controller?.remoteLinkLost(notice, surface: self)
             return
         }
@@ -796,6 +802,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     }
 
     func handleHeldProcessExit() {
+        FileHandle.standardError.write(Data(("DIAG357 held-exit incarnation=\(diagnosticIncarnation) pane=\(paneToken) wait=\(waitAfterCommand) t=\(ProcessInfo.processInfo.systemUptime)" + "\n").utf8))
         guard waitAfterCommand else { return }
         // The final link-loss title can follow the child-exit callback from the separate PTY reader.
         heldLeadAttachment.retain(controller?.remoteHeldExits.attachmentEnded(self, forSession: sessionID))
