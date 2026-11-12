@@ -94,9 +94,16 @@ final class GhosttyApp: @unchecked Sendable {
 
     /// The caller must tear down all window surfaces first. Retained config paths stay valid through
     /// ghostty_app_free, including any final conditional reload; queued ticks then see a nil app.
+    /// A quarantined surface was never freed and is still registered with the app, and App.zig `deinit` frees every
+    /// registered surface, so freeing the app would free the one engine the quarantine exists to keep alive. The app
+    /// and its config paths are then left to process exit, like the quarantined engine itself.
     @MainActor func shutdown() {
         guard !isShutDown else { return }
         isShutDown = true
+        guard gSurfaceQuarantine.count == 0 else {
+            FileHandle.standardError.write(Data("agterm: libghostty app left to process exit: a surface is quarantined\n".utf8))
+            return
+        }
         if let app {
             self.app = nil
             ghostty_app_free(app)
