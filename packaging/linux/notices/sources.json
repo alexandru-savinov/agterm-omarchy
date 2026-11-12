@@ -767,5 +767,12 @@
       "sha256": "8538467a6f1f67b9d7fb7f95da492796ac1f02046121aa4138c07026e85c5fb2"
     }
   ],
-  "inventory_sha256": "65716ab36b707eb868b7936313f01e8b108f9dbf864e4b53bf3866d07fd9c802"
+  "inventory_sha256": "65716ab36b707eb868b7936313f01e8b108f9dbf864e4b53bf3866d07fd9c802",
+  "ghostty_patch_inputs": {
+    "linux/patches/ghostty-clipboard-request-kind.patch": "22e082cb54c2d450868c0b6ba91f0162bb2e5e7bdc6554be83fc8ff32f1980aa",
+    "linux/patches/ghostty-embedded-input-handoff.patch": "746aabfd306f78563837c9257b22c90cc3ffd6dfe7f1c374f7f0532a3c1bb0fe",
+    "linux/patches/ghostty-embedded-opengl.patch": "5acad8dff653d70056471520270d03c1df59aa7d6112e895f10d3c903bea6ba9",
+    "linux/patches/ghostty-lib-resources.patch": "14f31007327295bdca035a75394a4c1a2cfe3671d602c3105aef30823c0e9eab",
+    "linux/patches/ghostty-surface-env-unset.patch": "6f007c3eb5f99a841187cd94983a6dd607a09ee8dac05d7e1f72cff66cbedcd4"
+  }
 }

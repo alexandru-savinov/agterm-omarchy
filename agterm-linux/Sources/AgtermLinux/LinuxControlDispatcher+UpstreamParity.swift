@@ -11,25 +11,9 @@ extension LinuxControlDispatcher {
                 return ControlResponse(ok: false, error: "invalid restore mode: \(raw)")
             }
             return actions.setRestoreMode(mode)
-        case .zmxList:
-            return actions.listZmxDaemons()
-        case .zmxPrune:
-            return actions.pruneZmxDaemons()
-        case .zmxKill:
-            guard let target = request.target, !target.isEmpty else {
-                return ControlResponse(ok: false, error: "zmx.kill requires an explicit --target")
-            }
-            guard let rawPane = request.args?.pane,
-                  let pane = ZmxPaneRole(controlName: rawPane) else {
-                return ControlResponse(ok: false, error: "zmx.kill requires --pane left|right")
-            }
-            guard request.args?.force == true else {
-                return ControlResponse(ok: false, error: "zmx.kill requires --force")
-            }
-            return actions.killZmxDaemon(target: target, window: request.args?.window, pane: pane)
-        case .zmxTree:
-            return request.args?.host?.linuxTrimmedOrNil == nil ? actions.localAttachableSessions() : nil
-        case .zmxAttach:
+        case .zmxList, .zmxPrune, .zmxKill, .zmxTree, .zmxAttach:
+            // ControlServer serves these before any main-thread dispatch, so their zmx and ssh waits stay
+            // on the control worker (ControlServer+LocalZmx.swift, ControlServer.dispatchRemoteZmx).
             return nil
         default:
             preconditionFailure("unexpected zmx command: \(request.cmd.rawValue)")

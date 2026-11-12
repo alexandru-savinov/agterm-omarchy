@@ -151,7 +151,10 @@ Check these in order:
   can be pruned until that is resolved.
 - **A missing daemon is recreated, running the captured command.** A reboot or a stale daemon leaves nothing
   to attach, so agterm creates one under the saved name and replays the command that pane was running at the
-  last clean quit. A fresh shell instead means no capture applied: the window was closed before the quit, the
+  last clean quit. On Linux the command is pre-filled at the new shell's prompt and waits for Enter instead
+  of running. An empty Linux prompt can also mean a startup file read the pre-filled text first, or the
+  launch could not list the daemons, which drops the capture rather than typing into a pane that may be live.
+  A fresh shell instead means no capture applied: the window was closed before the quit, the
   machine lost power or was force-quit, the process exited before quitting, SIGTERM was used on macOS, or the
   command is refused by `restore-denylist.conf`. `agtermctl zmx kill` is not one of these — it closes a shown
   split or promotes a primary rather than leaving a daemon to recreate. To check what was captured, read

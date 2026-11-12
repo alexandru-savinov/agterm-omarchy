@@ -153,13 +153,15 @@ you open overlays / type into whatever the user has selected, not your own sessi
 
 - **Fresh shells** restores the saved windows, workspaces, sessions, directories, and split layout with new shells.
 - **Re-run commands** starts each captured foreground command again. It does not reconnect to the old process.
+  On Linux the command is pre-filled at the restored prompt and waits for Enter instead of running.
 - **Live sessions** runs every primary and split pane through zmx and reattaches to the same process. It requires
   zsh as the password-database login shell plus bundled zmx and zsh integration on both frontends.
   Scratch, overlay, and quick terminals stay temporary.
 
 On a clean quit, agterm leaves live daemons running and captures each open pane's foreground command as a
 fallback. A surviving daemon ignores that payload on the next launch. If an orderly machine restart removed
-the daemon, zmx creates it with the captured command and the pane remains live. A pane starts a fresh shell
+the daemon, zmx creates it with the captured command and the pane remains live; on Linux zmx creates it
+with the login shell and the captured command is pre-filled at the prompt, waiting for Enter. A pane starts a fresh shell
 instead when its window was closed before quit, a hard power loss or force quit skipped capture, or the
 command is denylisted or carries a control character. SIGTERM leaves live daemons running; macOS then skips
 capture, while Linux quits cleanly and captures.
@@ -525,7 +527,8 @@ omitted when expanded).
 closed bundle is not a stop — `window select` opens one. Errors with one window open. GUI twins: Navigate ▸
 Previous/Next Window and the keyless `previous_window`/`next_window` keymap actions) · `window close <id>` ·
 `window rename <id> <name>` ·
-`window delete <id>` · `window resize <id> --width W --height H` · `window move <id> --x X --y Y [--display N]` ·
+`window delete <id>` · `window resize <id> --width W --height H` · `window move <id> --x X --y Y [--display N]` (macOS only;
+Linux always answers `window.move is not supported on this platform`) ·
 `window zoom <id>` (maximize-to-screen toggle, the double-click-header gesture; a plain green-button click does full screen) ·
 `window fullscreen <id>` (toggle native macOS full screen, the green-button / ⌃⌘F action) ·
 `window minimize <id> [on|off|toggle]` (minimize to the Dock or restore, the ⌘M / yellow-button action; default

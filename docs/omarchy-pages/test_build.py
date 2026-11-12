@@ -4,6 +4,8 @@ import copy
 from html.parser import HTMLParser
 import json
 import re
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
@@ -40,7 +42,7 @@ class PagesTests(unittest.TestCase):
             self.assertIn('class="filters" hidden', team)
             self.assertIn('rel="icon" href="favicon.svg"', team)
             self.assertNotIn("$ agterm team --evidence", team)
-            self.assertIn("Exact candidate passed.", team)
+            self.assertIn("Historical candidate passed.", team)
             for page in (team, (root / "index.html").read_text()):
                 self.assertIn("7 ordinary and 9 Live checks passed", page)
                 self.assertIn("41357189891", page)
@@ -161,6 +163,28 @@ class PagesTests(unittest.TestCase):
             self.assertTrue((root / ".nojekyll").exists())
             self.assertIn("not a verified stable release", (root / "index.html").read_text())
 
+    def test_current_goal_is_visible_without_a_task_row_or_queue(self):
+        issues = [{"number": n, "title": str(n), "state": "open"} for n in range(1, 21)]
+        with tempfile.TemporaryDirectory() as temporary:
+            build.write_site(temporary, issues, "a" * 40, limit=10)
+            root = Path(temporary)
+            data = json.loads((root / "status.json").read_text())
+            self.assertNotIn(305, [task["number"] for task in data["tasks"]])
+            self.assertEqual(data["readiness"], "work-in-progress")
+            for name in ("index.html", "team.html"):
+                with self.subTest(page=name):
+                    page = (root / name).read_text()
+                    current = page.split('id="current-validation"', 1)[1].split("</section>", 1)[0]
+                    for target in ("issues/305", "issues/199", "issues/310", "issues/320", "pull/317", "pull/322"):
+                        self.assertIn(build.BASE + "/" + target, current)
+                    self.assertIn("Current acceptance remains incomplete.", current)
+                    self.assertIn("bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d", current)
+                    self.assertIn("one changed library", current)
+                    self.assertIn("Full-source candidate:", current)
+                    self.assertIn("not bash Live support", current)
+                    self.assertIn("same-account review is not independent approval", current)
+                    self.assertLess(page.index('id="current-validation"'), page.index("6775c336"))
+
     def test_issues_only_sorted_open_first_and_limited(self):
         issues = [{"number": n, "title": str(n), "state": "closed" if n == 1 else "open"}
                   for n in range(1, 16)]
@@ -179,6 +203,30 @@ class PagesTests(unittest.TestCase):
                 build.write_site(temporary, [], "123abcd", limit=999)
             with self.assertRaises(ValueError):
                 build.write_site(temporary, {}, "123abcd")
+
+    def test_default_and_explicit_hundred_include_late_open_tasks(self):
+        numbers = [*range(1, 54), 305, 310, 313, 318, 320, 323]
+        issues = [{"number": n, "title": str(n), "state": "open"} for n in numbers]
+        issues += [{"number": n, "title": str(n), "state": "closed"} for n in range(400, 461)]
+        issues.append({"number": 330, "title": "PR", "state": "open", "pull_request": {}})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            snapshot = root / "issues.json"
+            snapshot.write_text(json.dumps([issues]))
+            for name, arguments in (("builder-default", None), ("cli-default", []),
+                                    ("cli-hundred", ["--limit", "100"])):
+                with self.subTest(entrypoint=name):
+                    output = root / name
+                    if arguments is None:
+                        build.write_site(output, [issues], "a" * 40)
+                    else:
+                        subprocess.run([sys.executable, "-B", build.__file__, "--issues", str(snapshot),
+                                        "--output", str(output), "--commit", "a" * 40, *arguments],
+                                       check=True, capture_output=True, text=True, timeout=10)
+                    tasks = json.loads((output / "status.json").read_text())["tasks"]
+                    self.assertEqual(len(tasks), 100)
+                    self.assertEqual([task["number"] for task in tasks[:59]], numbers)
+                    self.assertNotIn(330, [task["number"] for task in tasks])
 
     def queue(self, roster, observed_at=None, extra=True):
         from datetime import datetime, timezone

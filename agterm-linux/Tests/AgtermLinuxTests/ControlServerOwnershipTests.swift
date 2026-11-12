@@ -1,6 +1,7 @@
 import Foundation
 import Glibc
 import Testing
+import agtermCore
 @testable import AgtermLinux
 
 @Suite("Linux control socket ownership")
@@ -87,6 +88,19 @@ struct ControlServerOwnershipTests {
         #expect(acceptingDuringPermissionChange == 0)
         #expect(server.boundSocketPath == nil)
         #expect(!FileManager.default.fileExists(atPath: path))
+    }
+
+    @Test("AGTERM_CONTROL_SOCKET wins over AGTERM_STATE_DIR, as on macOS; an empty value is ignored")
+    func controlSocketOverrideWins() {
+        let override = "/tmp/agterm-override-\(UUID().uuidString).sock"
+        let stateDir = "/tmp/agterm-state-\(UUID().uuidString)"
+        #expect(ControlServer.defaultSocketPath(
+            environment: ["AGTERM_CONTROL_SOCKET": override, "AGTERM_STATE_DIR": stateDir]) == override)
+        #expect(ControlServer.defaultSocketPath(
+            environment: ["AGTERM_CONTROL_SOCKET": "", "AGTERM_STATE_DIR": stateDir]) == stateDir + "/agterm.sock")
+        #expect(ControlServer.defaultSocketPath(environment: ["AGTERM_STATE_DIR": stateDir]) == stateDir + "/agterm.sock")
+        #expect(ControlServer.defaultSocketPath(environment: [:])
+            == ControlResolve.socketPath(stateDir: nil, appSupport: PersistenceStore.defaultDirectory.path))
     }
 }
 

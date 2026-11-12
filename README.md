@@ -100,8 +100,9 @@ experimental Live sessions restore.
 Live mode uses the bundled pinned zmx runtime for primary and split panes; scratch, overlay, and Quick
 terminals remain temporary.
 It requires zsh as the password-database login shell and the bundled Ghostty zsh integration.
-The mode is latched at process startup, and a missing daemon after reboot falls back to recreating the pane
-from its last cleanly captured command.
+The mode is latched at process startup, and a missing daemon after reboot falls back to a new login shell
+with its last cleanly captured command pre-filled at the prompt, waiting for Enter.
+Re-run commands pre-fills the captured command the same way instead of running it.
 
 Linux uses desktop conventions: key labels are Ctrl/Shift rather than Command/Option, native chrome is
 provided by libadwaita, and local `file://` links open their containing folder in the default file manager.
@@ -627,7 +628,9 @@ Each command targets a session or workspace by its UUID, a unique prefix of that
 
 On macOS, sessions come back on the next launch with their directory, font size, and split state. **Settings ▸ General ▸ Restore sessions** chooses fresh shells, re-run commands, or live sessions. Live mode wraps every primary and split pane; scratch, overlay, and quick terminals remain temporary. A clean quit leaves each live process running and captures the foreground command as a fallback. The next launch reattaches when the daemon survived. If the daemon is missing after an orderly machine restart, zmx creates it with the captured command; the pane remains live and later launches reattach normally.
 
-The fallback has three exclusions. A pane in a window closed before quit has no capture and starts a fresh shell if its daemon is missing. A hard power loss or force quit never reaches capture. A command refused by `restore-denylist.conf`, carrying a control character, or captured with invalid UTF-8 also starts a fresh shell. SIGTERM leaves live daemons running but skips the clean-quit capture path. `agtermctl zmx list` shows every daemon and the pane that claims it, `agtermctl zmx prune` clears the detached ones no pane claims, and `agtermctl restore mode` reads or sets the policy without opening Settings. Switching away from Live sessions and restarting ends the detached live processes. A launch that still requests Live sessions but cannot use it preserves them for a later eligible launch.
+On Linux, a restored command never runs by itself. In Re-run commands mode the captured command, or a pinned `session restore` line, is typed at the restored shell's prompt without Enter, so it waits for you to press Enter. In Live sessions mode a missing daemon is created with the normal login shell and the captured command is pre-filled at its prompt the same way; a surviving daemon is reattached and nothing is typed. If agterm could not list the live daemons at launch, it cannot tell a lost daemon from a surviving one, so it types nothing and that pane's capture is dropped. The pre-filled text is typed into the terminal, so it goes to whatever reads the terminal first: a shell startup file that reads input (a prompt, `read`, a plugin installer) can take it, in which case the prompt comes up empty. A session's own `--command` program still starts as that session's process. Linux quits cleanly on SIGTERM and SIGINT (for example at logout or reboot), so those signals capture the foreground commands like a normal quit.
+
+The fallback has three exclusions. A pane in a window closed before quit has no capture and starts a fresh shell if its daemon is missing. A hard power loss or force quit never reaches capture. A command refused by `restore-denylist.conf`, carrying a control character, or captured with invalid UTF-8 also starts a fresh shell. SIGTERM leaves live daemons running; on macOS it skips the clean-quit capture path, while Linux quits cleanly and captures. `agtermctl zmx list` shows every daemon and the pane that claims it, `agtermctl zmx prune` clears the detached ones no pane claims, and `agtermctl restore mode` reads or sets the policy without opening Settings. Switching away from Live sessions and restarting ends the detached live processes. A launch that still requests Live sessions but cannot use it preserves them for a later eligible launch.
 
 Live restore keeps the running process, usable text and TUI state, and normal terminal colors. The reconstructed screen does not retain inline images, earlier OSC 133 prompt markers, program-changed palette entries, or hyperlink metadata already attached to cells. New output after reattach behaves normally.
 
@@ -728,7 +731,7 @@ With no selection it exits non-zero with `no selection`. The selection must be m
 `session paste` pastes the system clipboard into a session (the socket analogue of ⌘V), and `session select-all` selects the session's entire buffer (the analogue of ⌘A) — pair `select-all` with `copy` to grab the whole buffer:
 
 ```sh
-printf 'deploy staging' | pbcopy
+printf 'deploy staging' | pbcopy                 # macOS; on Linux: printf 'deploy staging' | wl-copy
 agtermctl session paste --target work            # lands at the prompt, not submitted
 agtermctl session select-all --target 9f3c       # then read it all back
 agtermctl session copy --target 9f3c
@@ -997,7 +1000,8 @@ Restore always reconstructs the window/session structure. Three process-level li
    clean quit and starts it again; pipelines and compound shell state cannot be reconstructed, force-quit or
    power loss captures nothing, and entries in `restore-denylist.conf` are skipped. **Live sessions** keeps
    local primary and split processes in zmx daemons and reattaches on the next launch. A reboot removes those
-   daemons, so the saved command is recreated instead. Scratch, overlay, and Quick terminals never survive.
+   daemons, so the saved command is recreated instead. On Linux, neither mode runs a restored command by
+   itself: it is pre-filled at the prompt and waits for Enter. Scratch, overlay, and Quick terminals never survive.
    Live mode requires zsh as the password-database login shell, plus bundled zmx and zsh integration.
    Per-pane `session restore` overrides remain sticky and readable through `tree`; they are stored as shell
    code, so they must not contain secrets.

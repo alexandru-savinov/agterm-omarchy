@@ -32,9 +32,10 @@ let onWindowActive: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, g
     }
 }
 
-/// The blink timer follows the toplevel on and off screen — minimize/restore unmaps it under
-/// X11/XWayland (native Wayland has no minimized state, so the pair is a no-op there). Resolved through
-/// the live registry for `onWindowActive`'s reason: GTK emits `unmap` while a closing window tears down.
+/// The blink timer follows the toplevel on and off screen: `map`/`unmap` for show/hide and teardown, the
+/// surface's MINIMIZED bit (`onWindowSurfaceState`) for minimize/restore, which GTK does not unmap for
+/// (native Wayland has no minimized state, so that pair is a no-op there). Resolved through the live
+/// registry for `onWindowActive`'s reason: GTK emits `unmap` while a closing window tears down.
 let onWindowMapped: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { widget, _ in
     guard let widget else { return }
     MainActor.assumeIsolated {
@@ -46,6 +47,14 @@ let onWindowUnmapped: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> V
     guard let widget else { return }
     MainActor.assumeIsolated {
         gWindows.values.first(where: { $0.windowPointer == widget })?.stopBlinkPhaseForUnmap()
+    }
+}
+
+let onWindowSurfaceState: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { surface, _, _ in
+    guard let surface else { return }
+    MainActor.assumeIsolated {
+        gWindows.values.first(where: { gtk_native_get_surface($0.windowPointer) == surface })?
+            .surfaceStateDidChange()
     }
 }
 
