@@ -1,0 +1,117 @@
+name: macOS weekly build
+
+# The fork's CI builds only the Linux targets, so a shared-core change once left the macOS app
+# uncompilable for two months (#370). This builds and tests the macOS app on main every week, and on
+# demand for any branch: make build, make test, make test-app and make lint on a hosted macOS runner.
+# Not a required check: hosted macOS runners are scarce.
+on:
+  schedule:
+    - cron: '41 5 * * 1'
+  workflow_dispatch:
+  # A change to this workflow runs it once on its own pull request.
+  pull_request:
+    paths: ['.github/workflows/macos-weekly.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-weekly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Record source and toolchain identity
+        run: |
+          mkdir -p validation-logs
+          {
+            git rev-parse HEAD
+            sw_vers
+            uname -m
+            xcodebuild -version
+            swift --version
+          } | tee validation-logs/identity.log
+      - name: Install Node for plugin tests
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Install upstream prerequisites
+        run: |
+          brew install xcodegen swiftlint fish
+          sudo dscl . -create "/Users/$(id -un)" UserShell /bin/zsh
+          {
+            xcodegen --version
+            swiftlint version
+            command -v fish
+            fish --version
+            node --version
+            node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major !== 22 || minor < 7) process.exit(1)'
+          } | tee validation-logs/prerequisites.log
+      - name: Read pinned vendor revisions
+        id: revisions
+        run: |
+          ghostty=$(sed -nE 's/^GHOSTTY_REV="([^"]+)".*/\1/p' scripts/setup.sh)
+          zmx=$(sed -nE 's/^ZMX_REV="([^"]+)".*/\1/p' scripts/setup.sh)
+          target=$(sed -nE 's/^ZMX_TARGET="([^"]+)".*/\1/p' scripts/setup.sh)
+          test -n "$ghostty" && test -n "$zmx" && test -n "$target"
+          echo "ghostty=$ghostty" >> "$GITHUB_OUTPUT"
+          echo "zmx=$zmx" >> "$GITHUB_OUTPUT"
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+      - name: Cache pinned GhosttyKit and resources
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            GhosttyKit.xcframework
+            agterm/Resources/ghostty
+            agterm/Resources/terminfo
+            .ghostty-build-stamp
+          key: macos-weekly-macos26-${{ runner.arch }}-ghostty-${{ steps.revisions.outputs.ghostty }}-${{ hashFiles('scripts/setup.sh', 'scripts/ghostty-patches/*.patch') }}
+      - name: Cache pinned zmx
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            agterm/Resources/zmx
+            .zmx-build-stamp
+          key: macos-weekly-macos26-${{ runner.arch }}-zmx-${{ steps.revisions.outputs.zmx }}-${{ steps.revisions.outputs.target }}-${{ hashFiles('scripts/setup.sh', 'scripts/zmx-patches/**/*.patch') }}
+      - name: Stage upstream runtime dependencies
+        id: prepare
+        run: |
+          scripts/setup.sh 2>&1 | tee validation-logs/setup.log
+      # Attempt every required gate even if another gate fails; no failure is suppressed.
+      - name: make build
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: make build 2>&1 | tee validation-logs/make-build.log
+      - name: make test
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        env:
+          AGTERM_REQUIRE_FISH: '1'
+          AGTERM_REQUIRE_ZMX: '1'
+        run: make test 2>&1 | tee validation-logs/make-test.log
+      - name: make test-app
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        env:
+          TEST_RUNNER_AGTERM_REQUIRE_FISH: '1'
+        run: make test-app 2>&1 | tee validation-logs/make-test-app.log
+      - name: make lint
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: make lint 2>&1 | tee validation-logs/make-lint.log
+      - name: Retain validation logs and XCTest results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: macos-weekly-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            validation-logs
+            build/DerivedData/Logs/Test
+          retention-days: 14
+          if-no-files-found: warn
