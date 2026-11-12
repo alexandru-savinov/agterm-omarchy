@@ -47,6 +47,8 @@ private let onSessionSwitchKeyReleased: @MainActor @convention(c)
             controllerForEventController(controller)?.leaderKeyReleased(keycode)
             AppController.paneLeadKeyReleased(keycode: keycode)
             guard ModifierKeyMods.modifierBit(forKeyval: keyval) == ModifierKeyMods.controlBit else { return }
-            controllerForEventController(controller)?.scheduleSessionSwitchCommit(releasing: keycode)
+            let owner = controllerForEventController(controller)
+            FileHandle.standardError.write(Data(("DIAG328 release keycode=\(keycode) owner=\(owner != nil) t=\(ProcessInfo.processInfo.systemUptime)" + "\n").utf8))
+            owner?.scheduleSessionSwitchCommit(releasing: keycode)
         }
 }
