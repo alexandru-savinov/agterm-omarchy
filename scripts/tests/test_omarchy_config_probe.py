@@ -288,6 +288,7 @@ class RuntimeInventoryTests(unittest.TestCase):
         self.assertTrue(result['complete'], result)
         self.assertEqual(list(result['generated']), [generated.name])
         self.assertEqual(list(result['peers']), ['dconf'])
+        self.assertEqual(probe.directory_key(result['parent']), probe.directory_key(self.parent))
         self.assertEqual(user.read_bytes(), b'\0\0')
         self.assertEqual((self.root / 'unrelated-sentinel').read_bytes(), b'keep')
 
@@ -539,6 +540,23 @@ class ControlCleanupTests(unittest.TestCase):
         self.assertFalse(self.actions); self.assertFalse(self.proof['complete'])
         self.assertEqual(len(list(self.root.iterdir())), 2)
 
+    def test_late_descriptor_release_cannot_report_complete(self):
+        self.capture(); now = [1.0]; self.deadline = 2.0; original = os.close
+        def late(fd):
+            original(fd); now[0] = 2.0
+        with patch.object(probe.time, 'monotonic', side_effect=lambda: now[0]), patch.object(probe.os, 'close', side_effect=late):
+            with self.assertRaisesRegex(RuntimeError, 'deadline exhausted'): self.cleanup()
+        self.assertFalse(self.proof['complete'])
+
+    def test_final_live_check_failure_does_not_publish_a_capture(self):
+        for suffix in ('', '.lock'): (self.root / ('left.sock' + suffix)).touch(mode=0o600)
+        calls = []
+        def live():
+            calls.append(True)
+            if len(calls) == 2: raise RuntimeError('fixture app changed before capture completed')
+        with self.assertRaisesRegex(RuntimeError, 'app changed'): self.files.capture('left.sock', live, self.deadline)
+        self.assertEqual(self.files.captured, {}); self.flock.assert_not_called()
+
     def test_partial_removal_deadline_is_failed_and_not_retried(self):
         self.capture(); now = [1.0]; self.deadline = 2.0; original = os.unlink
         def late(name, **kwargs):
@@ -644,6 +662,10 @@ class FakeLifecycleTests(RunFixture):
         self.assertTrue(result['runtime_observation_complete']); self.assertFalse(result['runtime_observation_gaps'])
         self.assertTrue(any(r['peer_refreshes'] for r in result['runtime_observations']))
         self.assertEqual(set(result['control_file_captures']), {'left.sock', 'right.sock'})
+        for capture in result['control_file_captures'].values():
+            self.assertEqual(stat.S_IMODE(capture['parent']['mode']), 0o700)
+            self.assertEqual(capture['app_sha256'], self.digest)
+            self.assertIn(capture['process'], [app['process'] for app in result['apps']])
         self.assertTrue(result['control_cleanup']['complete'])
         self.assertEqual(result['control_cleanup']['locks_acquired'], ['left.sock.lock', 'right.sock.lock'])
         self.assertGreater(result['control_cleanup']['absence_checks'], 0)

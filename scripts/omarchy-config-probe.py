@@ -279,6 +279,7 @@ def runtime_inventory(runtime, limit, expected, peers, deadline):
     accepted = {}
     try:
         with opened_directory(runtime, expected, deadline) as (fd, parent):
+            result['parent'] = parent
             names = names_at(fd, deadline)
             result['generated_candidates'] = [name for name in names if name.startswith('agterm-ghostty-')]
             try:
@@ -335,7 +336,7 @@ class ControlFiles:
         require(name in ('left.sock', 'right.sock') and name not in self.captured, 'Unreviewed or repeated control name')
         live_check()
         with opened_directory(self.path, self.parent, deadline) as (fd, parent):
-            observed = dict(socket=entry_at(fd, name), lock=entry_at(fd, name + '.lock'))
+            observed = dict(socket=entry_at(fd, name), lock=entry_at(fd, name + '.lock'), parent=parent)
             private_node(observed['socket'], stat.S_IFSOCK, 0o600)
             private_node(observed['lock'], stat.S_IFREG, 0o600, size=0)
             lock = os.open(name + '.lock', os.O_RDWR | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
@@ -544,8 +545,7 @@ class Probe:
             require(live(again) and identity(again) == identity(current), 'App identity changed during capture')
             before_deadline(capture_deadline)
         captured = self.control_files.capture(socket.name, verified_live, capture_deadline)
-        self.report['control_file_captures'][socket.name] = dict(**captured, parent=self.control_files.parent,
-                                                              process=app['identity'], app_sha256=actual)
+        self.report['control_file_captures'][socket.name] = dict(**captured, process=app['identity'], app_sha256=actual)
         def realized():
             return next((s for s in self.sessions(app) if s.get('realized')), None)
         first = self.wait(realized, 'realized terminal surface', LIMITS['ready'], app)
