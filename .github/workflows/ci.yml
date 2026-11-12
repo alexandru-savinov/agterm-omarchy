@@ -59,22 +59,12 @@ jobs:
           sha256sum agterm-linux/.build/debug/AgtermLinux agterm-linux/.build/debug/agtermctl-linux \
             agterm-linux/vendor/ghostty/lib/libghostty.so agterm-linux/vendor/zmx/zmx \
             | tee artifacts/diagnostics/binaries.txt
-      - name: Observe both existing scenarios with unchanged assertions
-        timeout-minutes: 8
-        run: |
-          result=0
-          for scenario in remote-presentation session-switch-zoom; do
-            scenario_dir="$GITHUB_WORKSPACE/artifacts/diagnostics/$scenario"
-            mkdir -p "$scenario_dir"
-            code=0
-            timeout 180s env PYTHONUNBUFFERED=1 AGTERM_ATSPI_SCENARIO="$scenario" \
-              AGTERM_UI_ARTIFACT_DIR="$scenario_dir" scripts/test-linux-ui.sh \
-              >"$scenario_dir/runner.log" 2>&1 || code=$?
-            cat "$scenario_dir/runner.log"
-            printf '%s %s\n' "$scenario" "$code" | tee -a artifacts/diagnostics/results.txt
-            if [[ "$code" != 0 ]]; then result=1; fi
-          done
-          exit "$result"
+      - name: Observe the existing complete two-shard workload
+        timeout-minutes: 25
+        env:
+          PYTHONUNBUFFERED: "1"
+          AGTERM_UI_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/diagnostics/linux-ui
+        run: python3 scripts/test-linux-ui-parallel.py 2>&1 | tee artifacts/diagnostics/runner.log
       - name: Upload observations only
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
