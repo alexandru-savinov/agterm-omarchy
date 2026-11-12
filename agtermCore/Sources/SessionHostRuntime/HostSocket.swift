@@ -71,12 +71,7 @@ final class HostEndpoint {
             try hostCheck(bound)
             try hostCheck(chmod(paths.socket, 0o600))
             try hostCheck(listen(listener, 128))
-            let pidFile = open(paths.pidfile, O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0o600)
-            try hostCheck(pidFile)
-            defer { Darwin.close(pidFile) }
-            let pid = Array("\(getpid())\n".utf8)
-            let written = pid.withUnsafeBytes { write(pidFile, $0.baseAddress, $0.count) }
-            guard written == pid.count else { throw HostFailure.system(errno) }
+            try publishPID()
         } catch {
             close()
             throw error
@@ -84,6 +79,40 @@ final class HostEndpoint {
     }
 
     deinit { close() }
+
+    private var pidRecord: [UInt8] { Array("\(getpid())\n".utf8) }
+
+    private func publishPID() throws {
+        let pidFile = open(paths.pidfile, O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0o600)
+        try hostCheck(pidFile)
+        defer { Darwin.close(pidFile) }
+        let pid = pidRecord
+        let written = pid.withUnsafeBytes { write(pidFile, $0.baseAddress, $0.count) }
+        guard written == pid.count else { throw HostFailure.system(errno) }
+    }
+
+    /// Keeps the host's files out of reach of the nightly macOS `/tmp` cleaner, which deletes a regular
+    /// file once its access, modification and change times are all three days old; the app's reads of
+    /// the pidfile do not move its access time. A deleted lock or log cannot be brought back through
+    /// its descriptor. Nothing here may fail the host: its exit orphans every daemon it roots.
+    func keepFilesCurrent(log: Int32) {
+        guard ownsPath else { return }
+        _ = futimes(owner, nil)
+        _ = futimes(log, nil)
+        let pidFile = open(paths.pidfile, O_RDWR | O_CLOEXEC | O_NOFOLLOW)
+        guard pidFile >= 0 else {
+            if errno == ENOENT { try? publishPID() }
+            return
+        }
+        // a publication that failed mid-write leaves a file with no pid; touching it would keep it.
+        let expected = pidRecord
+        var found = [UInt8](repeating: 0, count: expected.count + 1)
+        let count = read(pidFile, &found, found.count)
+        let current = count == expected.count && Array(found.prefix(expected.count)) == expected
+        if current { _ = futimes(pidFile, nil) }
+        Darwin.close(pidFile)
+        if !current { try? publishPID() }
+    }
 
     func close() {
         if listener >= 0 { Darwin.close(listener); listener = -1 }

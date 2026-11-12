@@ -18,7 +18,12 @@ extension AppStore {
         guard let session = session(withID: id) else { return PresentationSnapshot(status: nil, hud: nil) }
         return PresentationSnapshot(status: presentationStatus(of: session),
                                     hud: presentationHud(of: session, now: now), context: session.context,
-                                    layout: presentationLayout(of: session))
+                                    layout: presentationLayout(of: session), info: session.info.map(Self.presentationInfo))
+    }
+
+    /// presentationInfo is the wire form of a local info line; the origin mirrors only its own line, never a mirror.
+    static func presentationInfo(_ info: SessionInfo) -> PresentationInfo {
+        PresentationInfo(source: info.source, markdown: info.markdown, hideAfter: info.hideAfter)
     }
 
     func presentationLayout(of session: Session) -> PresentationLayout? {
@@ -60,7 +65,7 @@ extension AppStore {
     /// The published HUD as it travels to a viewer, its remaining lifetime sampled at `now`.
     func presentationHud(of session: Session, now: Date) -> PresentationHud? {
         guard session.onHudWithdrawn != nil, let live = session.hudSpec else { return nil }
-        let spec = live.withSizePercent(session.hudResizedWidthPercent ?? live.sizePercent)
+        let spec = session.effectiveHudSpec ?? live
         return PresentationHud(spec: spec, pane: session.hudPaneIdentity.map(PresentationPane.identity),
                                generation: session.hudPublishGeneration,
                                remaining: session.hudExpiresAt.map { max(0, $0.timeIntervalSince(now)) })
@@ -85,5 +90,14 @@ extension AppStore {
         case .right: return .identity(session.splitPaneIdentity ?? session.paneIdentity)
         case .scratch: return .scratch
         }
+    }
+
+    /// presentStatusSoundRemotely hands a status sound to the session's presenter when the status pane follows
+    /// remotely. False when playback must stay on this Mac.
+    public func presentStatusSoundRemotely(_ sound: PresentationSound, in session: Session, pane: StatusPane?) -> Bool {
+        guard let hub = presentationHub, hub.hasPresenter(session: session.id),
+              case .identity(let identity) = presentationStatusPane(pane, of: session),
+              session.followsRemotely(paneIdentity: identity) else { return false }
+        return hub.sendToPresenter(.sound(sound), session: session.id)
     }
 }

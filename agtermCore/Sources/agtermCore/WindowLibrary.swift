@@ -34,6 +34,10 @@ public final class WindowLibrary {
     /// carries the observation.
     @ObservationIgnored var stores: [UUID: AppStore]
 
+    /// flaggedLayout is the app-wide flagged layout, copied onto every store as it is made, before its restore
+    /// picks a selection.
+    @ObservationIgnored public internal(set) var flaggedLayout: FlaggedViewLayout
+
     /// Bumped on every open-set change, the observable stand-in for `stores` membership: a background
     /// window opening or closing changes neither `windows` nor (necessarily) `frontmostWindowID`, so a
     /// view reading the attention list or a row's eligibility would otherwise keep its stale answer.
@@ -53,6 +57,7 @@ public final class WindowLibrary {
     @ObservationIgnored private var launchInventoryComplete = true
     @ObservationIgnored private var treeEventDebouncers: [UUID: Debouncer]
     @ObservationIgnored private var isBootstrapping = true
+    @ObservationIgnored private var appLaunchSettled = false
 
     /// Set once the launch reopen-all has run, so the per-window scene `.task` drives it exactly once.
     @ObservationIgnored public private(set) var hasReopened = false
@@ -88,13 +93,16 @@ public final class WindowLibrary {
     }
 
     /// Creates the library rooted at `directory`, running migration/recovery and the strict pane inventory.
+    /// `flaggedLayout` is the saved setting, needed before the stores it restores pick their selections.
     public init(directory: URL = PersistenceStore.defaultDirectory,
                 paneFinalizer: (([UUID]) -> Void)?,
                 launchInventorySink: ((Set<UUID>?) -> Void)? = nil,
                 launchPaneDrop: (([UUID]) -> Void)? = nil,
                 controlEventRing: ControlEventRing? = nil,
-                defaultSessionCwd: String = FileManager.default.homeDirectoryForCurrentUser.path) {
+                defaultSessionCwd: String = FileManager.default.homeDirectoryForCurrentUser.path,
+                flaggedLayout: FlaggedViewLayout = .flat) {
         self.directory = directory
+        self.flaggedLayout = flaggedLayout
         self.recentClosedStore = RecentClosedStore(directory: directory)
         self.controlEventRing = controlEventRing ?? ControlEventRing()
         self.paneFinalizer = paneFinalizer
@@ -179,6 +187,17 @@ public final class WindowLibrary {
         case .failure(let error, let anchor):
             return ControlResponse(ok: false, result: ControlResult(events: anchor), error: error.rawValue)
         }
+    }
+
+    /// Appends `app.launched` on the first call of a run, and only when `ready`. The caller picks the
+    /// moment and reports readiness: hooks loaded and the control socket bound, which the library cannot
+    /// see. A later call never emits, so a socket that binds on a later window is not a launch.
+    public func emitAppLaunched(ready: Bool = true) {
+        guard !appLaunchSettled else { return }
+        appLaunchSettled = true
+        guard ready else { return }
+        let event = controlEventRing.append(ControlEventDraft(kind: .appLaunched))
+        onControlEvent?(event)
     }
 
     /// Test/quit seam: fires every pending structural invalidation synchronously, even one queued for a
@@ -654,7 +673,7 @@ public final class WindowLibrary {
     }
 
     private func makeStore(for windowID: UUID, persistence: PersistenceStore) -> AppStore {
-        AppStore(
+        let store = AppStore(
             persistence: persistence,
             recentClosedStore: recentClosedStore,
             recentClosedDidChange: { [weak self] in self?.refreshRecentClosedItems() },
@@ -675,6 +694,8 @@ public final class WindowLibrary {
             paneFinalizer: paneFinalizer,
             launchPaneDrop: launchPaneDrop
         )
+        store.flaggedLayout = flaggedLayout
+        return store
     }
 
     private func loadSnapshotForStore(_ persistence: PersistenceStore) -> Snapshot {

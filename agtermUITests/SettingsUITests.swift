@@ -46,6 +46,26 @@ final class SettingsUITests: XCTestCase {
                       "moving the opacity slider should persist a sub-1 backgroundOpacity to settings.json")
     }
 
+    func testIgnoreReduceTransparencyTogglePersistsAndAppearanceTabFits() throws {
+        let toggle = settingsControl(tab: "Appearance", control: "settings-ignore-reduce-transparency")
+
+        let last = app.descendants(matching: .any)["settings-inactive-pane-mute"].firstMatch
+        XCTAssertTrue(last.waitForExistence(timeout: 5), "the Appearance tab's last control should exist")
+        let window = app.windows.containing(.any, identifier: "settings-ignore-reduce-transparency").firstMatch
+        XCTAssertLessThanOrEqual(last.frame.maxY, window.frame.maxY, "the Appearance tab's last control should be on screen")
+        let before = last.frame.minY
+        last.scroll(byDeltaX: 0, deltaY: -80)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertEqual(last.frame.minY, before, accuracy: 0.5, "the Appearance tab should not scroll")
+
+        toggle.click()
+        XCTAssertTrue(poll { self.settingsBool("ignoreReduceTransparency") == true },
+                      "turning the toggle on should persist ignoreReduceTransparency=true")
+        toggle.click()
+        XCTAssertTrue(poll { self.settingsObject()?["ignoreReduceTransparency"] == nil },
+                      "turning the toggle off should remove ignoreReduceTransparency from settings.json")
+    }
+
     func testNotificationsTogglePersists() throws {
         // type-agnostic match (a grouped-Form Toggle surfaces as a switch/checkbox depending on macOS)
         let toggle = settingsControl(tab: "Notifications", control: "settings-notifications")
@@ -80,14 +100,23 @@ final class SettingsUITests: XCTestCase {
                       "the default 'On first key' should remove statusReset from settings.json")
     }
 
+    // a grouped Form scrolls, so an overflowing tab still reports every control as hittable, and its last
+    // text can sit inside the window while the section's bottom inset does not. Scrolling is the only
+    // direct measure: content that fits does not move.
+    private func assertGeneralTabFits(control: String, file: StaticString = #filePath, line: UInt = #line) {
+        let window = app.windows.containing(.any, identifier: control).firstMatch
+        let hint = app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "Also loads")).firstMatch
+        XCTAssertTrue(hint.waitForExistence(timeout: 5), "the General tab's closing hint should exist", file: file, line: line)
+        XCTAssertLessThanOrEqual(hint.frame.maxY, window.frame.maxY, "the closing hint should be on screen", file: file, line: line)
+        let before = hint.frame.minY
+        hint.scroll(byDeltaX: 0, deltaY: -80)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertEqual(hint.frame.minY, before, accuracy: 0.5, "the General tab should not scroll", file: file, line: line)
+    }
+
     func testFlaggedViewLayoutPickerPersists() throws {
         let picker = settingsControl(tab: "General", control: "settings-flagged-view-layout")
-        // the tab's last line must sit inside the fixed-size window: a grouped Form scrolls, so an
-        // overflowing tab still reports every control as hittable.
-        let window = app.windows.containing(.any, identifier: "settings-flagged-view-layout").firstMatch
-        let lastLine = app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "Also loads")).firstMatch
-        XCTAssertTrue(lastLine.waitForExistence(timeout: 5), "the General tab's closing hint should exist")
-        XCTAssertLessThanOrEqual(lastLine.frame.maxY, window.frame.maxY, "the General tab should fit without scrolling")
+        assertGeneralTabFits(control: "settings-flagged-view-layout")
 
         picker.click()
         let tree = app.menuItems["Workspace tree"]
@@ -97,11 +126,47 @@ final class SettingsUITests: XCTestCase {
                       "selecting 'Workspace tree' should persist flaggedViewLayout=tree to settings.json")
 
         picker.click()
+        let plain = app.menuItems["Flat list, names only"]
+        XCTAssertTrue(plain.waitForExistence(timeout: 5), "the layout picker should offer 'Flat list, names only'")
+        plain.click()
+        XCTAssertTrue(poll { self.settingsValue("flaggedViewLayout") == "plain" },
+                      "selecting 'Flat list, names only' should persist flaggedViewLayout=plain to settings.json")
+
+        picker.click()
         let flat = app.menuItems["Flat list"]
         XCTAssertTrue(flat.waitForExistence(timeout: 5), "the layout picker should offer 'Flat list'")
         flat.click()
         XCTAssertTrue(poll { self.settingsValue("flaggedViewLayout") == nil },
                       "the default 'Flat list' should remove flaggedViewLayout from settings.json")
+    }
+
+    func testLinkOpenModePickerPersists() throws {
+        let picker = settingsControl(tab: "General", control: "settings-link-open-mode")
+        assertGeneralTabFits(control: "settings-link-open-mode")
+
+        picker.click()
+        let overlay = app.menuItems["Session overlay"]
+        XCTAssertTrue(overlay.waitForExistence(timeout: 5), "the link picker should offer 'Session overlay'")
+        overlay.click()
+        XCTAssertTrue(poll { self.settingsValue("linkOpenMode") == "overlay" },
+                      "selecting 'Session overlay' should persist linkOpenMode=overlay to settings.json")
+
+        for (label, raw) in [("Session overlay at 95%", "overlay95"), ("Session overlay at 75%", "overlay75"),
+                             ("Session overlay at 50%", "overlay50")] {
+            picker.click()
+            let item = app.menuItems[label]
+            XCTAssertTrue(item.waitForExistence(timeout: 5), "the link picker should offer '\(label)'")
+            item.click()
+            XCTAssertTrue(poll { self.settingsValue("linkOpenMode") == raw },
+                          "selecting '\(label)' should persist linkOpenMode=\(raw) to settings.json")
+        }
+
+        picker.click()
+        let browser = app.menuItems["Browser"]
+        XCTAssertTrue(browser.waitForExistence(timeout: 5), "the link picker should offer 'Browser'")
+        browser.click()
+        XCTAssertTrue(poll { self.settingsValue("linkOpenMode") == nil },
+                      "the default 'Browser' should remove linkOpenMode from settings.json")
     }
 
     func testDockBouncePickerPersists() throws {
@@ -175,10 +240,12 @@ final class SettingsUITests: XCTestCase {
         picker.click()
         let triangle = app.menuItems["Triangle"]
         XCTAssertTrue(triangle.waitForExistence(timeout: 5), "the shape picker should offer 'Triangle'")
-        for shape in ["Circle", "Square", "Diamond", "Capsule", "Star"] {
+        let shapes = ["Circle", "Square", "Triangle", "Down Triangle", "Play", "Diamond", "Capsule", "Seal", "Star",
+                      "Bolt", "Bell"]
+        for shape in shapes {
             XCTAssertTrue(app.menuItems[shape].exists, "the shape picker should offer '\(shape)'")
         }
-        XCTAssertEqual(picker.menuItems.count, 6, "the six shapes should be the whole option list")
+        XCTAssertEqual(picker.menuItems.count, shapes.count, "every shape should be in the option list, and nothing else")
         XCTAssertFalse(app.menuItems["Default"].exists, "the shape picker should no longer offer a 'Default' entry")
         app.typeKey(.escape, modifierFlags: []) // leave the popup closed, the option list picks nothing
     }
@@ -258,6 +325,32 @@ final class SettingsUITests: XCTestCase {
                       "selecting Normal should persist toolbarMode=normal to settings.json")
     }
 
+    func testSidebarDensityPickerPersistsAndTheAppearanceTabFits() throws {
+        let picker = settingsControl(tab: "Appearance", control: "settings-sidebar-density")
+        let last = app.sliders["settings-inactive-pane-mute"]
+        XCTAssertTrue(last.waitForExistence(timeout: 5), "the Appearance tab's last control should exist")
+        let window = app.windows.containing(.any, identifier: "settings-sidebar-density").firstMatch
+        XCTAssertLessThanOrEqual(last.frame.maxY, window.frame.maxY, "the last control should be on screen")
+        let before = last.frame.minY
+        last.scroll(byDeltaX: 0, deltaY: -80)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertEqual(last.frame.minY, before, accuracy: 0.5, "the Appearance tab should not scroll")
+
+        picker.click()
+        let compact = app.menuItems["Compact"]
+        XCTAssertTrue(compact.waitForExistence(timeout: 5), "the density picker should offer Compact")
+        compact.click()
+        XCTAssertTrue(poll { self.settingsValue("sidebarDensity") == "compact" },
+                      "selecting Compact should persist sidebarDensity=compact to settings.json")
+
+        picker.click()
+        let standard = app.menuItems["Default"]
+        XCTAssertTrue(standard.waitForExistence(timeout: 5), "the density picker should offer Default")
+        standard.click()
+        XCTAssertTrue(poll { self.settingsValue("sidebarDensity") == nil },
+                      "the default density should remove sidebarDensity from settings.json")
+    }
+
     func testCursorStyleAndBlinkPickersPersist() throws {
         let picker = settingsControl(tab: "Appearance", control: "settings-cursor-style")
 
@@ -289,6 +382,37 @@ final class SettingsUITests: XCTestCase {
         blinkDefault.click()
         XCTAssertTrue(poll { self.settingsObject()?["cursorBlink"] == nil },
                       "selecting Default should remove the cursorBlink key from settings.json")
+    }
+
+    func testInterfaceTabFitsWithTheOverlaysToggle() throws {
+        let toggle = settingsControl(tab: "Interface", control: "settings-interface-overlayToggle")
+        XCTAssertEqual(toggle.value as? Int, 0, "the overlays button is off until opted in")
+        let info = app.popUpButtons["settings-session-info-display"]
+        XCTAssertTrue(info.waitForExistence(timeout: 5) && info.isHittable, "the session info picker renders on the tab")
+        XCTAssertEqual(info.value as? String, "Always", "the session info line shows everywhere by default")
+        info.click()
+        let flaggedOnly = app.menuItems["Flagged"]
+        XCTAssertTrue(flaggedOnly.waitForExistence(timeout: 5), "the picker should offer Flagged")
+        flaggedOnly.click()
+        XCTAssertTrue(poll { self.settingsObject()?["sessionInfoDisplay"] as? String == "flagged" },
+                      "choosing Flagged should persist sessionInfoDisplay=flagged")
+        let window = app.windows.containing(.any, identifier: "settings-quick-terminal-size").firstMatch
+        let size = app.popUpButtons["settings-quick-terminal-size"]
+        XCTAssertTrue(size.waitForExistence(timeout: 5), "the tab's last control should exist")
+        XCTAssertLessThanOrEqual(size.frame.maxY, window.frame.maxY, "the quick-terminal Size should be on screen")
+        let multiWindow = app.descendants(matching: .any).matching(identifier: "settings-auto-hide-inactive-sidebars").firstMatch
+        XCTAssertTrue(multiWindow.exists && multiWindow.isHittable, "the multi-window toggle still renders inside the Sidebar section")
+        let chevrons = app.descendants(matching: .any).matching(identifier: "settings-interface-workspaceChevrons").firstMatch
+        XCTAssertTrue(chevrons.exists && chevrons.isHittable, "the workspace chevrons toggle renders in the Sidebar grid")
+        let before = size.frame.minY
+        size.scroll(byDeltaX: 0, deltaY: -80)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertEqual(size.frame.minY, before, accuracy: 0.5, "the Interface tab should not scroll")
+
+        toggle.click()
+        XCTAssertTrue(poll { self.settingsStringArray("shownInterfaceElements")?.contains("overlayToggle") == true },
+                      "enabling the overlays button should persist into shownInterfaceElements")
+        XCTAssertLessThanOrEqual(info.frame.maxX, window.frame.maxX, "the widest choice stays inside the window")
     }
 
     func testQuickTerminalSizePickerPersists() throws {
@@ -331,6 +455,38 @@ final class SettingsUITests: XCTestCase {
                       "turning confirm-before-closing on should persist confirmCloseSession=true")
     }
 
+    func testAttentionIncludesActiveTogglePersists() throws {
+        let toggle = settingsControl(tab: "Agent Status", control: "settings-attention-includes-active")
+        let window = app.windows.containing(.any, identifier: "settings-attention-includes-active").firstMatch
+        let reset = app.buttons["settings-status-reset"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 5), "the tab's last control should exist")
+        XCTAssertLessThanOrEqual(reset.frame.maxY, window.frame.maxY, "Reset to defaults should be on screen")
+        let before = reset.frame.minY
+        reset.scroll(byDeltaX: 0, deltaY: -80)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertEqual(reset.frame.minY, before, accuracy: 0.5, "the Agent Status tab should not scroll")
+        toggle.click()
+        XCTAssertTrue(poll { self.settingsBool("attentionIncludesActive") == true },
+                      "turning attention-includes-active on should persist attentionIncludesActive=true")
+        toggle.click()
+        XCTAssertTrue(poll { self.settingsBool("attentionIncludesActive") == nil },
+                      "turning it off (the default) should remove the attentionIncludesActive key")
+    }
+
+    func testAttentionAcrossWindowsTogglePersists() throws {
+        let toggle = settingsControl(tab: "Agent Status", control: "settings-attention-across-windows")
+        let window = app.windows.containing(.any, identifier: "settings-attention-across-windows").firstMatch
+        let reset = app.buttons["settings-status-reset"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 5), "the tab's last control should exist")
+        XCTAssertLessThanOrEqual(reset.frame.maxY, window.frame.maxY, "Reset to defaults should be on screen")
+        toggle.click()
+        XCTAssertTrue(poll { self.settingsBool("attentionNavigationAcrossWindows") == true },
+                      "turning cross-window attention on should persist attentionNavigationAcrossWindows=true")
+        toggle.click()
+        XCTAssertTrue(poll { self.settingsBool("attentionNavigationAcrossWindows") == nil },
+                      "turning it off (the default) should remove the attentionNavigationAcrossWindows key")
+    }
+
     func testWorkspaceRowClickExpandsTogglePersists() throws {
         let toggle = settingsControl(tab: "General", control: "settings-workspace-row-click-expands")
         toggle.click() // turn it off (default on)
@@ -368,6 +524,19 @@ final class SettingsUITests: XCTestCase {
         toggle.click()
         XCTAssertTrue(poll { self.settingsObject()?["hiddenInterfaceElements"] == nil },
                       "re-showing the last hidden element should remove hiddenInterfaceElements from settings.json")
+    }
+
+    func testSessionIconsToggleHidesOnlyTheSessionRowIcon() throws {
+        let sessionIcon = app.descendants(matching: .any).matching(identifier: "session-icon").firstMatch
+        let workspaceIcon = app.descendants(matching: .any).matching(identifier: "workspace-icon").firstMatch
+        XCTAssertTrue(sessionIcon.waitForExistence(timeout: 20), "the session row shows its icon by default")
+
+        settingsControl(tab: "Interface", control: "settings-interface-sessionIcons").click()
+
+        XCTAssertTrue(poll { self.settingsStringArray("hiddenInterfaceElements")?.contains("sessionIcons") == true },
+                      "hiding session icons should persist \"sessionIcons\" into hiddenInterfaceElements")
+        XCTAssertTrue(poll { !sessionIcon.exists }, "the open window's session row should drop its icon live")
+        XCTAssertTrue(workspaceIcon.exists, "the workspace row keeps its icon; the two toggles are independent")
     }
 
     func testCommandWClosesTheSettingsWindowNotTheSession() throws {

@@ -96,11 +96,12 @@ extension WindowContentView {
         let showAttention = attentionButtonEnabled // the bell keeps its own separate Notifications setting
         let showScratch = shows(.scratch)
         let showSplit = shows(.split)
+        let showOverlayToggle = shows(.overlayToggle)
         let showDashboard = shows(.dashboard)
         let showQuick = shows(.quickTerminal)
         let showCustom = shows(.customCommands)
         let countA = (showRecent ? 1 : 0) + (showAttention ? 1 : 0)
-        let countB = (showScratch ? 1 : 0) + (showSplit ? 1 : 0)
+        let countB = (showScratch ? 1 : 0) + (showSplit ? 1 : 0) + (showOverlayToggle ? 1 : 0)
         let countC = (showDashboard ? 1 : 0) + (showQuick ? 1 : 0) + (showCustom ? 1 : 0)
         // a separator only between two 2+-button groups (the host-free rule, unit-tested in agtermCore).
         let dividers = InterfaceElement.titlebarGroupDividers(countA: countA, countB: countB, countC: countC)
@@ -110,6 +111,7 @@ extension WindowContentView {
             if dividers.afterA { titlebarDivider }
             if showScratch { scratchButton.labelStyle(.iconOnly) }
             if showSplit { splitButton.labelStyle(.iconOnly) }
+            if showOverlayToggle { overlayToggleButton.labelStyle(.iconOnly) }
             if dividers.afterB { titlebarDivider }
             if showDashboard { dashboardButton.labelStyle(.iconOnly) }
             if showQuick { quickTerminalButton.labelStyle(.iconOnly) }
@@ -117,6 +119,9 @@ extension WindowContentView {
         }
         .padding(.trailing, 14)
     }
+
+    /// Whether title-bar tooltips may show: an ask's click catcher covers the whole window, title bar included.
+    var titlebarTipsShown: Bool { pick.pendingAsk == nil }
 
     /// The 1px themed separator between two title-bar button groups.
     private var titlebarDivider: some View {
@@ -128,9 +133,9 @@ extension WindowContentView {
         Button {
             actions.toggleSidebar()
         } label: {
-            Label("Toggle Sidebar", systemImage: "sidebar.left")
+            Label("Toggle Sidebar", systemImage: InterfaceElement.sidebarToggle.symbolName!)
         }
-        .help(helpHint("Toggle Sidebar", .toggleSidebar))
+        .toolTip(helpHint("Toggle Sidebar", .toggleSidebar), isShown: titlebarTipsShown)
         .accessibilityIdentifier("sidebar-toggle-button")
     }
 
@@ -147,7 +152,7 @@ extension WindowContentView {
         let symbol: String
         let a11y: String
         if !hasSplit {
-            symbol = "rectangle.split.2x1"; a11y = "none"
+            symbol = InterfaceElement.split.symbolName!; a11y = "none"
         } else if isSplit {
             symbol = axis == .topBottom ? "rectangle.split.1x2.fill" : "rectangle.split.2x1.fill"
             a11y = axis == .topBottom ? "both-horizontal" : "both"
@@ -161,10 +166,10 @@ extension WindowContentView {
         return Button {
             actions.toggleCurrentSplit()
         } label: {
-            // a Label (icon + title) so the toolbar's "Icon and Text" mode has text; hidden in icon-only mode.
             Label("Split", systemImage: symbol)
         }
-        .help(helpHint(isSplit ? "Hide split" : (hasSplit ? "Show split" : "Split right"), shortcutAction))
+        .toolTip(helpHint(isSplit ? "Hide split" : (hasSplit ? "Show split" : "Split right"), shortcutAction),
+                 isShown: titlebarTipsShown)
         .disabled(store.activeSession == nil)
         .accessibilityValue(a11y)
         .accessibilityIdentifier("split-toggle")
@@ -177,11 +182,33 @@ extension WindowContentView {
         return Button {
             actions.toggleScratch()
         } label: {
-            Label("Scratch", systemImage: active ? "rectangle.inset.filled" : "rectangle")
+            Label("Scratch", systemImage: active ? "rectangle.inset.filled" : InterfaceElement.scratch.symbolName!)
         }
-        .help(helpHint(active ? "Hide scratch terminal" : "Show scratch terminal", .toggleScratch))
+        .toolTip(helpHint(active ? "Hide scratch terminal" : "Show scratch terminal", .toggleScratch),
+                 isShown: titlebarTipsShown)
         .disabled(store.activeSession == nil)
         .accessibilityIdentifier("scratch-toggle")
+    }
+
+    /// Hides the active session's overlays or shows them again. Always present once enabled in Settings,
+    /// disabled with nothing to hide, and slashed while anything is hidden, so a hidden overlay is never out
+    /// of sight entirely.
+    private var overlayToggleButton: some View {
+        let session = store.activeSession
+        let slots = session?.hideableOverlaySlots(nil) ?? []
+        let anyShown = session?.anyOverlayShown(nil) ?? false
+        let anyHidden = !(session?.hiddenOverlayNames.isEmpty ?? true)
+        return Button {
+            actions.toggleOverlays()
+        } label: {
+            Label("Overlays", systemImage: anyHidden ? "rectangle.on.rectangle.slash" : InterfaceElement.overlayToggle.symbolName!)
+        }
+        .toolTip(helpHint(anyShown ? "Hide Overlays" : "Show Overlays", .toggleOverlay), isShown: titlebarTipsShown)
+        // this window's own covers, the set `PaletteContext.modalActive` holds for the frontmost window
+        .disabled(slots.isEmpty || pick.modalPending || terminalZoom.target != nil || dashboard.isOpen)
+        .accessibilityLabel(anyShown ? "Hide Overlays" : "Show Overlays")
+        .accessibilityValue(anyHidden ? "hidden" : (slots.isEmpty ? "none" : "shown"))
+        .accessibilityIdentifier("overlay-toggle")
     }
 
     /// Toggles the quick terminal: one scratch terminal overlaid at 90% of the window, above the sidebar and
@@ -190,9 +217,9 @@ extension WindowContentView {
         Button {
             actions.toggleQuickTerminal()
         } label: {
-            Label("Quick Terminal", systemImage: "terminal")
+            Label("Quick Terminal", systemImage: InterfaceElement.quickTerminal.symbolName!)
         }
-        .help(helpHint("Quick Terminal", .quickTerminal))
+        .toolTip(helpHint("Quick Terminal", .quickTerminal), isShown: titlebarTipsShown)
         .disabled(pick.modalPending)
         .accessibilityIdentifier("quick-terminal-toggle")
     }
@@ -245,7 +272,7 @@ struct TitlebarLabel: View {
                 }
                 if let host = composition.host {
                     HStack(spacing: 4) {
-                        Image(systemName: "cloud")
+                        Image(systemName: InterfaceElement.remoteHost.symbolName!)
                             .fixedSize()
                             .accessibilityHidden(true)
                         RemoteHostTextLayout {
@@ -272,6 +299,8 @@ struct TitlebarLabel: View {
         // MIDDLE under its own ceiling instead, so an ssh target retains both of its ends.
         .lineLimit(1)
         .truncationMode(.tail)
+        // fixed-width slot, so the label's width stays put while an animated title ticks (#516)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var composition: TitlebarComposition {

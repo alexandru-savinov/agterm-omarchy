@@ -10,6 +10,7 @@ extension AppController {
               let pane = UUID(uuidString: surface.paneToken),
               let role = ZmxLeadBook.shared.apply(notice, pane: pane) else { return }
         guard !RemoteReconnectBook.shared.waiting(pane: pane) else { return }
+        RemoteRespawnBook.shared.acknowledged(pane: pane)
         surface.syncLeadCover()
         store.leadRoleChanged()
         if role == .unowned { reattachPane(surface, claim: false) }
@@ -55,7 +56,7 @@ extension AppController {
             role = .right
             host = splitPaneHosts[session.id]
         } else { return false }
-        guard let host else { return false }
+        guard host != nil else { return false }
         let lead = ZmxLeadAttachment(claim: claim)
         let command: String
         let environment: [String: String]
@@ -82,7 +83,7 @@ extension AppController {
     }
 
     func replacePane(_ old: GhosttySurface, command: String, environment: [String: String],
-                     wait: Bool, lead: ZmxLeadAttachment, cover: Bool = true) -> GhosttySurface? {
+                     wait: Bool, lead: ZmxLeadAttachment, cover: Bool = true, workingDirectory: String? = nil) -> GhosttySurface? {
         guard let session = store.session(withID: old.sessionID), let identity = UUID(uuidString: old.paneToken) else { return nil }
         let role: StatusPane = session.splitSurface === old ? .right : .left
         guard (role == .right ? session.splitSurface : session.surface) === old,
@@ -90,11 +91,12 @@ extension AppController {
         let coverFocused = old.leadCover.flatMap { gtk_widget_get_first_child(W($0)) }.map { gtk_widget_has_focus($0) != 0 }
         let focused = LinuxPaneLeadKeyPolicy.replacementTakesFocus(
             surfaceFocused: gtk_widget_has_focus(W(old.glArea)) != 0, coverFocused: coverFocused ?? false)
-        let replacement = GhosttySurface(sessionID: session.id, cwd: old.cwd, command: command,
+        let replacement = GhosttySurface(sessionID: session.id, cwd: workingDirectory ?? old.cwd, command: command,
                                          env: environment, controller: self, waitAfterCommand: wait,
                                          role: role == .right ? .split : .main, fontSize: session.fontSize,
                                          backedByZmx: old.backedByZmx)
         installPaneExitHandler(replacement, sessionID: session.id)
+        if session.remoteHost != nil { RemoteRespawnBook.shared.attachStarted(pane: identity, session: session.id) }
         if cover { ZmxLeadBook.shared.begin(lead, pane: identity, reattaching: true) }
         replacement.syncLeadCover()
         _ = old.claimProcessExit()

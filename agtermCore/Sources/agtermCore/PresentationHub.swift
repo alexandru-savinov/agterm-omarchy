@@ -29,6 +29,7 @@ public final class PresentationHub {
         let session: UUID
         let generation: Int
         let sink: PresentationSink
+        var kinds: Set<String> = []
         var revision = 0
         var lastAck: Date
         /// Deltas published while the snapshot is being taken, held so they land after it.
@@ -40,10 +41,48 @@ public final class PresentationHub {
             self.sink = sink
             lastAck = now
         }
+
+        @MainActor func decodable(_ body: PresentationFrame.Body) -> PresentationFrame.Body {
+            guard !kinds.contains(PresentationHub.statusShapesKind) else { return body }
+            switch body {
+            case .status(let status):
+                return .status(status.map(Self.withOriginalShape))
+            case .snapshot(var snapshot):
+                snapshot.status = snapshot.status.map(Self.withOriginalShape)
+                return .snapshot(snapshot)
+            default:
+                return body
+            }
+        }
+
+        private static func withOriginalShape(_ status: PresentationStatus) -> PresentationStatus {
+            guard let shape = status.shape, !StatusShape.original.contains(shape) else { return status }
+            var status = status
+            status.shape = nil
+            return status
+        }
     }
 
     /// The frame kinds this origin can produce.
-    public static let supportedKinds = ["status", "hud", "notify", "context", "layout"]
+    public static let supportedKinds = ["status", "hud", "notify", "context", "info", "layout", "sound", askFormKind, askOtherKind,
+                                        overlayPointsKind, pageContentKind, pageDocumentKind, statusShapesKind] + pageKinds
+    /// pageKinds are the presentation kinds a presenter must speak to be handed a page.
+    public static let pageKinds = ["page.request", "page.rejected", "page.close", "page.closed", "page.command",
+                                   "page.state"]
+    /// askFormKind is the capability of drawing an ask's text field, choice list and cancel role. It names no
+    /// frame body: an ask needing it travels as an ordinary `ask.request`, sent only to a presenter listing it.
+    public static let askFormKind = "ask.form"
+    /// askOtherKind is the capability of drawing a choice list's free-form row; a presenter with only
+    /// `ask.form` would drop the row, so such an ask needs both.
+    public static let askOtherKind = "ask.other"
+    /// overlayPointsKind advertises point sizing without adding a frame kind.
+    public static let overlayPointsKind = "overlay.points"
+    /// pageContentKind advertises the image, markdown and text page sources without adding a frame kind.
+    public static let pageContentKind = "page.content"
+    /// pageDocumentKind advertises the clicked-HTML document page source.
+    public static let pageDocumentKind = "page.document"
+    /// statusShapesKind advertises the expanded status-shape set.
+    public static let statusShapesKind = "status.shapes"
 
     private let staleTimeout: TimeInterval
     private let now: () -> Date
@@ -84,6 +123,7 @@ public final class PresentationHub {
         let held = subscriber.held ?? []
         subscriber.held = nil
         let kinds = Self.supportedKinds.filter(hello.kinds.contains)
+        subscriber.kinds = Set(kinds)
         // presenter is offered only to a viewer that asked for it, so a slice-1 viewer stays a mirror
         let answer = PresentationHello(version: version, kinds: kinds, mode: hello.mode)
         for body in [.hello(answer), .snapshot(state)] + held {
@@ -98,10 +138,12 @@ public final class PresentationHub {
         release(id)
     }
 
-    /// Sends `body` to `session`'s presenter alone. False when there is none, or it stalled and was dropped.
+    /// Sends `body` to `session`'s presenter alone. False when there is none, it stalled and was dropped, or
+    /// `body` is a negotiated kind its hello did not list, which an older presenter would skip.
     @discardableResult
     public func sendToPresenter(_ body: PresentationFrame.Body, session: UUID) -> Bool {
         guard let holder = grant.holder(of: session) else { return false }
+        if Self.supportedKinds.contains(body.kind), subscribers[holder]?.kinds.contains(body.kind) != true { return false }
         return send(body, to: holder)
     }
 
@@ -130,7 +172,7 @@ public final class PresentationHub {
         case .presenterAcquire:
             let granted = grant.acquire(session: subscriber.session, by: id)
             send(granted ? .presenterGranted : .presenterRefused, to: id)
-        case .askResolve, .askRejected, .overlayRejected, .overlayClosed:
+        case .askResolve, .askRejected, .overlayRejected, .overlayClosed, .pageRejected, .pageClosed, .pageState:
             guard grant.holder(of: subscriber.session) == id else { return }
             onPresenterFrame?(subscriber.session, frame.body)
         default: break
@@ -157,13 +199,19 @@ public final class PresentationHub {
     /// Whether a viewer holds `session`'s presenter role.
     public func hasPresenter(session: UUID) -> Bool { grant.holder(of: session) != nil }
 
+    /// Whether `session`'s presenter listed `kind` in its hello.
+    public func presenterSupports(_ kind: String, session: UUID) -> Bool {
+        guard let holder = grant.holder(of: session) else { return false }
+        return subscribers[holder]?.kinds.contains(kind) == true
+    }
+
     /// Counts changes of `session`'s presenter, a grant and a loss alike.
     public func presenterGeneration(session: UUID) -> Int { grant.generation(of: session) }
 
     @discardableResult
     private func send(_ body: PresentationFrame.Body, to id: SubscriberID) -> Bool {
         guard let subscriber = subscribers[id] else { return false }
-        let frame = PresentationFrame(gen: subscriber.generation, rev: subscriber.revision, body: body)
+        let frame = PresentationFrame(gen: subscriber.generation, rev: subscriber.revision, body: subscriber.decodable(body))
         guard subscriber.sink.offer(frame) else {
             drop(id, reason: .stalled)
             return false

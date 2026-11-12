@@ -10,7 +10,32 @@ Nothing auto-loads this document — read it before editing `AppController.swift
 `AppController+RemoteEffects.swift`, or the sidebar scenarios in
 `agterm-linux/tests/atspi_smoke.py`.
 
+## Density and decorations
+
+Preferences → Appearance and `agtermctl sidebar density default|compact|toggle` share the persisted density.
+Compact rows reduce title padding, row height, workspace indentation, companion indentation, and the info title band.
+The next tree read reports `sidebarDensity`.
+The Workspace Chevrons interface setting hides the workspace disclosure button.
+Every workspace context menu retains Collapse Workspace or Expand Workspace, even when row-click expansion is disabled.
+
+Tints include teal, pink, brown, indigo, mint, and custom hex values.
+Tint menus remember the last Show On placement for newly colored rows.
+Status shapes include triangle-down, play, seal, bolt, and bell.
+The bell uses GTK's symbolic notification icon to avoid depending on an emoji font.
+The status container owns the label and symbolic image throughout row reuse, including blinking and idle clearing.
+
 ## Incremental reconcile
+
+Companion rows share their parent's workspace and ordering group.
+Tree rows reserve the same measured disclosure gutter, including leaves, so parent and peer icons align.
+Companions add one indentation step beyond that gutter; flagged layouts omit it.
+Disclosure buttons use compact padding so adding companions does not change the row height.
+The disclosure button changes persisted expansion; selecting a hidden companion reveals it transiently.
+Folded parents retain an attention marker for their hidden children.
+Flagged layouts flatten companions and use the shared parent-qualified label, so collapsed parents cannot hide flagged children.
+Session and workspace tints apply independently to icons and names.
+The membership palettes keep their search and highlight after toggling an entry.
+An empty flagged membership button ellipsizes its label instead of widening the sidebar.
 
 - `syncSidebar()` (`AppControllerSidebarSync.swift`) is the sidebar's ONE entry point: it builds the
   desired `SidebarSnapshot` from the store and settings, diffs it against `sidebarRuntime.current`, and

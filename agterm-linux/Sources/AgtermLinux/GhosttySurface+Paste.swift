@@ -24,13 +24,14 @@ extension GhosttySurface: UnsafePasteTarget {
     /// A surface torn down while the dialog was open already freed its request: nothing to answer.
     func completeUnsafePaste(_ text: String, request: UnsafeMutableRawPointer?) {
         guard let surface else { return }
-        text.withCString { ghostty_surface_complete_clipboard_request(surface, $0, request, true) }
+        let completion = LinuxClipboardPolicy.textCompletion(text: text, list: false)
+        LinuxClipboardAdapter.complete(surface, items: completion.items, available: completion.available,
+                                       state: request, confirmed: true)
     }
 
-    /// This libghostty revision has no deny call. An empty completion writes nothing (Surface.zig
-    /// `completeClipboardPaste` returns early on empty data) and frees the request.
+    /// Ghostty 1.4's deny call writes nothing to the terminal and frees the request.
     func discardUnsafePaste(request: UnsafeMutableRawPointer?) {
         guard let surface else { return }
-        "".withCString { ghostty_surface_complete_clipboard_request(surface, $0, request, true) }
+        ghostty_surface_deny_clipboard_request(surface, request)
     }
 }

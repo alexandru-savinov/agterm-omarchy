@@ -34,6 +34,9 @@ RETRY_DELAY = 10.0
 BOX_LINES = 80
 EMPTY_CURSOR_COLUMN = 2
 MAX_MESSAGE_BYTES = 64 * 1024
+# Claude Code rewrites a draft over this many UTF-16 units into its first and last 500
+# characters around a "[...Truncated text...]" marker, which no read-back can verify.
+CLAUDE_DRAFT_LIMIT = 10_000
 # Claude can put a short context label inside the top composer rule, for example `e2e`.
 RULE_RE = re.compile(r"^\s*[─\u2014-]{10,}(?:\s+[^─\u2014-].*?\s+[─\u2014-]+)?\s*$")
 # Codex draws the composer prompt as `›`; with reasoning effort set to ultra it upgrades
@@ -883,6 +886,29 @@ def row_readings(row: str, tolerant: bool) -> list[str]:
     return trailing_particle_variants(row) if tolerant else [row]
 
 
+def composer_row_readings(
+    rows: list[str], index: int, tolerant: bool
+) -> list[tuple[str, bool]]:
+    """Offer a literal row and Codex's top-margin scroll decoration reading.
+
+    Codex 0.162.1 renders one ↑ in the reserved right margin of the first
+    visible textarea row when earlier rows are hidden (chat_composer.rs).
+    Keep the parser lossless and always try the literal reading too. The
+    decorated reading is valid only at a nonzero source offset, enforced by
+    both callers. Never treat a bottom/down arrow as permission to submit
+    while the message tail is hidden, or strip arrows from arbitrary rows.
+    """
+    row = rows[index]
+    readings = [(reading, False) for reading in row_readings(row, tolerant)]
+    if tolerant and index == 0 and len(rows) > 1 and row.endswith("↑"):
+        readings.extend(
+            (reading, True)
+            for reading in row_readings(row[:-1].rstrip(), tolerant)
+            if reading
+        )
+    return readings
+
+
 def row_matches(expected: str, row: str, tolerant: bool = False) -> bool:
     """Compare one screen row with source text of the same length.
 
@@ -958,12 +984,13 @@ def composer_has_expected_tail(
     positions = {len(expected)}
     rows = content.splitlines() or [content]
     for index in range(len(rows) - 1, -1, -1):
-        readings = row_readings(rows[index], tolerant)
+        readings = composer_row_readings(rows, index, tolerant)
         matched = {
             end - len(row)
             for end in positions
-            for row in readings
+            for row, scrolled in readings
             if end >= len(row)
+            and (not scrolled or end > len(row))
             and row_matches(expected[end - len(row) : end], row, tolerant)
         }
         if not matched:
@@ -1030,12 +1057,13 @@ def composer_owned_spans(
     )
     rows = content.splitlines() or [content]
     for index in range(len(rows) - 1, -1, -1):
-        readings = row_readings(rows[index], tolerant)
+        readings = composer_row_readings(rows, index, tolerant)
         matched = {
             (position - len(row), end)
             for position, end in positions
-            for row in readings
+            for row, scrolled in readings
             if position >= len(row)
+            and (not scrolled or position > len(row))
             and row_matches(owned_text[position - len(row) : position], row, tolerant)
         }
         if not matched:
@@ -1199,6 +1227,19 @@ def normalize(profile: Profile, message: str) -> str:
         line = line[len(prefix) :].lstrip(": ").strip()
     if not line:
         raise ValueError("chat message is empty")
+    if profile.agent == "claude":
+        if line.endswith("\\"):
+            raise ValueError(
+                "chat message ends with a backslash, which Claude's composer reads "
+                "as a line continuation instead of a submit"
+            )
+        typed = profile.label + line
+        units = len(typed.encode("utf-16-le")) // 2
+        if units + len(composer_probe_marker(typed)) > CLAUDE_DRAFT_LIMIT:
+            raise ValueError(
+                f"chat message is longer than the {CLAUDE_DRAFT_LIMIT:,} characters "
+                "Claude's composer keeps verbatim"
+            )
     return profile.label + line
 
 
@@ -1450,6 +1491,38 @@ def prepare_message(name: str) -> Path:
     return MESSAGE_SPOOL / name
 
 
+def message_claim(name: str) -> str:
+    return f"{name}.claimed-{os.getpid()}"
+
+
+def settle_message(name: str | None, keep: bool) -> None:
+    """Return a claimed message to its name when keep is set, otherwise consume it.
+
+    A failure here is reported, never raised, so it cannot mask the send's own error.
+    """
+    if name is None:
+        return
+    claim = message_claim(name)
+    try:
+        spool_fd = private_spool_fd(create=False)
+        try:
+            if keep:
+                os.rename(claim, name, src_dir_fd=spool_fd, dst_dir_fd=spool_fd)
+                print(
+                    f"peer-chat: message kept; resend it with --message-file {name}",
+                    file=sys.stderr,
+                )
+                return
+            os.unlink(claim, dir_fd=spool_fd)
+        finally:
+            os.close(spool_fd)
+    except (OSError, ValueError) as err:
+        print(
+            f"peer-chat: cannot settle {MESSAGE_SPOOL / claim}: {err}",
+            file=sys.stderr,
+        )
+
+
 def read_message(use_stdin: bool, message_file: str | None) -> str:
     if use_stdin:
         binary = getattr(sys.stdin, "buffer", None)
@@ -1483,29 +1556,34 @@ def read_message(use_stdin: bool, message_file: str | None) -> str:
             and info.st_uid == os.getuid()
             and info.st_nlink == 1
         )
-        if is_owned_regular:
-            os.unlink(message_file, dir_fd=spool_fd)
         if not is_owned_regular:
             raise ValueError("message file must be an owned regular file with one link")
-        if stat.S_IMODE(info.st_mode) & 0o077:
-            raise ValueError(
-                "message file is accessible by other users and was consumed; "
-                "run --prepare-message again"
-            )
-        if info.st_size > MAX_MESSAGE_BYTES:
-            raise ValueError(
-                f"message file exceeds {MAX_MESSAGE_BYTES} bytes and was consumed; "
-                "run --prepare-message again"
-            )
-
-        with os.fdopen(message_fd, encoding="utf-8") as stream:
-            message_fd = -1
-            message = stream.read(MAX_MESSAGE_BYTES + 1)
-        if len(message.encode("utf-8")) > MAX_MESSAGE_BYTES:
-            raise ValueError(
-                f"message file exceeds {MAX_MESSAGE_BYTES} bytes and was consumed; "
-                "run --prepare-message again"
-            )
+        # the rename is the claim: a second send of this name finds no entry, and the
+        # claim name fails MESSAGE_NAME_RE, so a stranded claim can never be resent
+        claim = message_claim(message_file)
+        os.rename(message_file, claim, src_dir_fd=spool_fd, dst_dir_fd=spool_fd)
+        try:
+            if stat.S_IMODE(info.st_mode) & 0o077:
+                raise ValueError(
+                    "message file is accessible by other users and was consumed; "
+                    "run --prepare-message again"
+                )
+            if info.st_size > MAX_MESSAGE_BYTES:
+                raise ValueError(
+                    f"message file exceeds {MAX_MESSAGE_BYTES} bytes and was consumed; "
+                    "run --prepare-message again"
+                )
+            with os.fdopen(message_fd, encoding="utf-8") as stream:
+                message_fd = -1
+                message = stream.read(MAX_MESSAGE_BYTES + 1)
+            if len(message.encode("utf-8")) > MAX_MESSAGE_BYTES:
+                raise ValueError(
+                    f"message file exceeds {MAX_MESSAGE_BYTES} bytes and was consumed; "
+                    "run --prepare-message again"
+                )
+        except BaseException:
+            os.unlink(claim, dir_fd=spool_fd)
+            raise
         return message
     finally:
         if message_fd >= 0:
@@ -1574,7 +1652,16 @@ def run_main(progress: DeliveryProgress) -> int:
     window, sid = resolve_target(args.session, args.window, profile)
     profile = bind_pane(find_node(sid, window), profile)
     message = read_message(args.stdin, args.message_file)
-    sent = send_with_retry(sid, profile, message, window, progress)
+    keep = False
+    try:
+        sent = send_with_retry(sid, profile, message, window, progress)
+    except (RuntimeError, KeyboardInterrupt):
+        # a refusal by the target can clear on a resend; a body normalize rejects
+        # (ValueError) never will, so it is consumed like the read-time rejections
+        keep = progress.phase == "not_started"
+        raise
+    finally:
+        settle_message(args.message_file, keep)
     progress.phase = "confirmed"
     report_success(sent)
     return 0

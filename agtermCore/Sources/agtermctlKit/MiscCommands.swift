@@ -96,9 +96,31 @@ struct Hooks: ParsableCommand {
 
 struct Browser: ParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Saved browser storage of --persistent URL overlays.",
-        subcommands: [Clear.self]
+        abstract: "Saved browser storage of --persistent URL overlays, and where clicked links open.",
+        subcommands: [Clear.self, Links.self]
     )
+
+    /// `agtermctl browser links [MODE]`: no mode reads the setting. App-wide, so no `--window`.
+    struct Links: RequestCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Set or read where a clicked web link in a terminal opens (browser|overlay|overlay95|overlay75|overlay50).",
+            discussion: "overlay opens http and https links in a full session web overlay with JavaScript, navigation "
+                + "buttons and the saved browser store; overlay95, overlay75 and overlay50 open it at that percent of "
+                + "the session. With no MODE the current one is printed. A link in a HUD, a link "
+                + "clicked while a HUD is up or the terminal is zoomed, and a link the overlay cannot show open in the browser."
+        )
+        @Argument(help: "Mode: browser, overlay, overlay95, overlay75 or overlay50. Omit to read the current mode.") var mode: String?
+        @OptionGroup var options: BasicOptions
+
+        func validate() throws {
+            guard let mode else { return }
+            guard LinkOpenMode(rawValue: mode) != nil else { throw ValidationError("mode must be browser, overlay, overlay95, overlay75 or overlay50") }
+        }
+
+        func makeRequest() throws -> ControlRequest {
+            ControlRequest(cmd: .browserLinks, args: mode.map { ControlArgs(mode: $0) })
+        }
+    }
 
     struct Clear: RequestCommand {
         static let configuration = CommandConfiguration(
@@ -215,24 +237,6 @@ struct Restore: ParsableCommand {
         @OptionGroup var options: BasicOptions
 
         func makeRequest() throws -> ControlRequest { ControlRequest(cmd: .restoreClear) }
-    }
-}
-
-// MARK: - recent
-
-struct Recent: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        abstract: "Recently closed item commands.",
-        subcommands: [Clear.self]
-    )
-
-    struct Clear: RequestCommand {
-        static let configuration = CommandConfiguration(
-            abstract: "Clear the app-wide list of recently closed sessions and workspaces.")
-        @OptionGroup var options: BasicOptions
-        var affectedNoun: String { "item" }
-
-        func makeRequest() throws -> ControlRequest { ControlRequest(cmd: .recentClear) }
     }
 }
 
@@ -690,7 +694,7 @@ struct ModalCommandRunner {
 struct Sidebar: ParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Sidebar visibility and view mode.",
-        subcommands: [Visibility.self, Mode.self, FlaggedLayout.self, Expand.self, Collapse.self, Width.self],
+        subcommands: [Visibility.self, Mode.self, FlaggedLayout.self, Density.self, Expand.self, Collapse.self, Width.self],
         defaultSubcommand: Visibility.self
     )
 
@@ -726,18 +730,36 @@ struct Sidebar: ParsableCommand {
     /// Sets how every window's flagged sidebar view arranges its sessions; app-wide, so no `--window`.
     struct FlaggedLayout: RequestCommand {
         static let configuration = CommandConfiguration(
-            commandName: "flagged-layout", abstract: "Flagged view layout (flat|tree|toggle).")
-        @Argument(help: "Layout: flat, tree, or toggle (default).") var layout: String = "toggle"
+            commandName: "flagged-layout", abstract: "Flagged view layout (flat|plain|tree|toggle).")
+        @Argument(help: "Layout: flat, plain (flat without workspace names), tree, or toggle (default).") var layout: String = "toggle"
         @OptionGroup var options: BasicOptions
 
         func validate() throws {
-            guard ["flat", "tree", "toggle"].contains(layout) else {
-                throw ValidationError("layout must be flat, tree, or toggle")
+            guard ["flat", "plain", "tree", "toggle"].contains(layout) else {
+                throw ValidationError("layout must be flat, plain, tree, or toggle")
             }
         }
 
         func makeRequest() throws -> ControlRequest {
             ControlRequest(cmd: .sidebarFlaggedLayout, args: ControlArgs(mode: layout))
+        }
+    }
+
+    /// Sets every window's sidebar row spacing; app-wide, so no `--window`.
+    struct Density: RequestCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "density", abstract: "Sidebar density (default|compact|toggle).")
+        @Argument(help: "Density: default, compact, or toggle (default).") var density: String = "toggle"
+        @OptionGroup var options: BasicOptions
+
+        func validate() throws {
+            guard ControlSidebarDensityMode.parse(density) != nil else {
+                throw ValidationError("density must be default, compact, or toggle")
+            }
+        }
+
+        func makeRequest() throws -> ControlRequest {
+            ControlRequest(cmd: .sidebarDensity, args: ControlArgs(mode: density))
         }
     }
 
@@ -869,7 +891,7 @@ struct Version: RequestCommand {
         _ = _NSGetExecutablePath(nil, &size)
         var buffer = [CChar](repeating: 0, count: Int(size))
         guard _NSGetExecutablePath(&buffer, &size) == 0 else { return nil }
-        guard let resolved = realpath(buffer, nil) else { return String(cString: buffer) }
+        guard let resolved = realpath(buffer, nil) else { return String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self) }
         defer { free(resolved) }
         return String(cString: resolved)
         #elseif canImport(Glibc)

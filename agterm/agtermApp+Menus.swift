@@ -123,6 +123,9 @@ extension agtermApp {
                 Button("Open Directory…") { actions.openDirectory() }
                     .keyboardShortcut(shortcut(for: .openDirectory))
                     .disabled(!PaletteCommand.openDirectory.isEnabled(in: context))
+                Button("Attach Remote…") { actions.attachRemote() }
+                    .keyboardShortcut(shortcut(for: .attachRemote))
+                    .disabled(!PaletteCommand.attachRemote.isEnabled(in: context))
                 Menu("Open Recent") {
                     let recentSessions = library.recentClosedItems.filter { $0.kind == .session }
                     let recentWorkspaces = library.recentClosedItems.filter { $0.kind == .workspace }
@@ -157,6 +160,12 @@ extension agtermApp {
                 Button("Duplicate Session") { actions.duplicateActiveSession() }
                     .keyboardShortcut(shortcut(for: .duplicateSession))
                     .disabled(!PaletteCommand.duplicateSession.isEnabled(in: context))
+                Button("New Companion") { actions.newCompanionOfActiveSession() }
+                    .keyboardShortcut(shortcut(for: .newCompanion))
+                    .disabled(!PaletteCommand.newCompanion.isEnabled(in: context))
+                Button("Duplicate as Companion") { actions.duplicateActiveSessionAsCompanion() }
+                    .keyboardShortcut(shortcut(for: .duplicateCompanion))
+                    .disabled(!PaletteCommand.duplicateCompanion.isEnabled(in: context))
                 Button("Reveal in Finder") { actions.revealActiveSessionInFinder() }
                     .disabled(!actions.canRevealActiveSessionInFinder)
                 Button("Close Session") {
@@ -267,6 +276,11 @@ extension agtermApp {
                 .disabled(!PaletteCommand.toggleFlag.isEnabled(in: context))
                 Button { actions.clearFlags() } label: { Label("Clear Flagged", systemImage: "flag.slash") }
                     .disabled(!PaletteCommand.clearFlagged.isEnabled(in: context))
+                Button { actions.openFlaggedEditor() } label: {
+                    Label("Edit Flagged Sessions…", systemImage: "flag")
+                }
+                .keyboardShortcut(shortcut(for: .editFlaggedSessions))
+                .disabled(!PaletteCommand.editFlaggedSessions.isEnabled(in: context))
                 // collapse the tree to the current workspace's subtree (or unfocus when already focused).
                 // keyless, rebindable via focus_workspace; control workspace.focus. the label tracks the toggle.
                 let focusStore = library.activeStore
@@ -295,6 +309,11 @@ extension agtermApp {
                 // plain (non-BuiltinAction) clear, like Clear Flagged; the bottom-bar toggle is primary.
                 Button { actions.clearFocus() } label: { Label("Clear Focus", systemImage: "scope") }
                     .disabled(!PaletteCommand.clearFocus.isEnabled(in: context))
+                Button { actions.openFocusEditor() } label: {
+                    Label("Edit Focused Workspaces…", systemImage: "square.grid.2x2")
+                }
+                .keyboardShortcut(shortcut(for: .editFocusedWorkspaces))
+                .disabled(!PaletteCommand.editFocusedWorkspaces.isEnabled(in: context))
                 Button { actions.toggleSplit() } label: {
                     Label("Toggle Vertical Split", systemImage: "rectangle.split.2x1")
                 }
@@ -316,6 +335,13 @@ extension agtermApp {
                 }
                 .keyboardShortcut(shortcut(for: .toggleScratch))
                 .disabled(!PaletteCommand.toggleScratch.isEnabled(in: context))
+                let overlaySession = library.activeStore?.activeSession
+                let overlaysShown = overlaySession?.anyOverlayShown(nil) ?? true
+                Button { actions.toggleOverlays() } label: {
+                    Label(overlaysShown ? "Hide Overlays" : "Show Overlays", systemImage: "rectangle.on.rectangle")
+                }
+                .keyboardShortcut(shortcut(for: .toggleOverlay))
+                .disabled(!PaletteCommand.toggleOverlay.isEnabled(in: context))
                 // search the focused terminal's scrollback. data-driven shortcut (⌘F default), no hardcoded
                 // literal; the bar's open/close toggle lives in onSearchStart.
                 Button { actions.toggleSearch() } label: { Label("Find…", systemImage: "magnifyingglass") }
@@ -371,7 +397,8 @@ extension agtermApp {
                 Button { actions.selectNextSession() } label: { Label("Next Session", systemImage: "chevron.down") }
                     .keyboardShortcut(shortcut(for: .nextSession))
                     .disabled(!PaletteCommand.nextSession.isEnabled(in: context))
-                // step only through sessions needing attention (blocked/completed glyphs), wrapping.
+                // step only through sessions needing attention (blocked/completed glyphs, plus active when the
+                // Navigation setting includes it), wrapping.
                 Button { actions.selectPreviousAttentionSession() } label: { Label("Previous Attention Session", systemImage: "chevron.up.circle") }
                     .keyboardShortcut(shortcut(for: .previousAttentionSession))
                     .disabled(!PaletteCommand.previousAttentionSession.isEnabled(in: context))

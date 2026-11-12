@@ -168,9 +168,12 @@ extension AppController {
             workspaces: tree.workspaces,
             idleMs: tree.idleMs,
             autoFollowMs: autoFollowCoordinator.timeoutMs,
+            attentionIncludesActive: tree.attentionIncludesActive,
+            attentionNavigationAcrossWindows: tree.attentionNavigationAcrossWindows,
             sidebarVisible: tree.sidebarVisible,
             sidebarMode: tree.sidebarMode,
             sidebarFlaggedLayout: tree.sidebarFlaggedLayout,
+            flaggedOrder: tree.flaggedOrder,
             sidebarWidth: tree.sidebarWidth,
             workspaceFilter: tree.workspaceFilter,
             quickVisible: tree.quickVisible,
@@ -182,7 +185,8 @@ extension AppController {
             pickPending: tree.pickPending,
             askPending: tree.askPending,
             app: tree.app,
-            liveReset: tree.liveReset
+            liveReset: tree.liveReset, indexUnsaved: tree.indexUnsaved, snapshotUnsaved: tree.snapshotUnsaved,
+            linkOpenMode: tree.linkOpenMode, sidebarDensity: tree.sidebarDensity
         )
     }
 

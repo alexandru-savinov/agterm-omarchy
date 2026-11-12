@@ -1,8 +1,26 @@
 diff --git i/src/apprt/embedded.zig w/src/apprt/embedded.zig
-index 7310159..b3fcc80 100644
+index da8eb13fb..7e7f3b4c5 100644
 --- i/src/apprt/embedded.zig
 +++ w/src/apprt/embedded.zig
-@@ -1576,6 +1576,8 @@ pub const CAPI = struct {
+@@ -1147,9 +1147,15 @@ pub const Surface = struct {
+         // mouse-hide-while-typing is enabled (commonly seen with TUI apps
+         // like Zellij that frequently update the title). To prevent incorrect
+         // behavior, we only continue with callback logic if the cursor has
+-        // actually moved.
++        // actually moved, unless modifiers changed: an embedded GTK host may only
++        // deliver that change with the pointer event after a page returns focus.
++        const mods_changed = !self.core_surface.mouse.mods.equal(mods.binding());
+         if (@abs(self.cursor_pos.x - pos.x) < 1 and
+-            @abs(self.cursor_pos.y - pos.y) < 1) return;
++            @abs(self.cursor_pos.y - pos.y) < 1 and !mods_changed) return;
++
++        // Core caches link hits by cell. Modifier updates arriving through pointer
++        // input need a fresh hit test even if no key callback reached this surface.
++        if (mods_changed) self.core_surface.mouse.link_point = null;
+ 
+         self.cursor_pos = pos;
+ 
+@@ -1913,6 +1919,8 @@ pub const CAPI = struct {
          surface: *Surface,
          source: apprt.surface.NewSurfaceContext,
      ) Surface.Options {
@@ -10,17 +28,17 @@ index 7310159..b3fcc80 100644
 +        defer demand.deinit();
          return surface.newSurfaceOptions(source);
      }
-
-@@ -1748,6 +1750,8 @@ pub const CAPI = struct {
-
+ 
+@@ -2078,6 +2086,8 @@ pub const CAPI = struct {
+ 
      /// Update the focused state of a surface.
      export fn ghostty_surface_set_focus(surface: *Surface, focused: bool) void {
 +        const demand = surface.core_surface.renderer_state.demandGuard(global.io());
 +        defer demand.deinit();
          surface.focusCallback(focused);
      }
-
-@@ -1782,6 +1786,8 @@ pub const CAPI = struct {
+ 
+@@ -2112,6 +2122,8 @@ pub const CAPI = struct {
          surface: *Surface,
          event: KeyEvent,
      ) bool {
@@ -29,7 +47,7 @@ index 7310159..b3fcc80 100644
          return surface.app.keyEvent(
              .{ .surface = surface },
              event.keyEvent(),
-@@ -1820,6 +1826,8 @@ pub const CAPI = struct {
+@@ -2150,6 +2162,8 @@ pub const CAPI = struct {
          ptr: [*]const u8,
          len: usize,
      ) void {
@@ -37,8 +55,8 @@ index 7310159..b3fcc80 100644
 +        defer demand.deinit();
          surface.textCallback(ptr[0..len]);
      }
-
-@@ -1830,6 +1838,8 @@ pub const CAPI = struct {
+ 
+@@ -2173,6 +2187,8 @@ pub const CAPI = struct {
          ptr: [*]const u8,
          len: usize,
      ) void {
@@ -46,8 +64,8 @@ index 7310159..b3fcc80 100644
 +        defer demand.deinit();
          surface.preeditCallback(if (len == 0) null else ptr[0..len]);
      }
-
-@@ -1846,6 +1856,8 @@ pub const CAPI = struct {
+ 
+@@ -2189,6 +2205,8 @@ pub const CAPI = struct {
          button: input.MouseButton,
          mods: c_int,
      ) bool {
@@ -56,7 +74,7 @@ index 7310159..b3fcc80 100644
          return surface.mouseButtonCallback(
              action,
              button,
-@@ -1863,6 +1875,8 @@ pub const CAPI = struct {
+@@ -2206,6 +2224,8 @@ pub const CAPI = struct {
          y: f64,
          mods: c_int,
      ) void {
@@ -65,7 +83,7 @@ index 7310159..b3fcc80 100644
          surface.cursorPosCallback(
              x,
              y,
-@@ -1879,6 +1893,8 @@ pub const CAPI = struct {
+@@ -2222,6 +2242,8 @@ pub const CAPI = struct {
          y: f64,
          scroll_mods: c_int,
      ) void {
@@ -75,7 +93,7 @@ index 7310159..b3fcc80 100644
              x,
              y,
 diff --git i/src/renderer/State.zig w/src/renderer/State.zig
-index 43b5c50..6b47a89 100644
+index 118422147..086de7e1a 100644
 --- i/src/renderer/State.zig
 +++ w/src/renderer/State.zig
 @@ -75,6 +75,30 @@ pub fn lockDemand(self: *State, io: std.Io) void {
@@ -107,5 +125,5 @@ index 43b5c50..6b47a89 100644
 +
 +fn finishDemand(self: *State, io: std.Io) void {
      _ = self.handoff_gen.fetchAdd(1, .monotonic);
-     io.futexWake(@TypeOf(self.handoff_gen), &self.handoff_gen, 1);
+     io.futexWake(u32, &self.handoff_gen.raw, 1);
  }

@@ -37,13 +37,15 @@ struct HudHelperTests {
     // a helper process painting into a temp file, so the frames can be read at any point without racing
     // a pipe's EOF.
     private final class Run {
+        static let ignoredTermMessage = "hud.sh ignored SIGTERM"
         let bodyFile: URL
         private let dir: URL
         private let outFile: URL
         private let proc = Process()
 
         init(_ body: String, cols: Int, rows: Int, spinner: HudSpinner? = nil, textColor: String? = nil,
-             blockWidth: Int = 0, ownerPid: Int32 = ProcessInfo.processInfo.processIdentifier) throws {
+             blockWidth: Int = 0, ownerPid: Int32 = ProcessInfo.processInfo.processIdentifier,
+             ignoresTerm: Bool = false) throws {
             let fm = FileManager.default
             dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("agterm-hud-\(UUID().uuidString)")
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -55,7 +57,10 @@ struct HudHelperTests {
             fm.createFile(atPath: outFile.path, contents: nil)
 
             proc.executableURL = URL(fileURLWithPath: "/bin/sh")
-            proc.arguments = [HudHelperTests.helper]
+            // a signal ignored when the shell starts cannot be trapped, so the helper's own TERM trap is inert
+            proc.arguments = ignoresTerm
+                ? ["-c", "trap '' TERM; exec /bin/sh \"$0\"", HudHelperTests.helper]
+                : [HudHelperTests.helper]
             // no LANG/LC_*, which is what a Dock-launched app inherits from launchd: the script's own
             // LC_CTYPE is the only thing making `${#line}` count characters.
             proc.environment = [HudLayout.fileEnvKey: bodyFile.path]
@@ -150,6 +155,13 @@ struct HudHelperTests {
         #expect(run.paints(frame))
     }
 
+    @Test func aGridAsTallAsTheTextPaintsFromTheFirstRow() throws {
+        let run = try Run("abc\ndef\n", cols: 41, rows: 2)
+        defer { run.stop() }
+        let e = Self.esc
+        #expect(run.paints("\(e)[H\(e)[J\(e)[19Cabc"))
+    }
+
     @Test func keepsAnOversizedLineAtTheLeftEdgeRatherThanOffScreen() throws {
         let run = try Run("a message wider than its box\n", cols: 10, rows: 3)
         defer { run.stop() }
@@ -231,6 +243,13 @@ struct HudHelperTests {
         #expect(!run.painted.contains("\(Self.esc)[2m"))
     }
 
+    @Test func aMarkdownHyperlinkReachesTheTerminalWithItsTerminatorIntact() throws {
+        let link = "\(Self.esc)]8;;http://x\(Self.esc)\\go\(Self.esc)]8;;\(Self.esc)\\"
+        let run = try Run(link + "\n", cols: 40, rows: 7, blockWidth: 2)
+        defer { run.stop() }
+        #expect(run.paints("\(Self.esc)[19C" + link))
+    }
+
     @Test func aMalformedBlockWidthPaintsInPlainMode() throws {
         let run = try Run("hi\n", cols: 40, rows: 7)
         defer { run.stop() }
@@ -282,6 +301,15 @@ struct HudHelperTests {
         let run = try Run("busy\n", cols: 40, rows: 7, spinner: style)
         defer { run.stop() }
         #expect(run.paints(style.frames.map { "\($0) busy" }))
+    }
+
+    // stop() never sends SIGTERM (a Linux test worker blocks it, and Process passes the mask on), so a
+    // helper that ignores TERM is still ended by removing its body file.
+    @Test(.timeLimit(.minutes(1))) func stopEndsAHelperThatIgnoresTerm() throws {
+        let run = try Run("busy\n", cols: 40, rows: 7, ignoresTerm: true)
+        #expect(run.paints("busy"))
+        run.stop()
+        #expect(!run.running)
     }
 
     @Test func switchingStyleRepaintsWithoutRespawning() throws {

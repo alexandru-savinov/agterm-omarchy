@@ -22,9 +22,11 @@ expected_stamp() {
   rev="$(sed -n 's/^GHOSTTY_REV="\([0-9a-f]\{40\}\)"$/\1/p' "$env_file")"
   [[ "$rev" =~ ^[0-9a-f]{40}$ ]] || { echo "no 40-hex GHOSTTY_REV in $env_file" >&2; return 1; }
   shopt -s nullglob
-  patches=("$ROOT/linux/patches"/*.patch)
+  # The shared upstream teardown patches (scripts/ghostty-patches, also applied by the macOS build) and the
+  # Linux renderer adapters (linux/patches) both change the compiled library.
+  patches=("$ROOT/scripts/ghostty-patches"/*.patch "$ROOT/linux/patches"/*.patch)
   shopt -u nullglob
-  (( ${#patches[@]} )) || { echo "no Ghostty patches found in $ROOT/linux/patches" >&2; return 1; }
+  (( ${#patches[@]} )) || { echo "no Ghostty patches found in $ROOT/scripts/ghostty-patches or $ROOT/linux/patches" >&2; return 1; }
   printf 'ghostty-rev %s\n' "$rev"
   for patch in "${patches[@]}"; do
     printf 'patch %s %s\n' "$(basename "$patch")" "$(sha256sum < "$patch" | cut -d' ' -f1)"

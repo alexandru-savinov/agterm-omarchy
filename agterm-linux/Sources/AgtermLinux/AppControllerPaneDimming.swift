@@ -40,7 +40,7 @@ extension AppController {
         let windowOpacity = renderedWindowOpacity(windowOpacity)
         let muteOpacity = Self.scaledMuteOpacity(rawMuteOpacity, renderedWindowOpacity: windowOpacity)
         let dimmed = 1.0 - muteOpacity
-        let floatingProgram = s.programOverlayActive && s.overlaySizePercent != nil
+        let floatingProgram = s.programOverlayVisible && s.overlaySizePercent != nil
         let backdropActive = s.id == store.selectedSessionID && (quickFramePresented || floatingProgram)
         let opacities = Self.paneSurfaceOpacities(
             isSplit: s.isSplit, splitFocused: s.splitFocused,
@@ -92,7 +92,7 @@ extension AppController {
         }
         let floatingCover = presented.overlaySizePercent != nil && Self.floatingOverlayVisible(
             sessionID: presented.id, activeID: presented.id,
-            overlayActive: presented.coverOverlayActive, zoomTarget: terminalZoom.target)
+            overlayActive: presented.coverOverlayVisible, zoomTarget: terminalZoom.target)
         gtk_widget_set_opacity(W(stack), quickFramePresented || floatingCover ? dimmed : 1.0)
     }
 

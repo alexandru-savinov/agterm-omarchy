@@ -55,7 +55,7 @@ struct SessionAskInput {
     func ownsInput(in window: NSWindow?, pane: OverlayPane? = nil) -> Bool {
         guard wantsFocus, let window, window.isKeyWindow,
               WindowRegistry.shared.windowID(for: window) == windowID,
-              !(window.firstResponder is NSText) else { return false }
+              !editsElsewhere(window.firstResponder) else { return false }
         return pane == nil || session.askTargetPane == nil || pane == session.askTargetPane
     }
 
@@ -63,8 +63,14 @@ struct SessionAskInput {
         guard visible else { return false }
         if actions.quickTerminal.holdsKey { return true }
         if actions.library.activeWindowID == windowID,
-           actions.palette?.mode != nil || actions.renamePending || window?.firstResponder is NSText { return true }
+           actions.palette?.mode != nil || actions.renamePending || editsElsewhere(window?.firstResponder) { return true }
         return ownsInput(in: window, pane: pane)
+    }
+
+    /// Whether a text editor other than this dialog's own holds the keyboard.
+    private func editsElsewhere(_ responder: NSResponder?) -> Bool {
+        guard responder is NSText else { return false }
+        return AskKeyCatcher.KeyCatcherView.sessionCatchers.object(forKey: session.id as NSUUID)?.holds(responder) != true
     }
 
     func selectPane() {
@@ -92,12 +98,10 @@ struct SessionAskOverlay: View {
             if let frame, input.visible {
                 AskDialogView(ask: ask, anchorFrame: CGRect(origin: .zero, size: frame.size), font: font,
                               foreground: foreground, background: background, focusAllowed: input.wantsFocus,
-                              sessionInput: input, onFocus: input.selectPane,
-                              onAnswer: { index in
-                                  let button = ask.buttons[index]
-                                  session.resolveAsk(id: ask.id, ControlAskResult(result: .answered, id: button.id,
-                                                                                label: button.label, index: index))
-                              }, onDismiss: { session.resolveAsk(id: ask.id, ControlAskResult(result: .escaped)) })
+                              shaded: session.askShadesFrame, sessionInput: input, draft: session.askDraft,
+                              updateDraft: { session.updateAskDraft(id: ask.id, $0) }, onFocus: input.selectPane,
+                              onAnswer: { session.answerAsk(id: ask.id, buttonAt: $0) },
+                              onDismiss: { session.resolveAsk(id: ask.id, ControlAskResult(result: .escaped)) })
                     .frame(width: frame.width, height: frame.height)
                     .clipped()
                     .contentShape(Rectangle())
@@ -170,16 +174,22 @@ struct AskDialogView: View {
     let foreground: Color
     let background: Color
     let focusAllowed: Bool
+    let shaded: Bool
     let sessionInput: SessionAskInput?
+    let draft: AskDraft?
+    let updateDraft: ((inout AskDraft) -> Void) -> Void
     let onFocus: () -> Void
     let onAnswer: (Int) -> Void
     let onDismiss: () -> Void
     @State private var navigation: AskNavigation
     @State private var focusRevision = 0
     @State private var buttonFrames: [CGRect] = []
+    @State private var editorBox = AskEditorBox()
+    @State private var openingRow: String?
 
     init(ask: PendingAsk, anchorFrame: CGRect, font: NSFont, foreground: Color, background: Color,
-         focusAllowed: Bool, sessionInput: SessionAskInput? = nil, onFocus: @escaping () -> Void = {},
+         focusAllowed: Bool, shaded: Bool = true, sessionInput: SessionAskInput? = nil, draft: AskDraft? = nil,
+         updateDraft: @escaping ((inout AskDraft) -> Void) -> Void = { _ in }, onFocus: @escaping () -> Void = {},
          onAnswer: @escaping (Int) -> Void, onDismiss: @escaping () -> Void) {
         self.ask = ask
         self.anchorFrame = anchorFrame
@@ -187,12 +197,19 @@ struct AskDialogView: View {
         self.foreground = foreground
         self.background = background
         self.focusAllowed = focusAllowed
+        self.shaded = shaded
         self.sessionInput = sessionInput
+        self.draft = draft
+        self.updateDraft = updateDraft
         self.onFocus = onFocus
         self.onAnswer = onAnswer
         self.onDismiss = onDismiss
         _navigation = State(initialValue: AskNavigation(buttons: ask.buttons, defaultID: ask.defaultID, destructiveID: ask.destructiveID))
     }
+
+    private var currentDraft: AskDraft { draft ?? AskDraft(form: ask.form) }
+    private var lineHeight: CGFloat { ceil(NSLayoutManager().defaultLineHeight(for: editorFont)) }
+    private var editorFont: NSFont { ask.style == .gui ? .systemFont(ofSize: NSFont.systemFontSize) : font }
 
     private var terminalCell: CGFloat { max(8, font.pointSize * 0.6) }
     private var cell: CGFloat { ask.style == .gui ? 8 : terminalCell }
@@ -211,11 +228,11 @@ struct AskDialogView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.2)
+            Color.black.opacity(shaded ? 0.2 : 0)
                 .contentShape(Rectangle())
             ScrollViewReader { reader in
                 ViewThatFits(in: .horizontal) {
-                    if ask.width == nil {
+                    if ask.width == nil, !isInput {
                         panel.fixedSize(horizontal: true, vertical: false)
                     }
                     panel.frame(width: panelWidth)
@@ -226,8 +243,10 @@ struct AskDialogView: View {
                     guard let index else { return }
                     reader.scrollTo(ask.buttons[index].id)
                 }
+                .onChange(of: currentDraft.cursor) { _, cursor in scrollToChoice(cursor, reader: reader) }
             }
-            AskKeyCatcher(focusAllowed: focusAllowed, focusRevision: focusRevision, sessionInput: sessionInput, onKey: handle)
+            AskKeyCatcher(focusAllowed: focusAllowed, focusRevision: focusRevision, sessionInput: sessionInput,
+                          editorBox: editorBox, editorActive: editorActive, onKey: handle)
                 .frame(width: sessionInput == nil ? 0 : anchorFrame.width, height: sessionInput == nil ? 0 : anchorFrame.height)
                 .allowsHitTesting(false)
         }
@@ -246,20 +265,120 @@ struct AskDialogView: View {
         })
     }
 
+    private var isInput: Bool {
+        if case .input = ask.form { return true }
+        return false
+    }
+
+    /// Whole content when it fits; then, for a form, pinned title and buttons around a form region that takes
+    /// what is left; last, the whole panel scrolling, for a pane too short even for the pinned parts.
     private var panel: some View {
         ViewThatFits(in: .vertical) {
-            content.fixedSize(horizontal: false, vertical: true)
+            content(fill: false).fixedSize(horizontal: false, vertical: true)
                 .modifier(AskPanelStyle(style: ask.style, foreground: foreground, background: background))
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("ask-dialog")
-            ScrollView { content }
+            if ask.form != nil {
+                content(fill: true)
+                    .modifier(AskPanelStyle(style: ask.style, foreground: foreground, background: background))
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("ask-dialog")
+            }
+            ScrollView { content(fill: false) }
                 .modifier(AskPanelStyle(style: ask.style, foreground: foreground, background: background))
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("ask-dialog")
         }
     }
 
-    private var content: some View {
+    @ViewBuilder
+    private func formView(fill: Bool) -> some View {
+        switch ask.form {
+        case .input(let input):
+            editor(input)
+        case .choices(let list):
+            let otherField = list.other.map { placeholder in
+                AnyView(editor(AskInputForm(mode: .line, placeholder: placeholder), listRows: list.choices.count + 1))
+            }
+            let choices = AskChoiceList(form: list, draft: currentDraft, style: ask.style, font: font, foreground: foreground,
+                                        background: background, cell: cell, otherField: otherField) { index in
+                updateDraft { $0.toggle(at: index) }
+            }
+            if fill {
+                // initial scrollTo is too early in this layout; scrollPosition matches the ForEach ids, which
+                // AskChoiceList tags like the scrollTo ids. later moves stay on scrollTo for minimal scrolling.
+                ScrollViewReader { reader in
+                    ScrollView { choices }
+                        .scrollPosition(id: $openingRow)
+                        .frame(minHeight: lineHeight * 3, idealHeight: lineHeight * 3, maxHeight: .infinity)
+                        .onAppear { openingRow = rowID(atCursor: currentDraft.cursor) }
+                        .onChange(of: currentDraft.cursor) { _, cursor in scrollToChoice(cursor, reader: reader) }
+                }
+            } else {
+                choices
+            }
+        case nil:
+            EmptyView()
+        }
+    }
+
+    /// The form's text editor. `listRows` makes it a choice list's free-form row: Up/Down go to the list and
+    /// focusing it moves the list cursor onto the row, the last of `listRows`.
+    private func editor(_ input: AskInputForm, listRows: Int? = nil) -> some View {
+        let text = currentDraft.text
+        let padding = ask.style == .gui ? 0 : cell * 0.5
+        let guiLine = ask.style == .gui && input.mode == .line
+        let lineFieldHeight = input.mode == .line ? lineHeight + (ask.style == .gui ? 12 : 4) : nil
+        let placeholderColor = ask.style == .gui ? Color.secondary : foreground.opacity(0.45)
+        return AskTextEditor(mode: input.mode, text: text, placeholder: input.mode == .line ? input.placeholder : nil,
+                             placeholderColor: NSColor(placeholderColor), style: ask.style, font: editorFont,
+                             foreground: ask.style == .gui ? .textColor : NSColor(foreground), box: editorBox,
+                             onText: { new in updateDraft { $0.text = new } }, onKey: handle,
+                             routesVertical: listRows != nil,
+                             onFocus: listRows.map { rows in { updateDraft { $0.moveCursor(by: rows) } } })
+            .frame(height: lineFieldHeight)
+            .background {
+                if guiLine { RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)) }
+            }
+            .overlay {
+                if guiLine { RoundedRectangle(cornerRadius: 6).strokeBorder(Color.primary.opacity(0.1)).allowsHitTesting(false) }
+            }
+            .overlay(alignment: .topLeading) {
+                if input.mode == .multiline, text.isEmpty, let placeholder = input.placeholder, !placeholder.isEmpty {
+                    Text(verbatim: placeholder)
+                        .font(Font(editorFont))
+                        .foregroundStyle(placeholderColor)
+                        .padding(.leading, ask.style == .gui ? 7 : 5)
+                        .padding(.top, ask.style == .gui ? 4 : 2)
+                        .allowsHitTesting(false)
+                }
+            }
+            .padding(padding)
+            .overlay {
+                if ask.style == .terminal { Rectangle().strokeBorder(foreground.opacity(0.2)) }
+            }
+    }
+
+    private func scrollToChoice(_ cursor: Int, reader: ScrollViewProxy) {
+        guard let id = rowID(atCursor: cursor) else { return }
+        reader.scrollTo(id)
+    }
+
+    /// The tagged identity of the list row at `cursor`, the free-form row included.
+    private func rowID(atCursor cursor: Int) -> String? {
+        guard case .choices(let list) = ask.form else { return nil }
+        if list.other != nil, cursor == list.choices.count { return AskChoiceList.otherRowID }
+        return list.choices.indices.contains(cursor) ? AskChoiceList.rowID(list.choices[cursor].id) : nil
+    }
+
+    /// Whether the form's editor, rather than the key catcher, should hold the keyboard: an input field always,
+    /// a choice list's free-form row only while the cursor is on it.
+    private var editorActive: Bool {
+        guard case .choices = ask.form else { return true }
+        return currentDraft.cursorOnOther
+    }
+
+    private func content(fill: Bool) -> some View {
         VStack(alignment: .leading, spacing: cell * 1.5) {
             Text(verbatim: ask.title)
                 .font(ask.style == .gui ? .headline : Font(font))
@@ -272,6 +391,7 @@ struct AskDialogView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("ask-message")
             }
+            formView(fill: fill)
             ViewThatFits(in: .horizontal) {
                 AskButtonLayout(axis: .horizontal, spacing: cell) {
                     ForEach(Array(ask.buttons.enumerated()), id: \.element.id) { index, choice in
@@ -355,9 +475,17 @@ struct AskDialogView: View {
     }
 
     private func handle(_ key: AskKey) {
+        let list: Bool
+        if case .choices = ask.form { list = true } else { list = false }
         switch key {
         case .forward: navigation.moveForward()
         case .backward: navigation.moveBackward()
+        case .down:
+            if list { updateDraft { $0.moveCursor(by: 1) } } else { navigation.moveForward() }
+        case .up:
+            if list { updateDraft { $0.moveCursor(by: -1) } } else { navigation.moveBackward() }
+        case .toggle:
+            if list { updateDraft { $0.toggleCursor() } }
         case .activate:
             if let index = navigation.activate() { onAnswer(index) }
         case .cancel: onDismiss()
@@ -429,7 +557,7 @@ private struct AskPanelStyle: ViewModifier {
 }
 
 enum AskKey: Equatable {
-    case forward, backward, activate, cancel
+    case forward, backward, up, down, toggle, activate, cancel
     case hotkey(String)
 }
 
@@ -437,12 +565,16 @@ struct AskKeyCatcher: NSViewRepresentable {
     let focusAllowed: Bool
     let focusRevision: Int
     var sessionInput: SessionAskInput?
+    var editorBox: AskEditorBox?
+    var editorActive = true
     let onKey: (AskKey) -> Void
 
     func makeNSView(context _: Context) -> KeyCatcherView {
         let view = KeyCatcherView()
         view.focusAllowed = focusAllowed
         view.sessionInput = sessionInput
+        view.editorBox = editorBox
+        view.editorActive = editorActive
         view.onKey = onKey
         return view
     }
@@ -450,7 +582,9 @@ struct AskKeyCatcher: NSViewRepresentable {
     func updateNSView(_ nsView: KeyCatcherView, context _: Context) {
         nsView.focusAllowed = focusAllowed
         nsView.sessionInput = sessionInput
+        nsView.editorBox = editorBox
         nsView.onKey = onKey
+        nsView.editorActive = editorActive
         nsView.updateFocus(revision: focusRevision)
     }
 
@@ -462,14 +596,16 @@ struct AskKeyCatcher: NSViewRepresentable {
         guard event.modifierFlags.isDisjoint(with: [.command, .control, .option]) else { return nil }
         switch event.keyCode {
         case 48: return event.modifierFlags.contains(.shift) ? .backward : .forward
-        case 124, 125: return .forward
-        case 123, 126: return .backward
+        case 124: return .forward
+        case 123: return .backward
+        case 125: return .down
+        case 126: return .up
+        case 49: return .toggle
         case 36, 76: return .activate
         case 53: return .cancel
         default:
-            guard let text = event.charactersIgnoringModifiers, text.utf8.count == 1,
-                  let ascii = text.utf8.first, (65...90).contains(ascii) || (97...122).contains(ascii) else { return nil }
-            return .hotkey(text.lowercased())
+            return AskNavigation.resolvedHotkey(forKeyCode: event.keyCode, produced: event.charactersIgnoringModifiers,
+                                                layoutIsASCIICapable: KeyboardLayout.isASCIICapable).map(AskKey.hotkey)
         }
     }
 
@@ -477,11 +613,34 @@ struct AskKeyCatcher: NSViewRepresentable {
         static let sessionCatchers = NSMapTable<NSUUID, KeyCatcherView>(keyOptions: .strongMemory, valueOptions: .weakMemory)
         var focusAllowed = false
         var sessionInput: SessionAskInput?
+        /// The dialog's text editor, which takes first responder in the catcher's place.
+        var editorBox: AskEditorBox? {
+            didSet {
+                guard editorBox !== oldValue else { return }
+                // a replaced editor leaves the window as its own responder; anything else holding focus keeps it
+                editorBox?.onAttach = { [weak self] in
+                    guard let self, let window, editorBox?.view?.window === window else { return }
+                    let responder = window.firstResponder
+                    guard responder === self || responder === window || responder == nil else { return }
+                    grabFocus()
+                }
+            }
+        }
+        /// Whether the editor should hold the keyboard; a choice list's free-form row wants it only while the
+        /// cursor is on the row, so a crossing hands focus between the editor and the catcher.
+        var editorActive = true {
+            didSet { if editorActive != oldValue { grabFocus() } }
+        }
         var onKey: ((AskKey) -> Void)?
         private var previouslyAllowed = false
         private var lastRevision = 0
 
         var canFocus: Bool { sessionInput.map { $0.ownsInput(in: window) } ?? focusAllowed }
+
+        /// Whether `responder` is this catcher or the dialog's own editor.
+        func holds(_ responder: NSResponder?) -> Bool {
+            responder === self || editorBox?.owns(responder) == true
+        }
 
         override var acceptsFirstResponder: Bool { true }
         override func hitTest(_: NSPoint) -> NSView? { nil }
@@ -524,7 +683,7 @@ struct AskKeyCatcher: NSViewRepresentable {
         }
 
         private func releaseFocus() {
-            guard let window, window.firstResponder === self else { return }
+            guard let window, holds(window.firstResponder) else { return }
             window.makeFirstResponder(nil)
             guard let input = sessionInput, input.session.askPending == nil,
                   input.store.selectedSessionID == input.session.id,
@@ -537,8 +696,12 @@ struct AskKeyCatcher: NSViewRepresentable {
         }
 
         func grabFocus() {
-            guard canFocus, let window, window.firstResponder !== self else { return }
-            window.makeFirstResponder(self)
+            guard canFocus, let window else { return }
+            let target = editorActive ? (editorBox?.focusTarget ?? self) : self
+            let responder = window.firstResponder
+            let onTarget = target === self ? responder === self : editorBox?.owns(responder) == true
+            guard !onTarget else { return }
+            window.makeFirstResponder(target)
         }
 
         override func keyDown(with event: NSEvent) {

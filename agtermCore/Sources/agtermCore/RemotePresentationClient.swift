@@ -23,8 +23,11 @@ public struct RemotePresentationEffects {
     public var snapshotStatus: @MainActor (PresentationStatus?) -> Void
     public var hud: @MainActor (PresentationHud?) -> Void
     public var notify: @MainActor (PresentationNotify) -> Void
+    public var sound: @MainActor (PresentationSound) -> Void
     public var connection: @MainActor (RemotePresentationConnection) -> Void
     public var context: @MainActor (String?) -> Void
+    /// info carries the origin's sidebar info line, nil for none; a snapshot sends it too.
+    public var info: @MainActor (PresentationInfo?) -> Void
     public var layout: @MainActor (PresentationLayout) -> Void
     public var mode: @MainActor (PresentationMode) -> Void
     /// Shows an ask the origin handed over; false when it cannot, which the client reports as a refusal.
@@ -34,6 +37,12 @@ public struct RemotePresentationEffects {
     public var overlayRequest: @MainActor (PresentationOverlay) -> Bool
     public var overlayClose: @MainActor (PresentationOverlayChange) -> Void
     public var overlayResize: @MainActor (PresentationOverlayChange) -> Void
+    /// pageRequest shows a page the origin handed over; nil when shown, otherwise the reason sent as a refusal.
+    public var pageRequest: @MainActor (PresentationPage) -> String?
+    public var pageClose: @MainActor (PresentationPageChange) -> Void
+    public var pageCommand: @MainActor (PresentationPageCommand) -> Void
+    /// respawns reports the origin's respawn counts; true for a snapshot, which a first attach takes as its baseline.
+    public var respawns: @MainActor (PresentationRespawns, Bool) -> Void
     public var warn: @MainActor (String) -> Void
 
     public init(status: @escaping @MainActor (PresentationStatus?) -> Void,
@@ -42,20 +51,28 @@ public struct RemotePresentationEffects {
                 notify: @escaping @MainActor (PresentationNotify) -> Void,
                 connection: @escaping @MainActor (RemotePresentationConnection) -> Void,
                 context: @escaping @MainActor (String?) -> Void = { _ in },
+                info: @escaping @MainActor (PresentationInfo?) -> Void = { _ in },
                 mode: @escaping @MainActor (PresentationMode) -> Void = { _ in },
                 askRequest: @escaping @MainActor (PresentationAsk) -> Bool = { _ in false },
                 askDismiss: @escaping @MainActor (PresentationAskRef) -> Void = { _ in },
                 overlayRequest: @escaping @MainActor (PresentationOverlay) -> Bool = { _ in false },
                 overlayClose: @escaping @MainActor (PresentationOverlayChange) -> Void = { _ in },
                 overlayResize: @escaping @MainActor (PresentationOverlayChange) -> Void = { _ in },
+                sound: @escaping @MainActor (PresentationSound) -> Void = { _ in },
                 layout: @escaping @MainActor (PresentationLayout) -> Void = { _ in },
+                pageRequest: @escaping @MainActor (PresentationPage) -> String? = { _ in RemotePresentationClient.pagesUnsupported },
+                pageClose: @escaping @MainActor (PresentationPageChange) -> Void = { _ in },
+                pageCommand: @escaping @MainActor (PresentationPageCommand) -> Void = { _ in },
+                respawns: @escaping @MainActor (PresentationRespawns, Bool) -> Void = { _, _ in },
                 warn: @escaping @MainActor (String) -> Void) {
         self.status = status
         self.snapshotStatus = snapshotStatus
         self.hud = hud
         self.notify = notify
+        self.sound = sound
         self.connection = connection
         self.context = context
+        self.info = info
         self.layout = layout
         self.mode = mode
         self.askRequest = askRequest
@@ -63,6 +80,10 @@ public struct RemotePresentationEffects {
         self.overlayRequest = overlayRequest
         self.overlayClose = overlayClose
         self.overlayResize = overlayResize
+        self.pageRequest = pageRequest
+        self.pageClose = pageClose
+        self.pageCommand = pageCommand
+        self.respawns = respawns
         self.warn = warn
     }
 }
@@ -76,6 +97,8 @@ public struct RemotePresentationEffects {
 public final class RemotePresentationClient {
     /// The origin pings every 10 seconds, so three missed is a dead link and not a quiet one.
     static let staleAfter: TimeInterval = 30
+    /// pagesUnsupported is the refusal a host that shows no handed-over pages answers with.
+    public static let pagesUnsupported = "pages are not shown on this Mac"
 
     private let argv: [String]
     private let presentationVersion: Int?
@@ -193,11 +216,15 @@ public final class RemotePresentationClient {
             effects.snapshotStatus(snapshot.status)
             effects.hud(snapshot.hud)
             effects.context(snapshot.context)
+            effects.info(snapshot.info)
+            if let respawns = snapshot.respawns { effects.respawns(respawns, true) }
         case .status(let status): effects.status(status)
         case .context(let context): effects.context(context)
+        case .info(let info): effects.info(info)
         case .layout(let layout): applyLayout(layout)
         case .hud(let hud): effects.hud(hud)
         case .notify(let notify): effects.notify(notify)
+        case .sound(let sound): effects.sound(sound)
         case .ping: send(.ack, on: link)
         // an origin that predates the role answers mirror, and nothing is asked of it
         case .hello(let answer) where answer.mode == .presenter: send(.presenterAcquire, on: link)
@@ -210,7 +237,16 @@ public final class RemotePresentationClient {
             if !effects.overlayRequest(overlay) { send(.overlayRejected(PresentationOverlayChange(job: overlay.job)), on: link) }
         case .overlayClose(let change): effects.overlayClose(change)
         case .overlayResize(let change): effects.overlayResize(change)
-        case .hello, .ack, .presenterAcquire, .askResolve, .askRejected, .overlayRejected, .overlayClosed, .unknown: break
+        case .pageRequest(let page):
+            if let reason = effects.pageRequest(page) {
+                send(.pageRejected(PresentationPageChange(page: page.page, reason: reason)), on: link)
+            }
+        case .pageClose(let change): effects.pageClose(change)
+        case .pageCommand(let command): effects.pageCommand(command)
+        case .respawn(let respawns): effects.respawns(respawns, false)
+        case .hello, .ack, .presenterAcquire, .askResolve, .askRejected, .overlayRejected, .overlayClosed, .unknown,
+             .pageRejected, .pageClosed, .pageState:
+            break
         }
     }
 

@@ -26,7 +26,10 @@ repo="${AGTERM_TEST_EXPECT_REPO:-melonamin/agterm-linux}"
 [[ "$4" == "--repo" && "$5" == "$repo" ]]
 [[ "$6" == "--signer-workflow" && "$7" == "$repo/.github/workflows/release-linux.yml" ]]
 [[ "$8" == "--source-ref" && "$9" == refs/tags/linux-v* ]]
-[[ "$(basename "$3")" == *"-${9#refs/tags/linux-}"[-.]* ]]
+# The tag's version must appear in the artifact name: "-vVERSION" for the tar/DEB/RPM/SBOM/manifest,
+# "-VERSION-" for the Arch package (agterm-linux-bin-VERSION-1-ARCH.pkg.tar.zst).
+tag_version="${9#refs/tags/linux-v}"
+[[ "$(basename "$3")" == *"-v${tag_version}"[-.]* || "$(basename "$3")" == *"-bin-${tag_version}-"* ]]
 [[ "$(basename "$3")" != "${AGTERM_TEST_FAIL_ASSET:-}" ]]
 EOF
 chmod 0755 "$WORK/gh"
@@ -151,3 +154,38 @@ printf '{}\n' > "$FIXTURE/agterm-linux-v0.42.0-rc.1.spdx.json"
 AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" "$VERIFY" linux-v0.42.0-rc.1 >/dev/null
 
 echo "→ public release verifier accepts the authenticated historical and current artifact sets"
+for version in 0.40.0 0.40.0+linux.1; do
+  rm -rf "$FIXTURE"
+  mkdir -p "$FIXTURE"
+  payloads=(
+    "agterm-linux-v${version}-x86_64.tar.gz"
+    "agterm-linux-v${version}-x86_64.deb"
+    "agterm-linux-v${version}-x86_64.rpm"
+    "agterm-linux-bin-${version}-1-x86_64.pkg.tar.zst"
+  )
+  manifest="agterm-linux-v${version}-SHA256SUMS"
+  for artifact in "${payloads[@]}"; do
+    printf 'fixture for %s\n' "$artifact" > "$FIXTURE/$artifact"
+  done
+  (cd "$FIXTURE" && sha256sum "${payloads[@]}" > "$manifest")
+  for option in '' --require-arch; do
+    args=("linux-v$version")
+    [[ -z "$option" ]] || args+=("$option")
+    AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" "$VERIFY" "${args[@]}" >/dev/null
+  done
+  must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+    AGTERM_TEST_FAIL_ASSET="${payloads[3]}" "$VERIFY" "linux-v$version" --require-arch
+  must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+    AGTERM_TEST_FAIL_ASSET="$manifest" "$VERIFY" "linux-v$version" --require-arch
+  printf 'tampered\n' >> "$FIXTURE/${payloads[3]}"
+  must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+    "$VERIFY" "linux-v$version" --require-arch
+  rm "$FIXTURE/${payloads[3]}"
+  must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+    "$VERIFY" "linux-v$version"
+  (cd "$FIXTURE" && sha256sum "${payloads[@]:0:3}" > "$manifest")
+  must_fail env AGTERM_GH="$WORK/gh" AGTERM_RELEASE_DOWNLOAD_DIR="$FIXTURE" \
+    "$VERIFY" "linux-v$version" --require-arch
+done
+
+echo "→ public release verifier accepts authenticated historical, Arch, and revision artifact sets"

@@ -38,6 +38,9 @@ struct AgtermApp {
             setenv(DebugStateDirectory.environmentKey, state, 1)
         }
         #endif
+        // Both resource environment writes and libghostty's locale setup must finish before GTK
+        // starts worker threads that read the process environment.
+        GhosttyApp.shared.initializeRuntime()
         // AGTERM_APP_ID overrides the GApplication id so a dev/test instance registers separately on
         // the session bus and runs ALONGSIDE a deployed one (the Linux analogue of the macOS .debug
         // bundle id) instead of forwarding its launch to the running instance.
@@ -168,6 +171,8 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
 /// reveal action, the WindowLibrary, the starter config files, app CSS/icons, the control server, the
 /// quit-signal handlers, the color-scheme tracker, saved windows, then appearance reconciliation.
 /// Shared by `activate`+`open`.
+@MainActor var gStateDirectoryLock: StateDirectoryLock?
+
 @MainActor func activateApplication(_ app: OpaquePointer?) {
     // A second launch (or any re-activate) of the single-instance GApplication fires activate again:
     // raise the frontmost window instead of no-op'ing, so launching agterm while it runs focuses it.
@@ -182,6 +187,15 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
     installGLibMainTimer()
     LinuxHtmlOverlayRegistry.shared.install()
     let stateDirectory = linuxStateDirectory()
+    switch StateDirectoryLock.acquire(directory: stateDirectory) {
+    case .owned(let lock): gStateDirectoryLock = lock
+    case .heldByAnother:
+        FileHandle.standardError.write(Data("agterm: this state directory is already in use\n".utf8))
+        exit(1)
+    case .unavailable(let reason):
+        FileHandle.standardError.write(Data(("agterm: " + reason + "\n").utf8))
+        exit(1)
+    }
     let settingsStore = linuxSettingsStore()
     let currentSettings = settingsStore.load()
     let welcomeDue = FirstRunWelcome.isDue(
@@ -220,7 +234,8 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
             ).runningNames
         },
         launchPaneDrop: { identities in identities.forEach(gSpawnRegistry.pacer.discard) },
-        defaultSessionCwd: ConfigPaths.defaultNewSessionCwd()
+        defaultSessionCwd: ConfigPaths.defaultNewSessionCwd(),
+        flaggedLayout: currentSettings.effectiveFlaggedViewLayout
     )
     AskRegistry.shared.resolveOwner = { owner in
         switch owner {
@@ -232,12 +247,14 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
     gSpawnRegistry.pacer.arm(order: spawnPlan.order, burst: spawnPlan.burst)
     ensureStarterFiles()
     installAppCSS()
+    installLinuxTintCSS()
     installAppIcons()
     gControlServer.start()
     gHooks = LinuxHooks(library: gLibrary, configDirectory: ConfigPaths.configDirectory(
         setting: currentSettings.configDirectory,
         stateDir: ProcessInfo.processInfo.environment["AGTERM_STATE_DIR"],
         home: FileManager.default.homeDirectoryForCurrentUser))
+    gLibrary.emitAppLaunched(ready: gControlServer.boundSocketPath != nil)
     // Quit cleanly on SIGTERM/SIGINT (session logout, `kill`, Ctrl+C) so flushOnQuit captures the
     // foreground commands + snapshot — without this a signal kills the process and loses the capture
     // (the macOS path runs through applicationWillTerminate). g_application_quit emits "shutdown".
@@ -315,6 +332,7 @@ private let onShutdown: @MainActor @convention(c) (OpaquePointer?, gpointer?) ->
         flushOnQuit()
         gControlServer.shutdownPresentationStreams()
         gControlServer.shutdownOverlayJobs()
+        gControlServer.shutdownPageStreams()
         gControlServer.stop()
         // GApplication quit (including SIGTERM) bypasses close-request. Reuse the existing surface and
         // deferred-job teardown while widgets are still valid; isTerminating preserves the saved windows.
@@ -332,7 +350,10 @@ let appCSS = """
     \(SessionSwitcherPlacement.cardCSS)
     .agterm-switcher-dim { background-color: alpha(#000000, 0.2); }
     .agterm-switcher-row { padding: 6px 12px; border-radius: 6px; }
+    .agterm-ask-shaded { background-color: rgba(0, 0, 0, 0.2); }
+    .agterm-ask-panel { background-color: @dialog_bg_color; color: @dialog_fg_color; }
     .agterm-switcher-row.agterm-switcher-current { background-color: alpha(@popover_fg_color, 0.14); }  /* default theme; windowThemeCSS overrides */
+    .agterm-hud-frameless { border: none; border-radius: 0; box-shadow: none; }
     .agterm-gl-error, .agterm-surface-error { color: #ffffff; background-color: alpha(#1e2228, 0.96); padding: 24px; border-radius: 10px; border: 1px solid alpha(#e5a50a, 0.5); }
     .agterm-dashboard { background-color: @window_bg_color; }
     .agterm-modal-header { border-bottom: 1px solid alpha(@window_fg_color, 0.12); }
@@ -345,6 +366,7 @@ let appCSS = """
     \(LinuxSidebarPolicy.sidebarHoverCSS)   /* passive rows lose `.activatable`, so hover keys on bare `:hover` — contract + pins live on the constant; see agterm-linux/docs/sidebar.md */
     /* trailing content inset inside the rounded selection row; a row margin would indent the highlight itself */
     .agterm-session-row-content { padding-right: 6px; }
+    .agterm-companion-disclosure { min-width: 0; min-height: 0; padding: 0; }
     \(LinuxSidebarPolicy.sidebarRenameCSS)
     """
 
@@ -481,14 +503,14 @@ private let onRevealAction: @MainActor @convention(c) (OpaquePointer?, OpaquePoi
     guard let focus = LinuxNotificationRevealFocus.resolve(
         pane: pane, sessionExists: session != nil,
         hasSplit: session?.hasSplit ?? false,
-        coverActive: (session?.programOverlayActive ?? false) || (session?.scratchActive ?? false)
+        coverActive: (session?.programOverlayVisible ?? false) || (session?.scratchActive ?? false)
     ), let session else { return }
     let wantSplit = focus == .split
     session.splitFocused = wantSplit
     gtk_window_present(WIN(controller.windowPointer))
     controller.selectSession(id)
     if focus == .overlay,
-       let cover = session.programOverlayActive ? controller.overlaySurfaces[id] : controller.scratchSurfaces[id] {
+       let cover = session.programOverlayVisible ? controller.overlaySurfaces[id] : controller.scratchSurfaces[id] {
         cover.grabFocus(supersedingPopoverCapture: true)
     } else if session.hasSplit {
         controller.focusPane(wantSplit: wantSplit)

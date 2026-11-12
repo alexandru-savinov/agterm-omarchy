@@ -148,7 +148,7 @@ extension AppController {
     func writeHudBody(_ session: Session, pane: PaneMetrics) -> Bool {
         guard let path = session.hudFile, let spec = session.hudSpec,
               let width = session.overlaySizePercent, let height = session.hudHeightPercent else { return false }
-        let size = HudPanelSize(widthPercent: width, heightPercent: height)
+        let size = HudPanelSize(widthPercent: width, heightPercent: height, heightPoints: session.hudHeightPoints)
         let body = HudLayout.renderedBody(for: spec, grid: HudLayout.paintGrid(for: spec, size: size, pane: pane),
                                           ownerPid: ProcessInfo.processInfo.processIdentifier)
         return LinuxHudBodyStorage.write(Data(body.utf8), to: path)

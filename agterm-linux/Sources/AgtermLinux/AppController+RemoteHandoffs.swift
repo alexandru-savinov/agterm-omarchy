@@ -17,7 +17,8 @@ extension AppController {
                                destructiveID: ask.destructiveID, style: ask.style,
                                align: ask.align, width: ask.width,
                                anchor: AskAnchor(sessionID: id, pane: session.askTargetPane,
-                                                 paneIdentity: session.askPaneIdentity))
+                                                 paneIdentity: session.askPaneIdentity),
+                               form: ask.form, cancelID: ask.cancelID)
         guard pickController.openAsk(local) else {
             store.failHandback(forSession: id)
             return

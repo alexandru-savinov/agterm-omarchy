@@ -20,6 +20,13 @@ extension AppController {
                     "Right-click pastes", active: settings.rightClickPaste ?? true,
                     handler: unsafeBitCast(onSettingsRightClickPaste, to: GCallback.self))))
         adw_preferences_page_add(cast(page), cast(mouse))
+        let links = preferencesGroup("Links")
+        let linkModes = LinkOpenMode.allCases
+        adw_preferences_group_add(cast(links), W(preferencesCombo(
+            "Open terminal web links in", values: ["Default browser", "Full overlay", "95% overlay", "75% overlay", "50% overlay"],
+            selected: linkModes.firstIndex(of: settings.effectiveLinkOpenMode) ?? 0,
+            handler: unsafeBitCast(onSettingsLinkMode, to: GCallback.self))))
+        adw_preferences_page_add(cast(page), cast(links))
 
         let sessions = preferencesGroup("Sessions")
         adw_preferences_group_add(cast(sessions), W(preferencesCombo(
@@ -81,8 +88,8 @@ extension AppController {
         adw_preferences_group_add(
             cast(sessions),
             W(preferencesCombo(
-                "Flagged view layout", values: ["Flat list", "Workspace tree"],
-                selected: settings.effectiveFlaggedViewLayout == .tree ? 1 : 0,
+                "Flagged view layout", values: ["Flat list", "Flat list, names only", "Workspace tree"],
+                selected: FlaggedViewLayout.allCases.firstIndex(of: settings.effectiveFlaggedViewLayout) ?? 0,
                 handler: unsafeBitCast(onSettingsFlaggedLayout, to: GCallback.self))))
         adw_preferences_page_add(cast(page), cast(sessions))
 
@@ -149,7 +156,7 @@ private let onSettingsCloseUndo: @MainActor @convention(c) (OpaquePointer?, Opaq
 }
 private let onSettingsFlaggedLayout: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { row, _, _ in
     MainActor.assumeIsolated {
-        _ = controllerForWidget(row)?.setFlaggedViewLayout(adw_combo_row_get_selected(cast(row)) == 1 ? .tree : .flat)
+        _ = controllerForWidget(row)?.setFlaggedViewLayout([ControlFlaggedLayoutMode.flat, .plain, .tree][min(Int(adw_combo_row_get_selected(cast(row))), 2)])
     }
 }
 private let onSettingsSessionDirectory: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { row, _, _ in
@@ -199,4 +206,12 @@ private let onSettingsSessionPlacement: @MainActor @convention(c)
         var settings = settingsStore.load()
         settings.newSessionPlacement = adw_combo_row_get_selected(cast(row)) == 1 ? "afterCurrent" : nil
         try? settingsStore.save(settings)
+    }
+
+private let onSettingsLinkMode: @MainActor @convention(c)
+    (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { row, _, _ in
+        guard let controller = controllerForWidget(row) else { return }
+        let index = Int(adw_combo_row_get_selected(cast(row)))
+        guard LinkOpenMode.allCases.indices.contains(index) else { return }
+        _ = controller.linkOpenMode(LinkOpenMode.allCases[index])
     }

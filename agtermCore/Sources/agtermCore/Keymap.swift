@@ -175,6 +175,20 @@ public func parseKeymap(_ text: String) -> (keymap: Keymap, diagnostics: [Keymap
         line.alternatives.contains { $0.keybind.first == newDashboardChord }
     }
     if !dashboardMapped, oldConfigUsesNewDashboardChord { compatibilityUnbound.insert(.dashboard) }
+    // later defaults: explicit bindings keep these chords unless the new action is mapped.
+    for newAction in [BuiltinAction.attachRemote, .toggleOverlay] {
+        guard let newChord = newAction.defaultChord else { continue }
+        let mapped = resolved.overrides.contains { $0.action == newAction }
+            || resolved.alternatives[newAction] != nil || resolved.unbound.contains(newAction)
+        let oldConfigUsesChord = resolved.overrides.contains {
+            $0.action != newAction && $0.chord == newChord
+        } || resolved.alternatives.contains { action, entry in
+            action != newAction && entry.alternatives.contains { $0.keybind.first == newChord }
+        } || commandLines.contains { line in
+            line.alternatives.contains { $0.keybind.first == newChord }
+        }
+        if !mapped, oldConfigUsesChord { compatibilityUnbound.insert(newAction) }
+    }
     let builtinOverrides = resolveBuiltinOverrides(resolved.overrides, unbound: compatibilityUnbound,
                                                    alternatives: resolved.alternatives, diagnostics: &diagnostics)
 

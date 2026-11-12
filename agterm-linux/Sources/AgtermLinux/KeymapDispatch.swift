@@ -428,6 +428,13 @@ extension AppController {
     /// case fails to compile until it's wired, the Linux analogue of the macOS menu keep-in-sync.
     private func dispatchBuiltin(_ action: BuiltinAction, sessionID: UUID) {
         switch action {
+        case .newCompanion: newCompanionFromGUI()
+        case .duplicateCompanion: newCompanionFromGUI(duplicate: true)
+        case .toggleOverlay: _ = setSessionOverlayVisibility(nil, window: nil, pane: nil, mode: .toggle)
+        case .attachRemote: showRemoteAttach()
+        case .editFlaggedSessions: showMembershipEditor(workspaces: false)
+        case .editFocusedWorkspaces: showMembershipEditor(workspaces: true)
+
         case .newWindow: openNewWindow()
         case .previousWindow: _ = windowGo(direction: .previous)
         case .nextWindow: _ = windowGo(direction: .next)
@@ -467,8 +474,8 @@ extension AppController {
         case .focusRightPane: focusPane(left: false)
         case .previousSession: navigate(.previous)
         case .nextSession: navigate(.next)
-        case .previousAttentionSession: navigate(.previousAttention)
-        case .nextAttentionSession: navigate(.nextAttention)
+        case .previousAttentionSession: navigateAttention(.previousAttention)
+        case .nextAttentionSession: navigateAttention(.nextAttention)
         case .firstSession: navigate(.first)
         case .lastSession: navigate(.last)
         case .quickTerminal: toggleQuick()

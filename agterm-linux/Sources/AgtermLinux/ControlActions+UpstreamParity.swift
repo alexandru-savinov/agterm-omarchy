@@ -11,7 +11,7 @@ private enum LinuxOverlayReadSurface {
 @MainActor
 extension AppController {
     func appIdentity() -> ControlResponse {
-        ControlResponse(ok: true, result: ControlResult(app: LinuxAppMetadata.identity))
+        ControlResponse(ok: true, result: ControlResult(app: LinuxAppMetadata.identity, installed: LinuxAppMetadata.installedIdentity()))
     }
 
     func captureRestoreCommands() -> ControlResponse {

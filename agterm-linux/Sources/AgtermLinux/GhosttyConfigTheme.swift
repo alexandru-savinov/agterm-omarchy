@@ -22,7 +22,8 @@ enum GhosttyConfigTheme {
             background: read("background").map(hex),
             foreground: read("foreground").map(hex),
             selectionBackground: read("selection-background").map(hex),
-            selectionForeground: read("selection-foreground").map(hex)
+            selectionForeground: read("selection-foreground").map(hex),
+            splitDivider: read("split-divider-color").map(hex)
         )
     }
 

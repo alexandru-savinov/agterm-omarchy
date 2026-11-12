@@ -98,7 +98,7 @@ extension AppController {
         let entry = op(gtk_search_entry_new())
         controlPickEntry = entry
         (pick.prompt ?? "Select…").withCString {
-            gtk_entry_set_placeholder_text(UnsafeMutablePointer<GtkEntry>(entry), $0)
+            gtk_search_entry_set_placeholder_text(entry, $0)
         }
         connect(entry, "search-changed", unsafeBitCast(
             onControlPickSearch as @convention(c) (OpaquePointer?, gpointer?) -> Void,
@@ -165,7 +165,7 @@ extension AppController {
             appendControlPickRow(label: label, subtitle: nil, to: list)
         } else {
             for value in filtered {
-                appendControlPickRow(label: value.item.label, subtitle: value.item.subtitle, to: list)
+                appendControlPickRow(label: value.item.label, subtitle: value.item.subtitle, indicator: linuxPickIndicator(value.item), to: list)
             }
         }
         let selectedIndex = query == pending.query ? pending.selection.flatMap { selection in
@@ -178,13 +178,19 @@ extension AppController {
         }
     }
 
-    private func appendControlPickRow(label: String, subtitle: String?, to list: OpaquePointer) {
+    private func appendControlPickRow(label: String, subtitle: String?, indicator: AgentIndicator? = nil, to list: OpaquePointer) {
         guard let row = op(gtk_list_box_row_new()),
               let box = op(gtk_box_new(GTK_ORIENTATION_VERTICAL, 1)),
               let title = op(gtk_label_new(label)) else { return }
         gtk_label_set_xalign(title, 0)
         gtk_label_set_ellipsize(title, PANGO_ELLIPSIZE_MIDDLE)
-        gtk_box_append(cast(box), W(title))
+        let heading = op(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8))!
+        gtk_widget_set_hexpand(W(title), 1)
+        gtk_box_append(cast(heading), W(title))
+        if let indicator, let glyph = Self.makeStatusGlyphLabel(indicator, settings: linuxSettingsStore().load(), phase: true) {
+            gtk_box_append(cast(heading), W(glyph))
+        }
+        gtk_box_append(cast(box), W(heading))
         if let subtitle, let detail = op(gtk_label_new(subtitle)) {
             gtk_label_set_xalign(detail, 0)
             gtk_label_set_ellipsize(detail, PANGO_ELLIPSIZE_MIDDLE)
@@ -278,6 +284,13 @@ extension AppController {
     /// The deferred one-shot re-checks controller identity because it can fire after `windowWillClose`
     /// finalized the window, and tests the search entry at FIRE time, not at dismissal time.
     private func finishControlPickDismissal(refocus: Bool) {
+        if let completion = controlPickCompletion, let result = pickController.recentResults.last?.result {
+            controlPickCompletion = nil
+            MainTimer.schedule(after: 0) { [weak self] in
+                guard let self, gWindows[self.windowID] === self else { return }
+                completion(result)
+            }
+        }
         if controlPickSuppressesAutoFollow {
             controlPickSuppressesAutoFollow = false
             resumeAutoFollow()
@@ -310,9 +323,9 @@ private let onControlPickRow: @MainActor @convention(c)
     }
 
 private let onControlPickKey: @MainActor @convention(c)
-    (OpaquePointer?, UInt32, UInt32, UInt32, gpointer?) -> gboolean = { keys, originalKeyval, _, state, _ in
-    let keyval: UInt32 = state & UInt32(GDK_CONTROL_MASK.rawValue) != 0
-        ? (originalKeyval == 106 ? 0xFF54 : (originalKeyval == 107 ? 0xFF52 : originalKeyval)) : originalKeyval
+    (OpaquePointer?, UInt32, UInt32, UInt32, gpointer?) -> gboolean = { keys, originalKeyval, keycode, state, _ in
+        let keyval = paletteNavigationKeyval(keyval: originalKeyval, keycode: keycode, state: state,
+                                             event: keys.flatMap { gtk_event_controller_get_current_event($0) })
         switch keyval {
         case 0xFF1B:
             MainActor.assumeIsolated { controllerForEventController(keys)?.cancelControlPick() }
