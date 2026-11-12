@@ -7697,7 +7697,7 @@ def main():
             "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-picker-cancel", "appearance-reset", "unavailable-font-family", "keymap-config-directory",
             "chrome-interface-controls",
-            "theme-many-sessions", "clipboard-lifetime",
+            "theme-many-sessions", "clipboard-lifetime", "clipboard-read-lifetime",
             "zoom-split-ratio", "zoom-preference-changes", "zoom-primary-promotion",
             "dashboard-font-restore", "dashboard-delayed-clicks",
             "cursor-preferences",
@@ -7919,6 +7919,9 @@ def main():
         elif scenario == "clipboard-lifetime":
             from atspi_clipboard_lifetime import verify_clipboard_lifetime
             verify_clipboard_lifetime(env)
+        elif scenario == "clipboard-read-lifetime":
+            from atspi_clipboard_read_lifetime import verify_clipboard_read_lifetime
+            verify_clipboard_read_lifetime(env)
         elif scenario == "zoom-split-ratio":
             from atspi_zoom_ratio import verify_zoom_split_ratio
             verify_zoom_split_ratio(env)
