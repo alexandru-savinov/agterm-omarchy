@@ -12,8 +12,12 @@ both directions, every surface is read back from INSIDE its shell:
 A window created after each flip must report exactly what the existing windows report. A final arm turns
 follow-system off and flips again: the reported scheme must still follow the desktop while the palette
 stays on the single theme, so neither check can pass by tracking the other.
-Window chrome (a display-wide CSS provider) and the Preferences controls are not observed here.
+Headerbar pixels must match the active theme in existing and new windows. Preferences edits must
+change the active or alternate persisted slot without changing the other slot, on both desktop sides.
 """
+
+from collections import Counter
+from pathlib import Path
 
 import itertools
 import os
@@ -24,7 +28,10 @@ import subprocess
 import sys
 import time
 
-from atspi_smoke import control_json, launch, stop, wait_for, window_list, window_tree
+from atspi_smoke import (activate, collect, control_json, launch, mouse_click, press_x11_key, stop,
+                         type_x11_text, wait_for, window_list, window_tree)
+from atspi_prefs_combo import (close_preferences, label_counts, open_preferences,
+                              preferences_row, read_settings)
 from atspi_theme_many_sessions import THEMES
 
 LIGHT, DARK = "Atom One Light", "Dracula"
@@ -120,7 +127,7 @@ def verify_appearance_follow(env):
     portal = Portal("light")
     process = None
     try:
-        process, _ = launch(env)
+        process, app = launch(env)
         first_window = next(item["id"] for item in window_list(env) if item["open"])
 
         def sessions(window_id):
@@ -142,6 +149,82 @@ def verify_appearance_follow(env):
                                   f"window {name!r} never showed a session")
             wait_live(window_id, session_id)
             return window_id, session_id
+
+        titles = {}
+        artifacts = Path(os.environ.get("AGTERM_UI_ARTIFACT_DIR", state)) / "appearance-chrome"
+        artifacts.mkdir(parents=True, exist_ok=True)
+
+        def chrome(window_id):
+            # Reuse the theme-cancellation scenario's exposed header strip, not terminal pixels.
+            if window_id not in titles:
+                visible = next(item["id"] for item in sessions(window_id) if item.get("active"))
+                titles[window_id] = f"appearance-chrome-{len(titles)}"
+                result = control_json(env, "session", "rename", titles[window_id], "--target", visible,
+                                      "--window", window_id, "--json")
+                assert result["ok"], result
+            frame = wait_for(lambda: next((item for item in collect(app, role="frame")
+                                           if (item.get_name() or "").startswith(titles[window_id])), None),
+                             f"window {titles[window_id]} never appeared")
+            matches = subprocess.check_output(
+                ["xdotool", "search", "--onlyvisible", "--all", "--pid", str(process.pid),
+                 "--name", f"^{re.escape(frame.get_name())}$"], text=True, timeout=5).splitlines()
+            assert len(matches) == 1, f"ambiguous chrome window: {matches}"
+            xid = matches[0]
+            assert subprocess.check_output(["xdotool", "getwindowpid", xid], text=True).strip() == str(process.pid)
+            subprocess.run(["xdotool", "windowraise", xid], check=True, timeout=5)
+            image = artifacts / f"{titles[window_id]}-{next(tags)}.png"
+            subprocess.run(["import", "-window", xid, str(image)], check=True, timeout=10)
+            width = int(subprocess.check_output(["convert", str(image), "-format", "%w", "info:"], text=True))
+            assert width > 200
+            pixels = subprocess.check_output(
+                ["convert", str(image), "-crop", f"{width - 80}x8+40+5", "+repage",
+                 "-alpha", "off", "-depth", "8", "rgb:-"], timeout=10)
+            color, count = Counter(zip(pixels[::3], pixels[1::3], pixels[2::3])).most_common(1)[0]
+            assert count > len(pixels) // 6, "headerbar strip has no dominant painted background"
+            return "#" + "".join(f"{value:02x}" for value in color)
+
+        def check_chrome(window_id, side):
+            expected = THEMES[THEME_FOR_SIDE[side]][0]
+            wait_for(lambda: chrome(window_id) == expected,
+                     f"window {window_id} chrome did not become {expected} on the {side} desktop")
+            print(f"OK: window {window_id} rendered headerbar is {expected} on the {side} desktop")
+
+        def preferences_fields(side):
+            active, alternate = ("theme", "darkTheme") if side == "light" else ("darkTheme", "theme")
+            original = {"theme": LIGHT, "darkTheme": DARK}
+            open_preferences(app, process.pid, "Appearance")
+            for title, field, other in (("Theme", active, alternate),
+                                        ("Dark theme" if side == "light" else "Light theme", alternate, active)):
+                # Change away and back so an already-selected row cannot satisfy the persistence check.
+                for target in (original[other], original[field]):
+                    before = read_settings(env)
+                    labels = label_counts(app)
+                    row = wait_for(lambda: preferences_row(app, title), f"missing {title} row")
+                    try:
+                        has_action = bool(row.get_action_iface() and row.get_action_iface().get_n_actions() > 0)
+                    except Exception:
+                        has_action = False
+                    if has_action:
+                        activate(row)
+                    else:
+                        mouse_click(lambda: preferences_row(app, title), process.pid, button="left")
+                    wait_for(lambda: label_counts(app) != labels, f"{title} list did not open")
+                    # Long theme lists expose only visible rows; search before looking for the target.
+                    type_x11_text(target, process.pid)
+                    wait_for(lambda: label_counts(app).get(target, 0) > labels.get(target, 0),
+                             f"{title} search did not expose {target}")
+                    press_x11_key("Down", process.pid)
+                    press_x11_key("Return", process.pid)
+                    wait_for(lambda: read_settings(env).get(field) == target,
+                             f"{title} selection did not persist {target} in {field}")
+                    saved = read_settings(env)
+                    assert saved.get(other) == before[other], (
+                        f"{side} {title} changed the other persisted slot: {before} -> {saved}")
+                    assert saved.get("followSystemAppearance") is True, saved
+            close_preferences(app, process.pid)
+            saved = read_settings(env)
+            assert (saved.get("theme"), saved.get("darkTheme")) == (LIGHT, DARK), saved
+            print(f"OK: {side} Preferences active/alternate edits preserve the opposite persisted slot")
 
         def hidden_session(window_id, name, visible_id):
             control_json(env, "session", "new", "--name", name, "--cwd", state,
@@ -238,6 +321,9 @@ def verify_appearance_follow(env):
             print(f"OK: {len(targets)} surfaces {phase} report {distinct.pop()}")
             return next(iter(looks.values()))
 
+        preferences_fields("light")
+        for window_id in (first_window, second_window):
+            check_chrome(window_id, "light")
         palettes = {"light": check_all("light", "on the light desktop before any flip")[3]}
 
         for side in ("dark", "light"):
@@ -245,13 +331,19 @@ def verify_appearance_follow(env):
             phase = f"after the desktop flipped to {side}"
             expect_reported_theme(THEME_FOR_SIDE[side], phase)
             existing = check_all(side, phase)
+            for existing_window in dict.fromkeys(item[1] for item in targets):
+                check_chrome(existing_window, side)
             palettes[side] = existing[3]
             label = f"window created {phase}"
             window_id, session_id = new_window(f"appearance-after-{side}")
             created = look(window_id, session_id, side, label)
+            check_chrome(window_id, side)
             assert created == existing, f"{label} reports {created}, existing windows report {existing}"
             print(f"OK: the {label} matches the existing windows: {created}")
             targets.append((label, window_id, session_id))
+            # Only edit Preferences AFTER all portal-driven surface/chrome checks, so a settings
+            # reload cannot repair a missing appearance-notification update and hide a regression.
+            preferences_fields(side)
         assert palettes["light"] != palettes["dark"], (
             f"OSC 4;1 is {palettes['light']} on both sides; the palette did not follow the theme")
         print(f"OK: palette entry 1 is {palettes['light']} light and {palettes['dark']} dark")
