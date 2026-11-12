@@ -77,7 +77,7 @@ struct LinuxSurfaceQuarantineTests {
         let lines = Lines()
         let quarantine = LinuxSurfaceQuarantine<String>(log: lines.append)
         var writes = 0
-        let answer = quarantine.writeAnswer(key: key, isLive: { true }) { writes += 1 }
+        let answer = quarantine.writeAnswer(key: key, isLive: { true }, write: { writes += 1 })
 
         quarantine.insert("record", key: key)
         answer(true)
@@ -90,7 +90,7 @@ struct LinuxSurfaceQuarantineTests {
     func liveWritePrompt() {
         let quarantine = LinuxSurfaceQuarantine<String>(log: { _ in })
         var writes = 0
-        let answer = quarantine.writeAnswer(key: key, isLive: { true }) { writes += 1 }
+        let answer = quarantine.writeAnswer(key: key, isLive: { true }, write: { writes += 1 })
 
         answer(false)
         #expect(writes == 0)
@@ -104,7 +104,7 @@ struct LinuxSurfaceQuarantineTests {
         let quarantine = LinuxSurfaceQuarantine<String>(log: { _ in })
         var isLive = true
         var writes = 0
-        let answer = quarantine.writeAnswer(key: key, isLive: { isLive }) { writes += 1 }
+        let answer = quarantine.writeAnswer(key: key, isLive: { isLive }, write: { writes += 1 })
 
         isLive = false
         answer(true)
