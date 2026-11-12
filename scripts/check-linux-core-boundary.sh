@@ -29,6 +29,33 @@ checked_rg() {
   return 2
 }
 
+# Permit only one reviewed byte-for-byte fixture delta; see .github/CI.md.
+reviewed_fixture_delta() {
+  local exceptions="$ROOT/packaging/linux/core-fixture-exceptions.tsv"
+  local row path base_blob fixture_blob rationale extra upstream_blob current_blob
+  local records=0 matched=1
+  [[ -f "$exceptions" && ! -L "$exceptions" ]] || return 1
+  [[ -f "$ROOT/$PROTECTED_TEST" && ! -L "$ROOT/$PROTECTED_TEST" && ! -x "$ROOT/$PROTECTED_TEST" ]] || return 1
+  upstream_blob="$(git -C "$ROOT" rev-parse "${BASE}:${PROTECTED_TEST}")" || return 2
+  current_blob="$(git -C "$ROOT" hash-object --no-filters -- "$ROOT/$PROTECTED_TEST")" || return 2
+  while IFS= read -r row || [[ -n "$row" ]]; do
+    [[ -z "$row" || "$row" == \#* ]] && continue
+    IFS=$'\t' read -r path base_blob fixture_blob rationale extra <<< "$row"
+    records=$((records + 1))
+    if [[ "$records" -ne 1 || "$path" != "$PROTECTED_TEST" ||
+          ! "$base_blob" =~ ^[0-9a-f]{40}$ || ! "$fixture_blob" =~ ^[0-9a-f]{40}$ ||
+          ! "$rationale" =~ ^https://github\.com/alexandru-savinov/agterm-omarchy/issues/[1-9][0-9]*$ ||
+          -n "$extra" || "$row" != "$path"$'\t'"$base_blob"$'\t'"$fixture_blob"$'\t'"$rationale" ]]; then
+      echo "malformed protected-fixture exception: $exceptions" >&2
+      return 2
+    fi
+    if [[ "$base_blob" == "$upstream_blob" && "$fixture_blob" == "$current_blob" ]]; then
+      matched=0
+    fi
+  done < "$exceptions"
+  return "$matched"
+}
+
 failed=0
 imports="$(checked_rg -n '^[[:space:]]*import[[:space:]]+(AppKit|SwiftUI|Metal|MetalKit|GhosttyKit|Glibc|CoreGraphics|CGtk|Gtk|Adwaita)([[:space:]]|$)' "$CORE")"
 if [[ -n "$imports" ]]; then
@@ -45,10 +72,20 @@ if [[ -n "$host_symbols" ]]; then
   failed=1
 fi
 
-if ! git -C "$ROOT" diff --quiet "$BASE" -- "$PROTECTED_TEST"; then
-  echo "$PROTECTED_TEST differs from $BASE" >&2
-  git -C "$ROOT" diff -- "$BASE" -- "$PROTECTED_TEST" >&2
-  failed=1
+if git -C "$ROOT" diff --quiet "$BASE" -- "$PROTECTED_TEST"; then
+  :
+else
+  status=$?
+  [[ "$status" -eq 1 ]] || exit 2
+  if reviewed_fixture_delta; then
+    echo "$PROTECTED_TEST matches its exact reviewed fixture exception"
+  else
+    status=$?
+    [[ "$status" -eq 1 ]] || exit 2
+    echo "$PROTECTED_TEST differs from $BASE" >&2
+    git -C "$ROOT" diff "$BASE" -- "$PROTECTED_TEST" >&2
+    failed=1
+  fi
 fi
 
 echo "Portable agtermCore delta from $BASE:"
