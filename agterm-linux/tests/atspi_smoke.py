@@ -3726,7 +3726,7 @@ def verify_surface_configuration_lifetimes(env):
     with open(runner, "w", encoding="utf-8") as target:
         target.write(
             "#!/bin/sh\n"
-            "printf '%s\\n' \"$PWD\" > \"$1\"\n"
+            "printf '%s\\n' \"$PWD\" > \"$1.tmp\" && mv \"$1.tmp\" \"$1\"\n"
             "sleep 0.4\n"
         )
     os.chmod(runner, 0o755)
@@ -3778,7 +3778,10 @@ def verify_surface_configuration_lifetimes(env):
         )
         wait_for(lambda: os.path.exists(command_marker), "session --command did not run")
         with open(command_marker, encoding="utf-8") as source:
-            assert source.read().strip() == command_cwd
+            observed_cwd = source.read().strip()
+            assert observed_cwd == command_cwd, (
+                f"session command cwd: expected {command_cwd!r}, observed {observed_cwd!r}"
+            )
 
         # --size-percent makes this the FLOATING overlay: a framed card added to the deck overlay and
         # clipped to its rounded corners (GTK_OVERFLOW_HIDDEN in syncOverlay). --follow selects the
@@ -3798,7 +3801,10 @@ def verify_surface_configuration_lifetimes(env):
         )
         wait_for(lambda: os.path.exists(overlay_marker), "overlay command did not run")
         with open(overlay_marker, encoding="utf-8") as source:
-            assert source.read().strip() == overlay_cwd
+            observed_cwd = source.read().strip()
+            assert observed_cwd == overlay_cwd, (
+                f"floating overlay cwd: expected {overlay_cwd!r}, observed {observed_cwd!r}"
+            )
 
         # The floating card is one of TWO overlay shapes, and this scenario is the suite's only
         # `session overlay open`, so the un-sized DEFAULT shape has to run here as well or it has no
@@ -3821,7 +3827,10 @@ def verify_surface_configuration_lifetimes(env):
         )
         wait_for(lambda: os.path.exists(full_overlay_marker), "full-pane overlay command did not run")
         with open(full_overlay_marker, encoding="utf-8") as source:
-            assert source.read().strip() == overlay_cwd
+            observed_cwd = source.read().strip()
+            assert observed_cwd == overlay_cwd, (
+                f"full-pane overlay cwd: expected {overlay_cwd!r}, observed {observed_cwd!r}"
+            )
         wait_for(lambda: not overlay_open(), "full-pane overlay stayed open after its command exited")
     finally:
         stop(process)
@@ -3854,7 +3863,10 @@ def verify_surface_configuration_lifetimes(env):
             "restored foreground command was not pre-filled through initial input",
         )
         with open(restore_marker, encoding="utf-8") as source:
-            assert source.read().strip() == initial["cwd"]
+            observed_cwd = source.read().strip()
+            assert observed_cwd == initial["cwd"], (
+                f"restored command cwd: expected {initial['cwd']!r}, observed {observed_cwd!r}"
+            )
         wait_for(
             lambda: os.path.exists(url_callback_marker),
             "runtime URL action did not reach the Linux launch boundary",
