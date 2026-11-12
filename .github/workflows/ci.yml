@@ -352,6 +352,19 @@ jobs:
       - name: GTK clipboard dialog disposal
         working-directory: agterm-linux
         run: AGTERM_GTK_TESTS=1 xvfb-run -a swift test --skip-build --filter ClipboardPromptGTKTests
+      - name: GTK pending theme cancellation tests
+        working-directory: agterm-linux
+        run: |
+          fixture_root=$(mktemp -d)
+          trap 'rm -rf "$fixture_root"' EXIT
+          mkdir -p "$fixture_root"/{home,state,config,data,cache,runtime}
+          chmod 700 "$fixture_root/runtime"
+          xvfb-run -a dbus-run-session -- env AGTERM_THEME_GTK_TESTS=1 GDK_BACKEND=x11 \
+            HOME="$fixture_root/home" AGTERM_STATE_DIR="$fixture_root/state" \
+            XDG_CONFIG_HOME="$fixture_root/config" XDG_DATA_HOME="$fixture_root/data" \
+            XDG_CACHE_HOME="$fixture_root/cache" XDG_RUNTIME_DIR="$fixture_root/runtime" \
+            AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" \
+            swift test --skip-build --filter ThemePickerCancellationGTKTests
       - name: GTK zoom restoration callback tests
         working-directory: agterm-linux
         run: |
