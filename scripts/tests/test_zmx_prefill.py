@@ -6,6 +6,8 @@ with the login shell, and the captured command arrives as initial input with no 
 AGTERM_IDENTITY_TEST_ZMX to a real zmx executable (and have zsh on PATH); the cases are skipped otherwise.
 """
 import os
+import json
+import sys
 from pathlib import Path
 import pty
 import select
@@ -100,5 +102,87 @@ class RealZmxPrefillTests(unittest.TestCase):
         self.assertIn(RAN, out, out)
 
 
+def production_plan(path):
+    """Execute the Swift test's actual emitted seed, never reconstruct its attachment command."""
+    plan = json.loads(Path(path).read_text())
+    root = Path(plan['root'])
+    for leaf in ('s', 'z', 'h', 'cwd with spaces'):
+        (root / leaf).mkdir()
+    trace = root / 'startup'
+    env = dict(os.environ, **plan['environment'], HOME=str(root / 'h'), TERM='xterm-256color',
+               ZMX_DIR=str(root / 's'), AGTERM_STARTUP_TRACE=str(trace),
+               AGTERM_PREFILL_REPORT=str(root / 'executed'))
+    for leaf in ('.zshenv', '.zprofile', '.zshrc', '.zlogin'):
+        (root / 'z' / leaf).write_text("builtin print -r -- " + leaf + " >> \"$AGTERM_STARTUP_TRACE\"\n" +
+                                     ("PS1='READY> '\n" if leaf == '.zshrc' else ''))
+    with (root / 'z/.zshenv').open('a') as stream:
+        stream.write('/usr/bin/env > "$AGTERM_STARTUP_TRACE.env"\n')
+    clients = []
+
+    def spawn(args, child_env=env):
+        pid, fd = pty.fork()
+        if pid == 0:
+            try:
+                os.chdir(root / 'cwd with spaces')
+                os.execve(args[0], args, child_env)
+            finally:
+                os._exit(127)
+        clients.append((pid, fd))
+        return fd
+
+    def attach():
+        fd = spawn(['/bin/sh', '-c', plan['command']])
+        if plan['initialInput']:
+            os.write(fd, plan['initialInput'].encode())
+        return fd
+
+    def cleanup():
+        subprocess.run([plan['zmx'], 'kill', plan['name'], '--force'], env=env,
+                       capture_output=True, timeout=5)
+        while clients:
+            RealZmxPrefillTests.close_client(*clients.pop())
+
+    try:
+        # A competing creator wins after the Swift plan captured an absent inventory.
+        recorder = root / 'recorder.py'
+        recorder.write_text("import os,tty\ntty.setraw(0)\nos.write(1,b'RECORDER_READY')\n"
+                            "with open(" + repr(str(root / 'received')) + ", 'wb', buffering=0) as f:\n"
+                            " while True: f.write(os.read(0,4096))\n")
+        first = spawn([plan['zmx'], 'attach', plan['name'], '/usr/bin/python3', str(recorder)])
+        ready = RealZmxPrefillTests.read_until(first, b'RECORDER_READY', 5)
+        assert b'RECORDER_READY' in ready, repr(ready)
+        second = attach()
+        assert b'RECORDER_READY' in RealZmxPrefillTests.read_until(second, b'RECORDER_READY', 5)
+        RealZmxPrefillTests.read_until(second, b'IMPOSSIBLE_RECORDER_OUTPUT', 0.5)
+        received = (root / 'received').read_bytes()
+        assert received == b'', f'existing daemon received restored input: {received!r}'
+        assert not trace.exists(), 'creation startup ran while attaching to an existing daemon'
+        print('PASS competing creator: attached replay, zero restored bytes', flush=True)
+        cleanup()
+
+        fd = attach()
+        before = RealZmxPrefillTests.read_until(fd, b'READY> ', 5)
+        assert b'READY> ' in before, repr(before)
+        assert not (root / 'executed').exists(), 'capture executed before Enter'
+        assert trace.read_text().splitlines() == ['.zshenv', '.zprofile', '.zshrc', '.zlogin']
+        child_env = (root / 'startup.env').read_text()
+        assert 'AGTERM_LIVE_PREFILL=' not in child_env, child_env
+        os.write(fd, b'\r')
+        deadline = time.monotonic() + 5
+        while not (root / 'executed').exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert (root / 'executed').read_text() == 'CREATION_BOUND_OK'
+        os.write(fd, b"printf '\\nCONTRACT:%s:%s:%s\\n' \"$PWD\" \"$ZDOTDIR\" \"${AGTERM_LIVE_PREFILL+present}\"\r")
+        contract = f"CONTRACT:{root / 'cwd with spaces'}:{root / 'z'}:".encode()
+        output = RealZmxPrefillTests.read_until(fd, contract, 5)
+        assert contract in output, repr(output)
+        print('PASS new shell: Enter required, startup order, cwd, ZDOTDIR, payload unexported/unset', flush=True)
+    finally:
+        cleanup()
+
+
 if __name__ == "__main__":
-    unittest.main()
+    if len(sys.argv) == 3 and sys.argv[1] == '--production-plan':
+        production_plan(sys.argv[2])
+    else:
+        unittest.main()
