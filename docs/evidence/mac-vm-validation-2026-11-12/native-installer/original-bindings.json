@@ -1,0 +1,559 @@
+{
+  "schema": "agterm-native-installer-bindings/1",
+  "original_records_and_driver": {
+    "native-installer-fixtures-attempt2-launch-private.json": {
+      "bytes": 309,
+      "sha256": "a7363940ce14608a6384be3679519635ad5aee3677d6b10bd0f0c80573d7a73d"
+    },
+    "native-installer-fixtures-attempt2-result-private.json": {
+      "bytes": 24316,
+      "sha256": "e6f32050bc2fd79ab794109a5cbc67a8fcc47152f63be6168502de9b211d19f9"
+    },
+    "native-installer-fixtures-launch-private.json": {
+      "bytes": 309,
+      "sha256": "786fa779c5022b104badbf58318d6aaacaaecefa4ca5a05b1a9a73acbf3b486a"
+    },
+    "native-installer-fixtures-result-private.json": {
+      "bytes": 1527,
+      "sha256": "e18cc24a985a513e9217a54796bed70269a461ffb36683617c8fa566b826c83e"
+    },
+    "run-native-installer-fixtures.py": {
+      "bytes": 7208,
+      "sha256": "081f7c99adfe8640923bd3d4a3a4bb4ea0530317a312bf86ca2488427122f363"
+    }
+  },
+  "source": {
+    "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+    "input_scope": "Every file in the successful driver's recorded source_inputs; copied bytes also checked against the official public Git tree during preparation.",
+    "inputs": {
+      "scripts/install-linux.sh": {
+        "bytes": 13188,
+        "sha256": "528c12cf26675bfab679185ba354ed256a090ed9cd5afebf15393dd97797f2ff",
+        "git_blob": "2c30d38ddc0add2a68599dd89211696546440aac"
+      },
+      "scripts/run-linux.sh": {
+        "bytes": 518,
+        "sha256": "07c515c5820047f445b1d43e2786a096b5f89306fcc7c1ca1f4801cf0f86d11e",
+        "git_blob": "d7a592eaaf23fdb303d020499d7af8a555153d45"
+      },
+      "scripts/stage-linux.sh": {
+        "bytes": 5862,
+        "sha256": "7fdf6db6e74efdf04bf25dce37c61171d84e231a38ac26383046bb2392fe887f",
+        "git_blob": "7a0a1a9cae7633e194f2e154ed157a3c4ebdde11"
+      },
+      "scripts/linux-notices.py": {
+        "bytes": 10027,
+        "sha256": "8b8f8c556427a1ed012b44b3b976c5614d04c493ae3df2bdfb0b93ffde5f35eb",
+        "git_blob": "8587ce0df2ade0fe5aaddfe2b4497293af37e315"
+      },
+      "scripts/tests/test_linux_install.py": {
+        "bytes": 27670,
+        "sha256": "6566985aacf5398d40b68d2f12a7d7ba3e0716d5ec0e3523b542e5dbabbf23c7",
+        "git_blob": "716b4ddfd87fcbd38f30cca261ff15cd3e98f7d2"
+      },
+      "scripts/tests/test_linux_install_safety.py": {
+        "bytes": 13964,
+        "sha256": "2ada7f6c208985296acceb3927ccaeda60ca53359ca81dd5b4ee8d33f76a7778",
+        "git_blob": "12d1556b483901b7797b6a0eef7890440d034b45"
+      },
+      "linux/swift-env.sh": {
+        "bytes": 1169,
+        "sha256": "ca8bc667fd7ef18fa0efee991c3d1bf36fe1676e569bf80c972a94f340069968",
+        "git_blob": "57a36cf929ecb707529c2ae6733721a20e1686b4"
+      },
+      "linux/ghostty-resources.env": {
+        "bytes": 492,
+        "sha256": "b2652652c7df8f4b80112668fcb4a104083e753fbfb956aac857d6ab9df39ce9",
+        "git_blob": "1d632b958527dc3f740c3f8cb8b2a3fcdbabdbe6"
+      },
+      "packaging/linux/io.github.melonamin.agterm.desktop": {
+        "bytes": 1196,
+        "sha256": "42924ce50552e019cdb0e6cb2868a0220025e9a437dd17a5152de56bfc7063f9",
+        "git_blob": "793137e75c347e5e2301be8020e41cf4dd3586b8"
+      },
+      "LICENSE": {
+        "bytes": 1064,
+        "sha256": "155d97114b2d9b7f66181d0ba258aca57f97b8b957dd1662745bf57218c41ef3",
+        "git_blob": "8291242d1c25bc374a75185d53f560b1229bdfb3"
+      },
+      "packaging/linux/notices/README.md": {
+        "bytes": 8383,
+        "sha256": "131bdeb54102c0249ffdc2d428d535cc3804539c4df46b2e5c0d7306b9b06957",
+        "git_blob": "c5f120552ae03f533740960896d41cee74546468"
+      },
+      "packaging/linux/notices/inventory.json": {
+        "bytes": 143698,
+        "sha256": "65716ab36b707eb868b7936313f01e8b108f9dbf864e4b53bf3866d07fd9c802",
+        "git_blob": "3c36f5ae3e4d5f3effe456cf2b7aa2a89370abe7"
+      },
+      "packaging/linux/notices/sources.json": {
+        "bytes": 35003,
+        "sha256": "397d8dacb00e136e9d5239154165aa8b578b3bf75c50d0898a55df85d5d63f69",
+        "git_blob": "01124e972834b2182bf70c287242c900d4c7f7fe"
+      },
+      "packaging/linux/notices/apple-icu/LICENSE": {
+        "bytes": 22559,
+        "sha256": "92841ff27a1b2d1030b00e0958af4d1f70353ff42c5dad7041f1950e909ccc5e",
+        "git_blob": "fc3fd7ced111a7057e38b31599fb80f2540d27a7"
+      },
+      "packaging/linux/notices/dear-bindings/LICENSE.txt": {
+        "bytes": 1082,
+        "sha256": "b08fd9947ec127fd7785801cac8b1eea2ab4282008cdaae8e50331d870f30d0d",
+        "git_blob": "a982f3d0f722328e2fe4ba403a60d3b8343cda0c"
+      },
+      "packaging/linux/notices/fontconfig/COPYING": {
+        "bytes": 8616,
+        "sha256": "51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067",
+        "git_blob": "cd5fca1a03b03a815bfb8c4e8ea40a022b38507d"
+      },
+      "packaging/linux/notices/freetype/LICENSE.TXT": {
+        "bytes": 2074,
+        "sha256": "2e3bbb7d7c5c396368dd0853a790ec29ce5b8647163dde42a0493fb0d6556b2b",
+        "git_blob": "8b9ce9e2e6e32e71b2a3f4ec4a0c1308f1811083"
+      },
+      "packaging/linux/notices/freetype/docs-FTL.TXT": {
+        "bytes": 6743,
+        "sha256": "08c135755dd589039470f1fdbb400daaabaaa50d0b366d19cebff4d22986baa1",
+        "git_blob": "c406d150fa57aaf7a5b950b6cf302daeba1d0bb9"
+      },
+      "packaging/linux/notices/freetype/docs-GPLv2.TXT": {
+        "bytes": 17994,
+        "sha256": "c4120c6752c910c299e3bd9cb3a46ff262c268303ca2069b61f92f10a5656c18",
+        "git_blob": "b2fe7b6af3535ebc1e018dd2fe6c993330c031fa"
+      },
+      "packaging/linux/notices/freetype/src-autofit-ft-hb.c.NOTICE": {
+        "bytes": 1147,
+        "sha256": "02538fb019fe962c58be4863a2fc6d21e5b072f4681ca3ea96bf813f31487e43",
+        "git_blob": "36f48de73475a9037fc64649dc0aac104332a348"
+      },
+      "packaging/linux/notices/freetype/src-base-fthash.c.NOTICE": {
+        "bytes": 1231,
+        "sha256": "fa04727dc6e4a77fd2e7cf3980ac6a3690103a1712679b28664c15ec491bcbc3",
+        "git_blob": "6a73bedf4a5a54714adfc43174f59f9bea1fcdf3"
+      },
+      "packaging/linux/notices/freetype/src-bdf-README.NOTICE": {
+        "bytes": 5972,
+        "sha256": "7984455e7e5a9faba3797c8bf095fbe10cc846316b7320aff8c58402e22b82fe",
+        "git_blob": "d7cb8c14ef6d969fed46151803382c6ea9da7dd9"
+      },
+      "packaging/linux/notices/freetype/src-gzip-zlib.h.NOTICE": {
+        "bytes": 1328,
+        "sha256": "4ce814c61160ae6c1aa3feb2e09924106741b66ade821c19a910677018ab3742",
+        "git_blob": "f0df094c997a9b33e06fbb5f9cb05574bb2d1245"
+      },
+      "packaging/linux/notices/freetype/src-pcf-README.NOTICE": {
+        "bytes": 3311,
+        "sha256": "18d9782898d9eac04476e2f744678137b2a889689ed3e923e052fc396a86f86b",
+        "git_blob": "09ea970edadb5247e7209e5e0a3d3d30c2a7210a"
+      },
+      "packaging/linux/notices/ghostty-inputs/build.zig.zon": {
+        "bytes": 6149,
+        "sha256": "91a1f45260dd0dbe7bf02d91860e38bed6ed74beca4821483356773d1bd77166",
+        "git_blob": "c737ea9f100180f8d11012f080cef90a70b38bf9"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-dcimgui-build.zig.zon": {
+        "bytes": 907,
+        "sha256": "e169b626b17ba80e6010b62671ded77ad82d27a9ecadfce51be6a2eb917537bf",
+        "git_blob": "c488e6122eaf3a28ded535f13a6e77c855648eda"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-fontconfig-build.zig.zon": {
+        "bytes": 478,
+        "sha256": "9c2cc4249d3237c38b2dff9e161677666ff9e7b343925ecaaea377a81c1b75e4",
+        "git_blob": "b1387b87e97c96deca5fba4e32aad4f9f405d52d"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-freetype-build.zig.zon": {
+        "bytes": 576,
+        "sha256": "0d2448fece69f8d9147597a37400cc4a5c227a7421ea7502e4a36f41e3cb7d05",
+        "git_blob": "8ed1516b156599b56ef57523005eaa08c48b1e4b"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-glslang-build.zig.zon": {
+        "bytes": 491,
+        "sha256": "02222c509aba57597aae1d60ce49b8c6882882347e891065858f4de8109d6aab",
+        "git_blob": "252237e58bb4e047a162e3d4241169a133db7fde"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-harfbuzz-build.zig.zon": {
+        "bytes": 783,
+        "sha256": "846abfcf35002769e4629497b67321f90fc68c54dbfb8b29e51d1b712ca9b325",
+        "git_blob": "d2501344abc43dbf36b6f8bb4527369dfd659d07"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-highway-build.zig.zon": {
+        "bytes": 511,
+        "sha256": "57103e0424e9ca660756bb2cd0475ca3057e61e7f2d4038aba2a90eae890b932",
+        "git_blob": "e6863630968cc5e54f3418c6fbaca24e7eee6eda"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-libpng-build.zig.zon": {
+        "bytes": 537,
+        "sha256": "4546494e09ee5459dca7caf363521545d96aaff65d07d84ab22b74ee80a9e4de",
+        "git_blob": "b5153ff740a5413d670959888f3c0bf546c5764d"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-libxml2-build.zig.zon": {
+        "bytes": 347,
+        "sha256": "2d9ad897f7942d2ba4079a4d9e724afdb9fb4c73740deed3e78edd3c96cd7703",
+        "git_blob": "f932835aabc0781c8c60716db7d99bbba6f809e8"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-oniguruma-build.zig.zon": {
+        "bytes": 491,
+        "sha256": "ed4d291a596c73d75ecd60b449e552d559ed1b3884bfcfbae146d0209747b8a0",
+        "git_blob": "10ec786cb943d21fd93b57eb062f323a8d784fc9"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-spirv-cross-build.zig.zon": {
+        "bytes": 507,
+        "sha256": "4f7064c00f29e461757aeeedbfc7cd284cc5677e298bf64cbc9b797a5eccfde4",
+        "git_blob": "30eea95012badc83597d8486ef7fdafd88533884"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-wuffs-build.zig.zon": {
+        "bytes": 1120,
+        "sha256": "b18152b314c24f32444dde3e06b7cf95291fb735873cf5ae49d2ac5d93452777",
+        "git_blob": "1397d894b9b0fca9c853d6f2af662fc37ed46241"
+      },
+      "packaging/linux/notices/ghostty-inputs/pkg-zlib-build.zig.zon": {
+        "bytes": 473,
+        "sha256": "ec984b740c5bc72bdb6e4afe45130bd3fe1d5a83eada1c36ece319b48883b69b",
+        "git_blob": "0f75bca75d245c92668b755f6348e46bcad6bb86"
+      },
+      "packaging/linux/notices/ghostty-nerd-fonts/LICENSE": {
+        "bytes": 6200,
+        "sha256": "1f6ad4edae6479aaace3112ede5279a23284ae54b2a34db66357aef5f64df160",
+        "git_blob": "d163912b383cac468b3052e60ad4998e80046cc7"
+      },
+      "packaging/linux/notices/ghostty/LICENSE": {
+        "bytes": 1097,
+        "sha256": "386211873e5b7a02f663ae4d7adf96285999f91608f8f9f31fecfd0f4095e6f1",
+        "git_blob": "0a07a66cd1ad6ea35cc3b8150e2c37702fe5989d"
+      },
+      "packaging/linux/notices/glad/LICENSE": {
+        "bytes": 3014,
+        "sha256": "cbb325cd4ac5bd06717ffa34a322b984f9d285e4c67c8ca1b7380d6ef08c2a77",
+        "git_blob": "4965a6bffc963db608b12cbb91906d029abc3fc6"
+      },
+      "packaging/linux/notices/glslang/LICENSE.txt": {
+        "bytes": 54705,
+        "sha256": "adb783e734e906d1f46db5df29991dbde84bdb0ceab502ac2febb44fe3c2b5f4",
+        "git_blob": "054e68a4614e3ee255f13730319b8c7a1fe10182"
+      },
+      "packaging/linux/notices/harfbuzz/COPYING": {
+        "bytes": 1971,
+        "sha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64",
+        "git_blob": "1dd917e9f2e72167de69e3b5dadbc4e7db417da1"
+      },
+      "packaging/linux/notices/harfbuzz/src-ms-use-COPYING": {
+        "bytes": 1141,
+        "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+        "git_blob": "9e841e7a26e4eb057b24511e7b92d42b257a80e5"
+      },
+      "packaging/linux/notices/highway/LICENSE": {
+        "bytes": 11356,
+        "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1",
+        "git_blob": "f49a4e16e68b128803cc2dcea614603632b04eac"
+      },
+      "packaging/linux/notices/highway/LICENSE-BSD3": {
+        "bytes": 1515,
+        "sha256": "d25e82e26acd42ca3ccc9993622631163425b869b9e16284226d534cff6470f2",
+        "git_blob": "51d1bd4b412d3796c53935452c27ff251b9586ce"
+      },
+      "packaging/linux/notices/icu-76.1/LICENSE": {
+        "bytes": 26487,
+        "sha256": "01edac20612b1e590c1c1cfb02b7218c6adc7b0a944eda7a1e03aeee10725aed",
+        "git_blob": "180db98fcc66ca7797940b7fad5a7f3987d9f145"
+      },
+      "packaging/linux/notices/imgui/LICENSE.txt": {
+        "bytes": 1083,
+        "sha256": "c80c5789748d955c4a650562baa0d750494e2c7128c2ca66aaebe2e3c4e198bf",
+        "git_blob": "00ae473abe62bf1c53b333613bd9e05aa72e2ca0"
+      },
+      "packaging/linux/notices/iterm2-themes/CREDITS.md": {
+        "bytes": 40223,
+        "sha256": "13787a17e22f74975e01ebfb29906fda45d9ee84813e535ac243f490a3b64e11",
+        "git_blob": "43588f9d48e3a740a2b1cfcc20f4add3dbaa6054"
+      },
+      "packaging/linux/notices/iterm2-themes/LICENSE": {
+        "bytes": 1246,
+        "sha256": "2373168614b527494dff99eb393024608216db79f687d58bad420f6c1e0ad192",
+        "git_blob": "a2c3ef2f64e68834e81644decad8961184535cd7"
+      },
+      "packaging/linux/notices/iterm2-themes/README-CREDITS.md": {
+        "bytes": 1197,
+        "sha256": "55b7c2e93e26e57faa2834292548e85e4695aae3a450dcec9b49cb2631e445e4",
+        "git_blob": "f2233ccc7a2fac0f731cf2702b9cbc8a5adac981"
+      },
+      "packaging/linux/notices/jetbrains-mono/AUTHORS.txt": {
+        "bytes": 350,
+        "sha256": "33f99c94ef0a0909d7584a5d4bde1fb9b1630daa620f5a788c28c43327e79412",
+        "git_blob": "881494169b733b2e13dcaba544f2fa1e5c85b89b"
+      },
+      "packaging/linux/notices/jetbrains-mono/OFL.txt": {
+        "bytes": 4399,
+        "sha256": "30f0c136e3c88e422d0791acd97238870f9054a9729bc34cf2ff0d4ed8cac4ad",
+        "git_blob": "8bee4148c1d54dbf5dae6d6c117fc80414266abb"
+      },
+      "packaging/linux/notices/khronos/LICENSE": {
+        "bytes": 1146,
+        "sha256": "fd7c88f69e70ffa778137ba0bc8267fa8dd83189365d9ff5a2533161432b3d0b",
+        "git_blob": "5fa4f92a3e7bd8e20318516970654d7b60124519"
+      },
+      "packaging/linux/notices/libpng/LICENSE": {
+        "bytes": 5345,
+        "sha256": "7317e078e2d3b5d7ba5a6159e650945153262b44b76f6700f8e9edb261c5143e",
+        "git_blob": "25f298f0fcfd8757bbd9a6386d8fcb2d644cfce9"
+      },
+      "packaging/linux/notices/libxev/LICENSE": {
+        "bytes": 1075,
+        "sha256": "fcd26bcead569a910dd778cb864e027683498ca414e15db1694a5893eee1b835",
+        "git_blob": "75041973fd4abca96a0e2f20f6348cde6c343239"
+      },
+      "packaging/linux/notices/libxml2/Copyright": {
+        "bytes": 1289,
+        "sha256": "c5c63674f8a83c4d2e385d96d1c670a03cb871ba2927755467017317878574bd",
+        "git_blob": "d61318502caf9587516dd9a2cb637ad9c4877f69"
+      },
+      "packaging/linux/notices/nerd-fonts-glyphs/README.md": {
+        "bytes": 378,
+        "sha256": "8538467a6f1f67b9d7fb7f95da492796ac1f02046121aa4138c07026e85c5fb2",
+        "git_blob": "34801bae29a583880dc82bc5dc703ee3e3bce11f"
+      },
+      "packaging/linux/notices/nerd-fonts-glyphs/codicons-LICENSE.txt": {
+        "bytes": 19047,
+        "sha256": "d6239afa918961b465b07bf7411cbe34ff6685854f58553db7966f4881a0211f",
+        "git_blob": "085c3ca0c4920beedbf179f7987e705aec84115b"
+      },
+      "packaging/linux/notices/nerd-fonts-glyphs/font-awesome-LICENSE.txt": {
+        "bytes": 7427,
+        "sha256": "de784a808496d49f5f80dd9d1d6e9a51cff712cfbc339e7c25155631ae3cdb5d",
+        "git_blob": "cc557ece45db3719d26f8f6e0182d89651b76062"
+      },
+      "packaging/linux/notices/nerd-fonts-glyphs/materialdesign-LICENSE": {
+        "bytes": 992,
+        "sha256": "3bae6305bcaa6d10219b999f65c342034c2d40b1c0e8567fa08605e73ccba829",
+        "git_blob": "382f8a138afaaefe9ca2cfa80d33317f7814d997"
+      },
+      "packaging/linux/notices/nerd-fonts-glyphs/octicons-LICENSE": {
+        "bytes": 1068,
+        "sha256": "4f886642f9e8d99eeadd484acdac011c3fde8a338faf52f5ca1408c13b9a9b63",
+        "git_blob": "163074d5b43ac314f9db311945cb4c19fd0c3d44"
+      },
+      "packaging/linux/notices/nerd-fonts-glyphs/pomicons-LICENSE": {
+        "bytes": 4395,
+        "sha256": "cb4797a9745683f287c28833db596e9d68ec43082d59359b3a49c504f0f610ce",
+        "git_blob": "5dd70fa0e0bc67c638079585bdb8d56e0648ff87"
+      },
+      "packaging/linux/notices/nerd-fonts-glyphs/powerline-extra-LICENSE": {
+        "bytes": 1072,
+        "sha256": "544307a58e6826c24145b2af1c3578b53e2e21ae0e6c67ab4c6abd544304d26a",
+        "git_blob": "c71d82753460a6c580966fd5f5a3da268ed5a974"
+      },
+      "packaging/linux/notices/nerd-fonts-glyphs/powerline-symbols-LICENSE.txt": {
+        "bytes": 1132,
+        "sha256": "46d5355e4734468135d8e4a30d0916292cc4df2b3ec30aa68c866f82497933be",
+        "git_blob": "23b2ab298f959223a99ce8f9a7f7fb50e6c9ed39"
+      },
+      "packaging/linux/notices/nerd-fonts-glyphs/weather-icons-OFL.txt": {
+        "bytes": 4692,
+        "sha256": "69cdedc8a4f57a30d68e4f045af8b9cce0ec3b1a6e7eec1ad41737c894f26790",
+        "git_blob": "fd295ff85e40801883186c705e94f9e504d9f96c"
+      },
+      "packaging/linux/notices/nerd-fonts-symbols-only/LICENSE": {
+        "bytes": 1082,
+        "sha256": "84a7a98c82140fb12c37fe42b93805baa16024cb3e5acc599b7ffe612c55d847",
+        "git_blob": "06eb073d6b545f7f505919a52e6af903f913d4b8"
+      },
+      "packaging/linux/notices/noto-emoji/OFL.txt": {
+        "bytes": 4302,
+        "sha256": "fb755fa3280d1d215a20df2e64fe6a0f75f8208439b11671978214aae60d2997",
+        "git_blob": "e1fa6e8fe0ed5da4c6f16b7d1bd50b6a809f114d"
+      },
+      "packaging/linux/notices/noto-emoji/README.md": {
+        "bytes": 2707,
+        "sha256": "b3177ac25cc57c976ae9e2a458a23cf840b7d4c919e4f87fdc8cab7875c3ea17",
+        "git_blob": "b4d77a783bb727adf534a52cb73c56b99abc57fa"
+      },
+      "packaging/linux/notices/oniguruma/COPYING": {
+        "bytes": 1340,
+        "sha256": "70ba5469ea0bab6e18a32d7009068f996503168d27be57747e08da34337ff26f",
+        "git_blob": "ee4d7cf05501ee338de85b1e92df869c1e8d5bbf"
+      },
+      "packaging/linux/notices/simdutf/BSD-TH-NOTICE": {
+        "bytes": 2316,
+        "sha256": "acffdbe9983f5996c4bd096132ffdd745a074ed8c9ba9b26b0d09c654fd45e43",
+        "git_blob": "86d7864b02cec162ef96ac7a685f532cf9775e07"
+      },
+      "packaging/linux/notices/simdutf/LICENSE-APACHE": {
+        "bytes": 11330,
+        "sha256": "3d34610fc6b5e1b0bfe4e2f36171c2d62c28ef05cb8d704f5a0073be41a43b3d",
+        "git_blob": "fd2496567836776968b853c49be0832369ebf55b"
+      },
+      "packaging/linux/notices/simdutf/LICENSE-MIT": {
+        "bytes": 1059,
+        "sha256": "fc8dbc04e03ad4efc08a647ffe7f995b811a95bc04c0e85a56d5277c6593fa5f",
+        "git_blob": "74c8302ba92830e170dfae35957468edd2e25271"
+      },
+      "packaging/linux/notices/spirv-cross/LICENSE": {
+        "bytes": 11358,
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "git_blob": "d645695673349e3947e8e5ae42332d0ac3164cd7"
+      },
+      "packaging/linux/notices/spirv-cross/LICENSES-LicenseRef-KhronosFreeUse.txt": {
+        "bytes": 1305,
+        "sha256": "fbeaca472f4f70e276dd1106ca5097435967a22ad6c1d8200aef7ad9f70aaf3f",
+        "git_blob": "430863bc98ad8ee1d0a4876a4c2a5b6f5d32fd74"
+      },
+      "packaging/linux/notices/stb/stb_image.h.LICENSE": {
+        "bytes": 2436,
+        "sha256": "0c1a6bc63aa465dbe3a1cb014b79b586e9fb902347a78a2a156985fce5eaaf9f",
+        "git_blob": "7a40f85f43b03593c64e2e9da1f1eb64fc0c7a77"
+      },
+      "packaging/linux/notices/stb/stb_image_resize.h.LICENSE": {
+        "bytes": 2436,
+        "sha256": "0c1a6bc63aa465dbe3a1cb014b79b586e9fb902347a78a2a156985fce5eaaf9f",
+        "git_blob": "7a40f85f43b03593c64e2e9da1f1eb64fc0c7a77"
+      },
+      "packaging/linux/notices/swift-argument-parser/LICENSE.txt": {
+        "bytes": 11751,
+        "sha256": "770af8291f708538d8ff885a0bbc4e045cd700531741c4f99528d435c14d7f55",
+        "git_blob": "61b0c78195f2d00acaf658000eeca6ad406a3a29"
+      },
+      "packaging/linux/notices/swift-corelibs-foundation/LICENSE": {
+        "bytes": 11759,
+        "sha256": "0ca84095d1de77cad1a866ebbad28f8db98a0826c6055d92b0608c5baa1643e2",
+        "git_blob": "f92d51a416e81fe24ff2d5ecf387e44b20cfeec5"
+      },
+      "packaging/linux/notices/swift-corelibs-libdispatch/LICENSE": {
+        "bytes": 11759,
+        "sha256": "0ca84095d1de77cad1a866ebbad28f8db98a0826c6055d92b0608c5baa1643e2",
+        "git_blob": "f92d51a416e81fe24ff2d5ecf387e44b20cfeec5"
+      },
+      "packaging/linux/notices/swift-foundation-icu/LICENSE.md": {
+        "bytes": 11750,
+        "sha256": "2245a990b635558be210fb3eb4f8a6f7a49aebc0fefbf5859146a65ddc7ddcf3",
+        "git_blob": "004d67aff35d05d06650d50bf14a7ac789557e7c"
+      },
+      "packaging/linux/notices/swift-foundation/LICENSE.md": {
+        "bytes": 11750,
+        "sha256": "2245a990b635558be210fb3eb4f8a6f7a49aebc0fefbf5859146a65ddc7ddcf3",
+        "git_blob": "004d67aff35d05d06650d50bf14a7ac789557e7c"
+      },
+      "packaging/linux/notices/swift-foundation/NOTICE.txt": {
+        "bytes": 15315,
+        "sha256": "c2e757911b86a76230099804831d8d847a865e88b5912171627492a7a49f0456",
+        "git_blob": "b8568b2f7b3d78de2420130fcd70f702c1e312d7"
+      },
+      "packaging/linux/notices/swift-string-processing/LICENSE.txt": {
+        "bytes": 11751,
+        "sha256": "770af8291f708538d8ff885a0bbc4e045cd700531741c4f99528d435c14d7f55",
+        "git_blob": "61b0c78195f2d00acaf658000eeca6ad406a3a29"
+      },
+      "packaging/linux/notices/swift/LICENSE.txt": {
+        "bytes": 11751,
+        "sha256": "770af8291f708538d8ff885a0bbc4e045cd700531741c4f99528d435c14d7f55",
+        "git_blob": "61b0c78195f2d00acaf658000eeca6ad406a3a29"
+      },
+      "packaging/linux/notices/tomldecoder/LICENSE.md": {
+        "bytes": 1091,
+        "sha256": "ee59f20a0a5550b0b071a0d9edb31c29629ce4bad2d8f5d0467ee7d574b541cf",
+        "git_blob": "a30b4e4133f7418c7acaa945323ca12e362fb501"
+      },
+      "packaging/linux/notices/uucode/LICENSE.md": {
+        "bytes": 1298,
+        "sha256": "312e901e142be2477b4ca859e9311f9e3f80d33372991759b7921c1893605f33",
+        "git_blob": "8849c0dc94684f52727ea86d984da31e10d22e39"
+      },
+      "packaging/linux/notices/uucode/licenses-LICENSE_Bjoern_Hoehrmann": {
+        "bytes": 1140,
+        "sha256": "de219cece932aad5a817bf763393d8d149d378a15d2ad5320e3331eac07626dd",
+        "git_blob": "40465d2d8cc6ad7928a6a1eeb048405cb2bca140"
+      },
+      "packaging/linux/notices/uucode/licenses-LICENSE_unicode": {
+        "bytes": 2032,
+        "sha256": "1eda5a3b026870c737b22e8bcd4954338612c790db688242e003f41a4fa95175",
+        "git_blob": "de5a378198720a3b4ad23bb635cc0c3aae3bc853"
+      },
+      "packaging/linux/notices/vaxis/LICENSE": {
+        "bytes": 1072,
+        "sha256": "cca4ffa6a45c0b17d3e9840b4cbe5be1e76ab84fda69850e0cb3f117729eeeea",
+        "git_blob": "b23315888c23676a70c22b597fe32b90ff18512f"
+      },
+      "packaging/linux/notices/wuffs/LICENSE": {
+        "bytes": 11372,
+        "sha256": "f8ac2c75e7f629a87565c80d61ff9fe5aa15cdea0bda997d52a4dc13fdbd19cb",
+        "git_blob": "279e3cc7ba9e9484682cc271901a604891a5d9b7"
+      },
+      "packaging/linux/notices/wuffs/LICENSE-APACHE": {
+        "bytes": 10174,
+        "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+        "git_blob": "f433b1a53f5b830a205fd2df78e2b34974656c7b"
+      },
+      "packaging/linux/notices/wuffs/LICENSE-MIT": {
+        "bytes": 1057,
+        "sha256": "bb811a4b485eac3caeb8bdc58bbafb355fbcb6116010a7ea9179e5c70b0bc878",
+        "git_blob": "87cf6995cad6dd1f5314961a35862d6cd80ff756"
+      },
+      "packaging/linux/notices/z2d/COPYING": {
+        "bytes": 16727,
+        "sha256": "d8d2562a7cb68ffdfe91fc66af1ed4a8a4e272aa4ab59bea7451ba34b9aba3d4",
+        "git_blob": "570135f7c18cc45c5a666d9370e4277c25ab08bc"
+      },
+      "packaging/linux/notices/z2d/LICENSE": {
+        "bytes": 21119,
+        "sha256": "c3c0b845181a67c2f926485299855769afa675bc90b18904c3087ae884cb1873",
+        "git_blob": "dd192dab5bf4485fdce61c6e4b16032fe6ba97fb"
+      },
+      "packaging/linux/notices/zf/LICENSE": {
+        "bytes": 1067,
+        "sha256": "0629000344ad0dc3c6e0e4c1b0c4a5cacf090e17d56e8bc5272705e3d35b7def",
+        "git_blob": "02c40cd496b0a61389b3c8f60fa3fbd39a6b3b39"
+      },
+      "packaging/linux/notices/zig-libcxx/LICENSE.TXT": {
+        "bytes": 16703,
+        "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b",
+        "git_blob": "e159d283443f92ac78b964d2bccebe8f95d5d445"
+      },
+      "packaging/linux/notices/zig-libcxxabi/LICENSE.TXT": {
+        "bytes": 16706,
+        "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c",
+        "git_blob": "b75c0441bcd5be32b5a07e2a1ffc7e67b6d99f16"
+      },
+      "packaging/linux/notices/zig-libunwind/LICENSE.TXT": {
+        "bytes": 16706,
+        "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d",
+        "git_blob": "1e3120621caeb62648745a42f7a9a25d1e2731ab"
+      },
+      "packaging/linux/notices/zig-runtime/LICENSE": {
+        "bytes": 1080,
+        "sha256": "5c537d6853e005298a285d508cff9ac7192cea23576c840d485b2b586a7ff177",
+        "git_blob": "9ce01373c89082fd81e8ea0793aab0978140526b"
+      },
+      "packaging/linux/notices/zlib/LICENSE": {
+        "bytes": 1002,
+        "sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243",
+        "git_blob": "ab8ee6f71428c3e4646b12b64ad387cde33462e5"
+      },
+      "packaging/linux/notices/zmx-ghostty/LICENSE": {
+        "bytes": 1097,
+        "sha256": "386211873e5b7a02f663ae4d7adf96285999f91608f8f9f31fecfd0f4095e6f1",
+        "git_blob": "0a07a66cd1ad6ea35cc3b8150e2c37702fe5989d"
+      },
+      "packaging/linux/notices/zmx-ghostty/build.zig.zon": {
+        "bytes": 6081,
+        "sha256": "bb13e580925ad82d4e3db7391cd48b58fb034a022c57c1e8e66519bf679a501d",
+        "git_blob": "e306505194847582ec82877221fff7a63a51348c"
+      }
+    }
+  },
+  "driver_source_checks": {
+    "same_bytes_both_launches_and_completed_status": true,
+    "git_query_timeout_seconds": 30,
+    "service_query_timeout_seconds": 10,
+    "service_wait_timeout_seconds": 210,
+    "worker_selection": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "<SOURCE77>/scripts/tests",
+      "-p",
+      "test_linux_install*.py",
+      "-v"
+    ]
+  }
+}

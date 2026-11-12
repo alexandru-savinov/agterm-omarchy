@@ -1,0 +1,657 @@
+{
+  "schema": "agterm-native-installer-fixtures/1",
+  "scope": "Historical unchanged-source synthetic installer/staging/rollback fixtures; no graphical or release acceptance.",
+  "record_scope": "Selected fields and derived comparisons; omitted process/unit/namespace/owner identities stay in the hash-bound originals.",
+  "prerequisite_failure": {
+    "outcome": "failed_before_fixture_execution",
+    "cause": "operator.py shadows Python's standard operator module during imports",
+    "status_record": null,
+    "test_log": null,
+    "completed_tests_observed": 0,
+    "operator_exit_code": null,
+    "operator_exit_code_scope": "Not separately retained; collection exit codes are not worker exit codes.",
+    "launch_receipt_collection": {
+      "exit_code": 0,
+      "signal_code": 0,
+      "seconds": 0.3431239128112793
+    },
+    "result_receipt_collection": {
+      "exit_code": 0,
+      "signal_code": 0,
+      "seconds": 0.3336210250854492
+    },
+    "driver_sha256": "081f7c99adfe8640923bd3d4a3a4bb4ea0530317a312bf86ca2488427122f363"
+  },
+  "completed_attempt": {
+    "outcome": "passed",
+    "source": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+    "source_input_count": 102,
+    "driver_sha256": "081f7c99adfe8640923bd3d4a3a4bb4ea0530317a312bf86ca2488427122f363",
+    "scope": "Unchanged native installer/staging Python fixtures with disposable synthetic payloads; no app/UI acceptance",
+    "errors": [],
+    "fixture_exit_code": 0,
+    "test_count": 46,
+    "unittest_seconds": 5.701,
+    "service_runtime_seconds": 5.775,
+    "service_invocation_seconds": 5.805122185000073,
+    "operator_wait_timeout_seconds": 210,
+    "service_properties": {
+      "RuntimeMaxSec": "180",
+      "TimeoutStopSec": "5",
+      "KillMode": "control-group",
+      "PrivateTmp": "yes",
+      "PrivateNetwork": "yes",
+      "PrivateIPC": "yes",
+      "PrivateDevices": "yes",
+      "ProtectSystem": "strict",
+      "ProtectHome": "read-only",
+      "NoNewPrivileges": "yes",
+      "UMask": "0077",
+      "ReadWritePaths": "<FIXTURE_STAGE>/work"
+    },
+    "argv_scope": "Complete recorded argument vector with path/unit/UID/GID aliases",
+    "argv": [
+      "/usr/bin/systemd-run",
+      "--unit=<TRANSIENT_UNIT>",
+      "--wait",
+      "--pipe",
+      "--collect",
+      "--service-type=exec",
+      "--expand-environment=no",
+      "--uid=<FIXTURE_UID>",
+      "--gid=<FIXTURE_GID>",
+      "--working-directory=<SOURCE77>",
+      "--property=RuntimeMaxSec=180",
+      "--property=TimeoutStopSec=5",
+      "--property=KillMode=control-group",
+      "--property=PrivateTmp=yes",
+      "--property=PrivateNetwork=yes",
+      "--property=PrivateIPC=yes",
+      "--property=PrivateDevices=yes",
+      "--property=ProtectSystem=strict",
+      "--property=ProtectHome=read-only",
+      "--property=ReadWritePaths=<FIXTURE_STAGE>/work",
+      "--property=NoNewPrivileges=yes",
+      "--property=UMask=0077",
+      "/usr/bin/env",
+      "-i",
+      "PATH=/usr/bin:/bin",
+      "HOME=<FIXTURE_STAGE>/work/home",
+      "XDG_CONFIG_HOME=<FIXTURE_STAGE>/work/config",
+      "XDG_DATA_HOME=<FIXTURE_STAGE>/work/data",
+      "XDG_CACHE_HOME=<FIXTURE_STAGE>/work/cache",
+      "XDG_STATE_HOME=<FIXTURE_STAGE>/work/state",
+      "XDG_RUNTIME_DIR=<FIXTURE_STAGE>/work/runtime",
+      "TMPDIR=<FIXTURE_STAGE>/work/tmp",
+      "LANG=C.UTF-8",
+      "LC_ALL=C.UTF-8",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "TERM=dumb",
+      "/usr/bin/python3",
+      "-B",
+      "<FIXTURE_STAGE>/worker.py",
+      "<FIXTURE_STAGE>/work",
+      "<SOURCE77>"
+    ],
+    "worker_observation": {
+      "non_root_uid": true,
+      "non_root_gid": true,
+      "source_readonly": true,
+      "installed_readonly": true,
+      "namespace_kinds_recorded": [
+        "ipc",
+        "mnt",
+        "net",
+        "pid"
+      ],
+      "cgroup": "0::/system.slice/<TRANSIENT_UNIT>\n"
+    },
+    "tools_sha256": {
+      "/usr/bin/python3": "c6bc1ef497b896b7575c546b13f9bafe52e2066f184fdd3fec6af4b5b6349947",
+      "/usr/bin/bash": "b78c3c42443dbf176e9b4b1018bfbba496e7d0fa63d962e7a6f144b6c88bfa2c",
+      "/usr/bin/systemd-run": "75a78be1c29fcbd1fb26575179ed5d16540501d5871bd05e95f79e8727ca75b7"
+    },
+    "payload_files_observed": 769,
+    "installed_files_observed": 675,
+    "protected_process_count_before": 1,
+    "preservation": {
+      "source_unchanged": true,
+      "installed_unchanged": true,
+      "payload_unchanged": true,
+      "protected_preserved": true,
+      "login_shell_unchanged": true
+    },
+    "unit_after": {
+      "exit_code": 0,
+      "stdout": "LoadState=not-found\nActiveState=inactive\nMainPID=0\nControlGroup=\n",
+      "stderr": ""
+    },
+    "unit_cgroup_absent": true,
+    "temporary_fixture_remainders": [],
+    "launch_receipt_collection": {
+      "exit_code": 0,
+      "signal_code": 0,
+      "seconds": 0.3570079803466797
+    },
+    "result_receipt_collection": {
+      "exit_code": 0,
+      "signal_code": 0,
+      "seconds": 0.34801697731018066
+    },
+    "tests": [
+      {
+        "ordinal": 1,
+        "id": "test_linux_install.PayloadStageTests.test_bundles_compatibility_library",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PayloadStageTests",
+          "function": "test_bundles_compatibility_library",
+          "line": 329
+        }
+      },
+      {
+        "ordinal": 2,
+        "id": "test_linux_install.PayloadStageTests.test_default_launcher_leaves_renderer_out_of_the_bookkeeping",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PayloadStageTests",
+          "function": "test_default_launcher_leaves_renderer_out_of_the_bookkeeping",
+          "line": 470
+        }
+      },
+      {
+        "ordinal": 3,
+        "id": "test_linux_install.PayloadStageTests.test_default_wrapper_preserves_inherited_renderer_and_arguments",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PayloadStageTests",
+          "function": "test_default_wrapper_preserves_inherited_renderer_and_arguments",
+          "line": 370
+        }
+      },
+      {
+        "ordinal": 4,
+        "id": "test_linux_install.PayloadStageTests.test_launcher_clears_bookkeeping_inherited_from_an_outer_agterm",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PayloadStageTests",
+          "function": "test_launcher_clears_bookkeeping_inherited_from_an_outer_agterm",
+          "line": 460
+        }
+      },
+      {
+        "ordinal": 5,
+        "id": "test_linux_install.PayloadStageTests.test_launcher_lists_variables_the_caller_never_had",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PayloadStageTests",
+          "function": "test_launcher_lists_variables_the_caller_never_had",
+          "line": 442
+        }
+      },
+      {
+        "ordinal": 6,
+        "id": "test_linux_install.PayloadStageTests.test_launcher_records_an_empty_caller_value_as_set",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PayloadStageTests",
+          "function": "test_launcher_records_an_empty_caller_value_as_set",
+          "line": 453
+        }
+      },
+      {
+        "ordinal": 7,
+        "id": "test_linux_install.PayloadStageTests.test_launcher_records_caller_values_it_overrides",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PayloadStageTests",
+          "function": "test_launcher_records_caller_values_it_overrides",
+          "line": 427
+        }
+      },
+      {
+        "ordinal": 8,
+        "id": "test_linux_install.PayloadStageTests.test_rejects_missing_runtime_library",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PayloadStageTests",
+          "function": "test_rejects_missing_runtime_library",
+          "line": 343
+        }
+      },
+      {
+        "ordinal": 9,
+        "id": "test_linux_install.PayloadStageTests.test_software_wrapper_survives_relocation_and_covers_desktop_actions",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PayloadStageTests",
+          "function": "test_software_wrapper_survives_relocation_and_covers_desktop_actions",
+          "line": 383
+        }
+      },
+      {
+        "ordinal": 10,
+        "id": "test_linux_install.PayloadStageTests.test_wrapper_only_honors_exact_software_data_marker",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PayloadStageTests",
+          "function": "test_wrapper_only_honors_exact_software_data_marker",
+          "line": 479
+        }
+      },
+      {
+        "ordinal": 11,
+        "id": "test_linux_install.PersonalInstallTests.test_complete_payload_survives_checkout_removal",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_complete_payload_survives_checkout_removal",
+          "line": 66
+        }
+      },
+      {
+        "ordinal": 12,
+        "id": "test_linux_install.PersonalInstallTests.test_conflicting_renderer_options_do_not_create_install",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_conflicting_renderer_options_do_not_create_install",
+          "line": 164
+        }
+      },
+      {
+        "ordinal": 13,
+        "id": "test_linux_install.PersonalInstallTests.test_desktop_entry_gets_try_exec_in_the_main_group_only",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_desktop_entry_gets_try_exec_in_the_main_group_only",
+          "line": 263
+        }
+      },
+      {
+        "ordinal": 14,
+        "id": "test_linux_install.PersonalInstallTests.test_explicit_swift_and_compat_environment",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_explicit_swift_and_compat_environment",
+          "line": 99
+        }
+      },
+      {
+        "ordinal": 15,
+        "id": "test_linux_install.PersonalInstallTests.test_invalid_option_does_not_create_install",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_invalid_option_does_not_create_install",
+          "line": 130
+        }
+      },
+      {
+        "ordinal": 16,
+        "id": "test_linux_install.PersonalInstallTests.test_invalid_renderer_marker_is_not_executed_or_silently_replaced",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_invalid_renderer_marker_is_not_executed_or_silently_replaced",
+          "line": 151
+        }
+      },
+      {
+        "ordinal": 17,
+        "id": "test_linux_install.PersonalInstallTests.test_payload_installs_an_extracted_archive_without_building_or_staging",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_payload_installs_an_extracted_archive_without_building_or_staging",
+          "line": 242
+        }
+      },
+      {
+        "ordinal": 18,
+        "id": "test_linux_install.PersonalInstallTests.test_payload_must_be_an_agterm_payload",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_payload_must_be_an_agterm_payload",
+          "line": 257
+        }
+      },
+      {
+        "ordinal": 19,
+        "id": "test_linux_install.PersonalInstallTests.test_reinstall_removes_icons_the_new_payload_dropped",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_reinstall_removes_icons_the_new_payload_dropped",
+          "line": 232
+        }
+      },
+      {
+        "ordinal": 20,
+        "id": "test_linux_install.PersonalInstallTests.test_reinstall_replaces_payload_without_touching_unrelated_files",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_reinstall_replaces_payload_without_touching_unrelated_files",
+          "line": 90
+        }
+      },
+      {
+        "ordinal": 21,
+        "id": "test_linux_install.PersonalInstallTests.test_renderer_default_selection_preservation_and_reset",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_renderer_default_selection_preservation_and_reset",
+          "line": 134
+        }
+      },
+      {
+        "ordinal": 22,
+        "id": "test_linux_install.PersonalInstallTests.test_run_selects_requested_build_configuration",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_run_selects_requested_build_configuration",
+          "line": 112
+        }
+      },
+      {
+        "ordinal": 23,
+        "id": "test_linux_install.PersonalInstallTests.test_staging_failure_preserves_existing_install",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_staging_failure_preserves_existing_install",
+          "line": 79
+        }
+      },
+      {
+        "ordinal": 24,
+        "id": "test_linux_install.PersonalInstallTests.test_uninstall_keeps_unrelated_files_state_and_config",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_uninstall_keeps_unrelated_files_state_and_config",
+          "line": 182
+        }
+      },
+      {
+        "ordinal": 25,
+        "id": "test_linux_install.PersonalInstallTests.test_uninstall_leaves_the_prefix_empty",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_uninstall_leaves_the_prefix_empty",
+          "line": 171
+        }
+      },
+      {
+        "ordinal": 26,
+        "id": "test_linux_install.PersonalInstallTests.test_uninstall_of_an_install_without_manifest_uses_its_payload",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_uninstall_of_an_install_without_manifest_uses_its_payload",
+          "line": 205
+        }
+      },
+      {
+        "ordinal": 27,
+        "id": "test_linux_install.PersonalInstallTests.test_uninstall_option_errors_change_nothing",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_uninstall_option_errors_change_nothing",
+          "line": 225
+        }
+      },
+      {
+        "ordinal": 28,
+        "id": "test_linux_install.PersonalInstallTests.test_uninstall_refuses_a_manifest_entry_outside_installer_paths",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_uninstall_refuses_a_manifest_entry_outside_installer_paths",
+          "line": 211
+        }
+      },
+      {
+        "ordinal": 29,
+        "id": "test_linux_install.PersonalInstallTests.test_warns_when_the_prefix_is_off_the_xdg_data_path",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install.py",
+          "class": "PersonalInstallTests",
+          "function": "test_warns_when_the_prefix_is_off_the_xdg_data_path",
+          "line": 270
+        }
+      },
+      {
+        "ordinal": 30,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_failed_external_rollback_retains_recovery_files",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_failed_external_rollback_retains_recovery_files",
+          "line": 196
+        }
+      },
+      {
+        "ordinal": 31,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_failed_first_install_removes_new_managed_files",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_failed_first_install_removes_new_managed_files",
+          "line": 172
+        }
+      },
+      {
+        "ordinal": 32,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_failed_payload_rename_restores_previous_install",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_failed_payload_rename_restores_previous_install",
+          "line": 66
+        }
+      },
+      {
+        "ordinal": 33,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_failed_rollback_retains_backup_for_recovery",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_failed_rollback_retains_backup_for_recovery",
+          "line": 72
+        }
+      },
+      {
+        "ordinal": 34,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_incomplete_payload_preserves_previous_install",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_incomplete_payload_preserves_previous_install",
+          "line": 101
+        }
+      },
+      {
+        "ordinal": 35,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_interrupted_upgrade_restores_payload_symlink",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_interrupted_upgrade_restores_payload_symlink",
+          "line": 89
+        }
+      },
+      {
+        "ordinal": 36,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_linked_bin_resolves_both_launchers_on_install_and_reinstall",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_linked_bin_resolves_both_launchers_on_install_and_reinstall",
+          "line": 255
+        }
+      },
+      {
+        "ordinal": 37,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_linked_prefix_and_bin_resolve_launchers",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_linked_prefix_and_bin_resolve_launchers",
+          "line": 269
+        }
+      },
+      {
+        "ordinal": 38,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_ordinary_prefix_remains_relocatable",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_ordinary_prefix_remains_relocatable",
+          "line": 280
+        }
+      },
+      {
+        "ordinal": 39,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_payload_cannot_redirect_mutable_directory_outside_stage",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_payload_cannot_redirect_mutable_directory_outside_stage",
+          "line": 225
+        }
+      },
+      {
+        "ordinal": 40,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_payload_markers_do_not_follow_external_symlinks",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_payload_markers_do_not_follow_external_symlinks",
+          "line": 214
+        }
+      },
+      {
+        "ordinal": 41,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_post_replacement_copy_failure_restores_files_and_launchers",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_post_replacement_copy_failure_restores_files_and_launchers",
+          "line": 166
+        }
+      },
+      {
+        "ordinal": 42,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_post_replacement_failure_restores_linked_payload_and_bin",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_post_replacement_failure_restores_linked_payload_and_bin",
+          "line": 178
+        }
+      },
+      {
+        "ordinal": 43,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_signal_after_external_files_changed_restores_previous_install",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_signal_after_external_files_changed_restores_previous_install",
+          "line": 169
+        }
+      },
+      {
+        "ordinal": 44,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_sigterm_after_backup_rename_restores_previous_install",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_sigterm_after_backup_rename_restores_previous_install",
+          "line": 58
+        }
+      },
+      {
+        "ordinal": 45,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_sigterm_after_payload_replacement_restores_previous_install",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_sigterm_after_payload_replacement_restores_previous_install",
+          "line": 82
+        }
+      },
+      {
+        "ordinal": 46,
+        "id": "test_linux_install_safety.InstallerSafetyTests.test_successful_upgrade_commits_new_payload",
+        "result": "ok",
+        "source_definition": {
+          "path": "scripts/tests/test_linux_install_safety.py",
+          "class": "InstallerSafetyTests",
+          "function": "test_successful_upgrade_commits_new_payload",
+          "line": 239
+        }
+      }
+    ]
+  },
+  "limits": [
+    "No runtime/compiler/VM operation was repeated to prepare or verify this extract.",
+    "Native tool hashes and preservation/cleanup observations are historical records, not new inspections.",
+    "The first failure is not part of the later 46-test pass.",
+    "Temporary fixture remainders are empty; retained evidence stages are not claimed deleted.",
+    "Same-account preparation and verification are not independent approval."
+  ]
+}

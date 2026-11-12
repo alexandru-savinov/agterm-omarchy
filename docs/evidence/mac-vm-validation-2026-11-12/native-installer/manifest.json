@@ -1,0 +1,26 @@
+{
+  "schema": "agterm-native-installer-publication/1",
+  "source": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+  "files": {
+    "README.native-installer.md": {
+      "bytes": 3932,
+      "sha256": "09f2e0523231a3c2c1754dd4b775387588e5f920c1c160445976fe5596cb907b"
+    },
+    "log-projections.json": {
+      "bytes": 10394,
+      "sha256": "ba69c6cd1b5b37853ace994137f1e2de5602af74ca3994f6e14999188eaa023b"
+    },
+    "native-installer-fixtures.json": {
+      "bytes": 24747,
+      "sha256": "f07ebb226c950de407c6ce32c52b8f85205b45ad7a028f0258909b913a11b989"
+    },
+    "original-bindings.json": {
+      "bytes": 26189,
+      "sha256": "369260ae82ecac12d915a4f3113e203ccb52470780a473a2e0fab23b2a7f5a4f"
+    },
+    "verify-native-installer.py": {
+      "bytes": 20261,
+      "sha256": "d3ee7adcd53896d0e69e70a83a3d20e4ae9fa8b4d648c1dff91875548515eb4d"
+    }
+  }
+}

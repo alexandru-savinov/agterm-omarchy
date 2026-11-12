@@ -1,0 +1,506 @@
+{
+  "schema": "agterm-mac-admin-context-publication/<pid-004>",
+  "boundary": "Historical prerequisite/context diagnostics only. No host administrative-stop request or stopped reply was reached. No product stop failure/pass, OS-policy cause, current-source app build, native release acceptance or independent approval is established.",
+  "synthetic_attempts": [
+    {
+      "original": {
+        "path": "source-admin-stop-corrected-sr305e1111/runs/root-stop-01/result.json",
+        "sha256": "59cb1d1d3a43b7752d431a51a3e05f6cda377b3394bafb12ba854cf16611b6ce",
+        "bytes": 2777
+      },
+      "projection": "complete parsed JSON document, aliases only",
+      "value": {
+        "bundle": {
+          "info": {
+            "CFBundleExecutable": "agterm-session-host",
+            "CFBundleIdentifier": "<synthetic-bundle-id-001>",
+            "CFBundlePackageType": "APPL"
+          },
+          "path": "<stage-001>/Fixture.app"
+        },
+        "checks": [
+          {
+            "name": "driver and prepared artifacts match manifest",
+            "passed": true
+          },
+          {
+            "name": "installed helper/zmx still match prepared image identities",
+            "passed": true
+          },
+          {
+            "name": "no private executable remains running",
+            "passed": true
+          },
+          {
+            "name": "protected installed process identities preserved",
+            "passed": true
+          },
+          {
+            "name": "installed helper/zmx bytes unchanged",
+            "passed": true
+          },
+          {
+            "name": "earlier reports and probe files unchanged",
+            "passed": true
+          }
+        ],
+        "errors": [
+          "TimeoutError: owned process did not exit: <pid-001>"
+        ],
+        "executed_argv": [
+          [
+            "<stage-001>/Fixture.app/Contents/MacOS/zmx",
+            "list"
+          ]
+        ],
+        "exit_codes": {
+          "<pid-001>": -15
+        },
+        "finished_at": 1794433555.86962,
+        "forced_cleanup": true,
+        "owned": [
+          {
+            "origin": "direct inventory child",
+            "path": "<stage-001>/Fixture.app/Contents/MacOS/zmx",
+            "pid": "<pid-001>",
+            "ppid": "<pid-002>",
+            "start_sec": 1794433552,
+            "start_usec": 751193,
+            "status": 2,
+            "uid": "<uid-001>"
+          }
+        ],
+        "passed": false,
+        "private_environment": {
+          "AGTERM_STATE_DIR": "<stage-001>/state",
+          "HOME": "<stage-001>/home",
+          "LANG": "C",
+          "LC_ALL": "C",
+          "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+          "SHELL": "/bin/sh",
+          "TMPDIR": "<stage-001>/tmp",
+          "ZMX_DIR": "<stage-001>/z"
+        },
+        "private_inventory_complete": true,
+        "private_processes_remaining": [],
+        "protected_before": [
+          {
+            "path": "<installed-release-bundle>/Contents/MacOS/agterm",
+            "pid": "<pid-003>",
+            "ppid": "<pid-004>",
+            "start_sec": 1793262893,
+            "start_usec": 893393,
+            "status": 2,
+            "uid": "<uid-001>"
+          }
+        ],
+        "recovery": [
+          {
+            "identity": {
+              "origin": "direct inventory child",
+              "path": "<stage-001>/Fixture.app/Contents/MacOS/zmx",
+              "pid": "<pid-001>",
+              "ppid": "<pid-002>",
+              "start_sec": 1794433552,
+              "start_usec": 751193,
+              "status": 2,
+              "uid": "<uid-001>"
+            },
+            "outcome": "signalled",
+            "signal": 15
+          }
+        ],
+        "retained_stage_files": [
+          "Fixture.app/Contents/Info.plist",
+          "Fixture.app/Contents/MacOS/agterm-session-host",
+          "Fixture.app/Contents/MacOS/session-host-test-client",
+          "Fixture.app/Contents/MacOS/zmx"
+        ],
+        "stage": "<stage-001>",
+        "started_at": 1794433552.662753
+      }
+    },
+    {
+      "original": {
+        "path": "source-admin-stop-corrected-sr305e1111/runs/root-stop-02/result.json",
+        "sha256": "4de3728523fc66610ab64a84c646db5f03200d51ca25fe904646e340ef251005",
+        "bytes": 2786
+      },
+      "projection": "complete parsed JSON document, aliases only",
+      "value": {
+        "bundle": {
+          "info": {
+            "CFBundleExecutable": "agterm-session-host",
+            "CFBundleIdentifier": "<synthetic-bundle-id-002>",
+            "CFBundlePackageType": "APPL"
+          },
+          "path": "<stage-002>/Fixture.app"
+        },
+        "checks": [
+          {
+            "name": "driver and prepared artifacts match manifest",
+            "passed": true
+          },
+          {
+            "name": "installed helper/zmx still match prepared image identities",
+            "passed": true
+          },
+          {
+            "name": "no private executable remains running",
+            "passed": true
+          },
+          {
+            "name": "protected installed process identities preserved",
+            "passed": true
+          },
+          {
+            "name": "installed helper/zmx bytes unchanged",
+            "passed": true
+          },
+          {
+            "name": "earlier reports and probe files unchanged",
+            "passed": true
+          }
+        ],
+        "errors": [
+          "TimeoutError: owned process did not exit: <pid-005>"
+        ],
+        "executed_argv": [
+          [
+            "<stage-002>/Fixture.app/Contents/MacOS/zmx",
+            "list"
+          ]
+        ],
+        "exit_codes": {
+          "<pid-005>": -15
+        },
+        "finished_at": 1794433837.2751381,
+        "forced_cleanup": true,
+        "owned": [
+          {
+            "origin": "direct inventory child",
+            "path": "<stage-002>/Fixture.app/Contents/MacOS/zmx",
+            "pid": "<pid-005>",
+            "ppid": "<pid-006>",
+            "start_sec": 1794433834,
+            "start_usec": 218274,
+            "status": 2,
+            "uid": "<uid-001>"
+          }
+        ],
+        "passed": false,
+        "private_environment": {
+          "AGTERM_STATE_DIR": "<stage-002>/state",
+          "HOME": "<stage-002>/home",
+          "LANG": "C",
+          "LC_ALL": "C",
+          "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+          "SHELL": "/bin/sh",
+          "TMPDIR": "<stage-002>/tmp",
+          "ZMX_DIR": "<stage-002>/z"
+        },
+        "private_inventory_complete": true,
+        "private_processes_remaining": [],
+        "protected_before": [
+          {
+            "path": "<installed-release-bundle>/Contents/MacOS/agterm",
+            "pid": "<pid-003>",
+            "ppid": "<pid-004>",
+            "start_sec": 1793262893,
+            "start_usec": 893393,
+            "status": 2,
+            "uid": "<uid-001>"
+          }
+        ],
+        "recovery": [
+          {
+            "identity": {
+              "origin": "direct inventory child",
+              "path": "<stage-002>/Fixture.app/Contents/MacOS/zmx",
+              "pid": "<pid-005>",
+              "ppid": "<pid-006>",
+              "start_sec": 1794433834,
+              "start_usec": 218274,
+              "status": 2,
+              "uid": "<uid-001>"
+            },
+            "outcome": "signalled",
+            "signal": 15
+          }
+        ],
+        "retained_stage_files": [
+          "Fixture.app/Contents/Info.plist",
+          "Fixture.app/Contents/MacOS/agterm-session-host",
+          "Fixture.app/Contents/MacOS/session-host-test-client",
+          "Fixture.app/Contents/MacOS/zmx"
+        ],
+        "stage": "<stage-002>",
+        "started_at": 1794433834.1192262
+      }
+    }
+  ],
+  "fifteen_second_diagnostic": {
+    "original": {
+      "path": "mac-private-zmx-diagnostic-<pid-004>/result-private.json",
+      "sha256": "4cd22881ddd7ada07e9de2472048a416df54caf9bc3a8bb2dc1e47e9deb7746f",
+      "bytes": 1095
+    },
+    "projection": "complete parsed JSON document, aliases only",
+    "value": {
+      "started_at": 1794433921.141901,
+      "stage": "<stage-002>",
+      "argv": [
+        "<stage-002>/Fixture.app/Contents/MacOS/zmx",
+        "list"
+      ],
+      "read_only_inventory": true,
+      "errors": [
+        "read-only inventory exceeded diagnostic fifteen-second observation budget"
+      ],
+      "signals": [
+        15
+      ],
+      "identity": {
+        "pid": "<pid-007>",
+        "ppid": "<pid-008>",
+        "uid": "<uid-001>",
+        "status": 2,
+        "start_sec": 1794433921,
+        "start_usec": 142057,
+        "path": "<stage-002>/Fixture.app/Contents/MacOS/zmx"
+      },
+      "sample": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "Sampling process <pid-007> for <pid-004> second with <pid-004> millisecond of run time between samples\nCouldn't find _sigtramp symbol in expected dylibs\nSampling completed, processing symbols...\nSample analysis of process <pid-007> written to file <validation-output-root>/mac-private-zmx-diagnostic-<pid-004>/sample-private.txt\n"
+      },
+      "exit_code": -15,
+      "seconds": 15.00586199760437,
+      "process_gone": true,
+      "namespace_empty": true,
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  "earlier_standalone_observation": {
+    "original": {
+      "path": "mac-private-zmx-standalone-diagnostic-private.json",
+      "sha256": "9cfdf609771d4ed0a1b5cda6a4c44bbd7d38cb2d92536e820468a88b009042f3",
+      "bytes": 749
+    },
+    "projection": "complete parsed JSON document, aliases only",
+    "value": {
+      "stage": "<stage-003>",
+      "started_at": 1794434067.953024,
+      "argv": [
+        "<stage-003>/zmx",
+        "list"
+      ],
+      "errors": [],
+      "signals": [],
+      "codesign_verify": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "<stage-003>/zmx: valid on disk\n<stage-003>/zmx: satisfies its Designated Requirement\n"
+      },
+      "identity": {
+        "pid": "<pid-009>",
+        "ppid": "<pid-010>",
+        "uid": "<uid-001>",
+        "status": 2,
+        "start_sec": 1794434068,
+        "start_usec": 194358,
+        "path": "<stage-003>/zmx"
+      },
+      "exit_code": 0,
+      "seconds": 0.6620080471038818,
+      "process_gone": true,
+      "namespace_empty": false,
+      "stdout": "",
+      "stderr": "no sessions found in <stage-003>/z\n"
+    }
+  },
+  "original_preparation": {
+    "original": {
+      "path": "scanner-admin-stop-prepared-sf79c3480ffb/manifest.json",
+      "sha256": "7e89574a54ad6e094f235b06a680a82575c1dc5385307e901dd43fb26d2231f6",
+      "bytes": 7445
+    },
+    "projection": "selected top-level JSON fields",
+    "selected_keys": [
+      "state",
+      "upstream_declared_ref",
+      "client_build_ref",
+      "source",
+      "binary_sha256",
+      "budgets_seconds",
+      "source_binding_limit"
+    ],
+    "value": {
+      "state": "prepared-not-executed",
+      "upstream_declared_ref": "097276106c6d0344e2dbfdb5d8bb7c93283d0168",
+      "client_build_ref": "2ddd93af8cd0b09a7c3fe668e6cf1f759949393b",
+      "source": [
+        {
+          "path": "agtermCore/Package.swift",
+          "git_blob": "2b3b9a9223b95c6693cf58970dec3bb1883e4372",
+          "sha256": "cc064fc4e3c81bcd357aceb7b79c2e692bd717a7c8e051f95c1af6305f91f92b"
+        },
+        {
+          "path": "agtermCore/Sources/AgtermResponsibility/Responsibility.swift",
+          "git_blob": "43c4e38b346a6610415e01ddb25dcdcd62a6d2d1",
+          "sha256": "c9c85c49b752b28cf7dd026f9d5ed18f8ba1a5cd7b1c9ece99f988be2d737b8c"
+        },
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/Host.swift",
+          "git_blob": "6c52516918a3888d604ce5404178bcdea2b9561b",
+          "sha256": "05987b086e41c44e59e78eaf8ee71daae009b9c37b497297e9e26e1d1b6afc93"
+        },
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/HostBackend.swift",
+          "git_blob": "153efceae70cc50cf790d8e1a4f5e0847d0c714e",
+          "sha256": "ce27134557d6d1a227724e4f9fa2844f1867c6d8ec2ce0c1a4275ba7b3ccf129"
+        },
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/HostIdentity.swift",
+          "git_blob": "16072974970a897915870c58d75dc8883eb7c8a9",
+          "sha256": "19a57b3aad5f87b7b072aa92370c07e074464a1d68d3bac95a580509caad500a"
+        },
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/HostSocket.swift",
+          "git_blob": "f95defb99efbb99c4b9fecd055c517b640fb0b7a",
+          "sha256": "78812938be628041e899216304d98f8e87bda478b4855b76b7a85f25add15702"
+        },
+        {
+          "path": "agtermCore/Sources/agtermCore/SessionHost.swift",
+          "git_blob": "b3256896b5196fd76a8b12f8e4483cd308ff46a2",
+          "sha256": "c6acd57edf9781cd674c27fed5fde7ec03804e9b4b942b547586679b37791f1e"
+        },
+        {
+          "path": "agtermCore/Sources/session-host-test-client/main.swift",
+          "git_blob": "63a737bb0c3f2049fcc886b90a3281ac911ce288",
+          "sha256": "6017882df1132914d5eb5daa5196f70dee8e028381d89e37e57a2bd8e1195bb9"
+        }
+      ],
+      "binary_sha256": {
+        "agterm-session-host": "2865953dd40bed50a9557a8b344e13fb1a6167ac8babd8444560e91dc96152d7",
+        "session-host-test-client": "0e0888911ac0c2ec71875a6fbd32cdeabbf40ef887421649cec35bb58a319ec5",
+        "zmx": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01"
+      },
+      "budgets_seconds": {
+        "endpoint": 5,
+        "inventory": 3,
+        "hello_read": 3,
+        "stop_reply": 15,
+        "helper_exit": 5,
+        "peer_exit": 3,
+        "sigterm_recovery": 2,
+        "sigkill_recovery": 2
+      },
+      "source_binding_limit": "Installed metadata declares this upstream source; no independent DMG byte comparison or reproducible build. Client source identity is proven; this fixture runtime is unexecuted."
+    }
+  },
+  "corrected_preparation": {
+    "original": {
+      "path": "source-admin-stop-corrected-sr305e1111/manifest.json",
+      "sha256": "92530976743394abcb9694e992753a9fc0388756c1b469c69e11cf63bbafe7d2",
+      "bytes": 9223
+    },
+    "projection": "selected top-level JSON fields",
+    "selected_keys": [
+      "state",
+      "upstream_declared_ref",
+      "client_build_ref",
+      "source",
+      "binary_sha256",
+      "budgets_seconds",
+      "source_binding_limit"
+    ],
+    "value": {
+      "state": "prepared-synthetic-checked-not-native-executed",
+      "upstream_declared_ref": "097276106c6d0344e2dbfdb5d8bb7c93283d0168",
+      "client_build_ref": "2ddd93af8cd0b09a7c3fe668e6cf1f759949393b",
+      "source": [
+        {
+          "path": "agtermCore/Package.swift",
+          "git_blob": "2b3b9a9223b95c6693cf58970dec3bb1883e4372",
+          "sha256": "cc064fc4e3c81bcd357aceb7b79c2e692bd717a7c8e051f95c1af6305f91f92b"
+        },
+        {
+          "path": "agtermCore/Sources/AgtermResponsibility/Responsibility.swift",
+          "git_blob": "43c4e38b346a6610415e01ddb25dcdcd62a6d2d1",
+          "sha256": "c9c85c49b752b28cf7dd026f9d5ed18f8ba1a5cd7b1c9ece99f988be2d737b8c"
+        },
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/Host.swift",
+          "git_blob": "6c52516918a3888d604ce5404178bcdea2b9561b",
+          "sha256": "05987b086e41c44e59e78eaf8ee71daae009b9c37b497297e9e26e1d1b6afc93"
+        },
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/HostBackend.swift",
+          "git_blob": "153efceae70cc50cf790d8e1a4f5e0847d0c714e",
+          "sha256": "ce27134557d6d1a227724e4f9fa2844f1867c6d8ec2ce0c1a4275ba7b3ccf129"
+        },
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/HostIdentity.swift",
+          "git_blob": "16072974970a897915870c58d75dc8883eb7c8a9",
+          "sha256": "19a57b3aad5f87b7b072aa92370c07e074464a1d68d3bac95a580509caad500a"
+        },
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/HostSocket.swift",
+          "git_blob": "f95defb99efbb99c4b9fecd055c517b640fb0b7a",
+          "sha256": "78812938be628041e899216304d98f8e87bda478b4855b76b7a85f25add15702"
+        },
+        {
+          "path": "agtermCore/Sources/agtermCore/SessionHost.swift",
+          "git_blob": "b3256896b5196fd76a8b12f8e4483cd308ff46a2",
+          "sha256": "c6acd57edf9781cd674c27fed5fde7ec03804e9b4b942b547586679b37791f1e"
+        },
+        {
+          "path": "agtermCore/Sources/session-host-test-client/main.swift",
+          "git_blob": "63a737bb0c3f2049fcc886b90a3281ac911ce288",
+          "sha256": "6017882df1132914d5eb5daa5196f70dee8e028381d89e37e57a2bd8e1195bb9"
+        }
+      ],
+      "binary_sha256": {
+        "agterm-session-host": "2865953dd40bed50a9557a8b344e13fb1a6167ac8babd8444560e91dc96152d7",
+        "session-host-test-client": "0e0888911ac0c2ec71875a6fbd32cdeabbf40ef887421649cec35bb58a319ec5",
+        "zmx": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01"
+      },
+      "budgets_seconds": {
+        "endpoint": 5,
+        "inventory": 3,
+        "hello_read": 3,
+        "stop_reply": 15,
+        "helper_exit": 5,
+        "peer_exit": 3,
+        "sigterm_recovery": 2,
+        "sigkill_recovery": 2
+      },
+      "source_binding_limit": "Root separately verified installed images against official v0.38.1 DMG (issue305 comment6807528246). No reproduced source build. Client source equivalence is established; this native fixture remains unexecuted."
+    }
+  },
+  "driver_receipts": {
+    "original_preparation_only": {
+      "path": "scanner-admin-stop-prepared-sf79c3480ffb/driver.py",
+      "sha256": "295a41b51591b750c6df312f03b15768928aea1ba883cc0aff4c589392d26b57",
+      "bytes": 24390
+    },
+    "both_executed_synthetic_attempts": {
+      "path": "source-admin-stop-corrected-sr305e1111/driver.py",
+      "sha256": "643dc3a8797d96050a6c722a553087d62fee3dab1eefa7e46002445ccd491bf7",
+      "bytes": 26658
+    },
+    "fifteen_second_sampled_diagnostic": {
+      "path": "diagnose-mac-private-zmx.py",
+      "sha256": "ebbf78c56137728907be3f52c95bf39f526f81050dd23f09cce179bb69803aba",
+      "bytes": 3442
+    },
+    "earlier_standalone": {
+      "available": false,
+      "driver_sha256": null,
+      "deadline_seconds": null,
+      "boundary": "The retained result binds argv, elapsed time and image, but this finite input set contains no separate driver/command artifact or deadline receipt for that earlier observation. The later comparison driver is not substituted."
+    }
+  }
+}

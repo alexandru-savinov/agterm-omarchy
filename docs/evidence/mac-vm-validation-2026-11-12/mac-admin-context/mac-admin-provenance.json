@@ -1,0 +1,221 @@
+{
+  "schema": "agterm-mac-admin-context-publication/<pid-004>",
+  "boundary": "Historical prerequisite/context diagnostics only. No host administrative-stop request or stopped reply was reached. No product stop failure/pass, OS-policy cause, current-source app build, native release acceptance or independent approval is established.",
+  "release_artifact_observation": {
+    "original": {
+      "path": "mac-release-provenance/result-private.json",
+      "sha256": "291b666b3cd456be4bd900689c3b34efc207a85c94fb187403a8aaa08f47403d",
+      "bytes": 3144
+    },
+    "projection": "complete parsed JSON document, aliases only",
+    "value": {
+      "started_at": 1794432716.365116,
+      "release_url": "https://github.com/umputun/agterm/releases/tag/v0.38.1",
+      "asset_url": "https://github.com/umputun/agterm/releases/download/v0.38.1/agterm-0.38.1.dmg",
+      "asset_id": 667741009,
+      "expected_sha256": "96da24beb0561d43d0eb0411408549cbb44af9d291fe3b0b7f69a8f9415df81d",
+      "expected_bytes": 22633778,
+      "errors": [],
+      "commands": [
+        {
+          "argv": [
+            "/usr/bin/curl",
+            "--disable",
+            "--fail",
+            "--location",
+            "--proto",
+            "=https",
+            "--proto-redir",
+            "=https",
+            "--silent",
+            "--show-error",
+            "--connect-timeout",
+            "20",
+            "--max-time",
+            "240",
+            "--output",
+            "<validation-output-root>/mac-release-provenance/agterm-0.38.1.dmg",
+            "https://github.com/umputun/agterm/releases/download/v0.38.1/agterm-0.38.1.dmg"
+          ],
+          "exit_code": 0,
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "/usr/bin/hdiutil",
+            "attach",
+            "-readonly",
+            "-nobrowse",
+            "-noautoopen",
+            "-mountpoint",
+            "<validation-output-root>/mac-release-provenance/mounted",
+            "-plist",
+            "<validation-output-root>/mac-release-provenance/agterm-0.38.1.dmg"
+          ],
+          "exit_code": 0,
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "/usr/bin/hdiutil",
+            "detach",
+            "<validation-output-root>/mac-release-provenance/mounted"
+          ],
+          "exit_code": 0,
+          "stderr": ""
+        }
+      ],
+      "actual_sha256": "96da24beb0561d43d0eb0411408549cbb44af9d291fe3b0b7f69a8f9415df81d",
+      "mounted_read_only": true,
+      "binary_comparisons": {
+        "agterm": {
+          "release_sha256": "04abc755511fb07456070cc8b12348c2674dd1ad0530f78d9a36837b43e72306",
+          "installed_sha256": "04abc755511fb07456070cc8b12348c2674dd1ad0530f78d9a36837b43e72306",
+          "equal": true
+        },
+        "agtermctl": {
+          "release_sha256": "426ecb736824f92af86646e4d53cf3e70393fab889a5495537319fe0cdb6073b",
+          "installed_sha256": "426ecb736824f92af86646e4d53cf3e70393fab889a5495537319fe0cdb6073b",
+          "equal": true
+        },
+        "agterm-session-host": {
+          "release_sha256": "2865953dd40bed50a9557a8b344e13fb1a6167ac8babd8444560e91dc96152d7",
+          "installed_sha256": "2865953dd40bed50a9557a8b344e13fb1a6167ac8babd8444560e91dc96152d7",
+          "equal": true
+        },
+        "zmx": {
+          "release_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+          "installed_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+          "equal": true
+        }
+      },
+      "release_bundle_metadata": {
+        "CFBundleIdentifier": "com.umputun.agterm",
+        "CFBundleShortVersionString": "0.38.1",
+        "CFBundleVersion": "0.38.1",
+        "GitCommit": "09727610"
+      },
+      "images_match_release": true,
+      "limit": "Byte correspondence to published release images; not a reproducible source build proof.",
+      "detached": true,
+      "finished_at": 1794432730.725725,
+      "passed": true
+    }
+  },
+  "release_metadata": {
+    "original": {
+      "path": "mac-release-provenance/release-metadata.json",
+      "sha256": "c84fee73dda5548bb2fc01dda35c4d000374bf40eb36d5f6bbc141133bdecfd4",
+      "bytes": 603
+    },
+    "projection": "complete parsed JSON document, aliases only",
+    "value": {
+      "observed_utc": "2026-11-11T21:32:00Z",
+      "url": "https://api.github.com/repos/umputun/agterm/releases/tags/v0.38.1",
+      "release_id": 421393405,
+      "tag_name": "v0.38.1",
+      "published_at": "2026-10-23T02:33:54Z",
+      "html_url": "https://github.com/umputun/agterm/releases/tag/v0.38.1",
+      "assets": [
+        {
+          "id": 667741009,
+          "name": "agterm-0.38.1.dmg",
+          "size": 22633778,
+          "digest": "sha256:96da24beb0561d43d0eb0411408549cbb44af9d291fe3b0b7f69a8f9415df81d",
+          "browser_download_url": "https://github.com/umputun/agterm/releases/download/v0.38.1/agterm-0.38.1.dmg"
+        }
+      ]
+    }
+  },
+  "release_archive_receipt": {
+    "path": "mac-release-provenance/agterm-0.38.1.dmg",
+    "sha256": "96da24beb0561d43d0eb0411408549cbb44af9d291fe3b0b7f69a8f9415df81d",
+    "bytes": 22633778
+  },
+  "source_equivalence": {
+    "original": {
+      "path": "scanner-admin-stop-bundle-sf79c3480ffb/source-equivalence.json",
+      "sha256": "254b041d93328d955d8469d9c92236996b6b21649274a83492cf1f1ba32bc6f3",
+      "bytes": 1347
+    },
+    "projection": "complete parsed JSON document, aliases only",
+    "value": {
+      "upstream_ref": "097276106c6d0344e2dbfdb5d8bb7c93283d0168",
+      "fork_ref": "2ddd93af8cd0b09a7c3fe668e6cf1f759949393b",
+      "files": [
+        {
+          "path": "agtermCore/Sources/session-host-test-client/main.swift",
+          "identical": true,
+          "fork_blob": "63a737bb0c3f2049fcc886b90a3281ac911ce288",
+          "sha256": "6017882df1132914d5eb5daa5196f70dee8e028381d89e37e57a2bd8e1195bb9"
+        },
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/HostIdentity.swift",
+          "identical": true,
+          "fork_blob": "16072974970a897915870c58d75dc8883eb7c8a9",
+          "sha256": "19a57b3aad5f87b7b072aa92370c07e074464a1d68d3bac95a580509caad500a"
+        },
+        {
+          "path": "agtermCore/Sources/AgtermResponsibility/Responsibility.swift",
+          "identical": true,
+          "fork_blob": "43c4e38b346a6610415e01ddb25dcdcd62a6d2d1",
+          "sha256": "c9c85c49b752b28cf7dd026f9d5ed18f8ba1a5cd7b1c9ece99f988be2d737b8c"
+        },
+        {
+          "path": "agtermCore/Sources/agtermCore/SessionHost.swift",
+          "identical": true,
+          "fork_blob": "b3256896b5196fd76a8b12f8e4483cd308ff46a2",
+          "sha256": "c6acd57edf9781cd674c27fed5fde7ec03804e9b4b942b547586679b37791f1e"
+        }
+      ],
+      "client_sha256": "0e0888911ac0c2ec71875a6fbd32cdeabbf40ef887421649cec35bb58a319ec5",
+      "prior_manifest_sha256": "5416ad43f2fe977756a8240730b79dcf2d2a2d787a0ca52ca38a52602884f0c4"
+    }
+  },
+  "source_binding_refresh": {
+    "original": {
+      "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/source-binding-refresh.json",
+      "sha256": "f45c7444b2ee51afbae2be5dc30a931449aebfa71da716f9759c27e38dab7957",
+      "bytes": 1063
+    },
+    "projection": "complete parsed JSON document, aliases only",
+    "value": {
+      "upstream_ref": "097276106c6d0344e2dbfdb5d8bb7c93283d0168",
+      "files": [
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/Host.swift",
+          "git_blob": "6c52516918a3888d604ce5404178bcdea2b9561b",
+          "sha256": "05987b086e41c44e59e78eaf8ee71daae009b9c37b497297e9e26e1d1b6afc93",
+          "matches": true
+        },
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/HostIdentity.swift",
+          "git_blob": "16072974970a897915870c58d75dc8883eb7c8a9",
+          "sha256": "19a57b3aad5f87b7b072aa92370c07e074464a1d68d3bac95a580509caad500a",
+          "matches": true
+        },
+        {
+          "path": "agtermCore/Sources/SessionHostRuntime/HostBackend.swift",
+          "git_blob": "153efceae70cc50cf790d8e1a4f5e0847d0c714e",
+          "sha256": "ce27134557d6d1a227724e4f9fa2844f1867c6d8ec2ce0c1a4275ba7b3ccf129",
+          "matches": true
+        },
+        {
+          "path": "agtermCore/Sources/agterm-session-host/main.swift",
+          "git_blob": "5873d936142efa8a85574ff8152a2dbe919cb8f5",
+          "sha256": "74d0bb52045f9c2f3c27c2f2dfb602385e62294c33a8d6108043bba419a8836a"
+        }
+      ]
+    }
+  },
+  "input_set": {
+    "index": "original-bindings.json",
+    "sha256": "8955c4d110baf5c46db0bbf330d441256ef7499ff934c8db0629699908a3160e",
+    "files": 2089,
+    "bytes": 225449514
+  },
+  "historical_execution_operator": "root_mac_vm",
+  "publication_preparer": "retry_audit",
+  "new_runtime_or_compiler_execution": false,
+  "same_account_not_independent_approval": true
+}

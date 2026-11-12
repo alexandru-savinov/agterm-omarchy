@@ -1,0 +1,44 @@
+{
+  "schema": "agterm-mac-admin-context-manifest/1",
+  "files": {
+    "README.mac-admin-context-insertion.md": {
+      "bytes": 5314,
+      "sha256": "4d52ec8a53270c36638351da60fdc782cb116bc149943e23e35929a32275b570"
+    },
+    "mac-admin-bundle-retry.json": {
+      "bytes": 68343,
+      "sha256": "bc54cd74961491f925ecad9abd650b40c8bbe8de63049a0b7f8fe60ddc80d5ba"
+    },
+    "mac-admin-prerequisites.json": {
+      "bytes": 18336,
+      "sha256": "86c18c3d0f3748152ed5da9d8f4c3430a3c02edc1499d078ca09a4864c6346e5"
+    },
+    "mac-admin-provenance.json": {
+      "bytes": 8815,
+      "sha256": "69f3d8913dc3a767a8e363458df7f587901c7dabb524cb2d20a5ed92915ffe21"
+    },
+    "mac-zmx-context.json": {
+      "bytes": 21409,
+      "sha256": "4dba70a08380be4ba678f102dfdc2d47f0e88cb44aa5f056393a9e1d9e572aef"
+    },
+    "original-bindings.json": {
+      "bytes": 480352,
+      "sha256": "8955c4d110baf5c46db0bbf330d441256ef7499ff934c8db0629699908a3160e"
+    },
+    "selected-log-projections.json": {
+      "bytes": 10504,
+      "sha256": "3bc8b3151bc0116caf99ded819dcd7b7fc5caadd2e6f1d8b679209aa68c99e77"
+    },
+    "verification.json": {
+      "bytes": 792,
+      "sha256": "609274b6dcd1035298f4af105d253eddf33694e62c7613d078283efa5cb19e6a"
+    },
+    "verify-mac-admin-context.py": {
+      "bytes": 28181,
+      "sha256": "50d22c63a9ae3ecd9819b3a0e2a4793a29dc053d5ffd1fbc01ee5fa4ff5810e5"
+    }
+  },
+  "original_bindings_sha256": "8955c4d110baf5c46db0bbf330d441256ef7499ff934c8db0629699908a3160e",
+  "publication_authority": "root_mac_vm; additive package only",
+  "frozen_pr317_unchanged": true
+}
