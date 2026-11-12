@@ -27,14 +27,8 @@ enum LinuxRestoreSeed {
                         waitAfterCommand: plan.waitAfterCommand)
     }
 
-    /// The zmx-backed seed. `daemonRunning` is whether the launch inventory listed this pane's daemon (nil: unknown).
-    ///
-    /// With a capture, zmx is never handed a command to run: the attach is the plain one, so a missing daemon is
-    /// created with the normal login shell, and the captured line is pre-filled only when the inventory says the
-    /// daemon is gone — typing into a live (or unknown) session would land in whatever it is running. A capture,
-    /// even a refused one, still preempts the durable creation command, so an unknown inventory drops the capture.
-    /// The line is typed at the tty, so the first reader takes it: a startup file that reads input can consume it.
-    /// Without a capture the session's own creation command recreates a lost daemon, as before.
+    /// A capture still preempts the durable command. Only a newly created daemon's shell queues it;
+    /// attaching to an existing daemon never sends restored bytes, even if the inventory was stale.
     static func wrappedSeed(_ configuration: ZmxSupport.Configuration, replay: [String]?, durable: String?,
                             denylist: Set<String>, daemonRunning: Bool?) -> LinuxLaunchSeed {
         guard let replay else {
@@ -45,8 +39,9 @@ enum LinuxRestoreSeed {
             )
         }
         let line = daemonRunning == false ? restoreLine(replay, restoreEnabled: true, denylist: denylist) : nil
-        return LinuxLaunchSeed(command: ZmxSupport.attachCommand(configuration, replaying: nil, denylist: denylist),
-                               initialInput: line, waitAfterCommand: false)
+        let command = line.flatMap { LinuxZmxLaunch.prefillCommand(configuration, line: $0) }
+            ?? ZmxSupport.attachCommand(configuration, replaying: nil, denylist: denylist)
+        return LinuxLaunchSeed(command: command, initialInput: nil, waitAfterCommand: false)
     }
 
     private static func prefilled(_ input: String) -> String {

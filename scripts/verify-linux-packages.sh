@@ -70,6 +70,7 @@ verify_payload() {
   test -x "$payload/bin/agtermctl.bin"
   test -x "$payload/bin/zmx"
   test -r "$payload/bin/agterm-linux_AgtermLinux.resources/hud/hud.sh"
+  test -s "$payload/bin/agterm-linux_AgtermLinux.resources/live-prefill/.zshenv"
   test -f "$payload/lib/libghostty.so"
   "$ROOT/scripts/verify-linux-resources.sh" "$payload/share"
   test -x "$payload/share/agterm/agent-status/agterm-agent-status.sh"
