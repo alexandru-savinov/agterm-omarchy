@@ -4716,6 +4716,32 @@ def verify_sidebar_incremental(env):
                  "session.flag never added the star image to the inc-two row IN PLACE")
         survived("a session.flag toggle")
 
+        def edit_draft(row, draft):
+            entry = wait_for(lambda: editable_descendant(row), "inline editor did not appear")
+            type_x11_text(draft, process.pid)
+            wait_for(lambda: Atspi.Text.get_text(entry, 0, Atspi.Text.get_character_count(entry)) == draft,
+                     "physical draft typing did not reach the editor")
+            subprocess.run(["xdotool", "key", "--clearmodifiers", "Home", "Right", "Right", "Right"], check=True)
+            wait_for(lambda: entry.get_text_iface().get_caret_offset() == 3,
+                     "the draft caret did not move to its measured interior position")
+            return entry
+
+        def assert_edit_survives(row, entry, draft):
+            assert sidebar_accessible_live(entry) and editable_descendant(row) == entry, (
+                "metadata synchronization replaced the captured editor")
+            assert Atspi.Text.get_text(entry, 0, Atspi.Text.get_character_count(entry)) == draft, (
+                "metadata synchronization replaced edited text")
+            assert entry.get_text_iface().get_caret_offset() == 3, "metadata synchronization moved the caret"
+            # This physical insertion is the focus oracle: neither a label nor the terminal can satisfy it.
+            type_x11_text("X", process.pid)
+            expected = draft[:3] + "X" + draft[3:]
+            wait_for(lambda: Atspi.Text.get_text(entry, 0, Atspi.Text.get_character_count(entry)) == expected,
+                     "post-metadata keyboard input did not reach the preserved editor/caret")
+
+        def replace_draft(text):
+            subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+a"], check=True)
+            type_x11_text(text, process.pid)
+
         # The inline rename is the one per-row structural edit: the name label is swapped for an
         # entry inside the SAME row, survives unrelated churn, and swaps back on commit.
         row_dy = calibrate_row_click(app, process.pid, label["two"])
@@ -4723,12 +4749,15 @@ def verify_sidebar_incremental(env):
                     button="left", count=2, dy=row_dy)
         wait_for(lambda: editable_descendant(rows["two"]),
                  "double-clicking the inc-two name did not open an inline rename entry in its row")
+        session_entry = edit_draft(rows["two"], "session-draft")
         control_json(env, "session", "status", "blocked", "--target", ident["three"], "--json")
         wait_for(lambda: glyphed("three"),
                  "a status on another session never reached its row while a rename was in flight")
-        assert editable_descendant(rows["two"]) is not None, (
-            "an unrelated session.status destroyed the in-flight inline rename entry")
-        type_x11_text("inc-renamed", process.pid)
+        control_json(env, "session", "status", "idle", "--target", ident["two"], "--json")
+        wait_for(lambda: not glyphed("two"), "the editing session's status did not reach its row")
+        assert_edit_survives(rows["two"], session_entry, "session-draft")
+        assert label["two"] in names(), "metadata churn committed an unfinished session draft"
+        replace_draft("inc-renamed")
         press_return(process.pid)
         wait_for(lambda: "inc-renamed" in names(), "the inline rename never committed to the model")
         wait_for(lambda: sidebar_accessible_live(rows["two"], "inc-renamed"),
@@ -4749,7 +4778,13 @@ def verify_sidebar_incremental(env):
                          "a missed header double-click collapsed the workspace for good")
         assert editable_descendant(header) is not None, (
             "double-clicking the workspace name never opened its inline rename entry")
-        type_x11_text("inc-workspace", process.pid)
+        workspace_entry = edit_draft(header, "workspace-draft")
+        original_workspace_name = workspace()["name"]
+        control_json(env, "session", "status", "idle", "--target", ident["three"], "--json")
+        wait_for(lambda: not glyphed("three"), "metadata churn did not clear the child's status")
+        assert_edit_survives(header, workspace_entry, "workspace-draft")
+        assert workspace()["name"] == original_workspace_name, "metadata churn committed an unfinished workspace draft"
+        replace_draft("inc-workspace")
         press_return(process.pid)
         wait_for(lambda: workspace()["name"] == "inc-workspace",
                  "the workspace rename never committed to the model")
@@ -4874,6 +4909,80 @@ def verify_sidebar_incremental(env):
         wait_for(lambda: sidebar_row_name_order(app)
                  == [label[key] for key in ("one", "two", "three")],
                  "switching back to tree mode did not restore the rows")
+
+        def session_name(session_id):
+            return next((session["name"] for section in window_tree(env, window_id)["workspaces"]
+                         for session in section["sessions"] if session["id"] == session_id), None)
+
+        def begin_session_draft(session_id, draft):
+            name = session_name(session_id)
+            row = wait_for(lambda: sidebar_session_row(app, name), f"row {name} did not appear")
+            response = control_json(env, "session", "select", "--target", session_id, "--json")
+            assert response["ok"], response
+            run_palette_action(app, process.pid, None, "Rename Session")
+            return edit_draft(row, draft)
+
+        def begin_workspace_draft(target, name, draft):
+            header = wait_for(lambda: named(app, name, role="label"), "workspace header missing").get_parent()
+            for dy in ABSOLUTE_DYS:
+                mouse_click(lambda: named(app, name, role="label"), process.pid,
+                            button="left", count=2, dy=dy)
+                if poll(lambda: editable_descendant(header) is not None, timeout=2):
+                    break
+                response = control_json(env, "workspace", "expand", "--target", target, "--json")
+                assert response["ok"], response
+            return header, edit_draft(header, draft)
+
+        # A session row move reparents the row, so detachGuard must commit while its entry is valid.
+        moved_entry = begin_session_draft(ident["two"], "move-committed")
+        response = control_json(env, "session", "move", "--to", "top", "--target", ident["two"], "--json")
+        assert response["ok"], response
+        wait_for(lambda: session_name(ident["two"]) == "move-committed", "moving an edited row lost its draft")
+        wait_for(lambda: not sidebar_accessible_live(moved_entry), "the moved row retained its stale editor")
+        control_json(env, "session", "rename", "after-move", "--target", ident["two"], "--json")
+        time.sleep(NEGATIVE_SETTLE_SECONDS)
+        assert session_name(ident["two"]) == "after-move", "a late rename callback overwrote the later name"
+
+        hidden_entry = begin_session_draft(ident["two"], "hide-committed")
+        control_json(env, "workspace", "collapse", "--target", workspace_id, "--json")
+        wait_for(lambda: session_name(ident["two"]) == "hide-committed", "hiding an edited row lost its draft")
+        control_json(env, "workspace", "expand", "--target", workspace_id, "--json")
+        wait_for(lambda: sidebar_session_row(app, "hide-committed"), "expanded row lost its committed name")
+        wait_for(lambda: not sidebar_accessible_live(hidden_entry), "expansion revived the hidden editor")
+
+        removed_entry = begin_session_draft(ident["three"], "removed-session-draft")
+        response = control_json(env, "session", "close", "--target", ident["three"], "--json")
+        assert response["ok"], response
+        wait_for(lambda: session_name(ident["three"]) is None, "the edited session did not close")
+        wait_for(lambda: not sidebar_accessible_live(removed_entry), "the removed session retained its editor")
+
+        # Workspace reordering is an in-place GtkBox reorder, unlike session-row reparenting.
+        created = control_json(env, "workspace", "new", "rename-victim", "--json")
+        assert created["ok"], created
+        victim = created["result"]["id"]
+        moving_header, workspace_draft = begin_workspace_draft(
+            workspace_id, "inc-workspace", "reorder-workspace-draft")
+        control_json(env, "workspace", "move", "--to", "bottom", "--target", workspace_id, "--json")
+        wait_for(lambda: window_tree(env, window_id)["workspaces"][-1]["id"] == workspace_id,
+                 "workspace reorder did not occur")
+        assert_edit_survives(moving_header, workspace_draft, "reorder-workspace-draft")
+        press_escape(process.pid)
+        wait_for(lambda: not sidebar_accessible_live(workspace_draft), "Escape left the reordered editor alive")
+
+        _, victim_entry = begin_workspace_draft(victim, "rename-victim", "removed-workspace-draft")
+        response = control_json(env, "workspace", "delete", "--target", victim, "--json")
+        assert response["ok"], response
+        wait_for(lambda: not sidebar_accessible_live(victim_entry), "deleted workspace retained its editor")
+        control_json(env, "session", "rename", "after-removal", "--target", ident["two"], "--json")
+        time.sleep(NEGATIVE_SETTLE_SECONDS)
+        assert all(section["id"] != victim for section in window_tree(env, window_id)["workspaces"]), (
+            "a stale rename resurrected the removed workspace")
+        assert session_name(ident["three"]) is None, "a stale rename resurrected the removed session"
+        assert session_name(ident["two"]) == "after-removal", "a stale callback overwrote the surviving row"
+        # Same-value model renames are idempotent: this proves single visible outcomes/no late overwrite,
+        # not an internal callback invocation count.
+        print("OK: session/workspace drafts retain entry, text, caret and input across metadata; "
+              "row move/hide commits, workspace reorder preserves editing, removals leave no late overwrite")
 
         print("OK: sidebar rows and headers update in place across status, name, badge, flag, "
               "rename, reorder, collapse (which declines an unreachable rename) and an auto-reset click "
