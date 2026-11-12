@@ -9,11 +9,13 @@ final class GhosttySurfaceConfigurationStorage {
     private(set) var command: UnsafeMutablePointer<CChar>?
     private(set) var initialInput: UnsafeMutablePointer<CChar>?
     private(set) var environment: UnsafeMutableBufferPointer<ghostty_env_var_s>?
+    private(set) var environmentUnsets: UnsafeMutableBufferPointer<UnsafePointer<CChar>?>?
     private var strings: [UnsafeMutablePointer<CChar>] = []
     private let deallocate: Deallocate
     private(set) var isReleased = false
 
     init?(workingDirectory: String, command: String?, initialInput: String?, environment: [String: String],
+          environmentUnsets: [String] = [],
           duplicate: Duplicate = { strdup($0) }, deallocate: @escaping Deallocate = { free($0) }) {
         self.deallocate = deallocate
         guard let workingDirectory = retain(workingDirectory, duplicate: duplicate) else {
@@ -36,10 +38,22 @@ final class GhosttySurfaceConfigurationStorage {
                   let value = retain(value, duplicate: duplicate) else { release(); return nil }
             entries.append(ghostty_env_var_s(key: UnsafePointer(key), value: UnsafePointer(value)))
         }
-        guard !entries.isEmpty else { return }
-        let pointer = UnsafeMutablePointer<ghostty_env_var_s>.allocate(capacity: entries.count)
-        for (index, entry) in entries.enumerated() { pointer.advanced(by: index).initialize(to: entry) }
-        self.environment = UnsafeMutableBufferPointer(start: pointer, count: entries.count)
+        if !entries.isEmpty {
+            let pointer = UnsafeMutablePointer<ghostty_env_var_s>.allocate(capacity: entries.count)
+            for (index, entry) in entries.enumerated() { pointer.advanced(by: index).initialize(to: entry) }
+            self.environment = UnsafeMutableBufferPointer(start: pointer, count: entries.count)
+        }
+        var names: [UnsafePointer<CChar>?] = []
+        for name in environmentUnsets {
+            guard !name.isEmpty, !name.contains("="), !name.utf8.contains(0),
+                  let pointer = retain(name, duplicate: duplicate) else { release(); return nil }
+            names.append(UnsafePointer(pointer))
+        }
+        if !names.isEmpty {
+            let pointer = UnsafeMutablePointer<UnsafePointer<CChar>?>.allocate(capacity: names.count)
+            for (index, name) in names.enumerated() { pointer.advanced(by: index).initialize(to: name) }
+            self.environmentUnsets = UnsafeMutableBufferPointer(start: pointer, count: names.count)
+        }
     }
 
     deinit {
@@ -61,6 +75,11 @@ final class GhosttySurfaceConfigurationStorage {
             environment.baseAddress?.deinitialize(count: environment.count)
             environment.baseAddress?.deallocate()
             self.environment = nil
+        }
+        if let environmentUnsets {
+            environmentUnsets.baseAddress?.deinitialize(count: environmentUnsets.count)
+            environmentUnsets.baseAddress?.deallocate()
+            self.environmentUnsets = nil
         }
         strings.forEach(deallocate)
         strings = []

@@ -21,7 +21,9 @@ extension AppController {
             removePaneOverlaySurface(session, pane: pane)
         }
         for pane in OverlayPane.allCases {
-            setPaneOverlayCoverage(session, pane: pane, covered: session.paneOverlay(pane) != nil)
+            let covered = session.paneOverlay(pane) != nil
+            if covered { syncPaneOverlayWash(session, pane: pane) }
+            setPaneOverlayCoverage(session, pane: pane, covered: covered)
         }
         updatePaneDim(session)
         if allowFocus, session.id == store.selectedSessionID,
@@ -83,6 +85,15 @@ extension AppController {
         gtk_widget_set_halign(W(surface.rootWidget), GTK_ALIGN_FILL)
         gtk_widget_set_valign(W(surface.rootWidget), GTK_ALIGN_FILL)
         gtk_overlay_add_overlay(host, W(surface.rootWidget))
+        surface.realizeWidgetIfNeeded()
+    }
+
+    private func syncPaneOverlayWash(_ session: Session, pane: OverlayPane) {
+        guard let host = paneHost(session.id, pane: pane) else { return }
+        if paneOverlayWash(session.id, pane: pane) != nil {
+            raisePaneOverlayWash(session.id, pane: pane)
+            return
+        }
         let wash = OpaquePointer(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0))
         gtk_widget_set_hexpand(W(wash), 1)
         gtk_widget_set_vexpand(W(wash), 1)
@@ -93,16 +104,16 @@ extension AppController {
         g_object_unref(RAW(provider))
         gtk_overlay_add_overlay(host, W(wash))
         setPaneOverlayWash(wash, provider: provider, sessionID: session.id, pane: pane)
-        surface.realizeWidgetIfNeeded()
     }
 
     private func removePaneOverlaySurface(_ session: Session, pane: OverlayPane) {
-        guard let surface = paneOverlaySurface(session.id, pane: pane) else { return }
         if let host = paneHost(session.id, pane: pane) {
             if let wash = paneOverlayWash(session.id, pane: pane) {
                 gtk_overlay_remove_overlay(host, W(wash))
             }
-            gtk_overlay_remove_overlay(host, W(surface.rootWidget))
+            if let surface = paneOverlaySurface(session.id, pane: pane) {
+                gtk_overlay_remove_overlay(host, W(surface.rootWidget))
+            }
         }
         setPaneOverlayWash(nil, provider: nil, sessionID: session.id, pane: pane)
         setPaneOverlaySurface(nil, sessionID: session.id, pane: pane)

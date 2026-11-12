@@ -31,11 +31,9 @@ struct AppearanceReloadPolicy {
     }
 
     func isEligible(for context: AppearanceReloadContext) -> Bool {
-        guard context.followsSystemAppearance,
-            context.hasLightSlot,
-            context.hasDarkSlot
-        else { return false }
-
+        // set_color_scheme only changes libghostty's conditional state; its terminal I/O
+        // config (and DSR scheme report) stays stale until update_config. Reapply even
+        // with a fixed palette: ghosttyLines keeps palette selection governed by settings.
         return context.currentSide != lastAppliedSide
     }
 

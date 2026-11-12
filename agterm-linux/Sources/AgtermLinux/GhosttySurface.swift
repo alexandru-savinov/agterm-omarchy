@@ -68,6 +68,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     /// surface role (main, split, scratch, overlay, quick) goes through, so the restore is merged here
     /// rather than at each construction site.
     let env: [String: String]
+    private let environmentUnsets: [String]
     /// The last libghostty-requested pointer state. GTK may receive visibility, link-hover, and shape
     /// actions independently, so keep all three and re-apply their precedence instead of letting one
     /// callback accidentally reset another.
@@ -128,6 +129,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
         self.fontSize = fontSize
         self.initialInput = initialInput
         self.env = gdkEnvironment.childEnvironment(merging: env)
+        environmentUnsets = gdkEnvironment.childEnvironmentUnsets(merging: env)
         rootWidget = OpaquePointer(gtk_overlay_new())
         glArea = OpaquePointer(gtk_gl_area_new())
         gtk_overlay_set_child(rootWidget, W(glArea))
@@ -253,7 +255,8 @@ final class GhosttySurface: PaneRoleMutableSurface {
         cfg.scale_factor = Double(scale)
         if let fontSize { cfg.font_size = Float(fontSize) }   // restore a persisted per-session zoom
         guard let storage = GhosttySurfaceConfigurationStorage(
-            workingDirectory: cwd, command: command, initialInput: initialInput, environment: env
+            workingDirectory: cwd, command: command, initialInput: initialInput, environment: env,
+            environmentUnsets: environmentUnsets
         ) else {
             FileHandle.standardError.write(Data("agterm: could not allocate libghostty surface configuration\n".utf8))
             showCreationFailure()
@@ -269,7 +272,8 @@ final class GhosttySurface: PaneRoleMutableSurface {
         if LinuxSurfaceFailureInjection.failure(for: role) == .creation {
             surface = nil
         } else {
-            surface = ghostty_surface_new(app, &cfg)
+            surface = ghostty_surface_new_with_env_unset(app, &cfg, storage.environmentUnsets?.baseAddress,
+                                                       storage.environmentUnsets?.count ?? 0)
         }
         guard let surface else {
             // libghostty exposes no error value here and may reject one surface for fonts, renderer,

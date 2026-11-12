@@ -28,10 +28,24 @@ index 5523654..c858504 100644
 
  typedef enum {
 diff --git i/src/App.zig w/src/App.zig
-index 2ee9f93..a5f9148 100644
+index 2ee9f93..528283f 100644
 --- i/src/App.zig
 +++ w/src/App.zig
-@@ -154,6 +154,12 @@ pub fn destroy(self: *App) void {
+@@ -134,6 +134,13 @@ pub fn deinit(self: *App) void {
+     for (self.surfaces.items) |surface| surface.deinit();
+     self.surfaces.deinit(self.alloc);
+
++    // All recipients have closed. Release payloads accepted before their cancellation;
++    // no GUI callbacks may run once surface destruction has begun.
++    while (self.mailbox.pop(global.io())) |message| switch (message) {
++        .surface_message => |msg| msg.message.deinit(),
++        else => {},
++    };
++
+     // Clean up our font group cache
+     // We should have zero items in the grid set at this point because
+     // destroy only gets called when the app is shutting down and this
+@@ -154,6 +161,12 @@ pub fn destroy(self: *App) void {
  /// events. This should be called by the application runtime on every loop
  /// tick.
  pub fn tick(self: *App, rt_app: *apprt.App) !void {
@@ -44,6 +58,88 @@ index 2ee9f93..a5f9148 100644
      // Drain our mailbox
      try self.drainMailbox(rt_app);
  }
+@@ -533,10 +546,11 @@ fn surfaceMessage(self: *App, surface: *Surface, msg: apprt.surface.Message) !vo
+     // a simple linear search here.
+     if (self.hasSurface(surface)) {
+         try surface.handleMessage(msg);
++    } else {
++        // A closed surface cannot consume an already accepted message. Release its
++        // owned payload instead of leaking it while other surfaces keep running.
++        msg.deinit();
+     }
+-
+-    // Window was not found, it probably quit before we handled the message.
+-    // Not a problem.
+ }
+
+ fn hasSurface(self: *const App, surface: *const Surface) bool {
+@@ -612,10 +626,11 @@ pub const Mailbox = struct {
+
+     rt_app: *apprt.App,
+     mailbox: *Queue,
++    cancellation: ?*Queue.Cancellation = null,
+
+     /// Send a message to the surface.
+     pub fn push(self: Mailbox, msg: Message, timeout: Queue.Timeout) Queue.Size {
+-        const result = self.mailbox.push(global.io(), msg, timeout);
++        const result = self.mailbox.pushWithCancellation(global.io(), msg, timeout, self.cancellation);
+
+         // Wake up our app loop
+         self.rt_app.wakeup();
+diff --git i/src/Surface.zig w/src/Surface.zig
+index 7ef2038..01d7f40 100644
+--- i/src/Surface.zig
++++ w/src/Surface.zig
+@@ -128,6 +128,10 @@ io: termio.Termio,
+ io_thread: termio.Thread,
+ io_thr: std.Thread,
+
++/// Cancels only this surface's producers before main-thread teardown joins them.
++/// Its storage remains alive until the renderer, I/O and reader threads have exited.
++mailbox_cancellation: App.Mailbox.Queue.Cancellation = .{},
++
+ /// Terminal inspector
+ inspector: ?*inspectorpkg.Inspector = null,
+
+@@ -553,7 +557,13 @@ pub fn init(
+     };
+
+     // Create our terminal grid with the initial size
+-    const app_mailbox: App.Mailbox = .{ .rt_app = rt_app, .mailbox = &app.mailbox };
++    // Renderer construction can already use the mailbox, before self.* is assigned below.
++    self.mailbox_cancellation = .{};
++    const app_mailbox: App.Mailbox = .{
++        .rt_app = rt_app,
++        .mailbox = &app.mailbox,
++        .cancellation = &self.mailbox_cancellation,
++    };
+     var renderer_impl = try Renderer.init(alloc, .{
+         .config = try .init(alloc, config),
+         .font_grid = font_grid,
+@@ -797,6 +807,10 @@ pub fn init(
+ }
+
+ pub fn deinit(self: *Surface) void {
++    // The main thread cannot drain the app mailbox while joining our producers.
++    // Wake a reader blocked on a full mailbox before stopping/joining any thread.
++    self.app.mailbox.cancel(global.io(), &self.mailbox_cancellation);
++
+     // Stop search thread
+     if (self.search) |*s| s.deinit();
+
+@@ -856,7 +870,11 @@ pub fn close(self: *Surface) void {
+ inline fn surfaceMailbox(self: *Surface) Mailbox {
+     return .{
+         .surface = self,
+-        .app = .{ .rt_app = self.rt_app, .mailbox = &self.app.mailbox },
++        .app = .{
++            .rt_app = self.rt_app,
++            .mailbox = &self.app.mailbox,
++            .cancellation = &self.mailbox_cancellation,
++        },
+     };
+ }
+
 diff --git i/src/apprt/embedded.zig w/src/apprt/embedded.zig
 index a380dc5..5213f09 100644
 --- i/src/apprt/embedded.zig
@@ -135,6 +231,26 @@ index a380dc5..5213f09 100644
  };
 
  pub const EnvVar = extern struct {
+diff --git i/src/apprt/surface.zig w/src/apprt/surface.zig
+index 3cb0016..ab6b7b4 100644
+--- i/src/apprt/surface.zig
++++ w/src/apprt/surface.zig
+@@ -108,6 +108,15 @@ pub const Message = union(enum) {
+     /// Selected search index change
+     search_selected: ?usize,
+
++    /// Release payloads whose recipient has closed or whose send was cancelled.
++    pub fn deinit(self: Message) void {
++        switch (self) {
++            .clipboard_write => |value| value.req.deinit(),
++            .pwd_change => |value| value.deinit(),
++            else => {},
++        }
++    }
++
+     pub const ReportTitleStyle = enum {
+         csi_21_t,
+
 diff --git i/src/build/SharedDeps.zig w/src/build/SharedDeps.zig
 index 86cfecc..b81df42 100644
 --- i/src/build/SharedDeps.zig
@@ -157,6 +273,100 @@ index 86cfecc..b81df42 100644
      // If we're building an exe then we have additional dependencies.
      if (step.kind != .lib) {
          // We always statically compile glad
+diff --git i/src/datastruct/blocking_queue.zig w/src/datastruct/blocking_queue.zig
+index 89ce57d..312efb7 100644
+--- i/src/datastruct/blocking_queue.zig
++++ w/src/datastruct/blocking_queue.zig
+@@ -53,6 +53,18 @@ pub fn BlockingQueue(
+             ns: u64,
+         };
+
++        /// A single producer lifetime. Access is protected by this queue's mutex.
++        /// It must outlive every push using it; closing one lifetime never closes the queue.
++        pub const Cancellation = struct { requested: bool = false };
++
++        /// Wake blocked producers for this lifetime before the consumer joins them.
++        pub fn cancel(self: *Self, io: std.Io, cancellation: *Cancellation) void {
++            self.mutex.lockUncancelable(io);
++            defer self.mutex.unlock(io);
++            cancellation.requested = true;
++            self.cond_not_full.broadcast(io);
++        }
++
+         /// Our data. The values are undefined until they are written.
+         data: [bounds]T = undefined,
+
+@@ -100,41 +112,40 @@ pub fn BlockingQueue(
+         /// queue (unread items) after the push. A return value of zero
+         /// means that the push failed.
+         pub fn push(self: *Self, io: std.Io, value: T, timeout: Timeout) Size {
++            return self.pushWithCancellation(io, value, timeout, null);
++        }
++
++        /// Zero leaves ownership with the sender, including explicit teardown cancellation.
++        /// Recheck the predicate after every wake: cancelling a different lifetime must not
++        /// turn an unrelated blocked push into a failed/dropped message.
++        pub fn pushWithCancellation(
++            self: *Self,
++            io: std.Io,
++            value: T,
++            timeout: Timeout,
++            cancellation: ?*Cancellation,
++        ) Size {
++            const deadline: std.Io.Timeout = switch (timeout) {
++                .ns => |ns| (std.Io.Timeout{ .duration = .{
++                    .raw = .fromNanoseconds(ns),
++                    .clock = .awake,
++                } }).toDeadline(io),
++                else => .none,
++            };
+             self.mutex.lockUncancelable(io);
+             defer self.mutex.unlock(io);
+
+-            // The
+-            if (self.full()) {
++            while (true) {
++                if (cancellation) |closed| if (closed.requested) return 0;
++                if (!self.full()) break;
++                if (timeout == .instant) return 0;
++                self.not_full_waiters += 1;
++                defer self.not_full_waiters -= 1;
+                 switch (timeout) {
+-                    // If we're not waiting, then we failed to write.
+-                    .instant => return 0,
+-
+-                    .forever => {
+-                        self.not_full_waiters += 1;
+-                        defer self.not_full_waiters -= 1;
+-                        self.cond_not_full.waitUncancelable(io, &self.mutex);
+-                    },
+-
+-                    .ns => |ns| {
+-                        self.not_full_waiters += 1;
+-                        defer self.not_full_waiters -= 1;
+-                        compat_thread.waitTimeout(
+-                            &self.cond_not_full,
+-                            io,
+-                            &self.mutex,
+-                            .{
+-                                .duration = .{
+-                                    .raw = .fromNanoseconds(ns),
+-                                    .clock = .awake,
+-                                },
+-                            },
+-                        ) catch return 0;
+-                    },
++                    .instant => unreachable,
++                    .forever => self.cond_not_full.waitUncancelable(io, &self.mutex),
++                    .ns => compat_thread.waitTimeout(&self.cond_not_full, io, &self.mutex, deadline) catch return 0,
+                 }
+-
+-                // If we're still full, then we failed to write. This can
+-                // happen in situations where we are interrupted.
+-                if (self.full()) return 0;
+             }
+
+             // Add our data and update our accounting
 diff --git i/src/renderer.zig w/src/renderer.zig
 index 7475568..a17e27d 100644
 --- i/src/renderer.zig
@@ -491,3 +701,16 @@ index cd62a7b..8ce4bb2 100644
          /// Call this any time the background image path changes.
          ///
          /// Caller must hold the draw mutex.
+diff --git i/src/termio/stream_handler.zig w/src/termio/stream_handler.zig
+index ac269e7..fd8a81e 100644
+--- i/src/termio/stream_handler.zig
++++ w/src/termio/stream_handler.zig
+@@ -122,5 +122,7 @@ pub const StreamHandler = struct {
+             self.renderer_state.mutex.unlock(global.io());
+             defer self.renderer_state.mutex.lockUncancelable(global.io());
+-            _ = self.surface_mailbox.push(msg, .{ .forever = {} });
++            // A zero result now means this surface's teardown cancelled the wait.
++            // The sender still owns the message until a push succeeds.
++            if (self.surface_mailbox.push(msg, .{ .forever = {} }) == 0) msg.deinit();
+         }
+     }

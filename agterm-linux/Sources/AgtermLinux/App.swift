@@ -31,7 +31,7 @@ struct AgtermApp {
             let line = LinuxGdkPolicy.assignmentLogLine(assignment, applied: applied)
             FileHandle.standardError.write(Data((line + "\n").utf8))
         }
-        AppImageChildEnvironment.sanitizeCurrentProcess()
+        LauncherChildEnvironment.sanitizeCurrentProcess()
         #if DEBUG
         if let state = DebugStateDirectory.adopted(environment: ProcessInfo.processInfo.environment,
                                                     liveDirectory: PersistenceStore.defaultDirectory) {
