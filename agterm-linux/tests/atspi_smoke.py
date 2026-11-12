@@ -46,7 +46,7 @@ def collect(node, role=None, name=None, out=None):
         node_name = node.get_name() or ""
         node_role = node.get_role_name()
         role_matches = role is None or node_role == role or (
-            role == "button" and node_role == "push button"
+            role in ("button", "push button") and node_role in ("button", "push button")
         )
         if role_matches and (name is None or node_name == name):
             out.append(node)
