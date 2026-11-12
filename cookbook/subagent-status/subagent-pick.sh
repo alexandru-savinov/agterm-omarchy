@@ -18,7 +18,7 @@ nothing_to_pick() {
 
 conversation=$(current_conversation)
 dir=$(conversation_dir "$conversation")
-[ -n "$conversation" ] && [ -d "$dir" ] || nothing_to_pick
+if [ -z "$conversation" ] || [ ! -d "$dir" ]; then nothing_to_pick; fi
 
 # a session has one overlay slot, and a live viewer.pid marks it as a transcript this picker opened;
 # viewer.agent names whose, so the list leaves out the one already on screen unless it is the only one. A HUD
