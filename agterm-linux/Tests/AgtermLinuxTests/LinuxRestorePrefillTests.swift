@@ -138,8 +138,9 @@ struct LinuxRestorePrefillTests {
         #expect(seed.initialInput == nil)
     }
 
-    @Test("actual Live emitter survives a competing creator and preserves new-shell startup")
-    func realCreationBoundPrefill() throws {
+    @Test("actual Live emitter preserves argv, competing creation and new-shell startup",
+          arguments: [[#"literal\n"#], [#"doubled\\slashes"#], [#"trailing\"#], ["it's here", ""]])
+    func realCreationBoundPrefill(arguments: [String]) throws {
         let repository = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -155,7 +156,8 @@ struct LinuxRestorePrefillTests {
         let config = ZmxSupport.Configuration(executablePath: zmx, environment: environment,
                                              daemonName: name, socketDirectory: directory.appendingPathComponent("s").path,
                                              paneID: "fixture")
-        let seed = LinuxRestoreSeed.wrappedSeed(config, replay: ["/bin/sh", "-c", "printf %s CREATION_BOUND_OK > \"$AGTERM_PREFILL_REPORT\""],
+        let reporter = "import json,os,pathlib,sys; pathlib.Path(os.environ[\"AGTERM_PREFILL_REPORT\"]).write_text(json.dumps(sys.argv[1:]))"
+        let seed = LinuxRestoreSeed.wrappedSeed(config, replay: ["/usr/bin/python3", "-c", reporter] + arguments,
                                                 durable: "false", denylist: [], daemonRunning: false)
         var invalidEnvironment = environment
         invalidEnvironment["SHELL"] = "/does/not/exist"
@@ -165,7 +167,7 @@ struct LinuxRestorePrefillTests {
                                                       durable: nil, denylist: [], daemonRunning: false)
         let plan: [String: Any] = ["command": try #require(seed.command), "initialInput": seed.initialInput ?? "",
                                    "environment": environment, "name": name, "root": directory.path, "zmx": zmx,
-                                   "failedCommand": try #require(failedSeed.command)]
+                                   "failedCommand": try #require(failedSeed.command), "expectedArguments": arguments]
         let path = directory.appendingPathComponent("plan.json")
         try JSONSerialization.data(withJSONObject: plan).write(to: path)
         let process = Process()

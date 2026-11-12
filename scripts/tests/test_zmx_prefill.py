@@ -179,15 +179,17 @@ def production_plan(path):
         os.write(fd, b'\r')
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
-            if (root / 'executed').exists() and (root / 'executed').read_text() == 'CREATION_BOUND_OK':
+            if (root / 'executed').exists() and (root / 'executed').read_text().endswith(']'):
                 break
             time.sleep(0.02)
-        assert (root / 'executed').read_text() == 'CREATION_BOUND_OK'
+        assert (root / 'executed').exists(), 'captured argv never executed after Enter'
+        observed = json.loads((root / 'executed').read_text())
+        assert observed == plan['expectedArguments'], f'argv changed: expected={plan["expectedArguments"]!r}, observed={observed!r}'
         os.write(fd, b"printf '\\nCONTRACT:%s:%s:%s\\n' \"$PWD\" \"$ZDOTDIR\" \"${AGTERM_LIVE_PREFILL+present}\"\r")
         contract = f"CONTRACT:{root / 'cwd with spaces'}:{root / 'z'}:\r\n".encode()
         output = RealZmxPrefillTests.read_until(fd, contract, 5)
         assert contract in output, repr(output)
-        print('PASS new shell: Enter required, startup order, cwd, ZDOTDIR, payload unexported/unset', flush=True)
+        print(f'PASS new shell: exact argv={observed!r}, Enter required, startup order, cwd, ZDOTDIR, payload unexported/unset', flush=True)
         cleanup()
         trace.unlink()
         failed = spawn(['/bin/sh', '-c', plan['failedCommand']])
