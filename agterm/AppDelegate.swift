@@ -374,7 +374,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// restart, logout, XCUITest, auto-quit after the last window closes, or an unwired library.
     func applicationShouldTerminate(_: NSApplication) -> NSApplication.TerminateReply {
         guard !ContentView.isUITestLaunch, let library else { return .terminateNow }
-        if QuitReason.isSystemQuit(NSAppleEventManager.shared().currentAppleEvent) { return .terminateNow }
+        // an attribute, not a param, despite AERegistry.h calling kAEQuitReason a parameter: loginwindow's
+        // -[LogoutUtilities addLogOutAttibutesToQuitAppleEvent:] writes it with AEPutAttributePtr.
+        let quitReason = NSAppleEventManager.shared().currentAppleEvent?
+            .attributeDescriptor(forKeyword: AEKeyword(kAEQuitReason))?.typeCodeValue
+        if QuitReason.isSystemQuit(reasonTypeCode: quitReason) { return .terminateNow }
         if liveReset?.armablePending != nil { return .terminateNow }
         let counts = library.openCounts()
         guard counts.windows > 0 else { return .terminateNow }
