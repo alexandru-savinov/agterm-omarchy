@@ -656,6 +656,16 @@ final class ControlServer {
         return ControlResponse(ok: true)
     }
 
+    /// `recent.clear`: empties the shared recently-closed list and reports how many entries it removed,
+    /// the same answer the Linux host gives.
+    func clearRecentClosedItems() -> ControlResponse {
+        let affected = library.recentClosedItems.count
+        guard library.clearRecentClosedItems() else {
+            return ControlResponse(ok: false, error: RecentClearError.persistenceFailed)
+        }
+        return ControlResponse(ok: true, result: ControlResult(affected: affected))
+    }
+
     /// The restore-mode policy: settings, this launch's request, and what it got.
     func readRestoreMode() -> ControlResponse {
         ControlResponse(ok: true, result: ControlResult(restore: restoreStatus()))
