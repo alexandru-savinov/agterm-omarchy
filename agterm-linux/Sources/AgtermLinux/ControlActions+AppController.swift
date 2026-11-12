@@ -238,9 +238,15 @@ extension AppController: ControlActions {
         switch resolveWorkspaceResponse(target) {
         case .failure(let response): return response
         case .success(let id):
-            if let first = store.workspaces.first(where: { $0.id == id })?.sessions.first {
-                selectSession(first.id, userInitiated: false)
+            let first = store.workspaces.first(where: { $0.id == id })?.sessions.first
+            if let first, store.selectedSessionID != first.id { endSearchForSelectionChange() }
+            store.selectWorkspace(id)
+            if let first {
+                NotificationManager.withdraw(windowID: windowID, sessionID: first.id)
             }
+            reconcile()
+            syncSidebarSelection()
+            updateRecentSessionsButton()
             return ok(id)
         }
     }
