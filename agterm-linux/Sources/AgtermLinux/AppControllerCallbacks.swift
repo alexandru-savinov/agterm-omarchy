@@ -21,6 +21,7 @@ let onWindowActive: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, g
         // from gWindows before that notification, so resolve through the live registry instead of
         // dereferencing unretained signal data that may already be deallocated.
         guard let ctl = gWindows.values.first(where: { $0.windowPointer == window }) else { return }
+        SessionSwitchDiagnostic.emit("window-active-notify", owner: ctl)
         if gtk_window_is_active(WIN(window)) != 0 {
             ctl.becameFrontmost()
             ctl.applyInactiveWindowSidebarHidingIfEnabled()

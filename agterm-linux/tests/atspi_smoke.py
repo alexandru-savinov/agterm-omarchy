@@ -232,6 +232,11 @@ def type_x11_text(value, process_id, window_title=None):
     )
 
 
+def switch_diagnostic(event, **metadata):
+    if os.environ.get("AGTERM_SWITCH_DIAGNOSTIC") == "1":
+        print("switch-harness: " + json.dumps(dict(event=event, t=time.monotonic(), **metadata)), flush=True)
+
+
 @contextlib.contextmanager
 def ctrl_held(process_id, hold="ctrl"):
     """Hold `hold` (Ctrl by default) across several taps, yielding a `tap(key)` that keeps modifiers.
@@ -259,11 +264,15 @@ def ctrl_held(process_id, hold="ctrl"):
         xdotool("key", key)
         time.sleep(0.4)
 
+    switch_diagnostic("keydown-start", pid=process_id, control=hold)
     xdotool("keydown", hold)
+    switch_diagnostic("keydown-done", pid=process_id, control=hold)
     try:
         yield tap
     finally:
+        switch_diagnostic("keyup-start", pid=process_id, control=hold)
         released = xdotool("keyup", hold, check=False)
+        switch_diagnostic("keyup-done", pid=process_id, control=hold, code=released.returncode)
         time.sleep(0.4)
     assert released.returncode == 0, f"xdotool could not release {hold}; it is still held"
 
@@ -921,6 +930,7 @@ def launch(env, arguments=None):
     finally:
         if sink is not subprocess.DEVNULL:
             sink.close()
+    switch_diagnostic("launch", pid=process.pid, scenario=os.environ.get("AGTERM_ATSPI_SCENARIO", "all"))
     app = wait_for(lambda: find_app(process.pid), "agterm app not present in the AT-SPI tree")
     if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE") and shutil.which("hyprctl"):
         subprocess.run(
@@ -933,6 +943,7 @@ def launch(env, arguments=None):
 
 
 def stop(process):
+    switch_diagnostic("stop", pid=process.pid)
     process.terminate()
     try:
         process.wait(timeout=5)

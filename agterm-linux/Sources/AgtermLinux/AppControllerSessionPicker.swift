@@ -49,26 +49,37 @@ extension AppController {
     /// GTK/X11 updates the device's modifier state in a separate XkbStateNotify after the key release.
     /// The cached state can still be stale at a zero-delay MainTimer callback. Use an idle to give pending
     /// GDK work priority before reading it. Reacquire the device instead of retaining an event-owned pointer.
-    func scheduleSessionSwitchCommit(releasing keycode: UInt32) {
+    func scheduleSessionSwitchCommit(releasing keycode: UInt32, traceSequence: UInt64 = 0) {
+        SessionSwitchDiagnostic.emit("schedule", owner: self, sequence: traceSequence)
         runOnMain { [weak self] in
             MainActor.assumeIsolated {
-                self?.commitSessionSwitch(
-                    releasing: keycode, controlStillHeld: ModifierKeyMods.currentControlIsHeld()
-                )
+                // Preserve the original single sample used by the decision.
+                let held = ModifierKeyMods.currentControlIsHeld()
+                SessionSwitchDiagnostic.emit("idle", owner: self, sequence: traceSequence,
+                                             extra: "held=\(String(describing: held))")
+                self?.commitSessionSwitch(releasing: keycode, controlStillHeld: held, traceSequence: traceSequence)
+                SessionSwitchDiagnostic.observeLater(owner: self, sequence: traceSequence, initialHeld: held)
             }
         }
     }
 
-    private func commitSessionSwitch(releasing keycode: UInt32, controlStillHeld: Bool?) {
-        guard heldControlKeys.released(keycode: keycode, controlStillHeld: controlStillHeld) else { return }
+    private func commitSessionSwitch(releasing keycode: UInt32, controlStillHeld: Bool?, traceSequence: UInt64) {
+        let finalRelease = heldControlKeys.released(keycode: keycode, controlStillHeld: controlStillHeld)
+        SessionSwitchDiagnostic.emit("decision", owner: self, sequence: traceSequence,
+                                     extra: "finalRelease=\(finalRelease)")
+        guard finalRelease else { return }
         guard sessionSwitcher.isActive else { return }
         // A zoom, pick or dialog that arrived mid-hold commits nothing, as macOS resets on `flagsChanged`.
-        guard sessionSwitchAllowed else { cancelSessionSwitch(); return }
+        let allowed = sessionSwitchAllowed
+        SessionSwitchDiagnostic.emit("policy", owner: self, sequence: traceSequence, extra: "allowed=\(allowed)")
+        guard allowed else { cancelSessionSwitch(); return }
         let live = Set(store.workspaces.flatMap { $0.sessions.map(\.id) })
         let target = sessionSwitcher.commitTarget(liveIDs: live)
         sessionSwitcher.end()
         hideSwitcherOverlay()
         if let target { selectSession(target) }
+        SessionSwitchDiagnostic.emit("committed", owner: self, sequence: traceSequence,
+                                     extra: "targetPresent=\(target != nil)")
     }
 
     private var sessionSwitchAllowed: Bool {
@@ -83,6 +94,7 @@ extension AppController {
 
     /// End the cycle and remove the card without selecting.
     func cancelSessionSwitch() {
+        SessionSwitchDiagnostic.emit("cancel", owner: self)
         sessionSwitcher.end()
         hideSwitcherOverlay()
     }
