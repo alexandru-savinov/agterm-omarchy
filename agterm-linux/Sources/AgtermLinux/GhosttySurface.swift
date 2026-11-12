@@ -131,8 +131,9 @@ final class GhosttySurface: PaneRoleMutableSurface {
         self.reportsPaneState = reportsPaneState
         self.fontSize = fontSize
         self.initialInput = initialInput
-        self.env = gdkEnvironment.childEnvironment(merging: env)
-        self.env["AGTERM_DIAG357_INCARNATION"] = diagnosticIncarnation
+        var diagnosticEnvironment = gdkEnvironment.childEnvironment(merging: env)
+        diagnosticEnvironment["AGTERM_DIAG357_INCARNATION"] = diagnosticIncarnation
+        self.env = diagnosticEnvironment
         environmentUnsets = gdkEnvironment.childEnvironmentUnsets(merging: env)
         rootWidget = OpaquePointer(gtk_overlay_new())
         glArea = OpaquePointer(gtk_gl_area_new())
