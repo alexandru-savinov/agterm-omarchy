@@ -27,7 +27,6 @@ class NoticeTests(unittest.TestCase):
             shutil.copy2(ROOT / 'linux' / name, self.repo / 'linux' / name)
         shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
         shutil.copytree(ROOT / 'scripts/zmx-patches', self.repo / 'scripts/zmx-patches')
-        shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
         shutil.copytree(ROOT / 'packaging/linux/notices', self.repo / 'packaging/linux/notices')
         shutil.copy2(ROOT / 'LICENSE', self.repo / 'LICENSE')
         self.notices = self.repo / 'packaging/linux/notices'
@@ -265,7 +264,7 @@ class NoticeTests(unittest.TestCase):
             path = self.repo / 'scripts' / name; path.write_text('#!/bin/sh\nexit 0\n'); path.chmod(0o755)
         executable = self.root / 'bin'; executable.mkdir()
         for name, content in {'zig': 'echo 0.16.0', 'mise': 'exit 1', 'uname': 'echo aarch64',
-                              'git': 'echo notice-fixture-rebuild >&2; exit 97'}.items():
+                              'file': 'exit 98', 'git': 'echo notice-fixture-rebuild >&2; exit 97'}.items():
             path = executable / name; path.write_text('#!/bin/sh\n' + content + '\n'); path.chmod(0o755)
         return dict(os.environ, PATH=str(executable) + ':' + os.environ['PATH'], TMPDIR=str(self.root))
 

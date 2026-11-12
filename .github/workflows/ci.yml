@@ -108,6 +108,8 @@ jobs:
       pull-requests: read
     outputs:
       swift: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.swift == 'true' }}
+      # Only the standalone probe and its Python tests are exempt from native builds.
+      product: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && steps.filter.outputs.all_changed_count >= 3000) || (steps.filter.outputs.swift == 'true' && steps.filter.outputs.swift_count != steps.filter.outputs.native_probe_count) }}
       cookbook: ${{ steps.filter.outputs.cookbook }}
       # GitHub caps PR file lists at 3000; an incomplete list must retain full validation.
       ui_python_only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.ui_python_count > 0 && steps.filter.outputs.all_changed_count < 3000 && steps.filter.outputs.ui_python_count == steps.filter.outputs.all_changed_count }}
@@ -142,6 +144,9 @@ jobs:
               - "agtermUITests/.swiftlint.yml"
               - ".github/workflows/ci.yml"
               - ".github/workflows/release-linux.yml"
+            native_probe:
+              - "scripts/omarchy-config-probe.py"
+              - "scripts/tests/test_omarchy_config_probe.py"
             cookbook:
               - "cookbook/**"
               - ".github/workflows/ci.yml"
@@ -149,7 +154,7 @@ jobs:
   test-linux:
     name: Core tests (${{ matrix.arch }})
     needs: changes
-    if: needs.changes.outputs.swift == 'true'
+    if: needs.changes.outputs.product == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -243,7 +248,7 @@ jobs:
     name: GTK build and tests (${{ matrix.arch }})
     # Independent checks run concurrently; the final CI gate still requires every result.
     needs: changes
-    if: needs.changes.outputs.swift == 'true'
+    if: needs.changes.outputs.product == 'true'
     strategy:
       fail-fast: false
       matrix:
