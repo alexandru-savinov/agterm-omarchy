@@ -1,14 +1,14 @@
 {
   "schema": "agterm-linux-notices/2",
   "swift_release": "swift-6.3.2-RELEASE",
-  "ghostty_revision": "0ba6250388641f52135414b38c4259aa682c489b",
+  "ghostty_revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
   "files": [
     {
       "component": "ghostty",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "LICENSE",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/LICENSE",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/LICENSE",
       "file": "ghostty/LICENSE",
       "sha256": "386211873e5b7a02f663ae4d7adf96285999f91608f8f9f31fecfd0f4095e6f1"
     },
@@ -69,9 +69,9 @@
     {
       "component": "ghostty-nerd-fonts",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "vendor/nerd-fonts/LICENSE",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/vendor/nerd-fonts/LICENSE",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/vendor/nerd-fonts/LICENSE",
       "file": "ghostty-nerd-fonts/LICENSE",
       "sha256": "1f6ad4edae6479aaace3112ede5279a23284ae54b2a34db66357aef5f64df160"
     },
@@ -96,173 +96,173 @@
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/build.zig.zon",
       "file": "ghostty-inputs/build.zig.zon",
-      "sha256": "91a1f45260dd0dbe7bf02d91860e38bed6ed74beca4821483356773d1bd77166"
+      "sha256": "195967ceee17309c61737edb8ed0565746a02814a4d3dd1881ef0c39b9e947a4"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/dcimgui/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/dcimgui/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/dcimgui/build.zig.zon",
       "file": "ghostty-inputs/pkg-dcimgui-build.zig.zon",
-      "sha256": "e169b626b17ba80e6010b62671ded77ad82d27a9ecadfce51be6a2eb917537bf"
+      "sha256": "056cece46567b865aa194cfb09fe3d0c07ed7ab52b290e39da84e9f1d30aa5a0"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/fontconfig/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/fontconfig/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/fontconfig/build.zig.zon",
       "file": "ghostty-inputs/pkg-fontconfig-build.zig.zon",
-      "sha256": "9c2cc4249d3237c38b2dff9e161677666ff9e7b343925ecaaea377a81c1b75e4"
+      "sha256": "9573cbb3b9e8fb9403bc1a40dac3c6cfba65a918dee7efde21cd9b890520d2c9"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/freetype/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/freetype/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/freetype/build.zig.zon",
       "file": "ghostty-inputs/pkg-freetype-build.zig.zon",
-      "sha256": "0d2448fece69f8d9147597a37400cc4a5c227a7421ea7502e4a36f41e3cb7d05"
+      "sha256": "46ce4eb4a795e07ac2b89fd2a648fa23e651aedf940e28c9c4e57f9e0afce325"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/glslang/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/glslang/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/glslang/build.zig.zon",
       "file": "ghostty-inputs/pkg-glslang-build.zig.zon",
-      "sha256": "02222c509aba57597aae1d60ce49b8c6882882347e891065858f4de8109d6aab"
+      "sha256": "e96bca94611b932cb2106d2e4931d945688137049e11e052e36745cbab74ff65"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/harfbuzz/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/harfbuzz/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/harfbuzz/build.zig.zon",
       "file": "ghostty-inputs/pkg-harfbuzz-build.zig.zon",
-      "sha256": "846abfcf35002769e4629497b67321f90fc68c54dbfb8b29e51d1b712ca9b325"
+      "sha256": "44a91d0e5b1dde44f39bd5b76ce19ec2edb82160cf4a889f1a6d378c990274a8"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/highway/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/highway/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/highway/build.zig.zon",
       "file": "ghostty-inputs/pkg-highway-build.zig.zon",
       "sha256": "57103e0424e9ca660756bb2cd0475ca3057e61e7f2d4038aba2a90eae890b932"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/libpng/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/libpng/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/libpng/build.zig.zon",
       "file": "ghostty-inputs/pkg-libpng-build.zig.zon",
       "sha256": "4546494e09ee5459dca7caf363521545d96aaff65d07d84ab22b74ee80a9e4de"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/libxml2/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/libxml2/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/libxml2/build.zig.zon",
       "file": "ghostty-inputs/pkg-libxml2-build.zig.zon",
       "sha256": "2d9ad897f7942d2ba4079a4d9e724afdb9fb4c73740deed3e78edd3c96cd7703"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/oniguruma/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/oniguruma/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/oniguruma/build.zig.zon",
       "file": "ghostty-inputs/pkg-oniguruma-build.zig.zon",
-      "sha256": "ed4d291a596c73d75ecd60b449e552d559ed1b3884bfcfbae146d0209747b8a0"
+      "sha256": "bc851cd6de7c55484822ee8eb45651885717940bc66c5d1a7a3150f0803f91af"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/spirv-cross/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/spirv-cross/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/spirv-cross/build.zig.zon",
       "file": "ghostty-inputs/pkg-spirv-cross-build.zig.zon",
-      "sha256": "4f7064c00f29e461757aeeedbfc7cd284cc5677e298bf64cbc9b797a5eccfde4"
+      "sha256": "d621b343a61d048b9bcdec6c2d55f67adbd769af8056574d56d105f8d1efe97c"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/wuffs/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/wuffs/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/wuffs/build.zig.zon",
       "file": "ghostty-inputs/pkg-wuffs-build.zig.zon",
-      "sha256": "b18152b314c24f32444dde3e06b7cf95291fb735873cf5ae49d2ac5d93452777"
+      "sha256": "fc90571cbef7acefb618bfef0cf9e301d8609ecfd229f17cfce8a935be6efa28"
     },
     {
       "component": "ghostty-inputs",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/zlib/build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/zlib/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/zlib/build.zig.zon",
       "file": "ghostty-inputs/pkg-zlib-build.zig.zon",
       "sha256": "ec984b740c5bc72bdb6e4afe45130bd3fe1d5a83eada1c36ece319b48883b69b"
     },
     {
       "component": "libxev",
       "archive": "libxev",
-      "source_path": "libxev-9ce8e8e6ff89e583258a7f8e7adeeeaeae8611bf/LICENSE",
+      "source_path": "libxev-819ffa180ca20e31c7eded74e2e1aceb1eab557f/LICENSE",
       "file": "libxev/LICENSE",
       "sha256": "fcd26bcead569a910dd778cb864e027683498ca414e15db1694a5893eee1b835"
     },
     {
       "component": "vaxis",
       "archive": "vaxis",
-      "source_path": "libvaxis-1dbbe575dff4586fe51e3217aa5c3fecdcbb6089/LICENSE",
+      "source_path": "libvaxis-6fd944a27fb3d6f596e981076381a3131f2448b4/LICENSE",
       "file": "vaxis/LICENSE",
       "sha256": "cca4ffa6a45c0b17d3e9840b4cbe5be1e76ab84fda69850e0cb3f117729eeeea"
     },
     {
       "component": "z2d",
       "archive": "z2d",
-      "source_path": "z2d-7dbae85c81784dba9988320bf9543ed9a81350c8/LICENSE",
+      "source_path": "z2d-40af3e84a4e15a9f31d126b3f281f23ce6a3dae5/LICENSE",
       "file": "z2d/LICENSE",
       "sha256": "c3c0b845181a67c2f926485299855769afa675bc90b18904c3087ae884cb1873"
     },
     {
       "component": "z2d",
       "archive": "z2d",
-      "source_path": "z2d-7dbae85c81784dba9988320bf9543ed9a81350c8/COPYING",
+      "source_path": "z2d-40af3e84a4e15a9f31d126b3f281f23ce6a3dae5/COPYING",
       "file": "z2d/COPYING",
       "sha256": "d8d2562a7cb68ffdfe91fc66af1ed4a8a4e272aa4ab59bea7451ba34b9aba3d4"
     },
     {
       "component": "uucode",
       "archive": "uucode",
-      "source_path": "uucode-2826a37a4562284fdacd8fa029d49509cc9bffcd/LICENSE.md",
+      "source_path": "uucode-ea62149739404a73c202b48a33bf6dd2af4bd9b0/LICENSE.md",
       "file": "uucode/LICENSE.md",
       "sha256": "312e901e142be2477b4ca859e9311f9e3f80d33372991759b7921c1893605f33"
     },
     {
       "component": "uucode",
       "archive": "uucode",
-      "source_path": "uucode-2826a37a4562284fdacd8fa029d49509cc9bffcd/licenses/LICENSE_Bjoern_Hoehrmann",
+      "source_path": "uucode-ea62149739404a73c202b48a33bf6dd2af4bd9b0/licenses/LICENSE_Bjoern_Hoehrmann",
       "file": "uucode/licenses-LICENSE_Bjoern_Hoehrmann",
       "sha256": "de219cece932aad5a817bf763393d8d149d378a15d2ad5320e3331eac07626dd"
     },
     {
       "component": "uucode",
       "archive": "uucode",
-      "source_path": "uucode-2826a37a4562284fdacd8fa029d49509cc9bffcd/licenses/LICENSE_unicode",
+      "source_path": "uucode-ea62149739404a73c202b48a33bf6dd2af4bd9b0/licenses/LICENSE_unicode",
       "file": "uucode/licenses-LICENSE_unicode",
       "sha256": "1eda5a3b026870c737b22e8bcd4954338612c790db688242e003f41a4fa95175"
     },
     {
       "component": "zf",
       "archive": "zf",
-      "source_path": "zf-c35c421f84895193246db06c40683c1a30e616ef/LICENSE",
+      "source_path": "zf-87153bb86b75d21fbac897b738f316d449f5d0c9/LICENSE",
       "file": "zf/LICENSE",
       "sha256": "0629000344ad0dc3c6e0e4c1b0c4a5cacf090e17d56e8bc5272705e3d35b7def"
     },
@@ -311,7 +311,7 @@
     {
       "component": "fontconfig",
       "archive": "fontconfig",
-      "source_path": "fontconfig-2.14.2/COPYING",
+      "source_path": "fontconfig-2.18.3/COPYING",
       "file": "fontconfig/COPYING",
       "sha256": "51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067"
     },
@@ -381,21 +381,21 @@
     {
       "component": "wuffs",
       "archive": "wuffs",
-      "source_path": "wuffs-0.4.0-alpha.9/LICENSE",
+      "source_path": "N-V-__8AAP5JWgCGP_AD0teWpa4krRvE9VPZzvviGdbmN4jI/LICENSE",
       "file": "wuffs/LICENSE",
       "sha256": "f8ac2c75e7f629a87565c80d61ff9fe5aa15cdea0bda997d52a4dc13fdbd19cb"
     },
     {
       "component": "wuffs",
       "archive": "wuffs",
-      "source_path": "wuffs-0.4.0-alpha.9/LICENSE-APACHE",
+      "source_path": "N-V-__8AAP5JWgCGP_AD0teWpa4krRvE9VPZzvviGdbmN4jI/LICENSE-APACHE",
       "file": "wuffs/LICENSE-APACHE",
       "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
     },
     {
       "component": "wuffs",
       "archive": "wuffs",
-      "source_path": "wuffs-0.4.0-alpha.9/LICENSE-MIT",
+      "source_path": "N-V-__8AAP5JWgCGP_AD0teWpa4krRvE9VPZzvviGdbmN4jI/LICENSE-MIT",
       "file": "wuffs/LICENSE-MIT",
       "sha256": "bb811a4b485eac3caeb8bdc58bbafb355fbcb6116010a7ea9179e5c70b0bc878"
     },
@@ -477,9 +477,9 @@
     {
       "component": "stb",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "src/stb/stb_image.h",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/src/stb/stb_image.h",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/src/stb/stb_image.h",
       "file": "stb/stb_image.h.LICENSE",
       "excerpt": {
         "start": 282296,
@@ -491,9 +491,9 @@
     {
       "component": "stb",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "src/stb/stb_image_resize.h",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/src/stb/stb_image_resize.h",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/src/stb/stb_image_resize.h",
       "file": "stb/stb_image_resize.h.LICENSE",
       "excerpt": {
         "start": 114079,
@@ -505,9 +505,9 @@
     {
       "component": "simdutf",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "pkg/simdutf/vendor/simdutf.h",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/pkg/simdutf/vendor/simdutf.h",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/pkg/simdutf/vendor/simdutf.h",
       "file": "simdutf/BSD-TH-NOTICE",
       "excerpt": {
         "start": 33238,
@@ -519,27 +519,27 @@
     {
       "component": "noto-emoji",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "src/font/res/OFL.txt",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/src/font/res/OFL.txt",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/src/font/res/OFL.txt",
       "file": "noto-emoji/OFL.txt",
       "sha256": "fb755fa3280d1d215a20df2e64fe6a0f75f8208439b11671978214aae60d2997"
     },
     {
       "component": "noto-emoji",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "src/font/res/README.md",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/src/font/res/README.md",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/src/font/res/README.md",
       "file": "noto-emoji/README.md",
       "sha256": "b3177ac25cc57c976ae9e2a458a23cf840b7d4c919e4f87fdc8cab7875c3ea17"
     },
     {
       "component": "khronos",
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "source_path": "vendor/glad/include/KHR/khrplatform.h",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/vendor/glad/include/KHR/khrplatform.h",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/vendor/glad/include/KHR/khrplatform.h",
       "file": "khronos/LICENSE",
       "excerpt": {
         "start": 51,
@@ -551,9 +551,9 @@
     {
       "component": "iterm2-themes",
       "repository": "mbadolato/iTerm2-Color-Schemes",
-      "revision": "0173c3cc154aab5d43b03241286d32372a87dec6",
+      "revision": "86a776d947b6f0c95d35005cb67f3cea435362fc",
       "source_path": "LICENSE",
-      "url": "https://raw.githubusercontent.com/mbadolato/iTerm2-Color-Schemes/0173c3cc154aab5d43b03241286d32372a87dec6/LICENSE",
+      "url": "https://raw.githubusercontent.com/mbadolato/iTerm2-Color-Schemes/86a776d947b6f0c95d35005cb67f3cea435362fc/LICENSE",
       "file": "iterm2-themes/LICENSE",
       "sha256": "2373168614b527494dff99eb393024608216db79f687d58bad420f6c1e0ad192"
     },
@@ -615,23 +615,23 @@
     {
       "component": "iterm2-themes",
       "repository": "mbadolato/iTerm2-Color-Schemes",
-      "revision": "0173c3cc154aab5d43b03241286d32372a87dec6",
+      "revision": "86a776d947b6f0c95d35005cb67f3cea435362fc",
       "source_path": "CREDITS.md",
-      "url": "https://raw.githubusercontent.com/mbadolato/iTerm2-Color-Schemes/0173c3cc154aab5d43b03241286d32372a87dec6/CREDITS.md",
+      "url": "https://raw.githubusercontent.com/mbadolato/iTerm2-Color-Schemes/86a776d947b6f0c95d35005cb67f3cea435362fc/CREDITS.md",
       "file": "iterm2-themes/CREDITS.md",
-      "sha256": "13787a17e22f74975e01ebfb29906fda45d9ee84813e535ac243f490a3b64e11"
+      "sha256": "906f9e86231e6819f0268edc5bf851699d933017e1692be1dfe36fb67693478a"
     },
     {
       "component": "iterm2-themes",
       "repository": "mbadolato/iTerm2-Color-Schemes",
-      "revision": "0173c3cc154aab5d43b03241286d32372a87dec6",
+      "revision": "86a776d947b6f0c95d35005cb67f3cea435362fc",
       "source_path": "README.md",
-      "url": "https://raw.githubusercontent.com/mbadolato/iTerm2-Color-Schemes/0173c3cc154aab5d43b03241286d32372a87dec6/README.md",
+      "url": "https://raw.githubusercontent.com/mbadolato/iTerm2-Color-Schemes/86a776d947b6f0c95d35005cb67f3cea435362fc/README.md",
       "file": "iterm2-themes/README-CREDITS.md",
       "excerpt": {
-        "start": 47252,
-        "end": 48449,
-        "source_sha256": "9bae4dc172533a77b688767652a4fe4584b8cf298d72b9f82cfcf494c426e14b"
+        "start": 61488,
+        "end": 62685,
+        "source_sha256": "67ffcdbe5aff3efbbd3e682f7dfb39e69639391cf3d703d4556987cd819d7abd"
       },
       "sha256": "55b7c2e93e26e57faa2834292548e85e4695aae3a450dcec9b49cb2631e445e4"
     },
@@ -767,12 +767,12 @@
       "sha256": "8538467a6f1f67b9d7fb7f95da492796ac1f02046121aa4138c07026e85c5fb2"
     }
   ],
-  "inventory_sha256": "65716ab36b707eb868b7936313f01e8b108f9dbf864e4b53bf3866d07fd9c802",
+  "inventory_sha256": "e08cc6285f21542084655aa9d856e73201a4989317eaeeed7f74a128c90edc04",
   "ghostty_patch_inputs": {
-    "linux/patches/ghostty-clipboard-request-kind.patch": "22e082cb54c2d450868c0b6ba91f0162bb2e5e7bdc6554be83fc8ff32f1980aa",
-    "linux/patches/ghostty-embedded-input-handoff.patch": "746aabfd306f78563837c9257b22c90cc3ffd6dfe7f1c374f7f0532a3c1bb0fe",
-    "linux/patches/ghostty-embedded-opengl.patch": "5acad8dff653d70056471520270d03c1df59aa7d6112e895f10d3c903bea6ba9",
-    "linux/patches/ghostty-lib-resources.patch": "14f31007327295bdca035a75394a4c1a2cfe3671d602c3105aef30823c0e9eab",
-    "linux/patches/ghostty-surface-env-unset.patch": "6f007c3eb5f99a841187cd94983a6dd607a09ee8dac05d7e1f72cff66cbedcd4"
+    "linux/patches/ghostty-embedded-input-handoff.patch": "1cc9ecc7b1dbbe8432cf75c794600aadeed694ab2f677e87d221ddf5d6d0120a",
+    "linux/patches/ghostty-embedded-opengl.patch": "c495d6f3743082bffcad0cc9a543052e78014e26e6c2c4e49124fd1d3cd4866d",
+    "linux/patches/ghostty-lib-resources.patch": "ec86e84173b0e1b712c1506eb074ef6ef8e25d0efbf6ce40f467bd39944a33ee",
+    "linux/patches/ghostty-surface-env-unset.patch": "16e113ed16828b6a7ca1896e09e19f90ce1ecc12cd9fc076af8a7c389090ffe7",
+    "scripts/ghostty-patches/0001-drain-mailbox-during-surface-teardown.patch": "442ce0b6524568e2ce442b34eb5d60c58db4657e32c1471392875c99e12c4a5d"
   }
 }
