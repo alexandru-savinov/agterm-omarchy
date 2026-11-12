@@ -56,9 +56,10 @@ final class BlinkPhaseCoordinator {
 }
 
 /// One repeating `g_timeout_add_full` source retaining this box as its user data; the destroy notify
-/// balances that retain on fire-through-cancel (`g_source_remove` triggers it too).
+/// balances that retain on fire-through-cancel (`g_source_remove` triggers it too). Internal rather than
+/// private only so `BlinkPhaseSourceGLibTests` can wrap `start`'s tick and count real GLib dispatches.
 @MainActor
-private final class BlinkPhaseSource {
+final class BlinkPhaseSource {
     private var sourceID: guint = 0
     private let tick: @MainActor () -> Bool
 

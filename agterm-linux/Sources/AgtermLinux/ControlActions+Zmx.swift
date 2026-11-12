@@ -2,7 +2,6 @@ import Foundation
 import agtermCore
 
 private enum LinuxControlZmxError {
-    static let unavailable = "zmx is unavailable in this instance"
     static let incompleteInventory =
         "the pane inventory is incomplete or has conflicting owners, so no daemon can be safely pruned"
 
@@ -51,58 +50,68 @@ extension AppController {
         return ControlResponse(ok: true, result: ControlResult(restore: restoreStatus()))
     }
 
-    private func zmxInventory() -> (LinuxZmxClient, ZmxInventoryResult)? {
-        guard let client = gZmxClient, let observed = client.listSessions() else { return nil }
-        let walk = library.paneClaims()
-        return (client, ZmxInventory.join(
-            observed: observed, claims: walk.claims, inventoryComplete: walk.complete
-        ))
+    /// Continues a local zmx request once the worker has read the session list. Runs on the main thread,
+    /// so it only joins that list with the pane claims; any further zmx call goes back to the worker.
+    func continueLocalZmx(_ request: ControlRequest, observed: [ZmxSessionRecord],
+                          client: LinuxZmxClient) -> ControlStage {
+        switch request.cmd {
+        case .zmxList:
+            return .done(ControlResponse(ok: true, result: ControlResult(zmx: ControlZmxInventory(
+                restore: restoreStatus(), result: zmxJoin(observed), endpoint: client.endpoint
+            ))))
+        case .zmxPrune:
+            return pruneZmxDaemons(observed: observed, client: client)
+        case .zmxKill:
+            let pane = request.args?.pane.flatMap(ZmxPaneRole.init(controlName:)) ?? .left
+            return killZmxDaemon(target: request.target ?? "", window: request.args?.window, pane: pane,
+                                 observed: observed, client: client)
+        case .zmxTree:
+            return .done(localAttachableSessions(observed: observed, client: client))
+        default:
+            return .done(err("unexpected zmx command: \(request.cmd.rawValue)"))
+        }
     }
 
-    func listZmxDaemons() -> ControlResponse {
-        guard let client = gZmxClient else {
-            return ControlResponse(ok: false, error: LinuxControlZmxError.unavailable)
-        }
-        guard let observed = client.listSessions() else {
-            return ControlResponse(ok: false, error: "could not read the zmx session list")
-        }
+    private func zmxJoin(_ observed: [ZmxSessionRecord]) -> ZmxInventoryResult {
         let walk = library.paneClaims()
-        let joined = ZmxInventory.join(
-            observed: observed, claims: walk.claims, inventoryComplete: walk.complete
-        )
-        return ControlResponse(ok: true, result: ControlResult(zmx: ControlZmxInventory(
-            restore: restoreStatus(), result: joined, endpoint: client.endpoint
-        )))
+        return ZmxInventory.join(observed: observed, claims: walk.claims, inventoryComplete: walk.complete)
     }
 
-    func pruneZmxDaemons() -> ControlResponse {
-        guard let (client, inventory) = zmxInventory() else {
-            return ControlResponse(ok: false, error: gZmxClient == nil
-                ? LinuxControlZmxError.unavailable : "could not read the zmx session list")
-        }
-        guard let candidates = ZmxPrunePolicy.namesToPrune(inventory) else {
-            return ControlResponse(ok: false, error: LinuxControlZmxError.incompleteInventory)
+    private func pruneZmxDaemons(observed: [ZmxSessionRecord], client: LinuxZmxClient) -> ControlStage {
+        guard let candidates = ZmxPrunePolicy.namesToPrune(zmxJoin(observed)) else {
+            return .done(err(LinuxControlZmxError.incompleteInventory))
         }
         guard !candidates.isEmpty else {
-            return ControlResponse(ok: true, result: ControlResult(text: "no orphan daemons", affected: 0))
+            return .done(ControlResponse(ok: true, result: ControlResult(text: "no orphan daemons", affected: 0)))
         }
-        guard let recheck = client.listSessions() else {
-            return ControlResponse(ok: false, error: "could not re-read the zmx session list before pruning")
+        return .worker {
+            guard let recheck = client.listSessions() else {
+                return .done(ControlResponse(ok: false, error: "could not re-read the zmx session list before pruning"))
+            }
+            return .main { [self] in
+                // The pane claims can change while zmx runs off the main thread, so join them again with the
+                // fresh list: a daemon is killed only if both joins call it an orphan and it is detached.
+                guard let fresh = ZmxPrunePolicy.namesToPrune(zmxJoin(recheck)).map({ Set($0) }) else {
+                    return .done(err(LinuxControlZmxError.incompleteInventory))
+                }
+                let detached = Set(recheck.filter { $0.clients == 0 }.map(\.name))
+                let names = candidates.filter { detached.contains($0) && fresh.contains($0) }
+                guard !names.isEmpty else {
+                    return .done(ControlResponse(ok: true,
+                                                 result: ControlResult(text: "no orphan daemons left to prune", affected: 0)))
+                }
+                return .worker {
+                    let outcomes = client.killObservedOrphan(names: names)
+                    let killed = outcomes.values.filter { $0 == .killed }.count
+                    return .done(ControlResponse(ok: true, result: ControlResult(
+                        text: AppController.zmxPruneReport(outcomes), affected: killed
+                    )))
+                }
+            }
         }
-        let detached = Set(recheck.filter { $0.clients == 0 }.map(\.name))
-        let names = candidates.filter(detached.contains)
-        guard !names.isEmpty else {
-            return ControlResponse(ok: true,
-                                   result: ControlResult(text: "no orphan daemons left to prune", affected: 0))
-        }
-        let outcomes = client.killObservedOrphan(names: names)
-        let killed = outcomes.values.filter { $0 == .killed }.count
-        return ControlResponse(ok: true, result: ControlResult(
-            text: Self.zmxPruneReport(outcomes), affected: killed
-        ))
     }
 
-    private static func zmxPruneReport(_ outcomes: [String: LinuxZmxClient.KillOutcome]) -> String {
+    nonisolated private static func zmxPruneReport(_ outcomes: [String: LinuxZmxClient.KillOutcome]) -> String {
         outcomes.keys.sorted().map { name in
             switch outcomes[name] {
             case .killed: "killed \(name)"
@@ -113,69 +122,49 @@ extension AppController {
         }.joined(separator: "; ")
     }
 
-    func killZmxDaemon(target: String, window: String?, pane: ZmxPaneRole) -> ControlResponse {
-        guard let (client, inventory) = zmxInventory() else {
-            return ControlResponse(ok: false, error: gZmxClient == nil
-                ? LinuxControlZmxError.unavailable : "could not read the zmx session list")
-        }
+    private func killZmxDaemon(target: String, window: String?, pane: ZmxPaneRole,
+                               observed: [ZmxSessionRecord], client: LinuxZmxClient) -> ControlStage {
+        let inventory = zmxJoin(observed)
         guard target != "active" else {
-            return ControlResponse(ok: false, error: "zmx.kill needs a session id; 'active' is not accepted")
+            return .done(err("zmx.kill needs a session id; 'active' is not accepted"))
         }
         guard window != "active" else {
-            return ControlResponse(ok: false, error: "zmx.kill needs a window id; 'active' is not accepted")
+            return .done(err("zmx.kill needs a window id; 'active' is not accepted"))
         }
         let windowIDs = Array(Set(inventory.rows.compactMap { $0.claim?.windowID }))
         var owned = inventory.rows.filter { $0.claim?.pane == pane }
         if let window, !window.isEmpty {
             guard case .resolved(let windowID) = ControlResolve.resolve(window, candidates: windowIDs, active: nil)
-            else { return ControlResponse(ok: false, error: "no such window: \(window)") }
+            else { return .done(err("no such window: \(window)")) }
             owned = owned.filter { $0.claim?.windowID == windowID }
         }
         let candidates = owned.compactMap { $0.claim?.sessionID }
         guard case .resolved(let sessionID) = ControlResolve.resolve(target, candidates: candidates, active: nil),
               let row = owned.first(where: { $0.claim?.sessionID == sessionID }), let claim = row.claim else {
-            return ControlResponse(ok: false, error: "no \(pane.rawValue) pane daemon for session \(target)")
+            return .done(err("no \(pane.rawValue) pane daemon for session \(target)"))
         }
         if let refusal = LinuxControlZmxError.killRefusal(row) {
-            return ControlResponse(ok: false, error: refusal)
+            return .done(err(refusal))
         }
-        switch client.killConfirmed(name: row.daemon) {
-        case .killed: break
-        case .staleSocket:
-            return ControlResponse(ok: false, error: "\(row.daemon) did not confirm the kill; zmx cleaned "
-                + "up a stale socket and the daemon may still be running")
-        case .failed(let reason):
-            return ControlResponse(ok: false, error: "could not kill \(row.daemon): \(reason)")
+        let session: @MainActor @Sendable (ZmxPaneClaim) -> Session? = { claim in
+            gWindows[claim.windowID]?.store.session(withID: claim.sessionID)
         }
-        if let controller = gWindows[claim.windowID],
-           let session = controller.store.session(withID: claim.sessionID) {
-            let surface = (claim.pane == .left ? session.surface : session.splitSurface) as? GhosttySurface
-            if surface?.backedByZmx == true, surface?.claimProcessExit() == true {
-                if claim.pane == .left {
-                    controller.closePrimaryPane(claim.sessionID, alreadyFinalized: claim.paneIdentity)
-                } else {
-                    controller.closeSplitPane(claim.sessionID, alreadyFinalized: claim.paneIdentity)
-                }
+        return ZmxKillStage.stage(client: client, daemon: row.daemon,
+                                  target: ZmxKillTarget(claim: claim, in: session(claim)),
+                                  session: session) { role, surface in
+            // The daemon is gone; close its pane only if that is still the zmx-backed surface it fed.
+            guard let controller = gWindows[claim.windowID], let surface = surface as? GhosttySurface,
+                  surface.backedByZmx, surface.claimProcessExit() else { return }
+            if role == .left {
+                controller.closePrimaryPane(claim.sessionID, alreadyFinalized: claim.paneIdentity)
+            } else {
+                controller.closeSplitPane(claim.sessionID, alreadyFinalized: claim.paneIdentity)
             }
         }
-        return ControlResponse(ok: true, result: ControlResult(
-            id: claim.sessionID.uuidString, text: "killed \(row.daemon)", pane: claim.pane.rawValue
-        ))
     }
 
-    func localAttachableSessions() -> ControlResponse {
-        guard let client = gZmxClient, let observed = client.listSessions() else {
-            return ControlResponse(ok: false, error: gZmxClient == nil
-                ? LinuxControlZmxError.unavailable : "could not read the zmx session list")
-        }
-        let walk = library.paneClaims()
-        let inventory = ControlZmxInventory(
-            restore: restoreStatus(),
-            result: ZmxInventory.join(
-                observed: observed, claims: walk.claims, inventoryComplete: walk.complete
-            ),
-            endpoint: client.endpoint
-        )
+    private func localAttachableSessions(observed: [ZmxSessionRecord], client: LinuxZmxClient) -> ControlResponse {
+        let inventory = ControlZmxInventory(restore: restoreStatus(), result: zmxJoin(observed), endpoint: client.endpoint)
         let windows = library.windows.compactMap { entry -> RemoteWindowProjection? in
             guard let controller = gWindows[entry.id],
                   let tree = controller.controlTree(window: nil).result?.tree else { return nil }
@@ -249,5 +238,68 @@ extension AppController {
         reconcile()
         sessionFocusTarget(for: created.id, wantSplit: created.splitFocused)?.grabFocus()
         return ControlResponse(ok: true, result: ControlResult(id: created.id.uuidString))
+    }
+}
+
+/// The pane a `zmx.kill` aims at, captured on the main thread before the kill goes to the worker.
+///
+/// GTK keeps running while zmx confirms the kill, so by completion the pane can have swapped roles
+/// (`session swap`), or its slot can hold a replacement that kept the same pane UUID. A role or a UUID alone
+/// can therefore name an unrelated live pane. The target keeps the surface object as well, weakly, and
+/// matches both. Only the main thread reads or writes `surface`.
+final class ZmxKillTarget: @unchecked Sendable {
+    let claim: ZmxPaneClaim
+    private weak var surface: (any TerminalSurface)?
+
+    /// Captures the surface in the claimed slot, or none when that slot no longer carries the claim's identity.
+    @MainActor init(claim: ZmxPaneClaim, in session: Session?) {
+        self.claim = claim
+        surface = Self.slots(of: session).first { $0.role == claim.pane && $0.identity == claim.paneIdentity }?.surface
+    }
+
+    /// The role the captured surface holds now, if it still sits in `session` under the claimed identity.
+    /// Nil when it was closed or replaced, so a completion closes nothing.
+    @MainActor func current(in session: Session?) -> (role: ZmxPaneRole, surface: any TerminalSurface)? {
+        guard let surface else { return nil }
+        return Self.slots(of: session)
+            .first { $0.surface === surface && $0.identity == claim.paneIdentity }
+            .map { (role: $0.role, surface: surface) }
+    }
+
+    @MainActor private static func slots(of session: Session?)
+        -> [(role: ZmxPaneRole, identity: UUID?, surface: any TerminalSurface)] {
+        guard let session else { return [] }
+        var slots: [(role: ZmxPaneRole, identity: UUID?, surface: any TerminalSurface)] = []
+        if let primary = session.surface { slots.append((.left, session.paneIdentity, primary)) }
+        if let split = session.splitSurface { slots.append((.right, session.splitPaneIdentity, split)) }
+        return slots
+    }
+}
+
+/// The worker and completion halves of `zmx.kill`, apart from the app so the completion can be tested.
+enum ZmxKillStage {
+    /// Kills `daemon` on the worker. Only a confirmed kill hops to main, where `close` gets the targeted
+    /// surface in the role it holds now; a pane that was closed or replaced meanwhile is left alone. The
+    /// reply always names the daemon and the role that were requested.
+    static func stage(client: LinuxZmxClient, daemon: String, target: ZmxKillTarget,
+                      session: @escaping @MainActor @Sendable (ZmxPaneClaim) -> Session?,
+                      close: @escaping @MainActor @Sendable (ZmxPaneRole, any TerminalSurface) -> Void) -> ControlStage {
+        .worker {
+            switch client.killConfirmed(name: daemon) {
+            case .killed:
+                return .main {
+                    let claim = target.claim
+                    if let found = target.current(in: session(claim)) { close(found.role, found.surface) }
+                    return .done(ControlResponse(ok: true, result: ControlResult(
+                        id: claim.sessionID.uuidString, text: "killed \(daemon)", pane: claim.pane.rawValue
+                    )))
+                }
+            case .staleSocket:
+                return .done(ControlResponse(ok: false, error: "\(daemon) did not confirm the kill; zmx cleaned "
+                    + "up a stale socket and the daemon may still be running"))
+            case .failed(let reason):
+                return .done(ControlResponse(ok: false, error: "could not kill \(daemon): \(reason)"))
+            }
+        }
     }
 }

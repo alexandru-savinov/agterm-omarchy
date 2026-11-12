@@ -337,6 +337,60 @@ struct ZmxLifecycleTests {
         #expect(inventories[0] == nil)
     }
 
+    // the unreadable launch opens the window empty and the close path saves that empty tree as a VALID
+    // file; the next launch must not then count the inventory as complete and reap the daemons only the
+    // lost tree claimed. Removing the preserved copy is the negative arm: the same state reaps again.
+    @Test func unreadableOpenWindowSuppressesReapThisLaunchAndTheNext() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let windowID = UUID(), lostPane = UUID()
+        let lostDaemon = ZmxSupport.daemonName(for: lostPane)
+        try writeIndex(WindowsIndex(windows: [WindowEntry(id: windowID, name: "work", isOpen: true)]),
+                       directory: directory)
+        try writeWindow(paneSnapshot(lostPane), id: windowID, directory: directory)
+        let windowURL = directory.appendingPathComponent("windows/\(windowID.uuidString).json")
+        let full = try Data(contentsOf: windowURL)
+        try full.prefix(full.count / 2).write(to: windowURL) // truncated mid-write
+        let daemons = [ZmxSessionRecord(name: lostDaemon, clients: 0)]
+
+        func launchThenClose() -> [String]? {
+            var inventories: [Set<UUID>?] = []
+            let library = WindowLibrary(directory: directory, paneFinalizer: nil,
+                                        launchInventorySink: { inventories.append($0) })
+            library.store(for: windowID)?.save() // the unconditional save on window close / quit
+            let known = inventories.first.flatMap { $0 }.map { Set($0.map(ZmxSupport.daemonName(for:))) }
+            return ZmxReapPolicy.namesToKill(sessions: daemons, requestedMode: .live, knownNames: known)
+        }
+
+        #expect(launchThenClose() == nil)
+        #expect(try PersistenceStore(directory: directory.appendingPathComponent("windows"),
+                                     fileName: "\(windowID.uuidString).json").loadChecked().workspaces.isEmpty)
+        #expect(launchThenClose() == nil)
+        #expect(launchThenClose() == nil)
+
+        for copy in StateFileQuarantine.preservedCopies(of: windowURL) {
+            try FileManager.default.removeItem(at: copy)
+        }
+        #expect(launchThenClose() == [lostDaemon])
+    }
+
+    @Test func preservedWindowFileMakesTheClaimWalkIncomplete() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let windowID = UUID()
+        try writeIndex(WindowsIndex(windows: [WindowEntry(id: windowID, name: "work", isOpen: true)]),
+                       directory: directory)
+        try writeWindow(paneSnapshot(UUID()), id: windowID, directory: directory)
+        #expect(WindowLibrary(directory: directory).paneClaims().complete)
+
+        let windowURL = directory.appendingPathComponent("windows/\(windowID.uuidString).json")
+        try Data("{".utf8).write(to: windowURL)
+        let library = WindowLibrary(directory: directory)
+        library.store(for: windowID)?.save()
+        #expect(StateFileQuarantine.preservedCopies(of: windowURL).count == 1)
+        #expect(!library.paneClaims().complete)
+    }
+
     @Test func snapshotRestoreKeepsTheDaemonNameForMissingDaemonUpsert() throws {
         let store = AppStore(persistence: temporaryPersistence())
         let workspace = store.addWorkspace(name: "work")

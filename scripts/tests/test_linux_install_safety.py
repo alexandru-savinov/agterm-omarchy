@@ -199,7 +199,8 @@ sys.exit(result.returncode)
         fixture = self.fixture
         shim = fixture.work / 'copy-commands/python3'
         shim.write_text(f'#!{sys.executable}\n' + '''import os, sys
-if len(sys.argv) > 3 and sys.argv[3] == 'restore':
+# The installer runs `python3 -I -c CODE MODE ...`; fail only the rollback mode.
+if '-c' in sys.argv and sys.argv[sys.argv.index('-c') + 2:][:1] == ['restore']:
     sys.exit(75)
 os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
 ''')

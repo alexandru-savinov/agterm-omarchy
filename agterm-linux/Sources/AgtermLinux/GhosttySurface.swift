@@ -68,6 +68,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     /// surface role (main, split, scratch, overlay, quick) goes through, so the restore is merged here
     /// rather than at each construction site.
     let env: [String: String]
+    private let environmentUnsets: [String]
     /// The last libghostty-requested pointer state. GTK may receive visibility, link-hover, and shape
     /// actions independently, so keep all three and re-apply their precedence instead of letting one
     /// callback accidentally reset another.
@@ -80,19 +81,14 @@ final class GhosttySurface: PaneRoleMutableSurface {
     /// replaces them or the surface is torn down.
     private var ownedConfigs: [ghostty_config_t] = []
     private var oscBackgroundColorHex: String?
-    private var pendingFontRestore: Double?
+    var suppressFontSizePersistence = false
     var dashboardFontOverride: Double? {
         didSet {
             guard dashboardFontOverride != oldValue else { return }
+            // The pinned engine reports CELL_SIZE synchronously while applying this temporary config.
+            suppressFontSizePersistence = true
+            defer { suppressFontSizePersistence = false }
             reapplyBackgroundOverlay(force: true)
-            guard dashboardFontOverride == nil, let cleared = oldValue else {
-                pendingFontRestore = nil
-                return
-            }
-            let sessionFont = controller?.store.session(withID: sessionID)?.fontSize
-            let target = sessionFont ?? linuxSettingsStore().load().fontSize
-                ?? DashboardLayout.ghosttyDefaultFontSize
-            pendingFontRestore = abs(cleared - target) > 0.5 ? target : nil
         }
     }
 
@@ -106,6 +102,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     private var exitCodeFile: String?
     private var onExitCodeCaptured: ((Int) -> Void)?
     var didHandleProcessExit = false
+    let heldLeadAttachment = LinuxHeldLeadAttachment()
 
     isolated deinit {
         if let surface { ghostty_surface_free(surface) }
@@ -132,6 +129,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
         self.fontSize = fontSize
         self.initialInput = initialInput
         self.env = gdkEnvironment.childEnvironment(merging: env)
+        environmentUnsets = gdkEnvironment.childEnvironmentUnsets(merging: env)
         rootWidget = OpaquePointer(gtk_overlay_new())
         glArea = OpaquePointer(gtk_gl_area_new())
         gtk_overlay_set_child(rootWidget, W(glArea))
@@ -257,7 +255,8 @@ final class GhosttySurface: PaneRoleMutableSurface {
         cfg.scale_factor = Double(scale)
         if let fontSize { cfg.font_size = Float(fontSize) }   // restore a persisted per-session zoom
         guard let storage = GhosttySurfaceConfigurationStorage(
-            workingDirectory: cwd, command: command, initialInput: initialInput, environment: env
+            workingDirectory: cwd, command: command, initialInput: initialInput, environment: env,
+            environmentUnsets: environmentUnsets
         ) else {
             FileHandle.standardError.write(Data("agterm: could not allocate libghostty surface configuration\n".utf8))
             showCreationFailure()
@@ -273,7 +272,8 @@ final class GhosttySurface: PaneRoleMutableSurface {
         if LinuxSurfaceFailureInjection.failure(for: role) == .creation {
             surface = nil
         } else {
-            surface = ghostty_surface_new(app, &cfg)
+            surface = ghostty_surface_new_with_env_unset(app, &cfg, storage.environmentUnsets?.baseAddress,
+                                                       storage.environmentUnsets?.count ?? 0)
         }
         guard let surface else {
             // libghostty exposes no error value here and may reject one surface for fonts, renderer,
@@ -401,9 +401,10 @@ final class GhosttySurface: PaneRoleMutableSurface {
         reapplyBackgroundOverlay(windowOpacity: windowOpacity, settings: settings, force: true)
     }
 
-    private func reapplyBackgroundOverlay(windowOpacity: Double? = nil, settings: AppSettings? = nil,
-                                          force: Bool = false) {
-        guard let surface else { return }
+    @discardableResult
+    func reapplyBackgroundOverlay(windowOpacity: Double? = nil, settings: AppSettings? = nil,
+                                  force: Bool = false, fontSizeOverride: Double? = nil) -> Bool {
+        guard let surface else { return false }
         let session = controller?.store.session(withID: sessionID)
         let pane = role.statusPane
         let watermark = LinuxBackgroundOverlayPolicy.watermark(
@@ -411,35 +412,37 @@ final class GhosttySurface: PaneRoleMutableSurface {
             sessionBackground: usesSessionWatermark ? pane.flatMap { session?.effectiveBackground(for: $0) } : nil)
         guard LinuxBackgroundOverlayPolicy.shouldReapply(
             force: force, oscLatch: oscBackgroundColorHex, watermark: watermark,
-            hasFontOverride: dashboardFontOverride != nil || session?.fontSize != nil) else { return }
+            hasFontOverride: dashboardFontOverride != nil || session?.fontSize != nil) else { return false }
         let resolvedImagePath = session.flatMap { session in
             let paneKey = pane.flatMap { session.paneBackgrounds[$0] == nil ? nil : session.backgroundFileKey(for: $0) }
             return WatermarkRenderer.materialize(watermark, sessionID: session.id, paneKey: paneKey)
         }
         let effectiveWindowOpacity = windowOpacity ?? linuxSettingsStore().load().backgroundOpacity ?? 1
-        let effectiveFontSize = dashboardFontOverride ?? session?.fontSize ?? fontSize
+        let effectiveFontSize = fontSizeOverride ?? dashboardFontOverride ?? session?.fontSize ?? fontSize
         let overlay = LinuxBackgroundOverlayPolicy.overlayText(
             oscLatch: oscBackgroundColorHex, watermark: watermark, resolvedImagePath: resolvedImagePath,
             fontSize: effectiveFontSize, windowOpacity: effectiveWindowOpacity)
-        guard let config = GhosttyApp.shared.configWithOverlay(overlay, settings: settings) else { return }
+        guard let config = GhosttyApp.shared.configWithOverlay(overlay, settings: settings) else { return false }
         ghostty_surface_update_config(surface, config)
         ownedConfigs.forEach { ghostty_config_free($0) }
         ownedConfigs = [config]
         queueRender()
+        return true
     }
 
     func reapplyWatermarkIfNeeded(windowOpacity: Double? = nil, settings: AppSettings? = nil) {
         let inherited = role.statusPane.flatMap { pane in
             controller?.store.session(withID: sessionID)?.effectiveBackground(for: pane)
         }
-        guard oscBackgroundColorHex != nil
+        // Explicit reloads must preserve the dashboard's temporary size even without a watermark.
+        guard dashboardFontOverride != nil || oscBackgroundColorHex != nil
                 || fixedBackgroundColor != nil
                 || usesSessionWatermark && inherited != nil else { return }
         reapplyBackgroundOverlay(windowOpacity: windowOpacity, settings: settings)
     }
 
     /// Automatic appearance reconciliation restores every per-session overlay.
-    /// Explicit reloads keep the watermark-only path.
+    /// Explicit reloads keep watermark and temporary dashboard overrides.
     func reapplySessionConfigIfNeeded(windowOpacity: Double? = nil, settings: AppSettings? = nil) {
         reapplyBackgroundOverlay(windowOpacity: windowOpacity, settings: settings)
     }
@@ -777,13 +780,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     /// persist it on the session so a relaunch restores the zoom. setFontSize no-ops when unchanged,
     /// so a pure DPI change doesn't write. Per-session (both panes share the size).
     func reportFontSize() {
-        guard dashboardFontOverride == nil else { return }
-        guard let size = currentFontSize() else { return }
-        guard size > 0 else { return }
-        if let pending = pendingFontRestore {
-            pendingFontRestore = nil
-            if abs(size - pending) <= 0.5 { return }
-        }
+        guard dashboardFontOverride == nil, !suppressFontSizePersistence, let size = currentFontSize(), size > 0 else { return }
         controller?.sessionDidReportFontSize(sessionID, size)
     }
 
@@ -803,8 +800,9 @@ final class GhosttySurface: PaneRoleMutableSurface {
     }
 
     func handleHeldProcessExit() {
-        guard waitAfterCommand, let pane = UUID(uuidString: paneToken) else { return }
-        ZmxLeadBook.shared.forget(pane: pane)
+        guard waitAfterCommand else { return }
+        // The final link-loss title can follow the child-exit callback from the separate PTY reader.
+        heldLeadAttachment.retain(controller?.remoteHeldExits.attachmentEnded(self, forSession: sessionID))
         syncLeadCover()
         controller?.store.leadRoleChanged()
     }
