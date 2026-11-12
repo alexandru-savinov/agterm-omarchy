@@ -24,9 +24,13 @@ expected_stamp() {
   shopt -s nullglob
   # The shared upstream teardown patches (scripts/ghostty-patches, also applied by the macOS build) and the
   # Linux renderer adapters (linux/patches) both change the compiled library.
-  patches=("$ROOT/scripts/ghostty-patches"/*.patch "$ROOT/linux/patches"/*.patch)
+  local linux_patches=()
+  patches=("$ROOT/scripts/ghostty-patches"/*.patch)
+  linux_patches=("$ROOT/linux/patches"/*.patch)
   shopt -u nullglob
-  (( ${#patches[@]} )) || { echo "no Ghostty patches found in $ROOT/scripts/ghostty-patches or $ROOT/linux/patches" >&2; return 1; }
+  # The Linux renderer adapters are required; an empty set means a broken checkout, not "no patches".
+  (( ${#linux_patches[@]} )) || { echo "no Ghostty patches found in $ROOT/linux/patches" >&2; return 1; }
+  patches+=("${linux_patches[@]}")
   printf 'ghostty-rev %s\n' "$rev"
   for patch in "${patches[@]}"; do
     printf 'patch %s %s\n' "$(basename "$patch")" "$(sha256sum < "$patch" | cut -d' ' -f1)"

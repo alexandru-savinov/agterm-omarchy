@@ -18,11 +18,12 @@ class VendorCacheStampTests(unittest.TestCase):
         self.work = Path(self.temp.name).resolve()
         self.repo = self.work / 'checkout'
         for name in ('scripts/verify-linux-vendor-cache.sh', 'scripts/setup-linux.sh',
-                     'linux/ghostty-resources.env', 'linux/zmx.env', 'linux/arch.sh'):
+                     'linux/ghostty-resources.env', 'linux/zmx.env', 'linux/arch.sh', 'linux/ghostty-build.sh'):
             target = self.repo / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, target)
         shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
+        shutil.copytree(ROOT / 'scripts/ghostty-patches', self.repo / 'scripts/ghostty-patches')
         shutil.copytree(ROOT / 'scripts/zmx-patches', self.repo / 'scripts/zmx-patches')
         # Notice, architecture and resource checks have their own suites; isolate the stamp decision.
         for name in ('verify-linux-architecture.sh', 'verify-linux-resources.sh', 'verify-linux-zmx-cache.sh'):
@@ -36,10 +37,12 @@ class VendorCacheStampTests(unittest.TestCase):
         (self.vendor / 'SOURCE_STAMP').write_text(self.expected_stamp())
         self.bin = self.work / 'bin'
         self.bin.mkdir()
-        for name, body in {'zig': 'echo 0.16.0', 'mise': 'exit 1', 'uname': 'echo x86_64',
+        for name, body in {'zig': 'echo 0.16.0', 'zig17': 'echo 0.17.0', 'mise': 'exit 1', 'uname': 'echo x86_64',
                            'git': 'echo stamp-fixture-rebuild >&2; exit 97'}.items():
             self.stub(self.bin / name, body)
-        self.env = dict(os.environ, PATH=f'{self.bin}:{os.environ["PATH"]}', TMPDIR=str(self.work))
+        # Ghostty 1.4 builds with Zig 0.17 (GHOSTTY_ZIG); zmx keeps Zig 0.16.
+        self.env = dict(os.environ, PATH=f'{self.bin}:{os.environ["PATH"]}', TMPDIR=str(self.work),
+                        GHOSTTY_ZIG=str(self.bin / 'zig17'))
 
     @staticmethod
     def stub(path, body):
@@ -47,11 +50,13 @@ class VendorCacheStampTests(unittest.TestCase):
         path.chmod(0o755)
 
     def expected_stamp(self):
-        # Independent statement of the stamp format: revision, each patch digest, then the resource pin.
+        # Independent statement of the stamp format: revision, each patch digest (shared teardown patches,
+        # then the Linux adapters), then the resource pin.
         env = self.repo / 'linux/ghostty-resources.env'
         rev = next(line.split('"')[1] for line in env.read_text().splitlines() if line.startswith('GHOSTTY_REV='))
         lines = [f'ghostty-rev {rev}']
-        for patch in sorted((self.repo / 'linux/patches').glob('*.patch')):
+        patches = sorted((self.repo / 'scripts/ghostty-patches').glob('*.patch'))
+        for patch in patches + sorted((self.repo / 'linux/patches').glob('*.patch')):
             lines.append(f'patch {patch.name} {hashlib.sha256(patch.read_bytes()).hexdigest()}')
         lines.append(f'resources {hashlib.sha256(env.read_bytes()).hexdigest()}')
         return '\n'.join(lines) + '\n'
