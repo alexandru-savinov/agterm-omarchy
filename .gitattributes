@@ -10,3 +10,6 @@ packaging/linux/notices/nerd-fonts-glyphs/codicons-LICENSE.txt -text whitespace=
 packaging/linux/notices/nerd-fonts-glyphs/weather-icons-OFL.txt -text whitespace=cr-at-eol,-blank-at-eol
 packaging/linux/notices/nerd-fonts-glyphs/pomicons-LICENSE whitespace=-blank-at-eol
 packaging/linux/notices/nerd-fonts-glyphs/powerline-symbols-LICENSE.txt whitespace=-blank-at-eol
+# Preserve the reviewed raw extract and frozen verifier package, including their EOF bytes.
+docs/evidence/mac-vm-validation-2026-11-11/native-diagnostic-2-threads.txt whitespace=-blank-at-eof
+docs/evidence/mac-vm-validation-2026-11-11/native-source77-appendix/appendix_support.py whitespace=-blank-at-eof

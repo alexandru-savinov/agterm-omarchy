@@ -20,7 +20,7 @@ for mirror in "${mirrors[@]}"; do
   # A failed update may leave partial indexes; never offer those to the next source or install.
   attempt=$(mktemp -d "$work/attempt.XXXXXX")
   chmod 755 "$attempt"
-  mkdir "$attempt/lists"
+  mkdir "$attempt/lists" "$attempt/archives"
   cat > "$attempt/ubuntu.sources" <<EOF
 Types: deb
 URIs: $mirror
@@ -32,17 +32,23 @@ EOF
     -o "Dir::Etc::sourcelist=$attempt/ubuntu.sources"
     -o Dir::Etc::sourceparts=-
     -o "Dir::State::lists=$attempt/lists"
+    -o "Dir::Cache::archives=$attempt/archives"
     -o APT::Update::Error-Mode=any
   )
   echo "Updating CI dependency indexes from $mirror" >&2
   if apt-get "${options[@]}" update; then
-    # Do not retry installation: a failure may follow package configuration side effects.
-    DEBIAN_FRONTEND=noninteractive apt-get "${options[@]}" install -y --no-install-recommends "$@"
-    exit 0
+    # Acquisition can fail over safely; never retry after package configuration starts.
+    if DEBIAN_FRONTEND=noninteractive apt-get "${options[@]}" install --download-only -y --no-install-recommends "$@"; then
+      DEBIAN_FRONTEND=noninteractive apt-get "${options[@]}" install --no-download -y --no-install-recommends "$@"
+      exit 0
+    else
+      status=$?
+      echo "CI dependency download failed for $mirror (exit $status)" >&2
+    fi
   else
     status=$?
     echo "CI dependency index update failed for $mirror (exit $status)" >&2
   fi
 done
-echo 'No CI dependency source completed a verified index update' >&2
+echo 'No CI dependency source completed verified package acquisition' >&2
 exit "$status"
