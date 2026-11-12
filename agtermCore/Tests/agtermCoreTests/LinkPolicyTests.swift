@@ -108,11 +108,12 @@ struct LinkPolicyTests {
     }
     #else
     /// Linux: `/home/<user>` holds the user's own files, so a link there gets the same disposition as a
-    /// `/usr` file (reveal), not the macOS `auto_home` ignore.
+    /// `/usr` file (reveal), not the macOS `auto_home` ignore. `.bin` keeps both out of the typed page
+    /// dispositions (markdown, image, document, text), which would otherwise hide the reveal.
     @Test(arguments: [
-        ("file:///home/u/x.md", "file:///home/u/x.md", "file:///usr/share/x.md"),
-        ("file://myhost/home/u/a%20b.md", "file:///home/u/a%20b.md", "file://myhost/usr/a%20b.md"),
-        ("file:///tmp/../home/u/x.md", "file:///home/u/x.md", "file:///tmp/../usr/x.md"),
+        ("file:///home/u/x.bin", "file:///home/u/x.bin", "file:///usr/share/x.bin"),
+        ("file://myhost/home/u/a%20b.bin", "file:///home/u/a%20b.bin", "file://myhost/usr/a%20b.bin"),
+        ("file:///tmp/../home/u/x.bin", "file:///home/u/x.bin", "file:///tmp/../usr/x.bin"),
     ])
     func linuxHomeFileRevealsLikeAUsrFile(_ raw: String, _ expected: String, _ usrRaw: String) {
         let home = LinkPolicy.disposition(for: raw, localHosts: Self.localHosts)
