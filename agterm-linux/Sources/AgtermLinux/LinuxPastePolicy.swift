@@ -11,14 +11,16 @@ extension ShellEscape {
 }
 
 enum PasteDecoder {
-    static func posixPaths(fromURIList text: String) -> String? {
+    /// A drop shell-escapes each path so a name with a space stays one word at the prompt; a clipboard
+    /// read (`LinuxClipboardPolicy.readableText`) hands the paths over as upstream does, space-joined.
+    static func posixPaths(fromURIList text: String, escaped: Bool = true) -> String? {
         let lines = text.split(whereSeparator: \.isNewline).map(String.init)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.hasPrefix("#") }
         guard !lines.isEmpty, lines.allSatisfy({ $0.hasPrefix("file://") }) else { return nil }
         let paths = lines.compactMap { URL(string: $0)?.path }
         guard paths.count == lines.count else { return nil }
-        return paths.map(ShellEscape.path).joined(separator: " ")
+        return (escaped ? paths.map(ShellEscape.path) : paths).joined(separator: " ")
     }
 }
 

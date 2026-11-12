@@ -352,6 +352,8 @@ void *dlsym(void *handle, const char *name) {
 // MARK: Host markers
 
 typedef void *(*surface_new_fn)(void *, const void *);
+// This fork's pane constructor (linux/patches/ghostty-surface-env-unset.patch); upstream calls ghostty_surface_new.
+typedef void *(*surface_new_env_unset_fn)(void *, const void *, const char *const *, size_t);
 typedef void (*surface_fn)(void *);
 typedef void *(*ref_fn)(void *);
 typedef void (*unref_fn)(void *);
@@ -361,6 +363,7 @@ typedef void (*make_current_fn)(void *);
 typedef void (*clear_current_fn)(void);
 
 static surface_new_fn real_ghostty_surface_new;
+static surface_new_env_unset_fn real_ghostty_surface_new_with_env_unset;
 static surface_fn real_ghostty_surface_draw, real_ghostty_surface_free;
 static ref_fn real_g_object_ref;
 static unref_fn real_g_object_unref;
@@ -395,6 +398,14 @@ void *ghostty_surface_new(void *app, const void *config) {
     REAL(real_ghostty_surface_new, "ghostty_surface_new");
     emit(NULL, "NEW_BEGIN");
     void *surface = real_ghostty_surface_new(app, config);
+    emit(NULL, "NEW_END surface=%s", hex(surface));
+    return surface;
+}
+
+void *ghostty_surface_new_with_env_unset(void *app, const void *config, const char *const *unset, size_t count) {
+    REAL(real_ghostty_surface_new_with_env_unset, "ghostty_surface_new_with_env_unset");
+    emit(NULL, "NEW_BEGIN");
+    void *surface = real_ghostty_surface_new_with_env_unset(app, config, unset, count);
     emit(NULL, "NEW_END surface=%s", hex(surface));
     return surface;
 }
@@ -531,7 +542,7 @@ __attribute__((constructor)) static void shim_start(void) {
     remove_own_preload();
     active = 1;
     static const char *const required[] = {
-        "ghostty_surface_new", "ghostty_surface_draw", "ghostty_surface_free", "gtk_gl_area_get_context",
+        "ghostty_surface_new", "ghostty_surface_new_with_env_unset", "ghostty_surface_draw", "ghostty_surface_free", "gtk_gl_area_get_context",
         "gdk_gl_context_get_current", "gdk_gl_context_make_current", "gdk_gl_context_clear_current", "g_object_ref",
         "g_object_unref"};
     for (size_t i = 0; i < sizeof required / sizeof *required; i++)

@@ -227,7 +227,14 @@ def verify_clipboard_payloads(env, state):
                     remains_empty(output, "cancelled paste delivered bytes")
                     paste(payload, drop=kind.startswith("drop-"))
                     answer(PASTE_HEADING, "Paste")
-                normalized = "/tmp/one\\ two /tmp/three" if kind.endswith("uri") else payload.replace("\r\n", "\n").replace("\r", "\n")
+                # A drop shell-escapes file paths; a clipboard paste hands them over space-joined, as
+                # libghostty 1.4's read path (LinuxClipboardPolicy.readableText) does for every reader.
+                if kind == "drop-uri":
+                    normalized = "/tmp/one\\ two /tmp/three"
+                elif kind == "uri":
+                    normalized = "/tmp/one two /tmp/three"
+                else:
+                    normalized = payload.replace("\r\n", "\n").replace("\r", "\n")
                 expected = (("\x1b[200~" + normalized + "\x1b[201~") if bracketed
                             else normalized.replace("\n", "\r")).encode()
                 until(lambda: output.read_bytes() == expected, f"{label}/{kind}: paste bytes differ from expected")

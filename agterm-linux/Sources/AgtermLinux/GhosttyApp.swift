@@ -397,6 +397,7 @@ final class GhosttyApp: @unchecked Sendable {
             // A drop armed by `pasteThroughProtection` answers this read itself, unconfirmed, so libghostty
             // applies the same paste protection as Ctrl+Shift+V (`ghostty_surface_text` would bypass it).
             if let dropped = ArmedDropPaste.shared.take(owner: userdata) {
+                // LinuxPastePolicy already turned a dropped uri-list into shell-escaped paths before arming.
                 let completion = LinuxClipboardPolicy.textCompletion(text: dropped, list: list)
                 LinuxClipboardAdapter.complete(surface, items: completion.items, available: completion.available,
                                                state: requestState)

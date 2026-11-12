@@ -60,9 +60,7 @@ struct LinuxClipboardPolicyTests {
     func uriListConverts() {
         let copied = "# copied files\r\nfile:///tmp/one%20two\r\nfile:///tmp/three\r\n"
 
-        // Each path is shell-escaped, as a drop of the same files is (LinuxPastePolicy.posixPaths), so a path
-        // with a space stays one word at the prompt.
-        #expect(LinuxClipboardPolicy.readableText(copied, advertisesURIList: true) == "/tmp/one\\ two /tmp/three")
+        #expect(LinuxClipboardPolicy.readableText(copied, advertisesURIList: true) == "/tmp/one two /tmp/three")
     }
 
     @Test("without an advertised uri-list, file:// text round-trips")

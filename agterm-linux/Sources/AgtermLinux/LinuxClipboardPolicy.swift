@@ -28,7 +28,7 @@ enum LinuxClipboardPolicy {
     /// clipboard's formats are what tell that from literal `file://` text, which round-trips unchanged.
     static func readableText(_ text: String, advertisesURIList: Bool) -> String {
         guard advertisesURIList else { return text }
-        return PasteDecoder.posixPaths(fromURIList: text) ?? text
+        return PasteDecoder.posixPaths(fromURIList: text, escaped: false) ?? text
     }
 
     /// Reads serve text only: binary representations are never fetched from the clipboard.
