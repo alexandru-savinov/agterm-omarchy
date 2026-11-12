@@ -78,9 +78,10 @@ install -m755 "$WORK/libghostty-x86_64.so" "$WORK/complete/lib/libghostty.so"
 AGTERM_TEST_UNAME=x86_64 PATH="$WORK:$PATH" "$VERIFY_CACHE" "$WORK/complete" >/dev/null
 expect_cache_failure aarch64 "expected aarch64 (ARM aarch64)"
 
-printf '%s stale-patches\n' "$GHOSTTY_REV" > "$WORK/complete/REVISION"
-expect_cache_failure x86_64 "revision or patch set is stale"
-printf '%s\n' "$GHOSTTY_STAMP" > "$WORK/complete/REVISION"
+# A cache built from other patches: the SOURCE_STAMP names every applied patch digest.
+printf 'ghostty-rev %s\npatch stale.patch 0\n' "$GHOSTTY_REV" > "$WORK/complete/SOURCE_STAMP"
+expect_cache_failure x86_64 "built from different Ghostty sources or patches"
+"$VERIFY_CACHE" --print-stamp > "$WORK/complete/SOURCE_STAMP"
 
 
 install -m755 "$WORK/libghostty-aarch64.so" "$WORK/complete/lib/libghostty.so"
@@ -124,20 +125,21 @@ source "$ROOT/linux/zmx.env"
 # shellcheck source=../linux/arch.sh
 source "$ROOT/linux/arch.sh"
 ZMX_PATCH_DIGEST="$(cat "$ROOT/scripts/zmx-patches"/*.patch "$ROOT/scripts/zmx-patches/ghostty"/*.patch | sha256sum | cut -c1-16)"
+# The zmx cache names its commit, explicit Zig target and patch digest (REVISION) and the target and
+# CPU it was built for (BUILD_POLICY); both must match this host, on either CI architecture.
 printf '%s %s %s\n' "$ZMX_REV" "$ZIG_TARGET" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
-AGTERM_TEST_UNAME=x86_64 PATH="$WORK:$PATH" \
+printf 'target=%s cpu=%s\n' "$ZIG_TARGET" "$ZMX_CPU" > "$SETUP_ROOT/agterm-linux/vendor/zmx/BUILD_POLICY"
+AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" \
   "$SETUP_ROOT/scripts/verify-linux-zmx-cache.sh" "$SETUP_ROOT/agterm-linux/vendor/zmx" >/dev/null
-if AGTERM_TEST_UNAME=aarch64 PATH="$WORK:$PATH" \
+if AGTERM_TEST_UNAME="$STALE_ARCH" PATH="$WORK:$PATH" \
     "$SETUP_ROOT/scripts/verify-linux-zmx-cache.sh" "$SETUP_ROOT/agterm-linux/vendor/zmx" >/dev/null 2>&1; then
   echo "zmx cache with the wrong target unexpectedly passed verification" >&2
   exit 1
 fi
 printf '%s %s\n' "$ZMX_REV" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
-printf 'target=%s-linux-gnu.2.39 cpu=%s\n' "$SETUP_ARCH" "$ZMX_CPU" \
-  > "$SETUP_ROOT/agterm-linux/vendor/zmx/BUILD_POLICY"
-if AGTERM_TEST_UNAME=x86_64 PATH="$WORK:$PATH" \
+if AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" \
     "$SETUP_ROOT/scripts/verify-linux-zmx-cache.sh" "$SETUP_ROOT/agterm-linux/vendor/zmx" >/dev/null 2>&1; then
-  echo "zmx cache without a baseline target unexpectedly passed verification" >&2
+  echo "zmx cache without an explicit target unexpectedly passed verification" >&2
   exit 1
 fi
 printf '%s %s %s\n' "$ZMX_REV" "$ZIG_TARGET" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
