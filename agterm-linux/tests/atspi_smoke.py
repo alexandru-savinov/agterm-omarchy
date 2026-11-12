@@ -7700,8 +7700,9 @@ def main():
             "theme-many-sessions", "clipboard-lifetime", "clipboard-read-lifetime",
             "zoom-split-ratio", "zoom-preference-changes", "zoom-primary-promotion",
             "dashboard-font-restore", "dashboard-delayed-clicks",
-            "cursor-preferences",
+            # Keep the longer appearance scenario on the lighter odd-index CI shard.
             "appearance-follow",
+            "cursor-preferences",
         )
         try:
             shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
