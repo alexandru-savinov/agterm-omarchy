@@ -6,7 +6,7 @@ import agtermCore
 @MainActor
 extension LinuxHtmlOverlayPage {
     func installBridge() {
-        guard case .file = overlay.source else { return }
+        guard LinuxHtmlBridgeGate.installs(for: overlay.source) else { return }
         let data = Unmanaged.passUnretained(self).toOpaque()
         connect(manager, "script-message-with-reply-received::agterm", unsafeBitCast(onHtmlBridgeRequest, to: GCallback.self), data)
         for world in overlay.javascript ? ["agterm-bridge", ""] : ["agterm-bridge"] {
@@ -40,24 +40,22 @@ extension LinuxHtmlOverlayPage {
 
     func bridgeRequest(_ value: OpaquePointer?, reply: OpaquePointer?) {
         guard let reply else { return }
-        guard !closed, let store, let controller, let slot = store.htmlOverlaySlot(id),
-              let uri = webkit_web_view_get_uri(cast(webView)).map(String.init(cString:)),
-              uri == "about:blank" || uri.hasPrefix("agterm-file://\(id.uuidString.lowercased())/") else {
-            return rejectBridge(reply, "page closed or navigation left the file grant")
-        }
-        guard let json = jsc_value_to_json(value, 0) else { return rejectBridge(reply, "invalid request") }
-        let data = Data(String(cString: json).utf8)
-        g_free(json)
-        guard let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              envelope["nonce"] as? String == bridgeNonce, let object = envelope["request"],
-              let requestData = try? JSONSerialization.data(withJSONObject: object) else {
-            return rejectBridge(reply, "request must come from the file page's main frame")
-        }
-        let page = HtmlBridgePage(window: controller.windowID.uuidString, session: slot.session.id, pane: slot.pane)
+        let decision = LinuxHtmlBridgeGate(pageID: id, nonce: bridgeNonce).decide(
+            closed: closed,
+            page: {
+                guard let store, let controller, let slot = store.htmlOverlaySlot(id) else { return nil }
+                return HtmlBridgePage(window: controller.windowID.uuidString, session: slot.session.id, pane: slot.pane)
+            },
+            uri: { webkit_web_view_get_uri(cast(webView)).map(String.init(cString:)) },
+            json: {
+                guard let json = jsc_value_to_json(value, 0) else { return nil }
+                defer { g_free(json) }
+                return String(cString: json)
+            })
         let request: ControlRequest
-        switch HtmlBridge.request(from: requestData, page: page) {
-        case .failure(let error): return rejectBridge(reply, error.message)
-        case .success(let decoded): request = decoded
+        switch decision {
+        case .reject(let error): return rejectBridge(reply, error)
+        case .dispatch(let decoded): request = decoded
         }
         guard let context = jsc_value_get_context(value) else { return rejectBridge(reply, "no JavaScript context") }
         let delivery = LinuxHtmlBridgeReply(reply: reply, context: context)
