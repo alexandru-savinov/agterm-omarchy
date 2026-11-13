@@ -9,6 +9,7 @@ struct LinuxHtmlBridgeGateTests {
     let session = UUID()
     var page: HtmlBridgePage { HtmlBridgePage(window: "W1", session: session, pane: .right) }
     var fileURI: String { "agterm-file://\(pageID.uuidString.lowercased())/index.html" }
+    var gate: LinuxHtmlBridgeGate { LinuxHtmlBridgeGate(pageID: pageID, nonce: nonce) }
     var renameEnvelope: String { #"{"nonce":"\#(nonce)","request":{"cmd":"session.rename","args":{"name":"x"}}}"# }
 
     private func decide(closed: Bool = false, page: HtmlBridgePage?? = nil, uri: String?? = nil,
@@ -16,8 +17,7 @@ struct LinuxHtmlBridgeGateTests {
         let page = page ?? self.page
         let uri = uri ?? fileURI
         let json = json ?? renameEnvelope
-        return LinuxHtmlBridgeGate.decide(pageID: pageID, nonce: nonce, closed: closed,
-                                          page: { page }, uri: { uri }, json: { json })
+        return gate.decide(closed: closed, page: { page }, uri: { uri }, json: { json })
     }
 
     @Test func aMainFrameFilePageRequestDispatchesToThePagesOwnSession() throws {
@@ -65,8 +65,8 @@ struct LinuxHtmlBridgeGateTests {
     ])
     func aPageOutsideItsOwnFileGrantNeverReadsTheRequest(_ uri: String) {
         var read = false
-        let decision = LinuxHtmlBridgeGate.decide(pageID: pageID, nonce: nonce, closed: false, page: { page },
-                                                  uri: { uri }, json: { read = true; return renameEnvelope })
+        let decision = gate.decide(closed: false, page: { page }, uri: { uri },
+                                   json: { read = true; return renameEnvelope })
         #expect(decision == .reject(LinuxHtmlBridgeGate.leftGrant))
         #expect(!read)
     }
@@ -80,8 +80,8 @@ struct LinuxHtmlBridgeGateTests {
 
     @Test func aClosedPageRefusesBeforeTouchingTheStoreOrWebView() {
         var touched: [String] = []
-        let decision = LinuxHtmlBridgeGate.decide(
-            pageID: pageID, nonce: nonce, closed: true,
+        let decision = gate.decide(
+            closed: true,
             page: { touched.append("page"); return page },
             uri: { touched.append("uri"); return fileURI },
             json: { touched.append("json"); return renameEnvelope })
@@ -100,7 +100,7 @@ struct LinuxHtmlBridgeGateTests {
 
     @Test func aBridgeRefusedCommandKeepsHtmlBridgesErrorText() {
         let json = #"{"nonce":"\#(nonce)","request":{"cmd":"zmx.reset"}}"#
-        #expect(decide(json: json) == .reject(HtmlBridgeError.unsupported("zmx.reset").message))
+        #expect(decide(json: json) == .reject("zmx.reset cannot be sent from a page"))
     }
 
     @Test func onlyAFileSourceInstallsTheBridge() throws {
@@ -112,10 +112,9 @@ struct LinuxHtmlBridgeGateTests {
     // A nonce-carrying non-object request reaches corelibs' JSONSerialization fatalError; see #152.
     @Test func aNonObjectRequestCarryingTheNonceTrapsTheProcess() async {
         await #expect(processExitsWith: .failure) {
-            let nonce = "N"
-            _ = LinuxHtmlBridgeGate.decide(pageID: UUID(), nonce: nonce, closed: false,
-                                           page: { HtmlBridgePage(window: "W", session: UUID(), pane: nil) },
-                                           uri: { "about:blank" }, json: { #"{"nonce":"N","request":"x"}"# })
+            _ = LinuxHtmlBridgeGate(pageID: UUID(), nonce: "N").decide(
+                closed: false, page: { HtmlBridgePage(window: "W", session: UUID(), pane: nil) },
+                uri: { "about:blank" }, json: { #"{"nonce":"N","request":"x"}"# })
         }
     }
 }

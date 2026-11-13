@@ -40,8 +40,8 @@ extension LinuxHtmlOverlayPage {
 
     func bridgeRequest(_ value: OpaquePointer?, reply: OpaquePointer?) {
         guard let reply else { return }
-        let decision = LinuxHtmlBridgeGate.decide(
-            pageID: id, nonce: bridgeNonce, closed: closed,
+        let decision = LinuxHtmlBridgeGate(pageID: id, nonce: bridgeNonce).decide(
+            closed: closed,
             page: {
                 guard let store, let controller, let slot = store.htmlOverlaySlot(id) else { return nil }
                 return HtmlBridgePage(window: controller.windowID.uuidString, session: slot.session.id, pane: slot.pane)
