@@ -268,7 +268,6 @@ final class AppController {
         footerFlaggedButton = footerButton("agterm-flag-symbolic", "Show Flagged Only", onFlaggedToggle)
         gtk_box_append(cast(bottomBar), W(footerFlaggedButton))
         adw_toolbar_view_add_bottom_bar(sidebarToolbar, W(bottomBar))
-
         // Content side: header over [search bar (hidden) + deck]. No menu button and no window controls
         // on the right (matching macOS — the window controls live on the left, on the sidebar header);
         // the right side carries only the terminal toggles. The palette is still on Ctrl+Shift+P.
@@ -333,7 +332,6 @@ final class AppController {
         TerminalZoomRegistry.shared.register(windowID, controller: terminalZoom)
         DashboardControllerRegistry.shared.register(windowID, controller: dashboard)
         PickRegistry.shared.register(windowID, controller: pickController)
-
         // Become frontmost on activation (routes global shortcuts + control to this window);
         // tear down + deregister when the window closes.
         let me = Unmanaged.passUnretained(self).toOpaque()
