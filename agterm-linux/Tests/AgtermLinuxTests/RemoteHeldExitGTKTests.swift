@@ -96,16 +96,15 @@ struct RemoteHeldExitGTKTests {
         for directory in [pidDirectory, panePIDs] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        try "#!/bin/sh\nprintf '%s\\n' \"$$\" >\"$AGTERM_HELD_SSH_PIDS/$$\"\nexec /bin/cat >/dev/null\n".write(
+        try "#!/bin/sh\nprintf '%s\\n' \"$$\" >\(CommandRestore.shellQuotedLine([pidDirectory.path]))/\"$$\"\nexec /bin/cat >/dev/null\n".write(
             to: ssh, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: ssh.path)
         let paneCommand = root.appendingPathComponent("held-pane")
-        try "#!/bin/sh\nprintf '%s\\n' \"$$\" >\"$AGTERM_HELD_PANE_PIDS/$$\"\nexec /bin/cat >/dev/null\n".write(
+        try "#!/bin/sh\nprintf '%s\\n' \"$$\" >\(CommandRestore.shellQuotedLine([panePIDs.path]))/\"$$\"\nexec /bin/cat >/dev/null\n".write(
             to: paneCommand, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: paneCommand.path)
         let environment = ["HOME": root.path, "XDG_CONFIG_HOME": root.path, "XDG_CACHE_HOME": root.path,
-                           "AGTERM_STATE_DIR": root.path, "AGTERM_HELD_SSH_PIDS": pidDirectory.path,
-                           "AGTERM_HELD_PANE_PIDS": panePIDs.path,
+                           "AGTERM_STATE_DIR": root.path,
                            "PATH": root.path + ":/usr/bin:/bin"]
         let previous = environment.keys.map { ($0, ProcessInfo.processInfo.environment[$0]) }
         defer {
@@ -119,8 +118,8 @@ struct RemoteHeldExitGTKTests {
         let oldLibrary = gLibrary
         let oldController = gController
         let oldTimer = MainTimer.scheduleTimer
-        // Do not let reconciliation's retry tick launch probes. Action idles remain real GLib work.
-        MainTimer.scheduleTimer = { _, _ in {} }
+        // Surface spawning and transport cleanup need the production GLib timers.
+        installGLibMainTimer()
         defer { gLibrary = oldLibrary; gController = oldController; MainTimer.scheduleTimer = oldTimer }
         GhosttyApp.shared.start(appearanceSide: LinuxAppearanceSide(isDark: true))
         defer { GhosttyApp.shared.shutdown() }
@@ -150,7 +149,9 @@ struct RemoteHeldExitGTKTests {
                 childPIDs += try recordedPIDs(in: pidDirectory)
                 childPIDs += try recordedPIDs(in: panePIDs)
                 for pid in childPIDs {
-                    try pumpUntil { Glibc.kill(pid, 0) == -1 && errno == ESRCH }
+                    try pumpUntil(details: { ownedProcessState(pid) }, {
+                        Glibc.kill(pid, 0) == -1 && errno == ESRCH
+                    })
                 }
             } catch { Issue.record("fixture cleanup did not complete: \(error)") }
         }
@@ -171,14 +172,21 @@ struct RemoteHeldExitGTKTests {
         controller.reconcile()
         let primary = try #require(session.surface as? GhosttySurface)
         let split = try #require(session.splitSurface as? GhosttySurface)
-        try pumpUntil {
+        try pumpUntil(details: {
+            "primary: \(surfaceState(primary)); split: \(surfaceState(split)); " +
+                "ssh markers: \((try? recordedPIDs(in: pidDirectory)) ?? []); " +
+                "pane markers: \((try? recordedPIDs(in: panePIDs)) ?? [])"
+        }, {
             primary.surface != nil && split.surface != nil &&
                 ((try? FileManager.default.contentsOfDirectory(atPath: pidDirectory.path).isEmpty) == false) &&
                 ((try? FileManager.default.contentsOfDirectory(atPath: panePIDs.path).count) == 2)
-        }
+        })
         #expect(try recordedPIDs(in: pidDirectory).count == 1)
         try #require(primary.waitAfterCommand && split.waitAfterCommand)
         #expect(controller.remoteClients.count == 1)
+        // Pause only this controller's remote tick, after real setup. Reconcile sees the sentinel.
+        controller.remoteTickCancel?()
+        controller.remoteTickCancel = {}
         try body(controller, session, primary, split)
     }
 
@@ -192,12 +200,26 @@ struct RemoteHeldExitGTKTests {
         }
     }
 
-    private func pumpUntil(_ done: () -> Bool) throws {
+    private func surfaceState(_ surface: GhosttySurface) -> String {
+        "native=\(surface.surface != nil), widget=\(gtk_widget_get_realized(W(surface.glArea))), " +
+            "size=\(gtk_widget_get_width(W(surface.glArea)))x\(gtk_widget_get_height(W(surface.glArea))), " +
+            "awaitingPermit=\(surface.awaitingSpawnPermit), spawnKey=\(String(describing: surface.spawnKey))"
+    }
+
+    private func ownedProcessState(_ pid: Int32) -> String {
+        let status = (try? String(contentsOfFile: "/proc/\(pid)/status", encoding: .utf8)) ?? "unavailable"
+        let fields = status.split(separator: "\n").filter {
+            $0.hasPrefix("State:") || $0.hasPrefix("PPid:") || $0.hasPrefix("Name:")
+        }
+        return "recorded fixture PID \(pid): \(fields.joined(separator: "; "))"
+    }
+
+    private func pumpUntil(details: () -> String = { "GLib idle barrier" }, _ done: () -> Bool) throws {
         let deadline = Date().addingTimeInterval(5)
         while !done(), Date() < deadline {
             if g_main_context_iteration(nil, 0) == 0 { usleep(1_000) }
         }
-        try #require(done(), "bounded GTK fixture condition was not reached")
+        try #require(done(), "bounded GTK fixture condition was not reached: \(details())")
     }
 
     private func barrier() throws {
