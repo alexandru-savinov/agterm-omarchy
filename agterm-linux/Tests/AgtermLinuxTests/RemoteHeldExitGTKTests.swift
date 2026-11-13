@@ -102,7 +102,7 @@ struct RemoteHeldExitGTKTests {
             to: ssh, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: ssh.path)
         let paneCommand = root.appendingPathComponent("held-pane")
-        try "#!/bin/sh\nprintf '%s\\n' \"$$\" >\(CommandRestore.shellQuotedLine([panePIDs.path]))/\"$$\"\nexec /bin/cat >/dev/null\n".write(
+        try "#!/bin/sh\nprintf '%s\\n' \"$$\" >\(CommandRestore.shellQuotedLine([panePIDs.path]))/\"$$\"\nexec /usr/bin/env --default-signal=HUP /bin/cat >/dev/null\n".write(
             to: paneCommand, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: paneCommand.path)
         let environment = ["HOME": root.path, "XDG_CONFIG_HOME": root.path, "XDG_CACHE_HOME": root.path,
@@ -163,7 +163,8 @@ struct RemoteHeldExitGTKTests {
         store.workspaces = [workspace]
         let session = try #require(store.addSession(toWorkspace: workspace.id, cwd: root.path,
                                                    remoteHost: "held-fixture.invalid"))
-        session.initialCommand = CommandRestore.shellQuotedLine([paneCommand.path])
+        // Replace the native child shell so Ghostty owns and reaps the recorded pane PID.
+        session.initialCommand = "exec " + CommandRestore.shellQuotedLine([paneCommand.path])
         session.commandWait = true
         store.toggleSplit(session.id)
         session.splitInitialCommand = session.initialCommand
@@ -185,7 +186,16 @@ struct RemoteHeldExitGTKTests {
                 ((try? FileManager.default.contentsOfDirectory(atPath: pidDirectory.path).isEmpty) == false) &&
                 ((try? FileManager.default.contentsOfDirectory(atPath: panePIDs.path).count) == 2)
         })
-        #expect(try recordedPIDs(in: pidDirectory).count == 1)
+        let sshPIDs = try recordedPIDs(in: pidDirectory)
+        #expect(sshPIDs.count == 1)
+        for pid in sshPIDs { print("fixture SSH: \(ownedProcessState(pid))") }
+        for pid in try recordedPIDs(in: panePIDs) {
+            print("fixture pane: \(ownedProcessState(pid))")
+            let status = try String(contentsOfFile: "/proc/\(pid)/status", encoding: .utf8)
+            let parent = status.split(separator: "\n").first { $0.hasPrefix("PPid:") }
+            let parentPID = parent?.split(whereSeparator: { $0.isWhitespace }).last.flatMap { Int32($0) }
+            try #require(parentPID == getpid(), "pane must be a direct native child for deterministic reaping")
+        }
         try #require(primary.waitAfterCommand && split.waitAfterCommand)
         #expect(controller.remoteClients.count == 1)
         // Pause only this controller's remote tick, after real setup. Reconcile sees the sentinel.
