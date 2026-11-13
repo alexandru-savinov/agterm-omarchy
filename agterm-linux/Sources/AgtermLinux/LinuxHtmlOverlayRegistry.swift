@@ -114,11 +114,7 @@ final class LinuxHtmlOverlayRegistry {
     }
 
     func fileURI(for path: String, id: UUID, grantRoot: String) -> String? {
-        let root = URL(fileURLWithPath: grantRoot).standardizedFileURL.resolvingSymlinksInPath()
-        let file = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
-        let components = file.pathComponents
-        guard components.starts(with: root.pathComponents), components.count > root.pathComponents.count else { return nil }
-        let relative = components.dropFirst(root.pathComponents.count).joined(separator: "/")
+        guard let relative = LinuxHtmlFileGrant.relativePath(of: path, within: grantRoot) else { return nil }
         var uri = URLComponents()
         uri.scheme = Self.fileScheme
         uri.host = id.uuidString.lowercased()
@@ -128,9 +124,8 @@ final class LinuxHtmlOverlayRegistry {
 
     func serve(_ request: OpaquePointer?) {
         guard let request, let pointer = webkit_uri_scheme_request_get_uri(request),
-              let uri = URLComponents(string: String(cString: pointer)),
-              let host = uri.host, let id = UUID(uuidString: host), let page = pages[id],
-              let resource = page.resource(for: uri.path) else {
+              let target = LinuxHtmlFileGrant.request(String(cString: pointer)), let page = pages[target.id],
+              let resource = page.resource(for: target.path) else {
             if let request { agterm_uri_scheme_deny(request) }
             return
         }

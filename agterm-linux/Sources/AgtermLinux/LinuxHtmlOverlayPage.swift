@@ -32,11 +32,6 @@ final class LinuxHtmlOverlayPage {
         })();
         """
 
-    struct Resource {
-        let path: String
-        let mime: String
-    }
-
     let id: UUID
     let root: OpaquePointer
     let webView: OpaquePointer
@@ -188,32 +183,9 @@ final class LinuxHtmlOverlayPage {
         return nil
     }
 
-    func resource(for uriPath: String) -> Resource? {
+    func resource(for uriPath: String) -> LinuxHtmlFileGrant.Resource? {
         guard case .file(_, let grantRoot?) = overlay.source else { return nil }
-        let root = URL(fileURLWithPath: grantRoot).standardizedFileURL.resolvingSymlinksInPath()
-        let path = root.appendingPathComponent(String(uriPath.drop(while: { $0 == "/" })))
-            .standardizedFileURL.resolvingSymlinksInPath()
-        guard path.pathComponents.starts(with: root.pathComponents),
-              path.pathComponents.count > root.pathComponents.count else { return nil }
-        let attributes = try? FileManager.default.attributesOfItem(atPath: path.path)
-        guard attributes?[.type] as? FileAttributeType == .typeRegular,
-              FileManager.default.isReadableFile(atPath: path.path) else { return nil }
-        let mime: String = switch path.pathExtension.lowercased() {
-        case "html", "htm": "text/html"
-        case "css": "text/css"
-        case "js", "mjs": "text/javascript"
-        case "json": "application/json"
-        case "svg": "image/svg+xml"
-        case "png": "image/png"
-        case "jpg", "jpeg": "image/jpeg"
-        case "gif": "image/gif"
-        case "webp": "image/webp"
-        case "woff": "font/woff"
-        case "woff2": "font/woff2"
-        case "txt": "text/plain"
-        default: "application/octet-stream"
-        }
-        return Resource(path: path.path, mime: mime)
+        return LinuxHtmlFileGrant.resource(for: uriPath, grantRoot: grantRoot)
     }
 
     private var pageURL: URL {
