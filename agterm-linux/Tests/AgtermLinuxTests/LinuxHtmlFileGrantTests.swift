@@ -133,4 +133,28 @@ struct LinuxHtmlFileGrantTests {
             #expect(served.map { $0.path.hasPrefix(tree.root + "/") } ?? true, "\(path) -> \(String(describing: served))")
         }
     }
+
+    @MainActor
+    @Test(arguments: [
+        ("index.html", "index.html"),
+        ("assets/css/site.css", "assets/css/site.css"),
+        ("link-in", "assets/css/site.css"),
+        ("assets/../index.html", "index.html"),
+    ])
+    func fileURINamesTheResolvedEntryPage(_ entry: String, _ relative: String) throws {
+        let tree = try GrantTree()
+        let id = UUID()
+        let uri = LinuxHtmlOverlayRegistry.shared.fileURI(for: "\(tree.root)/\(entry)", id: id, grantRoot: tree.root)
+        #expect(uri == "agterm-file://\(id.uuidString.lowercased())/\(relative)")
+        let request = try #require(uri.flatMap(LinuxHtmlFileGrant.request))
+        #expect(tree.resource(request.path)?.path == "\(tree.root)/\(relative)")
+    }
+
+    @MainActor
+    @Test(arguments: ["", "/../root2/secret.txt", "/../outside/secret.txt", "/link-out", "/link-sibling",
+                      "/dir-out/secret.txt", "/relative-out"])
+    func fileURIRefusesEntriesOutsideTheRoot(_ suffix: String) throws {
+        let tree = try GrantTree()
+        #expect(LinuxHtmlOverlayRegistry.shared.fileURI(for: tree.root + suffix, id: UUID(), grantRoot: tree.root) == nil)
+    }
 }
