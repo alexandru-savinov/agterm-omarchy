@@ -294,8 +294,8 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
     #endif
 }
 
-func linuxStateDirectory() -> URL {
-    if let path = ProcessInfo.processInfo.environment["AGTERM_STATE_DIR"], !path.isEmpty {
+func linuxStateDirectory(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+    if let path = environment["AGTERM_STATE_DIR"], !path.isEmpty {
         return URL(fileURLWithPath: path, isDirectory: true)
     }
     return PersistenceStore.defaultDirectory
