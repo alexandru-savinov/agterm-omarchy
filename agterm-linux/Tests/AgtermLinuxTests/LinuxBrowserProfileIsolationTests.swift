@@ -25,7 +25,7 @@ struct LinuxBrowserProfileIsolationTests {
         let data = try LinuxBrowserStore.dataDirectory(stateRoot: root)
 
         let id = try #require(try BrowserProfile(directory: root).existingIdentifier())
-        #expect(data.standardizedFileURL == root.appendingPathComponent("browser/\(id.uuidString)").standardizedFileURL)
+        #expect(data.standardizedFileURL.path == root.appendingPathComponent("browser/\(id.uuidString)").standardizedFileURL.path)
         #expect(try LinuxBrowserStore.dataDirectory(stateRoot: root) == data)
         #expect(try FileManager.default.contentsOfDirectory(atPath: root.path) == ["browser-profile"])
     }
@@ -87,7 +87,7 @@ struct LinuxBrowserProfileIsolationTests {
         let first = linuxStateDirectory(environment: ["AGTERM_STATE_DIR": one.path])
         let second = linuxStateDirectory(environment: ["AGTERM_STATE_DIR": two.path])
 
-        #expect(first.standardizedFileURL == one)
+        #expect(first.standardizedFileURL.path == one.path)
         #expect(Self.isInside(try LinuxBrowserStore.dataDirectory(stateRoot: first), one))
         #expect(Self.isInside(try LinuxBrowserStore.dataDirectory(stateRoot: second), two))
         #expect(linuxStateDirectory(environment: ["AGTERM_STATE_DIR": ""]) == PersistenceStore.defaultDirectory)
