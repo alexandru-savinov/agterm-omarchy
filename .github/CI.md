@@ -3,6 +3,13 @@
 `.github/workflows/ci.yml` validates pull requests targeting `main` or `omarchy`, pushes to `main`, and manual runs.
 Pull request builds test GitHub's merge commit; trusted artifact promotion still requires a successful push or manual run at the exact branch head.
 
+Both GTK jobs use architecture-specific build images pinned by digest and run their compiler/dependency probe before building.
+The ARM image replaces repeated APT/Zig provisioning; core jobs retain their separate shell provisioning.
+Its [publication and fresh authenticated/anonymous pull probes](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/43159515243)
+and [signed provenance verification](https://github.com/alexandru-savinov/agterm-omarchy/issues/375#issuecomment-6815373926)
+bind the image to the reviewed recipe source.
+Image updates require the same native build, public pull and provenance checks before changing a digest.
+
 The **Installer and scripts** job discovers every `scripts/tests/test_*.py` module with:
 
 ```sh
