@@ -4,8 +4,9 @@ import Testing
 @testable import SessionHostRuntime
 
 struct SessionHostTrampolineTests {
-    private static let probe = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent(".build/debug/session-host-pty-probe").path
+    private static var probe: String {
+        get throws { try SessionHostTestExecutable.url("session-host-pty-probe").path }
+    }
 
     @Test func outputReachesTheParentThroughThePTY() throws {
         let child = try PTYProcess.spawn(argv: [Self.probe, "args", "two words", "last"], env: [:], cwd: "/tmp", rows: 24, cols: 80)
