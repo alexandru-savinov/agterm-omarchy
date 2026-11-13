@@ -247,7 +247,7 @@ jobs:
             container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:e2d48733b2fd8481c314bd639fd15e523110e106418cb982cc830a7e620a839f
           - arch: aarch64
             runner: ubuntu-24.04-arm
-            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:4aec8a361df2c3d98bbfd75fe7c4be54a429d490497236e143bc27d8e705d0f4
+            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:74b7758f3d862a23e2d343c721aa47bfd33fbbf2bc17fde62091aeb329927c4e
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     container: ${{ matrix.container }}
@@ -261,27 +261,24 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Verify pinned GTK build image
         run: /usr/local/bin/agterm-build-image-probe
-      # Both pinned build images predate linux-port's Ghostty 1.4 sync; add the runtime packages they lack
-      # (SVG/WebP pixbuf loaders, fish, IBus and xkb utilities for the new scenarios) until they are rebuilt.
-      - name: Add packages the pinned build images predate
+      # The pinned x86_64 image predates linux-port's Ghostty 1.4 sync; add the runtime packages it lacks
+      # (SVG/WebP pixbuf loaders, fish, IBus and xkb utilities for the new scenarios) until it is rebuilt (#385).
+      # The aarch64 image carries them and runs as uid 1001, so it never installs anything here.
+      - name: Add packages the pinned x86_64 image predates
+        if: matrix.arch == 'x86_64'
         run: scripts/ci-install-ubuntu-deps.sh librsvg2-common webp-pixbuf-loader fish x11-xkb-utils ibus ibus-gtk4
       - name: Materialize and verify upstream boundary tag
         run: |
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
           git merge-base --is-ancestor "$UPSTREAM_BASE_TAG" HEAD
+      # The aarch64 image carries Zig 0.17.0 and sets GHOSTTY_ZIG itself (its probe checks both).
       - name: Install Zig 0.17 for Ghostty 1.4
-        env:
-          BUILD_ARCH: ${{ matrix.arch }}
+        if: matrix.arch == 'x86_64'
         run: |
-          case "$BUILD_ARCH" in
-            x86_64) sha=1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026 ;;
-            aarch64) sha=9e8d11661d4ae3bd57702a3832781e23ad151dde5798e16a5ccd503f65234ff8 ;;
-            *) echo "no pinned Zig 0.17 for $BUILD_ARCH" >&2; exit 1 ;;
-          esac
-          curl -fsSLo /tmp/zig17.tar.xz "https://ziglang.org/download/0.17.0/zig-${BUILD_ARCH}-linux-0.17.0.tar.xz"
-          echo "${sha}  /tmp/zig17.tar.xz" | sha256sum --check
+          curl -fsSLo /tmp/zig17.tar.xz "https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz"
+          echo "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026  /tmp/zig17.tar.xz" | sha256sum --check
           tar -xJf /tmp/zig17.tar.xz -C /opt
-          echo "GHOSTTY_ZIG=/opt/zig-${BUILD_ARCH}-linux-0.17.0/zig" >> "$GITHUB_ENV"
+          echo "GHOSTTY_ZIG=/opt/zig-x86_64-linux-0.17.0/zig" >> "$GITHUB_ENV"
       - name: Enforce host-free core boundary and CLI sharing
         run: |
           scripts/check-linux-core-boundary.sh "$UPSTREAM_BASE_TAG"
