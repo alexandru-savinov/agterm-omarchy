@@ -431,24 +431,15 @@ final class LinuxHtmlOverlayPage {
             webkit_policy_decision_ignore(cast(decision))
             return 1
         }
-        let target: HtmlNavigationTarget = type == 1 ? .newWindow
-            : webkit_navigation_action_get_frame_name(action) == nil ? .mainFrame : .subframe
-        let clicked = webkit_navigation_action_get_navigation_type(action).rawValue == 0
-        let url: URL
-        if rawURL.scheme == "agterm-file", case .file(_, let grantRoot?) = overlay.source,
-           rawURL.host?.lowercased() == id.uuidString.lowercased() {
-            url = URL(fileURLWithPath: grantRoot).appendingPathComponent(String(rawURL.path.dropFirst()))
-        } else {
-            url = rawURL
-        }
-        let verdict = HtmlNavigationPolicy.decide(
-            HtmlNavigationAction(url: url, target: target, userActivated: clicked), overlay: overlay)
-        if verdict == .allow {
+        let outcome = LinuxHtmlNavigation.decide(
+            rawURL, newWindow: type == 1, linkClicked: webkit_navigation_action_get_navigation_type(action).rawValue == 0,
+            page: overlay, alreadyFailed: loadFailed)
+        if outcome.decision == .allow {
             webkit_policy_decision_use(cast(decision))
         } else {
             webkit_policy_decision_ignore(cast(decision))
-            if verdict == .openExternal { askToOpen(url) }
-            if target == .mainFrame, !clicked, !loadFailed { fail("navigation blocked: \(url.absoluteString)") }
+            if outcome.decision == .openExternal { askToOpen(outcome.url) }
+            if outcome.failsPage { fail("navigation blocked: \(outcome.url.absoluteString)") }
         }
         return 1
     }
