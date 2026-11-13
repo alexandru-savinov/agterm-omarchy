@@ -7,7 +7,8 @@ name: AT-SPI targeted rerun
 #
 # The selection tooling comes from this workflow's own revision; the app, the scenario list and
 # test-linux-ui.sh come from the requested ref, so refs that predate this workflow can be rerun too.
-# Runtime caches are restored, never saved, so a dispatched ref cannot seed the caches ci.yml trusts.
+# Runtime caches are restored, never saved: cache-mode: read makes the job's cache token read-only, so code
+# from a dispatched ref cannot seed the caches ci.yml trusts (workflow_dispatch would otherwise get write).
 # The two build images below must stay equal to the build-linux matrix in ci.yml.
 
 on:
@@ -30,6 +31,8 @@ on:
 
 permissions:
   contents: read
+
+cache-mode: read
 
 defaults:
   run:

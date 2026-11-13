@@ -1,0 +1,7 @@
+# GitHub documents and accepts the cache-mode key, but actionlint 1.7.12 does not know it yet
+# (rhysd/actionlint#745). Scoped to the one workflow that needs a read-only cache token; remove once
+# the pinned actionlint supports the key.
+paths:
+  .github/workflows/atspi-targeted.yml:
+    ignore:
+      - 'unexpected key "cache-mode" for "workflow" section'
