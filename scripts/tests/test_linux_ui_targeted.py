@@ -5,6 +5,8 @@ import importlib.util
 import io
 import json
 import os
+import re
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -101,6 +103,37 @@ sys.exit(5 if record['AGTERM_ATSPI_SCENARIO'] == os.environ.get('FAIL_SCENARIO')
 
     def test_names_come_from_the_target_checkout(self):
         self.assertEqual(self.execute('normal'), (2, []))
+
+
+class WorkflowTests(unittest.TestCase):
+    """The two arch jobs must run the same steps, and the arch input must start exactly the chosen ones."""
+
+    def setUp(self):
+        self.workflow = (ROOT / '.github/workflows/atspi-targeted.yml').read_text()
+
+    def steps(self, job):
+        body = self.workflow.split(f'\n  {job}:\n', 1)[1]
+        body = re.split(r'\n  [a-z0-9_-]+:\n', body, maxsplit=1)[0]
+        return body.split('\n    steps:\n', 1)[1]
+
+    def test_arch_jobs_share_identical_steps(self):
+        x86_64, aarch64 = self.steps('atspi-x86_64'), self.steps('atspi-aarch64')
+        self.assertIn('GTK AT-SPI targeted scenarios', x86_64)
+        self.assertEqual(x86_64, aarch64)
+
+    def test_arch_input_selects_exactly_the_chosen_jobs(self):
+        case = re.search(r'\n( *case "\$ARCH" in\n.*?\n *esac\n)', self.workflow, re.DOTALL).group(1)
+        script = case + 'printf "%s %s" "$x86_64" "$aarch64"'
+        for arch, expected in (('x86_64', 'true false'), ('aarch64', 'false true'), ('both', 'true true')):
+            with self.subTest(arch=arch):
+                result = subprocess.run(['bash', '-euc', script], env={'ARCH': arch}, capture_output=True, text=True)
+                self.assertEqual((result.returncode, result.stdout), (0, expected))
+        result = subprocess.run(['bash', '-euc', script], env={'ARCH': 'riscv64'}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        for job, arch in (('atspi-x86_64', 'x86_64'), ('atspi-aarch64', 'aarch64')):
+            header = self.workflow.split(f'\n  {job}:\n', 1)[1].split('\n    steps:\n', 1)[0]
+            self.assertIn(f"if: needs.select.outputs.{arch} == 'true'", header)
+            self.assertIn(f'agterm-omarchy-build-{arch}@sha256:', header)
 
 
 if __name__ == '__main__':
