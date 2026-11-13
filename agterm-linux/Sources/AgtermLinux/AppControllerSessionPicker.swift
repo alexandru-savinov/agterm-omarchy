@@ -37,6 +37,7 @@ extension AppController {
             sessionSwitcher.advance(reverse: reverse)
             if switcherScroller == nil { showSwitcherOverlay() } else { markSwitcherSelection() }
         } else {
+            invalidateSessionSwitchRelease()
             let valid = Set(store.navigableSessions.map(\.id))
             sessionSwitcher.begin(store.sessionRecency.top(SessionSwitcherModel.maxCandidates, in: valid))
             if sessionSwitcher.isActive { showSwitcherOverlay() }
@@ -49,14 +50,37 @@ extension AppController {
     /// GTK/X11 updates the device's modifier state in a separate XkbStateNotify after the key release.
     /// The cached state can still be stale at a zero-delay MainTimer callback. Use an idle to give pending
     /// GDK work priority before reading it. Reacquire the device instead of retaining an event-owned pointer.
-    func scheduleSessionSwitchCommit(releasing keycode: UInt32) {
+    func scheduleSessionSwitchCommit(
+        releasing keycode: UInt32,
+        readControlState: @escaping @MainActor @Sendable () -> Bool? = ModifierKeyMods.currentControlIsHeld
+    ) {
+        invalidateSessionSwitchRelease()
+        let generation = sessionSwitchReleaseGeneration
         runOnMain { [weak self] in
             MainActor.assumeIsolated {
-                self?.commitSessionSwitch(
-                    releasing: keycode, controlStillHeld: ModifierKeyMods.currentControlIsHeld()
-                )
+                guard let self, gWindows[self.windowID] === self,
+                      self.sessionSwitchReleaseGeneration == generation else { return }
+                let held = readControlState()
+                self.commitSessionSwitch(releasing: keycode, controlStillHeld: held)
+                guard held == true, self.sessionSwitcher.isActive,
+                      self.sessionSwitchReleaseGeneration == generation else { return }
+                // GDK's device state can become false after the release idle. Give this release one
+                // bounded second observation, never a poll or permission to commit a newer cycle.
+                self.cancelSessionSwitchReleaseRecheck = MainTimer.schedule(after: 0.05) { [weak self] in
+                    guard let self, gWindows[self.windowID] === self,
+                          self.sessionSwitchReleaseGeneration == generation else { return }
+                    self.cancelSessionSwitchReleaseRecheck = nil
+                    guard self.sessionSwitcher.isActive, readControlState() == false else { return }
+                    self.commitSessionSwitch(releasing: keycode, controlStillHeld: false)
+                }
             }
         }
+    }
+
+    func invalidateSessionSwitchRelease() {
+        sessionSwitchReleaseGeneration &+= 1
+        cancelSessionSwitchReleaseRecheck?()
+        cancelSessionSwitchReleaseRecheck = nil
     }
 
     private func commitSessionSwitch(releasing keycode: UInt32, controlStillHeld: Bool?) {
@@ -66,6 +90,7 @@ extension AppController {
         guard sessionSwitchAllowed else { cancelSessionSwitch(); return }
         let live = Set(store.workspaces.flatMap { $0.sessions.map(\.id) })
         let target = sessionSwitcher.commitTarget(liveIDs: live)
+        invalidateSessionSwitchRelease()
         sessionSwitcher.end()
         hideSwitcherOverlay()
         if let target { selectSession(target) }
@@ -83,6 +108,7 @@ extension AppController {
 
     /// End the cycle and remove the card without selecting.
     func cancelSessionSwitch() {
+        invalidateSessionSwitchRelease()
         sessionSwitcher.end()
         hideSwitcherOverlay()
     }

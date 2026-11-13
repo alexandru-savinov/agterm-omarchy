@@ -25,6 +25,7 @@ class NoticeTests(unittest.TestCase):
             shutil.copy2(ROOT / 'scripts' / name, self.repo / 'scripts' / name)
         for name in ['ghostty-resources.env', 'arch.sh', 'zmx.env']:
             shutil.copy2(ROOT / 'linux' / name, self.repo / 'linux' / name)
+        shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
         shutil.copytree(ROOT / 'scripts/zmx-patches', self.repo / 'scripts/zmx-patches')
         shutil.copytree(ROOT / 'packaging/linux/notices', self.repo / 'packaging/linux/notices')
         shutil.copy2(ROOT / 'LICENSE', self.repo / 'LICENSE')
@@ -39,6 +40,9 @@ class NoticeTests(unittest.TestCase):
         (self.destination / 'lib').mkdir(parents=True)
         (self.destination / 'lib/libswiftCore.so').write_bytes(b'fixture runtime')
         self.command('cache-ghostty', self.cache, self.notices / 'ghostty')
+        stamp = subprocess.run(['bash', str(self.repo / 'scripts/verify-linux-vendor-cache.sh'), '--print-stamp'],
+                               text=True, capture_output=True, check=True, timeout=10).stdout
+        (self.vendor / 'SOURCE_STAMP').write_text(stamp)
 
     def command(self, *arguments, success=True):
         result = subprocess.run([sys.executable, str(self.repo / 'scripts/linux-notices.py'), *map(str, arguments)],
@@ -48,6 +52,36 @@ class NoticeTests(unittest.TestCase):
 
     def test_pinned_profile_and_cache_verify(self):
         self.command('verify-profile')
+        self.command('verify-ghostty', self.cache)
+
+    def test_cache_without_current_patch_inputs_is_rejected(self):
+        path = self.cache / 'provenance.json'
+        value = json.loads(path.read_text())
+        del value['linux_patch_inputs']
+        path.write_text(json.dumps(value))
+        self.assertIn('stale Ghostty cache notice provenance',
+                      self.command('verify-ghostty', self.cache, success=False).stderr)
+
+    def test_patch_change_requires_profile_and_new_cache(self):
+        self.check_patch_change('ghostty-clipboard-request-kind.patch')
+
+    def test_environment_unset_patch_change_requires_new_cache(self):
+        self.check_patch_change('ghostty-surface-env-unset.patch')
+
+    def check_patch_change(self, name):
+        patch = self.repo / 'linux/patches' / name
+        patch.write_bytes(patch.read_bytes() + b'\n')
+        self.assertIn('stale or changed Ghostty patch inputs',
+                      self.command('verify-profile', success=False).stderr)
+        profile_path = self.notices / 'sources.json'
+        profile = json.loads(profile_path.read_text())
+        profile['ghostty_patch_inputs'][str(patch.relative_to(self.repo))] = hashlib.sha256(patch.read_bytes()).hexdigest()
+        profile_path.write_text(json.dumps(profile))
+        self.command('verify-profile')
+        self.assertIn('stale Ghostty cache notice provenance',
+                      self.command('verify-ghostty', self.cache, success=False).stderr)
+        shutil.rmtree(self.cache)
+        self.command('cache-ghostty', self.cache, self.notices / 'ghostty')
         self.command('verify-ghostty', self.cache)
 
     def test_missing_empty_changed_and_linked_cache_license_fail(self):
@@ -230,7 +264,7 @@ class NoticeTests(unittest.TestCase):
             path = self.repo / 'scripts' / name; path.write_text('#!/bin/sh\nexit 0\n'); path.chmod(0o755)
         executable = self.root / 'bin'; executable.mkdir()
         for name, content in {'zig': 'echo 0.16.0', 'mise': 'exit 1', 'uname': 'echo aarch64',
-                              'git': 'echo notice-fixture-rebuild >&2; exit 97'}.items():
+                              'file': 'exit 98', 'git': 'echo notice-fixture-rebuild >&2; exit 97'}.items():
             path = executable / name; path.write_text('#!/bin/sh\n' + content + '\n'); path.chmod(0o755)
         return dict(os.environ, PATH=str(executable) + ':' + os.environ['PATH'], TMPDIR=str(self.root))
 

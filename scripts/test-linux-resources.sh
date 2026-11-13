@@ -2,7 +2,7 @@
 # Reproduce the empty-resource package defect and exercise the strict resource verifier with fixtures.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 VERIFY="$ROOT/scripts/verify-linux-resources.sh"
 VERIFY_CACHE="$ROOT/scripts/verify-linux-vendor-cache.sh"
 # shellcheck source=../linux/ghostty-resources.env
@@ -49,6 +49,7 @@ fi
 printf 'fixture\n' > "$SHARE/ghostty/shell-integration/zsh/.zshenv"
 
 mkdir -p "$WORK/complete/include/ghostty" "$WORK/complete/lib"
+"$VERIFY_CACHE" --print-stamp > "$WORK/complete/SOURCE_STAMP"
 printf 'fixture\n' > "$WORK/complete/include/ghostty.h"
 printf 'fixture\n' > "$WORK/complete/include/ghostty/vt.h"
 cat > "$WORK/uname" <<'EOF'
@@ -97,6 +98,7 @@ mkdir -p "$SETUP_ROOT/scripts/zmx-patches/ghostty"
 cp "$ROOT/scripts/zmx-patches/"*.patch "$SETUP_ROOT/scripts/zmx-patches/"
 cp "$ROOT/scripts/zmx-patches/ghostty/"*.patch "$SETUP_ROOT/scripts/zmx-patches/ghostty/"
 cp "$ROOT/linux/arch.sh" "$ROOT/linux/ghostty-resources.env" "$ROOT/linux/zmx.env" "$SETUP_ROOT/linux/"
+cp -R "$ROOT/linux/patches" "$SETUP_ROOT/linux/"
 cp -R "$WORK/complete/." "$SETUP_ROOT/agterm-linux/vendor/ghostty/"
 # This helper is executed by the verifier: compile a real ELF for this test host.
 SETUP_ARCH="$(uname -m)"
@@ -132,6 +134,18 @@ setup_output=""
 if setup_output="$(AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" \
     "$SETUP_ROOT/scripts/setup-linux.sh" 2>&1)"; then
   echo "setup-linux.sh unexpectedly reused a stale $STALE_ARCH cache on $SETUP_ARCH" >&2
+  exit 1
+fi
+grep -Fq "agterm cache test reached the libghostty rebuild path" <<< "$setup_output"
+
+# A matching-architecture cache built before a patch change must also reach the rebuild path.
+install -m755 "$WORK/libghostty-$SETUP_ARCH.so" \
+  "$SETUP_ROOT/agterm-linux/vendor/ghostty/lib/libghostty.so"
+printf '\n' >> "$SETUP_ROOT/linux/patches/ghostty-lib-resources.patch"
+setup_output=""
+if setup_output="$(AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" \
+    "$SETUP_ROOT/scripts/setup-linux.sh" 2>&1)"; then
+  echo "setup-linux.sh unexpectedly reused a libghostty cache built from different patches" >&2
   exit 1
 fi
 grep -Fq "agterm cache test reached the libghostty rebuild path" <<< "$setup_output"

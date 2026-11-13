@@ -1,0 +1,262 @@
+{
+  "schema": "agterm-public-shutdown-evidence/1",
+  "evidence_kind": "retained original extract",
+  "new_execution": false,
+  "full_current_source_acceptance": false,
+  "sources": [
+    {
+      "original": "native-shutdown-build-preparation-private.json",
+      "original_sha256": "127c37995900393c623703370279c7e4fe9a1e37ddc85dc1487bea9025b47b68",
+      "locator": "$.stdout(JSON)",
+      "decoded_stdout_sha256": "a2ba354fbd450ab047d2093bfc70515da413871301a4d762832a1110453be42d"
+    },
+    {
+      "original": "native-shutdown-build-poll-private.json",
+      "original_sha256": "0e416c931db18dcaeb8328005d1ca24fa2e8a7c251987adb63f32c5f1097d2b9",
+      "locator": "$.stdout(JSON)[build-status.json](JSON)",
+      "decoded_stdout_sha256": "80c5c960c2832e6b3d72379d27665c56c37348a1cd4be188979ae8f0a14527e1"
+    },
+    {
+      "original": "native-shutdown-variant-preparation-private.json",
+      "original_sha256": "0eb9a9a6873fe17c0de882a1cc170d3a891929464721b83dbe03423f05ac9e9b",
+      "locator": "$.stdout(JSON)",
+      "decoded_stdout_sha256": "a42df9daee9262193e7071e2a98fb75f6aca9c7fc23cdd6766ed4a718977af69"
+    }
+  ],
+  "preparation": {
+    "stage": "<private-stage-001>",
+    "source_commit": "fd72c31902029e6d228ab3a254c37e28b9655ab3",
+    "ghostty_commit": "0ba6250388641f52135414b38c4259aa682c489b",
+    "diagnostic_only": true,
+    "started_at": 1794429631.9045758,
+    "operations": [
+      {
+        "argv": [
+          "git",
+          "clone",
+          "--no-checkout",
+          "--shared",
+          "<private-stage-002>/source",
+          "<private-stage-001>/source"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "remote",
+          "set-url",
+          "origin",
+          "https://github.com/alexandru-savinov/agterm-omarchy.git"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "fetch",
+          "--depth",
+          "1",
+          "origin",
+          "fd72c31902029e6d228ab3a254c37e28b9655ab3"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "checkout",
+          "--detach",
+          "fd72c31902029e6d228ab3a254c37e28b9655ab3"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "status",
+          "--porcelain"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "clone",
+          "--no-checkout",
+          "--shared",
+          "<private-stage-002>/ghostty",
+          "<private-stage-001>/ghostty"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "checkout",
+          "--detach",
+          "0ba6250388641f52135414b38c4259aa682c489b"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "<private-stage-001>/source/linux/patches/ghostty-embedded-opengl.patch"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "apply",
+          "<private-stage-001>/source/linux/patches/ghostty-embedded-opengl.patch"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "<private-stage-001>/source/linux/patches/ghostty-embedded-input-handoff.patch"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "apply",
+          "<private-stage-001>/source/linux/patches/ghostty-embedded-input-handoff.patch"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "apply",
+          "--check",
+          "<private-stage-001>/source/linux/patches/ghostty-lib-resources.patch"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "git",
+          "apply",
+          "<private-stage-001>/source/linux/patches/ghostty-lib-resources.patch"
+        ],
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "/usr/bin/zig",
+          "version"
+        ],
+        "exit_code": 0
+      }
+    ],
+    "patches": {
+      "ghostty-embedded-opengl.patch": "5acad8dff653d70056471520270d03c1df59aa7d6112e895f10d3c903bea6ba9",
+      "ghostty-embedded-input-handoff.patch": "746aabfd306f78563837c9257b22c90cc3ffd6dfe7f1c374f7f0532a3c1bb0fe",
+      "ghostty-lib-resources.patch": "14f31007327295bdca035a75394a4c1a2cfe3671d602c3105aef30823c0e9eab"
+    },
+    "supervisor_pid": "<process-001>",
+    "launched": true,
+    "supervisor_still_running": true,
+    "build_status": {
+      "diagnostic_only": true,
+      "started_at": 1794429635.333957,
+      "argv": [
+        "<private-stage-001>/source/scripts/zig-build-linux.sh",
+        "-Doptimize=ReleaseFast",
+        "-Dapp-runtime=none",
+        "-Dtarget=aarch64-linux-gnu.2.39",
+        "-Demit-themes=false",
+        "-Demit-terminfo=true",
+        "-Dstrip=true",
+        "-j2"
+      ],
+      "zig_sha256": "c5f9d2d72f401bfe522f3aac3411781ae26c16cc179a1a7989096cbe0da27836",
+      "supervisor_pid": "<process-001>",
+      "state": "running",
+      "build_pid": "<process-002>"
+    },
+    "ended_at": 1794429635.5255008
+  },
+  "completed_build": {
+    "diagnostic_only": true,
+    "started_at": 1794429635.333957,
+    "argv": [
+      "<private-stage-001>/source/scripts/zig-build-linux.sh",
+      "-Doptimize=ReleaseFast",
+      "-Dapp-runtime=none",
+      "-Dtarget=aarch64-linux-gnu.2.39",
+      "-Demit-themes=false",
+      "-Demit-terminfo=true",
+      "-Dstrip=true",
+      "-j2"
+    ],
+    "zig_sha256": "c5f9d2d72f401bfe522f3aac3411781ae26c16cc179a1a7989096cbe0da27836",
+    "supervisor_pid": "<process-001>",
+    "state": "complete",
+    "build_pid": "<process-002>",
+    "exit_code": 0,
+    "finished_at": 1794429888.6324377,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "library_sha256": "5b9b5cf9aae72aa1418028c8d3b98aa8f72251ca9510bee15000f02981ad8bff",
+    "library_bytes": 30952024
+  },
+  "build_log": "",
+  "variant": {
+    "diagnostic_only": true,
+    "stage": "<private-stage-003>",
+    "payload": "<private-stage-003>/agterm-stage",
+    "source": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+    "ghostty_source": "0ba6250388641f52135414b38c4259aa682c489b",
+    "build_status": {
+      "diagnostic_only": true,
+      "started_at": 1794429635.333957,
+      "argv": [
+        "<private-stage-001>/source/scripts/zig-build-linux.sh",
+        "-Doptimize=ReleaseFast",
+        "-Dapp-runtime=none",
+        "-Dtarget=aarch64-linux-gnu.2.39",
+        "-Demit-themes=false",
+        "-Demit-terminfo=true",
+        "-Dstrip=true",
+        "-j2"
+      ],
+      "zig_sha256": "c5f9d2d72f401bfe522f3aac3411781ae26c16cc179a1a7989096cbe0da27836",
+      "supervisor_pid": "<process-001>",
+      "state": "complete",
+      "build_pid": "<process-002>",
+      "exit_code": 0,
+      "finished_at": 1794429888.6324377,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_sha256": "5b9b5cf9aae72aa1418028c8d3b98aa8f72251ca9510bee15000f02981ad8bff",
+      "library_bytes": 30952024
+    },
+    "library_sha256": "5b9b5cf9aae72aa1418028c8d3b98aa8f72251ca9510bee15000f02981ad8bff",
+    "original_library_sha256": "baf8ba1957bd9bcf140d455f309e16f510f66261ff684f5fd4503586e44bfd6c",
+    "changed_files": [
+      "lib/libghostty.so"
+    ],
+    "original_payload_unchanged": true,
+    "app_sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+    "library_source_commit": "fd72c31902029e6d228ab3a254c37e28b9655ab3",
+    "variant_kind": "reviewed shutdown patch with production optimization/strip; frozen app diagnostic hybrid"
+  },
+  "derived_build_seconds": 253.29848074913025,
+  "compiler_version_evidence": "The preserved preparation source asserts actual zig version output equals 0.16.0 before launching; the collected preparation records exit 0, but omits that command stdout."
+}

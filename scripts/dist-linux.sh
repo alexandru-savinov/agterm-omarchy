@@ -4,7 +4,7 @@
 # Usage: scripts/dist-linux.sh [output.tar.gz]
 # The output defaults to agterm-linux-dist.tar.gz at the repo root.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 
 if (( $# > 1 )); then
   echo "usage: scripts/dist-linux.sh [output.tar.gz]" >&2

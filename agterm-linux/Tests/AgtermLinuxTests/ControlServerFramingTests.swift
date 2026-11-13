@@ -10,7 +10,15 @@ import agtermCore
 @Suite("Linux control socket framing and bounds", .serialized)
 struct ControlServerFramingTests {
     private static let noController = ControlResponse(ok: false, error: "no controller")
-    private static let undecodable = ControlResponse(ok: false, error: "could not decode request")
+    /// What the server answers for a `line` that does not decode: the decode context, as on macOS.
+    private static func undecodable(_ line: String) -> ControlResponse {
+        do {
+            _ = try JSONDecoder().decode(ControlRequest.self, from: Data(line.utf8))
+            return ControlResponse(ok: true)
+        } catch {
+            return ControlResponse(ok: false, error: ControlServer.invalidRequestMessage(error))
+        }
+    }
 
     @Test("a request of exactly 1 MiB is read and dispatched")
     func maximumLineIsDispatched() throws {
@@ -62,8 +70,35 @@ struct ControlServerFramingTests {
             let client = try ControlTestClient(path: directory.socket)
             defer { client.close() }
             client.send(line + "\n")
-            #expect(client.response(timeout: 5) == Self.undecodable)
+            #expect(client.response(timeout: 5) == Self.undecodable(line))
         }
+    }
+
+    @Test("a decode failure names the rejected cmd, bounded and without the request body")
+    func decodeFailureNamesTheCommand() throws {
+        let directory = try ControlSocketDirectory()
+        defer { directory.remove() }
+        let server = ControlServer(path: directory.socket)
+        server.start()
+        defer { server.stop() }
+
+        let unknown = try ControlTestClient(path: directory.socket)
+        defer { unknown.close() }
+        unknown.send(#"{"cmd":"no.such.command","args":{"text":"SECRET-BODY-TEXT"}}"# + "\n")
+        let named = try #require(unknown.response(timeout: 5)?.error)
+        #expect(named.hasPrefix("invalid request: "))
+        #expect(named.contains("no.such.command"))
+        #expect(!named.contains("SECRET-BODY-TEXT"))
+        #expect(named != "could not decode request")
+
+        let huge = String(repeating: "x", count: 100_000)
+        let long = try ControlTestClient(path: directory.socket)
+        defer { long.close() }
+        long.send(#"{"cmd":""# + huge + #""}"# + "\n")
+        let bounded = try #require(long.response(timeout: 5)?.error)
+        #expect(bounded.count <= ControlServer.maxInvalidRequestMessage)
+        #expect(bounded.hasPrefix("invalid request: "))
+        #expect(bounded.hasSuffix("…"))
     }
 
     @Test("a connection carries one request, and a fresh client is served after it")
@@ -83,7 +118,7 @@ struct ControlServerFramingTests {
             return
         }
         #expect(received.filter { $0 == 0x0A }.count == 1)
-        #expect(try JSONDecoder().decode(ControlResponse.self, from: received.dropLast()) == Self.undecodable)
+        #expect(try JSONDecoder().decode(ControlResponse.self, from: received.dropLast()) == Self.undecodable("not json"))
 
         let fresh = try ControlTestClient(path: directory.socket)
         defer { fresh.close() }
@@ -162,7 +197,7 @@ struct ControlServerFramingTests {
             slow.send(piece)
             Thread.sleep(forTimeInterval: 0.3)
         }
-        #expect(slow.response(timeout: 5) == Self.undecodable)
+        #expect(slow.response(timeout: 5) == Self.undecodable(#"{"cmd":"no.such"}"#))
 
         #expect(waitUntil(timeout: 8) { drip.isClosedByPeer })
         let closedAfter = Date().timeIntervalSince(started)
@@ -188,7 +223,7 @@ struct ControlServerFramingTests {
         let client = try ControlTestClient(path: directory.socket)
         defer { client.close() }
         client.send("not json\n")
-        #expect(client.response(timeout: 5) == Self.undecodable)
+        #expect(client.response(timeout: 5) == Self.undecodable("not json"))
         server.stop()
         #expect(server.activeAcceptLoops == 0)
     }
@@ -211,7 +246,7 @@ struct ControlServerFramingTests {
         let client = try ControlTestClient(path: directory.socket)
         defer { client.close() }
         client.send("not json\n")
-        #expect(client.response(timeout: 5) == Self.undecodable)
+        #expect(client.response(timeout: 5) == Self.undecodable("not json"))
     }
 
     @Test("a request the main loop never serves resolves after stop's grace")

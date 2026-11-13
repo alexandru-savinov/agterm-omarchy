@@ -1,0 +1,100 @@
+{
+  "agent": "scanner_review",
+  "session": "sf79c3480ffb",
+  "task": 310,
+  "pr": 311,
+  "observed_at": "2026-11-11T19:49:56.950436+00:00",
+  "head": "ab94f48fc94e9a4e2db82f2feb5b8f38d462f341",
+  "base": "cfff87eee9802b3dc13c640e72b384eccd6ade71",
+  "source_path": "agtermCore/Tests/agtermCoreTests/TerminfoInstallTests.swift",
+  "source_blob": "9fc309e4a4b866928927df74304ca9f5bf7baa67",
+  "source_sha256": "ebcecd648b2d539bed72bd650401d1acf800d17fb51a291ed7ec2ee6339f94c5",
+  "platform": {
+    "sw_vers": "ProductName:\t\tmacOS\nProductVersion:\t\t26.7.1\nBuildVersion:\t\t25G241\n",
+    "architecture": "arm64",
+    "swift_version": "Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)\nTarget: arm64-apple-macosx26.0"
+  },
+  "scoped_review": "https://github.com/alexandru-savinov/agterm-omarchy/pull/311#pullrequestreview-5864534992",
+  "review_type": "different-agent same-account COMMENT; no independent account approval",
+  "authorization": "https://github.com/alexandru-savinov/agterm-omarchy/pull/311#issuecomment-6805598721",
+  "run": {
+    "head": "ab94f48fc94e9a4e2db82f2feb5b8f38d462f341",
+    "command": [
+      "swift",
+      "test",
+      "--package-path",
+      "<private-checkout>/agtermCore",
+      "--cache-path",
+      "<private-swift-cache>",
+      "--build-system",
+      "native",
+      "--disable-sandbox",
+      "--disable-automatic-resolution",
+      "--jobs",
+      "4",
+      "-Xswiftc",
+      "-F",
+      "-Xswiftc",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-Xswiftc",
+      "-plugin-path",
+      "-Xswiftc",
+      "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+      "-Xlinker",
+      "-F",
+      "-Xlinker",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-Xlinker",
+      "-rpath",
+      "-Xlinker",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
+    ],
+    "started_at": "2026-11-11T19:48:11.950314+00:00",
+    "finished_at": "2026-11-11T19:48:59.552017+00:00",
+    "wall_seconds": 47.601182916987455,
+    "exit_code": 0,
+    "git_status_after": ""
+  },
+  "counts": {
+    "passed_test_definitions": 4129,
+    "failed_test_definitions": 0,
+    "explicit_skipped_test_definitions": 9,
+    "total_test_definitions": 4138,
+    "suites": 182
+  },
+  "build_summary": [
+    "Build complete! (1.75s)"
+  ],
+  "final_summary": [
+    "\u2714 Test run with 4138 tests in 182 suites passed after 44.539 seconds."
+  ],
+  "explicit_skips": [
+    "\u279c Test stopKeepsLockInodesForTheNextHost() skipped: \"needs the responsibility SPI and the staged zmx from scripts/setup.sh\"",
+    "\u279c Test failedFixtureClientCannotPassAsAnEmptyReply(termination:status:reason:) skipped: \"needs the staged fixture executables\"",
+    "\u279c Test hostSocketIsNotEnumeratedByStockZmx() skipped: \"needs the responsibility SPI and the staged zmx from scripts/setup.sh\"",
+    "\u279c Test stalledPeerHitsItsDeadlineAndOnlyThatConnectionCloses() skipped: \"needs the responsibility SPI and the staged zmx from scripts/setup.sh\"",
+    "\u279c Test oversizedRequestPeerClosureDoesNotKillTheClient() skipped: \"needs the responsibility SPI and the staged zmx from scripts/setup.sh\"",
+    "\u279c Test malformedOversizedAndPartialConnectionsDoNotStopTheHost() skipped: \"needs the responsibility SPI and the staged zmx from scripts/setup.sh\"",
+    "\u279c Test forgedHelloDoesNotOverrideTheActualPeerImage() skipped: \"needs the responsibility SPI and the staged zmx from scripts/setup.sh\"",
+    "\u279c Test killedHostReleasesLockAndListenerWhileDaemonAndShellSurvive() skipped: \"needs the responsibility SPI and the staged zmx from scripts/setup.sh\"",
+    "\u279c Test editorCommandWorksUnderNonPosixLoginShell() skipped: \"no non-POSIX login shell (fish) installed \u2014 the cross-shell parse assertion is skipped here\""
+  ],
+  "focused_source_regressions": [
+    "\u2714 Test theRemoteCommandSaysSoAndExits3WhenTheHostHasNoTic(_:) with 6 test cases passed after 34.510 seconds.",
+    "\u2714 Test theRemoteCommandCompilesTheSourceUnderEveryLoginShell(_:) with 6 test cases passed after 34.510 seconds."
+  ],
+  "artifacts": {
+    "mac-full.log": "375840f7429f423ac2c046b5d00c0943bcbd7a6405a6b05b6f6aa0d95a95b9c6",
+    "mac-full-result.json": "85e670288ee5ccdbcc19a47da528f22f63f4d1cc1f215f491a99ed6205cdf802",
+    "pr-checks-latest.json": "897360c9cb1c6d7cdb8933d8fd9d92e42ba8ac48e40e43226d0348df8b8384a7",
+    "run_full.py": "909f71673e88dfc10ee51826f8c893106cf6ec5b5b8b0adba10f7c4ee8d93ab5"
+  },
+  "focused_manifest_sha256": "8b8d630370a3298baf5d045ff285921d8f4e03dd8fcf0cb0aae7227a85ebbfab",
+  "remaining_gaps": [
+    "Relevant Linux hosted jobs queued",
+    "Hosted SwiftLint pending behind the queued Detect changes job; no local SwiftLint",
+    "Nine explicit fish/staged-session-host prerequisite skips",
+    "No independent account approval"
+  ],
+  "original_private_manifest_sha256": "cf8b244b17ff2e9e6389ae650276d4b3a8e330141260e5e3c2f48b3141fbdb5b"
+}

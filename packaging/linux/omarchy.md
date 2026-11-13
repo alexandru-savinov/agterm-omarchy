@@ -158,6 +158,20 @@ The runner checks `dbus-run-session`, `dbus-send`, `openbox`, `xdotool`, `xvfb-r
 GObject/AT-SPI bindings, and uses a private HOME, runtime directory, state, socket, D-Bus session and X11 display.
 It does not establish native Wayland acceptance.
 
+#### Manual check: desktop notification banner
+
+The `notification-banner` accessibility scenario is in neither the runner's default list nor CI, because it
+needs a real notification daemon driven by `makoctl` (Omarchy's mako), which the private Xvfb session lacks.
+It is a manual check: after the Debug build above, run it from a terminal inside the dedicated Hyprland test
+desktop described in the next section, where mako owns the session's notifications:
+
+```bash
+AGTERM_ATSPI_SCENARIO=notification-banner python3 agterm-linux/tests/atspi_smoke.py
+```
+
+It posts and invokes a real desktop banner, so expect one to appear. It passes only when it prints
+`OK: real desktop banner suppresses, delivers, and reopens its source window` and exits 0.
+
 ### Native Wayland test environment
 
 Run native acceptance on a dedicated Hyprland test desktop without another agterm instance using the
