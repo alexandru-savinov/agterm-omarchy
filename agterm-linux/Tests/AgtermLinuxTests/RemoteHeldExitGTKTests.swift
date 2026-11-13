@@ -5,7 +5,7 @@ import Testing
 import agtermCore
 @testable import AgtermLinux
 
-/// Run alone with --filter RemoteHeldExitGTKTests: the fixture owns GTK and process-global seams.
+/// Run each method in a fresh process: GhosttyApp.shutdown permanently closes its singleton.
 @MainActor
 @Suite("Held exit through real GTK adapters", .serialized,
        .enabled(if: ProcessInfo.processInfo.environment["AGTERM_REMOTE_HELD_GTK_TESTS"] == "1"))
@@ -86,7 +86,9 @@ struct RemoteHeldExitGTKTests {
     private func withFixture(_ body: (AppController, Session, GhosttySurface, GhosttySurface) throws -> Void) throws {
         try #require(gWindows.isEmpty && GhosttyApp.shared.app == nil)
         try #require(RemoteReconnectBook.shared.isEmpty)
+        print("fixture process before Ghostty init: \(ownedProcessState(getpid()))")
         try #require(Self.ghosttyInitialization == 0)
+        print("fixture process after Ghostty init: \(ownedProcessState(getpid()))")
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -203,13 +205,17 @@ struct RemoteHeldExitGTKTests {
     private func surfaceState(_ surface: GhosttySurface) -> String {
         "native=\(surface.surface != nil), widget=\(gtk_widget_get_realized(W(surface.glArea))), " +
             "size=\(gtk_widget_get_width(W(surface.glArea)))x\(gtk_widget_get_height(W(surface.glArea))), " +
-            "awaitingPermit=\(surface.awaitingSpawnPermit), spawnKey=\(String(describing: surface.spawnKey))"
+            "awaitingPermit=\(surface.awaitingSpawnPermit), spawnKey=\(String(describing: surface.spawnKey)), " +
+            "seedPending=\(surface.launchSeed != nil), command=\(String(reflecting: surface.command)), " +
+            "wait=\(surface.waitAfterCommand), initialInput=\(String(reflecting: surface.initialInput)), " +
+            "screen=\(String(reflecting: surface.readScreenText(all: true, lines: nil)))"
     }
 
     private func ownedProcessState(_ pid: Int32) -> String {
         let status = (try? String(contentsOfFile: "/proc/\(pid)/status", encoding: .utf8)) ?? "unavailable"
         let fields = status.split(separator: "\n").filter {
-            $0.hasPrefix("State:") || $0.hasPrefix("PPid:") || $0.hasPrefix("Name:")
+            $0.hasPrefix("State:") || $0.hasPrefix("PPid:") || $0.hasPrefix("Name:") ||
+                $0.hasPrefix("SigBlk:") || $0.hasPrefix("SigIgn:") || $0.hasPrefix("SigCgt:")
         }
         return "recorded fixture PID \(pid): \(fields.joined(separator: "; "))"
     }
