@@ -251,7 +251,17 @@ def verify_clipboard_payloads(env, state):
                     normalized = payload.replace("\r\n", "\n").replace("\r", "\n")
                 expected = (("\x1b[200~" + normalized + "\x1b[201~") if bracketed
                             else normalized.replace("\n", "\r")).encode()
-                until(lambda: output.read_bytes() == expected, f"{label}/{kind}: paste bytes differ from expected")
+                try:
+                    until(lambda: output.read_bytes() == expected, f"{label}/{kind}: paste bytes differ from expected")
+                except AssertionError:
+                    try:
+                        prompt = named(app, PASTE_HEADING) is not None
+                    except Exception as error:  # the diagnostic must not mask the failure it explains
+                        prompt = f"unknown ({error!r})"
+                    raise AssertionError(
+                        f"{label}/{kind}: paste bytes differ from expected: actual {output.read_bytes()!r}, "
+                        f"expected {expected!r}, paste prompt open {prompt}, "
+                        f"offered {clipboard.get_formats().to_string()}") from None
                 assert named(app, PASTE_HEADING) is None, "paste left an unexpected confirmation dialog"
                 print(f"OK: {label}/{kind} actual paste bytes; confirmation={must_ask}", flush=True)
         finally:
