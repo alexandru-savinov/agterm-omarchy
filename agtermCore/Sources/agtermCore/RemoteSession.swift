@@ -130,10 +130,18 @@ public enum RemoteSession {
             let bar = CommandRestore.shellQuotedLine(["Connection to \(host) lost · reconnecting… · any key retries now"])
             let title = CommandRestore.shellQuotedLine([RemoteLinkNotice.title(nonce: lead.nonce)])
             let reset = "\\033[0m\\033[?1000l\\033[?1002l\\033[?1003l\\033[?1006l\\033[?1004l\\033[?2004l\\033[?2031l\\033[?2048l"
-            let diagnostic = #"diag357() { if [ -n "${AGTERM_DIAG357_DIR:-}" ] && [ -n "${AGTERM_DIAG357_INCARNATION:-}" ]; then { read -r diag357_uptime diag357_idle </proc/uptime; printf 'DIAG357 wrapper incarnation=%s pane=%s event=%s printfStatus=%s t=%s\n' "$AGTERM_DIAG357_INCARNATION" "${AGTERM_PANE_ID:-none}" "$1" "$2" "$diag357_uptime" >>"$AGTERM_DIAG357_DIR/$AGTERM_DIAG357_INCARNATION.log"; } 2>/dev/null; fi; }; "#
+            // Diagnostic-only identity/lifetime records; keep the foreground hold and saved SSH status intact.
+            let diagnostic = #"diag357() { if [ -n "${AGTERM_DIAG357_DIR:-}" ] && [ -n "${AGTERM_DIAG357_INCARNATION:-}" ]; then { "#
+                + #"diag357_event=$1; diag357_printf=$2; diag357_status=${3:-na}; diag357_start=na; "#
+                + #"if read -r diag357_stat </proc/$$/stat; then diag357_stat=${diag357_stat##*) }; set -- $diag357_stat; "#
+                + #"if [ "$#" -ge 20 ]; then shift 19; diag357_start=$1; fi; fi; read -r diag357_uptime diag357_idle </proc/uptime; "#
+                + #"printf 'DIAG357 wrapper incarnation=%s pane=%s event=%s printfStatus=%s status=%s pid=%s startTicks=%s t=%s\n' "#
+                + #""$AGTERM_DIAG357_INCARNATION" "${AGTERM_PANE_ID:-none}" "$diag357_event" "$diag357_printf" "$diag357_status" "#
+                + #""$$" "$diag357_start" "$diag357_uptime" >>"$AGTERM_DIAG357_DIR/$AGTERM_DIAG357_INCARNATION.log"; } 2>/dev/null; fi; }; "#
             script = diagnostic + "\(keepAlive); \(attach); status=$?; if [ \"$status\" -eq 255 ]; then diag357 ssh255 na; "
                 + "printf '\(reset)\\r\\n\\033[30;43m %s \\033[K\\033[0m\\n' \(bar); diag357 osc-before na; printf '\\033]2;%s\\007' \(title); diag357 osc-after \"$?\"; "
-                + "printf '\\033[?25l'; stty -echo 2>/dev/null; cat >/dev/null; else \(report); fi; exit \"$status\""
+                + "printf '\\033[?25l'; stty -echo 2>/dev/null; "
+                + "diag357 hold-enter na; cat >/dev/null; diag357 hold-return na \"$?\"; else \(report); fi; diag357 exit-intent na \"$status\"; exit \"$status\""
         }
         // libghostty runs this as `exec -l <command>`: bare, the exec replaces the shell with ssh and nothing
         // after it runs. `env` takes the exec instead, and a plain `sh` beneath it reads no login profile.
