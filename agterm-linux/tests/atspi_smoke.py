@@ -6176,6 +6176,13 @@ def verify_session_switch_commit(env):
         assert not switcher_overlay_names(app) and switcher_dim(app) is None, (
             "the switcher card outlived a release whose candidate had closed")
 
+        # Model selection is not keyboard focus: type through X11 and let the surviving PTY identify itself.
+        live_id = next(session["id"] for session in window_sessions(env, preheld_window) if session["active"])
+        marker = os.path.join(env["AGTERM_STATE_DIR"], "switcher-removal-keyboard")
+        owner = keyboard_owner(marker, process.pid)
+        assert owner == f"owner={live_id}/{preheld_window}/left", (
+            f"keyboard input after target removal reached {owner!r}, not the surviving active pane")
+
         print("OK: Ctrl-Tab cycles without selecting, commits once the last Ctrl comes up, reverses, "
               "survives pre-held Ctrl keys, ignores a highlighted candidate closed mid-hold, and Esc / a "
               "blur / the dashboard abort")
