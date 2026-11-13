@@ -253,7 +253,9 @@ def verify_clipboard_payloads(env, state):
                 if kind in ("drop-uri", "uri"):
                     normalized = "/tmp/one\\ two /tmp/three"
                 else:
-                    normalized = payload.replace("\r\n", "\n").replace("\r", "\n")
+                    # Ghostty 1.4 frames a bracketed paste byte for byte and turns LF into CR otherwise
+                    # (input/paste.zig encode); a lone CR is held by its isSafe, so nothing rewrites it here.
+                    normalized = payload
                 expected = (("\x1b[200~" + normalized + "\x1b[201~") if bracketed
                             else normalized.replace("\n", "\r")).encode()
                 try:
