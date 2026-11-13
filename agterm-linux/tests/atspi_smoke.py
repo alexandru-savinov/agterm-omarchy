@@ -5565,10 +5565,13 @@ def verify_sidebar_width_floor(env):
 
     # LAUNCH 3 — the WINDOW-WIDTH gate, the only cover for `notify::max-position`: GTK emits no
     # `notify::position` when the window widens again, so without that handler the divider stays at the
-    # narrow window's cap. No `gtk.css` lever, so the floor is the plain pin and the request sits above it.
+    # narrow window's cap. A split margin leaves less than the saved request inside the 640px window
+    # minimum without changing the sidebar floor, so this leg still exercises the actual layout cap.
+    layout_margin = 320
     sidebar_width_record(state, SIDEBAR_REQUESTED_WIDTH)
     seed_settings()
-    process, app = launch(sidebar_isolated_env(overlay_env))
+    process, app = launch(sidebar_isolated_env(
+        overlay_env, f".agterm-sidebar-split {{ margin-right: {layout_margin}px; }}\n"))
     try:
         window_id = next(item["id"] for item in window_list(env) if item["open"])
 
@@ -5624,6 +5627,8 @@ def verify_sidebar_width_floor(env):
                                  "request cycle cannot run here (it runs under the Xvfb + openbox session CI "
                                  "uses)")
         else:
+            assert narrowed - layout_margin < SIDEBAR_REQUESTED_WIDTH - SIDEBAR_EDGE_SLACK, (
+                f"narrow frame {narrowed}px minus split margin {layout_margin}px still fits the saved request")
             capped = wait_for(
                 lambda: sidebar_column_settled(
                     app, lambda width: width < SIDEBAR_REQUESTED_WIDTH - SIDEBAR_EDGE_SLACK),
