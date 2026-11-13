@@ -1,5 +1,5 @@
 """Disposable safety fixtures for the real probe helpers; no frontend, display or VM execution."""
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import hashlib
 import importlib.util
 import json
@@ -22,6 +22,190 @@ SPEC.loader.exec_module(probe)
 def row(pid, *, parent=1, start='100', state='S', tagged=False, uid=None):
     return dict(pid=pid, parent=parent, start=start, state=state, tagged=tagged,
                 uid=os.getuid() if uid is None else uid)
+
+
+class FakeProc:
+    """Only invented proc records; even permission failures never open real proc files."""
+    def __init__(self, rows):
+        self.rows, self.environments, self.environment_reads = rows, {}, []
+        self.identity_reads, self.on_identity, self.on_environment = {}, None, None
+        self.identity_errors, self.enumeration_error = {}, None
+
+    @contextmanager
+    def active(self):
+        text, data, metadata, lstat, listing = Path.read_text, Path.read_bytes, Path.stat, Path.lstat, Path.iterdir
+        def number(path):
+            return int(path.parts[2]) if len(path.parts) > 2 and path.parts[1] == 'proc' else None
+        def read_text(path, *args, **kwargs):
+            pid = number(path)
+            if pid is None: return text(path, *args, **kwargs)
+            assert path.name == 'stat'
+            self.identity_reads[pid] = self.identity_reads.get(pid, 0) + 1
+            if self.on_identity: self.on_identity(pid, self.identity_reads[pid])
+            if pid in self.identity_errors: raise self.identity_errors[pid]
+            if pid not in self.rows: raise FileNotFoundError('synthetic process absent')
+            value = self.rows[pid]
+            fields = [value['state'], str(value['parent']), *(['0'] * 17), value['start']]
+            return str(pid) + ' (inert fixture) ' + ' '.join(fields)
+        def read_bytes(path, *args, **kwargs):
+            pid = number(path)
+            if pid is None: return data(path, *args, **kwargs)
+            assert path.name == 'environ'; self.environment_reads.append(pid)
+            if self.on_environment: self.on_environment(pid)
+            value = self.environments.get(pid, b'OTHER=fixture\0')
+            if isinstance(value, BaseException): raise value
+            return value
+        def info(path, *args, **kwargs):
+            pid = number(path)
+            if pid is None: return metadata(path, *args, **kwargs)
+            if pid not in self.rows: raise FileNotFoundError('synthetic process absent')
+            return SimpleNamespace(st_uid=self.rows[pid]['uid'])
+        def entries(path):
+            if path != Path('/proc'): return listing(path)
+            if self.enumeration_error: raise self.enumeration_error
+            return iter(Path('/proc') / str(pid) for pid in list(self.rows))
+        with patch.object(Path, 'read_text', read_text), patch.object(Path, 'read_bytes', read_bytes), \
+                patch.object(Path, 'stat', info), patch.object(Path, 'lstat', lambda path, *a, **k:
+                    info(path, *a, **k) if number(path) is not None else lstat(path, *a, **k)), \
+                patch.object(Path, 'iterdir', entries):
+            yield self
+
+    def observer(self, captured=()):
+        instance = probe.Probe.__new__(probe.Probe)
+        instance.token = 'fixture-token'
+        instance.owned = probe.OwnedProcesses(probe.snapshot(strict=True), instance.token)
+        instance.report = dict(process_absence_observations=[])
+        for value in captured: instance.owned.add(value)
+        self.identity_reads.clear()
+        return instance
+
+
+class ProcessAbsenceTests(unittest.TestCase):
+    def test_unchanged_prelaunch_is_excluded_without_claiming_token_absence(self):
+        for state in ('S', 'Z'):
+            with self.subTest(state=state), FakeProc({10: row(10, state=state)}).active() as proc:
+                proc.environments[10] = PermissionError('synthetic EACCES')
+                instance = proc.observer([row(20)])
+                instance.require_process_absence()
+                proof = instance.report['process_absence_observations'][-1]
+                self.assertTrue(proof['complete']); self.assertEqual(proc.environment_reads, [])
+                self.assertEqual(proof['captured_pids'], proof['absent_captured_pids'])
+                self.assertEqual(proof['captured_pids'], [20])
+                excluded, = proof['excluded_prelaunch']
+                self.assertEqual(excluded['token_observation'], 'excluded-unobserved-prelaunch')
+                self.assertNotIn('tagged', excluded)
+                self.assertEqual(probe.process_identity(excluded), instance.owned.baseline_processes[10])
+
+    def test_baseline_copy_cannot_be_extended_or_changed_by_later_inventory(self):
+        initial = {10: row(10)}
+        owner = probe.OwnedProcesses(initial, 'fixture-token')
+        initial[10]['start'] = '200'; initial[20] = row(20)
+        self.assertEqual(owner.baseline_processes[10], (10, '100', os.getuid(), 1))
+        self.assertNotIn(20, owner.baseline_processes)
+        owner.observe({20: row(20, tagged=True)})
+        self.assertNotIn(20, owner.baseline_processes)
+        with self.assertRaises(TypeError): owner.baseline_processes[10] = (10, '200', os.getuid(), 1)
+        with self.assertRaises(AttributeError): owner.baseline.add((20, '100', os.getuid()))
+
+    def test_new_unreadable_token_candidate_remains_a_failure(self):
+        with FakeProc({10: row(10)}).active() as proc:
+            instance = proc.observer(); proc.rows[20] = row(20)
+            proc.environments[20] = PermissionError('synthetic EACCES')
+            with self.assertRaisesRegex(RuntimeError, 'Incomplete process token'): instance.require_process_absence()
+            self.assertEqual(proc.environment_reads, [20])
+            self.assertFalse(instance.report['process_absence_observations'][-1]['complete'])
+
+    def test_baseline_birth_uid_and_parent_changes_refuse_even_readable_tokens(self):
+        for field, value in (('start', '200'), ('uid', os.getuid() + 1), ('parent', 2)):
+            with self.subTest(field=field), FakeProc({10: row(10)}).active() as proc:
+                instance = proc.observer(); proc.rows[10][field] = value
+                with self.assertRaisesRegex(RuntimeError, 'Prelaunch process identity changed'): instance.require_process_absence()
+                self.assertEqual(proc.environment_reads, [])
+
+    def test_baseline_identity_changes_during_exclusion_refuse(self):
+        for field, value in (('start', '200'), ('uid', os.getuid() + 1), ('parent', 2)):
+            with self.subTest(field=field), FakeProc({10: row(10)}).active() as proc:
+                instance = proc.observer()
+                proc.on_identity = lambda pid, count: proc.rows[pid].update({field: value}) if count == 2 else None
+                with self.assertRaisesRegex(RuntimeError, 'identity changed during'): instance.require_process_absence()
+                self.assertEqual(proc.environment_reads, [])
+
+    def test_unreadable_or_incomplete_present_identity_never_qualifies_for_exclusion(self):
+        for error in (PermissionError('synthetic stat denial'), ValueError('synthetic incomplete stat')):
+            with self.subTest(error=error), FakeProc({10: row(10)}).active() as proc:
+                instance = proc.observer(); proc.identity_errors[10] = error
+                with self.assertRaisesRegex(RuntimeError, 'Incomplete process identity'): instance.require_process_absence()
+                self.assertFalse(instance.report['process_absence_observations'][-1]['complete'])
+        with FakeProc({10: row(10)}).active() as proc:
+            instance = proc.observer(); proc.rows[10]['start'] = 'unknown'
+            with self.assertRaisesRegex(RuntimeError, 'Incomplete process identity'): instance.require_process_absence()
+
+    def test_unknown_new_zombie_cannot_claim_an_observed_token_absence(self):
+        with FakeProc({}).active() as proc:
+            instance = proc.observer(); proc.rows[20] = row(20, state='Z'); proc.environments[20] = b''
+            with self.assertRaisesRegex(RuntimeError, 'Non-live new process'): instance.require_process_absence()
+            self.assertEqual(proc.environment_reads, [])
+
+    def test_complete_new_untagged_candidate_is_observed_and_new_tagged_candidate_is_owned(self):
+        for tagged in (False, True):
+            with self.subTest(tagged=tagged), FakeProc({}).active() as proc:
+                instance = proc.observer(); proc.rows[20] = row(20)
+                proc.environments[20] = (probe.TOKEN + '=fixture-token\0').encode() if tagged else b'OTHER=fixture\0'
+                if tagged:
+                    with self.assertRaisesRegex(RuntimeError, 'still exists or was reused'): instance.require_process_absence()
+                    self.assertIn(probe.identity(proc.rows[20]), instance.owned.rows)
+                else: instance.require_process_absence()
+                proof = instance.report['process_absence_observations'][-1]
+                self.assertEqual(proof['complete'], not tagged)
+                self.assertEqual(proof['token_observations'][0]['tagged'], tagged)
+                self.assertEqual(proof['excluded_prelaunch'], [])
+
+    def test_new_candidate_identity_change_around_token_read_refuses(self):
+        for field, value in (('start', '200'), ('uid', os.getuid() + 1), ('parent', 2)):
+            with self.subTest(field=field), FakeProc({}).active() as proc:
+                instance = proc.observer(); proc.rows[20] = row(20)
+                proc.on_environment = lambda pid: proc.rows[pid].update({field: value})
+                with self.assertRaisesRegex(RuntimeError, 'identity changed during'): instance.require_process_absence()
+
+    def test_new_candidate_that_becomes_a_zombie_during_token_read_refuses(self):
+        with FakeProc({}).active() as proc:
+            instance = proc.observer(); proc.rows[20] = row(20)
+            proc.on_environment = lambda pid: proc.rows[pid].update(state='Z')
+            with self.assertRaisesRegex(RuntimeError, 'Non-live new process'): instance.require_process_absence()
+
+    def test_token_read_failure_requires_actual_pid_absence(self):
+        for disappears in (False, True):
+            with self.subTest(disappears=disappears), FakeProc({}).active() as proc:
+                instance = proc.observer([row(20)]); proc.rows[20] = row(20)
+                proc.environments[20] = FileNotFoundError('synthetic environ disappeared')
+                if disappears: proc.on_environment = lambda pid: proc.rows.pop(pid)
+                if disappears: instance.require_process_absence()
+                else:
+                    with self.assertRaisesRegex(RuntimeError, 'Incomplete process token'): instance.require_process_absence()
+                self.assertEqual(instance.report['process_absence_observations'][-1]['complete'], disappears)
+
+    def test_every_captured_pid_must_be_absent_including_reused_other_uid_and_zombie(self):
+        for current in (row(20), row(20, start='200'), row(20, uid=os.getuid() + 1), row(20, state='Z')):
+            with self.subTest(current=current), FakeProc({}).active() as proc:
+                instance = proc.observer([row(20)]); proc.rows[20] = current
+                with self.assertRaises(RuntimeError): instance.require_process_absence()
+                self.assertFalse(instance.report['process_absence_observations'][-1]['complete'])
+
+    def test_captured_pid_gets_no_baseline_exemption_on_its_direct_check(self):
+        with FakeProc({10: row(10)}).active() as proc:
+            instance = proc.observer(); instance.owned.rows[probe.identity(proc.rows[10])] = proc.rows[10]
+            proc.environments[10] = PermissionError('synthetic captured PID denial')
+            with self.assertRaisesRegex(RuntimeError, 'Incomplete process token'): instance.require_process_absence()
+            self.assertEqual(proc.environment_reads, [10])
+
+    def test_missing_baseline_and_incomplete_inventory_cannot_silently_exclude(self):
+        with FakeProc({10: row(10)}).active() as proc:
+            proc.environments[10] = PermissionError('synthetic denial')
+            with self.assertRaisesRegex(RuntimeError, 'Incomplete process token'):
+                probe.record(10, 'fixture-token', strict=True)
+            instance = proc.observer(); proc.enumeration_error = PermissionError('synthetic enumeration denial')
+            with self.assertRaises(PermissionError): instance.require_process_absence()
+            self.assertFalse(instance.report['process_absence_observations'][-1]['complete'])
 
 
 class ProcessOwnershipTests(unittest.TestCase):
@@ -143,6 +327,7 @@ class RunFixture(unittest.TestCase):
         self.stack.enter_context(patch.object(probe.signal, 'pidfd_send_signal', create=True))
         self.stack.enter_context(patch.object(probe, 'snapshot', return_value={}))
         self.stack.enter_context(patch.object(probe.signal, 'signal'))
+        self.stack.enter_context(patch.object(probe.pwd, 'getpwuid', return_value=SimpleNamespace(pw_shell='/bin/bash')))
         self.stack.enter_context(patch.object(Path, 'is_socket', lambda path: path == self.root / 'wayland'))
 
     def run_probe(self, **options):
@@ -150,6 +335,12 @@ class RunFixture(unittest.TestCase):
 
 
 class RunSafetyTests(RunFixture):
+    def test_incomplete_prelaunch_inventory_refuses_before_any_frontend_launch(self):
+        with patch.object(probe, 'snapshot', side_effect=RuntimeError('synthetic baseline gap')) as snapshot, \
+                patch.object(probe.subprocess, 'Popen') as popen:
+            with self.assertRaisesRegex(RuntimeError, 'synthetic baseline gap'): self.run_probe()
+            snapshot.assert_called_once_with(strict=True); popen.assert_not_called()
+
     def test_wrong_digest_rejected_before_output_or_launch(self):
         with patch.object(probe.subprocess, 'Popen') as popen, self.assertRaisesRegex(RuntimeError, 'digest mismatch'):
             probe.run_probe(self.payload, self.root / 'output', self.env, '0' * 64)
@@ -466,6 +657,52 @@ class ControlCleanupTests(unittest.TestCase):
         self.assertEqual([action['name'] for action in self.actions],
                          ['left.sock', 'right.sock', 'left.sock.lock', 'right.sock.lock'])
 
+    def test_stable_prelaunch_permission_boundary_allows_exact_own_lock_cleanup(self):
+        self.capture(); self.capture('right.sock')
+        (self.root / 'left.sock').unlink(); (self.root / 'right.sock').unlink()
+        with FakeProc({10: row(10)}).active() as proc:
+            proc.environments[10] = PermissionError('synthetic prelaunch EACCES')
+            instance = proc.observer([row(20), row(21)])
+            self.files.cleanup(instance.require_process_absence, self.deadline, self.actions, self.proof)
+            self.assertTrue(self.proof['complete']); self.assertFalse(self.root.exists())
+            self.assertEqual(self.proof['locks_acquired'], ['left.sock.lock', 'right.sock.lock'])
+            self.assertEqual([action['name'] for action in self.actions], ['left.sock.lock', 'right.sock.lock'])
+            self.assertEqual(proc.environment_reads, [])
+            observations = instance.report['process_absence_observations']
+            self.assertEqual(len(observations), self.proof['absence_checks'])
+            for proof in observations:
+                self.assertTrue(proof['complete'])
+                self.assertEqual(proof['captured_pids'], [20, 21])
+                self.assertEqual(proof['absent_captured_pids'], [20, 21])
+                self.assertEqual([entry['pid'] for entry in proof['excluded_prelaunch']], [10])
+                self.assertNotIn('tagged', proof['excluded_prelaunch'][0])
+
+    def test_unreadable_new_candidate_refuses_before_any_lock_or_file_removal(self):
+        self.capture(); self.capture('right.sock'); names = sorted(p.name for p in self.root.iterdir())
+        with FakeProc({10: row(10)}).active() as proc:
+            instance = proc.observer(); proc.rows[20] = row(20)
+            proc.environments[20] = PermissionError('synthetic new candidate EACCES')
+            with self.assertRaisesRegex(RuntimeError, 'Incomplete process token'):
+                self.files.cleanup(instance.require_process_absence, self.deadline, self.actions, self.proof)
+            self.assertFalse(instance.report['process_absence_observations'][-1]['complete'])
+        self.assertEqual(sorted(p.name for p in self.root.iterdir()), names)
+        self.flock.assert_not_called(); self.assertEqual(self.actions, []); self.assertFalse(self.proof['complete'])
+
+    def test_baseline_change_after_first_lock_preserves_files_and_releases_descriptor(self):
+        self.capture(); self.capture('right.sock'); descriptors = []
+        with FakeProc({10: row(10)}).active() as proc:
+            instance = proc.observer()
+            def lock(fd, flags):
+                descriptors.append(fd); proc.rows[10]['parent'] = 2
+            self.flock.side_effect = lock
+            with self.assertRaisesRegex(RuntimeError, 'Prelaunch process identity changed'):
+                self.files.cleanup(instance.require_process_absence, self.deadline, self.actions, self.proof)
+            self.assertFalse(instance.report['process_absence_observations'][-1]['complete'])
+        self.assertEqual(self.actions, []); self.assertEqual(len(descriptors), 1)
+        for fd in descriptors:
+            with self.assertRaises(OSError): os.fstat(fd)
+        self.assertEqual(len(list(self.root.iterdir())), 4)
+
     def test_busy_second_lock_preserves_every_name_and_releases_first_descriptor(self):
         self.capture(); self.capture('right.sock'); descriptors = []
         def lock(fd, flags):
@@ -669,6 +906,11 @@ class FakeLifecycleTests(RunFixture):
         self.assertTrue(result['control_cleanup']['complete'])
         self.assertEqual(result['control_cleanup']['locks_acquired'], ['left.sock.lock', 'right.sock.lock'])
         self.assertGreater(result['control_cleanup']['absence_checks'], 0)
+        self.assertEqual(result['process_absence_policy'], 'unchanged-prelaunch-exclusion/1')
+        self.assertEqual(result['prelaunch_processes'], [])
+        self.assertEqual(len(result['process_absence_observations']), result['control_cleanup']['absence_checks'])
+        self.assertTrue(all(item['complete'] and item['captured_pids'] == item['absent_captured_pids']
+                            for item in result['process_absence_observations']))
         self.assertEqual(result['cleanup_actions'], [])
         self.assertEqual([a['name'] for a in result['control_cleanup']['actions']], ['left.sock.lock', 'right.sock.lock'])
         self.assertEqual((self.root / 'output/shared-runtime/dconf/user').read_bytes(), b'\0\0')

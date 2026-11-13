@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from types import MappingProxyType
 import uuid
 
 TOKEN = 'OMARCHY_CONFIG_PROBE_TOKEN'
@@ -54,20 +55,51 @@ def process_exists(pid):
         return False
 
 
-def record(pid, token=None, *, strict=False):
+def process_identity(row):
+    require(type(row['pid']) is int and row['pid'] > 0 and type(row['uid']) is int and row['uid'] >= 0
+            and type(row['parent']) is int and row['parent'] >= 0
+            and isinstance(row['start'], str) and re.fullmatch(r'[0-9]+', row['start']),
+            'Incomplete process identity observation')
+    return (*identity(row), row['parent'])
+
+
+def process_row(pid):
+    entry = Path('/proc') / str(pid)
+    raw = (entry / 'stat').read_text()
+    fields = raw[raw.rindex(')') + 2:].split()
+    require(int(raw[:raw.index('(')].strip()) == pid, 'Process stat PID changed')
+    return dict(pid=pid, start=fields[19], parent=int(fields[1]), state=fields[0], uid=entry.stat().st_uid)
+
+
+def record(pid, token=None, *, strict=False, baseline=None):
     try:
         entry = Path('/proc') / str(pid)
-        raw = (entry / 'stat').read_text()
-        fields = raw[raw.rindex(')') + 2:].split()
-        item = dict(pid=pid, start=fields[19], parent=int(fields[1]), state=fields[0], uid=entry.stat().st_uid)
+        item = process_row(pid)
+        before = process_identity(item) if strict else None
+        prior = baseline.get(pid) if strict and baseline is not None else None
+        if prior is not None:
+            require(before == prior, 'Prelaunch process identity changed')
         if token and item['uid'] == os.getuid():
-            try:
-                item['tagged'] = (TOKEN + '=' + token).encode() in (entry / 'environ').read_bytes().split(b'\0')
-            except OSError:
+            if prior is not None:
+                # This birth was excluded before launch, not observed to lack the token.
+                # Re-read its complete identity below; never mask a failed new/owned read.
+                item['token_observation'] = 'excluded-unobserved-prelaunch'
+            else:
                 if strict:
-                    require(not process_exists(pid), 'Incomplete process token observation')
-                    return None
-                item['tagged'] = False
+                    require(live(item), 'Non-live new process token observation')
+                try:
+                    item['tagged'] = (TOKEN + '=' + token).encode() in (entry / 'environ').read_bytes().split(b'\0')
+                    if strict: item['token_observation'] = 'observed'
+                except OSError:
+                    if strict:
+                        require(not process_exists(pid), 'Incomplete process token observation')
+                        return None
+                    item['tagged'] = False
+        if strict:
+            after = process_row(pid)
+            require(process_identity(after) == before, 'Process identity changed during observation')
+            if token and item['uid'] == os.getuid() and prior is None:
+                require(live(after), 'Non-live new process token observation')
         return item
     except (OSError, ValueError, IndexError):
         if strict:
@@ -75,9 +107,9 @@ def record(pid, token=None, *, strict=False):
         return None
 
 
-def snapshot(token=None, *, strict=False):
+def snapshot(token=None, *, strict=False, baseline=None):
     return {int(p.name): row for p in Path('/proc').iterdir() if p.name.isdigit()
-            for row in [record(int(p.name), token, strict=strict)] if row is not None}
+            for row in [record(int(p.name), token, strict=strict, baseline=baseline)] if row is not None}
 
 
 def identity(row):
@@ -91,7 +123,9 @@ def live(row):
 class OwnedProcesses:
     """Only new tagged processes or descendants of a still-matching owned parent."""
     def __init__(self, baseline, token):
-        self.baseline = {identity(row) for row in baseline.values()}
+        self.baseline = frozenset(identity(row) for row in baseline.values())
+        self.baseline_processes = MappingProxyType({row['pid']: process_identity(row) for row in baseline.values()
+                                                    if row['uid'] == os.getuid()})
         self.token, self.rows = token, {}
 
     def add(self, row):
@@ -422,7 +456,7 @@ class Probe:
         self.payload, self.output, self.expected, self.limit = payload, output, expected, limit
         self.desktop = dict(base_env)
         self.token = uuid.uuid4().hex
-        self.owned = OwnedProcesses(snapshot(), self.token)
+        self.owned = OwnedProcesses(snapshot(strict=True), self.token)
         self.apps, self.children, self.commands, self.sockets = [], [], 0, None
         self.peers, self.control_files = {}, None
         self.deadline = time.monotonic() + LIMITS['total']
@@ -437,6 +471,9 @@ class Probe:
                            forced_recovery=False, cleanup_actions=[], errors=[],
                            probe_sha256=sha256(Path(__file__)), runtime_observations=[], runtime_observation_gaps=[],
                            runtime_observation_complete=False, control_file_captures={}, control_cleanup=dict(complete=False, actions=[]),
+                           process_absence_policy='unchanged-prelaunch-exclusion/1', process_absence_observations=[],
+                           prelaunch_processes=[dict(zip(('pid', 'start', 'uid', 'parent'), value))
+                                               for value in self.owned.baseline_processes.values()],
                            peer_policy=dict(name='private-dconf-user-shape/1', origin_proven=False,
                                source='https://gitlab.gnome.org/GNOME/dconf/-/blob/4c0a26052efafae923eba42d14c5cb88da745de2/shm/dconf-shm.c',
                                timestamp_refresh='Only between stable reads; all other metadata and bytes unchanged'),
@@ -444,6 +481,10 @@ class Probe:
                                    'Mapped realized surfaces and PTY read-back are checked; pixels are a separate gate.',
                                    'Linux config.reload exposes no diagnostic count; app logs are checked separately.',
                                    'Peer shape is not installed-backend or writer provenance; all peers are preserved.',
+                                   'Process absence covers captured PIDs and new tagged/observed descendants. Unchanged '
+                                   'prelaunch UID/birth/parent identities are excluded with token unobserved, not absent; '
+                                   'this requires cooperative inheritance and does not prove absence of token-stripping '
+                                   'or unobserved reparented descendants, exec changes, or transferred descriptors.',
                                    'Control cleanup requires cooperative lifetime locks and an exclusive one-use private parent; '
                                    'identity checks plus unlink are not atomic against outsiders or transferred descriptors.'])
 
@@ -677,12 +718,24 @@ class Probe:
         self.report['checks'].append('bounded noisy-title shutdown cleans generated files and preserves sentinel')
 
     def require_process_absence(self):
-        current = snapshot(self.token, strict=True)
-        self.owned.observe(current)
-        # Even an owned zombie or a reused captured PID makes absence uncertain. Never
-        # infer absence from an unreadable /proc entry or a nonmatching live identity.
-        for pid in {row['pid'] for row in self.owned.rows.values()}:
-            require(record(pid, self.token, strict=True) is None, 'Captured process PID still exists or was reused')
+        proof = dict(complete=False, excluded_prelaunch=[], token_observations=[], captured_pids=[], absent_captured_pids=[])
+        self.report['process_absence_observations'].append(proof)
+        try:
+            current = snapshot(self.token, strict=True, baseline=self.owned.baseline_processes)
+            proof['excluded_prelaunch'] = [row for row in current.values()
+                                          if row.get('token_observation') == 'excluded-unobserved-prelaunch']
+            proof['token_observations'] = [row for row in current.values() if row.get('token_observation') == 'observed']
+            self.owned.observe(current)
+            # Every captured PID must be absent, including zombies and reused PIDs.
+            # No prelaunch exception applies to these direct strict observations.
+            proof['captured_pids'] = sorted({row['pid'] for row in self.owned.rows.values()})
+            for pid in proof['captured_pids']:
+                require(record(pid, self.token, strict=True) is None, 'Captured process PID still exists or was reused')
+                proof['absent_captured_pids'].append(pid)
+            proof['complete'] = True
+        except BaseException as error:
+            proof['error'] = type(error).__name__ + ': ' + str(error)
+            raise
 
     def cleanup(self):
         """Recover only known new identities. Never turn recovery into a passing observation."""
