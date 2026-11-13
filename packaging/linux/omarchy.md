@@ -65,6 +65,22 @@ the installer warns when that prefix's `share/` is not on the XDG data path, whe
 `--uninstall` removes exactly the files the installer recorded and keeps state in `~/.local/share/agterm`
 and configuration in `~/.config/agterm`; add `--purge-state` to delete the state directory too,
 including setup's `swift-compat`.
+Because `--purge-state` deletes `swift-compat`, and the build helpers silently skip a missing one,
+run `scripts/setup-omarchy.sh --skip-packages` again before rebuilding from source after a purge.
+
+Uninstalling does not undo what **Preferences ▸ Integrations** (or `agtermctl integration install`) wrote,
+and neither offers a remove action, so remove those edits by hand if you are not reinstalling.
+They stay behind pointing at an `agtermctl` that no longer exists:
+- the agent-status scripts in `~/.config/agterm/agent-status/`, which carry the `agtermctl` path baked
+  in at install time (kept with the rest of `~/.config/agterm`);
+- the hook entries merged into `~/.claude/settings.json` and the agterm hook block in
+  `~/.codex/config.toml`, which run those scripts;
+- the `# >>> agterm agent-status >>>` block in `~/.zshrc`, `~/.bashrc` and `~/.config/fish/config.fish`;
+- the skill copy in `~/.claude/skills/agterm` and `~/.codex/skills/agterm`, plus the Pi extension
+  (`~/.pi/agent/extensions/agterm-status.ts`) and the OpenCode plugin when those were installed.
+
+The hooks are no-ops outside an agterm session, so the leftovers are inert rather than failing, but the
+skill still teaches an agent to call `agtermctl`.
 For a VM with the documented EGL failure, add `--software-rendering` when installing; see [Rendering](#rendering).
 The installed runtime includes Swift libraries, libghostty, zmx, themes, shell integration, terminfo,
 and the agent integration resources; the source checkout is not needed to run it.
@@ -141,6 +157,20 @@ The explicit build creates the Debug app and CLI used by the accessibility runne
 The runner checks `dbus-run-session`, `dbus-send`, `openbox`, `xdotool`, `xvfb-run`, Python and the
 GObject/AT-SPI bindings, and uses a private HOME, runtime directory, state, socket, D-Bus session and X11 display.
 It does not establish native Wayland acceptance.
+
+#### Manual check: desktop notification banner
+
+The `notification-banner` accessibility scenario is in neither the runner's default list nor CI, because it
+needs a real notification daemon driven by `makoctl` (Omarchy's mako), which the private Xvfb session lacks.
+It is a manual check: after the Debug build above, run it from a terminal inside the dedicated Hyprland test
+desktop described in the next section, where mako owns the session's notifications:
+
+```bash
+AGTERM_ATSPI_SCENARIO=notification-banner python3 agterm-linux/tests/atspi_smoke.py
+```
+
+It posts and invokes a real desktop banner, so expect one to appear. It passes only when it prints
+`OK: real desktop banner suppresses, delivers, and reopens its source window` and exits 0.
 
 ### Native Wayland test environment
 

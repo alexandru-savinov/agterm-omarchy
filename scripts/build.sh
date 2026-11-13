@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build a release app.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+CDPATH='' cd -- "$(dirname "$0")/.."
 
 ./scripts/setup.sh
 xcodegen generate

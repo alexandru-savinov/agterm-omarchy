@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_DIR="${AGTERM_UI_ARTIFACT_DIR:-$ROOT/artifacts/linux-ui}"
 PYTHON="${PYTHON:-/usr/bin/python3}"
 BIN="${AGTERM_TEST_BIN:-$ROOT/agterm-linux/.build/debug/AgtermLinux}"
@@ -63,6 +63,8 @@ export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
 # select libEGL_nvidia during GLX initialization and abort before the test session starts.
 export __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json
 export XDG_SESSION_TYPE=x11
+# openbox under Xvfb honours `window resize`, so a narrow-window leg that prints SKIP here is a failure.
+export AGTERM_ATSPI_REQUIRE_RESIZE=1
 unset WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE SWAYSOCK
 # The app must see GDK_DEBUG/GDK_DISABLE UNSET. LinuxGdkPolicy APPENDS to whatever the launching
 # environment already carries, so an ambient `GDK_DISABLE=gles-api,vulkan` (a plausible desktop override,

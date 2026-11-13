@@ -1,0 +1,32 @@
+Selected literal GDB thread blocks; memory addresses, test PIDs and private payload path redacted.
+Original complete GDB output SHA256: 3ebc6b4d33ca70a71153a399c2ff885751dd9435c62860364319c99a524a708b
+The stripped optimized library prevents reliable internal unwinding; debugger uncertainty text does not establish memory corruption.
+
+Thread 4 (Thread <address> (test thread) "io"):
+#0  <address> in ?? () from /usr/lib/libc.so.6
+#1  <address> in ?? () from /usr/lib/libc.so.6
+#2  <address> in ?? () from /usr/lib/libc.so.6
+#3  <address> in ?? () from /usr/lib/libc.so.6
+#4  <address> in ?? () from <frozen-payload>/lib/libghostty.so
+#5  <address> in ?? ()
+Backtrace stopped: previous frame identical to this frame (corrupt stack?)
+
+Thread 3 (Thread <address> (test thread) "io-reader"):
+#0  <address> in ?? () from <frozen-payload>/lib/libghostty.so
+Backtrace stopped: not enough registers or memory available to unwind further
+
+Thread 2 (Thread <address> (test thread) "io-gather"):
+#0  <address> in ?? () from <frozen-payload>/lib/libghostty.so
+#1  <address> in ?? ()
+Backtrace stopped: previous frame identical to this frame (corrupt stack?)
+
+Thread 1 (Thread <address> (test thread) "agterm-linux.bi"):
+#0  <address> in ?? () from /usr/lib/libc.so.6
+#1  <address> in ?? () from /usr/lib/libc.so.6
+#2  <address> in ?? () from /usr/lib/libc.so.6
+#3  <address> in ?? () from /usr/lib/libc.so.6
+#4  <address> in ?? () from <frozen-payload>/lib/libghostty.so
+#5  <address> in ?? ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+[Inferior 1 (test process) detached]
+

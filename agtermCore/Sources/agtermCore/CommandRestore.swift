@@ -134,9 +134,10 @@ public enum CommandRestore {
         isControlCharacter(scalar) || scalar.value == 0xFFFD
     }
 
-    /// C0 and DEL — what a line editor reads as an editing command rather than as text.
+    /// C0, DEL and C1 (U+0080–U+009F) — what a line editor or terminal can read as an editing command or the
+    /// start of a control sequence (U+009B is a one-character CSI, U+0085 a next-line) rather than as text.
     private static func isControlCharacter(_ scalar: Unicode.Scalar) -> Bool {
-        scalar.value < 0x20 || scalar.value == 0x7F
+        scalar.value < 0x20 || (0x7F...0x9F).contains(scalar.value)
     }
 
     /// The mutually-exclusive surface seed a pane restores/creates with. `command` != nil → the exec path
@@ -236,16 +237,25 @@ public enum CommandRestore {
         return result
     }
 
-    /// Render an argv into one POSIX shell command line, single-quoting each argument (so spaces, `$`,
+    /// Render an argv into one POSIX/fish command line, quoting each argument (so spaces, `$`,
     /// globs and quotes survive intact) and space-joining; fed to a restored login shell via
     /// `initial_input`. Quoting is a PARSER escape, so it inverts capture only for what `shouldRestore` accepted.
     public static func shellQuotedLine(_ argv: [String]) -> String {
         argv.map(shellQuote).joined(separator: " ")
     }
 
-    /// POSIX single-quote one argument: wrap in `'…'`, and render each embedded `'` as `'\''`.
+    /// Keep backslashes outside single quotes: fish unescapes them inside quotes, unlike POSIX shells.
+    /// Single-quote each intervening chunk and render each embedded `'` as `'\''`.
     private static func shellQuote(_ arg: String) -> String {
-        "'" + arg.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        var quoted = "'"
+        for scalar in arg.unicodeScalars {
+            switch scalar {
+            case "'": quoted += "'\\''"
+            case "\\": quoted += "'\\\\'"
+            default: quoted.unicodeScalars.append(scalar)
+            }
+        }
+        return quoted + "'"
     }
 
     /// Parse a macOS `KERN_PROCARGS2` blob into the process's argv. Layout: a host-order `Int32` argc,

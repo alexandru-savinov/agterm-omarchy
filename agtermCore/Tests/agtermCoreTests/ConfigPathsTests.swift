@@ -165,9 +165,8 @@ struct ConfigPathsTests {
 
     // MARK: - Cross-shell behavioral tests
     //
-    // These run the command exactly as libghostty does (`/bin/sh -c "<cmd>"`). The `vi` fallback is
-    // deliberately not exercised behaviorally: a login shell's path_helper reorders PATH so the real,
-    // tty-blocking `/usr/bin/vi` would win over a fake one. The golden test above pins it literally instead.
+    // These run the command exactly as libghostty does (`/bin/sh -c "<cmd>"`), with private recorder
+    // editors. The golden test above pins the `vi` fallback literally.
 
     /// Writes an executable recorder at `<dir>/<name>` that records its first argument to `<dir>/<name>.got`,
     /// returning the script path and the marker URL.
@@ -186,8 +185,8 @@ struct ConfigPathsTests {
     }
 
     /// Runs `editorCommand(forPath:)` under `/bin/sh -c` with `overrides` merged onto the process env;
-    /// EDITOR/VISUAL are cleared first (so only `overrides` set them) and the login-shell rc is isolated to
-    /// `tmp` via HOME/ZDOTDIR/XDG_CONFIG_HOME. Returns the exit status; a nil value in `overrides` removes a key.
+    /// EDITOR/VISUAL are cleared first (so only `overrides` set them). Private zsh startup restores these
+    /// inputs after global zshenv and keeps private login/interactive rc files active. A nil override removes a key.
     @discardableResult
     private func runEditorCommand(forPath path: String, tmp: URL, env overrides: [String: String?]) throws -> Int32 {
         let proc = Process()
@@ -202,6 +201,23 @@ struct ConfigPathsTests {
         for (key, value) in overrides {
             if let value { env[key] = value } else { env.removeValue(forKey: key) }
         }
+        // A private HOME/ZDOTDIR cannot prevent /etc/zshenv from replacing inherited editor settings.
+        // Restore fixture inputs from the environment, not literal expected recorder paths. Leave RCS
+        // enabled so the rc-only test still depends on the real interactive shell reading .zshrc.
+        var startup = ["unsetopt GLOBAL_RCS"]
+        for key in ["EDITOR", "VISUAL", "PATH"] {
+            let fixtureKey = "AGTERM_TEST_\(key)"
+            env[fixtureKey] = env[key]
+            startup.append("""
+            if (( ${+\(fixtureKey)} )); then
+                export \(key)="$\(fixtureKey)"
+            else
+                unset \(key)
+            fi
+            """)
+        }
+        try (startup.joined(separator: "\n") + "\n")
+            .write(to: tmp.appendingPathComponent(".zshenv"), atomically: true, encoding: .utf8)
         proc.environment = env
         try proc.run()
         proc.waitUntilExit()
@@ -256,9 +272,61 @@ struct ConfigPathsTests {
         #expect((try? String(contentsOf: got, encoding: .utf8)) == path)
     }
 
-    /// The first installed `fish` binary, or nil — gates the non-POSIX behavioral test above.
-    private static func fishPath() -> String? {
-        ["/opt/homebrew/bin/fish", "/usr/local/bin/fish", "/usr/bin/fish"]
-            .first { FileManager.default.isExecutableFile(atPath: $0) }
+    @Test func fishPathPrefersPATHOrder() {
+        let available: Set<String> = ["/private/first/fish", "/private/second/fish", "/opt/homebrew/bin/fish"]
+        #expect(Self.fishPath(path: "/private/first:/private/second", isExecutableFile: available.contains)
+                == "/private/first/fish")
+        #expect(Self.fishPath(path: "/private/missing:/private/second", isExecutableFile: available.contains)
+                == "/private/second/fish")
+    }
+
+    @Test func fishPathIgnoresEmptyEntriesAndPreservesFallbacks() {
+        var checked: [String] = []
+        let found = Self.fishPath(path: ":/private/bin::", isExecutableFile: {
+            checked.append($0)
+            return false
+        })
+        #expect(found == nil)
+        #expect(checked == ["/private/bin/fish", "/opt/homebrew/bin/fish", "/usr/local/bin/fish", "/usr/bin/fish"])
+    }
+
+    @Test func fishPathFindsEachFixedFallback() {
+        for fallback in ["/opt/homebrew/bin/fish", "/usr/local/bin/fish", "/usr/bin/fish"] {
+            #expect(Self.fishPath(path: "/private/missing", isExecutableFile: { $0 == fallback }) == fallback)
+        }
+    }
+
+    @Test func fishPathReturnsNilWhenUnavailable() {
+        #expect(Self.fishPath(path: "", isExecutableFile: { _ in false }) == nil)
+        #expect(Self.fishPath(path: "/private/missing", isExecutableFile: { _ in false }) == nil)
+    }
+
+    @Test func fishPathSkipsMissingAndNonExecutableFiles() throws {
+        let tmp = try makeTmp(); defer { try? FileManager.default.removeItem(at: tmp) }
+        let blocked = tmp.appendingPathComponent("not-executable")
+        let available = tmp.appendingPathComponent("private-bin")
+        for directory in [blocked, available] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try "discovery fixture only\n".write(to: directory.appendingPathComponent("fish"),
+                                                atomically: true, encoding: .utf8)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o644],
+                                              ofItemAtPath: blocked.appendingPathComponent("fish").path)
+        let executable = available.appendingPathComponent("fish").path
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable)
+        let path = [tmp.appendingPathComponent("missing").path, blocked.path, available.path].joined(separator: ":")
+        #expect(Self.fishPath(path: path) == executable)
+    }
+
+    /// Prefer a caller's private PATH prerequisite, then keep the installed fallbacks.
+    /// Explicit inputs let discovery regressions avoid changing the process environment.
+    private static func fishPath(
+        path: String = ProcessInfo.processInfo.environment["PATH"] ?? "",
+        isExecutableFile: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
+    ) -> String? {
+        let directories = path.split(separator: ":").map(String.init)
+        let candidates = directories.map { ($0 as NSString).appendingPathComponent("fish") }
+        return (candidates + ["/opt/homebrew/bin/fish", "/usr/local/bin/fish", "/usr/bin/fish"])
+            .first(where: isExecutableFile)
     }
 }

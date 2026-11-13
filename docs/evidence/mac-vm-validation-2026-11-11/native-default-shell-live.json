@@ -1,0 +1,128 @@
+{
+  "schema": "agterm-native-default-shell-live/1",
+  "source_commit": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "source_run": 41532553668,
+  "payload_hashes": {
+    "bin/agterm-linux.bin": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+    "bin/zmx": "7d4d530c2741e7c8edc1ddbfadf528a247d19f032e660aeb7eaf0b1f6288d310",
+    "lib/libghostty.so": "baf8ba1957bd9bcf140d455f309e16f510f66261ff684f5fd4503586e44bfd6c"
+  },
+  "binding": {
+    "lane": "native default-bash Live",
+    "parent_operator_sha256": "44111bba76d7701591f27fce86a049bcdb4ec5e73d610e1aef407057ac53488e",
+    "operator_sha256": "e9d5f63d924a1dc4b3a18127b4984fff8ebc19bb4629edffea9fbeb5f83ba251",
+    "change": "Remove only the two-line Live LD_PRELOAD assignment; unchanged ModeRun cleanup and accept_mode requirements.",
+    "harness_sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40"
+  },
+  "real_login_shell": "/bin/bash",
+  "login_shell_fixture": false,
+  "software_rendering": true,
+  "interpretation": "The native artifact demonstrates documented non-zsh Live ineligibility; primary PTY works, while requested Live falls back to none. This failed Live harness does not supersede zsh-fixture results.",
+  "attempts": [
+    {
+      "attempt": 1,
+      "original_private_report_sha256": "2e9d672d35adb4cfd74a09b61069f9e4d83a7c969695dff6ab0a3ec6b109e29a",
+      "started_at": 1794429365.5303633,
+      "ended_at": 1794429365.9348898,
+      "passed": false,
+      "errors": [
+        "RuntimeError: Harness/cleanup/preservation failed"
+      ],
+      "harness_returncode": 1,
+      "completed_checks": [],
+      "preservation": {
+        "payload_unchanged": true,
+        "installed_payload_unchanged": true,
+        "shared_runtime_unchanged": true,
+        "login_shell_unchanged": true
+      },
+      "independent_cleanup": {
+        "passed": true,
+        "remaining_processes": [],
+        "new_app_processes": [],
+        "retained_recovery_paths": [],
+        "preservation": {
+          "passed": true,
+          "protected_process_count": 2,
+          "lost": {}
+        },
+        "timed_out": false,
+        "forced_cleanup": false,
+        "errors": []
+      },
+      "setup_failure": "Private helper operator.py shadowed Python stdlib operator, causing an import cycle before any application launch. Corrected only the helper filename in a fresh second stage."
+    },
+    {
+      "attempt": 2,
+      "original_private_report_sha256": "84cd77fd0551590a871732734e8ef9eff3ecfdbb93e66a9df5cad0fe7e6fc729",
+      "started_at": 1794429404.8132274,
+      "ended_at": 1794429406.6912012,
+      "passed": false,
+      "errors": [
+        "RuntimeError: Harness/cleanup/preservation failed"
+      ],
+      "harness_returncode": 1,
+      "completed_checks": [
+        "primary PTY execution and screen read-back"
+      ],
+      "preservation": {
+        "payload_unchanged": true,
+        "installed_payload_unchanged": true,
+        "shared_runtime_unchanged": true,
+        "login_shell_unchanged": true
+      },
+      "independent_cleanup": {
+        "passed": true,
+        "remaining_processes": [],
+        "new_app_processes": [],
+        "retained_recovery_paths": [],
+        "preservation": {
+          "passed": true,
+          "protected_process_count": 2,
+          "lost": {}
+        },
+        "timed_out": false,
+        "forced_cleanup": false,
+        "errors": []
+      },
+      "harness_cleanup_passed": true,
+      "sentinel": {
+        "created": true,
+        "listed_before_teardown": true,
+        "listed_after_teardown": true,
+        "killed_confirmed": true,
+        "absent_after_kill": true,
+        "passed": true
+      },
+      "app_processes": [
+        {
+          "launch": 1,
+          "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+          "exe_name": "agterm-linux.bin"
+        }
+      ],
+      "shell_images_observed": [
+        "bash"
+      ],
+      "restore_response": {
+        "args": [
+          "restore",
+          "mode"
+        ],
+        "response": {
+          "ok": true,
+          "result": {
+            "restore": {
+              "configured": "live",
+              "active": "none",
+              "requestedAtLaunch": "live",
+              "restartRequired": false,
+              "unavailableReason": "the password-database login shell is not zsh"
+            }
+          }
+        }
+      },
+      "original_control_log_sha256": "86fa783eab6c31cca003bceba558bd3a88f3555eb825396eb1eeb141838e1bcc"
+    }
+  ]
+}

@@ -1,0 +1,150 @@
+# Mac and native Omarchy validation, 2026-11-11
+
+Acceptance remains **incomplete**. This evidence supports [goal #305](https://github.com/alexandru-savinov/agterm-omarchy/issues/305); it does not promote current `main` or the frozen candidate to a release.
+
+## Results and identities
+
+| Lane | Exact subject | Demonstrated result |
+| --- | --- | --- |
+| Native ARM ordinary | `bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d`, trusted run [41532553668](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41532553668), attempt 1 | 7/7 checks and independent cleanup pass in both new attempts. |
+| Native ARM Live | Same immutable artifact | 9/9 checks pass twice, including the same shell PID across frontend restart and owned daemon cleanup. |
+| Native actual-bash Live eligibility | Same immutable artifact, unchanged harness, Live preload removed | Primary PTY check passes; requested Live reports active `none` because the passwd login shell is not zsh. Live harness fails with clean teardown, demonstrating the documented eligibility restriction. |
+| Native config, attempt 1 | Same app; original probe `c521ff81…` from the same source | Fails before assertions: probe waited for an unsupported control-socket override. Forced recovery and a generated `dconf` entry remain recorded. |
+| Native config, attempt 2 | Same app; separately reviewed probe from [PR #312](https://github.com/alexandru-savinov/agterm-omarchy/pull/312), `e77b6ad448677e00cafd14a36c557b96affb6678` | 3/4 checks pass. The final noisy-title shutdown exceeds 10 seconds, needs another signal, and retains its generated theme directory. Overall failed. |
+| Complete native branch source | `77cce43eb791ba1a983c19760c7df5259d0e452d`, privately built complete payload | Linux package 693/693; core 4104 pass and one fish skip; ordinary 7/7, zsh-fixture Live 9/9 and five configuration runs 4/4 each, under software rendering. No recovery signals; image and preservation checks pass. |
+| Native default renderer | Same complete source77 payload, seven renderer launch overrides absent | Fails before ordinary checks: no EGL configuration available. Cleanup and preservation pass. |
+| Native private software installation | Same complete source77 payload and installer, fresh private prefix with `--software-rendering` | Ordinary 7/7 and both cleanup audits pass. Actual app environment confirms the installed wrapper selects software rendering. |
+| Installed Mac ordinary comparison | agterm 0.38.1 / `09727610` | 14/14 checks pass; original app/session identities and installed bytes preserved; no test process remains. |
+| Installed Mac Live comparison | Same installed bundle | 11/11 functional checks pass, including shell persistence and hidden-pane restart. Empty daemon inventory, but the session host needs explicit cleanup: overall failed under the strict no-recovery criterion. |
+| Original Mac core baseline | `25edfe31a34a9cce9c4cbd68a106222e4d73aea8` | 4,117 passed / 1 failed / 9 skipped; zsh startup bypassed the fake terminfo compiler. |
+| Reviewed Mac core | [PR #311](https://github.com/alexandru-savinov/agterm-omarchy/pull/311), `ab94f48fc94e9a4e2db82f2feb5b8f38d462f341` | 4,129 passed / 0 failed / 9 skipped, out of 4,138 definitions / 182 suites. |
+| Same reviewed core, available zmx staged privately | Same source, installed zmx hash below | Full suite: **4,137 passed / 0 failed / 1 skipped (fish)**. The eight host definitions previously skipped also pass in a separate 26-test group. |
+| Integrated Mac core, available zmx staged privately | `2ddd93af8cd0b09a7c3fe668e6cf1f759949393b` | **4,148 passed / 1 failed / 1 skipped (fish)** out of 4,150 definitions / 182 suites. The known terminfo fixture failure remains; PR #311 is not in this head. All 26 host tests pass. |
+| Later integrated Mac core, available zmx and Node | `4ffbe4bd2aec1216b2d7a31b043ff2f96fff036b`, fresh full serial run | **4,149 passed / 2 failed / 2 skipped (fish)** out of 4,153 definitions / 182 suites. Terminfo and exported-editor fixtures fail; all 26 host tests and 16 Node-dependent tests pass. Overall failed. |
+
+The core revisions have different test inventories. The terminfo test-file blob is identical at the original baseline and PR #311's base; the changed total is not attributed solely to that fixture fix. All full runs were unfiltered. The reviewed-PR run with staged zmx used `--skip-build` with the already built, unchanged reviewed source and a newly satisfied runtime prerequisite. The later integrated-main run performed its own fresh build.
+
+Frozen native application SHA256: `c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946`.
+Frozen ARM archive SHA256: `d553f29e9fd978e83d60df73b1ef668292bc8414ec5b6617c94c0dc08d0b6995`.
+Frozen bundled zmx SHA256: `7d4d530c2741e7c8edc1ddbfadf528a247d19f032e660aeb7eaf0b1f6288d310`.
+Frozen native harness SHA256: `9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40`.
+Installed Mac app SHA256: `04abc755511fb07456070cc8b12348c2674dd1ad0530f78d9a36837b43e72306`.
+Installed Mac zmx SHA256: `4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01`.
+
+## Native boundary
+
+Fresh private guest stages, fresh process baselines and actual running-image hashes bind both attempts. The archive was rehashed locally and in the guest. The second stage copied the verified guest archive using exclusive destination checks and verified its complete digest again. Preparation and execution helpers changed only their bound probe digest; their 29 preparation/process and 10 outer-probe safety checks passed again. [The binding](native-attempt-2-binding.json) records parent and selected template hashes, the probe source, and the same-account source review.
+
+Both modes use software rendering and a private runtime adapter. Live additionally uses a process-local zsh login-shell fixture; ordinary mode does not preload that fixture. The real Omarchy login shell remains bash. The unchanged harness records red-to-green rendering in the focused, test-owned window's cropped area. This is narrower than general visual acceptance: it does not establish hardware acceleration, theme/appearance fidelity, default-bash Live behavior, x86 native operation or the evolving main frontend. No desktop image is included here.
+
+The revised probe demonstrates two exact-image, mapped native Wayland instances with real PTY execution; disjoint config directories; idle-instance cleanup while the peer remains usable; and a bounded pair of theme files after 32 reloads and 32 background/reset sequences. A bounded eight-second title producer was alive and had emitted at least 100 titles when the final shutdown was requested. That frontend exceeded the unchanged ten-second deadline. Recovery removed the remaining owned process; the retained generated directory correctly keeps the result failed. Source diagnosis and the next candidate test are tracked in [#199](https://github.com/alexandru-savinov/agterm-omarchy/issues/199#issuecomment-6805736269).
+
+Installed/extracted payloads, actual login shell and snapshotted shared runtime remained unchanged. The first attempt had no preexisting protected app processes; the second observed and preserved two. These are fresh observations, not inherited historical session counts.
+
+Two later configuration-only diagnostic replays retain the unchanged probe and payload. Replay 1 passed all four checks; its right shutdown took 3.218 seconds and no debugger attached. Replay 2 reproduced the timeout and captured the verified test-owned frontend after its control socket was unlinked. GDB attached and detached successfully; main, io, io-reader and io-gather were waiting on futexes, with library frames inside the exact shipped libghostty. The renderer thread had exited. The library is stripped and internal unwinding is incomplete, so the source-supported mailbox/join cycle remains a hypothesis. These diagnostic outcomes demonstrate intermittency and do not supersede failed acceptance. The source fix is tracked in [#320](https://github.com/alexandru-savinov/agterm-omarchy/issues/320).
+
+A separate symbol-bearing diagnostic variant then reproduced the timeout and resolved the waiting calls. Its private payload copy changes only `lib/libghostty.so`, rebuilt natively from the same pinned Ghostty and frozen patches with `-Dstrip=false`; the app image and probe stay unchanged. Main waits in `Surface.deinit` joining the I/O thread; I/O waits in `Exec.threadExit` joining the reader; the reader waits in the full 64-entry app mailbox while delivering an OSC title. GDB verified the diagnostic library mapping and detached successfully. This directly demonstrates the cycle in that variant, with three probe checks passing and final shutdown failing. One recorded recovery signal removed the last owned process; generated config remains as failure evidence. Debugger timing and changed unwind settings prevent treating this as frozen-artifact acceptance or as symbolization of the old library. Both private payloads, protected processes and the real login shell were preserved.
+
+The additional actual-shell lane removes only the outer operator's Live preload assignment. The frozen app executes terminal input, then reports `configured: live`, `active: none` and the documented non-zsh eligibility reason. Both cleanup audits pass without recovery. This failed Live harness verifies the fallback behavior on the VM's unchanged bash account; it does not establish bash Live support. An earlier preparation attempt failed before app launch because a private helper shadowed Python's `operator` module; that failure is retained separately.
+
+## Native shutdown-cancellation hybrid
+
+The [PR #322](https://github.com/alexandru-savinov/agterm-omarchy/pull/322) production patch has native evidence for a **one-library diagnostic hybrid**. Its frontend remains frozen `bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d`; only `lib/libghostty.so` changes. This does not establish complete current-source, combined-change or release-archive acceptance.
+
+| Observation | Actual retained result |
+| --- | --- |
+| Complete native library build at `fd72c31902029e6d228ab3a254c37e28b9655ab3` | ReleaseFast, stripped, pinned Ghostty plus all three patches, two jobs; exit 0 in 253.298 seconds. |
+| Native original-runner queue regression at the same source | Four patched tests pass; original pinned queue fails specifically at `completed_before_drain`; overall runner exit 0 in 5.844 seconds. |
+| Runtime attempt 1 | Failed after four ordinary checks: app abort and missing WebKit accessibility-proxy source path, 108 UTF-8 bytes. No configuration repetition ran. Cleanup passed. |
+| Runtime attempt 2, with a shorter fresh stage prefix | Ordinary 7/7 and zsh-fixture Live 9/9 pass. Configuration repetition 1 passes 4/4; repetition 2 fails after three checks because the eight-second producer has already ended. Its recovery remains recorded; the overall experiment failed. |
+| Original-library configuration comparison | 0/3 pass. All three satisfy the live-producer prerequisite, then time out at the unchanged ten-second shutdown gate. Each records recovery and one remaining generated-config directory; no owned process remains. |
+| Patched-library comparison and two further confirmations | Five consecutive fresh valid 4/4 passes: right shutdowns 0.06406, 4.75839, 2.03599, 0.06365 and 0.06195 seconds. No recovery or generated-config remainder. |
+
+The final five are the three patched A/B observations plus two confirmations. Across the entire retained patched configuration history there are seven attempts: six valid passes and the one expired-producer prerequisite failure. The earlier success and failure are not removed from that history. Ordinary mode does not preload the shell fixture; Live uses the existing process-local zsh fixture while the real login shell stays bash.
+
+The built and mapped library is `5b9b5cf9aae72aa1418028c8d3b98aa8f72251ca9510bee15000f02981ad8bff` (30,952,024 bytes), replacing baseline `baf8ba1957bd9bcf140d455f309e16f510f66261ff684f5fd4503586e44bfd6c`. The unchanged application is `c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946`; the unchanged configuration probe is `28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73` from `e77b6ad448677e00cafd14a36c557b96affb6678`. The actual compiler hash, complete build argv and all patch hashes are in [the build extract](native-shutdown-build.json). The retained preparation source enforces Zig 0.16.0, while the collected version-command record omits stdout.
+
+Image observation completed without missing expected images: 1 in the first attempt, 7 in the second, 6 in baseline A/B, 6 in patched A/B and 4 in the confirmations. Each image has seven matching `/proc/PID/maps` rows. Thus the final five passes have ten frontend identities and 70 library-mapping rows, not ten mapping rows. All subjects preserve the frozen/installed payloads, shared runtime, real login shell and two protected process identities. Failed cleanup criteria remain failed even where recovery leaves no process.
+
+The sampled session-text processes include multi-second alive intervals in both subjects, and a 6.838-second interval in a successful confirmation. These samples do not identify a causal stack or measure complete request latency; [the source investigation](https://github.com/alexandru-savinov/agterm-omarchy/issues/320#issuecomment-6806988628) keeps scheduling and renderer-lock possibilities separate.
+
+The native queue run used original runner `b2dd3598…`, which later received a timeout-cleanup correction. Corrected head `77cce43eb791ba1a983c19760c7df5259d0e452d` keeps the production patch byte-identical (`5acad8df…`) but changes the runner to `0953dd05…`. Its supervisor controls and resolved P2 review are [separate evidence](native-shutdown-source-binding.json); this old native run is not relabeled as a corrected-runner execution.
+
+Additive extracts: [build/variant](native-shutdown-build.json), [original native queue run](native-shutdown-queue.json), runtime [attempt 1](native-shutdown-runtime-attempt-1.json) and [attempt 2](native-shutdown-runtime-attempt-2.json), configuration [baseline](native-shutdown-config-baseline.json), [patched A/B](native-shutdown-config-patched.json) and [confirmations](native-shutdown-config-confirmations.json), plus [derived totals](native-shutdown-summary.json) and the [complete original/hash map](native-shutdown-source-map.json). Report verdicts, errors, limits, recovery, timings and collection boundaries are preserved; private paths and process identifiers use aliases. Preparation performed no new runtime execution. Same-account review is not independent approval.
+
+## Complete native branch source
+
+The [complete source77 package](native-complete-source77/README.native-complete-insertion.md) records the private compiler, three build attempts, separate full core run and complete native runtime at `77cce43eb791ba1a983c19760c7df5259d0e452d`.
+The original compiler-library prerequisite failure, omitted queue argument and long-temporary-path test failure remain recorded alongside the successful corrections.
+The final complete payload has 769 bound files; its app, CLI, zmx and libghostty were all built for this source.
+
+Ordinary 7/7, process-local zsh-fixture Live 9/9 and five consecutive configuration runs at 4/4 passed under software rendering.
+All 13 actual frontend identities and 91 mapped-library observations agree, all preservation predicates pass, and no recovery signal was required.
+The real login shell remains bash.
+The package retains the original diagnostic flags and does not accept later integrated source, a trusted hosted release archive, hardware rendering or every UI route.
+
+Root reran the package's comparison/privacy verifier: 23,508 checks pass, and six tampering/privacy controls are rejected.
+All 38 original files and ten public deliverables remain byte-identical to the preparation handoff.
+The package documents its original normalized-text and missing-complete-success-log collection limits; the [byte-transfer and renderer appendix](native-source77-appendix/README.native-appendix-insertion.md) resolves those collection gaps as a separate addition.
+Same-account preparation and review are not independent approval.
+
+The recovered complete third-attempt frontend log has 693 literal passes, no failures and no skips across 99 suites.
+Its bytes agree with the original guest hash; the run reused the compiled tests with `--skip-build` and the same source/compiler identities after shortening the private temporary path.
+The original long-path failure remains recorded.
+The recovered core log confirms 4104 literal passes and one missing-fish skip; its framework count of 4105 includes that skip.
+Root reran the appendix verifier: 8,957 checks pass, all eight negative controls reject their mutations, and all 67 inputs remain unchanged.
+
+The separate default-renderer experiment fails at initial EGL context creation with all seven renderer launch overrides absent.
+The exact source77 installer in a fresh private prefix preserves all 769 payload originals and adds two installer metadata files.
+Its software wrapper changes deliberate launcher input `LIBGL_ALWAYS_SOFTWARE=0` to observed app value `1`, retaining original value `0`; the ordinary native Wayland checks then pass 7/7.
+Both experiments preserve the real installation, two protected processes, shared runtime and login shell, with successful independent cleanup.
+This verifies the private software-launcher remedy for this VM; it does not establish hardware acceleration or later candidate acceptance.
+
+## Mac boundary
+
+Host: macOS 26.7.1 arm64, Apple Swift 6.4, selected Command Line Tools. Full Xcode is absent. There is no fork Debug/Release AppKit build or PR #296 GUI acceptance in this evidence.
+
+Runtime comparisons use new LaunchServices instances with private state, explicit control sockets and test-owned PTYs. The original app process and seven observed sessions in its current window were preserved. No installed app or user settings were replaced. Ordinary coverage includes primary/split/scratch PTYs, separate output, hide/show retention, pane-owned status, a local HTML overlay's loaded state, continued PTY input and closure. Loaded state is not a screenshot assertion.
+
+Live coverage includes a long creation command executed once, real primary/split zmx backing, hidden-pane restart, unknown-pane refusal, frontend quit/relaunch, the same surviving shell, and no command replay. A separate minimal reproduction identifies the remaining process after empty inventory and frontend exit as the newly created session host. Root checked its PID/start/image identity before signaling it. No test-owned process remains. This records the teardown limitation without recasting successful persistence as failure.
+
+A later [source lifecycle review](https://github.com/alexandru-savinov/agterm-omarchy/issues/305#issuecomment-6806845343) found that the bundle's declared upstream revision intentionally keeps the session host alive while idle, with no idle-exit deadline. The five-second automatic-exit expectation belongs to these private probes, not the product contract. Neither probe sent the host's administrative `stop` request. Their strict cleanup results remain failed; the persistent host is consistent with the declared design. Binary-to-source attribution uses the bundle's declared commit. A later [official release artifact comparison](mac-release-artifact.json) verified that all four installed executable images are byte-identical to the published v0.38.1 DMG, whose downloaded SHA256 matches GitHub's asset digest. The image was mounted read-only and detached after comparison. This closes the earlier missing release-image comparison; no reproducible source-build proof is inferred.
+
+The first ordinary direct launches did not create the control socket; LaunchServices supplied the working launch path. Two early Live attempts refused the expected endpoint because Python and Foundation spell equivalent Darwin temporary paths differently. Those private failed attempts remain retained; they do not count as passing runs. The successful functional Live run still fails its cleanup criterion.
+
+Core tests used the installed CLT framework and macro plugin through command-local flags, with the native build engine. No global toolchain change or weakened assertion was made. See the recorded argv in [the reviewed manifest](mac-core-reviewed.json). Staging copied only the existing bundled zmx into the private checkout's ignored resource path. The fixture helper hashes and actual server tests are recorded separately; this is not a source-built zmx claim. Fish is the one remaining explicit prerequisite skip.
+
+The [later source4ff run](mac-core-main-4ff.json) retains three separate attempts.
+The first full run fails with 4,073 emitted passes, two failed tests and 18 skips; its deliberately minimal PATH hides Node and its framework total exceeds emitted outcomes by 60.
+No missing completion is inferred to have passed.
+The second attempt is stopped before tests after a copied Node image fails its relative-loader preflight; its erroneous advance to compilation and subsequent verified cleanup remain recorded.
+The final fresh serial run uses a private symlink to the unchanged installed Node loader context and accounts for all 4,153 outcomes: 4,149 passes, two failures and two fish skips.
+All 16 Node-dependent tests and all 26 source session-host tests pass.
+One start record is truncated, but its actual passing completion is retained.
+
+The two failures are the existing zsh terminfo fixture and `editorCommandResolvesExportedEditorAndPreservesPath`.
+The latter launches the system editor instead of its recorder in both retained full runs.
+Root traced global zsh startup to a system environment assignment of `EDITOR=nano` when the inherited once-only guard is absent; private HOME and ZDOTDIR alone do not prevent this earlier assignment.
+The test and production ConfigPaths files are unchanged from the earlier tested source.
+[Issue #343](https://github.com/alexandru-savinov/agterm-omarchy/issues/343) owns the focused fixture correction; this evidence does not assert a new production regression or apply that correction.
+
+All four installed image/attribute identities and the protected installed process remain unchanged.
+Independent observers found no remaining private process; the two completed suites' 2,274 attributable disposable data directories were archived, verified and selectively removed, preserving unrelated temporary data.
+Root rehashed [all 78 original records](mac-core-main-4ff-original-bindings.json) and independently recounted the final raw log; [the readback](mac-core-main-4ff-verification.json) agrees with the published summary.
+
+## Published evidence
+
+- [Native attempt 1](native-attempt-1.json), [attempt 2](native-attempt-2.json), and [revised binding](native-attempt-2-binding.json).
+- Configuration-only [diagnostic replay 1](native-diagnostic-1.json), [replay 2](native-diagnostic-2.json), and [selected backtrace blocks](native-diagnostic-2-threads.txt), with debugger and symbolization limits.
+- The separate [symbol-bearing diagnostic build and replay](native-symbol-diagnostic-1.json) and [selected symbolized stacks](native-symbol-diagnostic-1-threads.txt), including exact compiler/library/patch identities and the earlier supervisor startup failure.
+- [Actual-bash Live eligibility](native-default-shell-live.json), with the unchanged harness, explicit preload-removal binding, original setup failure and actual restore response.
+- [Mac ordinary](mac-ordinary.json), [Live](mac-live.json), [minimal cleanup reproduction](mac-live-cleanup.json), and [official release image comparison](mac-release-artifact.json).
+- [Core baseline](mac-core-baseline.json), [reviewed full run](mac-core-reviewed.json), [full run with staged zmx](mac-core-staged.json), and [real host fixtures](mac-host-fixtures.json).
+- [Fresh integrated-main core run](mac-core-integrated-main.json), with its exact failing source, one retained skip, all 26 host test names, binary hashes and private original-log binding.
+- [Later integrated source4ff core run](mac-core-main-4ff.json), with all three attempts, actual final 4,149/2/2 outcomes, source/compiler/prerequisite identities, retained log limitations and bounded cleanup.
+- The [complete source77 native package](native-complete-source77/README.native-complete-insertion.md) and [additive raw-log and renderer appendix](native-source77-appendix/README.native-appendix-insertion.md), with complete retained observations, executable verifiers and original-byte bindings.
+- [Deployed Pages verification](pages-publication.json): all seven public site files match the successful [run 43113509231](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/43113509231) artifact at `6c7d0886`, observed at 22:59 UTC. The empty `.nojekyll` metadata file is artifact-only and returned HTTP 404 publicly. This proves the refreshed status publication, not product acceptance or worker liveness.
+- The three `*-tests.log` files contain explicitly labeled test-result extracts. Each carries the original complete log's SHA256; it is not presented as the complete raw log. Literal split completion lines remain intact. [Interleaving support](interleaved-results.json) records all three affected raw fragments and explicitly labeled reconstructions, so an inserted SwiftPM warning does not silently remove a completion or alter the verified totals.
+- [SHA256SUMS](SHA256SUMS) covers the published files. JSON reports select public, relevant fields and retain their private originals' hashes. VM identifiers, private environment values, full desktop images and absolute test-stage paths are excluded.
+
+The public [goal](https://github.com/alexandru-savinov/agterm-omarchy/issues/305), [native task](https://github.com/alexandru-savinov/agterm-omarchy/issues/199), and [Mac fixture task](https://github.com/alexandru-savinov/agterm-omarchy/issues/310) remain authoritative for later changes. Reviews here use a shared account and do not constitute independent account approval. Hosted Linux/lint checks, subsequent source integration, and exact-current-candidate native acceptance remain separate gates.

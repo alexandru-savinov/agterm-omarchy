@@ -8,7 +8,7 @@ if (( $# < 1 || $# > 2 )); then
   exit 2
 fi
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 VERIFY_ARCH="$ROOT/scripts/verify-linux-architecture.sh"
 VERSION="${1#v}"
 if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*))*)?(\+linux\.[1-9][0-9]*)?$ ]]; then
@@ -70,6 +70,7 @@ verify_payload() {
   test -x "$payload/bin/agtermctl.bin"
   test -x "$payload/bin/zmx"
   test -r "$payload/bin/agterm-linux_AgtermLinux.resources/hud/hud.sh"
+  test -s "$payload/bin/agterm-linux_AgtermLinux.resources/live-prefill/.zshenv"
   test -f "$payload/lib/libghostty.so"
   "$ROOT/scripts/verify-linux-resources.sh" "$payload/share"
   test -x "$payload/share/agterm/agent-status/agterm-agent-status.sh"

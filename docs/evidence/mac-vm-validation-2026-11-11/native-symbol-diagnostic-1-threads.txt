@@ -1,0 +1,104 @@
+Selected literal backtrace blocks from the symbol-bearing diagnostic variant.
+Addresses, process IDs and private source-stage prefixes are replaced; frame names and lines are retained.
+Argument values were disabled in GDB. This is not the complete raw trace.
+Original complete trace SHA256: 8b7f31ba18e3d8acb5a317e71bb27c8561a19d673b8d8859bfe16b9688b623f5
+Diagnostic library SHA256: 4626e8bb80c5072e2d3ea41400ac440a039e0695b0e82056178e8e5b8020c9c7
+No inference about frozen-artifact acceptance follows from this diagnostic capture.
+
+Thread 5 (Thread <address> (LWP <pid>) "io"):
+#0  <address> in ?? () from /usr/lib/libc.so.6
+#1  <address> in ?? () from /usr/lib/libc.so.6
+#2  <address> in ?? () from /usr/lib/libc.so.6
+#3  <address> in ?? () from /usr/lib/libc.so.6
+#4  <address> in Thread.PosixThreadImpl.join () at /usr/lib/zig/std/Thread.zig:798
+#5  Thread.join () at /usr/lib/zig/std/Thread.zig:371
+#6  termio.Exec.threadExit (td=...) at <private-stage>/ghostty/src/termio/Exec.zig:229
+#7  termio.backend.Backend.threadExit (self=..., td=...) at <private-stage>/ghostty/src/termio/backend.zig:52
+#8  <address> in termio.Termio.threadExit (data=...) at <private-stage>/ghostty/src/termio/Termio.zig:388
+#9  termio.Thread.threadMain_ (self=..., io=...) at <private-stage>/ghostty/src/termio/Thread.zig:270
+#10 <address> in termio.Thread.threadMain (self=..., io=...) at <private-stage>/ghostty/src/termio/Thread.zig:138
+#11 Thread.callFn__anon_745694 () at /usr/lib/zig/std/Thread.zig:422
+#12 Thread.PosixThreadImpl.spawn__anon_745611.Instance.entryFn (raw_arg=...) at /usr/lib/zig/std/Thread.zig:752
+#13 <address> in ?? () from /usr/lib/libc.so.6
+#14 <address> in ?? () from /usr/lib/libc.so.6
+
+
+Thread 4 (Thread <address> (LWP <pid>) "io-reader"):
+#0  <address> in os.linux.aarch64.syscall4 (number=..., arg1=..., arg2=..., arg4=..., arg3=...) at /usr/lib/zig/std/os/linux/aarch64.zig:40
+#1  os.linux.futex_4arg (uaddr=..., futex_op=..., val=..., timeout=...) at /usr/lib/zig/std/os/linux.zig:753
+#2  Io.Threaded.Thread.futexWaitInner (ptr=..., expect=..., uncancelable=...) at /usr/lib/zig/std/Io/Threaded.zig:987
+#3  Io.Threaded.Thread.futexWaitUncancelable (ptr=..., expect=...) at /usr/lib/zig/std/Io/Threaded.zig:933
+#4  Io.Threaded.futexWaitUncancelable (ptr=..., expected=...) at /usr/lib/zig/std/Io/Threaded.zig:2533
+#5  Io.futexWaitUncancelable__anon_14597 (ptr=..., expected=...) at /usr/lib/zig/std/Io.zig:1573
+#6  Io.Condition.waitInner (io=..., mutex=..., uncancelable=...) at /usr/lib/zig/std/Io.zig:1694
+#7  Io.Condition.waitUncancelable (cond=..., io=..., mutex=...) at /usr/lib/zig/std/Io.zig:1676
+#8  datastruct.blocking_queue.BlockingQueue(App.Message,64).push (self=..., io=..., value=..., timeout=...) at <private-stage>/ghostty/src/datastruct/blocking_queue.zig:115
+#9  App.Mailbox.push (msg=..., timeout=...) at App.zig:624
+#10 <address> in apprt.surface.Mailbox.push (self=..., msg=..., timeout=...) at <private-stage>/ghostty/src/apprt/surface.zig:148
+#11 termio.stream_handler.StreamHandler.surfaceMessageWriter () at <private-stage>/ghostty/src/termio/stream_handler.zig:124
+#12 termio.stream_handler.StreamHandler.windowTitle (self=...) at <private-stage>/ghostty/src/termio/stream_handler.zig:946
+#13 <address> in termio.stream_handler.StreamHandler.vtFallible () at <private-stage>/ghostty/src/termio/stream_handler.zig:321
+#14 termio.stream_handler.StreamHandler.vt__anon_792902 (self=...) at <private-stage>/ghostty/src/termio/stream_handler.zig:170
+#15 terminal.stream.Stream(termio.stream_handler.StreamHandler).oscDispatch () at <private-stage>/ghostty/src/terminal/stream.zig:2483
+#16 terminal.stream.Stream(termio.stream_handler.StreamHandler).nextNonUtf8 (self=..., c=...) at <private-stage>/ghostty/src/terminal/stream.zig:1185
+#17 <address> in terminal.stream.Stream(termio.stream_handler.StreamHandler).consumeUntilGround () at <private-stage>/ghostty/src/terminal/stream.zig:853
+#18 terminal.stream.Stream(termio.stream_handler.StreamHandler).consumeAllEscapes () at <private-stage>/ghostty/src/terminal/stream.zig:776
+#19 terminal.stream.Stream(termio.stream_handler.StreamHandler).nextSliceCapped () at <private-stage>/ghostty/src/terminal/stream.zig:697
+#20 terminal.stream.Stream(termio.stream_handler.StreamHandler).nextSliceUntracked () at <private-stage>/ghostty/src/terminal/stream.zig:668
+#21 terminal.stream.Stream(termio.stream_handler.StreamHandler).nextSlice () at <private-stage>/ghostty/src/terminal/stream.zig:591
+#22 termio.Termio.processOutputLocked (self=...) at <private-stage>/ghostty/src/termio/Termio.zig:695
+#23 termio.Termio.processOutput (self=...) at <private-stage>/ghostty/src/termio/Termio.zig:652
+#24 termio.Exec.ReadThread.threadMainPosix (fd=..., io=..., quit=...) at <private-stage>/ghostty/src/termio/Exec.zig:1494
+#25 <address> in Thread.callFn__anon_790817 (args=...) at /usr/lib/zig/std/Thread.zig:422
+#26 Thread.PosixThreadImpl.spawn__anon_790800.Instance.entryFn (raw_arg=...) at /usr/lib/zig/std/Thread.zig:752
+#27 <address> in ?? () from /usr/lib/libc.so.6
+#28 <address> in ?? () from /usr/lib/libc.so.6
+
+
+Thread 3 (Thread <address> (LWP <pid>) "io-gather"):
+#0  <address> in os.linux.aarch64.syscall4 (number=..., arg1=..., arg2=..., arg4=..., arg3=...) at /usr/lib/zig/std/os/linux/aarch64.zig:40
+#1  os.linux.futex_4arg (uaddr=..., futex_op=..., val=..., timeout=...) at /usr/lib/zig/std/os/linux.zig:753
+#2  Io.Threaded.Thread.futexWaitInner (ptr=..., expect=..., uncancelable=...) at /usr/lib/zig/std/Io/Threaded.zig:987
+#3  Io.Threaded.Thread.futexWaitUncancelable (ptr=..., expect=...) at /usr/lib/zig/std/Io/Threaded.zig:933
+#4  Io.Threaded.futexWaitUncancelable (ptr=..., expected=...) at /usr/lib/zig/std/Io/Threaded.zig:2533
+#5  Io.futexWaitUncancelable__anon_14597 (ptr=..., expected=...) at /usr/lib/zig/std/Io.zig:1573
+#6  Io.Condition.waitInner (cond=..., mutex=..., uncancelable=...) at /usr/lib/zig/std/Io.zig:1694
+#7  Io.Condition.waitUncancelable (cond=..., mutex=...) at /usr/lib/zig/std/Io.zig:1676
+#8  termio.Exec.ReadThread.gatherMainPosix (fd=..., quit=..., pipeline=...) at <private-stage>/ghostty/src/termio/Exec.zig:1559
+#9  Thread.callFn__anon_817512 (args=...) at /usr/lib/zig/std/Thread.zig:422
+#10 Thread.PosixThreadImpl.spawn__anon_817494.Instance.entryFn (raw_arg=...) at /usr/lib/zig/std/Thread.zig:752
+#11 <address> in ?? () from /usr/lib/libc.so.6
+#12 <address> in ?? () from /usr/lib/libc.so.6
+
+
+Thread 1 (Thread <address> (LWP <pid>) "agterm-linux.bi"):
+#0  <address> in ?? () from /usr/lib/libc.so.6
+#1  <address> in ?? () from /usr/lib/libc.so.6
+#2  <address> in ?? () from /usr/lib/libc.so.6
+#3  <address> in ?? () from /usr/lib/libc.so.6
+#4  <address> in Thread.PosixThreadImpl.join () at /usr/lib/zig/std/Thread.zig:798
+#5  Thread.join () at /usr/lib/zig/std/Thread.zig:371
+#6  Surface.deinit (self=...) at Surface.zig:817
+#7  <address> in apprt.embedded.Surface.deinit (self=...) at <private-stage>/ghostty/src/apprt/embedded.zig:665
+#8  apprt.embedded.App.closeSurface (surface=...) at <private-stage>/ghostty/src/apprt/embedded.zig:283
+#9  apprt.embedded.CAPI.ghostty_surface_free (ptr=...) at <private-stage>/ghostty/src/apprt/embedded.zig:1610
+#10 <address> in $s11AgtermLinux14GhosttySurfaceC8teardownyyF (self=...) at /__w/agterm-omarchy/agterm-omarchy/agterm-linux/Sources/AgtermLinux/GhosttySurface.swift:865
+#11 <address> in $s11AgtermLinux13AppControllerC15windowWillCloseyyF (self=...) at /__w/agterm-omarchy/agterm-omarchy/agterm-linux/Sources/AgtermLinux/AppControllerWindowLifecycle.swift:129
+#12 <address> in $s11AgtermLinux10onShutdown33_2499B9BF7847C14073CB7231EF6D62DCLLyys13OpaquePointerVSg_SvSgtYbScMYcXCvpfiyAF_AGtYbScMYccfU_yyScMYcXEfU_ () at /__w/agterm-omarchy/agterm-omarchy/agterm-linux/Sources/AgtermLinux/App.swift:319
+#13 <address> in $sxs5Error_pIgrzo_xsAA_pIegrzo_s8SendableRzlTRyt_Tg5 ()
+#14 <address> in $sxs5Error_pIgrzo_xsAA_pIegrzo_s8SendableRzlTRyt_Tg5TA ()
+#15 <address> in $sScM14assumeIsolated_4file4linexxyKScMYcXE_s12StaticStringVSutKs8SendableRzlFZxxyKScMYccKXEfU_yt_Tg5 ()
+#16 <address> in $sScM14assumeIsolated_4file4linexxyKScMYcXE_s12StaticStringVSutKs8SendableRzlFZyt_Tg5 ()
+#17 <address> in $s11AgtermLinux10onShutdown33_2499B9BF7847C14073CB7231EF6D62DCLLyys13OpaquePointerVSg_SvSgtYbScMYcXCvpfiyAF_AGtYbScMYccfU_ (_0=..., _1=...) at /__w/agterm-omarchy/agterm-omarchy/agterm-linux/Sources/AgtermLinux/App.swift:310
+#18 $s11AgtermLinux10onShutdown33_2499B9BF7847C14073CB7231EF6D62DCLLyys13OpaquePointerVSg_SvSgtYbScMYcXCvpfiyAF_AGtYbScMYccfU_To () at /<compiler-generated>:309
+#19 <address> in g_closure_invoke () from /usr/lib/libgobject-2.0.so.0
+#20 <address> in ?? () from /usr/lib/libgobject-2.0.so.0
+#21 <address> in ?? () from /usr/lib/libgobject-2.0.so.0
+#22 <address> in g_signal_emit_valist () from /usr/lib/libgobject-2.0.so.0
+#23 <address> in g_signal_emit () from /usr/lib/libgobject-2.0.so.0
+#24 <address> in g_application_run () from /usr/lib/libgio-2.0.so.0
+#25 <address> in $s11AgtermLinux0A3AppV4mainyyFZTf4d_n () at /__w/agterm-omarchy/agterm-omarchy/agterm-linux/Sources/AgtermLinux/App.swift:54
+#26 <address> in $s11AgtermLinux0A3AppV4mainyyFZ ()
+#27 $s11AgtermLinux0A3AppV5$mainyyFZ () at /<compiler-generated>:21
+#28 <address> in AgtermLinux_main ()
+[Inferior 1 (process <pid>) detached]

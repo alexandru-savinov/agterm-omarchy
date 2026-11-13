@@ -1,0 +1,27 @@
+diff --git a/include/ghostty.h b/include/ghostty.h
+index e3c645d..5171d1e 100644
+--- a/include/ghostty.h
++++ b/include/ghostty.h
+@@ -1178,6 +1178,8 @@ GHOSTTY_API void ghostty_surface_split_resize(ghostty_surface_t,
+                                                  uint16_t);
+ GHOSTTY_API void ghostty_surface_split_equalize(ghostty_surface_t);
+ GHOSTTY_API bool ghostty_surface_binding_action(ghostty_surface_t, const char*, uintptr_t);
++// The state must be a live request supplied to read_clipboard_cb or confirm_read_clipboard_cb.
++GHOSTTY_API ghostty_clipboard_request_e ghostty_clipboard_request_type(const void*);
+ GHOSTTY_API void ghostty_surface_complete_clipboard_request(ghostty_surface_t,
+                                                                const char*,
+                                                                void*,
+diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
+index 366bb9f..3abf156 100644
+--- a/src/apprt/embedded.zig
++++ b/src/apprt/embedded.zig
+@@ -1998,3 +1998,9 @@ pub const CAPI = struct {
++    /// Read the kind while the request is live; completion invalidates its state pointer.
++    export fn ghostty_clipboard_request_type(state: *const apprt.ClipboardRequest) c_int {
++        const kind: apprt.ClipboardRequestType = state.*;
++        return @intFromEnum(kind);
++    }
++
+     /// Complete a clipboard read request started via the read callback.
+     /// This can only be called once for a given request. Once it is called
+     /// with a request the request pointer will be invalidated.

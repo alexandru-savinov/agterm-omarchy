@@ -36,6 +36,10 @@ def profile():
     pin = re.search(r'^GHOSTTY_REV="([0-9a-f]{40})"$',
                     (ROOT / 'linux/ghostty-resources.env').read_text(), re.MULTILINE)
     require(pin and manifest['ghostty_revision'] == pin[1], 'stale Ghostty notice revision')
+    patch_inputs = {str(path.relative_to(ROOT)): digest(read_regular(path))
+                    for path in sorted((ROOT / 'linux/patches').glob('ghostty-*.patch'))}
+    require(patch_inputs and manifest.get('ghostty_patch_inputs') == patch_inputs,
+            'stale or changed Ghostty patch inputs')
     inventory_bytes = read_regular(NOTICES / 'inventory.json')
     require(digest(inventory_bytes) == manifest['inventory_sha256'], 'notice inventory digest mismatch')
     inventory = json.loads(inventory_bytes)
@@ -107,7 +111,7 @@ def ghostty_record(manifest):
     matches = [entry for entry in manifest['files'] if entry['file'] == 'ghostty/LICENSE']
     require(len(matches) == 1 and matches[0]['revision'] == manifest['ghostty_revision'],
             'missing pinned Ghostty notice')
-    return matches[0]
+    return dict(matches[0], linux_patch_inputs=manifest['ghostty_patch_inputs'])
 
 
 def write_json(path, value):

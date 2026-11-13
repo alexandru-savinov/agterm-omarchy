@@ -199,7 +199,8 @@ extension AppController {
                 sidebarVisible: node.sidebarVisible,
                 geometry: node.geometry,
                 fullscreen: node.fullscreen,
-                zoomed: node.zoomed
+                zoomed: node.zoomed,
+                minimized: node.minimized
             )
         }
     }

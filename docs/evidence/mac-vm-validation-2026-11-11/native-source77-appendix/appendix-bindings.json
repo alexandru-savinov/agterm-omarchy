@@ -1,0 +1,511 @@
+{
+  "schema": "agterm-native-appendix/1",
+  "scope": "Additive recovery and separate renderer evidence for source 77cce43eb791ba1a983c19760c7df5259d0e452d. No new native execution, current-main or integrated-candidate acceptance, trusted hosted release, hardware rendering, or independent-account approval.",
+  "input_snapshot_sha256": "b9aa0fbabbdf4ad57f2fc4146505ac64c4ecfe148703092d7783930180c5c48f",
+  "immutable_inputs": [
+    {
+      "path": "bound-77-native/binding.json",
+      "bytes": 2341,
+      "sha256": "e70a6cc1aff47dcf1eb51126f5ac941bbe923d821795005d698f35952c970262"
+    },
+    {
+      "path": "bound-77-native/config-probe.py",
+      "bytes": 26408,
+      "sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73"
+    },
+    {
+      "path": "bound-77-native/harness.sh",
+      "bytes": 22619,
+      "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050"
+    },
+    {
+      "path": "bound-77-native/native-prepare-template.py",
+      "bytes": 5728,
+      "sha256": "e403fe3a573d9b763e44bf735fedd671464f92815a5446ef8daab0659d9d0121"
+    },
+    {
+      "path": "bound-77-native/native-run-template.py",
+      "bytes": 43848,
+      "sha256": "ffac8abb949c0cd26f85ba5ebef030ed635cd733691fd96362204f0a28d63258"
+    },
+    {
+      "path": "bound-77-native/test-config-probe-operator.py",
+      "bytes": 8607,
+      "sha256": "36782022134534aeb0dcc4ba0a749f7eb9b0efa26837a56fc02f65527d24a580"
+    },
+    {
+      "path": "bound-77-native/test-config-probe-operator.py.log",
+      "bytes": 1587,
+      "sha256": "460057b268f456c2486a702a1c81ecf60579ea2e6f9fc665ac99acb4791a9199"
+    },
+    {
+      "path": "bound-77-native/test-current-endpoints.py",
+      "bytes": 5038,
+      "sha256": "757135d055082c1ac49c4d2ed004d48035bdf86686598fd6873d8b9521982372"
+    },
+    {
+      "path": "bound-77-native/test-current-endpoints.py.log",
+      "bytes": 105,
+      "sha256": "77ecdaf76b0a4f9f157b08dc741287943417847cdfae17660c5fea600de76490"
+    },
+    {
+      "path": "bound-77-native/test-native-helpers.py",
+      "bytes": 22800,
+      "sha256": "1373c7272a6bc454484b9507e499846047f15a5407fdba2002d2b038fa8fc766"
+    },
+    {
+      "path": "bound-77-native/test-native-helpers.py.log",
+      "bytes": 4165,
+      "sha256": "2e76685b64d01b722757504e6e8ac66a78b27e41a95f82837c39ae0889fd0f55"
+    },
+    {
+      "path": "collect-native-test-log-bytes.py",
+      "bytes": 3092,
+      "sha256": "19b8e681bf4ee2b26849a0826dc1becc263e714e3f8f76f2c7f1bf128e0c19cd"
+    },
+    {
+      "path": "launch-native-default-renderer.py",
+      "bytes": 4760,
+      "sha256": "247396a1b1a930393f42f3291c61bffaccfecc89a088c83d15d4c8560fda7f17"
+    },
+    {
+      "path": "launch-native-installed-renderer.py",
+      "bytes": 4935,
+      "sha256": "55537579c60acac63e5e4d2e77b91ca0d23638cd204ce562b04b74cf90811489"
+    },
+    {
+      "path": "native-core-test-launch-private.json",
+      "bytes": 357,
+      "sha256": "1d8be2d6fd0cd079cb67448d7cbc6421f4a59f780a21c6f3fa3db26e25020598"
+    },
+    {
+      "path": "native-core-test-poll-private.json",
+      "bytes": 5424,
+      "sha256": "45031b1eef901dad090db811e32e31292701141483536e840416b02075b7f443"
+    },
+    {
+      "path": "native-core-test-result-private.json",
+      "bytes": 1774104,
+      "sha256": "253cdd1d726040d573b1bc54019281392a38a6fee3d5bf78f7f181ea30226cd9"
+    },
+    {
+      "path": "native-core-test-worker.py",
+      "bytes": 5797,
+      "sha256": "9972291fe7e044c4a2fc162b8df05a4ef7933d6f7bdf1f49d692b06177b8b25e"
+    },
+    {
+      "path": "native-current-source-runtime-launch-private.json",
+      "bytes": 322,
+      "sha256": "d58b7381222a840a3fd773b0e85ee53bf718d07eeb1027ae65106462e0ae361e"
+    },
+    {
+      "path": "native-current-source-runtime-result-private.json",
+      "bytes": 56076,
+      "sha256": "5a32fade67ba066a48999a2312b1105e5d0a09bbaac9495687c43c253f141663"
+    },
+    {
+      "path": "native-current-source-runtime-summary-private.json",
+      "bytes": 2040,
+      "sha256": "5c896c827de99950979cba8776974cb45fc308e848ea86049458c8a396c38159"
+    },
+    {
+      "path": "native-current-source-runtime-worker.py",
+      "bytes": 8527,
+      "sha256": "4b744d820c116e94da072d103309d9c5c0adae7cfb88afbd5895b64d425976fc"
+    },
+    {
+      "path": "native-default-renderer-diagnostics-private.json",
+      "bytes": 12218,
+      "sha256": "3e8dd15be99e580b4235683002adefec523539c07755df42b96abe26e11354be"
+    },
+    {
+      "path": "native-default-renderer-launch-private.json",
+      "bytes": 321,
+      "sha256": "238d473cd3d56c306a2180e8c065221ebccefc70c25dae6b32e6ee0673adef56"
+    },
+    {
+      "path": "native-default-renderer-poll-private.json",
+      "bytes": 2250,
+      "sha256": "36a43c4ee35dc6d63e03772f630821b0208caf754fc7fe4eaf9bba16129f336e"
+    },
+    {
+      "path": "native-default-renderer-result-private.json",
+      "bytes": 6040,
+      "sha256": "ea74cc170c2ee5fb8b8df837e5d45e742703b4b12f9eb1340d0b5acbff151fdd"
+    },
+    {
+      "path": "native-default-renderer-worker.py",
+      "bytes": 8836,
+      "sha256": "b8631065847efcb35612492fd70b36286be2e75e870e0584659449feaf7004b9"
+    },
+    {
+      "path": "native-full-build-attempt1-private.json",
+      "bytes": 9471,
+      "sha256": "5cf496a7ac8041567b22d2a86c5f7f790fab99246fab0025e11121ff0fd21241"
+    },
+    {
+      "path": "native-full-build-attempt2-test-private.json",
+      "bytes": 388316,
+      "sha256": "f7d613de70a4980fedc20680e661b9aedd39a0965421ae815b1a8b127687c548"
+    },
+    {
+      "path": "native-full-build-complete-bindings-private.json",
+      "bytes": 1731,
+      "sha256": "a37668ddca2acd8cb4893bed9ff7352dc91d2349c2ae2158e84b6a5895b17352"
+    },
+    {
+      "path": "native-full-build-continuation-launch-private.json",
+      "bytes": 392,
+      "sha256": "309ad1f18269075dcf05b0653249173a2338712b14c51bbec6b99ca0398d255b"
+    },
+    {
+      "path": "native-full-build-continuation-poll-private.json",
+      "bytes": 13571,
+      "sha256": "30efbe94b27144e85d2918c066d664ecad17e5bfddc637861fdcac2377c1052e"
+    },
+    {
+      "path": "native-full-build-continuation3-launch-private.json",
+      "bytes": 394,
+      "sha256": "b5d39def9e2448c78dbcf350e380311ac944292db033c47e0356ceec9fe95fc3"
+    },
+    {
+      "path": "native-full-build-continuation3-poll-private.json",
+      "bytes": 98691,
+      "sha256": "fe6d45d253a89462cbcb2efbbefaee231c546166cecf8add976a36a99e3630b7"
+    },
+    {
+      "path": "native-full-build-launch-private.json",
+      "bytes": 357,
+      "sha256": "00a7a5771570449446f6403db9401431a1008d72fd2cd6ca9631617f66260c11"
+    },
+    {
+      "path": "native-full-build-poll-private.json",
+      "bytes": 9471,
+      "sha256": "5cf496a7ac8041567b22d2a86c5f7f790fab99246fab0025e11121ff0fd21241"
+    },
+    {
+      "path": "native-full-build-worker-continuation.py",
+      "bytes": 8612,
+      "sha256": "ba677b0aaddd4358c646b22fe21e74cc90a02d57137a041b3f35b3c6c034211e"
+    },
+    {
+      "path": "native-full-build-worker-continuation3.py",
+      "bytes": 8854,
+      "sha256": "95eae4f73d335b25980d6b1e83acbc8d04ef6fa8f5c9661773fa04d65ad9606e"
+    },
+    {
+      "path": "native-full-build-worker.py",
+      "bytes": 8613,
+      "sha256": "29ab7d09435c4a323fb47a154708bddde265df30a09c15ef58370fb1f45bc057"
+    },
+    {
+      "path": "native-installed-renderer-launch-private.json",
+      "bytes": 322,
+      "sha256": "3699e0546bc83b4bf6d21f15e51558f68bb073c5c360fe16ed690f48171add1a"
+    },
+    {
+      "path": "native-installed-renderer-result-private.json",
+      "bytes": 6480,
+      "sha256": "25057fed0a8332fa6b5fa17db3416f5eedf45dc6b4cb1f1faf23e002a5e939fb"
+    },
+    {
+      "path": "native-installed-renderer-worker.py",
+      "bytes": 9471,
+      "sha256": "b44dc1696fd6df91710242f891a8b9f8ea1a299b35dd98635d5385f6343ccb54"
+    },
+    {
+      "path": "native-log-binary-transfer/collection-comparison-corrected-private.json",
+      "bytes": 831,
+      "sha256": "836fdab61497854aad9acbc44ae26c6e1e90e795bdb0ce3ec4b8c9699673c16f"
+    },
+    {
+      "path": "native-log-binary-transfer/collection-comparison-private.json",
+      "bytes": 465,
+      "sha256": "2862ae52c26c99943ee6aac0b4f711b7efe46cce53160b3ad25c46303e2d80ee"
+    },
+    {
+      "path": "native-log-binary-transfer/core.log",
+      "bytes": 1660011,
+      "sha256": "1e9dfc9a3b2a79ca90103c50e2a2b63faf2d2b0955c1bb1d432068219f561866"
+    },
+    {
+      "path": "native-log-binary-transfer/frontend-attempt2.log",
+      "bytes": 346178,
+      "sha256": "3ec99f3eb35a435f5eb51de1fed8648062103c9e509b0700d3a1cb277ad34526"
+    },
+    {
+      "path": "native-log-binary-transfer/frontend-attempt3.log",
+      "bytes": 166173,
+      "sha256": "8ea75f1ea7b0c41dc29065f273f2fee3e74e041f5d50becbff10fc6c5863ca23"
+    },
+    {
+      "path": "native-log-binary-transfer/manifest-private.json",
+      "bytes": 4949,
+      "sha256": "d870b459ca5f09824b0fa179a94306ea8536a1af29e46dfcf2419bc952bf999d"
+    },
+    {
+      "path": "native-renderer-private-install-result.json",
+      "bytes": 1712,
+      "sha256": "94c9f093ac46bdc8e7ca7f09cc9405bab62d5f748ca07b3e92c52b5c190f874d"
+    },
+    {
+      "path": "native-swift-compat-host.py",
+      "bytes": 4502,
+      "sha256": "2a26c55369778e6a75e2930a3660fe2d9366697ae261729bf11cb632793ccdb6"
+    },
+    {
+      "path": "native-swift-compat-result-private.json",
+      "bytes": 5360,
+      "sha256": "b2830f718a24c7736b2bd62f41d461b1215a1e11423212a36b63b81dd091c002"
+    },
+    {
+      "path": "native-swift-prerequisites-private.json",
+      "bytes": 5681,
+      "sha256": "0005bc0755c0c928e1f2d9e941e626b5e088e204886f98413f61d8dcf1ab76ef"
+    },
+    {
+      "path": "native-swift-toolchain-launch-private.json",
+      "bytes": 358,
+      "sha256": "60bff7232150d7b05c44ac77ade69ad2048ccc73ed335e10123975bf61ec4277"
+    },
+    {
+      "path": "native-swift-toolchain-linker-private.json",
+      "bytes": 4330,
+      "sha256": "fb47ba35f5487f42c8bff4b21565cb91100883160d120d0948da15038722b286"
+    },
+    {
+      "path": "native-swift-toolchain-poll-private.json",
+      "bytes": 5562,
+      "sha256": "c4193f7ccab5ec19caadb05a23e1c06f7d6387e4b81edcd5cca68c233bc5a3b4"
+    },
+    {
+      "path": "native-swift-toolchain-worker.py",
+      "bytes": 5659,
+      "sha256": "d087a819d6cee917f036445eeea4e4906fc312e03d25318bbe34fdd66dd78afd"
+    },
+    {
+      "path": "prepare-native-renderer-install.py",
+      "bytes": 3616,
+      "sha256": "94d1162ff0ffb85e09199a1e5a13a5a9ddf4021273bcb4275552d7cdcbe0a684"
+    },
+    {
+      "path": "retry-native-complete-publication/README.native-complete-insertion.md",
+      "bytes": 6904,
+      "sha256": "03388fdc89a74f2c7bffabaedbe86899f242b9c3f9bcb7eaf6278c86b379ca4a"
+    },
+    {
+      "path": "retry-native-complete-publication/native-bindings.json",
+      "bytes": 17770,
+      "sha256": "fdfd1d7426351b480dd0918caed58971dbdcb391bc6afb3933bff65175ed03ed"
+    },
+    {
+      "path": "retry-native-complete-publication/native-build.json",
+      "bytes": 531172,
+      "sha256": "8973679bc473d964021357634abe22778a3e704fb9bd92771cbd8b594fa6a848"
+    },
+    {
+      "path": "retry-native-complete-publication/native-core.json",
+      "bytes": 1707309,
+      "sha256": "e6730b14f6fe797d1e8847f6bc041bf3bf4897075607801456069ab14cee581a"
+    },
+    {
+      "path": "retry-native-complete-publication/native-runtime.json",
+      "bytes": 126513,
+      "sha256": "dab475c9b1fddb754e1f1fa6968822c20e8028ce63e4d075a5fe5fc6e5a58c69"
+    },
+    {
+      "path": "retry-native-complete-publication/native-toolchain.json",
+      "bytes": 29094,
+      "sha256": "901c50c89f8656e524dafcea5c0c6042452a15dd3c297089b89d0d09a886c3d4"
+    },
+    {
+      "path": "retry-native-complete-publication/package-manifest.json",
+      "bytes": 10256,
+      "sha256": "34bce9ff0f5c61ecafe95670b139d34566eb31e8008b5e1ea8c65d69480dbffc"
+    },
+    {
+      "path": "retry-native-complete-publication/public-operator-review.json",
+      "bytes": 8827,
+      "sha256": "fe75e63843fded4e06b7f760551ad3f2a4acf92b2ee1d802de1fb07ec12b7a1f"
+    },
+    {
+      "path": "retry-native-complete-publication/verification.json",
+      "bytes": 1299,
+      "sha256": "984848d943886cc5106c03f792868c004a6f26e204250a7d34d5fb5d369bc827"
+    },
+    {
+      "path": "retry-native-complete-publication/verify-native-complete.py",
+      "bytes": 36080,
+      "sha256": "aec138e120316c010822cd68242f0003e4eeebba6fbff278a446e15fa37ff5f1"
+    }
+  ],
+  "frozen_previous_package_manifest_sha256": "34bce9ff0f5c61ecafe95670b139d34566eb31e8008b5e1ea8c65d69480dbffc",
+  "worker_operator_sources": [
+    {
+      "path": "launch-native-default-renderer.py",
+      "bytes": 4760,
+      "sha256": "247396a1b1a930393f42f3291c61bffaccfecc89a088c83d15d4c8560fda7f17"
+    },
+    {
+      "path": "native-default-renderer-worker.py",
+      "bytes": 8836,
+      "sha256": "b8631065847efcb35612492fd70b36286be2e75e870e0584659449feaf7004b9"
+    },
+    {
+      "path": "prepare-native-renderer-install.py",
+      "bytes": 3616,
+      "sha256": "94d1162ff0ffb85e09199a1e5a13a5a9ddf4021273bcb4275552d7cdcbe0a684"
+    },
+    {
+      "path": "launch-native-installed-renderer.py",
+      "bytes": 4935,
+      "sha256": "55537579c60acac63e5e4d2e77b91ca0d23638cd204ce562b04b74cf90811489"
+    },
+    {
+      "path": "native-installed-renderer-worker.py",
+      "bytes": 9471,
+      "sha256": "b44dc1696fd6df91710242f891a8b9f8ea1a299b35dd98635d5385f6343ccb54"
+    },
+    {
+      "path": "collect-native-test-log-bytes.py",
+      "bytes": 3092,
+      "sha256": "19b8e681bf4ee2b26849a0826dc1becc263e714e3f8f76f2c7f1bf128e0c19cd"
+    },
+    {
+      "path": "bound-77-native/native-run-template.py",
+      "bytes": 43848,
+      "sha256": "ffac8abb949c0cd26f85ba5ebef030ed635cd733691fd96362204f0a28d63258"
+    },
+    {
+      "path": "bound-77-native/harness.sh",
+      "bytes": 22619,
+      "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050"
+    },
+    {
+      "path": "bound-77-native/config-probe.py",
+      "bytes": 26408,
+      "sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73"
+    }
+  ],
+  "pinned_git_source_bindings": [
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "scripts/setup-linux.sh",
+      "git_blob": "b3ca08ee2957c8a22a71e641c444cd179e487442",
+      "sha256": "341cb1819750751951281abe574e155b1f62234108808b76ef4f3c1c80fa30da",
+      "bytes": 6970
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "scripts/zig-build-linux.sh",
+      "git_blob": "8b627782e9e6f83c9ea3b5a8d8f41553e0235091",
+      "sha256": "6ca7583671aba020faf7082c990826376269aec0a3ec97fbefc5a854c6593e01",
+      "bytes": 1510
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "scripts/stage-linux.sh",
+      "git_blob": "7a0a1a9cae7633e194f2e154ed157a3c4ebdde11",
+      "sha256": "7fdf6db6e74efdf04bf25dce37c61171d84e231a38ac26383046bb2392fe887f",
+      "bytes": 5862
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/ghostty-resources.env",
+      "git_blob": "1d632b958527dc3f740c3f8cb8b2a3fcdbabdbe6",
+      "sha256": "b2652652c7df8f4b80112668fcb4a104083e753fbfb956aac857d6ab9df39ce9",
+      "bytes": 492
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/zmx.env",
+      "git_blob": "cecff5d1bf3e220695db2f763611502b84c29e96",
+      "sha256": "5bf7e06d21c8382133260a1b1265b7747b3129f8a5512698e4112643751213f2",
+      "bytes": 268
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/arch.sh",
+      "git_blob": "3e5c846e718c0babc0fff5eb78ef7151866a2ce6",
+      "sha256": "83d3aee3a2be9a1a7b7e44c07be1ef2a8e34e2f8027fb37aabb317054773b3bc",
+      "bytes": 607
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/patches/ghostty-embedded-opengl.patch",
+      "git_blob": "de5ac39250d30fd94b13c786b5087cbe22226a64",
+      "sha256": "5acad8dff653d70056471520270d03c1df59aa7d6112e895f10d3c903bea6ba9",
+      "bytes": 27275
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/patches/ghostty-embedded-input-handoff.patch",
+      "git_blob": "b95e5b299842e76b1cf35dfd66b7eab49e1232a9",
+      "sha256": "746aabfd306f78563837c9257b22c90cc3ffd6dfe7f1c374f7f0532a3c1bb0fe",
+      "bytes": 3960
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/patches/ghostty-lib-resources.patch",
+      "git_blob": "6104adfd0c7d304573ac4900203be953c12a8917",
+      "sha256": "14f31007327295bdca035a75394a4c1a2cfe3671d602c3105aef30823c0e9eab",
+      "bytes": 1077
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "agterm-linux/Package.resolved",
+      "git_blob": "7aa999a243e068db88af5cc75d5bbed330a52dcc",
+      "sha256": "6b858fab0188b2f54f8d934c67c09c23e4e6921f236700cac47474221ed00762",
+      "bytes": 583
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "agterm-linux/Package.swift",
+      "git_blob": "158c913f1ff6472b54c105d2ade391b85b8284b5",
+      "sha256": "8307298fbf75e661a6e84c79f7dc6a7a367066fa9ab05f1785364050f86a679d",
+      "bytes": 2976
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "scripts/test-omarchy.sh",
+      "git_blob": "7e4629818ca50b8823cee23d1589ad39b4f7a8ee",
+      "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050",
+      "bytes": 22619
+    },
+    {
+      "commit": "e77b6ad448677e00cafd14a36c557b96affb6678",
+      "path": "scripts/omarchy-config-probe.py",
+      "git_blob": "48974e2f3c56d391343c5b3e627f12ee2dbef3d7",
+      "sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+      "bytes": 26408
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "scripts/install-linux.sh",
+      "git_blob": "2c30d38ddc0add2a68599dd89211696546440aac",
+      "sha256": "528c12cf26675bfab679185ba354ed256a090ed9cd5afebf15393dd97797f2ff",
+      "bytes": 13188
+    }
+  ],
+  "sanitization": {
+    "policy": "Only declared personal/local identifiers are aliased. All fields, array lengths, verdicts, timestamps, durations, counts, errors, recovery actions, hashes and public source links remain. Process ID/birth/UID values become stable string aliases; all other non-string observation values retain their original type and value.",
+    "scope": "One alias table per category shared across the entire package. No reverse maps are published.",
+    "categories": {
+      "local-uuid": 22,
+      "private-runtime": 2,
+      "private-stage": 8,
+      "process": 24,
+      "process-birth": 19,
+      "process-uid": 1,
+      "run": 2,
+      "session-runtime": 1,
+      "short-temporary-root": 1
+    },
+    "stdout_handling": "JSON-valued transport stdout is decoded to an object; all transport metadata is retained separately. Original file/encoded-stdout hashes bind its serialization.",
+    "logs": "Recovered raw logs are strict UTF-8 with exact byte hashes. Complete third-attempt text preserves CR/LF with declared aliases. Older complete logs remain in the frozen previous package; raw-byte recovery comparisons are additive.",
+    "source_scripts": "Worker/operator/test source files are bound by original SHA256 and size. They are read for identity and selected static assertions, never imported or executed.",
+    "intentional_projection": "Only default none/app.log is projected to the three GL error lines at 95,97,99, with original UTF-8 hash/size and omitted count. All other fields in published source records, including timestamps, verdicts, errors, arrays and counts, are retained under reversible identifier aliases.",
+    "process_text": "Process ID and birth values in diagnostic filenames and PID assignments use the same declared alias categories."
+  },
+  "authority": "Preparation and comparison by same-account agent source_review322; root retains review, integration, runtime and publication."
+}

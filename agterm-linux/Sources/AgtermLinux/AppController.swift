@@ -35,6 +35,9 @@ final class AppController {
     var quickSurface: GhosttySurface?  // the window-level quick terminal (floating panel)
     var quickFrame: OpaquePointer?   // the card frame holding the quick surface
     var quickVisible = false
+    /// The toplevel's last seen MINIMIZED bit: `surfaceStateDidChange` acts only on its edges, since the
+    /// surface's `notify::state` also fires for focus and tiling changes.
+    var surfaceMinimized = false
     /// Pending compositor state, used to serialize rapid GTK fullscreen toggles.
     var fullscreenDesired: Bool?
     var fullscreenTransitionInFlight = false
@@ -142,6 +145,9 @@ final class AppController {
         var isWorkspace: Bool { if case .workspace = self { return true }; return false }
     }
     var renaming: RenameTarget?
+    // Accepted-effect seams: model events cannot reveal duplicate same-value rename dispatches.
+    var onCommitRename: ((UUID, String) -> Void)?
+    var onWorkspaceRename: ((UUID, String) -> Void)?
     var renameEntry: OpaquePointer?  // the live rename GtkEntry (focused after rebuild)
     var sidebarScroller: OpaquePointer?               // the sidebar's GtkScrolledWindow (scroll-to-selected)
     var contextMenuSession: UUID?                     // the session a row context menu targets
@@ -171,6 +177,8 @@ final class AppController {
     var backgroundSettingsSource: guint = 0
     var confirmedClose = false                       // set once the quit-confirm is accepted
     var sessionSwitcher = SessionSwitcherModel()                                  // Ctrl-Tab hold-to-cycle state
+    var sessionSwitchReleaseGeneration: UInt64 = 0
+    var cancelSessionSwitchReleaseRecheck: (@MainActor () -> Void)?
     var heldControlKeys = HeldControlKeys()                      // which Ctrl keys are down (the commit signal)
     var contextMenuPopover: OpaquePointer?                       // live row context menu
     var popoverTookKeyboardFromSearchEntry = false               // set at popup: it took the keyboard from a live search
@@ -260,7 +268,6 @@ final class AppController {
         footerFlaggedButton = footerButton("agterm-flag-symbolic", "Show Flagged Only", onFlaggedToggle)
         gtk_box_append(cast(bottomBar), W(footerFlaggedButton))
         adw_toolbar_view_add_bottom_bar(sidebarToolbar, W(bottomBar))
-
         // Content side: header over [search bar (hidden) + deck]. No menu button and no window controls
         // on the right (matching macOS — the window controls live on the left, on the sidebar header);
         // the right side carries only the terminal toggles. The palette is still on Ctrl+Shift+P.
@@ -307,6 +314,8 @@ final class AppController {
         // The whole split (sidebar + deck) sits under a GtkOverlay so the quick terminal can float over
         // the FULL window content (matching macOS), not just the deck.
         let windowOverlay = OpaquePointer(gtk_overlay_new())
+        // Match upstream's content minimum even when the sidebar and toolbar are hidden.
+        gtk_widget_set_size_request(W(windowOverlay), 640, 400)
         self.deckOverlay = windowOverlay
         gtk_overlay_set_child(windowOverlay, W(split))
         installQuickCardPlacement(on: windowOverlay)   // percent-sized quick card; see AppControllerCallbacks
@@ -323,7 +332,6 @@ final class AppController {
         TerminalZoomRegistry.shared.register(windowID, controller: terminalZoom)
         DashboardControllerRegistry.shared.register(windowID, controller: dashboard)
         PickRegistry.shared.register(windowID, controller: pickController)
-
         // Become frontmost on activation (routes global shortcuts + control to this window);
         // tear down + deregister when the window closes.
         let me = Unmanaged.passUnretained(self).toOpaque()
@@ -336,6 +344,11 @@ final class AppController {
         applyWindowTranslucency()
         applyAutoFollowSettings()
         gtk_window_present(WIN(window))
+        // GTK keeps a minimized window's widgets MAPPED (`surface_state_changed` in gtkwindow.c only
+        // restyles), so `unmap` never fires on iconify; the blink timer reads the surface's state instead.
+        if let surface = gtk_native_get_surface(window) {
+            connect(surface, "notify::state", unsafeBitCast(onWindowSurfaceState as @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void, to: GCallback.self))
+        }
         applySidebarThemeColor()   // tint the sidebar to the terminal theme background
         loadKeymapAtStartup()   // this window's own keymap.conf caches; NOT an app-wide reload
         reconcile()
@@ -368,7 +381,6 @@ final class AppController {
         updateRecentSessionsButton()
         syncSidebar()
     }
-
     func navigate(_ dir: SessionNavigation, userInitiated: Bool = true) {
         if userInitiated { noteUserActivity() }
         store.navigateSession(dir)
@@ -722,7 +734,9 @@ final class AppController {
         renameEntry = nil
         resumeAutoFollow()
         if !text.isEmpty {
-            if target.isWorkspace { store.renameWorkspace(target.id, to: text) } else { store.renameSession(target.id, to: text) }
+            let commit = target.isWorkspace
+                ? (onWorkspaceRename ?? store.renameWorkspace) : (onCommitRename ?? store.renameSession)
+            commit(target.id, text)
         }
         runOnMain { [weak self] in MainActor.assumeIsolated { self?.rebuildAfterRename() } }
     }
