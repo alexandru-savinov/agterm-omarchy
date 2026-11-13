@@ -9,6 +9,8 @@ name: AT-SPI targeted rerun
 # test-linux-ui.sh come from the requested ref, so refs that predate this workflow can be rerun too.
 # The job uses no Actions cache at all (no restore, no save): libghostty and zmx are built from source on
 # every run, so nothing a dispatched ref produces is written to or read from a cache other workflows trust.
+# cache-mode: none also takes cache access away from the job's token, which workflow_dispatch would
+# otherwise grant with write access (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#cache-mode).
 # The two build images in the atspi-* jobs must stay equal to the build-linux matrix in ci.yml.
 
 on:
@@ -31,6 +33,8 @@ on:
 
 permissions:
   contents: read
+
+cache-mode: none
 
 defaults:
   run:
