@@ -30,11 +30,14 @@ final class OverlayJobRunner: @unchecked Sendable {
     }
 
     /// Sends the claim and returns the launch context. Throws the app's refusal, having launched nothing.
-    func claim(_ job: String) throws -> OverlayLaunchContext {
+    func claim(_ job: String, deadline: TimeInterval = ProcessInfo.processInfo.systemUptime + 30) throws -> OverlayLaunchContext {
         try StreamBridge(socket: socket, input: -1, output: -1)
-            .open(ControlRequest(cmd: .sessionOverlayJobRun, target: job))
-        guard let line = readLine(), case .context(let context)? = try? JSONDecoder().decode(OverlayJobFrame.self, from: line) else {
-            throw SocketClientError("the app sent no launch context")
+            .open(ControlRequest(cmd: .sessionOverlayJobRun, target: job), deadline: deadline)
+        let line = try SocketClient.withNonblocking(socket) {
+            try StreamBridge.readHandshakeLine(socket, deadline: deadline, limit: PresentationCodec.maxFrameBytes)
+        }
+        guard let line, case .context(let context)? = try? JSONDecoder().decode(OverlayJobFrame.self, from: line) else {
+            throw SocketClientError("the app sent no launch context", kind: .transport)
         }
         return context
     }
@@ -246,9 +249,9 @@ extension Session.Overlay {
             discussion: """
             Run on this Mac by the agterm on another Mac, over ssh, when it shows one of this app's \
             overlays: it claims the job, runs its program under that ssh terminal, and reports how it \
-            ended. It is not meant to be run by hand. A job that cannot be claimed exits 1 having \
-            launched nothing, one whose program cannot be launched exits 127, and otherwise it exits \
-            with the program's status.
+            ended. It is not meant to be run by hand. A refused claim exits 1, a control transport or \
+            protocol failure exits 4, and a program that cannot be launched exits 127. Otherwise it \
+            exits with the program's status.
             """)
 
         @Argument(help: "The job id the other Mac was handed.")
@@ -264,6 +267,7 @@ extension Session.Overlay {
             do {
                 context = try runner.claim(job)
             } catch {
+                if let failure = error as? SocketClientError, failure.kind == .transport { throw failure }
                 FileHandle.standardError.write(Data("error: \(error)\n".utf8))
                 throw ExitCode.failure
             }

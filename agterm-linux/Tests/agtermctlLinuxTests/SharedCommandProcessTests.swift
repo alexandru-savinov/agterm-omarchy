@@ -5,6 +5,35 @@ import agtermCore
 
 @Suite("agtermctl shared command executable")
 struct SharedCommandProcessTests {
+    @Test("the Linux executable distinguishes control transport and server failures")
+    func transportAndServerStatuses() throws {
+        let missing = try runCLI(["tree", "--socket", "/tmp/agterm-missing-\(UUID().uuidString)"])
+        #expect(missing.status == 4)
+        #expect(missing.output.isEmpty)
+        #expect(missing.error.contains("connect("))
+
+        let server = try OneShotControlServer(response: ControlResponse(ok: false, error: "fixture refusal"))
+        server.start()
+        defer { server.stop() }
+        let refused = try runCLI(["tree", "--socket", server.path])
+        #expect(refused.status == 1)
+        #expect(refused.output.isEmpty)
+        #expect(refused.error.contains("fixture refusal"))
+    }
+
+    @Test("the Linux wrapper preserves dialog cancellation and escape")
+    func dialogStatuses() throws {
+        for (outcome, status) in [(ControlAskOutcome.cancelled, Int32(2)), (.escaped, 3)] {
+            let server = try OneShotControlServer(response: ControlResponse(
+                ok: true, result: ControlResult(ask: ControlAskResult(result: outcome))))
+            server.start()
+            defer { server.stop() }
+            let result = try runCLI(["ask", "result", "fixture", "--socket", server.path])
+            #expect(result.status == status)
+            #expect(result.error.isEmpty)
+        }
+    }
+
     @Test("help combines the shared catalog with Linux integration")
     func sharedHelp() throws {
         let result = try runCLI(["--help"])

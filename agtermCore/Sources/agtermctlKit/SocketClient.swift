@@ -10,8 +10,13 @@ import agtermCore
 /// A failure talking to the control socket (connect/write/read/decode), distinct from a server-side
 /// `{"ok":false}` response (which is a valid decoded `ControlResponse`).
 struct SocketClientError: Error, CustomStringConvertible {
+    enum Kind { case ordinary, transport }
     let description: String
-    init(_ description: String) { self.description = description }
+    let kind: Kind
+    init(_ description: String, kind: Kind = .ordinary) {
+        self.description = description
+        self.kind = kind
+    }
 }
 
 /// A server response beside the bytes it arrived as. `--json` prints `raw` unchanged, so a field this
@@ -29,6 +34,14 @@ struct SocketReply {
 /// socket, write the request line, read the single response line, decode it.
 struct SocketClient {
     let path: String
+    let timeout: TimeInterval
+
+    /// Matches the Linux server's request deadline and accommodates restart's 5s + 1.5s + 10s waits.
+    /// This bounds each request, not the lifetime of a polling command or an established stream.
+    init(path: String, timeout: TimeInterval = 30) {
+        self.path = path
+        self.timeout = timeout
+    }
 
     /// 64 MiB cap on a response line. Requests stay small; a `session.text --all` response carries the
     /// whole scrollback and can reach several MiB. It comes from our own server, so the cap only guards
@@ -37,6 +50,7 @@ struct SocketClient {
 
     /// Connect, send `request` as one newline-terminated JSON line, read the response line, decode it.
     func send(_ request: ControlRequest) throws -> SocketReply {
+        let deadline = try makeDeadline()
         var data = try JSONEncoder().encode(request)
         // the server rejects a request line over the shared cap (newline excluded, matching this count)
         // and closes the connection; check before writing so the caller gets this error instead of a
@@ -48,23 +62,28 @@ struct SocketClient {
         }
         data.append(UInt8(ascii: "\n"))
 
-        let fd = try connect()
+        let fd = try connect(deadline: deadline)
         defer { close(fd) }
+        _ = try Self.makeNonblocking(fd)
 
-        try Self.writeAll(fd, data)
+        try Self.writeAll(fd, data, deadline: deadline)
 
-        guard let line = Self.readLine(fd) else {
-            throw SocketClientError("no response from \(path)")
+        guard let line = try Self.readLine(fd, deadline: deadline) else {
+            throw SocketClientError("no response from \(path)", kind: .transport)
         }
         do {
             return SocketReply(response: try JSONDecoder().decode(ControlResponse.self, from: line), raw: line)
         } catch {
-            throw SocketClientError("could not decode response: \(error.localizedDescription)")
+            throw SocketClientError("could not decode response: \(error.localizedDescription)", kind: .transport)
         }
     }
 
     /// Open and connect a `AF_UNIX` stream socket to `path`. The caller owns the descriptor.
     func connect() throws -> Int32 {
+        try connect(deadline: makeDeadline())
+    }
+
+    private func connect(deadline: TimeInterval) throws -> Int32 {
         var addr = sockaddr_un()
         let pathCapacity = MemoryLayout.size(ofValue: addr.sun_path)
         guard path.utf8.count < pathCapacity else {
@@ -75,7 +94,10 @@ struct SocketClient {
         #else
         let fd = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
         #endif
-        guard fd >= 0 else { throw SocketClientError("socket() failed: \(String(cString: strerror(errno)))") }
+        guard fd >= 0 else { throw SocketClientError("socket() failed: \(String(cString: strerror(errno)))", kind: .transport) }
+        var connected = false
+        defer { if !connected { close(fd) } }
+        let flags = try Self.makeNonblocking(fd)
 
         // a write after the server closes the connection (e.g. it rejected an oversized request) would
         // raise the default-fatal SIGPIPE and kill the process with no output. Darwin disables it per socket;
@@ -95,19 +117,86 @@ struct SocketClient {
             }
         }
 
-        let result = withUnsafePointer(to: &addr) { ptr in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
-                systemConnect(fd, sa, socklen_t(MemoryLayout<sockaddr_un>.size))
+        while true {
+            _ = try Self.remaining(until: deadline, operation: "connect")
+            let result = withUnsafePointer(to: &addr) { ptr in
+                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                    systemConnect(fd, sa, socklen_t(MemoryLayout<sockaddr_un>.size))
+                }
+            }
+            if result == 0 { break }
+            var failure = errno
+            if failure == EISCONN { break }
+            if failure == EAGAIN || failure == EWOULDBLOCK {
+                Thread.sleep(forTimeInterval: min(0.01, try Self.remaining(until: deadline, operation: "connect")))
+                continue
+            }
+            if failure == EINPROGRESS || failure == EALREADY || failure == EINTR {
+                try Self.wait(fd, for: Int16(POLLOUT), deadline: deadline, operation: "connect")
+                var size = socklen_t(MemoryLayout<Int32>.size)
+                guard getsockopt(fd, SOL_SOCKET, SO_ERROR, &failure, &size) == 0 else {
+                    throw SocketClientError("could not inspect connection: \(String(cString: strerror(errno)))", kind: .transport)
+                }
+                if failure == 0 { break }
+            }
+            let message = String(cString: strerror(failure))
+            throw SocketClientError("connect(\(path)) failed: \(message) — \(Self.hint(forConnect: failure, path: path))", kind: .transport)
+        }
+        guard fcntl(fd, F_SETFL, flags) == 0 else {
+            throw SocketClientError("could not restore socket flags: \(String(cString: strerror(errno)))", kind: .transport)
+        }
+        connected = true
+        return fd
+    }
+
+    private func makeDeadline() throws -> TimeInterval {
+        guard timeout.isFinite, timeout > 0 else { throw SocketClientError("invalid socket timeout") }
+        return ProcessInfo.processInfo.systemUptime + timeout
+    }
+
+    static func withNonblocking<T>(_ fd: Int32, _ body: () throws -> T) throws -> T {
+        let flags = try makeNonblocking(fd)
+        do {
+            let result = try body()
+            guard fcntl(fd, F_SETFL, flags) == 0 else {
+                throw SocketClientError("could not restore socket flags: \(String(cString: strerror(errno)))", kind: .transport)
+            }
+            return result
+        } catch {
+            // Preserve the original failure (including timeout ambiguity); the caller closes the socket.
+            _ = fcntl(fd, F_SETFL, flags)
+            throw error
+        }
+    }
+
+    private static func makeNonblocking(_ fd: Int32) throws -> Int32 {
+        let flags = fcntl(fd, F_GETFL)
+        guard flags >= 0, fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0 else {
+            throw SocketClientError("could not set socket flags: \(String(cString: strerror(errno)))", kind: .transport)
+        }
+        return flags
+    }
+
+    private static func remaining(until deadline: TimeInterval, operation: String) throws -> TimeInterval {
+        let remaining = deadline - ProcessInfo.processInfo.systemUptime
+        guard remaining > 0 else {
+            let ambiguity = operation == "connect" ? "" : " — the request may have completed; do not retry automatically"
+            throw SocketClientError("timed out waiting to \(operation)\(ambiguity)", kind: .transport)
+        }
+        return remaining
+    }
+
+    static func wait(_ fd: Int32, for events: Int16, deadline: TimeInterval, operation: String) throws {
+        while true {
+            let interval = try remaining(until: deadline, operation: operation)
+            let milliseconds = Int32(min((interval * 1_000).rounded(.up), Double(Int32.max)))
+            var descriptor = pollfd(fd: fd, events: events, revents: 0)
+            let ready = poll(&descriptor, 1, milliseconds)
+            if ready > 0 { return }
+            if ready < 0, errno != EINTR {
+                throw SocketClientError("socket poll failed: \(String(cString: strerror(errno)))", kind: .transport)
             }
         }
-        guard result == 0 else {
-            // close() and the hint's own probe may overwrite errno.
-            let failure = errno
-            let message = String(cString: strerror(failure))
-            close(fd)
-            throw SocketClientError("connect(\(path)) failed: \(message) — \(Self.hint(forConnect: failure, path: path))")
-        }
-        return fd
     }
 
     /// The sentence after a failed `connect`. A refusal and a missing socket are the two the ownership
@@ -145,17 +234,19 @@ struct SocketClient {
     }
 
     /// Write all of `data` to `fd`, looping over short writes.
-    private static func writeAll(_ fd: Int32, _ data: Data) throws {
+    static func writeAll(_ fd: Int32, _ data: Data, deadline: TimeInterval) throws {
         try data.withUnsafeBytes { raw in
             var offset = 0
             let base = raw.bindMemory(to: UInt8.self).baseAddress!
             while offset < data.count {
+                try wait(fd, for: Int16(POLLOUT), deadline: deadline, operation: "write request")
                 #if canImport(Darwin)
                 let n = write(fd, base + offset, data.count - offset)
                 #elseif canImport(Glibc)
                 let n = Glibc.send(fd, base + offset, data.count - offset, Int32(MSG_NOSIGNAL))
                 #endif
-                if n <= 0 { throw SocketClientError("write failed: \(String(cString: strerror(errno)))") }
+                if n < 0, errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK { continue }
+                if n <= 0 { throw SocketClientError("write failed: \(String(cString: strerror(errno)))", kind: .transport) }
                 offset += n
             }
         }
@@ -164,12 +255,14 @@ struct SocketClient {
     /// Read up to (and excluding) the first newline, capping at `maxLineBytes`. Returns nil on
     /// EOF-before-newline, error, or cap exceeded. Reads in 64 KiB chunks so a multi-MB
     /// `session.text --all` response takes a handful of syscalls instead of one per byte.
-    private static func readLine(_ fd: Int32) -> Data? {
+    private static func readLine(_ fd: Int32, deadline: TimeInterval) throws -> Data? {
         var buffer = Data()
         var chunk = [UInt8](repeating: 0, count: 64 * 1024)
         while true {
+            try wait(fd, for: Int16(POLLIN), deadline: deadline, operation: "read response")
             let n = chunk.withUnsafeMutableBytes { read(fd, $0.baseAddress, $0.count) }
             if n == 0 { return buffer.isEmpty ? nil : buffer }
+            if n < 0, errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK { continue }
             if n < 0 { return nil }
             if let idx = chunk[0..<n].firstIndex(of: UInt8(ascii: "\n")) {
                 buffer.append(contentsOf: chunk[0..<idx])
