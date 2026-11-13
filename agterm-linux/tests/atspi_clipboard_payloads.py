@@ -203,9 +203,13 @@ def verify_clipboard_payloads(env, state):
             window = until(lambda: next((row["id"] for row in window_list(local) if row.get("active")), None),
                            "clipboard test window did not become active")
             if label == "protected":
-                for kind, payload in (("mixed", mixed), ("uri", uri)):
+                # A query reads the clipboard's text form byte for byte, a file-manager copy included:
+                # only a paste turns a file list into paths.
+                copied_text = "/tmp/one two\n/tmp/three"
+                for kind, payload, offer in (("mixed", mixed, set_text), ("uri", uri, set_text),
+                                             ("files", copied_text, lambda _: set_copied_files(uri))):
                     for response in ("Allow", "Deny"):
-                        set_text(payload)
+                        offer(payload)
                         output = artifacts / f"{label}-read-{kind}-{response}.reply"
                         complete = artifacts / f"{label}-read-{kind}-{response}.complete"
                         start(["/usr/bin/python3", str(reader), str(output), str(complete)], f"read-{kind}-{response}")
@@ -244,12 +248,10 @@ def verify_clipboard_payloads(env, state):
                     remains_empty(output, "cancelled paste delivered bytes")
                     paste(payload, drop=kind.startswith("drop-"))
                     answer(PASTE_HEADING, "Paste")
-                # A drop shell-escapes file paths; a clipboard paste hands them over space-joined, as
-                # libghostty 1.4's read path (LinuxClipboardPolicy.pastedPaths) does for every reader.
-                if kind == "drop-uri":
+                # A drop and a clipboard paste both shell-escape file paths, so each stays one word
+                # (LinuxPastePolicy and LinuxClipboardPolicy.pastedPaths).
+                if kind in ("drop-uri", "uri"):
                     normalized = "/tmp/one\\ two /tmp/three"
-                elif kind == "uri":
-                    normalized = "/tmp/one two /tmp/three"
                 else:
                     normalized = payload.replace("\r\n", "\n").replace("\r", "\n")
                 expected = (("\x1b[200~" + normalized + "\x1b[201~") if bracketed

@@ -56,13 +56,23 @@ struct LinuxClipboardPolicyTests {
         #expect(LinuxClipboardPolicy.gdkRepresentations([png, plain]).map(\.mime) == [png.mime, utf8.mime, plain.mime])
     }
 
-    @Test("a file manager's uri-list reads as one line of POSIX paths")
+    @Test("a file manager's uri-list pastes as one line of shell-escaped POSIX paths")
     func uriListConverts() {
         let copied = Data("# copied files\r\nfile:///tmp/one%20two\r\nfile:///tmp/three\r\n".utf8)
 
-        #expect(LinuxClipboardPolicy.pastedPaths(uriList: copied) == "/tmp/one two /tmp/three")
+        #expect(LinuxClipboardPolicy.pastedPaths(uriList: copied) == #"/tmp/one\ two /tmp/three"#)
         #expect(LinuxClipboardPolicy.pastedPaths(uriList: Data("file:///tmp/plain".utf8)) == "/tmp/plain")
         #expect(LinuxClipboardPolicy.pastedPaths(uriList: Data("file:///tmp/caf%C3%A9\n".utf8)) == "/tmp/café")
+        // shell syntax in a name stays literal: no substitution, no second word
+        #expect(LinuxClipboardPolicy.pastedPaths(uriList: Data("file:///tmp/%24(id)%3Bx\n".utf8)) == #"/tmp/\$\(id\)\;x"#)
+    }
+
+    @Test("only a paste reads a file list; clipboard queries and unknown kinds keep the text form")
+    func onlyPasteReadsFileList() {
+        for kind in ClipboardRequestKind.allCases {
+            #expect(LinuxClipboardPolicy.readsFileList(kind) == (kind == .paste), "\(kind)")
+        }
+        #expect(LinuxClipboardPolicy.readsFileList(nil) == false)
     }
 
     @Test("a uri-list that is not all files falls back to the text form")

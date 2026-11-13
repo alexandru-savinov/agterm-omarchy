@@ -138,12 +138,16 @@ enum LinuxClipboardAdapter {
 
     /// `read` owns the surface reference from here and always completes on the main thread.
     ///
-    /// The owner is asked for its `text/uri-list` first, and the text form only when it refuses or the list
-    /// is not one of files. A file list's text form is newline-separated paths (GDK's `file_text_serializer`),
-    /// which libghostty would hold as an unsafe multi-line paste. The cached offer formats are not consulted:
-    /// on X11 they can still describe the previous owner when a paste follows a copy at once, while a read
-    /// goes to the current owner.
+    /// A paste asks the owner for its `text/uri-list` first, and the text form only when it refuses or the
+    /// list is not one of files. A file list's text form is newline-separated paths (GDK's
+    /// `file_text_serializer`), which libghostty would hold as an unsafe multi-line paste. The cached offer
+    /// formats are not consulted: on X11 they can still describe the previous owner when a paste follows a
+    /// copy at once, while a read goes to the current owner. Any other request reads the text form only.
     static func readText(_ read: ClipboardTextRead) {
+        guard LinuxClipboardPolicy.readsFileList(read.kind) else {
+            readPlainText(read)
+            return
+        }
         LinuxClipboardPolicy.uriListMime.withCString { mime in
             // GDK interns the MIME types before it returns, so the borrowed strings may end with this call.
             var mimes: [UnsafePointer<CChar>?] = [mime, nil]
@@ -242,6 +246,8 @@ final class ClipboardTextRead: @unchecked Sendable {
     let state: UnsafeMutableRawPointer?
     let retained: RetainedGhosttySurface
     let list: Bool
+    /// Taken as the read starts: completing the request invalidates `state`.
+    let kind: ClipboardRequestKind?
 
     init(clipboard: OpaquePointer, state: UnsafeMutableRawPointer?, retained: RetainedGhosttySurface, list: Bool) {
         g_object_ref(RAW(clipboard))
@@ -249,6 +255,7 @@ final class ClipboardTextRead: @unchecked Sendable {
         self.state = state
         self.retained = retained
         self.list = list
+        kind = state.flatMap { LinuxClipboardAdapter.requestKind(ghostty_clipboard_request_type($0)) }
     }
 
     deinit { g_object_unref(RAW(clipboard)) }
