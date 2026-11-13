@@ -74,4 +74,52 @@ struct LinuxBrowserProfileIsolationTests {
         #expect(Self.isInside(data, root))
         #expect(!Self.isInside(data, PersistenceStore.defaultDirectory))
     }
+
+    @Test("AGTERM_STATE_DIR selects the root the profile derives from; an empty value falls back to the default")
+    func stateDirectoryHonoursTheEnvironment() throws {
+        let one = try Self.stateRoot()
+        let two = try Self.stateRoot()
+        defer {
+            try? FileManager.default.removeItem(at: one)
+            try? FileManager.default.removeItem(at: two)
+        }
+
+        let first = linuxStateDirectory(environment: ["AGTERM_STATE_DIR": one.path])
+        let second = linuxStateDirectory(environment: ["AGTERM_STATE_DIR": two.path])
+
+        #expect(first.standardizedFileURL == one)
+        #expect(Self.isInside(try LinuxBrowserStore.dataDirectory(stateRoot: first), one))
+        #expect(Self.isInside(try LinuxBrowserStore.dataDirectory(stateRoot: second), two))
+        #expect(linuxStateDirectory(environment: ["AGTERM_STATE_DIR": ""]) == PersistenceStore.defaultDirectory)
+        #expect(linuxStateDirectory(environment: [:]) == PersistenceStore.defaultDirectory)
+    }
+
+    @Test("a persistent page whose data directory cannot be created reports it and builds no session")
+    func dataDirectoryCreationFailureIsReported() throws {
+        let root = try Self.stateRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let blocker = root.appendingPathComponent("browser")
+        try Data("not a directory".utf8).write(to: blocker)
+        let store = LinuxBrowserStore()
+
+        let error = store.failure(persistent: true, stateRoot: root)
+
+        #expect(error != nil)
+        #expect(store.session == nil)
+        #expect(try Data(contentsOf: blocker) == Data("not a directory".utf8))
+    }
+
+    @Test("a persistent page whose profile id is malformed reports it and leaves the file alone")
+    func malformedProfileIsReported() throws {
+        let root = try Self.stateRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("browser-profile")
+        try Data("not-a-uuid".utf8).write(to: file)
+        let store = LinuxBrowserStore()
+
+        #expect(store.failure(persistent: true, stateRoot: root) == BrowserProfile.Failure.malformed(file.path).description)
+        #expect(store.session == nil)
+        #expect(try Data(contentsOf: file) == Data("not-a-uuid".utf8))
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("browser").path))
+    }
 }
