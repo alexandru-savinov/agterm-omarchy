@@ -27,7 +27,8 @@ struct LinuxHtmlBridgeGate {
         guard let json = json() else { return .reject(Self.invalidRequest) }
         guard let envelope = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any],
               envelope["nonce"] as? String == nonce, let object = envelope["request"],
-              let requestData = try? JSONSerialization.data(withJSONObject: object) else {
+              // fragments: corelibs traps on a non-container top level, and a page-world script can send one
+              let requestData = try? JSONSerialization.data(withJSONObject: object, options: .fragmentsAllowed) else {
             return .reject(Self.notMainFrame)
         }
         switch HtmlBridge.request(from: requestData, page: page) {

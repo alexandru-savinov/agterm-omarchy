@@ -109,12 +109,21 @@ struct LinuxHtmlBridgeGateTests {
         #expect(!LinuxHtmlBridgeGate.installs(for: .url(try #require(URL(string: "https://example.com")))))
     }
 
-    // A nonce-carrying non-object request reaches corelibs' JSONSerialization fatalError; see #152.
-    @Test func aNonObjectRequestCarryingTheNonceTrapsTheProcess() async {
-        await #expect(processExitsWith: .failure) {
-            _ = LinuxHtmlBridgeGate(pageID: UUID(), nonce: "N").decide(
-                closed: false, page: { HtmlBridgePage(window: "W", session: UUID(), pane: nil) },
-                uri: { "about:blank" }, json: { #"{"nonce":"N","request":"x"}"# })
+    @Test(arguments: [#""x""#, "1", "null", "true", #"[{"cmd":"tree"}]"#])
+    func aNonObjectRequestCarryingTheNonceIsAnInvalidRequest(_ request: String) {
+        guard case .reject(let error) = decide(json: #"{"nonce":"\#(nonce)","request":\#(request)}"#) else {
+            Issue.record("expected a refusal"); return
         }
+        #expect(error.hasPrefix("invalid request: "))
+    }
+
+    // bridgeRequest reads jsc_value_to_json through String(cString:), which repairs invalid UTF-8
+    @Test func aNonUtf8PayloadNeverTrapsAndOnlyAWellFormedEnvelopeDispatches() {
+        let cString: ([UInt8]) -> String = { bytes in (bytes + [0]).withUnsafeBufferPointer { String(cString: $0.baseAddress!) } }
+        let broken: [UInt8] = Array(#"{"nonce":""#.utf8) + [0xFF, 0xFE] + Array(#"","request":"#.utf8) + [0xC0, 0x7D]
+        #expect(decide(json: .some(cString(broken))) == .reject(LinuxHtmlBridgeGate.notMainFrame))
+        let named = Array(#"{"nonce":"\#(nonce)","request":{"cmd":"session.rename","args":{"name":""#.utf8) + [0xFF] + Array(#""}}}"#.utf8)
+        guard case .dispatch(let request) = decide(json: .some(cString(named))) else { Issue.record("expected a dispatch"); return }
+        #expect(request.args?.name == "\u{FFFD}")
     }
 }
