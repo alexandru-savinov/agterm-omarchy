@@ -9,7 +9,7 @@ name: AT-SPI targeted rerun
 # test-linux-ui.sh come from the requested ref, so refs that predate this workflow can be rerun too.
 # Runtime caches are restored, never saved: cache-mode: read makes the job's cache token read-only, so code
 # from a dispatched ref cannot seed the caches ci.yml trusts (workflow_dispatch would otherwise get write).
-# The two build images below must stay equal to the build-linux matrix in ci.yml.
+# The two build images in the atspi matrix must stay equal to the build-linux matrix in ci.yml.
 
 on:
   workflow_dispatch:
@@ -38,10 +38,6 @@ defaults:
   run:
     shell: bash
 
-env:
-  IMAGE_X86_64: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:e2d48733b2fd8481c314bd639fd15e523110e106418cb982cc830a7e620a839f
-  IMAGE_AARCH64: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:4aec8a361df2c3d98bbfd75fe7c4be54a429d490497236e143bc27d8e705d0f4
-
 jobs:
   select:
     name: Validate scenarios
@@ -49,7 +45,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       sha: ${{ steps.validate.outputs.sha }}
-      matrix: ${{ steps.validate.outputs.matrix }}
+      exclude: ${{ steps.validate.outputs.exclude }}
     steps:
       - name: Check out selection tooling
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -74,18 +70,14 @@ jobs:
         run: |
           python3 -I tooling/scripts/test-linux-ui-targeted.py "$SCENARIOS" --root target --check-only
           sha="$(git -C target rev-parse HEAD)"
-          matrix="$(python3 -I -c '
-          import json, os, sys
-          rows = {"x86_64": ("ubuntu-24.04", os.environ["IMAGE_X86_64"]),
-                  "aarch64": ("ubuntu-24.04-arm", os.environ["IMAGE_AARCH64"])}
-          arch = os.environ["ARCH"]
-          names = list(rows) if arch == "both" else [arch]
-          if any(name not in rows for name in names):
-              sys.exit(f"unknown arch: {arch!r}")
-          print(json.dumps([{"arch": name, "runner": rows[name][0], "container": rows[name][1]} for name in names]))
-          ')"
+          case "$ARCH" in
+            both) exclude='[]' ;;
+            x86_64) exclude='[{"arch":"aarch64"}]' ;;
+            aarch64) exclude='[{"arch":"x86_64"}]' ;;
+            *) echo "unknown arch: $ARCH" >&2; exit 2 ;;
+          esac
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "exclude=$exclude" >> "$GITHUB_OUTPUT"
           printf '### Targeted AT-SPI rerun (not a merge gate)\nref: %s\nscenarios: %s\n' \
             "$sha" "$SCENARIOS" >> "$GITHUB_STEP_SUMMARY"
 
@@ -94,8 +86,18 @@ jobs:
     needs: select
     strategy:
       fail-fast: false
+      # Static images, as in ci.yml's build-linux matrix, so the pins stay visible to zizmor; the arch
+      # input only removes rows.
       matrix:
-        include: ${{ fromJSON(needs.select.outputs.matrix) }}
+        arch: [x86_64, aarch64]
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:e2d48733b2fd8481c314bd639fd15e523110e106418cb982cc830a7e620a839f
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:4aec8a361df2c3d98bbfd75fe7c4be54a429d490497236e143bc27d8e705d0f4
+        exclude: ${{ fromJSON(needs.select.outputs.exclude) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     container: ${{ matrix.container }}
