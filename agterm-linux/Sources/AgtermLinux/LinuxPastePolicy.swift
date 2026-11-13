@@ -12,7 +12,7 @@ extension ShellEscape {
 
 enum PasteDecoder {
     /// A drop shell-escapes each path so a name with a space stays one word at the prompt; a clipboard
-    /// read (`LinuxClipboardPolicy.readableText`) hands the paths over as upstream does, space-joined.
+    /// read (`LinuxClipboardPolicy.pastedPaths`) hands the paths over as upstream does, space-joined.
     static func posixPaths(fromURIList text: String, escaped: Bool = true) -> String? {
         let lines = text.split(whereSeparator: \.isNewline).map(String.init)
             .map { $0.trimmingCharacters(in: .whitespaces) }

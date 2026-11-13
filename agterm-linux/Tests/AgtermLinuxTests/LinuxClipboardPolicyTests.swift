@@ -56,26 +56,22 @@ struct LinuxClipboardPolicyTests {
         #expect(LinuxClipboardPolicy.gdkRepresentations([png, plain]).map(\.mime) == [png.mime, utf8.mime, plain.mime])
     }
 
-    @Test("an advertised uri-list converts file:// text to POSIX paths")
+    @Test("a file manager's uri-list reads as one line of POSIX paths")
     func uriListConverts() {
-        let copied = "# copied files\r\nfile:///tmp/one%20two\r\nfile:///tmp/three\r\n"
+        let copied = Data("# copied files\r\nfile:///tmp/one%20two\r\nfile:///tmp/three\r\n".utf8)
 
-        #expect(LinuxClipboardPolicy.readableText(copied, advertisesURIList: true) == "/tmp/one two /tmp/three")
+        #expect(LinuxClipboardPolicy.pastedPaths(uriList: copied) == "/tmp/one two /tmp/three")
+        #expect(LinuxClipboardPolicy.pastedPaths(uriList: Data("file:///tmp/plain".utf8)) == "/tmp/plain")
+        #expect(LinuxClipboardPolicy.pastedPaths(uriList: Data("file:///tmp/caf%C3%A9\n".utf8)) == "/tmp/café")
     }
 
-    @Test("without an advertised uri-list, file:// text round-trips")
-    func literalFileURLRoundTrips() {
-        for text in ["file:///tmp/example", "file:///tmp/one%20two\nfile:///tmp/three\n"] {
-            #expect(LinuxClipboardPolicy.readableText(text, advertisesURIList: false) == text)
+    @Test("a uri-list that is not all files falls back to the text form")
+    func nonFileURIListFallsBack() {
+        for text in ["", "# only a comment\n", "https://example.com/a\n", "file:///tmp/one\nordinary text",
+                     "file:///tmp/one\r\nsftp://host/two\r\n"] {
+            #expect(LinuxClipboardPolicy.pastedPaths(uriList: Data(text.utf8)) == nil, "\(text.debugDescription)")
         }
-    }
-
-    @Test("ordinary text is unchanged whether or not a uri-list is advertised")
-    func ordinaryTextUnchanged() {
-        for text in ["plain", "file:///tmp/one\nplain", "# only a comment\n", ""] {
-            #expect(LinuxClipboardPolicy.readableText(text, advertisesURIList: false) == text)
-            #expect(LinuxClipboardPolicy.readableText(text, advertisesURIList: true) == text)
-        }
+        #expect(LinuxClipboardPolicy.pastedPaths(uriList: Data([0x66, 0x69, 0x6C, 0x65, 0xFF])) == nil)
     }
 
     @Test("a read plan follows the requested text MIME and the list flag")

@@ -136,28 +136,80 @@ enum LinuxClipboardAdapter {
         return gdk_content_formats_contain_gtype(readable, GType(64) /* G_TYPE_STRING */) != 0
     }
 
-    static func advertisesURIList(_ clipboard: OpaquePointer) -> Bool {
-        guard let formats = gdk_clipboard_get_formats(clipboard) else { return false }
-        return LinuxClipboardPolicy.uriListMime.withCString { gdk_content_formats_contain_mime_type(formats, $0) != 0 }
+    /// `read` owns the surface reference from here and always completes on the main thread.
+    ///
+    /// The owner is asked for its `text/uri-list` first, and the text form only when it refuses or the list
+    /// is not one of files. A file list's text form is newline-separated paths (GDK's `file_text_serializer`),
+    /// which libghostty would hold as an unsafe multi-line paste. The cached offer formats are not consulted:
+    /// on X11 they can still describe the previous owner when a paste follows a copy at once, while a read
+    /// goes to the current owner.
+    static func readText(_ read: ClipboardTextRead) {
+        LinuxClipboardPolicy.uriListMime.withCString { mime in
+            // GDK interns the MIME types before it returns, so the borrowed strings may end with this call.
+            var mimes: [UnsafePointer<CChar>?] = [mime, nil]
+            gdk_clipboard_read_async(
+                read.clipboard, &mimes, 0 /* G_PRIORITY_DEFAULT */, nil,
+                { source, result, data in
+                    let read = Unmanaged<ClipboardTextRead>.fromOpaque(data!).takeRetainedValue()
+                    guard let source, let input = gdk_clipboard_read_finish(OpaquePointer(source), result, nil, nil) else {
+                        LinuxClipboardAdapter.readPlainText(read)
+                        return
+                    }
+                    // the splice holds its own references to both streams until it completes
+                    let output = g_memory_output_stream_new_resizable()
+                    g_output_stream_splice_async(
+                        output, input,
+                        GOutputStreamSpliceFlags(rawValue: (1 << 0) | (1 << 1)), // CLOSE_SOURCE | CLOSE_TARGET
+                        0 /* G_PRIORITY_DEFAULT */, nil,
+                        { source, result, data in
+                            let read = Unmanaged<ClipboardTextRead>.fromOpaque(data!).takeRetainedValue()
+                            var paths: String?
+                            if let source {
+                                let output: UnsafeMutablePointer<GOutputStream> = UnsafeMutablePointer(OpaquePointer(source))
+                                if g_output_stream_splice_finish(output, result, nil) >= 0 {
+                                    let memory: UnsafeMutablePointer<GMemoryOutputStream> = UnsafeMutablePointer(OpaquePointer(source))
+                                    let size = Int(g_memory_output_stream_get_data_size(memory))
+                                    let bytes = g_memory_output_stream_get_data(memory)
+                                    let list = bytes.map { Data(bytes: $0, count: size) } ?? Data()
+                                    paths = LinuxClipboardPolicy.pastedPaths(uriList: list)
+                                }
+                            }
+                            guard let paths else {
+                                LinuxClipboardAdapter.readPlainText(read)
+                                return
+                            }
+                            LinuxClipboardAdapter.finish(read, text: paths)
+                        },
+                        Unmanaged.passRetained(read).toOpaque()
+                    )
+                    g_object_unref(output)
+                    g_object_unref(input)
+                },
+                Unmanaged.passRetained(read).toOpaque()
+            )
+        }
     }
 
-    /// `read` owns the surface reference from here and always completes on the main thread.
-    static func readText(_ clipboard: OpaquePointer, _ read: ClipboardTextRead) {
+    /// The text form, as GDK converts it, unchanged: an owner that offers no file list offers literal text.
+    private static func readPlainText(_ read: ClipboardTextRead) {
         gdk_clipboard_read_text_async(
-            clipboard, nil,
+            read.clipboard, nil,
             { source, result, data in
                 let read = Unmanaged<ClipboardTextRead>.fromOpaque(data!).takeRetainedValue()
-                defer { read.retained.release() }
                 var text: String?
                 if let source, let raw = gdk_clipboard_read_text_finish(OpaquePointer(source), result, nil) {
-                    let value = String(cString: raw)
+                    text = String(cString: raw)
                     g_free(raw)
-                    text = LinuxClipboardPolicy.readableText(value, advertisesURIList: read.advertisesURIList)
                 }
-                MainActor.assumeIsolated { read.finish(text: text) }
+                LinuxClipboardAdapter.finish(read, text: text)
             },
             Unmanaged.passRetained(read).toOpaque()
         )
+    }
+
+    private static func finish(_ read: ClipboardTextRead, text: String?) {
+        defer { read.retained.release() }
+        MainActor.assumeIsolated { read.finish(text: text) }
     }
 
     /// GDK ownership: the bytes provider takes its own `GBytes` reference, the union takes over its child
@@ -183,19 +235,23 @@ enum LinuxClipboardAdapter {
     }
 }
 
-/// A started text read, carried through GDK's async callback.
+/// A started text read, carried through GDK's async callbacks. It holds a reference on the clipboard,
+/// which the read may need again for the text form after the uri-list is refused.
 final class ClipboardTextRead: @unchecked Sendable {
+    let clipboard: OpaquePointer
     let state: UnsafeMutableRawPointer?
     let retained: RetainedGhosttySurface
     let list: Bool
-    let advertisesURIList: Bool
 
-    init(state: UnsafeMutableRawPointer?, retained: RetainedGhosttySurface, list: Bool, advertisesURIList: Bool) {
+    init(clipboard: OpaquePointer, state: UnsafeMutableRawPointer?, retained: RetainedGhosttySurface, list: Bool) {
+        g_object_ref(RAW(clipboard))
+        self.clipboard = clipboard
         self.state = state
         self.retained = retained
         self.list = list
-        self.advertisesURIList = advertisesURIList
     }
+
+    deinit { g_object_unref(RAW(clipboard)) }
 
     /// Rereads the live surface, which a teardown during the GDK read frees. The orphaned request state
     /// then leaks: no C API frees it without the surface.
