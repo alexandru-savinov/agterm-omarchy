@@ -5111,6 +5111,8 @@ def verify_sidebar_row_height_follows_font_size(env):
 # tree-row name lands 426px past the column's right edge, the flagged breadcrumb 771px and the unwrapped
 # hint 114px, so nothing real lands in the 1..8 band.
 SIDEBAR_EDGE_SLACK = 8
+# X11 coordinates are 16-bit; an AT-SPI extent past this is uninitialised memory, not geometry.
+X11_COORDINATE_LIMIT = 32767
 
 
 def window_extents(node):
@@ -5122,6 +5124,11 @@ def window_extents(node):
 
     ⚠️ A NEGATIVE ORIGIN is NORMAL, never "not yet allocated" — WINDOW coordinates start inside the CSD
     border. Every caller is origin-relative, so do not add an `x < 0` guard here.
+
+    A box outside X11's 16-bit coordinate space is no measurement either. GTK 4.14's GetExtents ignores
+    the result of `gtk_accessible_get_bounds` (a11y/gtkatspicomponent.c), so a node whose bounds cannot be
+    computed, such as an unmapped child, returns uninitialised stack: zeros on x86_64, observed as
+    width=1654381664 on aarch64. No real X11 window or child reaches past 32767.
     """
     try:
         component = node.get_component_iface()
@@ -5129,6 +5136,8 @@ def window_extents(node):
             return None
         bounds = component.get_extents(Atspi.CoordType.WINDOW)
     except Exception:
+        return None
+    if not all(abs(value) <= X11_COORDINATE_LIMIT for value in (bounds.x, bounds.y, bounds.width, bounds.height)):
         return None
     return bounds if bounds.width > 1 and bounds.height > 1 else None
 
@@ -5569,10 +5578,13 @@ def verify_sidebar_width_floor(env):
 
     # LAUNCH 3 — the WINDOW-WIDTH gate, the only cover for `notify::max-position`: GTK emits no
     # `notify::position` when the window widens again, so without that handler the divider stays at the
-    # narrow window's cap. No `gtk.css` lever, so the floor is the plain pin and the request sits above it.
+    # narrow window's cap. A split margin leaves less than the saved request inside the 640px window
+    # minimum without changing the sidebar floor, so this leg still exercises the actual layout cap.
+    layout_margin = 320
     sidebar_width_record(state, SIDEBAR_REQUESTED_WIDTH)
     seed_settings()
-    process, app = launch(sidebar_isolated_env(overlay_env))
+    process, app = launch(sidebar_isolated_env(
+        overlay_env, f".agterm-sidebar-split {{ margin-right: {layout_margin}px; }}\n"))
     try:
         window_id = next(item["id"] for item in window_list(env) if item["open"])
 
@@ -5628,6 +5640,8 @@ def verify_sidebar_width_floor(env):
                                  "request cycle cannot run here (it runs under the Xvfb + openbox session CI "
                                  "uses)")
         else:
+            assert narrowed - layout_margin < SIDEBAR_REQUESTED_WIDTH - SIDEBAR_EDGE_SLACK, (
+                f"narrow frame {narrowed}px minus split margin {layout_margin}px still fits the saved request")
             capped = wait_for(
                 lambda: sidebar_column_settled(
                     app, lambda width: width < SIDEBAR_REQUESTED_WIDTH - SIDEBAR_EDGE_SLACK),
@@ -6174,6 +6188,13 @@ def verify_session_switch_commit(env):
         assert row_selected(app, held), "the sidebar selection moved off the held session"
         assert not switcher_overlay_names(app) and switcher_dim(app) is None, (
             "the switcher card outlived a release whose candidate had closed")
+
+        # Model selection is not keyboard focus: type through X11 and let the surviving PTY identify itself.
+        live_id = next(session["id"] for session in window_sessions(env, preheld_window) if session["active"])
+        marker = os.path.join(env["AGTERM_STATE_DIR"], "switcher-removal-keyboard")
+        owner = keyboard_owner(marker, process.pid)
+        assert owner == f"owner={live_id}/{preheld_window}/left", (
+            f"keyboard input after target removal reached {owner!r}, not the surviving active pane")
 
         print("OK: Ctrl-Tab cycles without selecting, commits once the last Ctrl comes up, reverses, "
               "survives pre-held Ctrl keys, ignores a highlighted candidate closed mid-hold, and Esc / a "
@@ -7712,6 +7733,7 @@ def main():
             # Keep the longer appearance scenario on the lighter odd-index CI shard.
             "appearance-follow",
             "cursor-preferences",
+            "quick-card-rendering",
         )
         try:
             shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
@@ -7940,6 +7962,9 @@ def main():
         elif scenario == "workspace-focus-filters":
             from atspi_window_lifecycle import verify_workspace_focus_filters
             verify_workspace_focus_filters(env)
+        elif scenario == "quick-card-rendering":
+            from atspi_quick_card_rendering import verify_quick_card_rendering
+            verify_quick_card_rendering(env, state)
         elif scenario == "clipboard-payloads":
             from atspi_clipboard_payloads import verify_clipboard_payloads
             verify_clipboard_payloads(env, state)

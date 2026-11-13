@@ -24,11 +24,19 @@ enum LinuxClipboardPolicy {
     static let utf8TextMime = "text/plain;charset=utf-8"
     static let uriListMime = "text/uri-list"
 
-    /// A file-manager copy reads as POSIX paths, like macOS. The callback gets no request kind, so the
-    /// clipboard's formats are what tell that from literal `file://` text, which round-trips unchanged.
-    static func readableText(_ text: String, advertisesURIList: Bool) -> String {
-        guard advertisesURIList else { return text }
-        return PasteDecoder.posixPaths(fromURIList: text, escaped: false) ?? text
+    /// Only a paste turns a file-manager copy into paths. A terminal clipboard query (OSC 52, Kitty) and
+    /// an unknown kind get the clipboard's own text form, byte for byte.
+    static func readsFileList(_ kind: ClipboardRequestKind?) -> Bool {
+        kind == .paste
+    }
+
+    /// A pasted file-manager copy reads as shell-escaped POSIX paths, as a drop does, taken from the
+    /// owner's `text/uri-list`, so a name with a space or shell syntax stays one literal word at the prompt.
+    /// Nil sends the read on to the text form: bytes that are not UTF-8 or not all `file://` lines are not
+    /// a file list. Literal `file://` text is never offered as a uri-list, so it round-trips unchanged.
+    static func pastedPaths(uriList: Data) -> String? {
+        guard let text = String(data: uriList, encoding: .utf8) else { return nil }
+        return PasteDecoder.posixPaths(fromURIList: text)
     }
 
     /// Reads serve text only: binary representations are never fetched from the clipboard.

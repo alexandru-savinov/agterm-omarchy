@@ -351,6 +351,26 @@ final class GhosttyApp: @unchecked Sendable {
     }
 
     #if DEBUG
+    /// Fixture ingress uses the native target and the production retain/idle path.
+    @MainActor static func exerciseHeldExitAction(_ surface: GhosttySurface, title: String? = nil) -> Bool {
+        guard let native = surface.surface else { return false }
+        var target = ghostty_target_s()
+        target.tag = GHOSTTY_TARGET_SURFACE
+        target.target.surface = native
+        var action = ghostty_action_s()
+        if let title {
+            return title.withCString { pointer in
+                action.tag = GHOSTTY_ACTION_SET_TITLE
+                action.action.set_title.title = pointer
+                _ = shared.handleAction(target, action)
+                return true
+            }
+        }
+        action.tag = GHOSTTY_ACTION_SHOW_CHILD_EXITED
+        _ = shared.handleAction(target, action)
+        return true
+    }
+
     /// Drive the real libghostty action boundary with a non-NUL-terminated, sentinel-suffixed URL.
     /// The isolated AT-SPI runtime uses this when compositor pointer injection cannot express link hover reliably.
     @MainActor static func exerciseURLAction(_ raw: String) {
@@ -422,10 +442,8 @@ final class GhosttyApp: @unchecked Sendable {
                 return GHOSTTY_CLIPBOARD_READ_STARTED
             case .text(let wantsList):
                 guard let retained = RetainedGhosttySurface(userdata) else { return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED }
-                // Taken as the read starts, from the offer GDK reads.
-                let read = ClipboardTextRead(state: requestState, retained: retained, list: wantsList,
-                                             advertisesURIList: LinuxClipboardAdapter.advertisesURIList(clipboard))
-                LinuxClipboardAdapter.readText(clipboard, read)
+                let read = ClipboardTextRead(clipboard: clipboard, state: requestState, retained: retained, list: wantsList)
+                LinuxClipboardAdapter.readText(read)
                 return GHOSTTY_CLIPBOARD_READ_STARTED
             }
         }

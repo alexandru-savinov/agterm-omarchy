@@ -8,6 +8,7 @@ import re
 import shlex
 import subprocess
 import time
+import urllib.parse
 
 from atspi_smoke import (NEGATIVE_SETTLE_SECONDS, activate, control_json, focus_window, launch, named,
                          press_x11_key, stop, wait_for, window_list)
@@ -97,9 +98,11 @@ def verify_clipboard_payloads(env, state):
             assert clipboard.is_local(), "fixture clipboard ownership failed"
 
         def set_copied_files(text):
-            """A file-manager copy: text/uri-list beside a text form, as Nautilus offers it."""
+            """A file-manager copy: text/uri-list beside a text form, as Nautilus offers it. The text form is
+            what GDK serializes for a file list: native paths, one per line."""
+            paths = [urllib.parse.unquote(urllib.parse.urlsplit(line).path) for line in text.splitlines() if line]
             value = GObject.Value(GObject.TYPE_STRING)
-            value.set_string(text)
+            value.set_string("\n".join(paths))
             clipboard.set_content(Gdk.ContentProvider.new_union([
                 Gdk.ContentProvider.new_for_bytes("text/uri-list", GLib.Bytes.new(text.encode())),
                 Gdk.ContentProvider.new_for_value(value)]))
@@ -200,9 +203,13 @@ def verify_clipboard_payloads(env, state):
             window = until(lambda: next((row["id"] for row in window_list(local) if row.get("active")), None),
                            "clipboard test window did not become active")
             if label == "protected":
-                for kind, payload in (("mixed", mixed), ("uri", uri)):
+                # A query reads the clipboard's text form byte for byte, a file-manager copy included:
+                # only a paste turns a file list into paths.
+                copied_text = "/tmp/one two\n/tmp/three"
+                for kind, payload, offer in (("mixed", mixed, set_text), ("uri", uri, set_text),
+                                             ("files", copied_text, lambda _: set_copied_files(uri))):
                     for response in ("Allow", "Deny"):
-                        set_text(payload)
+                        offer(payload)
                         output = artifacts / f"{label}-read-{kind}-{response}.reply"
                         complete = artifacts / f"{label}-read-{kind}-{response}.complete"
                         start(["/usr/bin/python3", str(reader), str(output), str(complete)], f"read-{kind}-{response}")
@@ -226,7 +233,7 @@ def verify_clipboard_payloads(env, state):
                       f"paste-{label}-{kind}")
                 until(ready.exists, "raw paste receiver did not start")
                 if kind == "uri":
-                    # Conversion keys on the advertised uri-list; plain file:// text round-trips as literal text.
+                    # The paths come from the owner's uri-list; plain file:// text round-trips as literal text.
                     set_copied_files(payload)
                 else:
                     set_text("clipboard-fallback-sentinel-313" if kind.startswith("drop-") else payload)
@@ -241,17 +248,25 @@ def verify_clipboard_payloads(env, state):
                     remains_empty(output, "cancelled paste delivered bytes")
                     paste(payload, drop=kind.startswith("drop-"))
                     answer(PASTE_HEADING, "Paste")
-                # A drop shell-escapes file paths; a clipboard paste hands them over space-joined, as
-                # libghostty 1.4's read path (LinuxClipboardPolicy.readableText) does for every reader.
-                if kind == "drop-uri":
+                # A drop and a clipboard paste both shell-escape file paths, so each stays one word
+                # (LinuxPastePolicy and LinuxClipboardPolicy.pastedPaths).
+                if kind in ("drop-uri", "uri"):
                     normalized = "/tmp/one\\ two /tmp/three"
-                elif kind == "uri":
-                    normalized = "/tmp/one two /tmp/three"
                 else:
                     normalized = payload.replace("\r\n", "\n").replace("\r", "\n")
                 expected = (("\x1b[200~" + normalized + "\x1b[201~") if bracketed
                             else normalized.replace("\n", "\r")).encode()
-                until(lambda: output.read_bytes() == expected, f"{label}/{kind}: paste bytes differ from expected")
+                try:
+                    until(lambda: output.read_bytes() == expected, f"{label}/{kind}: paste bytes differ from expected")
+                except AssertionError:
+                    try:
+                        prompt = named(app, PASTE_HEADING) is not None
+                    except Exception as error:  # the diagnostic must not mask the failure it explains
+                        prompt = f"unknown ({error!r})"
+                    raise AssertionError(
+                        f"{label}/{kind}: paste bytes differ from expected: actual {output.read_bytes()!r}, "
+                        f"expected {expected!r}, paste prompt open {prompt}, "
+                        f"offered {clipboard.get_formats().to_string()}") from None
                 assert named(app, PASTE_HEADING) is None, "paste left an unexpected confirmation dialog"
                 print(f"OK: {label}/{kind} actual paste bytes; confirmation={must_ask}", flush=True)
         finally:
