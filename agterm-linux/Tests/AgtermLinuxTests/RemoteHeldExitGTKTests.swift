@@ -98,7 +98,7 @@ struct RemoteHeldExitGTKTests {
         for directory in [pidDirectory, panePIDs] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        try "#!/bin/sh\nprintf '%s\\n' \"$$\" >\(CommandRestore.shellQuotedLine([pidDirectory.path]))/\"$$\"\nexec /bin/cat >/dev/null\n".write(
+        try "#!/bin/sh\nprintf '%s\\n' \"$$\" >\(CommandRestore.shellQuotedLine([pidDirectory.path]))/\"$$\"\nexec /usr/bin/env --default-signal=TERM /bin/cat >/dev/null\n".write(
             to: ssh, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: ssh.path)
         let paneCommand = root.appendingPathComponent("held-pane")
@@ -123,7 +123,9 @@ struct RemoteHeldExitGTKTests {
         // Surface spawning and transport cleanup need the production GLib timers.
         installGLibMainTimer()
         defer { gLibrary = oldLibrary; gController = oldController; MainTimer.scheduleTimer = oldTimer }
-        GhosttyApp.shared.start(appearanceSide: LinuxAppearanceSide(isDark: true))
+        let appearanceSide = LinuxAppearanceSide(isDark: AppController.systemIsDark)
+        print("fixture launch appearance isDark=\(appearanceSide.isDark)")
+        GhosttyApp.shared.start(appearanceSide: appearanceSide)
         defer { GhosttyApp.shared.shutdown() }
         let library = WindowLibrary(directory: root)
         gLibrary = library
