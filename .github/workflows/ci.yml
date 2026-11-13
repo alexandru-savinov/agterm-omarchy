@@ -399,6 +399,25 @@ jobs:
             XDG_CONFIG_HOME="$fixture_root/config" XDG_DATA_HOME="$fixture_root/data" \
             XDG_CACHE_HOME="$fixture_root/cache" XDG_RUNTIME_DIR="$fixture_root/runtime" \
             swift test --skip-build --filter SessionSwitchReleaseGTKTests
+      - name: GTK remote held-exit adapter tests
+        timeout-minutes: 3
+        working-directory: agterm-linux
+        run: |
+          fixture_root=$(mktemp -d)
+          trap 'rm -rf "$fixture_root"' EXIT
+          # Ghostty shutdown is terminal: each case needs a fresh process and state.
+          for test_case in exitBeforeTitle removedBeforeHeld retiredSlot; do
+            fixture="$fixture_root/$test_case"
+            mkdir -p "$fixture"/{home,state,config,data,cache,runtime}
+            chmod 700 "$fixture/runtime"
+            xvfb-run -a dbus-run-session -- env AGTERM_REMOTE_HELD_GTK_TESTS=1 \
+              GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 \
+              HOME="$fixture/home" AGTERM_STATE_DIR="$fixture/state" \
+              XDG_CONFIG_HOME="$fixture/config" XDG_DATA_HOME="$fixture/data" \
+              XDG_CACHE_HOME="$fixture/cache" XDG_RUNTIME_DIR="$fixture/runtime" \
+              AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" \
+              swift test --skip-build --filter "RemoteHeldExitGTKTests/$test_case"
+          done
       - name: GTK AT-SPI smoke tests
         env:
           AGTERM_UI_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/linux-ui
