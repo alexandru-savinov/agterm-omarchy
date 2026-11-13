@@ -91,3 +91,16 @@ new comment, but the assignment and substantive response belong on GitHub.
 
 Feature use is tracked in `packaging/linux/github-feature-evidence.md` on the implementation branch.
 Configuration alone is not proof: link executed runs and observable outcomes.
+
+## Decision precedence when rules conflict
+
+When two rules point different ways, the higher item wins:
+
+1. The owner's explicit word.
+2. Security protections are never weakened.
+3. No merge without green CI and a review with no finding of MEDIUM or higher.
+4. The fork's tested behaviour wins over parity with upstream tests; a deliberate divergence is named in the commit and in the pull request body.
+5. The smallest change that is reversible.
+6. Upstream parity.
+
+An agent that hits a conflict decides from this list, records the decision on its PR or issue, and continues; it stops to ask only when a rule says the owner must decide, or when the conflict is not covered.
