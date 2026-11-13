@@ -247,11 +247,9 @@ jobs:
             container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:e2d48733b2fd8481c314bd639fd15e523110e106418cb982cc830a7e620a839f
           - arch: aarch64
             runner: ubuntu-24.04-arm
-            container: swift:6.3.2-noble
-            zig-sha256: ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17
+            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:4aec8a361df2c3d98bbfd75fe7c4be54a429d490497236e143bc27d8e705d0f4
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
-    # Only x86_64 has a verified published build image; ARM retains signed package provisioning.
     container: ${{ matrix.container }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -262,29 +260,11 @@ jobs:
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Verify pinned GTK build image
-        if: matrix.arch == 'x86_64'
         run: /usr/local/bin/agterm-build-image-probe
-      # The published x86_64 image predates linux-port's Ghostty 1.4 sync; add the runtime packages it lacks
-      # (SVG/WebP pixbuf loaders, fish, IBus and xkb utilities for the new scenarios) until the image is rebuilt.
-      - name: Add packages the pinned x86_64 image predates
-        if: matrix.arch == 'x86_64'
+      # Both pinned build images predate linux-port's Ghostty 1.4 sync; add the runtime packages they lack
+      # (SVG/WebP pixbuf loaders, fish, IBus and xkb utilities for the new scenarios) until they are rebuilt.
+      - name: Add packages the pinned build images predate
         run: scripts/ci-install-ubuntu-deps.sh librsvg2-common webp-pixbuf-loader fish x11-xkb-utils ibus ibus-gtk4
-      - name: Install GTK4, accessibility, software GL, test shells, and zig
-        if: matrix.arch == 'aarch64'
-        env:
-          BUILD_ARCH: ${{ matrix.arch }}
-          ZIG_SHA256: ${{ matrix.zig-sha256 }}
-        run: |
-          scripts/ci-install-ubuntu-deps.sh \
-            libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev libepoxy-dev pkg-config git curl ca-certificates xz-utils ncurses-bin \
-            librsvg2-common webp-pixbuf-loader \
-            ripgrep zsh fish gcc file at-spi2-core dbus-x11 gir1.2-atspi-2.0 openbox python3-gi xdotool xvfb xauth x11-xkb-utils ibus ibus-gtk4 \
-            libatk-bridge2.0-0 libgl1-mesa-dri libegl-mesa0 mesa-utils imagemagick desktop-file-utils
-          curl -fsSLo /tmp/zig.tar.xz \
-            "https://ziglang.org/download/0.16.0/zig-${BUILD_ARCH}-linux-0.16.0.tar.xz"
-          echo "${ZIG_SHA256}  /tmp/zig.tar.xz" | sha256sum --check
-          tar -xJf /tmp/zig.tar.xz -C /opt
-          echo "/opt/zig-${BUILD_ARCH}-linux-0.16.0" >> "$GITHUB_PATH"
       - name: Materialize and verify upstream boundary tag
         run: |
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
@@ -425,6 +405,25 @@ jobs:
             XDG_CONFIG_HOME="$fixture_root/config" XDG_DATA_HOME="$fixture_root/data" \
             XDG_CACHE_HOME="$fixture_root/cache" XDG_RUNTIME_DIR="$fixture_root/runtime" \
             swift test --skip-build --filter SessionSwitchReleaseGTKTests
+      - name: GTK remote held-exit adapter tests
+        timeout-minutes: 3
+        working-directory: agterm-linux
+        run: |
+          fixture_root=$(mktemp -d)
+          trap 'rm -rf "$fixture_root"' EXIT
+          # Ghostty shutdown is terminal: each case needs a fresh process and state.
+          for test_case in exitBeforeTitle removedBeforeHeld retiredSlot; do
+            fixture="$fixture_root/$test_case"
+            mkdir -p "$fixture"/{home,state,config,data,cache,runtime}
+            chmod 700 "$fixture/runtime"
+            xvfb-run -a dbus-run-session -- env AGTERM_REMOTE_HELD_GTK_TESTS=1 \
+              GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 \
+              HOME="$fixture/home" AGTERM_STATE_DIR="$fixture/state" \
+              XDG_CONFIG_HOME="$fixture/config" XDG_DATA_HOME="$fixture/data" \
+              XDG_CACHE_HOME="$fixture/cache" XDG_RUNTIME_DIR="$fixture/runtime" \
+              AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" \
+              swift test --skip-build --filter "RemoteHeldExitGTKTests/$test_case"
+          done
       - name: GTK AT-SPI smoke tests
         env:
           AGTERM_UI_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/linux-ui
