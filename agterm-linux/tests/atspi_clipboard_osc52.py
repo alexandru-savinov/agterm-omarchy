@@ -120,7 +120,20 @@ def verify_clipboard_osc52(env):
 
         def read_answering(label, result):
             type_line(f"{sys.executable} {reader} {result}")
-            activate(wait_for(lambda: prompt_button(app, label), "OSC 52 read did not prompt"))
+            try:
+                button = wait_for(lambda: prompt_button(app, label), "OSC 52 read did not prompt")
+            except AssertionError:
+                # the diagnostic must not mask the failure it explains
+                try:
+                    showing = sorted({(node.get_role_name(), node.get_name() or "") for node in collect(app, role="button")
+                                      if node.get_state_set().contains(Atspi.StateType.SHOWING)})
+                    pane = control_json(env, "session", "text", "--target", session, "--window", window, "--json")
+                    print(f"diagnostic: showing buttons {showing}; result exists {os.path.exists(result)}; "
+                          f"pane {json.dumps(pane.get('result', pane))[-1500:]}", flush=True)
+                except Exception as error:
+                    print(f"diagnostic unavailable: {error!r}", flush=True)
+                raise
+            activate(button)
             wait_for(lambda: not prompt_button(app, label), "the clipboard prompt stayed after its answer")
             assert not poll(lambda: prompt_button(app, "Deny"), REPLY_QUIET_SECONDS), (
                 "one OSC 52 read prompted twice"
