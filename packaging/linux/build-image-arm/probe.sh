@@ -14,11 +14,21 @@ chmod 700 "$XDG_RUNTIME_DIR"
 swift --version | tee "$work/swift-version"
 grep -q 'Swift version 6.3.2' "$work/swift-version"
 test "$(zig version)" = 0.16.0
+test "$GHOSTTY_ZIG" = /opt/zig-aarch64-linux-0.17.0/zig
+test "$("$GHOSTTY_ZIG" version)" = 0.17.0
 pkg-config --modversion gtk4 libadwaita-1 webkitgtk-6.0 epoxy
-for command in zsh Xvfb xvfb-run dbus-run-session xdotool openbox glxinfo shellcheck desktop-file-validate; do
+for command in zsh fish Xvfb xvfb-run dbus-run-session xdotool openbox glxinfo shellcheck desktop-file-validate \
+               setxkbmap xkbcomp ibus ibus-daemon; do
   command -v "$command"
 done
 python3 -c 'import gi; gi.require_version("Atspi", "2.0"); from gi.repository import Atspi; print("AT-SPI bindings available")'
+# The SVG and WebP pixbuf loaders must be registered in the loader cache, not merely installed.
+pixbuf_cache="$(pkg-config --variable=gdk_pixbuf_cache_file gdk-pixbuf-2.0)"
+for mime in image/svg+xml image/webp; do
+  grep -qF "\"$mime\"" "$pixbuf_cache" || { echo "missing pixbuf loader for $mime in $pixbuf_cache" >&2; exit 1; }
+done
+ibus_module="$(pkg-config --variable=libdir gtk4)/gtk-4.0/$(pkg-config --variable=gtk_binary_version gtk4)/immodules/libim-ibus.so"
+test -f "$ibus_module" || { echo "missing GTK4 IBus input module: $ibus_module" >&2; exit 1; }
 
 cat > "$work/probe.swift" <<'SWIFT'
 import Foundation
@@ -30,6 +40,8 @@ swiftc -module-cache-path "$work/swift-cache" "$work/probe.swift" -o "$work/swif
 printf 'pub fn main() void {}\n' > "$work/probe.zig"
 zig build-exe "$work/probe.zig" -O ReleaseSafe -femit-bin="$work/zig-probe"
 "$work/zig-probe"
+"$GHOSTTY_ZIG" build-exe "$work/probe.zig" -O ReleaseSafe -femit-bin="$work/zig17-probe"
+"$work/zig17-probe"
 
 cat > "$work/probe.c" <<'C'
 #include <gtk/gtk.h>
@@ -54,4 +66,4 @@ LIBGL_ALWAYS_SOFTWARE=1 GDK_BACKEND=x11 xvfb-run -a dbus-run-session -- bash -eu
   grep -Eq "OpenGL renderer string:.*(llvmpipe|softpipe)" "$1/gl-info"
   "$1/gtk-probe"
 ' _ "$work"
-echo 'PASS: native aarch64, non-root, pinned compilers, Foundation, GTK display/linking, software GL and test dependencies'
+echo 'PASS: native aarch64, non-root, pinned compilers (Zig 0.16 and 0.17), Foundation, GTK display/linking, software GL and test dependencies'
