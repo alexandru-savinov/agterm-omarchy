@@ -5111,6 +5111,8 @@ def verify_sidebar_row_height_follows_font_size(env):
 # tree-row name lands 426px past the column's right edge, the flagged breadcrumb 771px and the unwrapped
 # hint 114px, so nothing real lands in the 1..8 band.
 SIDEBAR_EDGE_SLACK = 8
+# X11 coordinates are 16-bit; an AT-SPI extent past this is uninitialised memory, not geometry.
+X11_COORDINATE_LIMIT = 32767
 
 
 def window_extents(node):
@@ -5122,6 +5124,11 @@ def window_extents(node):
 
     ⚠️ A NEGATIVE ORIGIN is NORMAL, never "not yet allocated" — WINDOW coordinates start inside the CSD
     border. Every caller is origin-relative, so do not add an `x < 0` guard here.
+
+    A box outside X11's 16-bit coordinate space is no measurement either. GTK 4.14's GetExtents ignores
+    the result of `gtk_accessible_get_bounds` (a11y/gtkatspicomponent.c), so a node whose bounds cannot be
+    computed, such as an unmapped child, returns uninitialised stack: zeros on x86_64, observed as
+    width=1654381664 on aarch64. No real X11 window or child reaches past 32767.
     """
     try:
         component = node.get_component_iface()
@@ -5129,6 +5136,8 @@ def window_extents(node):
             return None
         bounds = component.get_extents(Atspi.CoordType.WINDOW)
     except Exception:
+        return None
+    if not all(abs(value) <= X11_COORDINATE_LIMIT for value in (bounds.x, bounds.y, bounds.width, bounds.height)):
         return None
     return bounds if bounds.width > 1 and bounds.height > 1 else None
 
