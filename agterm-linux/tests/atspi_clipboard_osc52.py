@@ -21,8 +21,10 @@ TOKEN = "agterm-osc52-token"
 ENCODED = base64.b64encode(TOKEN.encode()).decode()
 REPLY_QUIET_SECONDS = 2
 LITERAL_URL = "file:///tmp/example"
-COPIED_FILES = "file:///tmp/one%20two\r\nfile:///tmp/three\r\n"
-COPIED_PATHS = "/tmp/one two /tmp/three"
+# The second name carries shell syntax, so an unescaped paste would run `id` and split at `;`.
+COPIED_FILES = "file:///tmp/one%20two\r\nfile:///tmp/%24(id)%3Bthree\r\n"
+ESCAPED_PATHS = r"/tmp/one\ two /tmp/\$\(id\)\;three"
+UNPROTECTED_PATHS = "/tmp/one two /tmp/$(id);three"
 UTF8_TEXT = "text/plain;charset=utf-8"
 
 # Raw mode keeps the reply away from the line discipline and the shell; a second reply lands in `replies`.
@@ -171,16 +173,22 @@ def verify_clipboard_osc52(env):
             literal = pasted()
             assert literal == LITERAL_URL, f"a paste rewrote literal file:// text: {literal!r}"
 
+        # Fork boundary, deliberately unlike upstream 1.4 (which converts for every reader, unescaped): only a
+        # paste turns a file list into paths, shell-escaped like a drop; a clipboard query gets the exact bytes.
         with offered(COPIED_FILES, "text/uri-list", UTF8_TEXT):
-            paths = read_clipboard()
-            assert paths == osc52_reply(COPIED_PATHS), f"a read did not convert an advertised uri-list: {paths!r}"
+            reply = read_clipboard()
+            # negative arms first, so a dropped protection names itself
+            assert reply not in (osc52_reply(UNPROTECTED_PATHS), osc52_reply(ESCAPED_PATHS)), (
+                f"an OSC 52 read rewrote a file list into paths: {reply!r}")
+            assert reply == osc52_reply(COPIED_FILES), f"an OSC 52 read changed the offered bytes: {reply!r}"
             paths = pasted()
-            assert paths == COPIED_PATHS, f"a paste did not convert an advertised uri-list: {paths!r}"
+            assert paths != UNPROTECTED_PATHS, f"a paste delivered file paths unescaped: {paths!r}"
+            assert paths == ESCAPED_PATHS, f"a paste did not shell-escape an advertised uri-list: {paths!r}"
 
         type_line(f"printf '\\033]52;c;{base64.b64encode(LITERAL_URL.encode()).decode()}\\007'")
         wait_for(lambda: clipboard_text(clipboard) == LITERAL_URL, "the file:// write did not reach the GDK clipboard")
         round_trip = read_clipboard()
         assert round_trip == osc52_reply(LITERAL_URL), f"a written file:// text did not round-trip: {round_trip!r}"
-        print("OK: file:// text round-trips; an advertised uri-list reads and pastes as paths")
+        print("OK: file:// text round-trips; an advertised uri-list reads byte-exact and pastes as escaped paths")
     finally:
         stop(process)
