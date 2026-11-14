@@ -23,4 +23,6 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
       - name: Check Task, Agent, Reviewed head and Review fields
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/github/pr_fields.py

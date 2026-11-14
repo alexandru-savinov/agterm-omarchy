@@ -54,5 +54,21 @@ class PrFieldsTests(unittest.TestCase):
         self.assertTrue(any("Reviewed head" in item for item in pr_fields.problems(body, HEAD)))
 
 
+class GrandfatherTests(unittest.TestCase):
+    def test_old_head_warns_new_head_fails_unknown_head_fails(self):
+        since = "2026-11-16T00:00:00Z"
+        self.assertFalse(pr_fields.enforced("2026-11-15T23:59:59Z", since))
+        self.assertTrue(pr_fields.enforced("2026-11-16T00:00:00Z", since))
+        self.assertTrue(pr_fields.enforced(None, since))
+
+    def test_default_cutoff_enforces_nothing_until_it_is_set(self):
+        self.assertFalse(pr_fields.enforced("2026-11-15T00:00:00Z"))
+
+    def test_unreadable_head_date_is_none_not_a_pass(self):
+        def boom(pull):
+            raise OSError("network")
+        self.assertIsNone(pr_fields.head_date({}, fetch=boom))
+
+
 if __name__ == "__main__":
     unittest.main()

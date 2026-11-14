@@ -10,6 +10,12 @@ import json
 import os
 import re
 import sys
+import urllib.request
+
+# Pull requests whose head commit is older than this get a warning instead of a failure, so
+# nothing already open turns red overnight. Set to the merge time when this lands; the far-future
+# default means "never enforced", the safe state if that edit is forgotten.
+ENFORCED_FROM = "2099-01-01T00:00:00Z"
 
 FIELDS = ("Task", "Agent", "Reviewed head", "Review")
 PATTERNS = {
@@ -62,6 +68,26 @@ def problems(body, head_sha):
     return out
 
 
+def head_date(pull, fetch=None):
+    """Committer date (ISO, UTC) of the PR head, or None if it cannot be read."""
+    try:
+        if fetch is not None:
+            return fetch(pull)
+        url = f"https://api.github.com/repos/{pull['base']['repo']['full_name']}/commits/{pull['head']['sha']}"
+        request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json",
+                                                       "Authorization": "Bearer " + os.environ["GITHUB_TOKEN"],
+                                                       "User-Agent": "agterm-pr-fields"})
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return json.load(response)["commit"]["committer"]["date"]
+    except Exception:  # noqa: BLE001 - an unreadable date must not turn into a silent pass
+        return None
+
+
+def enforced(date, since=None):
+    """False only for a head provably older than the cutoff. Unknown dates are enforced."""
+    return date is None or date >= (since or ENFORCED_FROM)
+
+
 def main():
     with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as handle:
         pull = json.load(handle)["pull_request"]
@@ -72,11 +98,14 @@ def main():
         print("Draft pull request: fields are checked when it is marked ready for review.")
         return 0
     found = problems(pull.get("body") or "", pull["head"]["sha"])
+    strict = enforced(head_date(pull))
     for item in found:
-        print(f"::error title=PR fields::{item}")
+        print(f"::{'error' if strict else 'warning'} title=PR fields::{item}")
     if not found:
         print("PR fields OK.")
-    return 1 if found else 0
+    elif not strict:
+        print("Warning only: this head predates the rule.")
+    return 1 if found and strict else 0
 
 
 if __name__ == "__main__":
