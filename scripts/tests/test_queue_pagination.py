@@ -47,7 +47,7 @@ class QueuePaginationTests(unittest.TestCase):
                             comment_pages.append(page)
                             batch = [{'issue_url': 'https://api.github.com/repos/o/r/issues/1',
                                       'body': 'Agent: fixture\nTask: #1\nOwned paths: docs/x.md\nState: working',
-                                      'user': {'login': 'fixture'},
+                                      'user': {'login': 'fixture'}, 'author_association': 'OWNER',
                                       'html_url': f'https://example.test/c{index:05}',
                                       'created_at': now.isoformat(), 'updated_at': now.isoformat()}
                                      for index in range((page - 1) * 100, min(page * 100, count))]
