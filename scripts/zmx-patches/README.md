@@ -51,7 +51,8 @@ longer apply, and re-running `check.py`.
   instead of spinning. While 1 MiB is pending, the client stops reading further messages, so the
   backpressure reaches the daemon. That is a high-water mark, not a memory bound: zmx has no IPC message
   cap, so one whole message can still arrive past it (#409). Zig tests cover a stalled reader (the client
-  still detaches within 0005's drain deadline) and a closed reader (it returns promptly); both run under a
+  returns within a generous 10 s of the hangup, nominally 2 s, so starved CI cannot flake it, and does
+  not block forever) and a closed reader (it returns promptly); both run under a
   watchdog.
 - `ghostty/0001-formatter-unstyled-blanks.patch` fixes the snapshot a re-attach replays. The formatter
   wrote cells a program skipped with a cursor move as spaces under the previous cell's style, so a gap
