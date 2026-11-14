@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -28,11 +29,19 @@ def verify_html_v0351(env, state):
     storage_path = os.path.join(pages, "storage.html")
     with open(storage_path, "w", encoding="utf-8") as file:
         file.write('<!doctype html><title>Storage pending</title><script>'
-                   'document.title="storage:"+localStorage.getItem("agterm-test")+":"+'
+                   'const value=new URLSearchParams(location.search).get("v")||"saved";'
+                   'const cookie=(document.cookie.match(/(?:^|; )agterm-test=([^;]*)/)||[])[1]||"null";'
+                   'document.title="storage:"+localStorage.getItem("agterm-test")+":"+cookie+":"+'
                    '(typeof agterm==="undefined"?"no-bridge":"unexpected-bridge");'
-                   'localStorage.setItem("agterm-test","saved");</script>')
+                   'localStorage.setItem("agterm-test",value);'
+                   'document.cookie="agterm-test="+value+"; max-age=3600; path=/";</script>')
 
-    process, app = launch(env)
+    stderr_log = os.environ.get("AGTERM_UI_APP_STDERR")
+    assert stderr_log, "browser.clear probes require the smoke runner's captured app stderr"
+    release = os.path.join(state, "browser-clear.release")
+    assert not os.path.lexists(release), "browser.clear release marker must be fresh"
+    process, app = launch(dict(env, AGTERM_ATSPI_BROWSER_CLEAR="hold,fail,cancel",
+                               AGTERM_ATSPI_BROWSER_CLEAR_RELEASE=release))
     try:
         window = next(row["id"] for row in window_list(env) if row["open"])
         session = window_tree(env, window)["workspaces"][0]["sessions"][0]["id"]
@@ -52,6 +61,12 @@ def verify_html_v0351(env, state):
         def loaded(title):
             wait_for(lambda: page() and page().get("state") == "loaded" and page().get("title") == title,
                      f"page did not reach {title}: {page()}", timeout=20)
+
+        def clear_events():
+            # Ignore other scenario/instance PIDs and a record whose final newline is still being written.
+            with open(stderr_log, encoding="utf-8", errors="replace") as source:
+                prefix = f"AGTERM_BROWSER_CLEAR {process.pid} "
+                return [line.split()[2:] for line in source if line.endswith("\n") and line.startswith(prefix)]
 
         opened = request("session.overlay.open", {"html": path, "cwd": pages, "chromeless": True})
         page_id = opened["pageID"]
@@ -110,17 +125,61 @@ def verify_html_v0351(env, state):
         thread.start()
         try:
             address = f"http://127.0.0.1:{server.server_port}/storage.html"
-            for persistent, expected in [(True, "null"), (True, "saved"), (False, "null")]:
-                request("session.overlay.open", {"url": address, "persistent": persistent, "javascript": True})
-                loaded(f"storage:{expected}:no-bridge")
+            def visit(persistent, expected, value=None):
+                url = address + (f"?v={value}" if value else "")
+                request("session.overlay.open", {"url": url, "persistent": persistent, "javascript": True})
+                if expected is None:
+                    wait_for(lambda: page() and page().get("state") == "loaded"
+                             and page().get("title", "").startswith("storage:"),
+                             "storage page did not load after real cancelled clear", timeout=20)
+                    fields = page()["title"].split(":")
+                    assert len(fields) == 4 and fields[3] == "no-bridge", fields
+                    assert all(field in ("saved", "null") for field in fields[1:3]), fields
+                    print(f"Storage after cancelled clear (removal may complete): {fields[1:3]}")
+                else:
+                    loaded(f"storage:{expected}:{expected}:no-bridge")
                 if persistent:
                     refused = raw_control_json(env, {"cmd": "browser.clear"})
                     assert not refused["ok"] and "still open" in refused["error"], refused
                 request("session.overlay.close")
-            cleared = raw_control_json(env, {"cmd": "browser.clear"})
+
+            visit(True, "null")
+            visit(True, "saved")
+            visit(False, "null", value="ephemeral")
+            visit(True, "saved")
+
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                held = pool.submit(raw_control_json, env, {"cmd": "browser.clear"}, timeout=15)
+                try:
+                    wait_for(lambda: any(event[1:3] == ["hold", "start"] for event in clear_events()),
+                             "the first clear never entered its held state", timeout=5)
+                    busy = raw_control_json(env, {"cmd": "browser.clear"})
+                    assert not busy["ok"] and busy["error"] == "browser.clear: browser storage is being cleared", busy
+                    assert not any(event[1:3] == ["hold", "finish"] for event in clear_events()), \
+                        "the held clear completed before the busy assertion"
+                finally:
+                    with open(release, "w", encoding="utf-8") as marker:
+                        marker.write("release\n")
+                cleared = held.result(timeout=15)
             assert cleared["ok"], cleared
+            visit(True, "null")
+
+            # Retain PR215's synthetic failure/data-preservation assertion independently of cancellation.
+            failed = raw_control_json(env, {"cmd": "browser.clear"})
+            assert not failed["ok"] and "injected by AGTERM_ATSPI_BROWSER_CLEAR" in failed["error"], failed
+            visit(True, "saved")
+
+            cancelled = raw_control_json(env, {"cmd": "browser.clear"})
+            assert not cancelled["ok"] and cancelled["error"].startswith("browser.clear: "), cancelled
+            assert "injected by" not in cancelled["error"], cancelled
+            # WebKit removes data before returning its GTask result. Cancellation need not roll removal back.
+            # A successful open proves the clearing flag reset; seed fresh data before the normal retry.
+            visit(True, None, value="after-cancel")
+            visit(True, "after-cancel")
+            retried = raw_control_json(env, {"cmd": "browser.clear"})
+            assert retried["ok"], retried
             request("session.overlay.open", {"url": address, "persistent": True, "javascript": True})
-            loaded("storage:null:no-bridge")
+            loaded("storage:null:null:no-bridge")
             request("session.overlay.close")
             assert os.path.isdir(os.path.join(state, "browser")), "browser storage escaped the isolated state directory"
             other_state = os.path.join(state, "other-instance")
@@ -140,7 +199,7 @@ def verify_html_v0351(env, state):
                     row = window_tree(other_env, other_window)["workspaces"][0]["sessions"][0]
                     return next(iter(row.get("htmlOverlays", [])), {})
 
-                wait_for(lambda: other_page().get("title") == "storage:null:no-bridge",
+                wait_for(lambda: other_page().get("title") == "storage:null:null:no-bridge",
                          "separate agterm instance reused the first instance's browser data", timeout=20)
             finally:
                 stop(other_process)
@@ -154,6 +213,18 @@ def verify_html_v0351(env, state):
         finally:
             server.shutdown()
             server.server_close()
-        print("OK: trusted DOM and JS bridges, page submit/outcome, zoom, persistent/ephemeral isolation, and browser.clear")
+
+        contexts = {}
+        for identity, mode, event, *detail in clear_events():
+            entry = contexts.setdefault(identity, {"mode": mode, "start": [], "callback": [], "finish": []})
+            assert entry["mode"] == mode and event in ("start", "callback", "finish"), (identity, mode, event)
+            entry[event].append(detail)
+        assert sorted(entry["mode"] for entry in contexts.values()) == ["cancel", "clear", "fail", "hold"], contexts
+        for entry in contexts.values():
+            assert entry["start"] == [[]] and entry["finish"] == [["1"]], entry
+            expected_callback = [] if entry["mode"] == "fail" else [["1", "cancelled" if entry["mode"] == "cancel" else "ok"]]
+            assert entry["callback"] == expected_callback, entry
+        print("OK: trusted DOM and JS bridges, page submit/outcome, zoom, persistent/ephemeral cookie and storage "
+              "isolation; browser.clear held exclusion, real cancellation/retry and exactly-once callbacks/completions")
     finally:
         stop(process)
