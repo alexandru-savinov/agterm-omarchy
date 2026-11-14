@@ -27,6 +27,9 @@ extension Session.Overlay {
             let bridge = StreamBridge(socket: socket, input: STDIN_FILENO, output: STDOUT_FILENO)
             do {
                 try bridge.open(makeRequest())
+            } catch let failure as SocketClientError where failure.kind == .transport {
+                // A stream-startup transport failure keeps the documented transport exit status (4).
+                throw failure
             } catch {
                 FileHandle.standardError.write(Data("error: \(error)\n".utf8))
                 throw ExitCode.failure

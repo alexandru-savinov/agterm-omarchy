@@ -7,4 +7,4 @@ struct AgtermctlLinux: ParsableCommand {
         appending: [Integration.self])
 }
 
-AgtermctlLinux.main()
+AgtermctlLinux.mainWithTransportStatus()
