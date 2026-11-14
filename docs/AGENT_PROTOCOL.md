@@ -131,3 +131,5 @@ gh pr merge <number> --auto --merge --match-head-commit <head sha>
 ```
 
 `--match-head-commit` makes the merge fail if the branch moved after the review. Auto-merge waits for the required `CI`; it does not wait for the review, so request it only after the review.
+
+**Gap until the ruleset is widened:** only `CI` is required. Secret scan (full history), Vulnerability and misconfig scan (Trivy), Dependency review and CodeQL are not, so auto-merge would land a pull request even if one of them failed. Therefore arm `--auto` only after every check on that head other than `CI` has passed or been skipped; if one is pending or failing, disarm with `gh pr merge <number> --disable-auto` and re-arm once they are green. Edit this paragraph when the ruleset changes.
