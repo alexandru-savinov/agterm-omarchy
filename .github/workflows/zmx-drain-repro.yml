@@ -1,0 +1,76 @@
+name: zmx drain repro
+
+# One-off measurement for #380: does the zmx inside upstream's released macOS app lose a session's last
+# output line when the session ends, and does the fork's patched zmx keep it? Runs only on its own branch.
+on:
+  push:
+    branches: [ci/zmx-drain-repro]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zmx-drain-repro-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UPSTREAM_TAG: v0.42.3
+  RUNS: '30'
+
+jobs:
+  repro:
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Record identity
+        run: |
+          mkdir -p logs
+          { git rev-parse HEAD; sw_vers; uname -m; python3 --version; } | tee logs/identity.log
+      - name: Extract zmx from upstream's released app
+        run: |
+          version="${UPSTREAM_TAG#v}"
+          curl -fsSL -o agterm.dmg "https://github.com/umputun/agterm/releases/download/${UPSTREAM_TAG}/agterm-${version}.dmg"
+          shasum -a 256 agterm.dmg | tee logs/upstream-dmg.log
+          mnt="$(mktemp -d)"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" agterm.dmg
+          app="$(find "$mnt" -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$app"
+          defaults read "$app/Contents/Info.plist" CFBundleShortVersionString | tee -a logs/upstream-dmg.log
+          defaults read "$app/Contents/Info.plist" CFBundleVersion | tee -a logs/upstream-dmg.log
+          zmx="$(find "$app" -type f -name zmx -perm -u+x -print -quit)"
+          test -n "$zmx"
+          echo "$zmx" | tee -a logs/upstream-dmg.log
+          mkdir -p arms/upstream
+          cp "$zmx" arms/upstream/zmx
+          hdiutil detach "$mnt"
+          { shasum -a 256 arms/upstream/zmx; arms/upstream/zmx version; } | tee logs/upstream-zmx.log
+      - name: Build the fork's patched zmx
+        run: |
+          scripts/setup.sh --zmx-only 2>&1 | tee logs/fork-setup.log
+          mkdir -p arms/fork
+          cp agterm/Resources/zmx/zmx arms/fork/zmx
+          { cat .zmx-build-stamp; shasum -a 256 arms/fork/zmx; arms/fork/zmx version; } | tee logs/fork-zmx.log
+      - name: Run the scenario on both arms
+        run: |
+          for reader in fast slow; do
+            for arm in upstream fork; do
+              python3 -I scripts/zmx-drain-repro.py "arms/$arm/zmx" --runs "$RUNS" --reader "$reader" \
+                2>&1 | tee "logs/$arm-$reader.log"
+            done
+          done
+          echo "== summary"
+          for f in logs/*-fast.log logs/*-slow.log; do echo "$f: $(grep '^RESULT' "$f")"; done | tee logs/summary.log
+      - name: Retain logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: zmx-drain-repro-${{ github.run_id }}
+          path: logs
+          retention-days: 14
