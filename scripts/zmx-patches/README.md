@@ -43,6 +43,13 @@ longer apply, and re-running `check.py`.
   it now runs one loop that reads the socket and writes stdout, both nonblocking, bounded by an absolute
   two-second deadline and 1 MiB from the socket. The terminal reset an exiting client sends is a bounded
   write too. A Live command's final line under its hold prompt depended on that race.
+- `0006-nonblocking-stdout.patch` keeps the attach client responsive to its daemon while the terminal is
+  stalled (#409). Upstream writes session output to a blocking stdout, so a terminal that stopped reading
+  held the client in `write` while the daemon was still connected, and it never saw the hangup. stdout is
+  now nonblocking for the whole client loop, with its original flags restored on exit. Output is written
+  only when poll reports room. While 1 MiB is pending, the client stops reading the socket, so the
+  backpressure reaches the daemon. A Zig test covers a stalled reader: the client still detaches within
+  0005's drain deadline.
 - `ghostty/0001-formatter-unstyled-blanks.patch` fixes the snapshot a re-attach replays. The formatter
   wrote cells a program skipped with a cursor move as spaces under the previous cell's style, so a gap
   after a colored run came back painted; a skipped cell now closes the style first. Spaces the program
