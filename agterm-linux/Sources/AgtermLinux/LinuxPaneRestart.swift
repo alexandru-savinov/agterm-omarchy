@@ -5,12 +5,15 @@ import agtermCore
 extension AppController {
     func restartPane(_ request: ControlRequest, completion: @escaping @MainActor (ControlResponse) -> Void) {
         func refuse(_ message: String) { completion(err(message)) }
-        guard let command = request.args?.command, !command.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return refuse("session.restart requires a command")
-        }
-        guard !command.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7f }) else { return refuse("command must not contain control characters") }
-        guard command.utf8.count <= ControlSessionRestartOptions.maxCommandBytes else {
-            return refuse("command too long (max \(ControlSessionRestartOptions.maxCommandBytes) bytes)")
+        let command = request.args?.command
+        if let command {
+            guard !command.trimmingCharacters(in: .whitespaces).isEmpty else { return refuse("session.restart takes a non-empty command, or none to replay") }
+            guard !command.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7f }) else {
+                return refuse("command must not contain control characters")
+            }
+            guard command.utf8.count <= ControlSessionRestartOptions.maxCommandBytes else {
+                return refuse("command too long (max \(ControlSessionRestartOptions.maxCommandBytes) bytes)")
+            }
         }
         let requestedPane: StatusPane?
         if let raw = request.args?.pane {
@@ -54,14 +57,15 @@ private final class LinuxPaneRestart {
     var surface: GhosttySurface
     let identity: UUID
     let client: LinuxZmxClient
-    let command: String
+    let command: String?
+    var replay: RestartReplay.Launch?
     let completion: @MainActor (ControlResponse) -> Void
     let lead = ZmxLeadAttachment(claim: false)
     var config: ZmxSupport.Configuration?
     var daemon: String { ZmxSupport.daemonName(for: identity) }
 
     init(controller: AppController, session: Session, surface: GhosttySurface, identity: UUID,
-         client: LinuxZmxClient, command: String, completion: @escaping @MainActor (ControlResponse) -> Void) {
+         client: LinuxZmxClient, command: String?, completion: @escaping @MainActor (ControlResponse) -> Void) {
         self.controller = controller
         self.session = session
         self.surface = surface
@@ -100,6 +104,14 @@ private final class LinuxPaneRestart {
     private func killOld(pid: Int32?, job: [ProcessRecord]?) {
         guard let pid else { return finish("the pane's shell is not running") }
         guard stillOwned else { return finish("the pane changed before the restart; nothing was started") }
+        if command == nil {
+            let snapshot = gZmxForegroundResolver?.freshSnapshot(timeout: 1)
+            switch RestartReplay.resolve(surface.replayObservation(snapshot: snapshot), shell: surface.loginShellName,
+                                         denylist: controller.restoreDenylist()) {
+            case .failure(let failure): return finish(failure.message)
+            case .success(let launch): replay = launch
+            }
+        }
         guard let job else { return finish("the process table cannot be read; nothing was changed") }
         switch client.killConfirmed(name: daemon) {
         case .killed: break
@@ -121,9 +133,10 @@ private final class LinuxPaneRestart {
             closeEnded()
             return finish("the old shell ended (pid \(oldPID)) but the program or pane could not be replaced; nothing was started")
         }
+        MessageBus.shared.dispose(pane: identity)
         controller.store.clearPaneOwnedState(session.id, pane: role == .right ? .right : .left)
-        let launch = ZmxSupport.attachCommand(config, replaying: nil, creationCommand: command, denylist: [])
-        guard let replacement = controller.replacePane(surface, command: launch, environment: config.environment, wait: false, lead: lead) else {
+        let launch = ZmxSupport.attachCommand(config, replaying: replay?.argv, creationCommand: command, denylist: [])
+        guard let replacement = controller.replacePane(surface, command: launch, environment: config.environment, wait: false, lead: lead, workingDirectory: replay?.workingDirectory) else {
             closeEnded()
             return finish("the old shell ended; the pane could not be rebuilt and was closed")
         }
@@ -144,7 +157,7 @@ private final class LinuxPaneRestart {
                     Self.pending.remove(self.identity)
                     self.completion(ControlResponse(ok: true, result: ControlResult(
                         id: self.session.id.uuidString, text: "restarted \(pane) pane: shell \(oldPID) -> \(newPID)", pane: pane,
-                        restart: ControlRestartReceipt(paneID: self.identity.uuidString, oldPid: oldPID, newPid: newPID))))
+                        restart: ControlRestartReceipt(paneID: self.identity.uuidString, oldPid: oldPID, newPid: newPID, replayedArgv: self.replay?.argv))))
                 }
             }
         }

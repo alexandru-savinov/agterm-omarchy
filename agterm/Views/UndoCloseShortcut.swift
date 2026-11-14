@@ -2,7 +2,7 @@ import agtermCore
 import AppKit
 
 /// Local monitor for the undo-close chord. It deliberately avoids a menu `keyboardShortcut` so native
-/// text undo keeps working in rename fields, palettes, and settings controls.
+/// text undo keeps working in rename fields, palettes, settings controls, and HTML pages.
 @MainActor
 final class UndoCloseShortcut {
     private let actions: AppActions
@@ -22,10 +22,16 @@ final class UndoCloseShortcut {
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
         guard actions.store?.pendingCloseSummary != nil else { return false }
-        guard NSApp.keyWindow?.firstResponder is NSText == false else { return false }
+        guard !Self.yieldsChord(to: NSApp.keyWindow?.firstResponder) else { return false }
         guard let chord = chord(from: event), matchesUndoCloseChord(chord) else { return false }
         actions.undoClose()
         return true
+    }
+
+    /// Whether `responder` keeps the chord for its own undo: a native text field or a focused HTML page.
+    /// No session is passed, so a page that merely covers the session while focus is elsewhere does not.
+    static func yieldsChord(to responder: NSResponder?) -> Bool {
+        responder is NSText || AppActions.htmlPageOwnsKeys(responder: responder, session: nil)
     }
 
     /// Whether `chord` is what `undo_close` is bound to right now. A wired keymap answering nil means a `map`
@@ -38,22 +44,11 @@ final class UndoCloseShortcut {
     }
 
     func chord(from event: NSEvent) -> Chord? {
-        var mods: Modifier = []
-        let flags = event.modifierFlags
-        if flags.contains(.control) { mods.insert(.control) }
-        if flags.contains(.command) { mods.insert(.command) }
-        if flags.contains(.option) { mods.insert(.option) }
-        if flags.contains(.shift) { mods.insert(.shift) }
-
-        // a layout that cannot type ASCII resolves to the Latin key at the same physical position, so ⌘Z still
-        // reopens a closed item on a Cyrillic layout (where that key types `я`). unlike
-        // `CustomCommandRunner.chord(from:)` the produced character here KEEPS shift (`shift+/` reports `?`),
-        // so a shifted-symbol chord does not match on a Latin layout — pre-existing, and why this monitor's
-        // `NSEvent` seam is the testable one (a synthesized event reports this accessor verbatim).
-        let key = namedKey(forKeyCode: event.keyCode)
-            ?? chordKey(forKeyCode: event.keyCode, produced: event.charactersIgnoringModifiers,
-                        layoutIsASCIICapable: KeyboardLayout.isASCIICapable)
-        guard let key, key.count == 1 || bindableNamedKeys.contains(key) else { return nil }
-        return Chord(mods: mods, key: key)
+        // unlike `CustomCommandRunner.chord(from:)` the produced character here KEEPS shift (`shift+/` reports
+        // `?`), so a shifted-symbol chord does not match on a Latin layout — pre-existing, and why this
+        // monitor's `NSEvent` seam is the testable one (a synthesized event reports this accessor verbatim).
+        guard let chord = event.keymapChord(produced: event.charactersIgnoringModifiers),
+              chord.key.count == 1 || bindableNamedKeys.contains(chord.key) else { return nil }
+        return chord
     }
 }

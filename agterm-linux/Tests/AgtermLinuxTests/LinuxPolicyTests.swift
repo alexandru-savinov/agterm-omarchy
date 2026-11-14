@@ -202,6 +202,10 @@ struct LinuxPolicyTests {
         // The baseline isolates the bundled layer's contribution: libghostty's own defaults
         // may add environment diagnostics, so the bundled lines must add ZERO on top of it.
         let baseline = try buildConfig(layers: [""])
+        let divider = try buildConfig(layers: ["split-divider-color = #123456\n"])
+        defer { ghostty_config_free(divider) }
+        #expect(GhosttyConfigTheme.colors(from: divider).splitDivider == "#123456")
+        #expect(GhosttyConfigTheme.colors(from: baseline).splitDivider == nil)
         defer { ghostty_config_free(baseline) }
         let baselineDiagnostics = ghostty_config_diagnostics_count(baseline)
 

@@ -18,6 +18,8 @@ final class AppController {
     let library: WindowLibrary
     let customCommandOrigin: LinuxCustomCommandOrigin
     let remoteTransport = LinuxPresentationTransport()
+    var replicaPages: [UUID: LinuxReplicaPageRecord] = [:]
+    var replicaPageFlushCancel: (@MainActor () -> Void)?
     var remoteClients: [UUID: RemotePresentationClient] = [:]
     var remoteTickCancel: (@MainActor () -> Void)?
     let window: OpaquePointer        // AdwApplicationWindow
@@ -71,11 +73,13 @@ final class AppController {
     var controlPickEntry: OpaquePointer?
     var controlPickRows: [LinuxControlPickRow] = []
     var controlPickSuppressesAutoFollow = false
+    var controlPickCompletion: ((ControlPickResult) -> Void)?
     var guiAskSuppressesAutoFollow = false
     var guiAskWindow: OpaquePointer?
     var replicaGUIAskSessionID: UUID?
     var guiAskButtons: [OpaquePointer] = []
     var guiAskNavigation: AskNavigation?
+    var guiAskForm: LinuxAskFormWidgets?
     var terminalAskSurfaces: [UUID: LinuxAskSurface] = [:]
     // In-terminal search bar (Ctrl+Shift+F)
     var searchBar: OpaquePointer?
@@ -295,6 +299,8 @@ final class AppController {
         recentSessionsButton = linuxHeaderToggle(contentHeader, "document-open-recent-symbolic",
                                                  LinuxChromeTooltip.text("Recent Sessions", shortcut: "Ctrl+Tab"), onRecentSessionsButton)
         registerInterfaceWidgets(sidebarToggle: sidebarToggleBtn)
+        installOverlayToggle(in: contentHeader)
+        LinuxHudLinkRouter.install(on: window, controller: self)
         updateAttentionButton()
         updateDashboardButton()
         applyInterfaceElements()
@@ -472,7 +478,8 @@ final class AppController {
                 setQuick(false)
                 return
             }
-            if store.session(withID: id)?.overlayActive == true {
+            if let session = store.session(withID: id), session.content != .page,
+               session.hudActive || session.coverOverlayVisible {
                 closeOverlay(id)
                 return
             }
@@ -519,7 +526,11 @@ final class AppController {
         let survivorOverlay = rightOverlaySurfaces[id]; let survivorWash = rightOverlayWashes[id]
         let survivorWashProvider = rightOverlayWashProviders[id]
         let zoomTarget = suspendTerminalZoomForPrimaryPanePromotion(id)
-        store.closePrimaryPane(id, alreadyFinalized: alreadyFinalized)
+        let prior = surfaces[id]?.backedByZmx == true ? gZmxForegroundResolver?.freshSnapshot(timeout: 1)?.leaders : nil
+        if store.closePrimaryPane(id, alreadyFinalized: alreadyFinalized) == .respawned {
+            respawnPrimaryAdapters(id, prior: prior)
+            return
+        }
         guard store.session(withID: id) != nil, let survivor, let survivorHost,
               let paned = sessionPanes[id] else {
             reconcile()   // no split → the store closed the session; reconcile drops its widgets
@@ -802,7 +813,7 @@ final class AppController {
 
     func toggleSplit(axis: SplitAxis? = nil) {
         guard let id = store.selectedSessionID, let session = store.session(withID: id),
-              !session.fullOverlayActive else { return }
+              !session.fullOverlayVisible else { return }
         if session.scratchActive {
             store.toggleScratch(id)
             reconcile(); updateToggleIcons()
@@ -816,6 +827,9 @@ final class AppController {
     }
 
     func closeSplitPane(_ id: UUID, alreadyFinalized: UUID? = nil) {
+        guard store.session(withID: id)?.splitSurface != nil else {
+            return closePrimaryPane(id, alreadyFinalized: alreadyFinalized)
+        }
         store.closeSplitPane(id, alreadyFinalized: alreadyFinalized)
         reconcile()
         if store.selectedSessionID == id {
@@ -843,29 +857,6 @@ final class AppController {
         focusPane(wantSplit: primaryInEndSlot(id) ? left : !left)
     }
 
-    /// Show a persistent, centered message when the GtkGLArea can't create a GL context (VM/headless/
-    /// llvmpipe-less/Wayland-no-GL) — the terminal can't render, so explain it instead of a blank pane.
-    func showGLError() {
-        guard let overlay = deckOverlay, glErrorLabel == nil else { return }
-        let presentation = LinuxSurfaceFailurePresentation.resolve(.glContext, role: .main)
-        guard presentation.scope == .displayWide,
-              let label = op(gtk_label_new(presentation.message)) else { return }
-        gtk_label_set_justify(label, GTK_JUSTIFY_CENTER)
-        gtk_label_set_wrap(label, 1)
-        gtk_widget_set_halign(W(label), GTK_ALIGN_CENTER)
-        gtk_widget_set_valign(W(label), GTK_ALIGN_CENTER)
-        gtk_widget_add_css_class(W(label), "agterm-gl-error")
-        glErrorLabel = label
-        gtk_overlay_add_overlay(overlay, W(label))
-    }
-
-    /// Surface a transient banner (AdwToast) over the window content — keymap/config parse diagnostics
-    /// and other non-modal alerts. No-op before the content (and its toast overlay) is built.
-    func showToast(_ message: String) {
-        guard let overlay = toastOverlay else { return }
-        message.withCString { adw_toast_overlay_add_toast(overlay, adw_toast_new($0)) }
-    }
-
     func closeScratch(_ id: UUID) {
         store.closeScratch(id)
         reconcile()
@@ -884,7 +875,7 @@ final class AppController {
 
     /// Bundled ghostty theme names (the file names in the resolved themes dir).
     nonisolated static func bundledThemes() -> [String] {
-        var names = themesDir().map { ThemeCatalog.names(in: $0) } ?? []
+        var names = themesDir().map { ThemeCatalog.names(in: $0).filter { $0 != ".agterm-resource-manifest" } } ?? []
         if !names.contains(AppSettings.defaultTheme) {
             names.append(AppSettings.defaultTheme)
         }
@@ -983,7 +974,7 @@ final class AppController {
         let sidebarBg = ThemeColorResolver.shiftedHex(themeBg, amount: AppSettings.sidebarShiftAmount(strength: shift))
         let css = ThemeColorResolver.windowThemeCSS(
             background: themeBg, foreground: fg, selectionBackground: sel,
-            selectionForeground: selFg, sidebarBackground: sidebarBg)
+            selectionForeground: selFg, sidebarBackground: sidebarBg, splitDivider: colors.splitDivider)
         if Self.sidebarThemeProvider == nil {
             let provider = OpaquePointer(gtk_css_provider_new())
             Self.sidebarThemeProvider = provider

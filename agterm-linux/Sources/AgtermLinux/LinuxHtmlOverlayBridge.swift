@@ -21,17 +21,18 @@ extension LinuxHtmlOverlayPage {
         if overlay.javascript { addBridgeScript(LinuxHtmlBridgeScripts.helper(nonce: bridgeNonce), world: nil) }
     }
 
-    private func addBridgeScript(_ text: String, world: String?) {
+    func addBridgeScript(_ text: String, world: String?, atEnd: Bool = false) {
+        let injection = atEnd ? WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_END : WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START
         text.withCString { source in
             let script: OpaquePointer?
             if let world {
                 script = world.withCString {
                     webkit_user_script_new_for_world(source, WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
-                                                     WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START, $0, nil, nil)
+                                                     injection, $0, nil, nil)
                 }
             } else {
                 script = webkit_user_script_new(source, WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
-                                                WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START, nil, nil)
+                                                injection, nil, nil)
             }
             webkit_user_content_manager_add_script(manager, script)
             webkit_user_script_unref(script)
@@ -40,10 +41,12 @@ extension LinuxHtmlOverlayPage {
 
     func bridgeRequest(_ value: OpaquePointer?, reply: OpaquePointer?) {
         guard let reply else { return }
-        let decision = LinuxHtmlBridgeGate(pageID: id, nonce: bridgeNonce).decide(
-            closed: closed,
+        var owner: (controller: AppController, session: Session)?
+        let admission = LinuxHtmlBridgeGate(pageID: id, nonce: bridgeNonce).admit(
+            source: overlay.source, closed: closed,
             page: {
                 guard let store, let controller, let slot = store.htmlOverlaySlot(id) else { return nil }
+                owner = (controller, slot.session)
                 return HtmlBridgePage(window: controller.windowID.uuidString, session: slot.session.id, pane: slot.pane)
             },
             uri: { webkit_web_view_get_uri(cast(webView)).map(String.init(cString:)) },
@@ -52,8 +55,27 @@ extension LinuxHtmlOverlayPage {
                 defer { g_free(json) }
                 return String(cString: json)
             })
+        let admitted: LinuxHtmlBridgeGate.Admitted
+        switch admission {
+        case .reject(let error): return rejectBridge(reply, error)
+        case .admitted(let passed): admitted = passed
+        }
+        if let owner, let record = owner.controller.replicaPages[id], let channel = record.channel,
+           !(owner.session.content == .page && linuxBridgeAddressesOwnPage(admitted.object)) {
+            guard let context = jsc_value_get_context(value) else { return rejectBridge(reply, "no JavaScript context") }
+            let delivery = LinuxHtmlBridgeReply(reply: reply, context: context)
+            channel.bridge(String(decoding: admitted.requestData, as: UTF8.self)) { result in
+                switch result {
+                case .success(let response):
+                    delivery.finish((try? JSONDecoder().decode(ControlResponse.self, from: Data(response.utf8)))
+                        ?? ControlResponse(ok: false, error: "invalid response from page origin"))
+                case .failure: delivery.finish(ControlResponse(ok: false, error: "page channel closed"))
+                }
+            }
+            return
+        }
         let request: ControlRequest
-        switch decision {
+        switch LinuxHtmlBridgeGate.request(admitted) {
         case .reject(let error): return rejectBridge(reply, error)
         case .dispatch(let decoded): request = decoded
         }
@@ -106,3 +128,10 @@ private let onHtmlBridgeRequest: @MainActor @convention(c)
         Unmanaged<LinuxHtmlOverlayPage>.fromOpaque(data).takeUnretainedValue().bridgeRequest(value, reply: reply)
         return 1
     }
+
+func linuxBridgeAddressesOwnPage(_ object: Any) -> Bool {
+    guard let request = object as? [String: Any], let command = request["cmd"] as? String,
+          ["session.overlay.reload", "session.overlay.navigate"].contains(command) else { return false }
+    let args = request["args"] as? [String: Any]
+    return ![request["target"], args?["targets"], args?["window"]].contains { $0 != nil && !($0 is NSNull) }
+}

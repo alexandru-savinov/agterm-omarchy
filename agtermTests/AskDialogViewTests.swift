@@ -32,7 +32,8 @@ final class AskDialogViewTests: XCTestCase {
         XCTAssertTrue(fixture.window.firstResponder === editor)
         let askID = try XCTUnwrap(fixture.session.askPending?.id)
         terminal.onSearchEnd?()
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        XCTAssertTrue(waitUntil { fixture.window.firstResponder === catcher },
+                      "responder \(String(describing: fixture.window.firstResponder))")
         XCTAssertFalse(fixture.session.searchActive)
         XCTAssertNil(fixture.session.searchSurface)
         XCTAssertTrue(fixture.window.firstResponder === catcher)
@@ -328,13 +329,597 @@ final class AskDialogViewTests: XCTestCase {
     func testNavigationKeysMapToActions() throws {
         let cases: [(UInt16, NSEvent.ModifierFlags, AskKey)] = [
             (48, [], .forward), (48, .shift, .backward),
-            (124, [], .forward), (125, [], .forward),
-            (123, [], .backward), (126, [], .backward),
+            (124, [], .forward), (125, [], .down),
+            (123, [], .backward), (126, [], .up), (49, [], .toggle),
             (36, [], .activate), (76, [], .activate), (53, [], .cancel),
         ]
         for (key, modifiers, expected) in cases {
             XCTAssertEqual(AskKeyCatcher.key(for: try event(key, modifiers: modifiers)), expected)
         }
+    }
+
+    func testUpAndDownStillMoveButtonsOfAPlainAsk() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        let ask = PendingAsk(id: UUID().uuidString, title: "Pick", buttons: [ControlAskButton(id: "a", label: "A"),
+                                                                            ControlAskButton(id: "b", label: "B")])
+        XCTAssertTrue(fixture.session.openAsk(ask))
+        XCTAssertTrue(AskRegistry.shared.register(id: ask.id, owner: .session(fixture.session.id, window: fixture.windowID)))
+        fixture.mount()
+        let catcher = try XCTUnwrap(fixture.catcher)
+        catcher.keyDown(with: try event(125))
+        catcher.keyDown(with: try event(36, text: "\r"))
+        XCTAssertEqual(AskRegistry.shared.result(for: ask.id)?.result.id, "b")
+    }
+
+    func testInputAskFocusesItsEditorAtOpenAndKeepsInputOwnership() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .line, value: "draft")))
+        fixture.mount()
+        let catcher = try XCTUnwrap(fixture.catcher)
+        let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+        XCTAssertTrue(catcher.holds(editor))
+        XCTAssertEqual(editor.string, "draft")
+        XCTAssertTrue(catcher.canFocus)
+        fixture.actions.resignDismissedFieldEditor(for: fixture.windowID)
+        XCTAssertTrue(fixture.window.firstResponder === editor)
+    }
+
+    func testTypingUpdatesTheDraftAndReturnAnswersWithTheText() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .line)))
+        fixture.mount()
+        let askID = try XCTUnwrap(fixture.session.askPending?.id)
+        let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+        editor.insertText("hello world", replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertEqual(fixture.session.askDraft?.text, "hello world")
+        editor.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+        XCTAssertEqual(AskRegistry.shared.result(for: askID)?.result,
+                       ControlAskResult(result: .answered, id: "ok", label: "OK", index: 0, text: "hello world"))
+    }
+
+    func testTabMovesTheHighlightToCancelWhichEscapesWithoutText() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .line, value: "x")))
+        fixture.mount()
+        let askID = try XCTUnwrap(fixture.session.askPending?.id)
+        let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+        editor.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        XCTAssertTrue(fixture.window.firstResponder === editor)
+        editor.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+        XCTAssertEqual(AskRegistry.shared.result(for: askID)?.result, ControlAskResult(result: .escaped))
+    }
+
+    func testEscInTheEditorEscapes() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .line)))
+        fixture.mount()
+        let askID = try XCTUnwrap(fixture.session.askPending?.id)
+        let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+        editor.doCommand(by: #selector(NSResponder.cancelOperation(_:)))
+        XCTAssertEqual(AskRegistry.shared.result(for: askID)?.result, ControlAskResult(result: .escaped))
+    }
+
+    func testMultilineReturnAddsALineAndCommandReturnAnswers() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .multiline)))
+        fixture.mount()
+        let askID = try XCTUnwrap(fixture.session.askPending?.id)
+        let editor = try XCTUnwrap(fixture.window.firstResponder as? AskTextView)
+        editor.insertText("one", replacementRange: NSRange(location: NSNotFound, length: 0))
+        editor.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+        editor.insertText("two", replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertNotNil(fixture.session.askPending)
+        XCTAssertFalse(editor.performKeyEquivalent(with: try event(36, text: "\r", modifiers: [.command, .shift])))
+        XCTAssertTrue(editor.performKeyEquivalent(with: try event(36, text: "\r", modifiers: .command)))
+        XCTAssertEqual(AskRegistry.shared.result(for: askID)?.result.text, "one\ntwo")
+    }
+
+    func testCommandReturnDoesNothingWhileTheEditorIsNotFirstResponder() throws {
+        let editor = AskTextView(frame: .zero)
+        var submitted = false
+        editor.onSubmit = { submitted = true }
+        _ = editor.performKeyEquivalent(with: try event(36, text: "\r", modifiers: .command))
+        XCTAssertFalse(submitted)
+    }
+
+    func testChoiceKeysMoveTheCursorToggleAndAnswerWithTheSelection() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        let choices = [ControlAskChoice(id: "a", label: "A"), ControlAskChoice(id: "b", label: "B", subtitle: "two\nlines"),
+                       ControlAskChoice(id: "c", label: "C")]
+        try fixture.open(form: .choices(AskChoiceForm(choices: choices, multiple: true, checked: ["c"])))
+        fixture.mount()
+        let askID = try XCTUnwrap(fixture.session.askPending?.id)
+        let catcher = try XCTUnwrap(fixture.catcher)
+        XCTAssertTrue(fixture.window.firstResponder === catcher)
+        catcher.keyDown(with: try event(126))
+        catcher.keyDown(with: try event(49, text: " "))
+        catcher.keyDown(with: try event(126))
+        catcher.keyDown(with: try event(49, text: " "))
+        XCTAssertEqual(fixture.session.askDraft?.selected, ["a", "b", "c"])
+        catcher.keyDown(with: try event(36, text: "\r"))
+        XCTAssertEqual(AskRegistry.shared.result(for: askID)?.result.selected, ["a", "b", "c"])
+    }
+
+    func testALongListOpensScrolledToTheCheckedItem() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        let choices = (1...50).map { ControlAskChoice(id: "i\($0)", label: "Item \($0)", subtitle: "one\ntwo\nthree") }
+        try fixture.open(form: .choices(AskChoiceForm(choices: choices, multiple: false, checked: ["i50"])))
+        fixture.mount()
+        let host = try XCTUnwrap(fixture.window.contentView)
+        func overflowingList() -> NSScrollView? {
+            descendants(NSScrollView.self, in: host).first { ($0.documentView?.frame.height ?? 0) > $0.contentView.bounds.height }
+        }
+        func scrolledToEnd(_ list: NSScrollView) -> Bool {
+            guard let document = list.documentView else { return false }
+            let visible = list.documentVisibleRect
+            let scrolled = document.isFlipped ? visible.minY > 0 : visible.maxY < document.frame.height
+            let endVisible = document.isFlipped ? visible.maxY >= document.frame.height - 1 : visible.minY <= 1
+            return visible.height > 0 && scrolled && endVisible
+        }
+        let settled = waitUntil { overflowingList().map(scrolledToEnd) == true }
+        let list = try XCTUnwrap(overflowingList())
+        let document = try XCTUnwrap(list.documentView)
+        XCTAssertTrue(settled && scrolledToEnd(list), "visible \(list.documentVisibleRect) of document \(document.frame)")
+    }
+
+    func testTheCatcherKeepsFocusOnAnOrdinaryRowAndTheCursorHandsItToTheOtherFieldAndBack() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: otherChoices(multiple: false))
+        fixture.mount()
+        let catcher = try XCTUnwrap(fixture.catcher)
+        XCTAssertTrue(fixture.window.firstResponder === catcher)
+        catcher.keyDown(with: try event(125))
+        catcher.keyDown(with: try event(125))
+        XCTAssertTrue(waitUntil { fixture.window.firstResponder is AskFieldEditor })
+        XCTAssertEqual(fixture.session.askDraft?.cursorOnOther, true)
+        let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+        editor.doCommand(by: #selector(NSResponder.moveDown(_:)))
+        XCTAssertTrue(fixture.window.firstResponder === editor)
+        editor.doCommand(by: #selector(NSResponder.moveUp(_:)))
+        XCTAssertTrue(waitUntil { fixture.window.firstResponder === catcher })
+        XCTAssertEqual(fixture.session.askDraft?.cursor, 1)
+    }
+
+    func testTypingInTheOtherFieldSelectsItAndReturnAnswersWithTheText() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: otherChoices(multiple: false))
+        fixture.mount()
+        let askID = try XCTUnwrap(fixture.session.askPending?.id)
+        let editor = try otherEditor(in: fixture)
+        editor.insertText(" ", replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertEqual(fixture.session.askDraft?.otherSelected, false)
+        XCTAssertEqual(fixture.session.askDraft?.selected, ["a"])
+        editor.insertText("a b", replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertEqual(fixture.session.askDraft?.text, " a b")
+        XCTAssertEqual(fixture.session.askDraft?.otherSelected, true)
+        editor.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+        XCTAssertEqual(AskRegistry.shared.result(for: askID)?.result,
+                       ControlAskResult(result: .answered, id: "ok", label: "OK", index: 0, text: " a b", selected: []))
+    }
+
+    func testLettersInTheOtherFieldNeverFireButtonHotkeys() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        let ask = PendingAsk(id: UUID().uuidString, title: "Pick", buttons: [ControlAskButton(id: "go", label: "Go", hotkey: "g")],
+                             form: otherChoices(multiple: true))
+        XCTAssertTrue(fixture.session.openAsk(ask))
+        XCTAssertTrue(AskRegistry.shared.register(id: ask.id, owner: .session(fixture.session.id, window: fixture.windowID)))
+        fixture.mount()
+        let editor = try otherEditor(in: fixture)
+        editor.insertText("x", replacementRange: NSRange(location: NSNotFound, length: 0))
+        editor.setSelectedRange(NSRange(location: 1, length: 0))
+        editor.keyDown(with: try event(5, text: "g"))
+        XCTAssertNotNil(fixture.session.askPending)
+        XCTAssertEqual(editor.string, "xg")
+        XCTAssertEqual(fixture.session.askDraft?.text, "xg")
+    }
+
+    func testAnUncheckedOtherRowStaysUncheckedThroughTabAndARemount() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: otherChoices(multiple: true))
+        fixture.mount()
+        let askID = try XCTUnwrap(fixture.session.askPending?.id)
+        let editor = try otherEditor(in: fixture)
+        editor.insertText("kept", replacementRange: NSRange(location: NSNotFound, length: 0))
+        fixture.session.updateAskDraft(id: askID) { $0.toggle(at: 2) }
+        XCTAssertEqual(fixture.session.askDraft?.otherSelected, false)
+        editor.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        fixture.mount()
+        XCTAssertTrue(waitUntil { fixture.window.firstResponder is AskFieldEditor })
+        XCTAssertEqual(fixture.session.askDraft?.otherSelected, false)
+        XCTAssertEqual(fixture.session.askDraft?.text, "kept")
+    }
+
+    func testACompositionInTheOtherFieldKeepsUpDownReturnAndEscNative() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: otherChoices(multiple: false))
+        fixture.mount()
+        let askID = try XCTUnwrap(fixture.session.askPending?.id)
+        let editor = try otherEditor(in: fixture)
+        for selector in [#selector(NSResponder.moveUp(_:)), #selector(NSResponder.moveDown(_:)),
+                         #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.cancelOperation(_:))] {
+            editor.setMarkedText("か", selectedRange: NSRange(location: 1, length: 0), replacementRange: editor.selectedRange())
+            XCTAssertTrue(editor.hasMarkedText())
+            editor.doCommand(by: selector)
+            XCTAssertEqual(fixture.session.askDraft?.cursorOnOther, true, "\(selector)")
+            XCTAssertEqual(fixture.session.askPending?.id, askID, "\(selector)")
+        }
+    }
+
+    func testTheOtherRowIsReachedAndScrolledIntoViewAfterFiftyItems() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        let choices = (1...50).map { ControlAskChoice(id: "i\($0)", label: "Item \($0)", subtitle: "one\ntwo") }
+        try fixture.open(form: .choices(AskChoiceForm(choices: choices, multiple: true, other: "Something else")))
+        fixture.mount()
+        let catcher = try XCTUnwrap(fixture.catcher)
+        for _ in 0..<60 { catcher.keyDown(with: try event(125)) }
+        XCTAssertTrue(waitUntil { fixture.window.firstResponder is AskFieldEditor })
+        let field = try XCTUnwrap(descendants(AskTextField.self, in: try XCTUnwrap(fixture.window.contentView)).first { $0.window != nil })
+        let list = try XCTUnwrap(field.enclosingScrollView)
+        XCTAssertTrue(waitUntil { list.documentVisibleRect.intersects(field.convert(field.bounds, to: list.documentView)) },
+                      "visible \(list.documentVisibleRect) field \(field.convert(field.bounds, to: list.documentView))")
+
+        fixture.mount()
+        XCTAssertTrue(waitUntil {
+            guard let remounted = descendants(AskTextField.self, in: fixture.window.contentView ?? NSView()).first(where: { $0.window != nil }),
+                  let scroll = remounted.enclosingScrollView else { return false }
+            return scroll.documentVisibleRect.intersects(remounted.convert(remounted.bounds, to: scroll.documentView))
+        })
+    }
+
+    func testARemountOnTheOtherRowReopensThereEvenWithACallerItemNamedLikeIt() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        var choices = (1...40).map { ControlAskChoice(id: "i\($0)", label: "Item \($0)", subtitle: "one\ntwo") }
+        choices[0] = ControlAskChoice(id: AskChoiceList.otherRowID, label: "Collides", subtitle: "one\ntwo")
+        try fixture.open(form: .choices(AskChoiceForm(choices: choices, multiple: true, other: "Something else")))
+        fixture.session.updateAskDraft(id: try XCTUnwrap(fixture.session.askPending?.id)) { $0.moveCursor(by: 100) }
+        fixture.mount()
+        XCTAssertTrue(waitUntil {
+            guard let field = descendants(AskTextField.self, in: fixture.window.contentView ?? NSView()).first(where: { $0.window != nil }),
+                  let list = field.enclosingScrollView else { return false }
+            return list.documentVisibleRect.intersects(field.convert(field.bounds, to: list.documentView))
+        })
+    }
+
+    func testTheOtherRowDraftSurvivesALayoutSwap() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: otherChoices(multiple: true))
+        let tall = CGRect(x: 0, y: 0, width: 600, height: 300)
+        let short = CGRect(x: 0, y: 0, width: 600, height: 110)
+        let host = NSHostingView(rootView: AnyView(fixture.overlay(detail: tall).frame(width: 600, height: 300)))
+        fixture.window.contentView = host
+        fixture.window.makeKeyAndOrderFront(nil)
+        host.layoutSubtreeIfNeeded()
+        fixture.catcher?.updateFocus(revision: 1)
+        let editor = try otherEditor(in: fixture)
+        editor.insertText("kept", replacementRange: NSRange(location: NSNotFound, length: 0))
+
+        host.rootView = AnyView(fixture.overlay(detail: short).frame(width: 600, height: 300))
+        host.layoutSubtreeIfNeeded()
+        XCTAssertTrue(waitUntil {
+            guard let current = fixture.window.firstResponder as? AskFieldEditor, current !== editor else { return false }
+            return fixture.catcher?.editorBox?.owns(current) == true && (current.delegate as? NSView)?.window === fixture.window
+        }, "responder \(String(describing: fixture.window.firstResponder))")
+        XCTAssertEqual((fixture.window.firstResponder as? NSTextView)?.string, "kept")
+        XCTAssertEqual(fixture.session.askDraft?.text, "kept")
+        XCTAssertEqual(fixture.session.askDraft?.otherSelected, true)
+    }
+
+    private func otherChoices(multiple: Bool) -> AskForm {
+        .choices(AskChoiceForm(choices: [ControlAskChoice(id: "a", label: "A"), ControlAskChoice(id: "b", label: "B")],
+                               multiple: multiple, other: "Something else"))
+    }
+
+    /// Moves the cursor onto the free-form row through the session draft and returns its focused field editor.
+    private func otherEditor(in fixture: SessionAskTestFixture) throws -> NSTextView {
+        let askID = try XCTUnwrap(fixture.session.askPending?.id)
+        fixture.session.updateAskDraft(id: askID) { $0.moveCursor(by: 10) }
+        XCTAssertTrue(waitUntil { fixture.window.firstResponder is AskFieldEditor },
+                      "responder \(String(describing: fixture.window.firstResponder))")
+        return try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+    }
+
+    func testTheDraftSurvivesTheDialogUnmountingAndComingBack() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .line)))
+        fixture.mount()
+        let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+        editor.insertText("kept", replacementRange: NSRange(location: NSNotFound, length: 0))
+        fixture.window.contentView = nil
+        fixture.mount()
+        let remounted = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+        XCTAssertEqual(remounted.string, "kept")
+    }
+
+    func testCommandWWithTheEditorFocusedDismissesTheAsk() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .line)))
+        fixture.mount()
+        let askID = try XCTUnwrap(fixture.session.askPending?.id)
+        XCTAssertTrue(fixture.window.firstResponder is NSTextView)
+        XCTAssertTrue(fixture.actions.escapePendingSessionAsk())
+        XCTAssertEqual(AskRegistry.shared.result(for: askID)?.result, ControlAskResult(result: .escaped))
+    }
+
+    func testAnEditAtTheCapIsRefusedWithoutLosingTheEnd() throws {
+        for mode in ControlAskInputMode.allCases {
+            let fixture = try SessionAskTestFixture()
+            defer { fixture.close() }
+            let full = String(repeating: "x", count: AskInputForm.maxTextBytes - 1) + "Z"
+            try fixture.open(form: .input(AskInputForm(mode: mode, value: full)))
+            fixture.mount()
+            let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+            editor.setSelectedRange(NSRange(location: 0, length: 0))
+            editor.insertText("A", replacementRange: NSRange(location: 0, length: 0))
+            XCTAssertEqual(editor.string, full, "\(mode)")
+            XCTAssertEqual(fixture.session.askDraft?.text, full, "\(mode)")
+            editor.setSelectedRange(NSRange(location: 0, length: 1))
+            editor.insertText("A", replacementRange: NSRange(location: 0, length: 1))
+            XCTAssertEqual(fixture.session.askDraft?.text, "A" + full.dropFirst(), "\(mode)")
+        }
+    }
+
+    func testAPasteWithAForbiddenControlIsRefusedWhole() throws {
+        let cases: [(ControlAskInputMode, String, String)] = [
+            (.line, "a\u{1}b", "kept"), (.line, "a\tb", "kept"), (.line, "a\nb", "kept"),
+            (.multiline, "a\u{1}b", "kept"), (.multiline, "a\r\nb", "kept"), (.multiline, "a\u{7f}", "kept"),
+            (.multiline, "a\tb\nc", "kepta\tb\nc"),
+        ]
+        for (mode, paste, expected) in cases {
+            let fixture = try SessionAskTestFixture()
+            defer { fixture.close() }
+            try fixture.open(form: .input(AskInputForm(mode: mode, value: "kept")))
+            fixture.mount()
+            let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+            let end = NSRange(location: (editor.string as NSString).length, length: 0)
+            editor.setSelectedRange(end)
+            editor.insertText(paste, replacementRange: end)
+            XCTAssertEqual(editor.string, expected, "\(mode) \(paste.debugDescription)")
+            XCTAssertEqual(fixture.session.askDraft?.text, expected, "\(mode) \(paste.debugDescription)")
+        }
+    }
+
+    func testACompositionThatWouldPassTheCapIsRefusedAndOneThatFitsCommits() throws {
+        for mode in ControlAskInputMode.allCases {
+            let fixture = try SessionAskTestFixture()
+            defer { fixture.close() }
+            let nearly = String(repeating: "x", count: AskInputForm.maxTextBytes - 2)
+            try fixture.open(form: .input(AskInputForm(mode: mode, value: nearly)))
+            fixture.mount()
+            let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+            let end = NSRange(location: (editor.string as NSString).length, length: 0)
+            editor.setSelectedRange(end)
+            editor.setMarkedText("abc", selectedRange: NSRange(location: 3, length: 0), replacementRange: end)
+            XCTAssertEqual(editor.string, nearly, "\(mode)")
+            editor.setMarkedText("ab", selectedRange: NSRange(location: 2, length: 0), replacementRange: end)
+            editor.insertText("ab", replacementRange: editor.markedRange())
+            XCTAssertFalse(editor.hasMarkedText(), "\(mode)")
+            XCTAssertEqual(editor.string, nearly + "ab", "\(mode)")
+            XCTAssertEqual(fixture.session.askDraft?.text, nearly + "ab", "\(mode)")
+        }
+    }
+
+    func testCommandWWhileAGUIAskEditorComposesKeepsTheAsk() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        let pick = PickController()
+        PickRegistry.shared.register(fixture.windowID, controller: pick)
+        let ask = PendingAsk(id: UUID().uuidString, title: "Name", buttons: [ControlAskButton(id: "ok", label: "OK")],
+                             style: .gui, form: .input(AskInputForm(mode: .line)))
+        XCTAssertTrue(pick.openAsk(ask))
+        let host = NSHostingView(rootView: AskDialogView(
+            ask: ask, anchorFrame: CGRect(x: 0, y: 0, width: 600, height: 300), font: .monospacedSystemFont(ofSize: 13, weight: .regular),
+            foreground: .white, background: .black, focusAllowed: true, draft: pick.askDraft,
+            updateDraft: { pick.updateAskDraft(id: ask.id, $0) }, onAnswer: { pick.answerAsk(id: ask.id, buttonAt: $0) },
+            onDismiss: { pick.escapeAsk() }
+        ).frame(width: 600, height: 300))
+        fixture.window.contentView = host
+        fixture.window.makeKeyAndOrderFront(nil)
+        host.layoutSubtreeIfNeeded()
+        let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+        editor.setMarkedText("k", selectedRange: NSRange(location: 1, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertTrue(fixture.actions.escapePendingAsk(for: fixture.windowID))
+        XCTAssertEqual(pick.pendingAsk?.id, ask.id)
+        editor.unmarkText()
+        XCTAssertTrue(fixture.actions.escapePendingAsk(for: fixture.windowID))
+        XCTAssertNil(pick.pendingAsk)
+    }
+
+    // the gui field drew AppKit's square line border, darker than the palette panel around it
+    func testALineFieldDrawsNoAppKitFrameAndOnlyTheGuiOneInsetsItsText() throws {
+        for style in ControlAskStyle.allCases {
+            let fixture = try SessionAskTestFixture()
+            defer { fixture.close() }
+            let pick = PickController()
+            PickRegistry.shared.register(fixture.windowID, controller: pick)
+            let ask = PendingAsk(id: UUID().uuidString, title: "Name", buttons: [ControlAskButton(id: "ok", label: "OK")],
+                                 style: style, form: .input(AskInputForm(mode: .line)))
+            XCTAssertTrue(pick.openAsk(ask))
+            let host = NSHostingView(rootView: AskDialogView(
+                ask: ask, anchorFrame: CGRect(x: 0, y: 0, width: 600, height: 300), font: .monospacedSystemFont(ofSize: 13, weight: .regular),
+                foreground: .white, background: .black, focusAllowed: true, draft: pick.askDraft,
+                updateDraft: { pick.updateAskDraft(id: ask.id, $0) }, onAnswer: { pick.answerAsk(id: ask.id, buttonAt: $0) },
+                onDismiss: { pick.escapeAsk() }
+            ).frame(width: 600, height: 300))
+            fixture.window.contentView = host
+            host.layoutSubtreeIfNeeded()
+
+            let field = try XCTUnwrap(descendant(AskTextField.self, in: host), "\(style)")
+            XCTAssertFalse(field.isBezeled, "\(style)")
+            XCTAssertFalse(field.isBordered, "\(style)")
+            XCTAssertFalse(field.drawsBackground, "\(style)")
+            XCTAssertEqual(field.focusRingType, .none, "\(style)")
+            XCTAssertEqual((field.cell as? AskTextFieldCell)?.textInset, style == .gui ? 6 : 0, "\(style)")
+        }
+    }
+
+    func testAGuiLineFieldEditsInsetAndCenteredInsideItsBox() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        let pick = PickController()
+        PickRegistry.shared.register(fixture.windowID, controller: pick)
+        let ask = PendingAsk(id: UUID().uuidString, title: "Name", buttons: [ControlAskButton(id: "ok", label: "OK")],
+                             style: .gui, form: .input(AskInputForm(mode: .line, placeholder: "empty: parent's name, renamed later")))
+        XCTAssertTrue(pick.openAsk(ask))
+        let host = NSHostingView(rootView: AskDialogView(
+            ask: ask, anchorFrame: CGRect(x: 0, y: 0, width: 600, height: 300), font: .monospacedSystemFont(ofSize: 13, weight: .regular),
+            foreground: .white, background: .black, focusAllowed: true, draft: pick.askDraft,
+            updateDraft: { pick.updateAskDraft(id: ask.id, $0) }, onAnswer: { pick.answerAsk(id: ask.id, buttonAt: $0) },
+            onDismiss: { pick.escapeAsk() }
+        ).frame(width: 600, height: 300))
+        fixture.window.contentView = host
+        fixture.window.makeKeyAndOrderFront(nil)
+        host.layoutSubtreeIfNeeded()
+
+        let field = try XCTUnwrap(descendant(AskTextField.self, in: host))
+        let placeholder = try XCTUnwrap(field.cell).titleRect(forBounds: field.bounds)
+        XCTAssertEqual(placeholder.minX, 6, accuracy: 0.5)
+        XCTAssertEqual(placeholder.midY, field.bounds.midY, accuracy: 1)
+
+        let editor = try XCTUnwrap(field.currentEditor() as? NSTextView)
+        let frame = editor.convert(editor.bounds, to: field)
+        XCTAssertEqual(frame.minX, 6, accuracy: 0.5)
+        XCTAssertGreaterThan(field.bounds.height, frame.height + 6, "the box leaves room around the text")
+        XCTAssertEqual(frame.midY, field.bounds.midY, accuracy: 1)
+    }
+
+    func testAWrappedParagraphGrowsTheMultilineEditor() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .multiline, value: "short")))
+        fixture.mount()
+        let host = try XCTUnwrap(fixture.window.contentView)
+        let short = try XCTUnwrap(descendant(AskTextScrollView.self, in: host)).frame.height
+        fixture.session.updateAskDraft(id: try XCTUnwrap(fixture.session.askPending?.id)) {
+            $0.text = String(repeating: "wrapped words ", count: 120)
+        }
+        host.layoutSubtreeIfNeeded()
+        let tall = try XCTUnwrap(descendant(AskTextScrollView.self, in: host)).frame.height
+        XCTAssertGreaterThan(tall, short * 1.5)
+    }
+
+    func testCommandWWhileTheEditorComposesKeepsTheAsk() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .line)))
+        fixture.mount()
+        let askID = try XCTUnwrap(fixture.session.askPending?.id)
+        let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+        editor.setMarkedText("k", selectedRange: NSRange(location: 1, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertTrue(editor.hasMarkedText())
+        XCTAssertTrue(fixture.actions.escapePendingSessionAsk())
+        XCTAssertEqual(fixture.session.askPending?.id, askID)
+        editor.unmarkText()
+        XCTAssertTrue(fixture.actions.escapePendingSessionAsk())
+        XCTAssertEqual(AskRegistry.shared.result(for: askID)?.result, ControlAskResult(result: .escaped))
+    }
+
+    func testMultilineEditorGrowsWithItsLines() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .multiline, value: "one")))
+        fixture.mount()
+        let host = try XCTUnwrap(fixture.window.contentView)
+        let short = try XCTUnwrap(descendant(AskTextScrollView.self, in: host)).frame.height
+        fixture.session.updateAskDraft(id: try XCTUnwrap(fixture.session.askPending?.id)) {
+            $0.text = (1...9).map(String.init).joined(separator: "\n")
+        }
+        host.layoutSubtreeIfNeeded()
+        let tall = try XCTUnwrap(descendant(AskTextScrollView.self, in: host)).frame.height
+        XCTAssertGreaterThan(tall, short * 1.5)
+    }
+
+    func testALayoutSwapHandsFocusAndTheDraftToTheReplacementEditor() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .multiline)))
+        let tall = CGRect(x: 0, y: 0, width: 600, height: 300)
+        let short = CGRect(x: 0, y: 0, width: 600, height: 110)
+        let host = NSHostingView(rootView: AnyView(fixture.overlay(detail: tall).frame(width: 600, height: 300)))
+        fixture.window.contentView = host
+        fixture.window.makeKeyAndOrderFront(nil)
+        host.layoutSubtreeIfNeeded()
+        fixture.catcher?.updateFocus(revision: 1)
+        let first = try XCTUnwrap(fixture.window.firstResponder as? AskTextView)
+        first.insertText("kept", replacementRange: NSRange(location: NSNotFound, length: 0))
+
+        host.rootView = AnyView(fixture.overlay(detail: short).frame(width: 600, height: 300))
+        host.layoutSubtreeIfNeeded()
+        let window = fixture.window
+        let handedOver = waitUntil {
+            guard let editor = window.firstResponder as? AskTextView else { return false }
+            return editor !== first && editor === fixture.catcher?.editorBox?.focusTarget && editor.window === window
+        }
+        XCTAssertTrue(handedOver, "responder \(String(describing: window.firstResponder)), "
+            + "focus target \(String(describing: fixture.catcher?.editorBox?.focusTarget))")
+        let second = try XCTUnwrap(window.firstResponder as? AskTextView)
+        XCTAssertFalse(second === first)
+        XCTAssertEqual(second.string, "kept")
+        XCTAssertEqual(fixture.session.askDraft?.text, "kept")
+    }
+
+    func testAReplacedEditorTakesFocusThatFellBackToTheWindow() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .line)))
+        fixture.mount()
+        let catcher = try XCTUnwrap(fixture.catcher)
+        let box = try XCTUnwrap(catcher.editorBox)
+        let host = try XCTUnwrap(fixture.window.contentView)
+        fixture.window.makeFirstResponder(nil)
+        let replacement = AskTextField(box: box)
+        host.addSubview(replacement)
+        let editor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+        XCTAssertTrue((editor.delegate as AnyObject?) === replacement)
+        replacement.removeFromSuperview()
+    }
+
+    func testAReplacedEditorLeavesAnUnrelatedFieldFocused() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .line)))
+        fixture.mount()
+        let catcher = try XCTUnwrap(fixture.catcher)
+        let box = try XCTUnwrap(catcher.editorBox)
+        let host = try XCTUnwrap(fixture.window.contentView)
+        let other = NSTextField(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
+        host.addSubview(other)
+        XCTAssertTrue(fixture.window.makeFirstResponder(other))
+        let otherEditor = try XCTUnwrap(fixture.window.firstResponder as? NSTextView)
+        let replacement = AskTextField(box: box)
+        host.addSubview(replacement)
+        XCTAssertTrue(fixture.window.firstResponder === otherEditor)
+        replacement.removeFromSuperview()
+    }
+
+    func testAnUnrelatedFieldEditorStillTakesInputFromTheDialog() throws {
+        let fixture = try SessionAskTestFixture()
+        defer { fixture.close() }
+        try fixture.open(form: .input(AskInputForm(mode: .line)))
+        fixture.mount()
+        let catcher = try XCTUnwrap(fixture.catcher)
+        let field = NSTextField(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
+        fixture.window.contentView?.addSubview(field)
+        XCTAssertTrue(fixture.window.makeFirstResponder(field))
+        XCTAssertFalse(catcher.holds(fixture.window.firstResponder))
+        XCTAssertFalse(catcher.canFocus)
     }
 
     func testHotkeysFoldCaseAndIgnoreCommandControlOrOption() throws {
@@ -377,6 +962,21 @@ final class AskDialogViewTests: XCTestCase {
         try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
                                       windowNumber: 0, context: nil, characters: text, charactersIgnoringModifiers: text,
                                       isARepeat: false, keyCode: keyCode))
+    }
+
+    /// Pumps the main run loop in short slices until `condition` holds or `timeout` passes; a focus handover or a
+    /// scroll position lands a run-loop turn after layout, and a slow machine can take longer than a fixed pump.
+    private func waitUntil(timeout: TimeInterval = 2, _ condition: () -> Bool) -> Bool {
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        while !condition() {
+            guard Date() < deadline else { return false }
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+        }
+        return true
+    }
+
+    private func descendants<T: NSView>(_ type: T.Type, in view: NSView) -> [T] {
+        ((view as? T).map { [$0] } ?? []) + view.subviews.flatMap { descendants(type, in: $0) }
     }
 
     private func descendant<T: NSView>(_ type: T.Type, in view: NSView) -> T? {
@@ -453,16 +1053,19 @@ final class SessionAskTestFixture {
         AskKeyCatcher.KeyCatcherView.sessionCatchers.object(forKey: session.id as NSUUID)
     }
 
-    func open(pane: OverlayPane? = nil) throws {
-        let ask = PendingAsk(id: UUID().uuidString, title: "Continue?", buttons: [ControlAskButton(id: "yes", label: "Yes")])
+    func open(pane: OverlayPane? = nil, form: AskForm? = nil) throws {
+        let buttons = form == nil ? [ControlAskButton(id: "yes", label: "Yes")]
+            : [ControlAskButton(id: "ok", label: "OK"), ControlAskButton(id: "cancel", label: "Cancel")]
+        let ask = PendingAsk(id: UUID().uuidString, title: "Continue?", buttons: buttons, defaultID: form == nil ? nil : "ok",
+                             form: form, cancelID: form == nil ? nil : "cancel")
         let identity = pane.map { $0 == .left ? session.paneIdentity : session.splitPaneIdentity! }
         XCTAssertTrue(session.openAsk(ask, paneIdentity: identity))
         XCTAssertTrue(AskRegistry.shared.register(id: ask.id, owner: .session(session.id, window: windowID)))
     }
 
-    func overlay(frames: HudPaneFrames? = nil) -> SessionAskOverlay {
+    func overlay(frames: HudPaneFrames? = nil, detail: CGRect = CGRect(x: 0, y: 0, width: 600, height: 300)) -> SessionAskOverlay {
         SessionAskOverlay(session: session, store: store, actions: actions, windowID: windowID,
-                          detailFrame: CGRect(x: 0, y: 0, width: 600, height: 300),
+                          detailFrame: detail,
                           paneFrames: frames ?? HudPaneFrames(left: HudPaneFrame(x: 0, y: 0, width: 300, height: 300),
                                                              right: HudPaneFrame(x: 300, y: 0, width: 300, height: 300)),
                           font: .monospacedSystemFont(ofSize: 13, weight: .regular), foreground: .white, background: .black)

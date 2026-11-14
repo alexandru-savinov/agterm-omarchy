@@ -85,6 +85,13 @@ struct AskCommandsTests {
         (["Question", "--button", "ok", "--style", "gui", "--pane-id", "token"], "--pane requires a session"),
         (["Question", "--button", "ok", "--style", "gui", "--pane", "left", "--pane-id", "token"], "--pane requires a session"),
         (["Question", "--button", "ok", "--target", "active", "--pane", "scratch"], "--pane must be left or right"),
+        (["Question", "--button", "ok", "--choice-subtitle", "a=x"], "--choice-subtitle requires --choice"),
+        (["Question", "--choice", "a", "--choice-subtitle", "a"], "--choice-subtitle requires ID=TEXT"),
+        (["Question", "--choice", "a", "--choice-subtitle", "b=x"], "unknown subtitle choice: b"),
+        (["Question", "--choice", "a", "--choice-subtitle", "a=x", "--choice-subtitle", "a=y"], "subtitle already set for choice: a"),
+        (["Question", "--input", "line", "--hotkey", "ok=o"], "--hotkey requires --button"),
+        (["Question", "--button", "ok", "--other", "x"], "--other requires --choice"),
+        (["Question", "--input", "line", "--other", "x"], "--other requires --choice"),
     ])
     func rootRejectsInvalidSyntax(argv: [String], expected: String) {
         do {
@@ -242,6 +249,8 @@ struct AskCommandsTests {
         (ControlAskResult(result: .cancelled), Int32(2)),
         (ControlAskResult(result: .cancelled, reason: ControlAskResult.presentationLost), Int32(2)),
         (ControlAskResult(result: .escaped), Int32(3)),
+        (ControlAskResult(result: .answered, id: "ok", label: "OK", index: 0, text: "two\nlines"), Int32(0)),
+        (ControlAskResult(result: .answered, id: "ok", label: "OK", index: 0, selected: ["395", "398"]), Int32(0)),
     ])
     func oneShotResultPrintsEveryOutcomeAndMapsExit(result: ControlAskResult, expectedExit: Int32) throws {
         let command = try #require(try Agtermctl.parseAsRoot(["ask", "result", "ask-id", "--window", "w"]) as? Ask.Result)
@@ -274,6 +283,56 @@ struct AskCommandsTests {
         }
         #expect(requests.map(\.cmd) == [.askResult])
         #expect(errors == ["error: ask.result missing result"])
+    }
+
+    @Test func inputFormNeedsNoButtonsAndMapsItsOptions() throws {
+        let command = try open(["Name", "--input", "multiline", "--value", "draft", "--placeholder", "type here", "--cancel", "cancel"])
+        #expect(try command.makeRequest() == ControlRequest(cmd: .askOpen, args: ControlArgs(
+            style: "terminal", align: "right", title: "Name", value: "draft", cancelButton: "cancel", input: "multiline",
+            placeholder: "type here"
+        )))
+    }
+
+    @Test func choiceFormMapsItemsSubtitlesAndChecks() throws {
+        let command = try open([
+            "Review", "--choice", "398=issue #398", "--choice", "395", "--choice-subtitle", "398=waits on you",
+            "--multiple", "--checked", "395", "--checked", "398",
+        ])
+        let args = try #require(try command.makeRequest().args)
+        #expect(args.buttons == nil)
+        #expect(args.choices == [ControlAskChoice(id: "398", label: "issue #398", subtitle: "waits on you"),
+                                 ControlAskChoice(id: "395", label: "395")])
+        #expect(args.multiple == true)
+        #expect(args.checked == ["395", "398"])
+    }
+
+    @Test func otherMapsItsPlaceholderBesideTheChoices() throws {
+        let args = try #require(try open(["Review", "--choice", "a", "--other", "Something else"]).makeRequest().args)
+        #expect(args.other == "Something else")
+        #expect(args.choices == [ControlAskChoice(id: "a", label: "a")])
+        #expect(try #require(try open(["Review", "--choice", "a"]).makeRequest().args).other == nil)
+    }
+
+    @Test func answerWithOtherTextPrintsTheSelectionAndTheText() throws {
+        let command = try open(["Review", "--choice", "a", "--multiple", "--other", "Something else"])
+        let answer = ControlAskResult(result: .answered, id: "ok", label: "OK", index: 0, text: " mine ", selected: ["a"])
+        var lines: [String] = []
+        try command.execute(send: {
+            $0.cmd == .askOpen
+                ? SocketReply(ControlResponse(ok: true, result: ControlResult(id: "ask-id")))
+                : SocketReply(ControlResponse(ok: true, result: ControlResult(ask: answer)))
+        }, sleep: { _ in }, output: { lines.append($0) })
+        #expect(lines.count == 1)
+        #expect(try JSONDecoder().decode(ControlAskResult.self, from: Data(#require(lines.first).utf8)) == answer)
+    }
+
+    @Test func formKeepsCallerButtons() throws {
+        let command = try open(["Name", "--input", "line", "--button", "save=Save", "--button", "skip=Skip", "--cancel", "skip"])
+        let args = try #require(try command.makeRequest().args)
+        #expect(args.buttons?.map(\.id) == ["save", "skip"])
+        #expect(args.cancelButton == "skip")
+        #expect(args.multiple == nil)
+        #expect(args.checked == nil)
     }
 
     private func open(_ argv: [String]) throws -> Ask.Open {

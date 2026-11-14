@@ -23,7 +23,7 @@ all other image sources are rejected. TLS verification stays enabled.
 
 ```bash
 export VALIDATION_ROOT=$(mktemp -d /tmp/agterm-ubuntu.XXXXXX)
-export IMAGE=ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:e2d48733b2fd8481c314bd639fd15e523110e106418cb982cc830a7e620a839f
+export IMAGE=ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
 python3 - <<'PY'
 import json, os, pathlib
 root = pathlib.Path(os.environ['VALIDATION_ROOT'])

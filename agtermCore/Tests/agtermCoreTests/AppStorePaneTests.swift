@@ -1713,8 +1713,10 @@ struct AppStorePaneTests {
         #expect(session.scratchActive == false)
         #expect(session.scratchSurface == nil)
         #expect(scratch.teardownCount == 1)
+        #expect(session.scratchGeneration == 1)
         // closing again (no surface) is a no-op.
         #expect(store.closeScratch(session.id) == false)
+        #expect(session.scratchGeneration == 1)
     }
 
     @Test func closeScratchClearsStuckSearchWhenScratchOwnsIt() {

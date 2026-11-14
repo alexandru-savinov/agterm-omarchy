@@ -5,6 +5,8 @@ import agtermCore
 extension AppController {
     /// A remote stream follows the visible row, including soft close and undo, rather than the SSH pane.
     func syncRemotePresentations() {
+        store.onReplicaPageChanged = { [weak self] in self?.replicaPageChanged($0) }
+        pruneRemoteRespawns()
         let sessions = store.workspaces.flatMap(\.sessions)
         let visible = Set(sessions.filter { $0.remotePresentation != nil }.map(\.id))
         for id in Array(remoteClients.keys) where !visible.contains(id) {
@@ -22,6 +24,11 @@ extension AppController {
     }
 
     func stopRemotePresentations() {
+        replicaPageFlushCancel?()
+        replicaPageFlushCancel = nil
+        let pages = Array(replicaPages.values)
+        replicaPages.removeAll()
+        for page in pages { page.channel?.onClose = nil; page.channel?.close() }
         remoteTickCancel?()
         remoteTickCancel = nil
         for client in remoteClients.values { client.stop() }
@@ -48,6 +55,7 @@ extension AppController {
             self.remoteTickCancel = nil
             for client in self.remoteClients.values { client.tick() }
             self.tickReconnects()
+            self.pruneRemoteRespawns()
             if !self.remoteClients.isEmpty || !RemoteReconnectBook.shared.isEmpty { self.scheduleRemoteTick() }
         }
     }

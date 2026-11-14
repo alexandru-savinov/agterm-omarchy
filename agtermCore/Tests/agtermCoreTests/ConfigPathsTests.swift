@@ -35,6 +35,16 @@ struct ConfigPathsTests {
         #expect(ConfigPaths.hooksPath(configDirectory: dir).path == "/Users/test/.config/agterm/hooks.conf")
     }
 
+    @Test(arguments: [
+        ("/custom/dir", nil, "/custom/dir/remotes.conf"),
+        (nil, "/tmp/agt-state", "/tmp/agt-state/config/remotes.conf"),
+        (nil, nil, "/Users/test/.config/agterm/remotes.conf"),
+    ] as [(String?, String?, String)])
+    func remotesPathFollowsTheResolvedConfigDirectory(setting: String?, stateDir: String?, expected: String) {
+        let dir = ConfigPaths.configDirectory(setting: setting, stateDir: stateDir, home: URL(fileURLWithPath: "/Users/test"))
+        #expect(ConfigPaths.remotesPath(configDirectory: dir).path == expected)
+    }
+
     @Test func starterHooksConfIsCommentedListsKindsAndParsesToNothing() {
         let starter = ConfigPaths.starterHooksConf()
         #expect(starter.contains("on <kind> <shell...>"))

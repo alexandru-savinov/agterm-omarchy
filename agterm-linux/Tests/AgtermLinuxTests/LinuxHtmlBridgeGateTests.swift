@@ -9,15 +9,16 @@ struct LinuxHtmlBridgeGateTests {
     let session = UUID()
     var page: HtmlBridgePage { HtmlBridgePage(window: "W1", session: session, pane: .right) }
     var fileURI: String { "agterm-file://\(pageID.uuidString.lowercased())/index.html" }
+    static let fileSource = HtmlSource.file(path: "/tmp/index.html", grantRoot: "/tmp")
     var gate: LinuxHtmlBridgeGate { LinuxHtmlBridgeGate(pageID: pageID, nonce: nonce) }
     var renameEnvelope: String { #"{"nonce":"\#(nonce)","request":{"cmd":"session.rename","args":{"name":"x"}}}"# }
 
-    private func decide(closed: Bool = false, page: HtmlBridgePage?? = nil, uri: String?? = nil,
-                        json: String?? = nil) -> LinuxHtmlBridgeGate.Decision {
+    private func decide(source: HtmlSource = Self.fileSource, closed: Bool = false, page: HtmlBridgePage?? = nil,
+                        uri: String?? = nil, json: String?? = nil) -> LinuxHtmlBridgeGate.Decision {
         let page = page ?? self.page
         let uri = uri ?? fileURI
         let json = json ?? renameEnvelope
-        return gate.decide(closed: closed, page: { page }, uri: { uri }, json: { json })
+        return gate.decide(source: source, closed: closed, page: { page }, uri: { uri }, json: { json })
     }
 
     @Test func aMainFrameFilePageRequestDispatchesToThePagesOwnSession() throws {
@@ -65,7 +66,7 @@ struct LinuxHtmlBridgeGateTests {
     ])
     func aPageOutsideItsOwnFileGrantNeverReadsTheRequest(_ uri: String) {
         var read = false
-        let decision = gate.decide(closed: false, page: { page }, uri: { uri },
+        let decision = gate.decide(source: Self.fileSource, closed: false, page: { page }, uri: { uri },
                                    json: { read = true; return renameEnvelope })
         #expect(decision == .reject(LinuxHtmlBridgeGate.leftGrant))
         #expect(!read)
@@ -81,7 +82,7 @@ struct LinuxHtmlBridgeGateTests {
     @Test func aClosedPageRefusesBeforeTouchingTheStoreOrWebView() {
         var touched: [String] = []
         let decision = gate.decide(
-            closed: true,
+            source: Self.fileSource, closed: true,
             page: { touched.append("page"); return page },
             uri: { touched.append("uri"); return fileURI },
             json: { touched.append("json"); return renameEnvelope })
@@ -106,7 +107,32 @@ struct LinuxHtmlBridgeGateTests {
     @Test func onlyAFileSourceInstallsTheBridge() throws {
         #expect(LinuxHtmlBridgeGate.installs(for: .file(path: "/tmp/a.html", grantRoot: "/tmp")))
         #expect(LinuxHtmlBridgeGate.installs(for: .file(path: "/tmp/a.html", grantRoot: nil)))
+        #expect(LinuxHtmlBridgeGate.installs(for: .replica(path: "/remote/a.html", content: .html)))
+        #expect(!LinuxHtmlBridgeGate.installs(for: .replica(path: "/remote/a.md", content: .markdown)))
         #expect(!LinuxHtmlBridgeGate.installs(for: .url(try #require(URL(string: "https://example.com")))))
+    }
+
+    @Test func aUrlSourceIsRefusedEvenOnItsOwnGrantUri() throws {
+        let url = HtmlSource.url(try #require(URL(string: "https://example.com")))
+        #expect(decide(source: url) == .reject(LinuxHtmlBridgeGate.leftGrant))
+    }
+
+    @Test func aFilePageServedFromItsPageSchemeDispatches() {
+        let uri = "agterm-page://\(pageID.uuidString.lowercased())/index.html"
+        guard case .dispatch(let request) = decide(uri: .some(uri)) else { Issue.record("expected a dispatch"); return }
+        #expect(request.target == session.uuidString)
+        #expect(decide(uri: "agterm-page://\(UUID().uuidString.lowercased())/index.html") == .reject(LinuxHtmlBridgeGate.leftGrant))
+    }
+
+    @Test func anAdmittedReplicaRequestKeepsThePagesObjectAndBytes() throws {
+        let json = #"{"nonce":"\#(nonce)","request":{"cmd":"session.overlay.reload"}}"#
+        guard case .admitted(let admitted) = gate.admit(source: .replica(path: "/remote/a.html", content: .html), closed: false,
+                                                        page: { page }, uri: { fileURI }, json: { json }) else {
+            Issue.record("expected admission"); return
+        }
+        #expect(linuxBridgeAddressesOwnPage(admitted.object))
+        let decoded = try JSONSerialization.jsonObject(with: admitted.requestData) as? [String: Any]
+        #expect(decoded?["cmd"] as? String == "session.overlay.reload")
     }
 
     @Test(arguments: [#""x""#, "1", "null", "true", #"[{"cmd":"tree"}]"#])
