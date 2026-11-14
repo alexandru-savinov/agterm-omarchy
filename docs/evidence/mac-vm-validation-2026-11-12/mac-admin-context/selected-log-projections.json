@@ -1,0 +1,287 @@
+{
+  "schema": "agterm-mac-admin-context-publication/<pid-004>",
+  "projection_boundary": "Selected UTF-8 lines with original line endings. Aliases are reversible; omitted traceback/sample lines are not published or claimed as complete logs.",
+  "logs": [
+    {
+      "original": {
+        "path": "source-admin-stop-corrected-sr305e1111/runs/root-stop-01/exception.txt",
+        "sha256": "96cad77ec6b5beb8cdff4bf93645511224d871ea3e2ded79e86b5d411d7c6bae",
+        "bytes": 904
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 12,
+      "complete_stream": false,
+      "selection_reason": "Final exception line only; traceback intentionally omitted.",
+      "selected_lines": [
+        {
+          "line": 12,
+          "text": "TimeoutError: owned process did not exit: <pid-001>\n"
+        }
+      ]
+    },
+    {
+      "original": {
+        "path": "source-admin-stop-corrected-sr305e1111/runs/root-stop-01/inventory-before-host.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "source-admin-stop-corrected-sr305e1111/runs/root-stop-01/inventory-before-host.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "source-admin-stop-corrected-sr305e1111/runs/root-stop-02/exception.txt",
+        "sha256": "d38497e5b0530bb2ea815768fe885d44fe5007babe8633bf32c45908fd2f0564",
+        "bytes": 905
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 12,
+      "complete_stream": false,
+      "selection_reason": "Final exception line only; traceback intentionally omitted.",
+      "selected_lines": [
+        {
+          "line": 12,
+          "text": "TimeoutError: owned process did not exit: <pid-005>\n"
+        }
+      ]
+    },
+    {
+      "original": {
+        "path": "source-admin-stop-corrected-sr305e1111/runs/root-stop-02/inventory-before-host.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "source-admin-stop-corrected-sr305e1111/runs/root-stop-02/inventory-before-host.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "scanner-admin-stop-bundle-sf79c3480ffb/runs/root-bundle-stop-01/exception.txt",
+        "sha256": "44a68391d190a4e0fe5f4ae71c6c305b9864630d21118dd6b2dde73a7c83f421",
+        "bytes": 905
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 12,
+      "complete_stream": false,
+      "selection_reason": "Final exception line only; traceback intentionally omitted.",
+      "selected_lines": [
+        {
+          "line": 12,
+          "text": "TimeoutError: owned process did not exit: <pid-011>\n"
+        }
+      ]
+    },
+    {
+      "original": {
+        "path": "scanner-admin-stop-bundle-sf79c3480ffb/runs/root-bundle-stop-01/inventory-before-host.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "scanner-admin-stop-bundle-sf79c3480ffb/runs/root-bundle-stop-01/inventory-before-host.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "scanner-admin-stop-bundle-sf79c3480ffb/runs/root-bundle-stop-01/bundle-copy.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "scanner-admin-stop-bundle-sf79c3480ffb/runs/root-bundle-stop-01/bundle-copy.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "mac-private-zmx-diagnostic-<pid-004>/stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "mac-private-zmx-diagnostic-<pid-004>/stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "mac-private-zmx-diagnostic-<pid-004>/sample-private.txt",
+        "sha256": "0aa3afa73c7fac1c637d58805bf39a298619eb7e0da7f8c4f755aee258db9cb1",
+        "bytes": 922
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 32,
+      "complete_stream": false,
+      "selection_reason": "Physical footprint and dyld-only observation; host/process/address header and unrelated sample metadata intentionally omitted.",
+      "selected_lines": [
+        {
+          "line": 17,
+          "text": "Physical footprint:         96K\n"
+        },
+        {
+          "line": 18,
+          "text": "Physical footprint (peak):  96K\n"
+        },
+        {
+          "line": 24,
+          "text": "      789 _dyld_start  (in dyld) + 0  [<load-address-001>]\n"
+        },
+        {
+          "line": 29,
+          "text": "        _dyld_start  (in dyld)        789\n"
+        },
+        {
+          "line": 31,
+          "text": "Binary images description not available\n"
+        }
+      ]
+    },
+    {
+      "original": {
+        "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/runs/root-context-01/standalone/stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/runs/root-context-01/standalone/stderr.log",
+        "sha256": "cb3380fc06d808ec375a49f0944c0eb7c9bb1c0d37aa458972fafea807ba70d8",
+        "bytes": 51
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 1,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": [
+        {
+          "line": 1,
+          "text": "no sessions found in <stage-005>/s/z\n"
+        }
+      ]
+    },
+    {
+      "original": {
+        "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/runs/root-context-01/pristine/stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/runs/root-context-01/pristine/stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/runs/root-context-01/with-peer/stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    },
+    {
+      "original": {
+        "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/runs/root-context-01/with-peer/stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "encoding": "UTF-8 strict",
+      "original_line_count": 0,
+      "complete_stream": true,
+      "selection_reason": "Entire retained stream, including genuinely empty streams.",
+      "selected_lines": []
+    }
+  ]
+}

@@ -1,0 +1,512 @@
+{
+  "schema": "agterm-mac-admin-context-publication/<pid-004>",
+  "boundary": "Historical prerequisite/context diagnostics only. No host administrative-stop request or stopped reply was reached. No product stop failure/pass, OS-policy cause, current-source app build, native release acceptance or independent approval is established.",
+  "comparison_result": {
+    "original": {
+      "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/runs/root-context-01/result.json",
+      "sha256": "520cd322235365413b26df8f010265f354d4ef2da8578e4c845adeb02b3a8c9e",
+      "bytes": 10355
+    },
+    "projection": "complete parsed JSON document, aliases only",
+    "value": {
+      "administrative_stop_acceptance": false,
+      "all_image_identities_observed": true,
+      "all_private_survivors": [],
+      "cases": {
+        "pristine": {
+          "administrative_stop_acceptance": false,
+          "argv": [
+            "<stage-005>/p/agterm.app/Contents/MacOS/zmx",
+            "list"
+          ],
+          "attributes_after_match": true,
+          "cleanup_complete": true,
+          "context_after_matches": true,
+          "diagnostic_only": true,
+          "direct_image_identity": {
+            "path": "<stage-005>/p/agterm.app/Contents/MacOS/zmx",
+            "pid": "<pid-013>",
+            "ppid": "<pid-014>",
+            "start_sec": 1794436888,
+            "start_usec": 299326,
+            "status": 2,
+            "uid": "<uid-001>"
+          },
+          "errors": [],
+          "exit_code_before_cleanup": null,
+          "finished_at": 1794436891.367598,
+          "image_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+          "inventory_errors": [],
+          "namespace": "<stage-005>/p/z",
+          "namespace_after": [
+            {
+              "kind": "directory",
+              "mode": 448,
+              "path": "."
+            }
+          ],
+          "new_sampling": false,
+          "normal_empty_inventory": false,
+          "observation_deadline_monotonic": 184862.31911975,
+          "observation_seconds": 3.0,
+          "observed_seconds": 3.0227327079919633,
+          "private_survivors": [],
+          "processes": [
+            {
+              "exit_code": -15,
+              "identity": {
+                "path": "<stage-005>/p/agterm.app/Contents/MacOS/zmx",
+                "pid": "<pid-013>",
+                "ppid": "<pid-014>",
+                "start_sec": 1794436888,
+                "start_usec": 299326,
+                "status": 2,
+                "uid": "<uid-001>"
+              },
+              "image": "<stage-005>/p/agterm.app/Contents/MacOS/zmx",
+              "pid": "<pid-013>",
+              "role": "zmx",
+              "sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01"
+            }
+          ],
+          "recovery": [
+            {
+              "identity": {
+                "path": "<stage-005>/p/agterm.app/Contents/MacOS/zmx",
+                "pid": "<pid-013>",
+                "ppid": "<pid-014>",
+                "start_sec": 1794436888,
+                "start_usec": 299326,
+                "status": 2,
+                "uid": "<uid-001>"
+              },
+              "outcome": "signalled",
+              "pid": "<pid-013>",
+              "role": "zmx",
+              "signal": 15
+            }
+          ],
+          "recovery_errors": [],
+          "remaining_direct_children": [],
+          "retained_prior_sample": "mac-private-zmx-diagnostic-<pid-004>/sample-private.txt",
+          "started_at": 1794436888.298252,
+          "status": "observation-timeout",
+          "stderr": "",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout": "",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "standalone": {
+          "administrative_stop_acceptance": false,
+          "argv": [
+            "<stage-005>/s/zmx",
+            "list"
+          ],
+          "attributes_after_match": true,
+          "cleanup_complete": true,
+          "context_after_matches": true,
+          "diagnostic_only": true,
+          "direct_image_identity": {
+            "path": "<stage-005>/s/zmx",
+            "pid": "<pid-015>",
+            "ppid": "<pid-014>",
+            "start_sec": 1794436885,
+            "start_usec": 420678,
+            "status": 2,
+            "uid": "<uid-001>"
+          },
+          "errors": [],
+          "exit_code_before_cleanup": 0,
+          "finished_at": 1794436888.0775812,
+          "image_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+          "inventory_errors": [],
+          "namespace": "<stage-005>/s/z",
+          "namespace_after": [
+            {
+              "kind": "directory",
+              "mode": 448,
+              "path": "."
+            },
+            {
+              "kind": "directory",
+              "mode": 448,
+              "path": "logs"
+            },
+            {
+              "kind": "file",
+              "mode": 384,
+              "path": "logs/zmx.log",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          ],
+          "new_sampling": false,
+          "normal_empty_inventory": true,
+          "observation_deadline_monotonic": 184859.440496875,
+          "observation_seconds": 3.0,
+          "observed_seconds": 2.630460790998768,
+          "private_survivors": [],
+          "processes": [
+            {
+              "exit_code": 0,
+              "identity": {
+                "path": "<stage-005>/s/zmx",
+                "pid": "<pid-015>",
+                "ppid": "<pid-014>",
+                "start_sec": 1794436885,
+                "start_usec": 420678,
+                "status": 2,
+                "uid": "<uid-001>"
+              },
+              "image": "<stage-005>/s/zmx",
+              "pid": "<pid-015>",
+              "role": "zmx",
+              "sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01"
+            }
+          ],
+          "recovery": [],
+          "recovery_errors": [],
+          "remaining_direct_children": [],
+          "retained_prior_sample": "mac-private-zmx-diagnostic-<pid-004>/sample-private.txt",
+          "started_at": 1794436885.419667,
+          "status": "exited",
+          "stderr": "no sessions found in <stage-005>/s/z\n",
+          "stderr_sha256": "cb3380fc06d808ec375a49f0944c0eb7c9bb1c0d37aa458972fafea807ba70d8",
+          "stdout": "",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "with-peer": {
+          "administrative_stop_acceptance": false,
+          "argv": [
+            "<stage-005>/a/agterm.app/Contents/MacOS/zmx",
+            "list"
+          ],
+          "attributes_after_match": true,
+          "cleanup_complete": true,
+          "context_after_matches": true,
+          "diagnostic_only": true,
+          "direct_image_identity": {
+            "path": "<stage-005>/a/agterm.app/Contents/MacOS/zmx",
+            "pid": "<pid-016>",
+            "ppid": "<pid-014>",
+            "start_sec": 1794436891,
+            "start_usec": 639154,
+            "status": 2,
+            "uid": "<uid-001>"
+          },
+          "errors": [],
+          "exit_code_before_cleanup": null,
+          "finished_at": 1794436894.707169,
+          "image_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+          "inventory_errors": [],
+          "namespace": "<stage-005>/a/z",
+          "namespace_after": [
+            {
+              "kind": "directory",
+              "mode": 448,
+              "path": "."
+            }
+          ],
+          "new_sampling": false,
+          "normal_empty_inventory": false,
+          "observation_deadline_monotonic": 184865.658928958,
+          "observation_seconds": 3.0,
+          "observed_seconds": 3.0276841250015423,
+          "private_survivors": [],
+          "processes": [
+            {
+              "exit_code": -15,
+              "identity": {
+                "path": "<stage-005>/a/agterm.app/Contents/MacOS/zmx",
+                "pid": "<pid-016>",
+                "ppid": "<pid-014>",
+                "start_sec": 1794436891,
+                "start_usec": 639154,
+                "status": 2,
+                "uid": "<uid-001>"
+              },
+              "image": "<stage-005>/a/agterm.app/Contents/MacOS/zmx",
+              "pid": "<pid-016>",
+              "role": "zmx",
+              "sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01"
+            }
+          ],
+          "recovery": [
+            {
+              "identity": {
+                "path": "<stage-005>/a/agterm.app/Contents/MacOS/zmx",
+                "pid": "<pid-016>",
+                "ppid": "<pid-014>",
+                "start_sec": 1794436891,
+                "start_usec": 639154,
+                "status": 2,
+                "uid": "<uid-001>"
+              },
+              "outcome": "signalled",
+              "pid": "<pid-016>",
+              "role": "zmx",
+              "signal": 15
+            }
+          ],
+          "recovery_errors": [],
+          "remaining_direct_children": [],
+          "retained_prior_sample": "mac-private-zmx-diagnostic-<pid-004>/sample-private.txt",
+          "started_at": 1794436891.638103,
+          "status": "observation-timeout",
+          "stderr": "",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout": "",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "comparison_complete": true,
+      "context_bindings": {
+        "pristine": {
+          "attribute_sha256": "0f2dce4856fe1ec53d882a44b4d166675560cad12e06345365c70c3bea113c28",
+          "image_attribute_sha256": "3f37bfee8d65f8d4f11274724dfd09a86bd8c01340e1d05a954decb7fe571ded",
+          "image_relative": "Contents/MacOS/zmx",
+          "input": "inputs/pristine/agterm.app",
+          "tree": "pristine-tree.json",
+          "zmx_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01"
+        },
+        "standalone": {
+          "attribute_sha256": "3f37bfee8d65f8d4f11274724dfd09a86bd8c01340e1d05a954decb7fe571ded",
+          "image_attribute_sha256": "3f37bfee8d65f8d4f11274724dfd09a86bd8c01340e1d05a954decb7fe571ded",
+          "image_relative": ".",
+          "input": "inputs/standalone/zmx",
+          "tree": "standalone-tree.json",
+          "zmx_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01"
+        },
+        "with-peer": {
+          "attribute_sha256": "e6cc0cd556128695b825bd9110c165ab4e92ad53d79e2993977a2bf079979afd",
+          "image_attribute_sha256": "3f37bfee8d65f8d4f11274724dfd09a86bd8c01340e1d05a954decb7fe571ded",
+          "image_relative": "Contents/MacOS/zmx",
+          "input": "inputs/with-peer/agterm.app",
+          "tree": "with-peer-tree.json",
+          "zmx_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01"
+        }
+      },
+      "diagnostic_only": true,
+      "driver_sha256": "634f530958f8eac921fef07a20d0da9955f8955fd3f66f4a493edaffa0814a04",
+      "errors": [],
+      "final_inventory_errors": [],
+      "finished_at": 1794436894.908757,
+      "identity_adapter_sha256": "6bc4333b358ff099ef97882cb76c6caeaf3d325c844a48183739503dfe1bbedf",
+      "initial_identity_errors": [],
+      "installed_attributes_unchanged": true,
+      "installed_bundle_unchanged": true,
+      "originals_unchanged": true,
+      "preparation_manifest_sha256": "bb299e7b294f20a28a7ab4196aff5ecb4e1c730552c7bb8bb490233bf00348f0",
+      "protected_before": [
+        {
+          "path": "<installed-release-bundle>/Contents/MacOS/agterm",
+          "pid": "<pid-003>",
+          "ppid": "<pid-004>",
+          "start_sec": 1793262893,
+          "start_usec": 893393,
+          "status": 2,
+          "uid": "<uid-001>"
+        }
+      ],
+      "protected_preserved": true,
+      "root_runtime_operator": true,
+      "signals_received": [],
+      "stage": "<stage-005>",
+      "started_at": 1794436885.219585
+    }
+  },
+  "context_bindings": {
+    "original": {
+      "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/context-bindings.json",
+      "sha256": "cd2e22bf6bde6dafd9bcf69ce1e14e1e3eed1c246ecdbd27aad52d05172a7cfd",
+      "bytes": 1634
+    },
+    "projection": "complete parsed JSON document, aliases only",
+    "value": {
+      "cases": {
+        "pristine": {
+          "input": "inputs/pristine/agterm.app",
+          "image_relative": "Contents/MacOS/zmx",
+          "tree": "pristine-tree.json",
+          "attribute_sha256": "0f2dce4856fe1ec53d882a44b4d166675560cad12e06345365c70c3bea113c28",
+          "zmx_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+          "image_attribute_sha256": "3f37bfee8d65f8d4f11274724dfd09a86bd8c01340e1d05a954decb7fe571ded"
+        },
+        "with-peer": {
+          "input": "inputs/with-peer/agterm.app",
+          "image_relative": "Contents/MacOS/zmx",
+          "tree": "with-peer-tree.json",
+          "attribute_sha256": "e6cc0cd556128695b825bd9110c165ab4e92ad53d79e2993977a2bf079979afd",
+          "zmx_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+          "image_attribute_sha256": "3f37bfee8d65f8d4f11274724dfd09a86bd8c01340e1d05a954decb7fe571ded"
+        },
+        "standalone": {
+          "input": "inputs/standalone/zmx",
+          "image_relative": ".",
+          "tree": "standalone-tree.json",
+          "attribute_sha256": "3f37bfee8d65f8d4f11274724dfd09a86bd8c01340e1d05a954decb7fe571ded",
+          "zmx_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+          "image_attribute_sha256": "3f37bfee8d65f8d4f11274724dfd09a86bd8c01340e1d05a954decb7fe571ded"
+        }
+      },
+      "source_standalone": {
+        "path": "<stage-003>/zmx",
+        "sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+        "attribute_sha256": "3f37bfee8d65f8d4f11274724dfd09a86bd8c01340e1d05a954decb7fe571ded"
+      },
+      "peer_addition": "Contents/MacOS/session-host-test-client",
+      "originals": 751
+    }
+  },
+  "signature_preparation": {
+    "original": {
+      "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/signature-review.json",
+      "sha256": "46c18f31c59187d82b6706aff088f618ef65d8f1e5da58e5920c92e459adba17",
+      "bytes": 2654
+    },
+    "projection": "complete parsed JSON document, aliases only",
+    "value": {
+      "read_only": true,
+      "image_execution": false,
+      "re_signing": false,
+      "checks": [
+        {
+          "label": "pristine bundle",
+          "path": "inputs/pristine/agterm.app",
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "--prepared:<package>/inputs/pristine/agterm.app/Contents/MacOS/agtermctl\n--validated:<package>/inputs/pristine/agterm.app/Contents/MacOS/agtermctl\n--prepared:<package>/inputs/pristine/agterm.app/Contents/MacOS/zmx\n--validated:<package>/inputs/pristine/agterm.app/Contents/MacOS/zmx\n--prepared:<package>/inputs/pristine/agterm.app/Contents/MacOS/agterm-session-host\n--validated:<package>/inputs/pristine/agterm.app/Contents/MacOS/agterm-session-host\n<package>/inputs/pristine/agterm.app: valid on disk\n<package>/inputs/pristine/agterm.app: satisfies its Designated Requirement\n"
+        },
+        {
+          "label": "with-peer bundle",
+          "path": "inputs/with-peer/agterm.app",
+          "exit_code": 1,
+          "stdout": "file added: <validation-output-root>/scanner-zmx-context-diagnostic-sf79c3480ffb/inputs/with-peer/agterm.app/Contents/MacOS/session-host-test-client\n",
+          "stderr": "--prepared:<package>/inputs/with-peer/agterm.app/Contents/MacOS/agterm-session-host\n--validated:<package>/inputs/with-peer/agterm.app/Contents/MacOS/agterm-session-host\n--prepared:<package>/inputs/with-peer/agterm.app/Contents/MacOS/agtermctl\n--validated:<package>/inputs/with-peer/agterm.app/Contents/MacOS/agtermctl\n--prepared:<package>/inputs/with-peer/agterm.app/Contents/MacOS/zmx\n--validated:<package>/inputs/with-peer/agterm.app/Contents/MacOS/zmx\n<package>/inputs/with-peer/agterm.app: a sealed resource is missing or invalid\n"
+        },
+        {
+          "label": "pristine zmx",
+          "path": "inputs/pristine/agterm.app/Contents/MacOS/zmx",
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "<package>/inputs/pristine/agterm.app/Contents/MacOS/zmx: valid on disk\n<package>/inputs/pristine/agterm.app/Contents/MacOS/zmx: satisfies its Designated Requirement\n"
+        },
+        {
+          "label": "with-peer zmx",
+          "path": "inputs/with-peer/agterm.app/Contents/MacOS/zmx",
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "<package>/inputs/with-peer/agterm.app/Contents/MacOS/zmx: valid on disk\n<package>/inputs/with-peer/agterm.app/Contents/MacOS/zmx: satisfies its Designated Requirement\n"
+        },
+        {
+          "label": "standalone zmx",
+          "path": "inputs/standalone/zmx",
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "<package>/inputs/standalone/zmx: valid on disk\n<package>/inputs/standalone/zmx: satisfies its Designated Requirement\n"
+        }
+      ]
+    }
+  },
+  "preparation_comparison": {
+    "original": {
+      "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/preparation-comparison.json",
+      "sha256": "a4da9b75d41274852fd9e68cf12e19b52c0574b62acf5948934975a92331792d",
+      "bytes": 646
+    },
+    "projection": "complete parsed JSON document, aliases only",
+    "value": {
+      "identity_source": "scanner-admin-stop-bundle-sf79c3480ffb/driver.py",
+      "identity_source_sha256": "20d560a37b2d49fb7a1b70a6bb82e3c6e47030c9ed636dcb751bcab27d55c05a",
+      "ast_equivalent": [
+        "BSDInfo",
+        "identity_key",
+        "require",
+        "Darwin.identity",
+        "Darwin.pids"
+      ],
+      "constructor": "read-only libproc bindings; no responsibility API or spawn methods",
+      "pristine_tree_entries": 669,
+      "original_tree_entries_preserved": 669,
+      "original_files": 640,
+      "sole_added_file": "Contents/MacOS/session-host-test-client",
+      "original_attribute_blocks_preserved": 670,
+      "added_attribute_blocks": 1,
+      "native_execution": false
+    }
+  },
+  "preparation": {
+    "original": {
+      "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/manifest.json",
+      "sha256": "bb299e7b294f20a28a7ab4196aff5ecb4e1c730552c7bb8bb490233bf00348f0",
+      "bytes": 446899
+    },
+    "projection": "selected top-level JSON fields",
+    "selected_keys": [
+      "case_order",
+      "observation_seconds",
+      "term_observation_seconds",
+      "kill_observation_seconds",
+      "utility_timeout_seconds",
+      "new_sampling",
+      "sampling_reason",
+      "aggregate_signature_boundary",
+      "source_refs",
+      "source_standalone",
+      "diagnostic_only",
+      "administrative_stop_acceptance"
+    ],
+    "value": {
+      "case_order": [
+        "standalone",
+        "pristine",
+        "with-peer"
+      ],
+      "observation_seconds": 3.0,
+      "term_observation_seconds": 2.0,
+      "kill_observation_seconds": 2.0,
+      "utility_timeout_seconds": 30,
+      "new_sampling": false,
+      "sampling_reason": "The retained prior sample is immutable historical evidence; this comparison measures the missing pristine versus augmented context outcome without sampler interference.",
+      "aggregate_signature_boundary": "Pristine verifies; adding the disclosed peer invalidates the aggregate resource seal; all original image/signature bytes and attributes remain unchanged.",
+      "source_refs": {
+        "upstream": "097276106c6d0344e2dbfdb5d8bb7c93283d0168",
+        "zmx": "8bab1f0173b07e79835ea372d749af3dbf0d0842"
+      },
+      "source_standalone": {
+        "attribute_sha256": "3f37bfee8d65f8d4f11274724dfd09a86bd8c01340e1d05a954decb7fe571ded",
+        "path": "<stage-003>/zmx",
+        "sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01"
+      },
+      "diagnostic_only": true,
+      "administrative_stop_acceptance": false
+    }
+  },
+  "driver_receipt": {
+    "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/driver.py",
+    "sha256": "634f530958f8eac921fef07a20d0da9955f8955fd3f66f4a493edaffa0814a04",
+    "bytes": 18606
+  },
+  "identity_adapter_receipt": {
+    "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/identity.py",
+    "sha256": "6bc4333b358ff099ef97882cb76c6caeaf3d325c844a48183739503dfe1bbedf",
+    "bytes": 3003
+  },
+  "case_result_receipts": {
+    "standalone": {
+      "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/runs/root-context-01/standalone/result.json",
+      "sha256": "f907f37765b13302439878e1ce0f690e96db548c64d01d7e6991ef07a58d1401",
+      "bytes": 2194
+    },
+    "pristine": {
+      "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/runs/root-context-01/pristine/result.json",
+      "sha256": "ab581b9b445b0d808a5cbd98151869c61068ded5520335f24c331fa5548d85c3",
+      "bytes": 2359
+    },
+    "with-peer": {
+      "path": "scanner-zmx-context-diagnostic-sf79c3480ffb/runs/root-context-01/with-peer/result.json",
+      "sha256": "1f29900889a7b4cbefa0217b700011f90b54c63058eff6ea1e09edc1de190263",
+      "bytes": 2360
+    }
+  }
+}

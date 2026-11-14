@@ -1,0 +1,29 @@
+{
+  "schema": "agterm-mac-admin-context-publication/1",
+  "passed": true,
+  "counts": {
+    "input": 6269,
+    "evidence": 88,
+    "cross_binding": 426,
+    "tree_preservation": 7912,
+    "input_tree": 3965,
+    "source_binding": 8,
+    "reverse_alias": 4608,
+    "privacy": 35,
+    "comparison": 4608,
+    "negative_controls": 6
+  },
+  "original_files_rehashed": 2089,
+  "original_bytes_rehashed": 225449514,
+  "alias_categories": {
+    "pid": 16,
+    "uid": 1,
+    "synthetic-bundle-id": 2,
+    "stage": 5,
+    "load-address": 1
+  },
+  "same_account_not_independent_approval": true,
+  "no_new_runtime_or_compiler_execution": true,
+  "historical_standalone_driver_receipt_missing": true,
+  "scope": "Payload/source verification; public manifest checks are performed by the final CLI run."
+}
