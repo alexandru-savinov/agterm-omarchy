@@ -34,9 +34,21 @@ struct LinuxPolicyTests {
     @Test("URI lists become POSIX path payloads")
     func pasteURIList() {
         let payload = "# copied files\nfile:///tmp/one%20two\nfile:///tmp/three\n"
-        #expect(PasteDecoder.posixPaths(fromURIList: payload) == "/tmp/one two /tmp/three")
+        #expect(PasteDecoder.posixPaths(fromURIList: payload) == #"/tmp/one\ two /tmp/three"#)
         #expect(ShellEscape.dropPayload("") == nil)
         #expect(ShellEscape.dropPayload("plain") == "plain")
+    }
+
+    @Test("URI drop paths preserve file boundaries and escape literal filename punctuation")
+    func escapedURIPaths() {
+        let payload = "# files\r\nfile:///tmp/one%20two\r\nfile:///tmp/report%281%29.txt\r\n"
+        let expected = #"/tmp/one\ two /tmp/report\(1\).txt"#
+        #expect(PasteDecoder.posixPaths(fromURIList: payload) == expected)
+        #expect(ShellEscape.dropPayload(payload) == expected)
+        #expect(PasteDecoder.posixPaths(fromURIList: "file:///tmp/plain") == "/tmp/plain")
+        #expect(ShellEscape.dropPayload("ordinary text (unchanged)") == "ordinary text (unchanged)")
+        #expect(PasteDecoder.posixPaths(fromURIList: "file:///tmp/one\nordinary text") == nil)
+        #expect(ShellEscape.dropPayload("file:///tmp/one\nordinary text") == "file:///tmp/one\nordinary text")
     }
 
     @Test("Linux proc cmdline decoding is NUL-delimited")
@@ -52,6 +64,76 @@ struct LinuxPolicyTests {
         #expect(GhosttyDefaults.baseConfLines.contains("cursor-click-to-move = false"))
         #expect("  value\n".linuxTrimmedOrNil == "value")
         #expect(" \n".linuxTrimmedOrNil == nil)
+    }
+
+    @Test("Linux keymap and hook starters are inert and contain no macOS instructions")
+    func linuxStarterTemplates() {
+        let keymap = ConfigPaths.linuxStarterKeymapConf()
+        let hooks = ConfigPaths.linuxStarterHooksConf()
+        for template in [keymap, hooks] {
+            for line in template.split(separator: "\n") {
+                #expect(line.trimmingCharacters(in: .whitespaces).hasPrefix("#"))
+            }
+            for artifact in ["launchd", "Homebrew", "/opt/homebrew", "afplay", "/System/Library", "open -a", "cmd+"] {
+                #expect(!template.contains(artifact))
+            }
+        }
+        let (parsedKeymap, keymapDiagnostics) = parseKeymap(keymap)
+        #expect(keymapDiagnostics.isEmpty)
+        #expect(parsedKeymap.builtinOverrides.isEmpty)
+        #expect(parsedKeymap.commands.isEmpty)
+        #expect(parsedKeymap.globalHotkey == nil)
+        let (parsedHooks, hookDiagnostics) = parseHooksConf(hooks)
+        #expect(hookDiagnostics.isEmpty)
+        #expect(parsedHooks.entries.isEmpty)
+        for kind in ControlEventKind.allCases { #expect(hooks.contains(kind.rawValue)) }
+        for token in CommandContext.tokenNames { #expect(keymap.contains("{\(token)}")) }
+    }
+
+    @Test("Linux starter table documents every Linux default with round-tripping syntax")
+    func linuxStarterDefaultTable() throws {
+        let lines = ConfigPaths.linuxStarterKeymapConf().split(separator: "\n")
+        for action in BuiltinAction.allCases {
+            let prefix = "#   \(action.rawValue)  "
+            let matches = lines.filter { $0.hasPrefix(prefix) }
+            #expect(matches.count == 1)
+            let line = try #require(matches.first)
+            let syntax = String(line.dropFirst(prefix.count))
+            if let chord = action.linuxDefaultChord {
+                #expect(parseKeybind(syntax) == [chord])
+            } else {
+                #expect(syntax == "(no default)")
+            }
+        }
+    }
+
+    @Test("Uncommented Linux starter examples survive the Linux keymap loader and hooks parser")
+    func linuxStarterExamples() throws {
+        func examples(_ template: String, verbs: Set<String>) -> String {
+            template.split(separator: "\n").compactMap { line -> String? in
+                let text = line.drop { $0 == "#" || $0.isWhitespace }
+                guard verbs.contains(String(text.prefix { !$0.isWhitespace })),
+                      !text.contains("<") else { return nil }
+                return String(text)
+            }.joined(separator: "\n")
+        }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let keymapText = examples(ConfigPaths.linuxStarterKeymapConf(), verbs: ["map", "command"])
+        #expect(keymapText.split(separator: "\n").count == 3)
+        try keymapText.write(to: ConfigPaths.keymapPath(configDirectory: directory), atomically: true, encoding: .utf8)
+        let (keymap, diagnostics) = loadLinuxKeymap(configDirectory: directory)
+        #expect(diagnostics.isEmpty)
+        #expect(keymap.builtinOverrides[.toggleSplit] == Chord(mods: [.control, .shift], key: "l"))
+        #expect(keymap.commands.count == 2)
+        #expect(keymap.commands.filter { !$0.shortcut.isEmpty }.count == 1)
+        let shortcut = try #require(keymap.commands.first { !$0.shortcut.isEmpty }?.shortcut)
+        #expect(parseKeybind(shortcut) == parseKeybind("ctrl+opt+e"))
+        let hookText = examples(ConfigPaths.linuxStarterHooksConf(), verbs: ["on"])
+        let (hooks, hookDiagnostics) = parseHooksConf(hookText)
+        #expect(hooks.entries.count == 2)
+        #expect(hookDiagnostics.isEmpty)
     }
 
     @Test("Linux session home honors an isolated launch environment")
@@ -120,6 +202,10 @@ struct LinuxPolicyTests {
         // The baseline isolates the bundled layer's contribution: libghostty's own defaults
         // may add environment diagnostics, so the bundled lines must add ZERO on top of it.
         let baseline = try buildConfig(layers: [""])
+        let divider = try buildConfig(layers: ["split-divider-color = #123456\n"])
+        defer { ghostty_config_free(divider) }
+        #expect(GhosttyConfigTheme.colors(from: divider).splitDivider == "#123456")
+        #expect(GhosttyConfigTheme.colors(from: baseline).splitDivider == nil)
         defer { ghostty_config_free(baseline) }
         let baselineDiagnostics = ghostty_config_diagnostics_count(baseline)
 

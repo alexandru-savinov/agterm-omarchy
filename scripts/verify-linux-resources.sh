@@ -8,7 +8,7 @@ if (( $# != 1 )); then
   exit 2
 fi
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 SHARE="$1"
 [[ "$SHARE" = /* ]] || SHARE="$ROOT/$SHARE"
 MANIFEST="$ROOT/linux/ghostty-resources.env"

@@ -11,10 +11,11 @@ enum ZmxLaunch {
         let initialInput: String?
     }
 
-    private struct Runtime {
+    struct Runtime {
         let bundleURL: URL
         let environment: [String: String]
         let passwordDatabaseShell: String?
+        let commandShell: String?
         let allowDebugOverride: Bool
     }
 
@@ -59,12 +60,13 @@ enum ZmxLaunch {
         bundleURL: URL = Bundle.main.bundleURL,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         passwordDatabaseShell: String? = passwordDatabaseLoginShell(),
+        commandShell: String?,
         isUITestLaunch: Bool = ContentView.isUITestLaunch,
         allowDebugOverride: Bool = allowDebugOverride
     ) -> String? {
         if isUITestLaunch, environment[uiTestOptInKey] != "1" { return uiTestBypassReason }
         let runtime = Runtime(bundleURL: bundleURL, environment: environment,
-                              passwordDatabaseShell: passwordDatabaseShell,
+                              passwordDatabaseShell: passwordDatabaseShell, commandShell: commandShell,
                               allowDebugOverride: allowDebugOverride)
         return switch configurationResult(runtime: runtime,
                                           paneIdentity: UUID(), baseEnvironment: [:]) {
@@ -82,6 +84,7 @@ enum ZmxLaunch {
         let runtime = Runtime(bundleURL: Bundle.main.bundleURL,
                               environment: ProcessInfo.processInfo.environment,
                               passwordDatabaseShell: passwordDatabaseLoginShell(),
+                              commandShell: GhosttyApp.shared.liveCommandShell,
                               allowDebugOverride: allowDebugOverride)
         let result = configurationResult(runtime: runtime, paneIdentity: paneIdentity, baseEnvironment: base,
                                          lead: lead)
@@ -106,7 +109,7 @@ enum ZmxLaunch {
         guard case .wrapped(let configuration) = disposition else { return nil }
         let captured = session.takePendingForegroundCommand(pane: pane)
         let replay = suppressed ? nil : captured
-        let creationCommand: String? = if replay == nil, !suppressed {
+        let paneCommand: String? = if replay == nil, !suppressed {
             switch pane {
             case .left: session.initialCommand
             case .right: session.splitInitialCommand
@@ -115,7 +118,7 @@ enum ZmxLaunch {
         } else { nil }
         return SurfaceSeed(
             command: ZmxSupport.attachCommand(
-                configuration, replaying: replay, creationCommand: creationCommand, denylist: denylist
+                configuration, replaying: replay, paneCommand: paneCommand, denylist: denylist
             ),
             initialInput: nil
         )
@@ -127,8 +130,8 @@ enum ZmxLaunch {
         return value.isEmpty ? nil : value
     }
 
-    private static func configurationResult(runtime: Runtime, paneIdentity: UUID,
-                                            baseEnvironment: [String: String], lead: ZmxLeadAttachment? = nil)
+    static func configurationResult(runtime: Runtime, paneIdentity: UUID,
+                                    baseEnvironment: [String: String], lead: ZmxLeadAttachment? = nil)
         -> Result<ZmxSupport.Configuration, ZmxSupport.Rejection> {
         let bundledResources = runtime.bundleURL.appendingPathComponent("Contents/Resources/ghostty").path
         let resources = runtime.environment["GHOSTTY_RESOURCES_DIR"].flatMap { $0.isEmpty ? nil : $0 }
@@ -145,7 +148,50 @@ enum ZmxLaunch {
             inheritedZdotdir: runtime.environment["ZDOTDIR"],
             sessionHostExecutablePath: sessionHostExecutablePath(bundleURL: runtime.bundleURL, environment: runtime.environment,
                                                                   allowDebugOverride: runtime.allowDebugOverride),
-            lead: lead
+            lead: lead,
+            commandShell: runtime.commandShell,
+            socketDirectory: { ZmxLaunch.verifiedSocketDirectory(forStateDirectory: stateDirectory) }
         ))
+    }
+
+    /// The socket directory for `stateDirectory`, chosen once per process (`ZmxSocketDirectory.resolveDarwin`
+    /// documents the order and the upgrade rule) so every pane and the zmx client use the same one.
+    static func socketDirectoryChoice(forStateDirectory stateDirectory: String) -> Result<String, ZmxSocketDirectory.Refusal> {
+        socketDirectoryChoices.choice(for: stateDirectory)
+    }
+
+    /// The chosen directory, re-verified (and re-created as 0700 if it vanished) at this call.
+    static func verifiedSocketDirectory(forStateDirectory stateDirectory: String) -> Result<String, ZmxSocketDirectory.Refusal> {
+        socketDirectoryChoice(forStateDirectory: stateDirectory).flatMap { ZmxSocketDirectory.verify($0) }
+    }
+
+    private static let socketDirectoryChoices = SocketDirectoryChoices()
+
+    private final class SocketDirectoryChoices: @unchecked Sendable {
+        private let lock = NSLock()
+        private var choices: [String: Result<String, ZmxSocketDirectory.Refusal>] = [:]
+
+        func choice(for stateDirectory: String) -> Result<String, ZmxSocketDirectory.Refusal> {
+            let key = URL(fileURLWithPath: stateDirectory, isDirectory: true).standardizedFileURL.path
+            lock.lock()
+            defer { lock.unlock() }
+            if let known = choices[key] { return known }
+            let chosen = ZmxSocketDirectory.resolveDarwin(
+                stateDirectory: key, userTemporaryDirectory: ZmxLaunch.userTemporaryDirectory()
+            )
+            choices[key] = chosen
+            return chosen
+        }
+    }
+
+    /// The per-user temporary directory, `confstr(_CS_DARWIN_USER_TEMP_DIR)`: created by the system as
+    /// mode 0700 for this user and, unlike `NSTemporaryDirectory()`, not taken from `$TMPDIR`. Nil when
+    /// the system does not provide it; `resolveDarwin` verifies it either way.
+    static func userTemporaryDirectory() -> String? {
+        let size = confstr(_CS_DARWIN_USER_TEMP_DIR, nil, 0)
+        guard size > 1 else { return nil }
+        var buffer = [CChar](repeating: 0, count: size)
+        guard confstr(_CS_DARWIN_USER_TEMP_DIR, &buffer, size) == size else { return nil }
+        return buffer.withUnsafeBufferPointer { pointer in pointer.baseAddress.map { String(cString: $0) } }
     }
 }

@@ -1,3 +1,4 @@
+import Foundation
 import agtermCore
 
 /// Owner-local identity for one delayed dashboard click.
@@ -7,6 +8,17 @@ import agtermCore
 /// if it was already dispatched when another click, keyboard move, or reconcile cancelled it.
 struct DashboardClickIntent {
     static let delayMilliseconds: UInt32 = 180
+
+    /// The AT-SPI suite widens the window so a scripted cancel lands inside it on a loaded runner.
+    static var scheduledDelayMilliseconds: UInt32 {
+        #if DEBUG
+        if let raw = ProcessInfo.processInfo.environment["AGTERM_ATSPI_DASHBOARD_CLICK_DELAY_MS"],
+           let value = UInt32(raw) {
+            return value
+        }
+        #endif
+        return delayMilliseconds
+    }
 
     private(set) var generation: UInt64 = 0
     private(set) var member: DashboardMember?

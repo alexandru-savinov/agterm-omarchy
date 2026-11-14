@@ -36,7 +36,7 @@ GitHub's supported `actions/attest@v4` creates signed provenance for the promoti
 The default provenance identifies the promotion workflow revision, not the original compiler invocation.
 The additional predicate binds the unchanged archives to the verified build run and source SHA.
 This is promotion provenance, not a retroactive attestation from the original compilation job.
-Verify the archive with `gh attestation verify ARCHIVE --repo alexandru-savinov/agterm-omarchy`.
+Verify the archive with `gh attestation verify ARCHIVE --repo alexandru-savinov/agterm-omarchy --signer-workflow alexandru-savinov/agterm-omarchy/.github/workflows/prerelease-omarchy.yml --source-ref refs/heads/main`.
 Inspect the custom predicate using `--predicate-type https://github.com/alexandru-savinov/agterm-omarchy/attestations/promotion/v1`.
 See [GitHub's attestation action](https://github.com/actions/attest) for supported verification details.
 

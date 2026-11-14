@@ -1,0 +1,27 @@
+--- a/include/ghostty.h
++++ b/include/ghostty.h
+@@ -1228,6 +1228,8 @@
+                                                  uint16_t);
+ GHOSTTY_API void ghostty_surface_split_equalize(ghostty_surface_t);
+ GHOSTTY_API bool ghostty_surface_binding_action(ghostty_surface_t, const char*, uintptr_t);
++// The state must be a live request supplied to read_clipboard_cb or confirm_read_clipboard_cb.
++GHOSTTY_API ghostty_clipboard_request_e ghostty_clipboard_request_type(const void*);
+ GHOSTTY_API void ghostty_surface_complete_clipboard_request(
+     ghostty_surface_t,
+     const ghostty_clipboard_complete_s*,
+--- a/src/apprt/embedded.zig
++++ b/src/apprt/embedded.zig
+@@ -2316,6 +2316,13 @@
+         };
+     }
+ 
++    /// The kind of a live clipboard request. Read it before completing or denying the request,
++    /// which invalidates the state pointer.
++    export fn ghostty_clipboard_request_type(state: *const apprt.ClipboardRequest) c_int {
++        const kind: apprt.ClipboardRequestType = state.*;
++        return @intFromEnum(kind);
++    }
++
+     /// Complete a clipboard read request started via the read callback
+     /// with the representations that could be served and, if requested,
+     /// the listing of available MIME types. All memory is borrowed for

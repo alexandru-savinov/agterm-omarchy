@@ -134,9 +134,10 @@ public enum CommandRestore {
         isControlCharacter(scalar) || scalar.value == 0xFFFD
     }
 
-    /// C0 and DEL — what a line editor reads as an editing command rather than as text.
+    /// C0, DEL and C1 (U+0080–U+009F) — what a line editor or terminal can read as an editing command or the
+    /// start of a control sequence (U+009B is a one-character CSI, U+0085 a next-line) rather than as text.
     private static func isControlCharacter(_ scalar: Unicode.Scalar) -> Bool {
-        scalar.value < 0x20 || scalar.value == 0x7F
+        scalar.value < 0x20 || (0x7F...0x9F).contains(scalar.value)
     }
 
     /// The mutually-exclusive surface seed a pane restores/creates with. `command` != nil → the exec path
@@ -236,22 +237,48 @@ public enum CommandRestore {
         return result
     }
 
-    /// Render an argv into one POSIX shell command line, single-quoting each argument (so spaces, `$`,
+    /// Render an argv into one POSIX/fish command line, quoting each argument (so spaces, `$`,
     /// globs and quotes survive intact) and space-joining; fed to a restored login shell via
     /// `initial_input`. Quoting is a PARSER escape, so it inverts capture only for what `shouldRestore` accepted.
     public static func shellQuotedLine(_ argv: [String]) -> String {
         argv.map(shellQuote).joined(separator: " ")
     }
 
-    /// POSIX single-quote one argument: wrap in `'…'`, and render each embedded `'` as `'\''`.
+    /// Keep backslashes outside single quotes: fish unescapes them inside quotes, unlike POSIX shells.
+    /// Single-quote each intervening chunk and render each embedded `'` as `'\''`.
     private static func shellQuote(_ arg: String) -> String {
-        "'" + arg.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        var quoted = "'"
+        for scalar in arg.unicodeScalars {
+            switch scalar {
+            case "'": quoted += "'\\''"
+            case "\\": quoted += "'\\\\'"
+            default: quoted.unicodeScalars.append(scalar)
+            }
+        }
+        return quoted + "'"
     }
 
     /// Parse a macOS `KERN_PROCARGS2` blob into the process's argv. Layout: a host-order `Int32` argc,
     /// the NUL-terminated executable path, zero or more NUL padding bytes, then `argc` NUL-terminated
     /// argument strings (env follows, ignored). Returns nil on a truncated or implausible blob.
     public static func parseProcArgs(_ data: Data) -> [String]? {
+        procArgsFields(data)?.argv
+    }
+
+    /// parseProcEnvironment reads the environment strings that follow argv in a `KERN_PROCARGS2` blob, up to the
+    /// first empty string, which separates them from the kernel's own `key=value` strings. Nil when argv is unreadable.
+    public static func parseProcEnvironment(_ data: Data) -> [String: String]? {
+        guard let fields = procArgsFields(data) else { return nil }
+        var environment: [String: String] = [:]
+        for entry in fields.rest.prefix(while: { !$0.isEmpty }) {
+            guard let equals = entry.firstIndex(of: "="), equals != entry.startIndex else { continue }
+            let key = String(entry[..<equals])
+            if environment[key] == nil { environment[key] = String(entry[entry.index(after: equals)...]) }
+        }
+        return environment
+    }
+
+    private static func procArgsFields(_ data: Data) -> (argv: [String], rest: [String])? {
         let bytes = [UInt8](data)
         guard bytes.count > 4 else { return nil }
         let argc = bytes.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: Int32.self) }
@@ -263,14 +290,14 @@ public enum CommandRestore {
         // ...then the NUL padding between exec path and argv[0].
         while i < bytes.count, bytes[i] == 0 { i += 1 }
 
-        var args: [String] = []
-        args.reserveCapacity(Int(argc))
-        while args.count < Int(argc), i < bytes.count {
+        var strings: [String] = []
+        while i < bytes.count {
             let start = i
             while i < bytes.count, bytes[i] != 0 { i += 1 }
-            args.append(String(decoding: bytes[start..<i], as: UTF8.self))
+            strings.append(String(decoding: bytes[start..<i], as: UTF8.self))
             if i < bytes.count { i += 1 } // step over the terminating NUL
         }
-        return args.count == Int(argc) ? args : nil
+        guard strings.count >= Int(argc) else { return nil }
+        return (Array(strings.prefix(Int(argc))), Array(strings.dropFirst(Int(argc))))
     }
 }

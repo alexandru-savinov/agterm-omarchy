@@ -121,7 +121,10 @@ extension AppController {
     func openNewWindow() { openWindow(gLibrary.newWindow().id) }
 
     func reopenRecentClosed() {
-        if library.reopenLatestRecentClosed(into: store) { reconcile() }
+        guard let owner = library.reopenLatestRecentClosedReportingWindow(into: store) else { return }
+        // A retained workspace can restore into another window; realize that owner's rebuilt sessions.
+        openWindow(owner)
+        gWindows[owner]?.reconcile()
     }
 
     func clearRecentHistory() {
@@ -264,8 +267,8 @@ extension AppController {
 
     func searchTargetSurface(for id: UUID) -> GhosttySurface? {
         guard let s = store.session(withID: id) else { return nil }
-        if s.scratchActive, !s.programOverlayActive, let scratch = scratchSurfaces[id] { return scratch }
-        if s.focusedOverlayPane != nil || s.fullOverlayActive { return nil }
+        if s.scratchActive, !s.programOverlayVisible, let scratch = scratchSurfaces[id] { return scratch }
+        if s.focusedOverlayPane != nil || s.fullOverlayVisible { return nil }
         return focusedSurface(for: id)
     }
 

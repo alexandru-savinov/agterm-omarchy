@@ -3,6 +3,10 @@
 This is a reusable **x86_64 build/test environment**, separate from the client runtime archives.
 It pins the official Swift 6.3.2 Ubuntu 24.04 base by manifest digest and verifies downloaded
 Zig 0.16.0 and SwiftLint 0.65.0 using the same SHA-256 values as Omarchy CI.
+Zig 0.16.0 is the default `zig` on `PATH` (zmx); Zig 0.17.0 for Ghostty 1.4 is at `$GHOSTTY_ZIG`,
+verified against the SHA-256 in ziglang.org's `download/index.json`.
+The image also carries the SVG/WebP pixbuf loaders, fish, xkb utilities and IBus (with its GTK4 module)
+that the Ghostty 1.4 scenarios use; the probe checks each one.
 GTK4, libadwaita, WebKitGTK 6, software GL, Xvfb and AT-SPI dependencies match the native x86_64 CI job.
 Ubuntu dependency packages resolve from current repositories when built; they are not version locked.
 The immutable published digest identifies the resulting package versions.
@@ -12,6 +16,7 @@ The context is only this directory, and `.dockerignore` admits just `Dockerfile`
 There are no repository sources, user files, build secrets, tokens, or runtime binaries in the image.
 OCI source/URL/base labels are declared in the Dockerfile; the workflow adds exact revision and version labels.
 Run the image as a build container with an explicit source bind mount when needed.
+It runs as the non-root `builder` user, UID 1001, the GitHub-hosted runner's UID.
 
 After review/merge and the execution handoff, dispatch `publish-build-image.yml` on `main`.
 Only the publish job has package-write permissions.

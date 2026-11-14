@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Provision native Arch/Omarchy build dependencies and the pinned Linux runtimes.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 skip_packages=false
 ui_tests=false
 for argument in "$@"; do
@@ -40,7 +40,14 @@ fi
 for dependency in mise pkg-config; do
   command -v "$dependency" >/dev/null || { echo "missing dependency: $dependency" >&2; exit 1; }
 done
-pkg-config --exists gtk4 libadwaita-1 webkitgtk-6.0 epoxy
+missing=()
+for module in gtk4 libadwaita-1 webkitgtk-6.0 epoxy; do
+  pkg-config --exists "$module" || missing+=("$module")
+done
+[[ ${#missing[@]} == 0 ]] || {
+  echo "missing pkg-config modules: ${missing[*]}; install gtk4 libadwaita webkitgtk-6.0 libepoxy" >&2
+  exit 1
+}
 [[ -e /usr/lib/libxml2.so.2 ]] || {
   echo "install libxml2-legacy; do not alias libxml2.so.2 to a different ABI" >&2
   exit 1

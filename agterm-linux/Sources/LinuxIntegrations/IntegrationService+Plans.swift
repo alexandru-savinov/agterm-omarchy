@@ -214,7 +214,9 @@ public extension IntegrationService {
             }
             guard plannedDestinations.insert(destination.standardizedFileURL.path).inserted else {
                 let validationPath = IntegrationFilesystem.validationAnchor(for: displayDestination)
-                operations.append(.validate(
+                // An existing alias anchor can include the directory this plan replaces.
+                // Validate its preview before any writes, as for already-current targets.
+                currentTargetValidations.append(.validate(
                     path: validationPath.path,
                     expected: IntegrationFilesystem.fingerprint(validationPath)
                 ))

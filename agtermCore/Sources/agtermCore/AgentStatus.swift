@@ -21,21 +21,21 @@ public enum AgentStatus: String, Codable, Sendable, CaseIterable {
 
     /// True for the states attention navigation (⌃⌥↑/↓, `session.go next-attention|prev-attention`) steps
     /// through: a `blocked` prompt or a `completed` run, not `active` (still working) or `idle` (no glyph).
+    /// `AppStore.attentionIncludesActive` adds `active` to navigation only, never to this predicate.
     public var needsAttention: Bool { self == .blocked || self == .completed }
 
     /// Whether a keystroke in the session's terminal should clear this glyph back to idle. `blocked` and
     /// `completed` clear as `reset` says: on any key (you've engaged with the prompt / the finished result),
-    /// on a submit only (the reply is sent, so a half-typed one keeps the glyph), or never. `active` clears
-    /// ONLY on an interrupt (Escape or Ctrl-C) in every mode, so typing while the agent works keeps the
-    /// "working" glyph. That covers the quick-cancel case: a pending question can still read `active` when
-    /// you cancel it (Claude Code's `blocked` notification lands seconds later) and the interrupt fires no
-    /// hook, so nothing else drops the stale value.
+    /// on a submit only (the reply is sent, so a half-typed one keeps the glyph), or never. Under submit-only
+    /// an interrupt (Escape or Ctrl-C) also clears `blocked`: cancelling a prompt fires no hook, so nothing
+    /// else drops it. `active` clears ONLY on an interrupt in every mode, so typing while the agent works
+    /// keeps the "working" glyph, and a prompt cancelled before any `blocked` arrived does not stay `active`.
     func clearedBy(keystroke: StatusKeystroke, reset: StatusReset) -> Bool {
         switch self {
         case .blocked, .completed:
             switch reset {
             case .firstKey: return true
-            case .enter: return keystroke == .submit
+            case .enter: return keystroke == .submit || (self == .blocked && keystroke == .interrupt)
             case .never: return false
             }
         case .active: return keystroke == .interrupt
@@ -97,15 +97,31 @@ public enum StatusPane: String, Codable, Sendable, CaseIterable {
 
 /// StatusShape is the silhouette a status glyph draws, so shape carries the state alongside the tint. Every
 /// shape is plain, with no interior mark, selectable per status in Settings or per call via
-/// `session.status --shape`; `circle` is what an unset status draws. The raw value is the SF Symbol base name.
+/// `session.status --shape`; `circle` is what an unset status draws. The raw value is the public name the CLI,
+/// settings and `tree` carry, so it never changes once released; `symbolName` maps it to the SF Symbol.
 public enum StatusShape: String, Codable, Sendable, CaseIterable {
-    case circle, square, triangle, diamond, capsule, star
+    case circle, square, triangle
+    case triangleDown = "triangle-down"
+    case play, diamond, capsule, seal, star, bolt, bell
+
+    /// original is the shape set accepted without the `status.shapes` capability.
+    public static let original: Set<StatusShape> = [.circle, .square, .triangle, .diamond, .capsule, .star]
 
     /// SF Symbol name for the shape — the `.fill` variant, so every glyph is a solid silhouette, not an outline.
-    public var symbolName: String { "\(rawValue).fill" }
+    public var symbolName: String {
+        switch self {
+        case .triangleDown: "arrowtriangle.down.fill"
+        default: "\(rawValue).fill"
+        }
+    }
 
     /// The human-facing name ("Triangle"): the Settings picker's per-option accessibility label and its value.
-    public var displayName: String { rawValue.capitalized }
+    public var displayName: String {
+        switch self {
+        case .triangleDown: "Down Triangle"
+        default: rawValue.capitalized
+        }
+    }
 
     /// The accepted names pipe-joined — the compact form the control server's rejection message uses. Derived
     /// from `allCases`, like `WatermarkConfig.validFits`, so no message can go stale.

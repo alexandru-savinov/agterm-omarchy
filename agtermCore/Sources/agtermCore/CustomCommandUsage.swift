@@ -46,11 +46,16 @@ public struct CustomCommandUsageStore: Sendable {
         self.fileName = fileName
     }
 
+    /// A file that exists but fails to decode, or carries another version, is moved aside first
+    /// (`StateFileQuarantine`): the next `record` would otherwise save a fresh count over it.
     public func load() -> CustomCommandUsage {
-        guard let data = try? Data(contentsOf: fileURL),
-              let usage = try? JSONDecoder().decode(CustomCommandUsage.self, from: data),
-              usage.version == CustomCommandUsage.currentVersion else { return CustomCommandUsage() }
-        return usage
+        StateFileQuarantine.load(fileURL, supportedVersion: CustomCommandUsage.currentVersion) { data in
+            let usage = try JSONDecoder().decode(CustomCommandUsage.self, from: data)
+            guard usage.version == CustomCommandUsage.currentVersion else {
+                throw StateFileQuarantine.VersionMismatch(found: usage.version)
+            }
+            return usage
+        } ?? CustomCommandUsage()
     }
 
     /// Count one run of `command` and persist the result.

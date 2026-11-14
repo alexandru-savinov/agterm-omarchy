@@ -1,0 +1,3160 @@
+{
+  "schema": "agterm-native-complete-publication/1",
+  "scope": "Retained complete source77 native branch evidence. No new native execution, current-main/integrated-candidate acceptance, trusted hosted release, hardware rendering, bash Live support, or independent account approval is claimed.",
+  "records": [
+    {
+      "original_file": "native-current-source-runtime-launch-private.json",
+      "original_sha256": "d58b7381222a840a3fd773b0e85ee53bf718d07eeb1027ae65106462e0ae361e",
+      "transport": {
+        "exit_code": 0,
+        "signal_code": 0,
+        "stderr": "",
+        "seconds": 0.5492720603942871
+      },
+      "stdout_encoding": "decoded JSON",
+      "original_stdout_utf8_sha256": "103c27468d6133dff332e91dd7fb9d11b1d34f015a331cf740460aaa33515c00",
+      "observation": {
+        "launched": true,
+        "stage": "<private-stage-006>",
+        "pid": "<process-043>",
+        "launched_at": 1794434242.5340602,
+        "core_result": {
+          "passed": true,
+          "errors": []
+        },
+        "still_running": true
+      }
+    },
+    {
+      "original_file": "native-current-source-runtime-result-private.json",
+      "original_sha256": "5a32fade67ba066a48999a2312b1105e5d0a09bbaac9495687c43c253f141663",
+      "transport": {
+        "exit_code": 0,
+        "signal_code": 0,
+        "stderr": "",
+        "seconds": 0.35471487045288086
+      },
+      "stdout_encoding": "decoded JSON",
+      "original_stdout_utf8_sha256": "b02368a7cfc154cbf57a4ffa9f48ca114e500d0162654ac03baef8bb572cd8b5",
+      "observation": {
+        "report": {
+          "schema": "agterm-native-full-source/1",
+          "diagnostic_only": true,
+          "state": "complete",
+          "phase": "config-5",
+          "started_at": 1794434243.0816548,
+          "settings": {
+            "payload": "<private-stage-002>/agterm-stage",
+            "frozen_payload": "<private-stage-007>/agterm-stage",
+            "source_commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+            "app_source_commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+            "library_source_commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+            "library_ghostty_commit": "0ba6250388641f52135414b38c4259aa682c489b",
+            "operator_sha256": "ffac8abb949c0cd26f85ba5ebef030ed635cd733691fd96362204f0a28d63258",
+            "worker_sha256": "4b744d820c116e94da072d103309d9c5c0adae7cfb88afbd5895b64d425976fc",
+            "fixture_sha256": "24030151e8e10ff501349477a520c10331fe1cf58ff2990ef584602683a78860",
+            "probe_source_commit": "e77b6ad448677e00cafd14a36c557b96affb6678",
+            "payload_hashes": {
+              "bin/agterm-linux.bin": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+              "bin/agtermctl.bin": "27d6c608638a7f942db518d4ccc4406a8a545f968825a2f743fd6a9fa00e0107",
+              "bin/zmx": "8b73d34daad6c039032bb851f8c52a898cdddd908e0dc65bf50c7cf0cf913a01",
+              "lib/libghostty.so": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72"
+            },
+            "build_status_path": "<private-stage-002>/status-3.json",
+            "build_status_sha256": "d61772ba0bd291c20f66600883c619bc5303bcadef948232321ba5b2bf6e8727",
+            "diagnostic_only": true,
+            "acceptance_scope": "Complete native branch-source build; no current-main, combined-source or hosted release archive claim.",
+            "operator_review_url": "https://github.com/alexandru-savinov/agterm-omarchy/issues/305#issuecomment-6807859789"
+          },
+          "modes": {
+            "none": {
+              "passed": true,
+              "started_at_utc": "2026-11-11T21:57:23.089559+00:00",
+              "launcher_sha256": "335799846e5acf14c6584c7aa4fba5d9ce45fdd324384ec26d0c588674a80cc2",
+              "private_runtime_directory": "none-runtime",
+              "returncode": 0,
+              "independent_cleanup": {
+                "passed": true,
+                "tracked_process_count": 22,
+                "remaining_processes": [],
+                "new_app_processes": [],
+                "retained_recovery_paths": [],
+                "endpoints": [
+                  "<private-runtime-001>/state/zmx"
+                ],
+                "preservation": {
+                  "passed": true,
+                  "protected_process_count": 2,
+                  "lost": {}
+                },
+                "timed_out": false,
+                "forced_cleanup": false,
+                "shell_pids": {},
+                "cleanup_actions": [],
+                "errors": []
+              },
+              "ended_at_utc": "2026-11-11T21:57:27.112471+00:00",
+              "result": {
+                "passed": true,
+                "restore_mode": "none",
+                "checks": [
+                  "primary PTY execution and screen read-back",
+                  "native Wayland rendering: red-to-green PTY pixel change",
+                  "workspace/session creation and split PTY execution",
+                  "overlay output, dismissal, and restored split input",
+                  "WebKitGTK HTML overlay load",
+                  "split/session/workspace teardown",
+                  "no terminal GL-context or app CSS failures"
+                ],
+                "identity": {
+                  "schema": "agterm-omarchy-run-identity/1",
+                  "run_id": "<run-001>",
+                  "artifact_dir_name": "none",
+                  "started_at_utc": "2026-11-11T21:57:23.114223Z",
+                  "harness": {
+                    "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050",
+                    "git_commit": null,
+                    "git_blob": "7e4629818ca50b8823cee23d1589ad39b4f7a8ee",
+                    "matches_commit": null
+                  },
+                  "binaries": {
+                    "app": {
+                      "name": "none-launch-app.py",
+                      "sha256": "335799846e5acf14c6584c7aa4fba5d9ce45fdd324384ec26d0c588674a80cc2",
+                      "resolved_name": "none-launch-app.py",
+                      "kind": "script"
+                    },
+                    "cli": {
+                      "name": "agtermctl",
+                      "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+                      "resolved_name": "agtermctl",
+                      "kind": "script"
+                    },
+                    "zmx": null
+                  },
+                  "app_processes": [
+                    {
+                      "launch": 1,
+                      "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                      "exe_name": "agterm-linux.bin"
+                    }
+                  ],
+                  "zmx_list": [],
+                  "positive_control": null,
+                  "ended_at_utc": "2026-11-11T21:57:26.911379Z"
+                }
+              },
+              "cleanup": {
+                "passed": true,
+                "tracked_daemon_count": 0,
+                "identity": {
+                  "schema": "agterm-omarchy-run-identity/1",
+                  "run_id": "<run-001>",
+                  "artifact_dir_name": "none",
+                  "started_at_utc": "2026-11-11T21:57:23.114223Z",
+                  "harness": {
+                    "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050",
+                    "git_commit": null,
+                    "git_blob": "7e4629818ca50b8823cee23d1589ad39b4f7a8ee",
+                    "matches_commit": null
+                  },
+                  "binaries": {
+                    "app": {
+                      "name": "none-launch-app.py",
+                      "sha256": "335799846e5acf14c6584c7aa4fba5d9ce45fdd324384ec26d0c588674a80cc2",
+                      "resolved_name": "none-launch-app.py",
+                      "kind": "script"
+                    },
+                    "cli": {
+                      "name": "agtermctl",
+                      "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+                      "resolved_name": "agtermctl",
+                      "kind": "script"
+                    },
+                    "zmx": null
+                  },
+                  "app_processes": [
+                    {
+                      "launch": 1,
+                      "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                      "exe_name": "agterm-linux.bin"
+                    }
+                  ],
+                  "zmx_list": [],
+                  "positive_control": null,
+                  "ended_at_utc": "2026-11-11T21:57:26.996412Z"
+                }
+              }
+            },
+            "live": {
+              "passed": true,
+              "started_at_utc": "2026-11-11T21:57:27.225976+00:00",
+              "launcher_sha256": "4408f48c03b4d87d0413af1bbcf7cc1845df94d91d6d2a9e0009d1d17ee5b061",
+              "private_runtime_directory": "live-runtime",
+              "returncode": 0,
+              "independent_cleanup": {
+                "passed": true,
+                "tracked_process_count": 28,
+                "remaining_processes": [],
+                "new_app_processes": [],
+                "retained_recovery_paths": [],
+                "endpoints": [
+                  "<private-runtime-002>/state/zmx"
+                ],
+                "preservation": {
+                  "passed": true,
+                  "protected_process_count": 2,
+                  "lost": {}
+                },
+                "timed_out": false,
+                "forced_cleanup": false,
+                "shell_pids": {
+                  "shell-pid-before": "<process-044>",
+                  "shell-pid-after": "<process-044>"
+                },
+                "cleanup_actions": [],
+                "errors": []
+              },
+              "ended_at_utc": "2026-11-11T21:57:31.499541+00:00",
+              "result": {
+                "passed": true,
+                "restore_mode": "live",
+                "checks": [
+                  "primary PTY execution and screen read-back",
+                  "Live mode shell execution through bundled zmx",
+                  "Live session preserves shell PID across application restart",
+                  "native Wayland rendering: red-to-green PTY pixel change",
+                  "workspace/session creation and split PTY execution",
+                  "overlay output, dismissal, and restored split input",
+                  "WebKitGTK HTML overlay load",
+                  "split/session/workspace teardown",
+                  "no terminal GL-context or app CSS failures"
+                ],
+                "identity": {
+                  "schema": "agterm-omarchy-run-identity/1",
+                  "run_id": "<run-002>",
+                  "artifact_dir_name": "live",
+                  "started_at_utc": "2026-11-11T21:57:27.251539Z",
+                  "harness": {
+                    "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050",
+                    "git_commit": null,
+                    "git_blob": "7e4629818ca50b8823cee23d1589ad39b4f7a8ee",
+                    "matches_commit": null
+                  },
+                  "binaries": {
+                    "app": {
+                      "name": "live-launch-app.py",
+                      "sha256": "4408f48c03b4d87d0413af1bbcf7cc1845df94d91d6d2a9e0009d1d17ee5b061",
+                      "resolved_name": "live-launch-app.py",
+                      "kind": "script"
+                    },
+                    "cli": {
+                      "name": "agtermctl",
+                      "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+                      "resolved_name": "agtermctl",
+                      "kind": "script"
+                    },
+                    "zmx": {
+                      "name": "zmx",
+                      "sha256": "8b73d34daad6c039032bb851f8c52a898cdddd908e0dc65bf50c7cf0cf913a01",
+                      "resolved_name": "zmx",
+                      "kind": "elf"
+                    }
+                  },
+                  "app_processes": [
+                    {
+                      "launch": 1,
+                      "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                      "exe_name": "agterm-linux.bin"
+                    },
+                    {
+                      "launch": 2,
+                      "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                      "exe_name": "agterm-linux.bin"
+                    }
+                  ],
+                  "zmx_list": [],
+                  "positive_control": null,
+                  "zmx_socket_directory_name": "zmx",
+                  "ended_at_utc": "2026-11-11T21:57:30.719468Z"
+                }
+              },
+              "cleanup": {
+                "passed": true,
+                "tracked_daemon_count": 3,
+                "identity": {
+                  "schema": "agterm-omarchy-run-identity/1",
+                  "run_id": "<run-002>",
+                  "artifact_dir_name": "live",
+                  "started_at_utc": "2026-11-11T21:57:27.251539Z",
+                  "harness": {
+                    "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050",
+                    "git_commit": null,
+                    "git_blob": "7e4629818ca50b8823cee23d1589ad39b4f7a8ee",
+                    "matches_commit": null
+                  },
+                  "binaries": {
+                    "app": {
+                      "name": "live-launch-app.py",
+                      "sha256": "4408f48c03b4d87d0413af1bbcf7cc1845df94d91d6d2a9e0009d1d17ee5b061",
+                      "resolved_name": "live-launch-app.py",
+                      "kind": "script"
+                    },
+                    "cli": {
+                      "name": "agtermctl",
+                      "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+                      "resolved_name": "agtermctl",
+                      "kind": "script"
+                    },
+                    "zmx": {
+                      "name": "zmx",
+                      "sha256": "8b73d34daad6c039032bb851f8c52a898cdddd908e0dc65bf50c7cf0cf913a01",
+                      "resolved_name": "zmx",
+                      "kind": "elf"
+                    }
+                  },
+                  "app_processes": [
+                    {
+                      "launch": 1,
+                      "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                      "exe_name": "agterm-linux.bin"
+                    },
+                    {
+                      "launch": 2,
+                      "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                      "exe_name": "agterm-linux.bin"
+                    }
+                  ],
+                  "zmx_list": [
+                    {
+                      "at_utc": "2026-11-11T21:57:30.731664Z",
+                      "exit_code": 0,
+                      "stdout_rows": 2,
+                      "stderr_bytes": 0
+                    },
+                    {
+                      "at_utc": "2026-11-11T21:57:30.819452Z",
+                      "exit_code": 0,
+                      "stdout_rows": 1,
+                      "stderr_bytes": 0
+                    },
+                    {
+                      "at_utc": "2026-11-11T21:57:30.821488Z",
+                      "exit_code": 0,
+                      "stdout_rows": 1,
+                      "stderr_bytes": 0
+                    },
+                    {
+                      "at_utc": "2026-11-11T21:57:30.827334Z",
+                      "exit_code": 0,
+                      "stdout_rows": 0,
+                      "stderr_bytes": 52
+                    }
+                  ],
+                  "positive_control": {
+                    "name": "<sentinel-001>",
+                    "created": true,
+                    "listed_before_teardown": true,
+                    "listed_after_teardown": true,
+                    "killed_confirmed": true,
+                    "absent_after_kill": true,
+                    "passed": true
+                  },
+                  "zmx_socket_directory_name": "zmx",
+                  "ended_at_utc": "2026-11-11T21:57:30.827388Z"
+                }
+              }
+            }
+          },
+          "config_repetitions": [
+            {
+              "passed": true,
+              "started_at_utc": "2026-11-11T21:57:31.609868+00:00",
+              "actions": [],
+              "errors": [],
+              "launcher_sha256": "024928f24c7d00779936596ec14966875b2b5189d7a640d9dd573d33b2f9ed4a",
+              "probe_sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+              "returncode": 0,
+              "probe": {
+                "schema": "agterm-config-runtime-probe/1",
+                "passed": true,
+                "started_at_utc": "2026-11-11T21:57:31.655614+00:00",
+                "expected_app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "retained_file_limit": 2,
+                "checks": [
+                  "two exact mapped instances with private disjoint config paths and PTY execution",
+                  "idle first shutdown cleans its config while peer remains usable",
+                  "32 config reloads and OSC background updates preserve bounded usable theme files",
+                  "bounded noisy-title shutdown cleans generated files and preserves sentinel"
+                ],
+                "apps": [
+                  {
+                    "name": "left",
+                    "process": {
+                      "pid": "<process-045>",
+                      "start": "<process-birth-033>",
+                      "parent": "<process-046>",
+                      "state": "R",
+                      "uid": "<process-uid-001>"
+                    },
+                    "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                    "native_wayland": true,
+                    "realized": true,
+                    "shutdown_seconds": 0.06144425999991654
+                  },
+                  {
+                    "name": "right",
+                    "process": {
+                      "pid": "<process-047>",
+                      "start": "<process-birth-034>",
+                      "parent": "<process-046>",
+                      "state": "R",
+                      "uid": "<process-uid-001>"
+                    },
+                    "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                    "native_wayland": true,
+                    "realized": true,
+                    "shutdown_seconds": 2.7000543759986613
+                  }
+                ],
+                "forced_recovery": false,
+                "cleanup_actions": [],
+                "errors": [],
+                "limits": [
+                  "No desktop appearance switch or conditional-side transition is claimed.",
+                  "Mapped realized surfaces and PTY read-back are checked; pixels are a separate gate.",
+                  "Linux config.reload exposes no diagnostic count; app logs are checked separately."
+                ],
+                "tracked_processes": [
+                  {
+                    "pid": "<process-045>",
+                    "start": "<process-birth-033>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-048>",
+                    "start": "<process-birth-035>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-049>",
+                    "start": "<process-birth-036>",
+                    "parent": "<process-045>",
+                    "state": "S",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-050>",
+                    "start": "<process-birth-037>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-051>",
+                    "start": "<process-birth-037>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-052>",
+                    "start": "<process-birth-038>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-047>",
+                    "start": "<process-birth-034>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-053>",
+                    "start": "<process-birth-039>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-054>",
+                    "start": "<process-birth-040>",
+                    "parent": "<process-047>",
+                    "state": "S",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-055>",
+                    "start": "<process-birth-041>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-056>",
+                    "start": "<process-birth-042>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-057>",
+                    "start": "<process-birth-043>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-058>",
+                    "start": "<process-birth-044>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-059>",
+                    "start": "<process-birth-045>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-060>",
+                    "start": "<process-birth-046>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-061>",
+                    "start": "<process-birth-047>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-062>",
+                    "start": "<process-birth-048>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-063>",
+                    "start": "<process-birth-049>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-064>",
+                    "start": "<process-birth-050>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-065>",
+                    "start": "<process-birth-051>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-066>",
+                    "start": "<process-birth-052>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-067>",
+                    "start": "<process-birth-053>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-068>",
+                    "start": "<process-birth-054>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-069>",
+                    "start": "<process-birth-055>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-070>",
+                    "start": "<process-birth-056>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-071>",
+                    "start": "<process-birth-057>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-072>",
+                    "start": "<process-birth-058>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-073>",
+                    "start": "<process-birth-059>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-074>",
+                    "start": "<process-birth-060>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-075>",
+                    "start": "<process-birth-061>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-076>",
+                    "start": "<process-birth-062>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-077>",
+                    "start": "<process-birth-063>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-078>",
+                    "start": "<process-birth-064>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-079>",
+                    "start": "<process-birth-065>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-080>",
+                    "start": "<process-birth-066>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-081>",
+                    "start": "<process-birth-067>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-082>",
+                    "start": "<process-birth-068>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-083>",
+                    "start": "<process-birth-069>",
+                    "parent": "<process-046>",
+                    "state": "S",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-084>",
+                    "start": "<process-birth-070>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-085>",
+                    "start": "<process-birth-071>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-086>",
+                    "start": "<process-birth-072>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-087>",
+                    "start": "<process-birth-073>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-088>",
+                    "start": "<process-birth-074>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-089>",
+                    "start": "<process-birth-075>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-090>",
+                    "start": "<process-birth-076>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-091>",
+                    "start": "<process-birth-077>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-092>",
+                    "start": "<process-birth-078>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-093>",
+                    "start": "<process-birth-079>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-094>",
+                    "start": "<process-birth-080>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-095>",
+                    "start": "<process-birth-081>",
+                    "parent": "<process-054>",
+                    "state": "S",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-096>",
+                    "start": "<process-birth-082>",
+                    "parent": "<process-046>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  }
+                ],
+                "retained_files": {
+                  "<generated-config-001>": {
+                    "darkTheme-3.conf": {
+                      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "bytes": 0,
+                      "mode": 384
+                    },
+                    "lightTheme-2.conf": {
+                      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "bytes": 0,
+                      "mode": 384
+                    }
+                  }
+                },
+                "noisy_producer": {
+                  "pid": "<process-095>",
+                  "start": "<process-birth-081>",
+                  "parent": "<process-054>",
+                  "state": "S",
+                  "uid": "<process-uid-001>",
+                  "tagged": true
+                },
+                "noisy_titles_written_before_shutdown": 100,
+                "remaining_processes": [],
+                "sentinel_preserved": true,
+                "remaining_generated_paths": [],
+                "socket_directory_removed": true,
+                "ended_at_utc": "2026-11-11T21:57:45.099289+00:00",
+                "signals": [],
+                "caller_environment_unchanged": true,
+                "login_shell_unchanged": true
+              },
+              "remaining_owned_processes": [],
+              "preservation": {
+                "passed": true,
+                "protected_process_count": 2,
+                "lost": {}
+              },
+              "tracked_process_count": 18,
+              "app_processes": [
+                {
+                  "process": {
+                    "pid": "<process-045>",
+                    "name": "agterm-linux.bi",
+                    "state": "R",
+                    "parent": "<process-046>",
+                    "start": "<process-birth-033>",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5"
+                },
+                {
+                  "process": {
+                    "pid": "<process-047>",
+                    "name": "agterm-linux.bi",
+                    "state": "R",
+                    "parent": "<process-046>",
+                    "start": "<process-birth-034>",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5"
+                }
+              ],
+              "ended_at_utc": "2026-11-11T21:57:45.313247+00:00"
+            },
+            {
+              "passed": true,
+              "started_at_utc": "2026-11-11T21:57:45.417333+00:00",
+              "actions": [],
+              "errors": [],
+              "launcher_sha256": "a44d151b10c171ac3037e1a087a7ff6d6eda7ead2203c99899dcdd07e3bd84fc",
+              "probe_sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+              "returncode": 0,
+              "probe": {
+                "schema": "agterm-config-runtime-probe/1",
+                "passed": true,
+                "started_at_utc": "2026-11-11T21:57:45.470692+00:00",
+                "expected_app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "retained_file_limit": 2,
+                "checks": [
+                  "two exact mapped instances with private disjoint config paths and PTY execution",
+                  "idle first shutdown cleans its config while peer remains usable",
+                  "32 config reloads and OSC background updates preserve bounded usable theme files",
+                  "bounded noisy-title shutdown cleans generated files and preserves sentinel"
+                ],
+                "apps": [
+                  {
+                    "name": "left",
+                    "process": {
+                      "pid": "<process-097>",
+                      "start": "<process-birth-083>",
+                      "parent": "<process-098>",
+                      "state": "R",
+                      "uid": "<process-uid-001>"
+                    },
+                    "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                    "native_wayland": true,
+                    "realized": true,
+                    "shutdown_seconds": 0.06536258899905079
+                  },
+                  {
+                    "name": "right",
+                    "process": {
+                      "pid": "<process-099>",
+                      "start": "<process-birth-084>",
+                      "parent": "<process-098>",
+                      "state": "R",
+                      "uid": "<process-uid-001>"
+                    },
+                    "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                    "native_wayland": true,
+                    "realized": true,
+                    "shutdown_seconds": 0.06282280099912896
+                  }
+                ],
+                "forced_recovery": false,
+                "cleanup_actions": [],
+                "errors": [],
+                "limits": [
+                  "No desktop appearance switch or conditional-side transition is claimed.",
+                  "Mapped realized surfaces and PTY read-back are checked; pixels are a separate gate.",
+                  "Linux config.reload exposes no diagnostic count; app logs are checked separately."
+                ],
+                "tracked_processes": [
+                  {
+                    "pid": "<process-097>",
+                    "start": "<process-birth-083>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-100>",
+                    "start": "<process-birth-085>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-101>",
+                    "start": "<process-birth-086>",
+                    "parent": "<process-097>",
+                    "state": "R",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-102>",
+                    "start": "<process-birth-087>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-103>",
+                    "start": "<process-birth-088>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-104>",
+                    "start": "<process-birth-089>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-099>",
+                    "start": "<process-birth-084>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-105>",
+                    "start": "<process-birth-090>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-106>",
+                    "start": "<process-birth-091>",
+                    "parent": "<process-099>",
+                    "state": "S",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-107>",
+                    "start": "<process-birth-092>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-108>",
+                    "start": "<process-birth-092>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-109>",
+                    "start": "<process-birth-093>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-110>",
+                    "start": "<process-birth-094>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-111>",
+                    "start": "<process-birth-095>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-112>",
+                    "start": "<process-birth-096>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-113>",
+                    "start": "<process-birth-097>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-114>",
+                    "start": "<process-birth-098>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-115>",
+                    "start": "<process-birth-099>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-116>",
+                    "start": "<process-birth-100>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-117>",
+                    "start": "<process-birth-101>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-118>",
+                    "start": "<process-birth-102>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-119>",
+                    "start": "<process-birth-103>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-120>",
+                    "start": "<process-birth-104>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-121>",
+                    "start": "<process-birth-105>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-122>",
+                    "start": "<process-birth-106>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-123>",
+                    "start": "<process-birth-107>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-124>",
+                    "start": "<process-birth-108>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-125>",
+                    "start": "<process-birth-109>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-126>",
+                    "start": "<process-birth-110>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-127>",
+                    "start": "<process-birth-111>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-128>",
+                    "start": "<process-birth-112>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-129>",
+                    "start": "<process-birth-113>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-130>",
+                    "start": "<process-birth-114>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-131>",
+                    "start": "<process-birth-115>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-132>",
+                    "start": "<process-birth-116>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-133>",
+                    "start": "<process-birth-117>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-134>",
+                    "start": "<process-birth-118>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-135>",
+                    "start": "<process-birth-119>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-136>",
+                    "start": "<process-birth-120>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-137>",
+                    "start": "<process-birth-121>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-138>",
+                    "start": "<process-birth-122>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-139>",
+                    "start": "<process-birth-123>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-140>",
+                    "start": "<process-birth-124>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-141>",
+                    "start": "<process-birth-125>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-142>",
+                    "start": "<process-birth-126>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-143>",
+                    "start": "<process-birth-127>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-144>",
+                    "start": "<process-birth-128>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-145>",
+                    "start": "<process-birth-129>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-146>",
+                    "start": "<process-birth-130>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-147>",
+                    "start": "<process-birth-131>",
+                    "parent": "<process-106>",
+                    "state": "R",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-148>",
+                    "start": "<process-birth-132>",
+                    "parent": "<process-098>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  }
+                ],
+                "retained_files": {
+                  "<generated-config-002>": {
+                    "darkTheme-3.conf": {
+                      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "bytes": 0,
+                      "mode": 384
+                    },
+                    "lightTheme-2.conf": {
+                      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "bytes": 0,
+                      "mode": 384
+                    }
+                  }
+                },
+                "noisy_producer": {
+                  "pid": "<process-147>",
+                  "start": "<process-birth-131>",
+                  "parent": "<process-106>",
+                  "state": "S",
+                  "uid": "<process-uid-001>",
+                  "tagged": true
+                },
+                "noisy_titles_written_before_shutdown": 100,
+                "remaining_processes": [],
+                "sentinel_preserved": true,
+                "remaining_generated_paths": [],
+                "socket_directory_removed": true,
+                "ended_at_utc": "2026-11-11T21:57:52.141849+00:00",
+                "signals": [],
+                "caller_environment_unchanged": true,
+                "login_shell_unchanged": true
+              },
+              "remaining_owned_processes": [],
+              "preservation": {
+                "passed": true,
+                "protected_process_count": 2,
+                "lost": {}
+              },
+              "tracked_process_count": 18,
+              "app_processes": [
+                {
+                  "process": {
+                    "pid": "<process-097>",
+                    "name": "agterm-linux.bi",
+                    "state": "S",
+                    "parent": "<process-098>",
+                    "start": "<process-birth-083>",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5"
+                },
+                {
+                  "process": {
+                    "pid": "<process-099>",
+                    "name": "agterm-linux.bi",
+                    "state": "R",
+                    "parent": "<process-098>",
+                    "start": "<process-birth-084>",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5"
+                }
+              ],
+              "ended_at_utc": "2026-11-11T21:57:52.232518+00:00"
+            },
+            {
+              "passed": true,
+              "started_at_utc": "2026-11-11T21:57:52.338456+00:00",
+              "actions": [],
+              "errors": [],
+              "launcher_sha256": "69864ba6445e91c361e1530557cbd904423bab819832008c71440af6730c6882",
+              "probe_sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+              "returncode": 0,
+              "probe": {
+                "schema": "agterm-config-runtime-probe/1",
+                "passed": true,
+                "started_at_utc": "2026-11-11T21:57:52.388738+00:00",
+                "expected_app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "retained_file_limit": 2,
+                "checks": [
+                  "two exact mapped instances with private disjoint config paths and PTY execution",
+                  "idle first shutdown cleans its config while peer remains usable",
+                  "32 config reloads and OSC background updates preserve bounded usable theme files",
+                  "bounded noisy-title shutdown cleans generated files and preserves sentinel"
+                ],
+                "apps": [
+                  {
+                    "name": "left",
+                    "process": {
+                      "pid": "<process-149>",
+                      "start": "<process-birth-133>",
+                      "parent": "<process-150>",
+                      "state": "R",
+                      "uid": "<process-uid-001>"
+                    },
+                    "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                    "native_wayland": true,
+                    "realized": true,
+                    "shutdown_seconds": 0.058411846999661066
+                  },
+                  {
+                    "name": "right",
+                    "process": {
+                      "pid": "<process-151>",
+                      "start": "<process-birth-134>",
+                      "parent": "<process-150>",
+                      "state": "R",
+                      "uid": "<process-uid-001>"
+                    },
+                    "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                    "native_wayland": true,
+                    "realized": true,
+                    "shutdown_seconds": 2.4702953069991054
+                  }
+                ],
+                "forced_recovery": false,
+                "cleanup_actions": [],
+                "errors": [],
+                "limits": [
+                  "No desktop appearance switch or conditional-side transition is claimed.",
+                  "Mapped realized surfaces and PTY read-back are checked; pixels are a separate gate.",
+                  "Linux config.reload exposes no diagnostic count; app logs are checked separately."
+                ],
+                "tracked_processes": [
+                  {
+                    "pid": "<process-149>",
+                    "start": "<process-birth-133>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-152>",
+                    "start": "<process-birth-135>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-153>",
+                    "start": "<process-birth-136>",
+                    "parent": "<process-149>",
+                    "state": "S",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-154>",
+                    "start": "<process-birth-137>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-155>",
+                    "start": "<process-birth-137>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-156>",
+                    "start": "<process-birth-138>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-151>",
+                    "start": "<process-birth-134>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-157>",
+                    "start": "<process-birth-139>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-158>",
+                    "start": "<process-birth-140>",
+                    "parent": "<process-151>",
+                    "state": "S",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-159>",
+                    "start": "<process-birth-141>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-160>",
+                    "start": "<process-birth-142>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-161>",
+                    "start": "<process-birth-143>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-162>",
+                    "start": "<process-birth-144>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-163>",
+                    "start": "<process-birth-145>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-164>",
+                    "start": "<process-birth-146>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-165>",
+                    "start": "<process-birth-147>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-166>",
+                    "start": "<process-birth-148>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-167>",
+                    "start": "<process-birth-149>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-168>",
+                    "start": "<process-birth-150>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-169>",
+                    "start": "<process-birth-151>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-170>",
+                    "start": "<process-birth-152>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-171>",
+                    "start": "<process-birth-153>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-172>",
+                    "start": "<process-birth-154>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-173>",
+                    "start": "<process-birth-155>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-174>",
+                    "start": "<process-birth-156>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-175>",
+                    "start": "<process-birth-157>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-176>",
+                    "start": "<process-birth-158>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-177>",
+                    "start": "<process-birth-159>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-178>",
+                    "start": "<process-birth-160>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-179>",
+                    "start": "<process-birth-161>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-180>",
+                    "start": "<process-birth-162>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-181>",
+                    "start": "<process-birth-163>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-182>",
+                    "start": "<process-birth-164>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-183>",
+                    "start": "<process-birth-165>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-184>",
+                    "start": "<process-birth-166>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-185>",
+                    "start": "<process-birth-167>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-186>",
+                    "start": "<process-birth-168>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-187>",
+                    "start": "<process-birth-169>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-188>",
+                    "start": "<process-birth-170>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-189>",
+                    "start": "<process-birth-171>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-190>",
+                    "start": "<process-birth-172>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-191>",
+                    "start": "<process-birth-173>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-192>",
+                    "start": "<process-birth-174>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-193>",
+                    "start": "<process-birth-175>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-194>",
+                    "start": "<process-birth-176>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-195>",
+                    "start": "<process-birth-177>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-196>",
+                    "start": "<process-birth-178>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-197>",
+                    "start": "<process-birth-179>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-198>",
+                    "start": "<process-birth-180>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-199>",
+                    "start": "<process-birth-181>",
+                    "parent": "<process-158>",
+                    "state": "S",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-200>",
+                    "start": "<process-birth-182>",
+                    "parent": "<process-150>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  }
+                ],
+                "retained_files": {
+                  "<generated-config-003>": {
+                    "darkTheme-3.conf": {
+                      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "bytes": 0,
+                      "mode": 384
+                    },
+                    "lightTheme-2.conf": {
+                      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "bytes": 0,
+                      "mode": 384
+                    }
+                  }
+                },
+                "noisy_producer": {
+                  "pid": "<process-199>",
+                  "start": "<process-birth-181>",
+                  "parent": "<process-158>",
+                  "state": "S",
+                  "uid": "<process-uid-001>",
+                  "tagged": true
+                },
+                "noisy_titles_written_before_shutdown": 100,
+                "remaining_processes": [],
+                "sentinel_preserved": true,
+                "remaining_generated_paths": [],
+                "socket_directory_removed": true,
+                "ended_at_utc": "2026-11-11T21:58:04.209292+00:00",
+                "signals": [],
+                "caller_environment_unchanged": true,
+                "login_shell_unchanged": true
+              },
+              "remaining_owned_processes": [],
+              "preservation": {
+                "passed": true,
+                "protected_process_count": 2,
+                "lost": {}
+              },
+              "tracked_process_count": 19,
+              "app_processes": [
+                {
+                  "process": {
+                    "pid": "<process-149>",
+                    "name": "agterm-linux.bi",
+                    "state": "S",
+                    "parent": "<process-150>",
+                    "start": "<process-birth-133>",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5"
+                },
+                {
+                  "process": {
+                    "pid": "<process-151>",
+                    "name": "agterm-linux.bi",
+                    "state": "R",
+                    "parent": "<process-150>",
+                    "start": "<process-birth-134>",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5"
+                }
+              ],
+              "ended_at_utc": "2026-11-11T21:58:04.364687+00:00"
+            },
+            {
+              "passed": true,
+              "started_at_utc": "2026-11-11T21:58:04.477588+00:00",
+              "actions": [],
+              "errors": [],
+              "launcher_sha256": "a3bf63e900893a7c664f6e7d2fbcd9fc7b9aa5c1f21596f26f3e79ff97f456b8",
+              "probe_sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+              "returncode": 0,
+              "probe": {
+                "schema": "agterm-config-runtime-probe/1",
+                "passed": true,
+                "started_at_utc": "2026-11-11T21:58:04.526417+00:00",
+                "expected_app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "retained_file_limit": 2,
+                "checks": [
+                  "two exact mapped instances with private disjoint config paths and PTY execution",
+                  "idle first shutdown cleans its config while peer remains usable",
+                  "32 config reloads and OSC background updates preserve bounded usable theme files",
+                  "bounded noisy-title shutdown cleans generated files and preserves sentinel"
+                ],
+                "apps": [
+                  {
+                    "name": "left",
+                    "process": {
+                      "pid": "<process-201>",
+                      "start": "<process-birth-183>",
+                      "parent": "<process-202>",
+                      "state": "R",
+                      "uid": "<process-uid-001>"
+                    },
+                    "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                    "native_wayland": true,
+                    "realized": true,
+                    "shutdown_seconds": 0.060266219999903115
+                  },
+                  {
+                    "name": "right",
+                    "process": {
+                      "pid": "<process-203>",
+                      "start": "<process-birth-184>",
+                      "parent": "<process-202>",
+                      "state": "R",
+                      "uid": "<process-uid-001>"
+                    },
+                    "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                    "native_wayland": true,
+                    "realized": true,
+                    "shutdown_seconds": 0.73787086899938
+                  }
+                ],
+                "forced_recovery": false,
+                "cleanup_actions": [],
+                "errors": [],
+                "limits": [
+                  "No desktop appearance switch or conditional-side transition is claimed.",
+                  "Mapped realized surfaces and PTY read-back are checked; pixels are a separate gate.",
+                  "Linux config.reload exposes no diagnostic count; app logs are checked separately."
+                ],
+                "tracked_processes": [
+                  {
+                    "pid": "<process-201>",
+                    "start": "<process-birth-183>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-204>",
+                    "start": "<process-birth-185>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-205>",
+                    "start": "<process-birth-186>",
+                    "parent": "<process-201>",
+                    "state": "S",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-206>",
+                    "start": "<process-birth-187>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-207>",
+                    "start": "<process-birth-187>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-208>",
+                    "start": "<process-birth-188>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-203>",
+                    "start": "<process-birth-184>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-209>",
+                    "start": "<process-birth-189>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-210>",
+                    "start": "<process-birth-190>",
+                    "parent": "<process-203>",
+                    "state": "S",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-211>",
+                    "start": "<process-birth-191>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-212>",
+                    "start": "<process-birth-192>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-213>",
+                    "start": "<process-birth-193>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-214>",
+                    "start": "<process-birth-194>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-215>",
+                    "start": "<process-birth-195>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-216>",
+                    "start": "<process-birth-196>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-217>",
+                    "start": "<process-birth-197>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-218>",
+                    "start": "<process-birth-198>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-219>",
+                    "start": "<process-birth-199>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-220>",
+                    "start": "<process-birth-200>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-221>",
+                    "start": "<process-birth-201>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-222>",
+                    "start": "<process-birth-202>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-223>",
+                    "start": "<process-birth-203>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-224>",
+                    "start": "<process-birth-204>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-225>",
+                    "start": "<process-birth-205>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-226>",
+                    "start": "<process-birth-206>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-227>",
+                    "start": "<process-birth-207>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-228>",
+                    "start": "<process-birth-208>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-229>",
+                    "start": "<process-birth-209>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-230>",
+                    "start": "<process-birth-210>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-231>",
+                    "start": "<process-birth-211>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-232>",
+                    "start": "<process-birth-212>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-233>",
+                    "start": "<process-birth-213>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-234>",
+                    "start": "<process-birth-214>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-235>",
+                    "start": "<process-birth-215>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-236>",
+                    "start": "<process-birth-216>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-237>",
+                    "start": "<process-birth-217>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-238>",
+                    "start": "<process-birth-218>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-239>",
+                    "start": "<process-birth-219>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-240>",
+                    "start": "<process-birth-220>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-241>",
+                    "start": "<process-birth-221>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-242>",
+                    "start": "<process-birth-222>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-243>",
+                    "start": "<process-birth-223>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-244>",
+                    "start": "<process-birth-224>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-245>",
+                    "start": "<process-birth-225>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-246>",
+                    "start": "<process-birth-226>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-247>",
+                    "start": "<process-birth-227>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-248>",
+                    "start": "<process-birth-228>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-249>",
+                    "start": "<process-birth-229>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-250>",
+                    "start": "<process-birth-230>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-251>",
+                    "start": "<process-birth-231>",
+                    "parent": "<process-210>",
+                    "state": "S",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-252>",
+                    "start": "<process-birth-232>",
+                    "parent": "<process-202>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  }
+                ],
+                "retained_files": {
+                  "<generated-config-004>": {
+                    "darkTheme-3.conf": {
+                      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "bytes": 0,
+                      "mode": 384
+                    },
+                    "lightTheme-2.conf": {
+                      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "bytes": 0,
+                      "mode": 384
+                    }
+                  }
+                },
+                "noisy_producer": {
+                  "pid": "<process-251>",
+                  "start": "<process-birth-231>",
+                  "parent": "<process-210>",
+                  "state": "S",
+                  "uid": "<process-uid-001>",
+                  "tagged": true
+                },
+                "noisy_titles_written_before_shutdown": 100,
+                "remaining_processes": [],
+                "sentinel_preserved": true,
+                "remaining_generated_paths": [],
+                "socket_directory_removed": true,
+                "ended_at_utc": "2026-11-11T21:58:16.127218+00:00",
+                "signals": [],
+                "caller_environment_unchanged": true,
+                "login_shell_unchanged": true
+              },
+              "remaining_owned_processes": [],
+              "preservation": {
+                "passed": true,
+                "protected_process_count": 2,
+                "lost": {}
+              },
+              "tracked_process_count": 18,
+              "app_processes": [
+                {
+                  "process": {
+                    "pid": "<process-201>",
+                    "name": "agterm-linux.bi",
+                    "state": "S",
+                    "parent": "<process-202>",
+                    "start": "<process-birth-183>",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5"
+                },
+                {
+                  "process": {
+                    "pid": "<process-203>",
+                    "name": "agterm-linux.bi",
+                    "state": "R",
+                    "parent": "<process-202>",
+                    "start": "<process-birth-184>",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5"
+                }
+              ],
+              "ended_at_utc": "2026-11-11T21:58:16.284330+00:00"
+            },
+            {
+              "passed": true,
+              "started_at_utc": "2026-11-11T21:58:16.396873+00:00",
+              "actions": [],
+              "errors": [],
+              "launcher_sha256": "6ffd3230c2c818cc79f7e62d5289ffd9900929748d2f3e5c9ad0655be72e0055",
+              "probe_sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+              "returncode": 0,
+              "probe": {
+                "schema": "agterm-config-runtime-probe/1",
+                "passed": true,
+                "started_at_utc": "2026-11-11T21:58:16.445278+00:00",
+                "expected_app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "retained_file_limit": 2,
+                "checks": [
+                  "two exact mapped instances with private disjoint config paths and PTY execution",
+                  "idle first shutdown cleans its config while peer remains usable",
+                  "32 config reloads and OSC background updates preserve bounded usable theme files",
+                  "bounded noisy-title shutdown cleans generated files and preserves sentinel"
+                ],
+                "apps": [
+                  {
+                    "name": "left",
+                    "process": {
+                      "pid": "<process-253>",
+                      "start": "<process-birth-233>",
+                      "parent": "<process-254>",
+                      "state": "R",
+                      "uid": "<process-uid-001>"
+                    },
+                    "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                    "native_wayland": true,
+                    "realized": true,
+                    "shutdown_seconds": 0.061991300999579835
+                  },
+                  {
+                    "name": "right",
+                    "process": {
+                      "pid": "<process-255>",
+                      "start": "<process-birth-234>",
+                      "parent": "<process-254>",
+                      "state": "R",
+                      "uid": "<process-uid-001>"
+                    },
+                    "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                    "native_wayland": true,
+                    "realized": true,
+                    "shutdown_seconds": 0.8180511880000267
+                  }
+                ],
+                "forced_recovery": false,
+                "cleanup_actions": [],
+                "errors": [],
+                "limits": [
+                  "No desktop appearance switch or conditional-side transition is claimed.",
+                  "Mapped realized surfaces and PTY read-back are checked; pixels are a separate gate.",
+                  "Linux config.reload exposes no diagnostic count; app logs are checked separately."
+                ],
+                "tracked_processes": [
+                  {
+                    "pid": "<process-253>",
+                    "start": "<process-birth-233>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-256>",
+                    "start": "<process-birth-235>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-257>",
+                    "start": "<process-birth-236>",
+                    "parent": "<process-253>",
+                    "state": "R",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-258>",
+                    "start": "<process-birth-237>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-259>",
+                    "start": "<process-birth-238>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-260>",
+                    "start": "<process-birth-239>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-255>",
+                    "start": "<process-birth-234>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-261>",
+                    "start": "<process-birth-240>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-262>",
+                    "start": "<process-birth-241>",
+                    "parent": "<process-255>",
+                    "state": "R",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-263>",
+                    "start": "<process-birth-242>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-264>",
+                    "start": "<process-birth-243>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-265>",
+                    "start": "<process-birth-244>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-266>",
+                    "start": "<process-birth-245>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-267>",
+                    "start": "<process-birth-246>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-268>",
+                    "start": "<process-birth-247>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-269>",
+                    "start": "<process-birth-248>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-270>",
+                    "start": "<process-birth-249>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-271>",
+                    "start": "<process-birth-250>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-272>",
+                    "start": "<process-birth-251>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-273>",
+                    "start": "<process-birth-252>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-274>",
+                    "start": "<process-birth-253>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-275>",
+                    "start": "<process-birth-254>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-276>",
+                    "start": "<process-birth-255>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-277>",
+                    "start": "<process-birth-256>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-278>",
+                    "start": "<process-birth-257>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-279>",
+                    "start": "<process-birth-258>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-280>",
+                    "start": "<process-birth-259>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-281>",
+                    "start": "<process-birth-260>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-282>",
+                    "start": "<process-birth-261>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-283>",
+                    "start": "<process-birth-262>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-284>",
+                    "start": "<process-birth-263>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-285>",
+                    "start": "<process-birth-264>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-286>",
+                    "start": "<process-birth-265>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-287>",
+                    "start": "<process-birth-266>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-288>",
+                    "start": "<process-birth-267>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-289>",
+                    "start": "<process-birth-268>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-290>",
+                    "start": "<process-birth-269>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-291>",
+                    "start": "<process-birth-270>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-292>",
+                    "start": "<process-birth-271>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-293>",
+                    "start": "<process-birth-272>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-294>",
+                    "start": "<process-birth-273>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-295>",
+                    "start": "<process-birth-274>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-296>",
+                    "start": "<process-birth-275>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-297>",
+                    "start": "<process-birth-276>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-298>",
+                    "start": "<process-birth-277>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-299>",
+                    "start": "<process-birth-278>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-300>",
+                    "start": "<process-birth-279>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-301>",
+                    "start": "<process-birth-280>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-302>",
+                    "start": "<process-birth-281>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  },
+                  {
+                    "pid": "<process-303>",
+                    "start": "<process-birth-282>",
+                    "parent": "<process-262>",
+                    "state": "S",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  {
+                    "pid": "<process-304>",
+                    "start": "<process-birth-283>",
+                    "parent": "<process-254>",
+                    "state": "R",
+                    "uid": "<process-uid-001>"
+                  }
+                ],
+                "retained_files": {
+                  "<generated-config-005>": {
+                    "darkTheme-3.conf": {
+                      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "bytes": 0,
+                      "mode": 384
+                    },
+                    "lightTheme-2.conf": {
+                      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "bytes": 0,
+                      "mode": 384
+                    }
+                  }
+                },
+                "noisy_producer": {
+                  "pid": "<process-303>",
+                  "start": "<process-birth-282>",
+                  "parent": "<process-262>",
+                  "state": "S",
+                  "uid": "<process-uid-001>",
+                  "tagged": true
+                },
+                "noisy_titles_written_before_shutdown": 100,
+                "remaining_processes": [],
+                "sentinel_preserved": true,
+                "remaining_generated_paths": [],
+                "socket_directory_removed": true,
+                "ended_at_utc": "2026-11-11T21:58:29.912552+00:00",
+                "signals": [],
+                "caller_environment_unchanged": true,
+                "login_shell_unchanged": true
+              },
+              "remaining_owned_processes": [],
+              "preservation": {
+                "passed": true,
+                "protected_process_count": 2,
+                "lost": {}
+              },
+              "tracked_process_count": 19,
+              "app_processes": [
+                {
+                  "process": {
+                    "pid": "<process-253>",
+                    "name": "agterm-linux.bi",
+                    "state": "S",
+                    "parent": "<process-254>",
+                    "start": "<process-birth-233>",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5"
+                },
+                {
+                  "process": {
+                    "pid": "<process-255>",
+                    "name": "agterm-linux.bi",
+                    "state": "R",
+                    "parent": "<process-254>",
+                    "start": "<process-birth-234>",
+                    "uid": "<process-uid-001>",
+                    "tagged": true
+                  },
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5"
+                }
+              ],
+              "ended_at_utc": "2026-11-11T21:58:30.150306+00:00"
+            }
+          ],
+          "errors": [],
+          "image_observer": {
+            "completed": true,
+            "errors": [],
+            "observed_images": [
+              {
+                "process": {
+                  "pid": "<process-305>",
+                  "name": "agterm-linux.bi",
+                  "state": "D",
+                  "parent": "<process-306>",
+                  "start": "<process-birth-284>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-307>",
+                  "name": "agterm-linux.bi",
+                  "state": "S",
+                  "parent": "<process-308>",
+                  "start": "<process-birth-285>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-309>",
+                  "name": "agterm-linux.bi",
+                  "state": "R",
+                  "parent": "<process-308>",
+                  "start": "<process-birth-286>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-045>",
+                  "name": "agterm-linux.bi",
+                  "state": "R",
+                  "parent": "<process-046>",
+                  "start": "<process-birth-033>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-047>",
+                  "name": "agterm-linux.bi",
+                  "state": "R",
+                  "parent": "<process-046>",
+                  "start": "<process-birth-034>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-097>",
+                  "name": "agterm-linux.bi",
+                  "state": "S",
+                  "parent": "<process-098>",
+                  "start": "<process-birth-083>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-099>",
+                  "name": "agterm-linux.bi",
+                  "state": "R",
+                  "parent": "<process-098>",
+                  "start": "<process-birth-084>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-149>",
+                  "name": "agterm-linux.bi",
+                  "state": "S",
+                  "parent": "<process-150>",
+                  "start": "<process-birth-133>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-151>",
+                  "name": "agterm-linux.bi",
+                  "state": "R",
+                  "parent": "<process-150>",
+                  "start": "<process-birth-134>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-201>",
+                  "name": "agterm-linux.bi",
+                  "state": "R",
+                  "parent": "<process-202>",
+                  "start": "<process-birth-183>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-203>",
+                  "name": "agterm-linux.bi",
+                  "state": "R",
+                  "parent": "<process-202>",
+                  "start": "<process-birth-184>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-253>",
+                  "name": "agterm-linux.bi",
+                  "state": "R",
+                  "parent": "<process-254>",
+                  "start": "<process-birth-233>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              },
+              {
+                "process": {
+                  "pid": "<process-255>",
+                  "name": "agterm-linux.bi",
+                  "state": "R",
+                  "parent": "<process-254>",
+                  "start": "<process-birth-234>",
+                  "uid": "<process-uid-001>"
+                },
+                "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+                "mapping_count": 7
+              }
+            ],
+            "expected_image_count": 13,
+            "missing_expected_images": []
+          },
+          "payload_unchanged": true,
+          "frozen_payload_unchanged": true,
+          "installed_payload_unchanged": true,
+          "shared_runtime_unchanged": true,
+          "login_shell_unchanged": true,
+          "preservation": {
+            "passed": true,
+            "protected_process_count": 2,
+            "lost": {}
+          },
+          "passed": true,
+          "ended_at": 1794434310.565571
+        },
+        "operator_log": ""
+      }
+    },
+    {
+      "original_file": "native-current-source-runtime-summary-private.json",
+      "original_sha256": "5c896c827de99950979cba8776974cb45fc308e848ea86049458c8a396c38159",
+      "transport": null,
+      "stdout_encoding": "direct JSON document",
+      "observation": {
+        "original_sha256": "5a32fade67ba066a48999a2312b1105e5d0a09bbaac9495687c43c253f141663",
+        "source": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+        "passed": true,
+        "modes": {
+          "none": {
+            "passed": true,
+            "checks": 7,
+            "cleanup": true,
+            "independent_cleanup": true
+          },
+          "live": {
+            "passed": true,
+            "checks": 9,
+            "cleanup": true,
+            "independent_cleanup": true
+          }
+        },
+        "config": [
+          {
+            "passed": true,
+            "checks": 4,
+            "shutdown_seconds": {
+              "left": 0.06144425999991654,
+              "right": 2.7000543759986613
+            },
+            "recovery": [],
+            "remaining": 0,
+            "producer_count": 100
+          },
+          {
+            "passed": true,
+            "checks": 4,
+            "shutdown_seconds": {
+              "left": 0.06536258899905079,
+              "right": 0.06282280099912896
+            },
+            "recovery": [],
+            "remaining": 0,
+            "producer_count": 100
+          },
+          {
+            "passed": true,
+            "checks": 4,
+            "shutdown_seconds": {
+              "left": 0.058411846999661066,
+              "right": 2.4702953069991054
+            },
+            "recovery": [],
+            "remaining": 0,
+            "producer_count": 100
+          },
+          {
+            "passed": true,
+            "checks": 4,
+            "shutdown_seconds": {
+              "left": 0.060266219999903115,
+              "right": 0.73787086899938
+            },
+            "recovery": [],
+            "remaining": 0,
+            "producer_count": 100
+          },
+          {
+            "passed": true,
+            "checks": 4,
+            "shutdown_seconds": {
+              "left": 0.061991300999579835,
+              "right": 0.8180511880000267
+            },
+            "recovery": [],
+            "remaining": 0,
+            "producer_count": 100
+          }
+        ],
+        "observed_images": 13,
+        "expected_images": 13,
+        "mapping_rows": 91,
+        "missing": [],
+        "preservation": {
+          "passed": true,
+          "protected_process_count": 2,
+          "lost": {}
+        },
+        "preserved": {
+          "payload_unchanged": true,
+          "frozen_payload_unchanged": true,
+          "installed_payload_unchanged": true,
+          "shared_runtime_unchanged": true,
+          "login_shell_unchanged": true
+        },
+        "seconds": 67.48391628265381
+      }
+    }
+  ],
+  "derived": {
+    "source_commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+    "mode_check_counts": {
+      "none": 7,
+      "live": 9
+    },
+    "configuration_check_counts": [
+      4,
+      4,
+      4,
+      4,
+      4
+    ],
+    "noisy_shutdown_seconds": [
+      2.7000543759986613,
+      0.06282280099912896,
+      2.4702953069991054,
+      0.73787086899938,
+      0.8180511880000267
+    ],
+    "frontend_identities": 13,
+    "library_mapping_rows": 91,
+    "protected_processes": 2,
+    "preservation": {
+      "payload_unchanged": true,
+      "frozen_payload_unchanged": true,
+      "installed_payload_unchanged": true,
+      "shared_runtime_unchanged": true,
+      "login_shell_unchanged": true
+    },
+    "seconds": 67.48391628265381,
+    "rendering": "software GL",
+    "Live_shell": "process-local zsh fixture; real login shell remains bash",
+    "diagnostic_only_original_flag": true,
+    "exact_public_result": "https://github.com/alexandru-savinov/agterm-omarchy/pull/322#issuecomment-6808145530"
+  },
+  "sanitization": {
+    "policy": "Only declared personal/local identifiers are aliased. All fields, array lengths, verdicts, timestamps, durations, counts, errors, recovery actions, hashes and public source links remain. Process ID/birth/UID values become stable string aliases; all other non-string observation values retain their original type and value.",
+    "scope": "One alias table per category shared across the entire package. No reverse maps are published.",
+    "categories": {
+      "generated-config": 5,
+      "guest-home": 2,
+      "host-home": 2,
+      "load-address": 49,
+      "local-uuid": 68,
+      "private-runtime": 2,
+      "private-stage": 7,
+      "private-zmx-endpoint": 3,
+      "process": 309,
+      "process-birth": 286,
+      "process-uid": 1,
+      "run": 2,
+      "sentinel": 1,
+      "session-runtime": 1,
+      "short-temporary-root": 2
+    },
+    "stdout_handling": "JSON-valued transport stdout is decoded to an object; all transport metadata is retained separately. Original file/encoded-stdout hashes bind its serialization.",
+    "logs": "Retained collected text is preserved with declared identifier substitutions. Guest-file hashes are reported observations, not hashes of normalized or sanitized text. Collected-text hashes and byte/line counts are recorded separately.",
+    "source_scripts": "Worker/operator/test source files are bound by original SHA256 and size. They are read for identity and selected static assertions, never imported or executed."
+  }
+}

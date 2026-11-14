@@ -65,6 +65,7 @@ struct WindowContentView: View {
     @State private var inactivePaneMute: Int = WindowContentView.resolvedInactivePaneMute()
     /// The window's saved background opacity, which scales the mute wash — see `muteWashOpacity`.
     @State private var windowOpacity: Double = WindowContentView.resolvedWindowOpacity()
+    @State private var ignoreReduceTransparency: Bool = WindowContentView.resolvedIgnoreReduceTransparency()
     /// Whether THIS window is in native fullscreen, where AppKit renders it opaque whatever the saved
     /// opacity says. Per-window, so it cannot ride the app-global mirrors.
     @State private var windowFullscreen = false
@@ -77,6 +78,7 @@ struct WindowContentView: View {
     /// The terminal theme's foreground, used for the chrome text (title bar text + buttons, sidebar bottom
     /// bar) so non-terminal text tracks the theme.
     @State var chromeText: Color = WindowContentView.resolvedChromeText()
+    @State var splitDividerColor: NSColor = GhosttyApp.shared.splitDividerColor
     /// When true the title bar shows the attention bell.
     @State var attentionButtonEnabled: Bool = WindowContentView.resolvedAttentionButtonEnabled()
     /// The title-bar / sidebar-footer chrome the user hid in Settings ▸ Interface, read by `shows(_:)`.
@@ -222,10 +224,12 @@ struct WindowContentView: View {
             terminalColor = WindowContentView.resolvedTerminalColor()
             toolbarMode = WindowContentView.resolvedToolbarMode()
             chromeText = WindowContentView.resolvedChromeText()
+            splitDividerColor = GhosttyApp.shared.splitDividerColor
             attentionButtonEnabled = WindowContentView.resolvedAttentionButtonEnabled()
             hiddenInterfaceElements = WindowContentView.resolvedHiddenInterfaceElements()
             inactivePaneMute = WindowContentView.resolvedInactivePaneMute()
             windowOpacity = WindowContentView.resolvedWindowOpacity()
+            ignoreReduceTransparency = WindowContentView.resolvedIgnoreReduceTransparency()
             sidebarShift = WindowContentView.resolvedSidebarShift()
         }
         .modifier(FullscreenEdgeObserver { note in
@@ -433,7 +437,8 @@ struct WindowContentView: View {
                 onPrevious: { actions.navigateSearch(.previous) },
                 onClose: { actions.endSearch() },
                 chromeText: chromeText,
-                terminalColor: terminalColor
+                terminalColor: terminalColor,
+                toolTipsShown: !chromeCovered
             )
             .padding(.top, 8)
             .padding(.trailing, 8)
@@ -446,7 +451,7 @@ struct WindowContentView: View {
     func primarySurfaceID(_ session: Session) -> String {
         // the revision is not observed, and a fresh attach bumps it with nothing else changing
         _ = ZmxLeadBook.shared.attachments
-        return "\(session.id.uuidString)-primary-\(session.primarySurfaceHostRevision)"
+        return "\(session.id.uuidString)-primary-\(session.primarySurfaceHostRevision)-\(session.primaryRespawns)"
     }
 
     /// Opacity of the mute wash, shared by the inactive split pane and the backdrop behind a floating panel
@@ -464,7 +469,9 @@ struct WindowContentView: View {
     /// that setting. There body and title bar share one opaque backing, so the wash needs no scaling and
     /// scaling it would under-mute — down to nothing at a saved opacity of 0.
     private var effectiveWindowOpacity: Double {
-        windowFullscreen || reduceTransparency ? 1 : windowOpacity
+        let forcedOpaque = windowFullscreen
+            || AppSettings.windowReducesTransparency(system: reduceTransparency, ignoring: ignoreReduceTransparency)
+        return forcedOpaque ? 1 : windowOpacity
     }
 
     /// washColor blends background→background so the wash fades only text: the pane's solid color, else
@@ -513,6 +520,10 @@ struct WindowContentView: View {
 
     private static func resolvedWindowOpacity() -> Double {
         GhosttyApp.shared.windowOpacity
+    }
+
+    private static func resolvedIgnoreReduceTransparency() -> Bool {
+        GhosttyApp.shared.ignoreReduceTransparency
     }
 
     private static func resolvedSidebarShift() -> Int {
@@ -588,14 +599,17 @@ struct WindowContentView: View {
                 actions: actions,
                 terminalAreaInset: terminalAreaInset,
                 items: pending.items.enumerated().map { index, item in
-                    PaletteItem(id: item.id, title: item.label, subtitle: item.subtitle) {
+                    let indicator = item.indicator
+                    return PaletteItem(id: item.id, title: item.label, subtitle: item.subtitle,
+                                       indicator: { indicator },
+                                       run: {
                         pick.resolve(ControlPickResult(
                             result: .picked,
                             id: item.id,
                             label: item.label,
                             index: index
                         ))
-                    }
+                    })
                 },
                 prompt: pending.prompt,
                 initialQuery: pending.query,
@@ -619,12 +633,8 @@ struct WindowContentView: View {
                     if let frame = askAnchorFrame(ask.anchor, anchors: anchors, proxy: proxy), valid {
                         AskDialogView(ask: ask, anchorFrame: frame, font: askFont,
                                       foreground: chromeText, background: terminalColor, focusAllowed: isFrontmost,
-                                      onAnswer: { index in
-                                          guard pick.pendingAsk?.id == ask.id else { return }
-                                          let button = ask.buttons[index]
-                                          pick.resolveAsk(ControlAskResult(result: .answered, id: button.id,
-                                                                           label: button.label, index: index))
-                                      },
+                                      draft: pick.askDraft, updateDraft: { pick.updateAskDraft(id: ask.id, $0) },
+                                      onAnswer: { pick.answerAsk(id: ask.id, buttonAt: $0) },
                                       onDismiss: {
                                           guard pick.pendingAsk?.id == ask.id else { return }
                                           actions.escapePendingAsk(for: windowID)
@@ -677,21 +687,28 @@ struct WindowContentView: View {
         }
     }
 
+    /// Whether a window modal (a palette, the switcher, a pick or an ask) is drawn over the sidebar and the
+    /// deck, which AppKit tooltips cannot see, so chrome there gates its tooltips on it.
+    var chromeCovered: Bool {
+        pick.modalPending || (isFrontmost && (palette.mode != nil || sessionSwitcher.isActive))
+    }
+
     /// The sidebar footer, source-list style: two add controls on the left (a workspace; a menu adding a
     /// session at the default cwd or a picked directory) and two view toggles on the right (the workspace
     /// focus filter, the flagged working-set view). Each is hideable via Settings ▸ Interface (`shows(_:)`).
     private var bottomBar: some View {
-        HStack(spacing: 2) {
+        let tipsShown = terminalZoom.target == nil && !dashboard.isOpen && !chromeCovered
+        return HStack(spacing: 2) {
             if shows(.newWorkspace) {
                 Button {
                     actions.newWorkspace()
                 } label: {
-                    Image(systemName: "rectangle.stack.badge.plus")
+                    Image(systemName: InterfaceElement.newWorkspace.symbolName!)
                         .frame(width: 24, height: 22)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
-                .help(helpHint("New Workspace", .newWorkspace))
+                .toolTip(helpHint("New Workspace", .newWorkspace), isShown: tipsShown)
                 .accessibilityLabel("New Workspace")
             }
 
@@ -700,7 +717,7 @@ struct WindowContentView: View {
                     Button("New Session") { actions.newSession() }
                     Button("Open Directory…") { actions.openDirectory() }
                 } label: {
-                    Image(systemName: "plus.rectangle")
+                    Image(systemName: InterfaceElement.newSession.symbolName!)
                         .frame(width: 24, height: 22)
                         .contentShape(Rectangle())
                 }
@@ -709,7 +726,7 @@ struct WindowContentView: View {
                 .tint(chromeText)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .help(helpHint("New Session", .newSession))
+                .toolTip(helpHint("New Session", .newSession), isShown: tipsShown)
                 .accessibilityLabel("Add session")
                 .accessibilityIdentifier("add-session")
             }
@@ -722,7 +739,7 @@ struct WindowContentView: View {
                 Button {
                     actions.toggleFocusFilter()
                 } label: {
-                    Image(systemName: store.focusEnabled ? "square.grid.2x2.fill" : "square.grid.2x2")
+                    Image(systemName: store.focusEnabled ? "square.grid.2x2.fill" : InterfaceElement.focusFilter.symbolName!)
                         .frame(width: 24, height: 22)
                         .contentShape(Rectangle())
                 }
@@ -731,8 +748,8 @@ struct WindowContentView: View {
                 // explicit chromeText foregroundStyle defeats SwiftUI's disabled dimming, so mute by hand.
                 .disabled(store.focusedWorkspaceIDs.isEmpty)
                 .opacity(store.focusedWorkspaceIDs.isEmpty ? 0.35 : 1)
-                .help(helpHint(store.focusEnabled ? "Show all workspaces" : "Show only focused workspaces",
-                               .toggleWorkspaceFilter))
+                .toolTip(helpHint(store.focusEnabled ? "Show all workspaces" : "Show only focused workspaces",
+                                  .toggleWorkspaceFilter), isShown: tipsShown)
                 .accessibilityLabel("Toggle Workspace Filter")
                 // the only accessibility-observable read of the filter state.
                 .accessibilityValue(store.focusEnabled ? "on" : "off")
@@ -746,7 +763,7 @@ struct WindowContentView: View {
                     actions.toggleFlaggedView()
                 } label: {
                     let flagged = store.sidebarMode == .flagged
-                    Image(systemName: flagged ? "flag.fill" : "flag")
+                    Image(systemName: flagged ? "flag.fill" : InterfaceElement.flaggedView.symbolName!)
                         .frame(width: 24, height: 22)
                         .contentShape(Rectangle())
                 }
@@ -755,7 +772,8 @@ struct WindowContentView: View {
                 // mode so the button can always switch back to the tree. Hand-muted, like the filter above.
                 .disabled(store.sidebarMode == .tree && store.flaggedSessions.isEmpty)
                 .opacity(store.sidebarMode == .tree && store.flaggedSessions.isEmpty ? 0.35 : 1)
-                .help(helpHint(store.sidebarMode == .flagged ? "Show all sessions" : "Show flagged sessions", .toggleFlaggedView))
+                .toolTip(helpHint(store.sidebarMode == .flagged ? "Show all sessions" : "Show flagged sessions", .toggleFlaggedView),
+                         isShown: tipsShown)
                 .accessibilityLabel("Toggle Flagged View")
                 .accessibilityIdentifier("flagged-view-toggle")
             }

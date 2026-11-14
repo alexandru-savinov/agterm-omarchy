@@ -74,6 +74,36 @@ struct RemoteSessionTests {
         }
     }
 
+    @Test func pageServeUsesPlainStdioAndReachesTheInstalledCli() throws {
+        let argv = try RemoteSession.pageServeCommand(host: "buildbox", token: "tok-1")
+
+        #expect(argv.prefix(7) == ["ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "buildbox"])
+        #expect(argv.count == 8)
+        #expect(argv[7].contains(RemoteSession.cliPathPrefix))
+    }
+
+    @Test func pageServeRunsTheHelperForExactlyThatToken() throws {
+        let fake = try FakeRemote()
+        defer { fake.cleanUp() }
+        try fake.installAgtermctl(exitCodes: [0])
+
+        let run = try fake.runRemote(RemoteSession.pageServeCommand(host: "buildbox", token: "t1;rm"))
+
+        #expect(run.status == 0)
+        #expect(try fake.calls() == [["session", "overlay", "page-serve", "t1;rm"]])
+    }
+
+    @Test(arguments: ["", "t 1", "t1\u{1B}[31m"])
+    func pageServeRefusesATokenThatIsNotAPlainToken(_ token: String) {
+        #expect(throws: RemoteSession.InvocationError.invalidSession) {
+            try RemoteSession.pageServeCommand(host: "buildbox", token: token)
+        }
+    }
+
+    @Test func pageServeRefusesAnInvalidHost() {
+        #expect(throws: (any Error).self) { try RemoteSession.pageServeCommand(host: "-oProxyCommand=x", token: "t1") }
+    }
+
     @Test func attachForcesAPtyAndNeverBoundsItsLifetime() throws {
         let argv = try RemoteSession.attachCommand(host: "buildbox", endpoint: endpoint, daemon: daemon)
         #expect(argv.prefix(9) == ["ssh", "-tt", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
@@ -119,6 +149,22 @@ struct RemoteSessionTests {
                 "one command: the far side does the whole join and answers with one document")
     }
 
+    @Test(arguments: ["/bin/sh", "/bin/zsh", "/bin/tcsh", "/opt/homebrew/bin/fish", "/usr/local/bin/fish"]
+        .filter(FileManager.default.isExecutableFile))
+    func controlReachesTheCliWithEveryArgumentIntactUnderAnyLoginShell(shell: String) throws {
+        let fake = try FakeRemote()
+        defer { fake.cleanUp() }
+        try fake.installAgtermctl(exitCodes: [0])
+        let arguments = ["session", "new", "--parent", "p1", "--command", "tail -f 'my log' a\\b \\\\ end\\",
+                         "--name", "it's", "--cwd", ""]
+
+        let run = try fake.runRemote(RemoteSession.controlCommand(host: "buildbox", arguments: arguments), shell: shell,
+                                     exporting: ["ZDOTDIR": fake.root.path])
+
+        #expect(run.status == 0)
+        #expect(try fake.calls() == [arguments + ["--json"]])
+    }
+
     @Test func treeWidensPathWithEveryDocumentedInstallDirectory() throws {
         let remote = try #require(RemoteSession.treeCommand(host: "buildbox").last)
 
@@ -152,6 +198,49 @@ struct RemoteSessionTests {
     @Test func thePathPrefixAppendsSoAUsersOwnCliStillWins() {
         #expect(RemoteSession.cliPathPrefix.hasPrefix("PATH=\"$PATH:"))
         #expect(!RemoteSession.cliPathPrefix.contains(":$PATH\""))
+    }
+
+    @Test func remoteCommandsFindTheLinuxUserInstallUsingRemoteHome() throws {
+        let fake = try FakeRemote(directoryName: "remote home \(UUID().uuidString)")
+        defer { fake.cleanUp() }
+        let directory = fake.root.appendingPathComponent(".local/bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let probe = "agterm-path-probe-\(UUID().uuidString)"
+        let executable = directory.appendingPathComponent(probe)
+        try "#!/bin/sh\nprintf '%s\\n' \"$@\"\n".write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        let commands = [
+            try RemoteSession.treeCommand(host: "buildbox"),
+            try RemoteSession.presentCommand(host: "buildbox", session: "work"),
+            try RemoteSession.runJobCommand(host: "buildbox", job: "job")
+        ]
+        let expected = ["zmx\ntree\n--json\n", "zmx\npresent\nwork\n", "session\noverlay\nrun-job\njob\n"]
+        for (command, output) in zip(commands, expected) {
+            let remote = try #require(command.last).replacingOccurrences(of: "agtermctl", with: probe)
+            let run = try fake.runShell(remote, exporting: ["HOME": fake.root.path, "PATH": "/usr/bin:/bin"])
+            #expect(run.status == 0)
+            #expect(run.stdout == output)
+        }
+        let preferred = fake.root.appendingPathComponent(probe)
+        try "#!/bin/sh\nprintf 'preferred\\n'\n".write(to: preferred, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: preferred.path)
+        let remote = try #require(commands[0].last).replacingOccurrences(of: "agtermctl", with: probe)
+        let run = try fake.runShell(remote, exporting: ["HOME": fake.root.path, "PATH": fake.root.path])
+        #expect(run.status == 0)
+        #expect(run.stdout == "preferred\n")
+    }
+
+    @Test func remotePathDoesNotAddARootInstallOrEmptyEntryWithoutHome() throws {
+        let fake = try FakeRemote()
+        defer { fake.cleanUp() }
+        let expected = "/usr/bin:/bin:" + CommandPath.standardDirectories.joined(separator: ":")
+        for unset in ["", "unset HOME; "] {
+            let run = try fake.runShell("PATH=/usr/bin:/bin; " + unset + RemoteSession.cliPathPrefix
+                                           + " && printf '%s' \"$PATH\"",
+                                       exporting: ["HOME": "", "PATH": "/usr/bin:/bin"])
+            #expect(run.status == 0)
+            #expect(run.stdout == expected)
+        }
     }
 
     // the far side prints a not-ok JSON response to stdout and exits nonzero, so the caller must read the

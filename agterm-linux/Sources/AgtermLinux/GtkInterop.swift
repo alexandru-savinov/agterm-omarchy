@@ -55,10 +55,21 @@ func connect(_ instance: OpaquePointer?, _ signal: String, _ handler: GCallback?
 /// The context exists only to carry the GDK child-environment restore: with a NULL `GAppLaunchContext`
 /// GIO spawns the handler from agterm's own environ, handing a GTK browser or editor agterm's renderer
 /// constraints. A plain context (not `gdk_display_get_app_launch_context`) keeps the launch behaviour
-/// identical to the NULL call, plus the overrides.
+/// identical to the NULL call, plus the overrides. The launcher restore rides the same context, with a
+/// real `unsetenv` for each variable the user never had.
 @discardableResult func launchDefaultHandler(forURI uri: String) -> Bool {
-    guard !gdkEnvironment.childRestore.isEmpty, let context = g_app_launch_context_new() else {
+    guard !gdkEnvironment.childRestore.isEmpty || !gdkEnvironment.launcherRestore.isEmpty,
+          let context = g_app_launch_context_new() else {
         return uri.withCString { g_app_info_launch_default_for_uri($0, nil, nil) != 0 }
+    }
+    for (name, value) in gdkEnvironment.launcherRestore {
+        name.withCString { cName in
+            if let value {
+                value.withCString { cValue in g_app_launch_context_setenv(context, cName, cValue) }
+            } else {
+                g_app_launch_context_unsetenv(context, cName)
+            }
+        }
     }
     for (name, value) in gdkEnvironment.childRestore {
         name.withCString { cName in
@@ -261,6 +272,27 @@ func shortcutChord(
         layoutIsASCIICapable: keyContext?.layoutIsASCIICapable ?? true
     ) else { return nil }
     return Chord(mods: mods, key: key)
+}
+
+/// Ctrl-J/K list navigation, as the Down/Up keyval it stands for. Exact modifiers: ctrl+shift+j is not it.
+func paletteNavigation(chord: Chord?) -> UInt32? {
+    guard let chord, chord.mods == [.control] else { return nil }
+    switch chord.key {
+    case "j": return 0xFF54
+    case "k": return 0xFF52
+    default: return nil
+    }
+}
+
+func paletteNavigationKeyval(keyval: UInt32, keycode: UInt32, state: UInt32, event: OpaquePointer?) -> UInt32 {
+    guard needsShortcutKeyContext(state: state, leaderArmed: false) else { return keyval }
+    let chord = shortcutChord(
+        fromKeyval: keyval,
+        keycode: keycode,
+        state: state,
+        context: shortcutKeyContext(event: event, keycode: keycode)
+    )
+    return paletteNavigation(chord: chord) ?? keyval
 }
 
 func shortcutModifiers(_ state: UInt32) -> Modifier {

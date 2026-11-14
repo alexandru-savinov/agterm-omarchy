@@ -2,20 +2,29 @@ import Foundation
 import Testing
 @testable import agtermCore
 
-#if !os(Linux)
-// Tests the shipped panel painter `agterm/Resources/hud/hud.sh` by running it against a temp body file and
-// reading the escape stream it writes. It reaches the app target's resource on purpose: the script is the
-// rendering half of the agtermCore `HudLayout` model, and the three contracts (the header line, the
-// rendered body's empty-line separator, the file as the ONLY changing input) only hold if both halves are
-// pinned together.
+// Tests the shipped panel painter by running it against a temp body file and reading the escape stream it
+// writes. It reaches the app target's resource on purpose: the script is the rendering half of the agtermCore
+// `HudLayout` model, and the three contracts (the header line, the rendered body's empty-line separator, the
+// file as the ONLY changing input) only hold if both halves are pinned together.
+//
+// Each platform tests the painter its own app ships: the macOS app bundles `agterm/Resources/hud/hud.sh`, the
+// Linux app bundles its copy from the AgtermLinux target's resources (Package.swift copies Resources/hud).
+// Every test here holds for both; none is platform-only, because the header, the frames and the stream are
+// one shared contract and the copy differs only in how it gets a UTF-8 shell.
 struct HudHelperTests {
+    #if os(Linux)
+    private static let shippedHelper = "agterm-linux/Sources/AgtermLinux/Resources/hud/hud.sh"
+    #else
+    private static let shippedHelper = "agterm/Resources/hud/hud.sh"
+    #endif
+
     private static var helper: String {
         URL(fileURLWithPath: #filePath)      // …/agtermCore/Tests/agtermCoreTests/HudHelperTests.swift
             .deletingLastPathComponent()     // agtermCoreTests
             .deletingLastPathComponent()     // Tests
             .deletingLastPathComponent()     // agtermCore
             .deletingLastPathComponent()     // repo root
-            .appendingPathComponent("agterm/Resources/hud/hud.sh")
+            .appendingPathComponent(shippedHelper)
             .path
     }
 
@@ -28,13 +37,15 @@ struct HudHelperTests {
     // a helper process painting into a temp file, so the frames can be read at any point without racing
     // a pipe's EOF.
     private final class Run {
+        static let ignoredTermMessage = "hud.sh ignored SIGTERM"
         let bodyFile: URL
         private let dir: URL
         private let outFile: URL
         private let proc = Process()
 
         init(_ body: String, cols: Int, rows: Int, spinner: HudSpinner? = nil, textColor: String? = nil,
-             blockWidth: Int = 0, ownerPid: Int32 = ProcessInfo.processInfo.processIdentifier) throws {
+             blockWidth: Int = 0, ownerPid: Int32 = ProcessInfo.processInfo.processIdentifier,
+             ignoresTerm: Bool = false) throws {
             let fm = FileManager.default
             dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("agterm-hud-\(UUID().uuidString)")
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -46,7 +57,10 @@ struct HudHelperTests {
             fm.createFile(atPath: outFile.path, contents: nil)
 
             proc.executableURL = URL(fileURLWithPath: "/bin/sh")
-            proc.arguments = [HudHelperTests.helper]
+            // a signal ignored when the shell starts cannot be trapped, so the helper's own TERM trap is inert
+            proc.arguments = ignoresTerm
+                ? ["-c", "trap '' TERM; exec /bin/sh \"$0\"", HudHelperTests.helper]
+                : [HudHelperTests.helper]
             // no LANG/LC_*, which is what a Dock-launched app inherits from launchd: the script's own
             // LC_CTYPE is the only thing making `${#line}` count characters.
             proc.environment = [HudLayout.fileEnvKey: bodyFile.path]
@@ -108,8 +122,13 @@ struct HudHelperTests {
             return !proc.isRunning
         }
 
+        /// Stops the helper the way the app does, by removing its body file, and SIGKILLs it only if that
+        /// fails. Never `terminate()`: a child inherits the spawning thread's signal mask, a Linux test worker
+        /// blocks SIGTERM, and Foundation's Linux `Process` passes that mask on, so a SIGTERM stays pending
+        /// and `waitUntilExit()` hangs the whole suite until the job timeout.
         func stop() {
-            if proc.isRunning { proc.terminate() }
+            try? FileManager.default.removeItem(at: bodyFile)
+            if !waitForExit() { kill(proc.processIdentifier, SIGKILL) }
             proc.waitUntilExit()
             try? FileManager.default.removeItem(at: dir)
         }
@@ -118,7 +137,7 @@ struct HudHelperTests {
     // the script is reached through the repository layout, not a bundle, so a move breaks it at run time
     @Test func theShippedHelperIsWhereTheseTestsLookForIt() throws {
         #expect(FileManager.default.isReadableFile(atPath: Self.helper),
-                "no helper at \(Self.helper): agterm/Resources/hud/hud.sh moved, or this file did")
+                "no helper at \(Self.helper): \(Self.shippedHelper) moved, or this file did")
     }
 
     @Test func paintsTheMessage() throws {
@@ -134,6 +153,13 @@ struct HudHelperTests {
         let e = Self.esc
         let frame = "\(e)[H\(e)[J\(e)[E\(e)[E\(e)[E\(e)[E\(e)[19Cabc"
         #expect(run.paints(frame))
+    }
+
+    @Test func aGridAsTallAsTheTextPaintsFromTheFirstRow() throws {
+        let run = try Run("abc\ndef\n", cols: 41, rows: 2)
+        defer { run.stop() }
+        let e = Self.esc
+        #expect(run.paints("\(e)[H\(e)[J\(e)[19Cabc"))
     }
 
     @Test func keepsAnOversizedLineAtTheLeftEdgeRatherThanOffScreen() throws {
@@ -217,6 +243,13 @@ struct HudHelperTests {
         #expect(!run.painted.contains("\(Self.esc)[2m"))
     }
 
+    @Test func aMarkdownHyperlinkReachesTheTerminalWithItsTerminatorIntact() throws {
+        let link = "\(Self.esc)]8;;http://x\(Self.esc)\\go\(Self.esc)]8;;\(Self.esc)\\"
+        let run = try Run(link + "\n", cols: 40, rows: 7, blockWidth: 2)
+        defer { run.stop() }
+        #expect(run.paints("\(Self.esc)[19C" + link))
+    }
+
     @Test func aMalformedBlockWidthPaintsInPlainMode() throws {
         let run = try Run("hi\n", cols: 40, rows: 7)
         defer { run.stop() }
@@ -268,6 +301,15 @@ struct HudHelperTests {
         let run = try Run("busy\n", cols: 40, rows: 7, spinner: style)
         defer { run.stop() }
         #expect(run.paints(style.frames.map { "\($0) busy" }))
+    }
+
+    // stop() never sends SIGTERM (a Linux test worker blocks it, and Process passes the mask on), so a
+    // helper that ignores TERM is still ended by removing its body file.
+    @Test(.timeLimit(.minutes(1))) func stopEndsAHelperThatIgnoresTerm() throws {
+        let run = try Run("busy\n", cols: 40, rows: 7, ignoresTerm: true)
+        #expect(run.paints("busy"))
+        run.stop()
+        #expect(!run.running)
     }
 
     @Test func switchingStyleRepaintsWithoutRespawning() throws {
@@ -356,15 +398,17 @@ struct HudHelperTests {
         owner.executableURL = URL(fileURLWithPath: "/bin/sh")
         owner.arguments = ["-c", "while :; do sleep 0.2; done"]
         try owner.run()
-        // `Run`'s initializer can throw, which would otherwise leave this sleeper behind for the whole run
-        defer { if owner.isRunning { owner.terminate() } }
+        // `Run`'s initializer can throw, which would otherwise leave this sleeper behind for the whole run.
+        // SIGKILL, not `terminate()`: the owner may have inherited a blocked SIGTERM (see `Run.stop`), and a
+        // HARD kill is the case this test pins anyway.
+        defer { if owner.isRunning { kill(owner.processIdentifier, SIGKILL) } }
 
         let run = try Run("bye\n", cols: 40, rows: 7, spinner: .bar, ownerPid: owner.processIdentifier)
         defer { run.stop() }
         run.wait { $0.contains("bye") }
         #expect(run.running)
 
-        owner.terminate()
+        kill(owner.processIdentifier, SIGKILL)
         owner.waitUntilExit()   // reaps it: kill -0 succeeds on a zombie, which still has a process entry
 
         #expect(run.waitForExit())
@@ -452,10 +496,9 @@ struct HudHelperTests {
         // bounded: a regression that made this path loop would otherwise hang the suite instead of failing
         let deadline = Date().addingTimeInterval(5)
         while proc.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
-        defer { if proc.isRunning { proc.terminate() } }
+        defer { if proc.isRunning { kill(proc.processIdentifier, SIGKILL) } }
         #expect(!proc.isRunning, "no body path must exit at once, not loop")
         #expect(proc.terminationStatus == 0)
         #expect(out.fileHandleForReading.readDataToEndOfFile().isEmpty)
     }
 }
-#endif

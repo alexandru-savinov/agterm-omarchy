@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <pwd.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -14,6 +15,7 @@ struct passwd *getpwuid(uid_t uid) {
     struct passwd *entry = real_getpwuid(uid);
     if (!entry || uid != getuid()) return entry;
     copy = *entry;
-    copy.pw_shell = "/usr/bin/zsh";
+    const char *shell = getenv("AGTERM_TEST_LOGIN_SHELL");
+    copy.pw_shell = (char *)(shell ? shell : "/usr/bin/zsh");
     return &copy;
 }

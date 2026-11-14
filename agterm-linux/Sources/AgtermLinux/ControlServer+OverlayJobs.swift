@@ -6,6 +6,8 @@ final class LinuxOverlayJobStream {
     let job: String
     private let owner: LinuxControlStreamOwner
     private weak var server: ControlServer?
+    /// Lines read behind a rejected one are already queued to the main thread; they must not count.
+    private var rejected = false
 
     init(job: String, owner: LinuxControlStreamOwner, server: ControlServer) {
         self.job = job
@@ -18,9 +20,10 @@ final class LinuxOverlayJobStream {
     }
 
     func receive(_ line: Data) {
+        guard !rejected else { return }
         guard let jobs = server?.overlayJobs,
               let frame = try? JSONDecoder().decode(OverlayJobFrame.self, from: line) else {
-            owner.shutdown()
+            reject()
             return
         }
         switch frame {
@@ -28,8 +31,13 @@ final class LinuxOverlayJobStream {
         case .exited(let code): jobs.finish(job, .exited(code))
         case .canceled: jobs.finish(job, .canceled)
         case .launchFailed: jobs.finish(job, .launchFailed)
-        case .context, .cancel: owner.shutdown()
+        case .context, .cancel: reject()
         }
+    }
+
+    private func reject() {
+        rejected = true
+        owner.shutdown()
     }
 
     func shutdown() { owner.shutdown() }
@@ -42,27 +50,15 @@ final class LinuxOverlayJobStream {
 
 extension ControlServer {
     func claimOverlayJobOnMain(_ target: String?) -> ControlResponse {
-        let sem = DispatchSemaphore(value: 0)
-        let box = OverlayClaimBox()
-        runOnMain {
-            MainActor.assumeIsolated {
-                box.value = self.claimOverlayJob(target)
-                sem.signal()
-            }
-        }
-        sem.wait()
-        return box.value
+        awaitMain { $0.resolve(self.claimOverlayJob(target)) }
     }
 
-    func adoptOverlayJobOnMain(_ descriptor: Int32, job: String) {
-        let sem = DispatchSemaphore(value: 0)
-        runOnMain {
-            MainActor.assumeIsolated {
-                self.adoptOverlayJobStream(descriptor: descriptor, job: job)
-                sem.signal()
-            }
-        }
-        sem.wait()
+    /// False when shutdown failed the wait before the stream took the descriptor.
+    func adoptOverlayJobOnMain(_ descriptor: Int32, job: String) -> Bool {
+        awaitMain { reply in
+            self.adoptOverlayJobStream(descriptor: descriptor, job: job)
+            reply.resolve(ControlResponse(ok: true))
+        }.ok
     }
 
     func abandonOverlayJobOnMain(_ job: String) {
@@ -131,6 +127,7 @@ extension ControlServer {
             return ControlResponse(ok: false, error: options.pane == nil
                 ? "overlay already open" : PaneOverlayError.alreadyOpen)
         case .paneMissing: return ControlResponse(ok: false, error: PaneOverlayError.paneNotVisible)
+        case .pointsUnsupported: return ControlResponse(ok: false, error: OverlayPointError.remote)
         case .tooLarge: return ControlResponse(ok: false, error: OverlayResultError.tooLarge)
         case .opened:
             scheduleOverlayJobExpiry(after: OverlayJobs.launchWindow)
@@ -148,8 +145,4 @@ extension ControlServer {
         for stream in overlayJobStreams.values { stream.shutdown() }
         overlayJobStreams.removeAll()
     }
-}
-
-private final class OverlayClaimBox: @unchecked Sendable {
-    var value = ControlResponse(ok: false, error: "internal")
 }

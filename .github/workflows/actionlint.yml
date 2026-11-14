@@ -14,6 +14,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: actionlint-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   ACTIONLINT_VERSION: "1.7.12"
   ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"

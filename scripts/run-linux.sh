@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build and launch the GTK frontend using Swift from PATH, SWIFT, or mise.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 # shellcheck source=../linux/swift-env.sh
 source "$ROOT/linux/swift-env.sh"
 export AGTERM_GHOSTTY_RESOURCES="$ROOT/agterm-linux/vendor/ghostty/share/ghostty"

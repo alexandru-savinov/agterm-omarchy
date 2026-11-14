@@ -14,9 +14,11 @@ paths:
   `UNUserNotificationCenterDelegate`. It resolves `Session` and `PaneRole` by surface identity, applies
   suppression, always increments `unseenCount`, and posts only when `bannersEnabled`. Authorization is
   best-effort; request `[.alert, .badge, .sound]` from the scene task. `willPresent` returns
-  `[.banner, .list, .sound]`. `clearDelivered` removes all three pane IDs on focus.
-- `send(toSession:)`, used by `notify`, shares badge, banner, bounce, sound, and identity behavior but
-  deliberately skips focus suppression and attributes the request to `.main`.
+  `[.banner, .list, .sound]`. `clearDelivered` removes `TerminalNotification.sessionIdentities` on focus:
+  the three pane IDs and the control slot.
+- `send(toSession:)`, used by `notify`, shares badge, banner, bounce and sound behavior but deliberately
+  skips focus suppression and posts under `controlIdentity`, its own slot per session, so a pane's OSC
+  banner cannot replace an explicit note (#770). Repeated notes still replace each other.
 - Log every post and suppression at `.notice`, including the focus and banners-off gates (#286).
   Lower levels are not persisted by default, so post-event `log show --last 30m` depends on notice.
   When banners are off, return
@@ -26,8 +28,9 @@ paths:
 - Suppress only when `TerminalNotification.shouldDeliver` sees both an active app and the firing surface
   as the key window's first responder. Do not use `AppActions.focusedSurface()`: its active-session
   fallback mistakes sidebar focus for viewing the pane.
-- `TerminalNotification.identity` encodes `"<sessionID>:<paneRole>"`, coalescing repeats and carrying the
-  click target without `userInfo`. `didReceive` activates the app and calls `AppActions.reveal`: select
+- `TerminalNotification.identity` encodes `"<windowID>:<sessionID>:<paneRole>"`, coalescing repeats and
+  carrying the click target without `userInfo`; `parseIdentity` decodes the control slot's `notify` suffix
+  to `.main`. `didReceive` activates the app and calls `AppActions.reveal`: select
   the session, clear its badge, derive its workspace, focus the pane, and raise its window through
   `WindowRegistry.raise`, which deminiaturizes first. Unknown sessions only activate; a missing split
   falls back to primary. Activation and first-responder changes do not order a background window front.
@@ -83,9 +86,16 @@ paths:
 - Default states share `circle.fill` and differ by tint. Discussion #277 rejected marked circles because
   their interior marks are illegible at row size. `AgentStatus.symbolName(override:configured:)` resolves
   per-call shape, configured status shape, then `circle`; require both arguments so omitted settings fail
-  compilation. The fixed useful set is `circle`, `square`, `triangle`, `diamond`, `capsule`, `star`.
-  `hexagon`/`octagon`/`pentagon`/`seal` resemble circle, `app` duplicates square, and `rhombus` duplicates
-  diamond at this size. Raw values form `"<raw>.fill"` and `displayName` is the shared picker label.
+  compilation. The set is `circle`, `square`, `triangle`, `triangle-down`, `play`, `diamond`, `capsule`,
+  `seal`, `star`, `bolt`, `bell`. `seal` reads close to circle and `bell` is also the titlebar
+  Attention glyph; both are kept deliberately. `hexagon`/`octagon`/
+  `pentagon` resemble circle, `app` duplicates square, `rhombus` duplicates diamond, and `drop` draws
+  visibly larger than the rest at this size.
+  A raw value is the public name and is never renamed once released; `symbolName` maps it to the symbol,
+  `"<raw>.fill"` except `triangle-down`'s `arrowtriangle.down.fill`, and `displayName` is the picker label.
+  A viewer older than this set throws on a shape it does not know, so `PresentationHub` clears
+  any shape outside `StatusShape.original` for a subscriber that does not advertise `status.shapes`.
+  A shape added later needs the same gate under a new kind.
   Keep `ControlArgs.shape`, website command docs, and agent skill lists synchronized; CLI and dispatcher
   validation derive from `validNamesList`/`validNamesPhrase`.
 - `GhosttyApp.statusColor(for:override:)` similarly resolves per-call `#rrggbb`, configured status color,
@@ -102,11 +112,16 @@ paths:
   `AppStore.selectSession`; hooks cannot infer agterm selection.
 - Clear Status is the first row-menu item when non-idle and also appears in the menu bar and palette.
   Row menus target their node; global surfaces call `clearActiveSessionStatus`; all set an empty indicator.
+- Mark for Attention is the row-menu item for idle targets, with no menu bar, palette or keymap form.
+  `AppStore.markForAttention` sets a plain `completed` on the idle ones and skips the rest, so a live
+  status is never overwritten. No `autoReset`, or visiting the session would undo the mark.
+  Untagged, it reads as the primary pane's: right or scratch typing leaves it.
 - `GhosttySurfaceView.keyDown` always calls `onUserInputClearsStatus(isInterrupt:)`. Main `.left`, split
   `.right`, and scratch `.scratch` factories own the pane-scoped decision, allowing scratch to clear
   without `view.session`. `AgentIndicator.clearedBy` takes the key's kind (`InterruptKeystroke.classify`:
   interrupt, submit for a bare Return or keypad Enter, else other) and the `StatusReset` mode: blocked and
-  completed clear on any key under `firstKey`, on submit alone under `enter`, never under `never`; active
+  completed clear on any key under `firstKey`, on submit alone under `enter`, never under `never`;
+  under `enter` an interrupt also clears blocked, since a cancelled prompt fires no hook; active
   clears on interrupt in every mode; and only when the key's pane owns the status. Thus foreground typing
   cannot clear another pane's status.
 - `session.type` fires that same clear through `GhosttySurfaceView.injectAsUserInput`, the input a blocked
@@ -133,9 +148,10 @@ paths:
 - On pane teardown, `closeSplit`, `closePrimaryPane`, and `closeScratch` clear status owned by the removed
   `.right`, `.left`/nil, or `.scratch` pane, respectively, as they do search state.
 - Input clearing covers the hookless Esc/Ctrl-C decline and completed re-engagement. It must also clear
-  active on quick interrupt: Claude's delayed `Notification[permission_prompt]` uses
-  `messageIdleNotifThresholdMs` (default 60000), and Esc/manual decline emits neither `Stop` nor
-  `PostToolUse`. `PostToolUse` reasserts `active --blink` after an answered prompt. cmux can observe its
+  active on quick interrupt: Esc/manual decline emits neither `Stop` nor `PostToolUse`, and a prompt
+  `PermissionRequest` does not cover turns blocked only through `Notification[permission_prompt]`,
+  about six seconds after the last keystroke.
+  `PostToolUse` reasserts `active --blink` after an answered prompt. cmux can observe its
   own permission UI and herdr scrapes PTY state; agterm does neither.
 - `AgentIndicator.statusPane` also directs GUI selections needing attention. Attention and ordinary
   navigation, palettes, sidebar and Dock rows, and idle auto-follow use

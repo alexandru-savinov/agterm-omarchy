@@ -2,7 +2,7 @@
 # Keep the Linux CLI as a thin host extension over the shared agtermctlKit product.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 CLI_DIR="$ROOT/agterm-linux/Sources/agtermctl"
 failed=0
 

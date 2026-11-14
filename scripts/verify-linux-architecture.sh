@@ -7,7 +7,7 @@ if (( $# != 1 )); then
   exit 2
 fi
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 # shellcheck source=../linux/arch.sh
 source "$ROOT/linux/arch.sh"
 

@@ -19,7 +19,7 @@ permissions:
   issues: read
 
 concurrency:
-  group: agent-queue-${{ github.event_name }}-${{ github.ref }}
+  group: agent-queue-${{ github.event_name == 'pull_request' && 'pr' || 'snapshot' }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,6 +33,8 @@ jobs:
           persist-credentials: false
       - name: Test queue interpretation
         run: python3 scripts/github/test_queue.py
+      - name: Test wave planning
+        run: python3 scripts/github/test_waves.py
       - name: Read tasks and named check-ins
         env:
           GITHUB_TOKEN: ${{ github.token }}

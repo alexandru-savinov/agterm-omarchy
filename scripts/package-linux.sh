@@ -9,13 +9,14 @@ if (( $# < 1 || $# > 2 )); then
   exit 2
 fi
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 VERSION="${1#v}"
 OUT="${2:-dist-linux}"
 [[ "$OUT" = /* ]] || OUT="$ROOT/$OUT"
 
-if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?(\+linux\.[1-9][0-9]*)?$ ]]; then
-  echo "invalid package version: $1" >&2
+# Accepted by both nFPM packagers and scripts/verify-linux-packages.sh; see test_linux_package_version.py.
+if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*))*)?(\+linux\.[1-9][0-9]*)?$ ]]; then
+  echo "invalid package version: $1 (expected MAJOR.MINOR.PATCH[-PRERELEASE][+linux.N]; prerelease identifiers are dot-separated letters and digits without '-', numbers without leading zeros)" >&2
   exit 2
 fi
 

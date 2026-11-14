@@ -1,0 +1,33 @@
+Selected test-result lines, preserving literal stdout/stderr interleaving; this is a derived extract, not the complete original log.
+Original SHA256: 193089c5f4f6a7c1851fd8d72ba9d78a39da29ce18d2fae17613f83eedc23d2b
+Split-record support and explicitly labeled normalizations: interleaved-results.json
+
+✔ Test relativeExecutableCannotPassCanonicalPathValidation() passed after 0.451 seconds.
+✔ Test leaderOnSecondPollCreatesOnceAndReleasesOnlyTheClient() passed after 0.451 seconds.
+✔ Test readinessTimeoutIsStartedAndNeverRetries() passed after 0.451 seconds.
+✔ Test existingDaemonDoesNotSpawnOrReplay() passed after 0.452 seconds.
+✔ Test stopRefusesLiveRootedAndUnknownInventory() passed after 0.452 seconds.
+✔ Test exhaustedInspectionBudgetDoesNotStartAClient() passed after 0.452 seconds.
+✔ Test stopAllowsEmptyOrPositivelyUnrelatedInventory() passed after 0.452 seconds.
+✔ Test earlyClientExitIsStartedAndReaped() passed after 0.452 seconds.
+✔ Test unreadableInitialInventoryCannotCreateAnything() passed after 0.452 seconds.
+✔ Test startupErrorAfterASideEffectDoesNotAuthorizeReplay() passed after 0.452 seconds.
+✔ Test childThatCannotExecReportsThePreExecErrno() passed after 0.452 seconds.
+✔ Test fastSideEffectingClientIsNotRunAgain() passed after 0.452 seconds.
+✔ Test stopChecksTheDaemonEvenWhenItsLeaderHasAnotherRoot() passed after 0.452 seconds.
+✔ Test wrongExecutableOrNamespaceIsRejectedBeforeSpawn() passed after 0.452 seconds.
+✔ Test lostReplyAfterFastCommandDoesNotRunItsPayloadAgain() passed after 0.452 seconds.
+✔ Test exitedChildReportsItsWaitStatus() passed after 0.452 seconds.
+✔ Tewarning: '--build-system native' has been deprecated and will be removed in a future release; please report an issue at https://github.com/swiftlang/swift-package-manager/issues if you are unable to adopt the default build system.
+st clientIgnoringTermIsKilledAndReapedAfterTheGracePeriod() passed after 0.452 seconds.
+✔ Test hostSocketIsNotEnumeratedByStockZmx() passed after 0.452 seconds.
+✔ Test descriptorPreparationFailureRetainsTheChildForCleanup() passed after 0.524 seconds.
+✔ Test malformedOversizedAndPartialConnectionsDoNotStopTheHost() passed after 1.244 seconds.
+✔ Test oversizedRequestPeerClosureDoesNotKillTheClient() passed after 1.443 seconds.
+✔ Test killedHostReleasesLockAndListenerWhileDaemonAndShellSurvive() passed after 1.461 seconds.
+✔ Test forgedHelloDoesNotOverrideTheActualPeerImage() passed after 1.678 seconds.
+✔ Test failedFixtureClientCannotPassAsAnEmptyReply(termination:status:reason:) with 2 test cases passed after 2.199 seconds.
+✔ Test stopKeepsLockInodesForTheNextHost() passed after 2.522 seconds.
+✔ Test stalledPeerHitsItsDeadlineAndOnlyThatConnectionCloses() passed after 2.681 seconds.
+✔ Suite SessionHostServerTests passed after 2.681 seconds.
+✔ Test run with 26 tests in 1 suite passed after 2.681 seconds.

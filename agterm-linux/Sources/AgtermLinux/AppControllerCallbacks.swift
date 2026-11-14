@@ -32,9 +32,10 @@ let onWindowActive: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, g
     }
 }
 
-/// The blink timer follows the toplevel on and off screen — minimize/restore unmaps it under
-/// X11/XWayland (native Wayland has no minimized state, so the pair is a no-op there). Resolved through
-/// the live registry for `onWindowActive`'s reason: GTK emits `unmap` while a closing window tears down.
+/// The blink timer follows the toplevel on and off screen: `map`/`unmap` for show/hide and teardown, the
+/// surface's MINIMIZED bit (`onWindowSurfaceState`) for minimize/restore, which GTK does not unmap for
+/// (native Wayland has no minimized state, so that pair is a no-op there). Resolved through the live
+/// registry for `onWindowActive`'s reason: GTK emits `unmap` while a closing window tears down.
 let onWindowMapped: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { widget, _ in
     guard let widget else { return }
     MainActor.assumeIsolated {
@@ -46,6 +47,14 @@ let onWindowUnmapped: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> V
     guard let widget else { return }
     MainActor.assumeIsolated {
         gWindows.values.first(where: { $0.windowPointer == widget })?.stopBlinkPhaseForUnmap()
+    }
+}
+
+let onWindowSurfaceState: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { surface, _, _ in
+    guard let surface else { return }
+    MainActor.assumeIsolated {
+        gWindows.values.first(where: { gtk_native_get_surface($0.windowPointer) == surface })?
+            .surfaceStateDidChange()
     }
 }
 
@@ -249,25 +258,27 @@ let onRowActivated: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, g
 // Only the PRESS reads modifier state: the release consumes the press's remembered decision
 // (`SessionClickTracker`), so a modifier lifted between press and release changes nothing.
 
-let onSessionRowPress: @MainActor @convention(c) (OpaquePointer?, Int32, Double, Double, gpointer?) -> Void = { gesture, presses, _, _, data in
+let onSessionRowPress: @MainActor @convention(c) (OpaquePointer?, Int32, Double, Double, gpointer?) -> Void = { gesture, presses, x, y, data in
     guard let gesture else { return }
     MainActor.assumeIsolated {
         sidebarInteraction(for: gesture)?.setActive(true)
         guard presses == 1, let data else { return }
         guard let controller = controllerForEventController(gesture),
-              let id = controller.session(forRow: OpaquePointer(data)) else { return }
+              let id = controller.session(forRow: OpaquePointer(data)),
+              !controller.companionDisclosureHit(id, row: OpaquePointer(data), x: x, y: y) else { return }
         let modifiers = gtk_event_controller_get_current_event_state(gesture).rawValue
         controller.handleSessionRowPress(id, modifiers: modifiers)
     }
 }
 
-let onSessionRowRelease: @MainActor @convention(c) (OpaquePointer?, Int32, Double, Double, gpointer?) -> Void = { gesture, presses, _, _, data in
+let onSessionRowRelease: @MainActor @convention(c) (OpaquePointer?, Int32, Double, Double, gpointer?) -> Void = { gesture, presses, x, y, data in
     guard let gesture else { return }
     MainActor.assumeIsolated {
         sidebarInteraction(for: gesture)?.setActive(false)
         guard presses == 1, let data else { return }
         guard let controller = controllerForEventController(gesture),
-              let id = controller.session(forRow: OpaquePointer(data)) else { return }
+              let id = controller.session(forRow: OpaquePointer(data)),
+              !controller.companionDisclosureHit(id, row: OpaquePointer(data), x: x, y: y) else { return }
         controller.handleSessionRowRelease(id)
     }
 }
@@ -522,6 +533,11 @@ let onPanedPosition: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, 
     MainActor.assumeIsolated { controllerForWidget(paned)?.capturePanedRatio(paned) }
 }
 
+let onPanedMapped: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { paned, _ in
+    guard let paned else { return }
+    MainActor.assumeIsolated { controllerForWidget(paned)?.resumeSplitRatioRestore(paned) }
+}
+
 let onPanedDoubleClick: @MainActor @convention(c) (OpaquePointer?, Int32, Double, Double, gpointer?) -> Void = { gesture, presses, x, y, _ in
     guard presses == 2 else { return }
     MainActor.assumeIsolated { controllerForEventController(gesture)?.resetSplitRatio(gesture, x: x, y: y) }
@@ -532,19 +548,21 @@ let onDeckAllocationChanged:
     MainActor.assumeIsolated { controllerForWidget(deck)?.refreshHudGeometryForDeckAllocation() }
 }
 
-let restorePanedRatioTick: @MainActor @convention(c) (gpointer?) -> gboolean = { data in
+let restorePanedRatioTick: GtkTickCallback = { _, _, data in
     guard let data else { return 0 }
+    let address = Int(bitPattern: data)
     return MainActor.assumeIsolated {
-        let context = Unmanaged<SplitRatioRestoreTickContext>.fromOpaque(data).takeUnretainedValue()
-        return context.controller?.tryRestorePanedRatio(
-            windowID: context.windowID, sessionID: context.sessionID,
-            paned: context.paned, generation: context.generation) ?? 0
+        guard let raw = UnsafeMutableRawPointer(bitPattern: address) else { return gboolean(0) }
+        let context = Unmanaged<SplitRatioRestoreTickContext>.fromOpaque(raw).takeUnretainedValue()
+        return context.controller?.retrySplitRatioRestore(context) ?? 0
     }
 }
 
 let releaseSplitRatioRestoreTick: GDestroyNotify = { data in
     guard let data else { return }
-    Unmanaged<SplitRatioRestoreTickContext>.fromOpaque(data).release()
+    let address = Int(bitPattern: data)
+    guard let raw = UnsafeMutableRawPointer(bitPattern: address) else { return }
+    Unmanaged<SplitRatioRestoreTickContext>.fromOpaque(raw).release()
 }
 
 // Unlike the `@convention(c)` closure above, these two are the typealiases GTK imports, which take no

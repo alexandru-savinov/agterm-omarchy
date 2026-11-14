@@ -1,10 +1,6 @@
 import Foundation
 import agtermCore
 
-private final class PresentationResponseBox: @unchecked Sendable {
-    var value = ControlResponse(ok: false, error: "internal")
-}
-
 @MainActor
 final class LinuxPresentationStream: PresentationSink {
     let session: UUID
@@ -43,8 +39,7 @@ final class LinuxPresentationStream: PresentationSink {
             return
         }
         subscriber = try? server.presentationHub.subscribe(session: session, hello: hello, sink: self) {
-            gLibrary.store(forSession: self.session)?.presentationSnapshot(forSession: self.session)
-                ?? PresentationSnapshot(status: nil, hud: nil)
+            server.snapshotWithRespawns(self.session)
         }
         if subscriber == nil { owner.shutdown() }
     }
@@ -58,27 +53,15 @@ final class LinuxPresentationStream: PresentationSink {
 
 extension ControlServer {
     func openPresentationOnMain(_ target: String?) -> ControlResponse {
-        let sem = DispatchSemaphore(value: 0)
-        let box = PresentationResponseBox()
-        runOnMain {
-            MainActor.assumeIsolated {
-                box.value = self.openPresentation(target)
-                sem.signal()
-            }
-        }
-        sem.wait()
-        return box.value
+        awaitMain { $0.resolve(self.openPresentation(target)) }
     }
 
-    func adoptPresentationOnMain(_ descriptor: Int32, session: UUID) {
-        let sem = DispatchSemaphore(value: 0)
-        runOnMain {
-            MainActor.assumeIsolated {
-                self.adoptPresentationStream(descriptor: descriptor, session: session)
-                sem.signal()
-            }
-        }
-        sem.wait()
+    /// False when shutdown failed the wait before the stream took the descriptor.
+    func adoptPresentationOnMain(_ descriptor: Int32, session: UUID) -> Bool {
+        awaitMain { reply in
+            self.adoptPresentationStream(descriptor: descriptor, session: session)
+            reply.resolve(ControlResponse(ok: true))
+        }.ok
     }
 
     @MainActor
@@ -135,10 +118,15 @@ extension ControlServer {
 
     @MainActor
     func attachPresentationHub() {
+        RemotePageEnds.shared.onEnd = { [weak self] page in
+            self?.pendingPageClaims[page] = nil
+            self?.pageServeStreams.removeValue(forKey: page)?.shutdown()
+        }
         presentationHub.onPresenterLost = { [weak self] id in self?.presenterLost(forSession: id) }
         presentationHub.onPresenterFrame = { [weak self] id, body in self?.receivePresenterFrame(body, forSession: id) }
         overlayJobs.onFinished = { [weak self] job in
             self?.pendingJobCancels.remove(job.id)
+            self?.overlayJobStreams.removeValue(forKey: job.id)?.shutdown()
             gLibrary?.store(forSession: job.session)?.finishRemoteOverlay(job)
         }
         for controller in gWindows.values {
@@ -214,6 +202,7 @@ struct LinuxPresenterFrameRouter {
         case .askRejected(let ref) where store.isPresentingRemotely(ref, forSession: id):
             takeBackAsk(id)
             reconcile()
+        case .pageState, .pageRejected, .pageClosed: store.receiveRemotePageFrame(body, forSession: id)
         case .overlayRejected(let change): store.rejectRemoteOverlay(change.job, forSession: id)
         case .overlayClosed(let change): store.remoteOverlaySurfaceClosed(change.job, forSession: id)
         default: break
