@@ -168,6 +168,13 @@ jobs:
           fetch-tags: true
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      # Dependency checkouts and their compiled objects are the reusable part; SwiftPM rebuilds every
+      # module whose sources changed, so a stale hit cannot mask a failing compile.
+      - name: Restore SwiftPM build state
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: agtermCore/.build
+          key: swiftpm-core-${{ matrix.arch }}-swift-6.3.2-${{ hashFiles('agtermCore/Package.swift', 'agtermCore/Package.resolved') }}
       - name: Install test shell
         run: |
           scripts/ci-install-ubuntu-deps.sh ripgrep zsh fish
@@ -265,6 +272,11 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Verify pinned GTK build image
         run: /usr/local/bin/agterm-build-image-probe
+      - name: Restore SwiftPM build state
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: agterm-linux/.build
+          key: swiftpm-linux-${{ matrix.arch }}-${{ matrix.container }}-${{ hashFiles('agterm-linux/Package.swift', 'agterm-linux/Package.resolved', 'agtermCore/Package.swift', 'agtermCore/Package.resolved') }}
       - name: Materialize and verify upstream boundary tag
         run: |
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
