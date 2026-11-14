@@ -7,7 +7,8 @@ import shlex
 import subprocess
 import tempfile
 
-from atspi_smoke import ROOT, control_json, launch, raw_control_json, stop, wait_for, window_list, window_tree
+from atspi_smoke import (ROOT, control_json, launch, raw_control_json, run_palette_action,
+                         stop, wait_for, window_list, window_tree)
 
 
 PROBE = r'''
@@ -16,7 +17,8 @@ names=("LD_LIBRARY_PATH","LIBGL_ALWAYS_SOFTWARE","AGTERM_COMMIT","AGTERM_VERSION
        "AGTERM_ZMX_PATH","AGTERM_GHOSTTY_RESOURCES","GSK_RENDERER")
 result={"values":{name:os.environ.get(name) for name in names},
         "bookkeeping":sorted(name for name in os.environ if name.startswith("AGTERM_ORIG_"))}
-path=pathlib.Path(sys.argv[1]); temporary=path.with_suffix(".tmp")
+if len(sys.argv)>2: result["uri"]=sys.argv[2]
+path=pathlib.Path(sys.argv[1]); temporary=path.with_suffix(f".{os.getpid()}.tmp")
 temporary.write_text(json.dumps(result)); temporary.replace(path)
 print("launcher270-probe-complete",flush=True)
 '''
@@ -51,10 +53,34 @@ def verify_exact_launcher_environment(env):
             output.unlink(missing_ok=True)
             probe = state / "probe.py"
             probe.write_text(PROBE)
+            route_outputs = {}
+            if mode == "none":
+                route_outputs = {route: artifacts / f"{route}-{label}.json"
+                                 for route in ("hook", "custom", "gio")}
+                for path in route_outputs.values():
+                    path.unlink(missing_ok=True)
+                config = state / "config"
+                config.mkdir()
+                custom = shlex.join(["/usr/bin/python3", str(probe), str(route_outputs["custom"])])
+                (config / "keymap.conf").write_text(f'command "Launcher Environment" {custom}\n')
+                applications = state / "xdg-data/applications"
+                applications.mkdir(parents=True)
+                xdg_config = state / "xdg-config"
+                xdg_config.mkdir()
+                uri = f"https://example.test/launcher270/{label}"
+                callback = state / "url-callback"
+                (applications / "agterm-env270.desktop").write_text(
+                    "[Desktop Entry]\nType=Application\nName=Launcher environment probe\n"
+                    f'Exec=/usr/bin/python3 "{probe}" "{route_outputs["gio"]}" %u\n'
+                    "MimeType=x-scheme-handler/https;\nNoDisplay=true\n")
+                (xdg_config / "mimeapps.list").write_text(
+                    "[Default Applications]\nx-scheme-handler/https=agterm-env270.desktop;\n")
+                local.update(XDG_DATA_HOME=str(applications.parent), XDG_CONFIG_HOME=str(xdg_config),
+                             AGTERM_ATSPI_OPEN_URL=uri, AGTERM_ATSPI_URL_CAPTURE=str(callback))
             process = None
             window = None
             try:
-                process, _app = launch(local)
+                process, app = launch(local)
                 window = wait_for(lambda: next((item["id"] for item in window_list(local) if item["open"]), None),
                                   "launcher matrix window missing")
                 created = control_json(local, "session", "new", "--name", "launcher270", "--window", window, "--json")
@@ -72,6 +98,25 @@ def verify_exact_launcher_environment(env):
                 expected = {name: original for name in names}
                 expected["GSK_RENDERER"] = "cairo"
                 assert actual == {"values": expected, "bookkeeping": []}, (mode, label, actual, expected)
+                if route_outputs:
+                    hook = shlex.join(["/usr/bin/python3", str(probe), str(route_outputs["hook"])])
+                    (config / "hooks.conf").write_text(f"on status {hook}\n")
+                    reloaded = raw_control_json(local, {"cmd": "hooks.reload"})
+                    assert reloaded["ok"], reloaded
+                    status = raw_control_json(local, {"cmd": "session.status", "target": session,
+                                                      "args": {"status": "active"}})
+                    assert status["ok"], status
+                    run_palette_action(app, process.pid, "launcher270", "Launcher Environment", badge="custom")
+                    wait_for(callback.exists, "actual OPEN_URL callback did not reach the launch boundary")
+                    assert callback.read_text() == uri
+                    for route, path in route_outputs.items():
+                        wait_for(path.exists, f"{label}/{route}: real child never reported its environment")
+                        actual_child = json.loads(path.read_text())
+                        expected_child = {"values": expected, "bookkeeping": []}
+                        if route == "gio":
+                            expected_child["uri"] = uri
+                        assert actual_child == expected_child, (label, route, actual_child, expected_child)
+                        print(f"OK: exact {label}/{route} child environment and absent bookkeeping", flush=True)
                 # Read only the selected app variables, not arbitrary inherited process data.
                 app_env = dict(entry.split(b"=", 1) for entry in Path(f"/proc/{process.pid}/environ").read_bytes().split(b"\0")
                                if b"=" in entry)

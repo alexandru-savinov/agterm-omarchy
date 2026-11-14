@@ -27,26 +27,26 @@ enum LinuxRestoreSeed {
                         waitAfterCommand: plan.waitAfterCommand)
     }
 
-    /// The zmx-backed seed. `daemonRunning` is whether the launch inventory listed this pane's daemon (nil: unknown).
-    ///
-    /// With a capture, zmx is never handed a command to run: the attach is the plain one, so a missing daemon is
-    /// created with the normal login shell, and the captured line is pre-filled only when the inventory says the
-    /// daemon is gone — typing into a live (or unknown) session would land in whatever it is running. A capture,
-    /// even a refused one, still preempts the durable creation command, so an unknown inventory drops the capture.
-    /// The line is typed at the tty, so the first reader takes it: a startup file that reads input can consume it.
-    /// Without a capture the session's own creation command recreates a lost daemon, as before.
+    /// A capture still preempts the durable command. Only a newly created daemon's shell queues it;
+    /// attaching to an existing daemon never sends restored bytes, even if the inventory was stale.
+    /// A fresh (not restored) session ends with its durable command as the pane command and may keep
+    /// the pane open after it exits (`waitAfterCommand`); a restored one only creates the daemon with it.
     static func wrappedSeed(_ configuration: ZmxSupport.Configuration, replay: [String]?, durable: String?,
-                            denylist: Set<String>, daemonRunning: Bool?) -> LinuxLaunchSeed {
+                            denylist: Set<String>, daemonRunning: Bool?, endsWithCommand: Bool = false,
+                            waitAfterCommand: Bool = false) -> LinuxLaunchSeed {
         guard let replay else {
             return LinuxLaunchSeed(
-                command: ZmxSupport.attachCommand(configuration, replaying: nil, creationCommand: durable,
+                command: ZmxSupport.attachCommand(configuration, replaying: nil,
+                                                  creationCommand: endsWithCommand ? nil : durable,
+                                                  paneCommand: endsWithCommand ? durable : nil,
                                                   denylist: denylist),
-                initialInput: nil, waitAfterCommand: false
+                initialInput: nil, waitAfterCommand: endsWithCommand && waitAfterCommand
             )
         }
         let line = daemonRunning == false ? restoreLine(replay, restoreEnabled: true, denylist: denylist) : nil
-        return LinuxLaunchSeed(command: ZmxSupport.attachCommand(configuration, replaying: nil, denylist: denylist),
-                               initialInput: line, waitAfterCommand: false)
+        let command = line.flatMap { LinuxZmxLaunch.prefillCommand(configuration, line: $0) }
+            ?? ZmxSupport.attachCommand(configuration, replaying: nil, denylist: denylist)
+        return LinuxLaunchSeed(command: command, initialInput: nil, waitAfterCommand: false)
     }
 
     private static func prefilled(_ input: String) -> String {
@@ -131,7 +131,9 @@ extension AppController {
             return LinuxRestoreSeed.wrappedSeed(
                 configuration, replay: session.takePendingForegroundCommand(pane: pane),
                 durable: durableCommand(session: session, pane: pane), denylist: policy.denylist,
-                daemonRunning: policy.runningNames.map { $0.contains(configuration.daemonName) }
+                daemonRunning: policy.runningNames.map { $0.contains(configuration.daemonName) },
+                endsWithCommand: !session.wasRestored,
+                waitAfterCommand: !session.wasRestored && requestedWait(session: session, pane: pane)
             )
         case .ordinary:
             let capture = session.takePendingForegroundCommand(pane: pane)
@@ -232,7 +234,7 @@ extension AppController {
                                waitAfterCommand: false)
     }
 
-    private func restoreDenylist() -> Set<String> {
+    func restoreDenylist() -> Set<String> {
         let path = ConfigPaths.restoreDenylistPath(configDirectory: configDirectory())
         return (try? String(contentsOf: path, encoding: .utf8)).map(CommandRestore.parseDenylist)
             ?? ["tmux", "screen", "zellij"]

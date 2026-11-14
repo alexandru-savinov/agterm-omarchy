@@ -21,7 +21,7 @@ extension AppController {
             removePaneOverlaySurface(session, pane: pane)
         }
         for pane in OverlayPane.allCases {
-            let covered = session.paneOverlay(pane) != nil
+            let covered = session.paneOverlayVisible(pane)
             if covered { syncPaneOverlayWash(session, pane: pane) }
             setPaneOverlayCoverage(session, pane: pane, covered: covered)
         }
@@ -140,7 +140,7 @@ extension AppController {
     func refreshPaneOverlayCoverage() {
         for session in store.workspaces.flatMap(\.sessions) {
             for pane in OverlayPane.allCases {
-                setPaneOverlayCoverage(session, pane: pane, covered: session.paneOverlay(pane) != nil)
+                setPaneOverlayCoverage(session, pane: pane, covered: session.paneOverlayVisible(pane))
             }
         }
     }

@@ -9,9 +9,12 @@ final class LinuxControlStreamOwner: @unchecked Sendable {
     private var pending: [Data] = []
     private var closing = false
     private var descriptorClosed = false
-    private let maxPending = 64
+    private let maxPending: Int
 
-    init(descriptor: Int32) { fd = descriptor }
+    init(descriptor: Int32, maxPending: Int = 64) {
+        fd = descriptor
+        self.maxPending = maxPending
+    }
 
     func start(onLine: @escaping @Sendable (Data) -> Void, onClose: @escaping @Sendable () -> Void) {
         var noTimeout = timeval(tv_sec: 0, tv_usec: 0)
@@ -44,7 +47,18 @@ final class LinuxControlStreamOwner: @unchecked Sendable {
         defer { state.unlock() }
         guard !closing, pending.count < maxPending else { return false }
         pending.append(line)
-        state.signal()
+        state.broadcast()
+        return true
+    }
+
+    /// Only a file-serving worker may wait for writer capacity; the reader must remain free to cancel.
+    func sendWaiting(_ line: Data) -> Bool {
+        state.lock()
+        defer { state.unlock() }
+        while pending.count >= maxPending, !closing { state.wait() }
+        guard !closing else { return false }
+        pending.append(line)
+        state.broadcast()
         return true
     }
 
@@ -84,7 +98,10 @@ final class LinuxControlStreamOwner: @unchecked Sendable {
         state.lock()
         defer { state.unlock() }
         while pending.isEmpty, !closing { state.wait() }
-        return closing ? nil : pending.removeFirst()
+        guard !closing else { return nil }
+        let line = pending.removeFirst()
+        state.broadcast()
+        return line
     }
 
     private func write(_ line: Data) -> Bool {

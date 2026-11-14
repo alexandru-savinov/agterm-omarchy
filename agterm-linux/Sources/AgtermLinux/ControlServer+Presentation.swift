@@ -39,8 +39,7 @@ final class LinuxPresentationStream: PresentationSink {
             return
         }
         subscriber = try? server.presentationHub.subscribe(session: session, hello: hello, sink: self) {
-            gLibrary.store(forSession: self.session)?.presentationSnapshot(forSession: self.session)
-                ?? PresentationSnapshot(status: nil, hud: nil)
+            server.snapshotWithRespawns(self.session)
         }
         if subscriber == nil { owner.shutdown() }
     }
@@ -119,6 +118,10 @@ extension ControlServer {
 
     @MainActor
     func attachPresentationHub() {
+        RemotePageEnds.shared.onEnd = { [weak self] page in
+            self?.pendingPageClaims[page] = nil
+            self?.pageServeStreams.removeValue(forKey: page)?.shutdown()
+        }
         presentationHub.onPresenterLost = { [weak self] id in self?.presenterLost(forSession: id) }
         presentationHub.onPresenterFrame = { [weak self] id, body in self?.receivePresenterFrame(body, forSession: id) }
         overlayJobs.onFinished = { [weak self] job in
@@ -199,6 +202,7 @@ struct LinuxPresenterFrameRouter {
         case .askRejected(let ref) where store.isPresentingRemotely(ref, forSession: id):
             takeBackAsk(id)
             reconcile()
+        case .pageState, .pageRejected, .pageClosed: store.receiveRemotePageFrame(body, forSession: id)
         case .overlayRejected(let change): store.rejectRemoteOverlay(change.job, forSession: id)
         case .overlayClosed(let change): store.remoteOverlaySurfaceClosed(change.job, forSession: id)
         default: break

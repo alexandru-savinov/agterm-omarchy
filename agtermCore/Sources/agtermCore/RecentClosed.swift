@@ -15,6 +15,13 @@ struct RecentClosedRestore: Equatable, Sendable {
     static let failed = RecentClosedRestore(restored: false, complete: false)
 }
 
+/// What `WindowLibrary.reopenRecentClosedOutcome` achieved: the window the entry was restored into, and
+/// whether the entry is gone from the list.
+public struct RecentClosedReopen: Equatable, Sendable {
+    public let window: UUID
+    public let complete: Bool
+}
+
 public struct RecentClosedItem: Codable, Identifiable, Equatable, Sendable {
     public let id: UUID
     public let kind: RecentClosedKind
@@ -43,14 +50,17 @@ public struct RecentClosedSession: Codable, Equatable, Sendable {
     public let workspaceIndex: Int
     public let sessionIndex: Int
     public let snapshot: SessionSnapshot
+    /// companions are reopened under the parent; optional so an older `recent-closed.json` still decodes.
+    public let companions: [SessionSnapshot]?
 
     public init(workspaceID: UUID, workspaceName: String, workspaceIndex: Int, sessionIndex: Int,
-                snapshot: SessionSnapshot) {
+                snapshot: SessionSnapshot, companions: [SessionSnapshot]? = nil) {
         self.workspaceID = workspaceID
         self.workspaceName = workspaceName
         self.workspaceIndex = workspaceIndex
         self.sessionIndex = sessionIndex
         self.snapshot = snapshot
+        self.companions = companions
     }
 }
 

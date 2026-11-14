@@ -4,7 +4,7 @@ import Testing
 
 @MainActor
 struct ControlDispatcherSidebarTests {
-    @Test(arguments: [("flat", .flat), ("tree", .tree), ("toggle", .toggle), (nil, .toggle)] as [(String?, ControlFlaggedLayoutMode)])
+    @Test(arguments: [("flat", .flat), ("plain", .plain), ("tree", .tree), ("toggle", .toggle), (nil, .toggle)] as [(String?, ControlFlaggedLayoutMode)])
     func flaggedLayoutRoutesTheParsedMode(_ raw: String?, _ mode: ControlFlaggedLayoutMode) async {
         let actions = MockControlActions()
         let dispatcher = ControlDispatcher(actions: actions)
@@ -25,6 +25,28 @@ struct ControlDispatcherSidebarTests {
             ControlRequest(cmd: .sidebarFlaggedLayout, args: ControlArgs(mode: "grid")))
 
         #expect(response == ControlResponse(ok: false, error: "invalid flagged layout: grid"))
+        #expect(actions.calls.isEmpty)
+    }
+
+    @Test(arguments: [("default", .standard), ("compact", .compact), ("toggle", .toggle), (nil, .toggle)] as [(String?, ControlSidebarDensityMode)])
+    func sidebarDensityRoutesTheParsedMode(_ raw: String?, _ mode: ControlSidebarDensityMode) async {
+        let actions = MockControlActions()
+        let dispatcher = ControlDispatcher(actions: actions)
+        actions.nextSidebarDensityResponse = ControlResponse(ok: true, result: ControlResult(text: "compact"))
+
+        let response = await dispatcher.dispatch(ControlRequest(cmd: .sidebarDensity, args: ControlArgs(mode: raw)))
+
+        #expect(response == ControlResponse(ok: true, result: ControlResult(text: "compact")))
+        #expect(actions.calls == [.sidebarDensity(mode)])
+    }
+
+    @Test func sidebarDensityRejectsAnUnknownModeWithoutCallingActions() async {
+        let actions = MockControlActions()
+        let dispatcher = ControlDispatcher(actions: actions)
+
+        let response = await dispatcher.dispatch(ControlRequest(cmd: .sidebarDensity, args: ControlArgs(mode: "dense")))
+
+        #expect(response == ControlResponse(ok: false, error: "invalid sidebar density: dense"))
         #expect(actions.calls.isEmpty)
     }
 

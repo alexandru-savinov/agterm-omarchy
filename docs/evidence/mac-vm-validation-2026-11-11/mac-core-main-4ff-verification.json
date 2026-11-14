@@ -1,0 +1,13 @@
+{
+  "all_artifacts_verified": 78,
+  "manifest_sha256": "e976f9eda0156a3eb6a4cf77c07411df9172bcb48d4808a0a775b1121defe89a",
+  "public_summary_sha256": "0b59be8151a5decfe383c9a60b0bd7236dd171d598158a385645adc14538d475",
+  "independent_literal_counts": {
+    "pass": 4149,
+    "fail": 2,
+    "skip": 2
+  },
+  "framework_outcomes": 4153,
+  "source": "4ffbe4bd2aec1216b2d7a31b043ff2f96fff036b",
+  "root_readback_limit": "Initial root ad hoc failure regex counted the Test run headline; corrected predicate excludes that aggregate record. No original report or log was changed."
+}

@@ -5,25 +5,58 @@ import agtermCore
 extension LinuxControlDispatcher {
     func dispatchNewParityCommand(_ request: ControlRequest) -> ControlResponse? {
         switch request.cmd {
+        case .sessionOverlaySearch, .sessionOverlayChanges: return dispatchTextPage(request)
+        case .sessionOverlayOpen, .sessionOverlayClose, .sessionOverlayResize, .sessionOverlayResult,
+             .sessionOverlayReload, .sessionOverlayNavigate, .sessionOverlaySubmit, .sessionOverlayCopy,
+             .sessionOverlayText, .sessionOverlayHide, .sessionOverlayShow, .sessionOverlayToggle:
+            return dispatchV039OverlayCommand(request)
+        case .sessionTint, .workspaceTint:
+            return dispatchTint(request)
+        case .sessionCompanionNew, .sessionCompanionPage, .sessionCompanionDuplicate, .sessionCompanionPageAttach,
+             .sessionCollapse, .sessionExpand:
+            return dispatchCompanionCommand(request)
+        case .recentList, .recentOpen, .recentClear:
+            if request.cmd == .recentOpen {
+                return actions.openRecentClosed(request.target, window: request.args?.window)
+            }
+            if request.target != nil || request.args?.window != nil {
+                return ControlResponse(ok: false, error: "\(request.cmd.rawValue) takes no target or --window")
+            }
+            return request.cmd == .recentList ? actions.listRecentClosed() : actions.clearRecentClosed()
+        case .workspaceFlag:
+            guard let mode = ControlToggleMode.parse(request.args?.mode) else {
+                return ControlResponse(ok: false, error: "invalid flag mode: \(request.args?.mode ?? "toggle")")
+            }
+            return actions.setWorkspaceFlag(request.target, window: request.args?.window, mode: mode)
+        case .browserLinks:
+            if request.target != nil || request.args?.window != nil {
+                return ControlResponse(ok: false, error: "browser.links takes no target or --window")
+            }
+            if let raw = request.args?.mode {
+                guard let mode = LinkOpenMode(rawValue: raw) else {
+                    return ControlResponse(ok: false, error: "invalid link mode: \(raw)")
+                }
+                return actions.linkOpenMode(mode)
+            }
+            return actions.linkOpenMode(nil)
         case .keymapRun:
             guard let name = request.args?.name, !name.isEmpty else {
                 return ControlResponse(ok: false, error: "keymap.run requires a command name")
             }
             return actions.runCustomCommand(name: name, target: request.target, window: request.args?.window)
-        case .sessionOverlaySubmit:
-            guard let value = request.args?.value else {
-                return ControlResponse(ok: false, error: OverlayHtmlError.submitValue)
+        case .zmxScreen:
+            guard let name = request.args?.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty,
+                  !name.unicodeScalars.contains(where: { $0.properties.isWhitespace || $0.value < 0x20 || $0.value == 0x7f }) else {
+                return ControlResponse(ok: false, error: "zmx.screen requires a daemon name")
             }
-            switch parseOverlayPane(request.args?.pane) {
-            case .rejected(let response): return response
-            case .pane(let pane):
-                return actions.submitSessionOverlay(request.target, window: request.args?.window, pane: pane, value: value)
+            if request.args?.all == true, request.args?.lines != nil {
+                return ControlResponse(ok: false, error: "use either --all or --lines, not both")
             }
-        case .sessionOverlayResult where request.args?.page != nil:
-            guard let id = request.args?.page.flatMap(UUID.init(uuidString:)) else {
-                return ControlResponse(ok: false, error: OverlayHtmlError.invalidPageID)
+            if let lines = request.args?.lines, lines <= 0 {
+                return ControlResponse(ok: false, error: "--lines must be greater than 0")
             }
-            return actions.htmlPageResult(id)
+            return actions.readZmxScreen(name: name, fullBuffer: request.args?.all == true,
+                                         lines: request.args?.lines)
         default: return nil
         }
     }

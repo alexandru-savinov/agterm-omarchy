@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Provision native Arch/Omarchy build dependencies and the pinned Linux runtimes.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 skip_packages=false
 ui_tests=false
 for argument in "$@"; do

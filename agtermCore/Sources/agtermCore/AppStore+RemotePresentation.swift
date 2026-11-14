@@ -22,6 +22,17 @@ extension AppStore {
         if previous != session.effectiveContext { scheduleTreeChanged() }
     }
 
+    /// applyRemoteInfo records the origin's info line, kept even while a local line hides it; one that does not
+    /// parse here reads as none.
+    public func applyRemoteInfo(_ info: PresentationInfo?, forSession id: UUID) {
+        guard let session = session(withID: id), session.remotePresentation != nil else { return }
+        let previous = session.effectiveInfo
+        session.mirroredInfo = info.flatMap {
+            try? SessionInfo.make(source: $0.source, markdown: $0.markdown, hideAfter: $0.hideAfter).get()
+        }
+        if previous != session.effectiveInfo { scheduleTreeChanged() }
+    }
+
     /// Applies the origin's status, nil for idle. Bypasses `applyControlStatus`: that rule arbitrates
     /// between panes writing locally, and would refuse a clear the origin already accepted.
     public func applyRemoteStatus(_ status: PresentationStatus?, forSession id: UUID) {
@@ -52,13 +63,16 @@ extension AppStore {
     public func setRemoteConnection(_ connection: RemotePresentationConnection, forSession id: UUID) {
         guard let session = session(withID: id), let state = session.remotePresentation else { return }
         session.remotePresentation?.connection = connection
+        if state.connection != connection { session.remoteConnectionRevision += 1 }
         guard state.connection == .connected, connection != .connected else { return }
         applyRemoteContext(nil, forSession: id)
+        applyRemoteInfo(nil, forSession: id)
         if state.statusBridged { setAgentIndicator(AgentIndicator(), forSession: id) }
         closeBridgedHud(forSession: id)
         // the origin takes a handed-over ask back when the stream goes, so the replica must not answer it
         if session.askReplica { session.releaseAsk() }
         orphanReplicaOverlays(of: session)
+        closeReplicaPages(of: session)
     }
 
     /// Shows an overlay `id`'s origin handed over as a local one running `command`, the job's helper over
@@ -75,6 +89,7 @@ extension AppStore {
             pane = role
         } else {
             guard openOverlay(id, command: command, wait: overlay.wait, sizePercent: overlay.sizePercent,
+                              points: overlay.points,
                               backgroundColor: overlay.backgroundColor) else { return false }
         }
         session.setOverlayReplica(OverlayReplica(job: overlay.job), pane: pane)
@@ -95,7 +110,7 @@ extension AppStore {
 
     public func resizeReplicaOverlay(_ change: PresentationOverlayChange, forSession id: UUID) {
         guard session(withID: id)?.overlayReplica?.job == change.job else { return }
-        resizeOverlay(id, sizePercent: change.sizePercent)
+        resizeOverlay(id, sizePercent: change.sizePercent, points: change.points)
     }
 
     /// A replica's job ssh ended and `--wait` holds its surface. Cut off from its stream, nothing could close
@@ -138,10 +153,12 @@ extension AppStore {
         }
         let pending = PendingAsk(id: ask.id, title: ask.title, message: ask.message, buttons: ask.buttons,
                                  defaultID: ask.defaultID, destructiveID: ask.destructiveID, style: ask.style,
-                                 align: ask.align, width: ask.width)
+                                 align: ask.align, width: ask.width, form: ask.form, cancelID: ask.cancelID)
         return session.openReplicaAsk(pending, paneIdentity: paneIdentity) { result in
             switch result.result {
-            case .answered: answer(.askResolve(PresentationAskAnswer(id: ask.id, owner: ask.owner, button: result.id)))
+            case .answered:
+                answer(.askResolve(PresentationAskAnswer(id: ask.id, owner: ask.owner, button: result.id,
+                                                         text: result.text, selected: result.selected)))
             case .escaped: answer(.askResolve(PresentationAskAnswer(id: ask.id, owner: ask.owner, button: nil)))
             case .cancelled, .pending: answer(.askRejected(PresentationAskRef(id: ask.id, owner: ask.owner)))
             }
@@ -208,5 +225,14 @@ extension AppStore {
         guard let pane else { return (nil, true) }
         guard let role = localPane(pane, in: session) else { return (nil, false) }
         return (role == .right ? .right : .left, true)
+    }
+}
+
+extension Session {
+    /// remoteConnection is the presentation stream's state, read through here by anything that must
+    /// redraw when it changes: `remotePresentation` announces nothing.
+    public var remoteConnection: RemotePresentationConnection? {
+        _ = remoteConnectionRevision
+        return remotePresentation?.connection
     }
 }

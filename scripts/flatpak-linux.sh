@@ -5,7 +5,7 @@
 # Needs flatpak-builder + the GNOME 47 runtime/SDK once:
 #   flatpak install --user flathub org.gnome.Platform//47 org.gnome.Sdk//47
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 command -v flatpak-builder >/dev/null || { echo "flatpak-builder not found — install it first" >&2; exit 1; }

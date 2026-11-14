@@ -70,6 +70,14 @@ If `--queue` names a missing or unreadable file, the page says the queue snapsho
 `status.json` reports `queue_status: "unavailable"` (otherwise `loaded` or `not-requested`).
 Only collaborator claims become cards; unverified claims are counted in a note, not shown as cards.
 
+Pass `--drift-run run.json --drift upstream-drift.json` to show how far `main` is from
+`melonamin/agterm-linux:linux-port` (commits ahead, behind, and conflicting paths), with a link to the
+measuring run of `upstream-drift.yml`. `run.json` is `gh run list --json databaseId,createdAt,event,headBranch`
+output; only scheduled or dispatched runs on `main` count. A missing run or artifact renders a visible
+"unavailable" notice, and a measurement older than 8 days a "stale" notice that keeps the numbers.
+`status.json` carries the snapshot under `upstream_drift` and its state in `upstream_drift_status`
+(`loaded`, `stale`, `unavailable` or `not-requested`).
+
 This display reconciliation adopts the tested proposal by `codex_team_pages` in
 [PR #84](https://github.com/alexandru-savinov/agterm-omarchy/pull/84), following
 [`codex_pages_review`'s #79 findings](https://github.com/alexandru-savinov/agterm-omarchy/issues/79#issuecomment-6527014289)

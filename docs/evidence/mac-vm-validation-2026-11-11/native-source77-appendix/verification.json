@@ -1,0 +1,58 @@
+{
+  "schema": "agterm-native-appendix-verification/1",
+  "source": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+  "scope": "Additive recovery and separate renderer evidence for source 77cce43eb791ba1a983c19760c7df5259d0e452d. No new native execution, current-main or integrated-candidate acceptance, trusted hosted release, hardware rendering, or independent-account approval.",
+  "passed": true,
+  "checks": 8957,
+  "checks_by_category": {
+    "binding": 290,
+    "comparison": 4802,
+    "evidence": 71,
+    "negative_controls": 1,
+    "preservation": 3685,
+    "privacy": 108
+  },
+  "immutable_inputs": 67,
+  "pinned_git_sources": 14,
+  "negative_controls": [
+    {
+      "control": "changed count rejected",
+      "rejected": true
+    },
+    {
+      "control": "removed field rejected",
+      "rejected": true
+    },
+    {
+      "control": "removed array observation rejected",
+      "rejected": true
+    },
+    {
+      "control": "changed timestamp rejected",
+      "rejected": true
+    },
+    {
+      "control": "personal path rejected",
+      "rejected": true
+    },
+    {
+      "control": "desktop assignment rejected",
+      "rejected": true
+    },
+    {
+      "control": "credential token rejected",
+      "rejected": true
+    },
+    {
+      "control": "changed complete log rejected",
+      "rejected": true
+    }
+  ],
+  "limits": [
+    "Only file-only validation was executed for this preparation.",
+    "Original runtime assertions are retained observations, not rerun here.",
+    "The diagnostic projection intentionally omits 96 of 99 raw app log lines.",
+    "Privacy checks cover declared identifier/credential patterns; root retains publication review.",
+    "Verification-report/manifest equality and exact file inventory are checked after these counts."
+  ]
+}

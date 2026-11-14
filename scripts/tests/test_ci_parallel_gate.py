@@ -29,7 +29,7 @@ class ParallelGateTests(unittest.TestCase):
         needs = re.search(r"^    needs: \[(.+)\]$", self.gate, re.MULTILINE)
         self.assertIsNotNone(needs)
         self.assertEqual(set(needs.group(1).split(", ")), self.jobs)
-        self.assertIn("    if: always()\n", self.gate)
+        self.assertIn("    if: ${{ !cancelled() }}\n", self.gate)
 
     def test_success_and_legitimate_path_skips_pass(self):
         for skipped in ({}, {job: "skipped" for job in ("test-linux", "lint-linux", "build-linux", "cookbook")}):

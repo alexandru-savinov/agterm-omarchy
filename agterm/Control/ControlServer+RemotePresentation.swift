@@ -70,6 +70,7 @@ extension ControlServer {
             context: { [weak self] context in
                 self?.library.store(forSession: id)?.applyRemoteContext(context, forSession: id)
             },
+            info: { [weak self] info in self?.library.store(forSession: id)?.applyRemoteInfo(info, forSession: id) },
             mode: { [weak self] mode in self?.library.store(forSession: id)?.setRemoteMode(mode, forSession: id) },
             askRequest: { [weak self] ask in self?.showReplicaAsk(ask, forSession: id) ?? false },
             askDismiss: { [weak self] ref in self?.library.store(forSession: id)?.dismissReplicaAsk(ref, forSession: id) },
@@ -80,10 +81,18 @@ extension ControlServer {
             overlayResize: { [weak self] change in
                 self?.library.store(forSession: id)?.resizeReplicaOverlay(change, forSession: id)
             },
+            sound: { [weak self] sound in self?.playRemoteSound(sound, forSession: id) },
             layout: { [weak self] layout in
                 guard let self, let store = library.store(forSession: id) else { return }
                 agtermApp.applyRemoteLayout(layout, store: store, sessionID: id, library: library)
             },
+            pageRequest: { [weak self] page in
+                guard let self else { return "no such session" }
+                return showReplicaPage(page, forSession: id)
+            },
+            pageClose: { [weak self] change in self?.library.store(forSession: id)?.closeReplicaPage(change.page, forSession: id) },
+            pageCommand: { [weak self] command in self?.applyReplicaPageCommand(command, forSession: id) },
+            respawns: { [weak self] respawns, seed in self?.applyRemoteRespawns(respawns, seed: seed, forSession: id) },
             warn: { reason in
                 remoteLogger.warning("presentation stream for \(id, privacy: .public): \(reason, privacy: .public)")
             })
@@ -111,13 +120,27 @@ extension ControlServer {
         }
     }
 
+    private func playRemoteSound(_ sound: PresentationSound, forSession id: UUID) {
+        guard library.store(forSession: id)?.session(withID: id) != nil,
+              let name = sound.name ?? settingsModel.settings.blockedStatusSoundName, !name.isEmpty else { return }
+        let player = statusSoundPlayer
+        // the origin stays silent, so an unavailable sound falls back to the system alert
+        Task {
+            guard await !player.play(name) else { return }
+            remoteLogger.notice("status sound \(name, privacy: .public) from \(id, privacy: .public)'s origin is unknown here, playing the alert")
+            await player.play("default")
+        }
+    }
+
     func startRemoteTick() {
         guard remoteTick == nil else { return }
         remoteTick = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard let self, !Task.isCancelled else { return }
-                guard !self.remoteClients.isEmpty || !RemoteReconnectBook.shared.isEmpty else {
+                // respawn entries keep it alive so the last row's own prune still runs after that row is gone
+                guard !self.remoteClients.isEmpty || !RemoteReconnectBook.shared.isEmpty
+                        || !RemoteRespawnBook.shared.entries.isEmpty else {
                     self.remoteTick = nil
                     return
                 }
@@ -143,7 +166,8 @@ extension ControlServer {
         let spec = HudSpec(message: hud.spec.message, detail: hud.spec.detail, spinner: hud.spec.spinner,
                            backgroundColor: hud.spec.backgroundColor, textColor: hud.spec.textColor,
                            sizePercent: hud.spec.sizePercent, position: hud.spec.position,
-                           hideAfter: hud.remaining, markdown: hud.spec.markdown, fontSize: hud.spec.fontSize)
+                           hideAfter: hud.remaining, markdown: hud.spec.markdown, fontSize: hud.spec.fontSize,
+                           sticky: hud.spec.sticky, frame: hud.spec.frame)
         // resolved the same way for an open and an update: `hud.update` accepts a pane the deck does not
         // lay out, which would move a panel already shown session-wide onto a hidden pane and unmount it
         let pane = store.localPane(hud.pane, in: session).flatMap { session.rendersPane($0) ? $0 : nil }
