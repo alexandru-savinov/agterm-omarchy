@@ -12,13 +12,17 @@ enum LinuxRemoteCommand {
     static let outputLimitStatus: Int32 = 1
 
     static func run(_ argv: [String], deadline: TimeInterval, input: Data? = nil,
-                    outputLimit: Int = outputLimit, temporaryDirectory: String = "/tmp") -> RemoteCommandResult {
+                    outputLimit: Int = outputLimit, temporaryDirectory: String = "/tmp",
+                    inputCreate: (UnsafeMutablePointer<CChar>) -> Int32 = { mkstemp($0) },
+                    inputWrite: (Int32, UnsafeRawPointer, Int) -> Int = { Glibc.write($0, $1, $2) }) -> RemoteCommandResult {
         guard !argv.isEmpty else {
             return RemoteCommandResult(status: 127, stdout: "", stderr: "no command to run")
         }
         let output = TemporaryOutput(directory: temporaryDirectory)
         let errors = TemporaryOutput(directory: temporaryDirectory)
-        let inputFile = input.flatMap { TemporaryInput(data: $0, directory: temporaryDirectory) }
+        let inputFile = input.flatMap {
+            TemporaryInput(data: $0, directory: temporaryDirectory, create: inputCreate, write: inputWrite)
+        }
         guard let output, let errors else {
             return RemoteCommandResult(status: 1, stdout: "", stderr: "could not create command output files")
         }
@@ -70,16 +74,17 @@ private final class TemporaryInput {
     let path: String
     let handle: FileHandle
 
-    init?(data: Data, directory: String) {
+    init?(data: Data, directory: String, create: (UnsafeMutablePointer<CChar>) -> Int32,
+          write: (Int32, UnsafeRawPointer, Int) -> Int) {
         var template = Array("\(directory)/agterm-input-XXXXXX".utf8CString)
-        let descriptor = mkstemp(&template)
+        let descriptor = create(&template)
         guard descriptor >= 0 else { return nil }
         path = String(decoding: template.dropLast().map { UInt8(bitPattern: $0) }, as: UTF8.self)
         guard data.withUnsafeBytes({ raw in
             guard let base = raw.baseAddress else { return true }
             var offset = 0
             while offset < data.count {
-                let count = Glibc.write(descriptor, base + offset, data.count - offset)
+                let count = write(descriptor, base + offset, data.count - offset)
                 if count < 0, errno == EINTR { continue }
                 guard count > 0 else { return false }
                 offset += count

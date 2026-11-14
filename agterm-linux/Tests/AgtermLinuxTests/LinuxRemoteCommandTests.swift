@@ -65,6 +65,64 @@ struct LinuxRemoteCommandTests {
         }
     }
 
+    @Test("input creation failure removes the already-created output files without launching")
+    func inputCreationFailure() throws {
+        let root = try makeDirectory()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let marker = root + "/child-ran"
+        var calls = 0
+        let result = LinuxRemoteCommand.run(["sh", "-c", "touch \"$0\"", marker], deadline: 10,
+                                            input: Data("x".utf8), temporaryDirectory: root,
+                                            inputCreate: { _ in
+            calls += 1
+            #expect(descriptors(into: root).count == 2)
+            errno = EACCES
+            return -1
+        })
+        #expect(calls == 1)
+        #expect(result == RemoteCommandResult(status: 1, stdout: "",
+                                              stderr: "could not create command input file"))
+        #expect(!FileManager.default.fileExists(atPath: marker))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root).isEmpty)
+        #expect(descriptors(into: root).isEmpty)
+    }
+
+    @Test("input write retries EINTR, advances after a partial write, and cleans up on EIO")
+    func inputWriteFailure() throws {
+        let root = try makeDirectory()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let marker = root + "/child-ran"
+        let input = Data("a\u{0}bc".utf8)
+        var calls = 0
+        let result = LinuxRemoteCommand.run(["sh", "-c", "touch \"$0\"", marker], deadline: 10,
+                                            input: input, temporaryDirectory: root,
+                                            inputWrite: { descriptor, bytes, count in
+            calls += 1
+            #expect(descriptors(into: root).count == 3)
+            if calls == 1 {
+                errno = EINTR
+                return -1
+            }
+            if calls == 2 {
+                #expect(count == input.count)
+                return Glibc.write(descriptor, bytes, 2)
+            }
+            #expect(count == input.count - 2)
+            #expect(Data(bytes: bytes, count: count) == input.dropFirst(2))
+            var written = [UInt8](repeating: 0, count: 2)
+            #expect(pread(descriptor, &written, written.count, 0) == 2)
+            #expect(Data(written) == input.prefix(2))
+            errno = EIO
+            return -1
+        })
+        #expect(calls == 3)
+        #expect(result == RemoteCommandResult(status: 1, stdout: "",
+                                              stderr: "could not create command input file"))
+        #expect(!FileManager.default.fileExists(atPath: marker))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root).isEmpty)
+        #expect(descriptors(into: root).isEmpty)
+    }
+
     @Test("input and output files are owner-only while the child runs")
     func fileModes() throws {
         let root = try makeDirectory()
