@@ -18,6 +18,17 @@ session shells at the `GhosttySurface` env choke point, the custom-command `/bin
 through `restoringChildEnvironment(_:)`, and desktop-handler launches through
 `launchDefaultHandler(forURI:)`.
 
+Resource environment writes and libghostty's process-locale setup also finish before GTK starts.
+`GhosttyApp.initializeRuntime()` runs once from `main()`, after the GDK assignments and before
+`adw_application_new`.
+The later `activateApplication` call creates the Ghostty app/config without mutating resource environment.
+Moving those initializers into activation lets them run after GTK has started worker threads that read
+the environment.
+The `startup-environment` smoke scenario observes the actual initialization calls and resource writes,
+and rejects late or repeated initialization.
+This ordering prevents agterm's late startup mutation; it does not establish the cause of a reported crash
+without a matching core or reproduction.
+
 ## What the GLib loop drains
 
 | Mechanism | Drained under `g_application_run`? |
@@ -42,9 +53,11 @@ soft-close grace finalizer.
 This is for callbacks that fire off-main (libghostty's C callbacks, worker-queue jobs) and need to touch
 GTK or main-actor state.
 `GhosttyApp.scheduleTick` is the same pattern hand-rolled with a coalescing flag.
-`runOnMain` exists only in the Linux target, so host-free `agtermCore` has no hop seam: from code that is
-already on the main actor, `MainTimer.schedule(after: 0)` is the next-turn hop; a genuine nonisolated→main
-hop in core would need a hop seam added alongside `MainTimer` (none exists today, and nothing needs one).
+`runOnMain` exists only in the Linux target.
+Host-free `agtermCore` uses `MainActorHop.enqueue` for nonisolated observation callbacks such as pane focus.
+Its lock-protected scheduler defaults to Dispatch on macOS; `installGLibMainTimer()` installs the GLib hop
+before any store exists.
+From code already on the main actor, `MainTimer.schedule(after: 0)` supplies a next-turn hop.
 
 **Run something after a delay** — use `agtermCore`'s `MainTimer` seam:
 `MainTimer.schedule(after:_:)` returns a cancel closure, and `Debouncer` (which most call sites actually
@@ -57,13 +70,11 @@ default.
 Each schedule becomes one one-shot `g_timeout_add_full` source (`GLibMainTimerSource`), retained as the
 source's user data and released by its destroy notify on both the fire and the cancel path.
 
-**Own a repeating or long-lived timer** — call `g_timeout_add` directly from the Linux target, as three
-coordinators do: `LinuxAutoFollowCoordinator` (the idle tick), `SplitRatioRestoreCoordinator` (a 50 ms
-divider-restore poll, `AppControllerSurfaces.scheduleSplitRatioRestore`, returning `G_SOURCE_CONTINUE`
-until the paned has a width), and `BlinkPhaseCoordinator` (the status glyph's pulse, which
-`windowWillClose` cancels only AFTER emptying the glyph maps, so the cancel's normalizing pass and any
-later resync resolve nothing).
-Each owns its `guint` source id plus its own `g_source_remove` cancel.
+**Own a repeating or long-lived timer** — call `g_timeout_add` directly from the Linux target.
+`LinuxAutoFollowCoordinator` owns the idle tick and `BlinkPhaseCoordinator` owns the status glyph's pulse,
+which `windowWillClose` cancels only AFTER emptying the glyph maps, so the cancel's normalizing pass and any
+later resync resolve nothing.
+Each owns its `guint` source id and `g_source_remove` cancel.
 `MainTimer` is deliberately one-shot; a subsystem that owns a re-arming timer keeps that logic on the Linux
 side rather than growing the shared seam.
 
@@ -73,9 +84,12 @@ for.
 `SidebarScrollRetryCoordinator` uses it to scroll a just-revealed sidebar row into view once GTK has
 allocated both the row and its containing list box (why both: `agterm-linux/docs/sidebar.md`), bounded by
 `LinuxSidebarPolicy.scrollRetryTicks` — a best-effort budget, not a guarantee that layout completes within it.
-The id is WIDGET-scoped — `gtk_widget_remove_tick_callback(widget, id)`, never `g_source_remove` — so the
-coordinator holds the row alongside the id, keeps at most one request, supersedes it on the next request,
-and is cancelled when its own row detaches, before a sidebar rebuild, and in `windowWillClose`.
+`SplitRatioRestoreCoordinator` keeps saved ratios pending while their paned is unmapped; the paned's `map`
+signal arms a frame callback that waits through a layout frame before applying the position.
+After window registration, already-mapped pending restores are resumed because initial mapping can occur
+inside the controller initializer before callbacks can resolve it through the window registry.
+Both callback ids are WIDGET-scoped — `gtk_widget_remove_tick_callback(widget, id)`, never `g_source_remove` —
+and their owners cancel them when the associated widget or window is torn down.
 
 ## Rules
 
@@ -97,9 +111,9 @@ and is cancelled when its own row detaches, before a sidebar rebuild, and in `wi
 **One deliberate exception**, so a grep of the rule does not look like an unreported violation: the
 `withObservationTracking` `onChange` in `agtermCore/Sources/agtermCore/AppStore+AutoFollow.swift` still uses
 `DispatchQueue.main.async`.
-That callback is nonisolated and can run off-main, so it is a THREAD HOP, and the `@MainActor` `MainTimer`
-seam cannot express one (you must already be on the main actor to call it) — see "Hop to the main thread now"
-above.
+That callback is nonisolated and can run off-main, so it is a thread hop.
+`MainActorHop` can express such a hop, but this inherited macOS observer remains unchanged because Linux
+does not register it.
 It is also unreachable under GTK: the observer is registered only on the off→on `setAutoFollow(timeout:)`
 edge, which the port never takes (`LinuxSettingsController.applyAutoFollowSettings` always passes
 `timeout: nil` and hands the runtime to `LinuxAutoFollowCoordinator`).
@@ -108,6 +122,20 @@ Its deferred half, `scheduleAutoFollowRearm`, IS main-actor code and goes throug
 
 If a debounce, delay, or grace window "does nothing on Linux", check which mechanism scheduled it before
 suspecting the logic — that symptom is almost always this contract.
+
+## Long-lived SSH children
+
+`LinuxPresentationTransport` and `LinuxPageChannel` launch SSH through `LinuxChildProcess`.
+Foundation's Linux `Process` watches an inherited socket and then performs a blocking `waitpid` on its
+single process-watcher thread.
+OpenSSH closes that socket while it is still running, so one live presentation stream can block completion
+of unrelated `Process` invocations.
+The owned child adapter uses `posix_spawn` and a dedicated waiter instead.
+It closes every inherited descriptor above stderr after mapping standard I/O, so a helper cannot inherit
+its own input writer and prevent EOF during shutdown.
+`waitid(WNOWAIT)` keeps an exited PID reserved until the status lock is held and `waitpid` reaps it.
+Cancellation therefore cannot signal a PID that has already been reused.
+The callers restore the pre-launch GDK environment before passing it to the adapter.
 
 ## Testing through the seam
 

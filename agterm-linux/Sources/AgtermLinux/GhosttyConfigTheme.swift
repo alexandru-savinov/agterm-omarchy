@@ -22,7 +22,8 @@ enum GhosttyConfigTheme {
             background: read("background").map(hex),
             foreground: read("foreground").map(hex),
             selectionBackground: read("selection-background").map(hex),
-            selectionForeground: read("selection-foreground").map(hex)
+            selectionForeground: read("selection-foreground").map(hex),
+            splitDivider: read("split-divider-color").map(hex)
         )
     }
 
@@ -35,6 +36,16 @@ enum GhosttyConfigTheme {
                 String(format: "#%02x%02x%02x", $0.r, $0.g, $0.b)
             }
         }
+    }
+
+    /// The finalized `font-size`: the size a surface with no zoom and no per-session pin renders at, after the
+    /// scoped/global Ghostty files and the UI setting (when set) have all been layered.
+    static func fontSize(from config: ghostty_config_t) -> Double? {
+        var size: Float = 0
+        let key = "font-size"
+        guard key.withCString({ ghostty_config_get(config, &size, $0, UInt(key.utf8.count)) }),
+              size.isFinite, size > 0 else { return nil }
+        return Double(size)
     }
 
     private static func color(from config: ghostty_config_t, key: String) -> RGB? {

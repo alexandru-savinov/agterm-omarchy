@@ -2,14 +2,14 @@
 # Exercise the real Wayland frontend on an existing Hyprland test desktop.
 # AGTERM_TEST_BIN / AGTERM_TEST_CTL may point at a staged or installed build.
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export AGTERM_TEST_BIN="${AGTERM_TEST_BIN:-$ROOT/agterm-linux/.build/debug/AgtermLinux}"
 export AGTERM_TEST_CTL="${AGTERM_TEST_CTL:-$ROOT/agterm-linux/.build/debug/agtermctl-linux}"
 export AGTERM_GHOSTTY_RESOURCES="${AGTERM_GHOSTTY_RESOURCES:-$ROOT/agterm-linux/vendor/ghostty/share/ghostty}"
 export AGTERM_TEST_RESTORE_MODE="${AGTERM_TEST_RESTORE_MODE:-none}"
 export AGTERM_OMARCHY_ARTIFACTS="${AGTERM_OMARCHY_ARTIFACTS:-$ROOT/artifacts/omarchy-$(date +%Y%m%d-%H%M%S)}"
 # Run-time harness identity for result/cleanup records; the AGTERM_ prefix keeps these out of the app env.
-AGTERM_HARNESS_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+AGTERM_HARNESS_PATH="$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 AGTERM_HARNESS_COMMIT=""
 AGTERM_HARNESS_COMMIT_BLOB=""
 if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -17,7 +17,7 @@ if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-t
   AGTERM_HARNESS_COMMIT_BLOB="$(git -C "$ROOT" rev-parse --verify -q HEAD:scripts/test-omarchy.sh || true)"
 fi
 export AGTERM_HARNESS_PATH AGTERM_HARNESS_COMMIT AGTERM_HARNESS_COMMIT_BLOB
-exec python3 - <<'PY'
+exec python3 -I - <<'PY'
 from datetime import datetime, timezone
 import hashlib
 import json

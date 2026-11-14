@@ -7,6 +7,7 @@ final class LinuxAskSurface {
     let askID: String
     let root: OpaquePointer
     var buttons: [OpaquePointer]
+    var form: LinuxAskFormWidgets?
     var navigation: AskNavigation
 
     init(ask: PendingAsk, root: OpaquePointer, buttons: [OpaquePointer]) {
@@ -51,9 +52,10 @@ extension AppController {
         installAskKeyController(on: win)
         guiAskButtons = panel.buttons
         guiAskNavigation = panel.navigation
+        guiAskForm = panel.form
         closePalette()
         gtk_window_present(WIN(win))
-        focusGUIAskSelection()
+        if let editor = panel.form?.editor, case .input = ask.form { _ = gtk_widget_grab_focus(W(editor)) } else { focusGUIAskSelection() }
         return true
     }
 
@@ -64,6 +66,7 @@ extension AppController {
         replicaGUIAskSessionID = nil
         guiAskButtons = []
         guiAskNavigation = nil
+        guiAskForm = nil
         gtk_window_destroy(WIN(win))
     }
 
@@ -73,6 +76,7 @@ extension AppController {
         finishGUIAskAutoFollowSuppression()
         guiAskButtons = []
         guiAskNavigation = nil
+        guiAskForm = nil
         if let id = replicaGUIAskSessionID {
             replicaGUIAskSessionID = nil
             if let ask = store.session(withID: id)?.askPending {
@@ -160,6 +164,7 @@ extension AppController {
                 installAskKeyController(on: panel.root)
             }
             guard let surface = terminalAskSurfaces[session.id] else { continue }
+            layoutTerminalAsk(surface, for: session)
             let wasVisible = !newlyCreated && gtk_widget_get_visible(W(surface.root)) != 0
             if let host,
                let parent = gtk_widget_get_parent(W(surface.root)), OpaquePointer(parent) != host {
@@ -170,12 +175,21 @@ extension AppController {
             }
             gtk_widget_set_visible(W(surface.root), visible ? 1 : 0)
             if visible, newlyCreated || !wasVisible, focusWasInRegion,
-               gtk_window_is_active(WIN(windowPointer)) != 0 { surface.focusSelection() }
+               gtk_window_is_active(WIN(windowPointer)) != 0 {
+                if let editor = surface.form?.editor, case .input = ask.form {
+                    _ = gtk_widget_grab_focus(W(editor))
+                } else if let form = surface.form {
+                    form.focusCursor()
+                } else {
+                    surface.focusSelection()
+                }
+            }
         }
     }
 
-    private func askHost(for session: Session) -> OpaquePointer? {
-        switch session.askTargetPane {
+    func askHost(for session: Session) -> OpaquePointer? {
+        if session.askTargetPane != nil, session.coverOverlayVisible { return deck }
+        return switch session.askTargetPane {
         case .left: primaryPaneHosts[session.id]
         case .right: splitPaneHosts[session.id]
         case nil: deck
@@ -194,27 +208,21 @@ extension AppController {
               let index = Int(String(cString: name).replacingOccurrences(of: "ask-button-", with: "")) else { return }
         if let win = guiAskWindow, gtk_widget_is_ancestor(W(button), W(win)) != 0,
            let ask = pickController.pendingAsk, ask.buttons.indices.contains(index) {
-            let choice = ask.buttons[index]
-            pickController.resolveAsk(ControlAskResult(result: .answered, id: choice.id,
-                                                        label: choice.label, index: index))
+            pickController.answerAsk(id: ask.id, buttonAt: index)
             dismissGUIAsk()
             return
         }
         if let win = guiAskWindow, gtk_widget_is_ancestor(W(button), W(win)) != 0,
            let id = replicaGUIAskSessionID, let session = store.session(withID: id),
            let ask = session.askPending, ask.buttons.indices.contains(index) {
-            let choice = ask.buttons[index]
-            session.resolveAsk(id: ask.id, ControlAskResult(result: .answered, id: choice.id,
-                                                             label: choice.label, index: index))
+            session.answerAsk(id: ask.id, buttonAt: index)
             dismissGUIAsk()
             return
         }
         for (id, surface) in terminalAskSurfaces where gtk_widget_is_ancestor(W(button), W(surface.root)) != 0 {
             guard let session = store.session(withID: id), let ask = session.askPending,
                   ask.id == surface.askID, ask.buttons.indices.contains(index) else { return }
-            let choice = ask.buttons[index]
-            session.resolveAsk(id: ask.id, ControlAskResult(result: .answered, id: choice.id,
-                                                           label: choice.label, index: index))
+            session.answerAsk(id: ask.id, buttonAt: index)
             removeTerminalAskSurface(id)
             return
         }
@@ -222,6 +230,7 @@ extension AppController {
 
     func handleAskKey(_ widget: OpaquePointer?, key: UInt32, modifiers: UInt32) -> Bool {
         guard let widget else { return false }
+        if let handled = handleAskFormKey(widget, key: key, modifiers: modifiers) { return handled }
         if let win = guiAskWindow, widget == win,
            let ask = pickController.pendingAsk ?? replicaGUIAskSessionID.flatMap({ store.session(withID: $0)?.askPending }) {
             if key == 0xFF1B { escapeGUIAsk(); return true }
@@ -240,7 +249,7 @@ extension AppController {
                 }
                 return true
             }
-            if let scalar = UnicodeScalar(key), let index = navigation.hotkey(String(scalar)),
+            if let scalar = UnicodeScalar(gdk_keyval_to_unicode(key)), let index = navigation.hotkey(String(scalar)),
                ask.buttons.indices.contains(index) { answerAskButton(guiAskButtons[index]); return true }
             return false
         }
@@ -263,7 +272,7 @@ extension AppController {
                 }
                 return true
             }
-            if let scalar = UnicodeScalar(key), let index = surface.navigation.hotkey(String(scalar)),
+            if let scalar = UnicodeScalar(gdk_keyval_to_unicode(key)), let index = surface.navigation.hotkey(String(scalar)),
                surface.buttons.indices.contains(index) { answerAskButton(surface.buttons[index]); return true }
             return false
         }
@@ -271,21 +280,20 @@ extension AppController {
     }
 
     private func buildAskPanel(_ ask: PendingAsk) -> LinuxAskSurface? {
-        guard let root = op(gtk_box_new(GTK_ORIENTATION_VERTICAL, 10)),
+        // Terminal asks must not raise the deck's minimum height when a long message wraps.
+        guard let root = op(ask.style == .terminal ? gtk_overlay_new() : gtk_box_new(GTK_ORIENTATION_VERTICAL, 10)),
               let frame = op(gtk_frame_new(nil)),
               let content = op(gtk_box_new(GTK_ORIENTATION_VERTICAL, 12)) else { return nil }
         gtk_widget_add_css_class(W(frame), "agterm-interface-panel")
         gtk_widget_add_css_class(W(frame), "card")
-        gtk_widget_set_halign(W(frame), GTK_ALIGN_CENTER)
+        gtk_widget_add_css_class(W(frame), "agterm-ask-panel")
+        gtk_widget_set_halign(W(frame), ask.style == .gui ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
         gtk_widget_set_valign(W(frame), GTK_ALIGN_CENTER)
+        gtk_widget_set_vexpand(W(frame), 1)
         gtk_widget_set_margin_top(W(frame), 16)
         gtk_widget_set_margin_bottom(W(frame), 16)
         gtk_widget_set_margin_start(W(frame), 16)
         gtk_widget_set_margin_end(W(frame), 16)
-        if let width = ask.width, ask.style == .terminal {
-            let anchorWidth = max(320, gtk_widget_get_width(W(deck)))
-            gtk_widget_set_size_request(W(frame), anchorWidth * Int32(width) / 100, -1)
-        }
         for margin in [gtk_widget_set_margin_top, gtk_widget_set_margin_bottom,
                        gtk_widget_set_margin_start, gtk_widget_set_margin_end] {
             margin(W(content), 16)
@@ -293,6 +301,8 @@ extension AppController {
         if let title = op(gtk_label_new(ask.title)) {
             gtk_label_set_xalign(title, 0)
             gtk_label_set_wrap(title, 1)
+            gtk_label_set_wrap_mode(title, PANGO_WRAP_WORD_CHAR)
+            gtk_label_set_max_width_chars(title, 48)
             gtk_widget_add_css_class(W(title), "heading")
             if ask.style == .terminal { gtk_widget_add_css_class(W(title), "monospace") }
             gtk_box_append(cast(content), W(title))
@@ -300,9 +310,12 @@ extension AppController {
         if let message = ask.message, !message.isEmpty, let label = op(gtk_label_new(message)) {
             gtk_label_set_xalign(label, 0)
             gtk_label_set_wrap(label, 1)
+            gtk_label_set_wrap_mode(label, PANGO_WRAP_WORD_CHAR)
+            gtk_label_set_max_width_chars(label, 48)
             if ask.style == .terminal { gtk_widget_add_css_class(W(label), "monospace") }
             gtk_box_append(cast(content), W(label))
         }
+        let form = makeAskForm(ask, in: content)
         let row = op(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8))
         let align: GtkAlign = switch ask.align {
         case .left: GTK_ALIGN_START
@@ -323,14 +336,17 @@ extension AppController {
         }
         gtk_box_append(cast(content), W(row))
         gtk_frame_set_child(cast(frame), W(content))
-        gtk_box_append(cast(root), W(frame))
+        if ask.style == .terminal { gtk_overlay_add_overlay(root, W(frame)) } else { gtk_box_append(cast(root), W(frame)) }
         gtk_widget_set_halign(W(root), GTK_ALIGN_FILL)
         gtk_widget_set_valign(W(root), GTK_ALIGN_FILL)
         gtk_widget_set_hexpand(W(root), 1)
         gtk_widget_set_vexpand(W(root), 1)
         gtk_widget_set_focusable(W(root), 1)
         attachControllerContext(to: root, windowID: windowID)
-        return LinuxAskSurface(ask: ask, root: root, buttons: buttons)
+        let surface = LinuxAskSurface(ask: ask, root: root, buttons: buttons)
+        surface.form = form
+        form?.buttons = buttons
+        return surface
     }
 
     private func installAskKeyController(on widget: OpaquePointer) {
@@ -343,7 +359,9 @@ extension AppController {
 }
 
 private let onAskButton: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { button, _ in
-    MainActor.assumeIsolated { controllerForWidget(button)?.answerAskButton(button) }
+    MainActor.assumeIsolated {
+        controllerForWidget(button)?.answerAskButton(button)
+    }
 }
 
 private let onAskKey: @MainActor @convention(c)

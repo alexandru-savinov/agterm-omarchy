@@ -1,0 +1,270 @@
+{
+  "schema": "agterm-native-complete-publication/1",
+  "scope": "Retained complete source77 native branch evidence. No new native execution, current-main/integrated-candidate acceptance, trusted hosted release, hardware rendering, bash Live support, or independent account approval is claimed.",
+  "originals": [
+    {
+      "path": "bound-77-native/binding.json",
+      "sha256": "e70a6cc1aff47dcf1eb51126f5ac941bbe923d821795005d698f35952c970262",
+      "bytes": 2341
+    },
+    {
+      "path": "bound-77-native/config-probe.py",
+      "sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+      "bytes": 26408
+    },
+    {
+      "path": "bound-77-native/harness.sh",
+      "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050",
+      "bytes": 22619
+    },
+    {
+      "path": "bound-77-native/native-prepare-template.py",
+      "sha256": "e403fe3a573d9b763e44bf735fedd671464f92815a5446ef8daab0659d9d0121",
+      "bytes": 5728
+    },
+    {
+      "path": "bound-77-native/native-run-template.py",
+      "sha256": "ffac8abb949c0cd26f85ba5ebef030ed635cd733691fd96362204f0a28d63258",
+      "bytes": 43848
+    },
+    {
+      "path": "bound-77-native/test-config-probe-operator.py",
+      "sha256": "36782022134534aeb0dcc4ba0a749f7eb9b0efa26837a56fc02f65527d24a580",
+      "bytes": 8607
+    },
+    {
+      "path": "bound-77-native/test-config-probe-operator.py.log",
+      "sha256": "460057b268f456c2486a702a1c81ecf60579ea2e6f9fc665ac99acb4791a9199",
+      "bytes": 1587
+    },
+    {
+      "path": "bound-77-native/test-current-endpoints.py",
+      "sha256": "757135d055082c1ac49c4d2ed004d48035bdf86686598fd6873d8b9521982372",
+      "bytes": 5038
+    },
+    {
+      "path": "bound-77-native/test-current-endpoints.py.log",
+      "sha256": "77ecdaf76b0a4f9f157b08dc741287943417847cdfae17660c5fea600de76490",
+      "bytes": 105
+    },
+    {
+      "path": "bound-77-native/test-native-helpers.py",
+      "sha256": "1373c7272a6bc454484b9507e499846047f15a5407fdba2002d2b038fa8fc766",
+      "bytes": 22800
+    },
+    {
+      "path": "bound-77-native/test-native-helpers.py.log",
+      "sha256": "2e76685b64d01b722757504e6e8ac66a78b27e41a95f82837c39ae0889fd0f55",
+      "bytes": 4165
+    },
+    {
+      "path": "native-core-test-launch-private.json",
+      "sha256": "1d8be2d6fd0cd079cb67448d7cbc6421f4a59f780a21c6f3fa3db26e25020598",
+      "bytes": 357
+    },
+    {
+      "path": "native-core-test-poll-private.json",
+      "sha256": "45031b1eef901dad090db811e32e31292701141483536e840416b02075b7f443",
+      "bytes": 5424
+    },
+    {
+      "path": "native-core-test-result-private.json",
+      "sha256": "253cdd1d726040d573b1bc54019281392a38a6fee3d5bf78f7f181ea30226cd9",
+      "bytes": 1774104
+    },
+    {
+      "path": "native-core-test-worker.py",
+      "sha256": "9972291fe7e044c4a2fc162b8df05a4ef7933d6f7bdf1f49d692b06177b8b25e",
+      "bytes": 5797
+    },
+    {
+      "path": "native-current-source-runtime-launch-private.json",
+      "sha256": "d58b7381222a840a3fd773b0e85ee53bf718d07eeb1027ae65106462e0ae361e",
+      "bytes": 322
+    },
+    {
+      "path": "native-current-source-runtime-result-private.json",
+      "sha256": "5a32fade67ba066a48999a2312b1105e5d0a09bbaac9495687c43c253f141663",
+      "bytes": 56076
+    },
+    {
+      "path": "native-current-source-runtime-summary-private.json",
+      "sha256": "5c896c827de99950979cba8776974cb45fc308e848ea86049458c8a396c38159",
+      "bytes": 2040
+    },
+    {
+      "path": "native-current-source-runtime-worker.py",
+      "sha256": "4b744d820c116e94da072d103309d9c5c0adae7cfb88afbd5895b64d425976fc",
+      "bytes": 8527
+    },
+    {
+      "path": "native-full-build-attempt1-private.json",
+      "sha256": "5cf496a7ac8041567b22d2a86c5f7f790fab99246fab0025e11121ff0fd21241",
+      "bytes": 9471
+    },
+    {
+      "path": "native-full-build-attempt2-test-private.json",
+      "sha256": "f7d613de70a4980fedc20680e661b9aedd39a0965421ae815b1a8b127687c548",
+      "bytes": 388316
+    },
+    {
+      "path": "native-full-build-complete-bindings-private.json",
+      "sha256": "a37668ddca2acd8cb4893bed9ff7352dc91d2349c2ae2158e84b6a5895b17352",
+      "bytes": 1731
+    },
+    {
+      "path": "native-full-build-continuation-launch-private.json",
+      "sha256": "309ad1f18269075dcf05b0653249173a2338712b14c51bbec6b99ca0398d255b",
+      "bytes": 392
+    },
+    {
+      "path": "native-full-build-continuation-poll-private.json",
+      "sha256": "30efbe94b27144e85d2918c066d664ecad17e5bfddc637861fdcac2377c1052e",
+      "bytes": 13571
+    },
+    {
+      "path": "native-full-build-continuation3-launch-private.json",
+      "sha256": "b5d39def9e2448c78dbcf350e380311ac944292db033c47e0356ceec9fe95fc3",
+      "bytes": 394
+    },
+    {
+      "path": "native-full-build-continuation3-poll-private.json",
+      "sha256": "fe6d45d253a89462cbcb2efbbefaee231c546166cecf8add976a36a99e3630b7",
+      "bytes": 98691
+    },
+    {
+      "path": "native-full-build-launch-private.json",
+      "sha256": "00a7a5771570449446f6403db9401431a1008d72fd2cd6ca9631617f66260c11",
+      "bytes": 357
+    },
+    {
+      "path": "native-full-build-poll-private.json",
+      "sha256": "5cf496a7ac8041567b22d2a86c5f7f790fab99246fab0025e11121ff0fd21241",
+      "bytes": 9471
+    },
+    {
+      "path": "native-full-build-worker-continuation.py",
+      "sha256": "ba677b0aaddd4358c646b22fe21e74cc90a02d57137a041b3f35b3c6c034211e",
+      "bytes": 8612
+    },
+    {
+      "path": "native-full-build-worker-continuation3.py",
+      "sha256": "95eae4f73d335b25980d6b1e83acbc8d04ef6fa8f5c9661773fa04d65ad9606e",
+      "bytes": 8854
+    },
+    {
+      "path": "native-full-build-worker.py",
+      "sha256": "29ab7d09435c4a323fb47a154708bddde265df30a09c15ef58370fb1f45bc057",
+      "bytes": 8613
+    },
+    {
+      "path": "native-swift-compat-host.py",
+      "sha256": "2a26c55369778e6a75e2930a3660fe2d9366697ae261729bf11cb632793ccdb6",
+      "bytes": 4502
+    },
+    {
+      "path": "native-swift-compat-result-private.json",
+      "sha256": "b2830f718a24c7736b2bd62f41d461b1215a1e11423212a36b63b81dd091c002",
+      "bytes": 5360
+    },
+    {
+      "path": "native-swift-prerequisites-private.json",
+      "sha256": "0005bc0755c0c928e1f2d9e941e626b5e088e204886f98413f61d8dcf1ab76ef",
+      "bytes": 5681
+    },
+    {
+      "path": "native-swift-toolchain-launch-private.json",
+      "sha256": "60bff7232150d7b05c44ac77ade69ad2048ccc73ed335e10123975bf61ec4277",
+      "bytes": 358
+    },
+    {
+      "path": "native-swift-toolchain-linker-private.json",
+      "sha256": "fb47ba35f5487f42c8bff4b21565cb91100883160d120d0948da15038722b286",
+      "bytes": 4330
+    },
+    {
+      "path": "native-swift-toolchain-poll-private.json",
+      "sha256": "c4193f7ccab5ec19caadb05a23e1c06f7d6387e4b81edcd5cca68c233bc5a3b4",
+      "bytes": 5562
+    },
+    {
+      "path": "native-swift-toolchain-worker.py",
+      "sha256": "d087a819d6cee917f036445eeea4e4906fc312e03d25318bbe34fdd66dd78afd",
+      "bytes": 5659
+    }
+  ],
+  "deliverables": [
+    {
+      "path": "README.native-complete-insertion.md",
+      "sha256": "03388fdc89a74f2c7bffabaedbe86899f242b9c3f9bcb7eaf6278c86b379ca4a",
+      "bytes": 6904
+    },
+    {
+      "path": "native-bindings.json",
+      "sha256": "fdfd1d7426351b480dd0918caed58971dbdcb391bc6afb3933bff65175ed03ed",
+      "bytes": 17770
+    },
+    {
+      "path": "native-build.json",
+      "sha256": "8973679bc473d964021357634abe22778a3e704fb9bd92771cbd8b594fa6a848",
+      "bytes": 531172
+    },
+    {
+      "path": "native-core.json",
+      "sha256": "e6730b14f6fe797d1e8847f6bc041bf3bf4897075607801456069ab14cee581a",
+      "bytes": 1707309
+    },
+    {
+      "path": "native-runtime.json",
+      "sha256": "dab475c9b1fddb754e1f1fa6968822c20e8028ce63e4d075a5fe5fc6e5a58c69",
+      "bytes": 126513
+    },
+    {
+      "path": "native-toolchain.json",
+      "sha256": "901c50c89f8656e524dafcea5c0c6042452a15dd3c297089b89d0d09a886c3d4",
+      "bytes": 29094
+    },
+    {
+      "path": "public-operator-review.json",
+      "sha256": "fe75e63843fded4e06b7f760551ad3f2a4acf92b2ee1d802de1fb07ec12b7a1f",
+      "bytes": 8827
+    },
+    {
+      "path": "verification.json",
+      "sha256": "984848d943886cc5106c03f792868c004a6f26e204250a7d34d5fb5d369bc827",
+      "bytes": 1299
+    },
+    {
+      "path": "verify-native-complete.py",
+      "sha256": "aec138e120316c010822cd68242f0003e4eeebba6fbff278a446e15fa37ff5f1",
+      "bytes": 36080
+    }
+  ],
+  "public_review_url": "https://github.com/alexandru-savinov/agterm-omarchy/issues/305#issuecomment-6807859789",
+  "public_review_api_response_sha256": "fe75e63843fded4e06b7f760551ad3f2a4acf92b2ee1d802de1fb07ec12b7a1f",
+  "self_hash_note": "The manifest cannot contain its own digest; the public handoff records that digest separately.",
+  "sanitization": {
+    "policy": "Only declared personal/local identifiers are aliased. All fields, array lengths, verdicts, timestamps, durations, counts, errors, recovery actions, hashes and public source links remain. Process ID/birth/UID values become stable string aliases; all other non-string observation values retain their original type and value.",
+    "scope": "One alias table per category shared across the entire package. No reverse maps are published.",
+    "categories": {
+      "generated-config": 5,
+      "guest-home": 2,
+      "host-home": 2,
+      "load-address": 49,
+      "local-uuid": 68,
+      "private-runtime": 2,
+      "private-stage": 7,
+      "private-zmx-endpoint": 3,
+      "process": 309,
+      "process-birth": 286,
+      "process-uid": 1,
+      "run": 2,
+      "sentinel": 1,
+      "session-runtime": 1,
+      "short-temporary-root": 2
+    },
+    "stdout_handling": "JSON-valued transport stdout is decoded to an object; all transport metadata is retained separately. Original file/encoded-stdout hashes bind its serialization.",
+    "logs": "Retained collected text is preserved with declared identifier substitutions. Guest-file hashes are reported observations, not hashes of normalized or sanitized text. Collected-text hashes and byte/line counts are recorded separately.",
+    "source_scripts": "Worker/operator/test source files are bound by original SHA256 and size. They are read for identity and selected static assertions, never imported or executed."
+  }
+}

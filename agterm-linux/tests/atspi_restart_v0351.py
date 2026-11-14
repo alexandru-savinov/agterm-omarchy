@@ -15,6 +15,14 @@ def verify_restart_v0351(env, state):
                     os.path.join(ROOT, "tests/login_shell_zsh_fixture.c"), "-ldl"], check=True)
     with open(os.path.join(state, "settings.json"), "w", encoding="utf-8") as file:
         json.dump({"restoreMode": "live", "closeGraceUndoEnabled": False}, file)
+    configured = env.get("AGTERM_TEST_COMMAND_SHELL")
+    if configured:
+        config = os.path.join(state, "config")
+        os.makedirs(config, exist_ok=True)
+        with open(os.path.join(config, "ghostty.conf"), "w", encoding="utf-8") as file:
+            file.write("config-file = " + os.path.join(config, "shell.ghostty") + "\n")
+        with open(os.path.join(config, "shell.ghostty"), "w", encoding="utf-8") as file:
+            file.write("command = " + configured + "\n")
     env = dict(env, LD_PRELOAD=fixture)
     process, _app = launch(env)
     try:
@@ -25,6 +33,19 @@ def verify_restart_v0351(env, state):
 
         def sessions():
             return [row for workspace in window_tree(env, window)["workspaces"] for row in workspace["sessions"]]
+
+        if configured or env.get("AGTERM_TEST_LOGIN_SHELL") == "/usr/bin/fish":
+            wait_for(lambda: any(row.get("foregroundShell") == "fish" for row in sessions()),
+                     "Live fish did not start an integrated fish shell")
+
+        if configured:
+            with open(os.path.join(state, "config", "shell.ghostty"), "w", encoding="utf-8") as file:
+                file.write("command = /usr/bin/zsh\n")
+            created = request("session.new", args={"name": "latched shell"})
+            assert created["ok"], created
+            wait_for(lambda: any(row["id"] == created["result"]["id"] and row.get("foregroundShell") == "fish"
+                                 for row in sessions()), "config edit changed this app run's Live shell identity")
+            print("OK: Ghostty included command overrides password shell and remains latched", flush=True)
 
         pid_file = os.path.join(state, "old-job.pid")
         command = f"/bin/sh -c {shlex.quote('echo $$ > ' + shlex.quote(pid_file) + '; exec sleep 3600')}"
@@ -40,9 +61,13 @@ def verify_restart_v0351(env, state):
             return next(pane["paneID"] for pane in row["surfaces"] if pane["kind"] == "left")
 
         identity = pane_id()
+        address = session + ":" + identity
+        queued = request("msg.send", args={"recipients": [address], "body": "belongs to old job"})
+        assert queued["ok"] and queued["result"]["delivered"] == [address], queued
         bad = request("session.restart", session, {"pane": "left", "paneID": "unknown", "command": "sleep 3600"})
         assert not bad["ok"] and "unknown pane id" in bad["error"], bad
         assert os.path.exists(f"/proc/{old_job}"), "refused restart killed the foreground job"
+        assert request("msg.read", args={"identity": address})["result"]["messages"], "refused restart discarded mail"
         background = request("session.new", args={"name": "foreground while restarting"})
         assert background["ok"], background
         new_pid_file = os.path.join(state, "new-job.pid")
@@ -53,6 +78,7 @@ def verify_restart_v0351(env, state):
         assert receipt["paneID"].lower() == identity.lower(), receipt
         assert receipt["oldPid"] != receipt["newPid"], receipt
         assert pane_id() == identity, "restart changed the stable pane identity"
+        assert not request("msg.read", args={"identity": address})["result"]["messages"], "replacement inherited old job mail"
         assert next(row for row in sessions() if row["id"] == background["result"]["id"])["active"], \
             "background restart stole the active session"
         wait_for(lambda: os.path.exists(new_pid_file), "new foreground job did not start")
@@ -71,6 +97,16 @@ def verify_restart_v0351(env, state):
         daemon = "agterm-" + identity.replace("-", "").lower()
         screen = request("zmx.screen", args={"name": daemon, "all": True})
         assert screen["ok"] and "restart-screen" in screen["result"]["text"], screen
+        replay = request("session.restart", session, {"paneID": identity})
+        assert replay["ok"], replay
+        replay_receipt = replay["result"]["restart"]
+        assert os.path.basename(replay_receipt["replayedArgv"][0]) == "sleep", replay_receipt
+        assert replay_receipt["replayedArgv"][1:] == ["3600"], replay_receipt
+        wait_for(lambda: ended(new_job), "foreground replay left the old program running")
+        wait_for(lambda: next(row for row in sessions() if row["id"] == session).get("foreground", [None])[-1] == "3600",
+                 "replayed foreground program did not start")
+        assert pane_id() == identity, "foreground replay changed pane identity"
+        new_job = replay_receipt["newPid"]
         second_window = raw_control_json(env, {"cmd": "window.new", "args": {"name": "cursor route probe"}})
         assert second_window["ok"], second_window
         cursor = raw_control_json(env, {"cmd": "surface.cursor", "target": session, "args": {"paneID": identity}})
@@ -87,12 +123,20 @@ def verify_restart_v0351(env, state):
 
 
 def verify_restart_close_reopen(env, state):
+    fixture = os.path.join(state, "restart-login-shell.so")
+    for boundary in ("session", "window"):
+        case_state = os.path.join(state, f"restart-reopen-{boundary}")
+        os.makedirs(case_state)
+        _verify_restart_close_reopen(env, case_state, fixture, boundary)
+
+
+def _verify_restart_close_reopen(env, state, fixture, boundary):
     from atspi_smoke import run_palette_action
 
-    fixture = os.path.join(state, "restart-login-shell.so")
     with open(os.path.join(state, "settings.json"), "w", encoding="utf-8") as file:
         json.dump({"restoreMode": "live", "closeGraceUndoEnabled": False}, file)
-    env = dict(env, LD_PRELOAD=fixture, AGTERM_ATSPI_RESTART_HOLD="6")
+    env = dict(env, LD_PRELOAD=fixture, AGTERM_ATSPI_RESTART_HOLD="6", AGTERM_STATE_DIR=state,
+               AGTERM_CONTROL_SOCKET=os.path.join(state, "agterm.sock"))
     process, app = launch(env)
     try:
         window = next(row["id"] for row in window_list(env) if row["open"])
@@ -175,7 +219,7 @@ def verify_restart_close_reopen(env, state):
         old_job = jobs()[0]
         identity = pane_id()
         daemon = "agterm-" + identity.replace("-", "").lower()
-        wait_for(lambda: leader(daemon), "the restart target's daemon reported no shell")
+        old_shell = wait_for(lambda: leader(daemon), "the restart target's daemon reported no shell")
 
         restart = {}
         def run_restart():
@@ -196,12 +240,21 @@ def verify_restart_close_reopen(env, state):
 
         wait_for(lambda: ended(old_job), "the restart never ended the old job", timeout=15)
         assert worker.is_alive(), f"the restart finished before the close/reopen window: {restart}"
-        assert request("session.close", session)["ok"]
-        wait_for(lambda: row() is None, "the restarting session did not close")
-        reopen_from_other_window()
+        if boundary == "session":
+            assert request("session.close", session)["ok"]
+            wait_for(lambda: row() is None, "the restarting session did not close")
+            reopen_from_other_window()
+        else:
+            assert request("window.close", window)["ok"]
+            wait_for(lambda: any(item["id"] == window and not item["open"] for item in window_list(env)),
+                     "the restarting window did not close")
+            assert process.poll() is None, "closing the restart window exited the keeper app"
+            reopened = raw_control_json(env, {"cmd": "window.select", "target": window})
+            assert reopened["ok"], reopened
         wait_realized(session, "Reopen Last Closed Item did not bring the realized session back")
         assert pane_id() == identity, f"the reopened session took a new pane identity: {pane_id()} != {identity}"
         reopened_shell = wait_for(lambda: leader(daemon), "the reopened pane reported no shell", timeout=15)
+        assert reopened_shell != old_shell, "reopening did not create a new shell incarnation"
         assert worker.is_alive(), f"the restart finished before the reopen: {restart}"
         reopened_surfaces = row()["surfaces"]
         worker.join(timeout=60)
@@ -219,7 +272,7 @@ def verify_restart_close_reopen(env, state):
                 signalled = [int(line) for line in file if line.strip()]
         assert set(signalled) <= {old_job}, f"signals reached jobs other than the old one {old_job}: {signalled}"
         later = [job for job in jobs() if job != old_job]
-        print(f"OK: a restart across close/reopen of the same pane ID failed ({restart.get('error')!r}), left the "
+        print(f"OK: a restart across {boundary} close/reopen of the same pane ID failed ({restart.get('error')!r}), left the "
               f"reopened pane and shell {reopened_shell} untouched, and signalled only the old job "
               f"(reopened jobs {later})")
     finally:

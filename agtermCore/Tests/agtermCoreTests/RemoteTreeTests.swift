@@ -12,6 +12,17 @@ struct RemoteTreeTests {
 
     // MARK: - building the candidate list
 
+    @Test(arguments: [
+        (RemoteCommandResult(status: 64, stdout: "", stderr: "Error: Unknown option '--parent'"), true),
+        (RemoteCommandResult(status: 64, stdout: " \n", stderr: ""), true),
+        (RemoteCommandResult(status: 64, stdout: #"{"ok":false,"error":"x"}"#, stderr: ""), false),
+        (RemoteCommandResult(status: 1, stdout: "", stderr: "Error: Unknown option '--parent'"), false),
+        (RemoteCommandResult(status: 255, stdout: "", stderr: "ssh: connect to host"), false),
+    ])
+    func onlyAUsageExitWithNothingOnStdoutIsAnArgumentRefusal(result: RemoteCommandResult, refused: Bool) {
+        #expect(result.refusedArguments == refused)
+    }
+
     @Test func aPlainSessionResolvesToOneLeftDaemon() throws {
         let windows = [window(name: "main", workspace: "work",
                               sessions: [node(id: "s1", name: "build", cwd: "/repo")])]
@@ -29,6 +40,21 @@ struct RemoteTreeTests {
         #expect(tree.sessions[0].splitAxis == nil)
         #expect(tree.sessions[0].windowName == "main")
         #expect(tree.sessions[0].workspaceName == "work")
+    }
+
+    @Test func aPageCompanionIsListedWithNoPanesOnlyUnderAListedParent() throws {
+        let page = ControlSessionNode(id: "pg", name: "report", cwd: "/srv", active: false, split: false, backedByZmx: nil, parent: "s1", content: "page")
+        let orphan = ControlSessionNode(id: "pg2", name: "lost", cwd: "/srv", active: false, split: false, backedByZmx: nil, parent: "gone", content: "page")
+        let windows = [window(name: "main", workspace: "work",
+                              sessions: [node(id: "s1", name: "build", cwd: "/repo"), page, orphan])]
+
+        let tree = try RemoteTreeMerger.candidates(windows: windows,
+                                                   inventory: inventory(entries: [entry(session: "s1", pane: "left", daemon: Self.left)]))
+
+        #expect(tree.sessions.map { $0.id } == ["s1", "pg"])
+        #expect(tree.sessions[1].panes.isEmpty)
+        #expect(tree.sessions[1].parent == "s1")
+        #expect(tree.sessions[1].content == "page")
     }
 
     @Test func everyOpenWindowIsOffered() throws {
@@ -96,6 +122,66 @@ struct RemoteTreeTests {
 
         #expect(tree.sessions[0].context == "release prep")
         #expect(tree.sessions[0].panes[0].foreground == ["/usr/bin/tail", "-f"])
+    }
+
+    @Test func aSessionCarriesItsAgentStatusAndAnIdleOneCarriesNone() throws {
+        let busy = ControlSessionNode(id: "s1", name: "agent", cwd: "/repo", active: false, split: false,
+                                      backedByZmx: true, status: "blocked", statusPane: "left", statusBlink: true,
+                                      statusColor: "#ff8800", statusShape: "star")
+        let windows = [window(name: "main", workspace: "work",
+                              sessions: [busy, node(id: "s2", name: "shell", cwd: "/tmp")])]
+
+        let tree = try RemoteTreeMerger.candidates(windows: windows,
+                                                   inventory: inventory(entries: [
+                                                       entry(session: "s1", pane: "left", daemon: Self.left),
+                                                       entry(session: "s2", pane: "left", daemon: Self.right),
+                                                   ]))
+
+        #expect(tree.sessions[0].status == "blocked")
+        #expect(tree.sessions[0].statusColor == "#ff8800")
+        #expect(tree.sessions[0].statusShape == "star")
+        #expect(tree.sessions[1].status == nil)
+        #expect(tree.sessions[1].statusColor == nil)
+        #expect(tree.sessions[1].statusShape == nil)
+    }
+
+    @Test func aSessionFromAnOriginWithoutStatusDecodesWithNone() throws {
+        let stdout = #"{"ok":true,"result":{"remote":{"endpoint":{"executable":"/z","socketDirectory":"/t"},"#
+            + #""sessions":[{"id":"s1","name":"build","windowID":"w","windowName":"main","workspaceID":"ws","#
+            + #""workspaceName":"work","cwd":"/repo","panes":[{"pane":"left","daemon":"d"}]}]}}}"#
+
+        let session = try #require(RemoteTreeMerger.decode(stdout: stdout).sessions.first)
+
+        #expect(session.status == nil)
+        #expect(session.statusColor == nil)
+        #expect(session.statusShape == nil)
+        #expect(session.companions == nil, "an origin that does not report membership leaves it unknown")
+    }
+
+    @Test func aParentListsEveryCompanionInSidebarOrderAttachableOrNot() throws {
+        let page = ControlSessionNode(id: "pg", name: "report", cwd: "/srv", active: false, split: false,
+                                      backedByZmx: nil, parent: "s1", content: "page")
+        let unbacked = ControlSessionNode(id: "c2", name: "watch", cwd: "/repo", active: false, split: false,
+                                          backedByZmx: false, parent: "s1")
+        let windows = [window(name: "main", workspace: "work",
+                              sessions: [node(id: "s1", name: "build", cwd: "/repo"),
+                                         node(id: "c1", name: "logs", cwd: "/repo", parent: "s1"), page, unbacked,
+                                         node(id: "s2", name: "other", cwd: "/x")])]
+
+        let tree = try RemoteTreeMerger.candidates(windows: windows, inventory: inventory(entries: [
+            entry(session: "s1", pane: "left", daemon: Self.left),
+            entry(session: "c1", pane: "left", daemon: Self.right),
+            entry(session: "s2", pane: "left", daemon: Self.other),
+        ]))
+
+        #expect(tree.sessions.map(\.id) == ["s1", "c1", "s2", "pg"])
+        let parent = try #require(tree.sessions.first { $0.id == "s1" })
+        #expect(parent.companions == [ControlRemoteMember(id: "c1", name: "logs"),
+                                      ControlRemoteMember(id: "pg", name: "report"),
+                                      ControlRemoteMember(id: "c2", name: "watch")])
+        #expect(tree.sessions.first { $0.id == "s2" }?.companions == [], "a known-empty group is [], never nil")
+        #expect(tree.sessions.first { $0.id == "c1" }?.companions == nil)
+        #expect(tree.sessions.first { $0.id == "pg" }?.companions == nil)
     }
 
     @Test func aSplitSessionCarriesBothDaemonsAndItsAxis() throws {
@@ -259,10 +345,10 @@ struct RemoteTreeTests {
     // MARK: - fixtures
 
     private func node(id: String, name: String, cwd: String, hasSplit: Bool = false,
-                      axis: String = "vertical", backedByZmx: Bool? = true) -> ControlSessionNode {
+                      axis: String = "vertical", backedByZmx: Bool? = true, parent: String? = nil) -> ControlSessionNode {
         ControlSessionNode(id: id, name: name, cwd: cwd, active: false, split: hasSplit,
                            hasSplit: hasSplit ? true : nil, backedByZmx: backedByZmx,
-                           splitAxis: hasSplit ? axis : nil)
+                           splitAxis: hasSplit ? axis : nil, parent: parent)
     }
 
     private func window(id: String = "w-1", name: String, workspaceID: String = "ws-1", workspace: String,

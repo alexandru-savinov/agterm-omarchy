@@ -127,6 +127,7 @@ extension ControlServer {
             return ControlResponse(ok: false, error: options.pane == nil
                 ? "overlay already open" : PaneOverlayError.alreadyOpen)
         case .paneMissing: return ControlResponse(ok: false, error: PaneOverlayError.paneNotVisible)
+        case .pointsUnsupported: return ControlResponse(ok: false, error: OverlayPointError.remote)
         case .tooLarge: return ControlResponse(ok: false, error: OverlayResultError.tooLarge)
         case .opened:
             scheduleOverlayJobExpiry(after: OverlayJobs.launchWindow)

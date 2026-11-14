@@ -8,7 +8,7 @@ enum GhosttyConfigApplyPolicy {
     enum SurfaceState: Equatable {
         /// Automatic appearance reconciliation restores complete per-session overlays.
         case sessionOverlay
-        /// Explicit config reloads stay watermark-only.
+        /// Explicit config reloads preserve watermarks and temporary dashboard overrides.
         case watermarkOnly
     }
 

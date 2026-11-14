@@ -44,6 +44,14 @@ extension AppController {
         if previous?.leadIconName != content.leadIconName {
             gtk_image_set_from_icon_name(widgets.lead, content.leadIconName)
         }
+        if previous?.iconVisible != content.iconVisible {
+            gtk_widget_set_visible(W(widgets.lead), content.iconVisible ? 1 : 0)
+        }
+        if !content.iconVisible, let notice = content.notice {
+            gtk_widget_set_tooltip_text(W(named.widget), notice)
+        } else if previous?.iconVisible == false, previous?.notice != nil {
+            gtk_widget_set_tooltip_text(W(named.widget), store.sidebarMode == .flagged ? content.name : nil)
+        }
         if previous?.notice != content.notice {
             if let notice = content.notice {
                 notice.withCString { gtk_widget_set_tooltip_text(W(widgets.lead), $0) }
@@ -53,6 +61,8 @@ extension AppController {
         }
         if previous?.star != content.star { gtk_widget_set_visible(W(widgets.star), content.star ? 1 : 0) }
         if previous?.badge != content.badge { Self.applyRowBadge(content.badge, to: widgets.badge) }
+        applyCompanionRowWidgets(widgets, content: content)
+        applySessionInfo(widgets, content: content)
         widgets.applied = applied
     }
 
@@ -62,6 +72,7 @@ extension AppController {
               let name = widgets.name, let icon = widgets.icon else { return }
         let previous = widgets.applied
         guard previous != content else { return }
+        gtk_widget_set_visible(W(icon), content.iconVisible ? 1 : 0)
         var applied = content
         let slot = NameSlot(current: name, box: widgets.header, after: icon)
         let named = applyNameWidget(slot,
@@ -86,9 +97,11 @@ extension AppController {
                 Self.applyAddSessionTooltip(add, workspace: content.name)
             }
         }
+        if let disc = widgets.disc { gtk_widget_set_visible(W(disc), content.chevronVisible ? 1 : 0) }
         if previous?.expanded != content.expanded, let disc = widgets.disc {
             gtk_button_set_icon_name(BUTTON(disc), Self.disclosureIconName(expanded: content.expanded))
         }
+        applySidebarTint(content.tint, icon: icon, name: named.widget)
         widgets.applied = applied
     }
 
@@ -155,6 +168,7 @@ extension AppController {
     func syncSidebar(force: Bool = false, preferMoving: Set<UUID> = []) {
         guard sidebarRuntime.syncGate.enter() else { return }
         defer { sidebarRuntime.syncGate.exit() }
+        for session in store.workspaces.flatMap(\.sessions) { applyOverlayVisibility(session) }
         runSidebarSyncPass(force: force, preferMoving: preferMoving)
         // Drain what re-entered, unforced — both forced callers are top-level.
         while sidebarRuntime.syncGate.takePending() {
@@ -163,6 +177,7 @@ extension AppController {
         // A status change in this store also changes the app-wide attention feed in other windows.
         let settings = linuxSettingsStore().load()
         for controller in gWindows.values where controller !== self {
+            controller.refreshPaletteContents()
             controller.updateAttentionButton(settings: settings, refocusOnDismiss: false)
             controller.updateSessionPickerStatusIcons(settings: settings)
         }
@@ -172,8 +187,14 @@ extension AppController {
     /// owns that derivation, so the host-free tests exercise the shipped one.
     private func prepareSidebarSnapshot(settings: AppSettings) -> (SidebarSnapshot, Set<UUID>) {
         let expanded = sidebarRuntime.reveal.syncedExpansion(store: store)
+        if sidebarRuntime.lastParentRevealedSelection != store.selectedSessionID {
+            sidebarRuntime.lastParentRevealedSelection = store.selectedSessionID
+            if store.sidebarMode == .tree, let parent = store.activeSession?.parentID {
+                sidebarRuntime.transientParentIDs.insert(parent)
+            }
+        }
         return (SidebarSnapshot.desired(from: store, settings: settings, renaming: renaming,
-                                        expandedWorkspaceIDs: expanded), expanded)
+                                        expandedWorkspaceIDs: expanded, expandedParentIDs: sidebarRuntime.transientParentIDs), expanded)
     }
 
     private func runSidebarSyncPass(force: Bool, preferMoving: Set<UUID>) {
@@ -404,6 +425,8 @@ extension AppController {
         updateWorkspaceFilterButton()
         updateDashboardStatusIndicators(settings: settings)
         updateSessionPickerStatusIcons(settings: settings)
+        refreshPaletteContents()
+        updateOverlayToggle()
         let hadSessionPicker = sessionPickerPopover != nil
         // `refocusOnDismiss: false` for the rebuild's reason: the grab would re-enter this sync.
         updateAttentionButton(settings: settings, refocusOnDismiss: false)
@@ -444,15 +467,22 @@ extension AppController {
         // the first map and the first sync dead.
         let live = gWindows[windowID]
         guard live == nil || live === self else { return }
+        let prefersReducedMotion = linuxPrefersReducedMotion(gtk_settings_get_default())
+        // A minimized window's glyphs still report mapped (see `onWindowSurfaceState`), so none is on screen.
+        let minimized = linuxWindowIsMinimized(windowPointer)
         let shouldRun = LinuxBlinkPolicy.timerShouldRun(
             glyphs: blinkTrackedGlyphs().map {
                 (marked: gtk_widget_has_css_class(W($0), LinuxBlinkPolicy.markerClass) != 0,
-                 mapped: gtk_widget_get_mapped(W($0)) != 0)
+                 mapped: !minimized && gtk_widget_get_mapped(W($0)) != 0)
             },
-            prefersReducedMotion: linuxPrefersReducedMotion(gtk_settings_get_default()))
+            prefersReducedMotion: prefersReducedMotion)
         sidebarRuntime.blinkPhase.resync(shouldRun: shouldRun) { [weak self] phase in
             self?.applyBlinkPhase(phase)
         }
+        #if DEBUG
+        traceBlink("resync", [("armed", sidebarRuntime.blinkPhase.isArmed ? "1" : "0"),
+                              ("reduced", prefersReducedMotion ? "1" : "0")])
+        #endif
     }
 
     private func blinkTrackedGlyphs() -> [OpaquePointer] {
@@ -461,12 +491,28 @@ extension AppController {
             + Array(sidebarRuntime.pickerGlyphs.values)
     }
 
+    /// Minimize stops the pulse like an unmap and restore re-derives it; only the MINIMIZED edges act, so
+    /// the focus changes that also notify `state` neither re-stop nor re-arm a closing window's timer.
+    func surfaceStateDidChange() {
+        let minimized = linuxWindowIsMinimized(windowPointer)
+        guard minimized != surfaceMinimized else { return }
+        surfaceMinimized = minimized
+        if minimized {
+            stopBlinkPhaseForUnmap()
+        } else {
+            resyncBlinkPhase()
+        }
+    }
+
     /// The window is leaving the screen. Stop outright rather than re-deriving: descendants still report
     /// themselves mapped while `unmap` is emitting, so a resync here would keep the timer armed.
     func stopBlinkPhaseForUnmap() {
         guard gWindows[windowID] === self else { return }
         sidebarRuntime.blinkPhase.cancel()
         applyBlinkPhase(false)
+        #if DEBUG
+        traceBlink("unmap", [("armed", sidebarRuntime.blinkPhase.isArmed ? "1" : "0")])
+        #endif
     }
 
     /// Marked labels only, mapped or not: a hidden blinking row must keep step while another visible
@@ -477,5 +523,24 @@ extension AppController {
         for label in blinkTrackedGlyphs() where gtk_widget_has_css_class(W(label), marker) != 0 {
             gtk_widget_set_opacity(W(label), opacity)
         }
+        #if DEBUG
+        traceBlink("apply", [("phase", phase ? "1" : "0")])
+        #endif
     }
+
+    #if DEBUG
+    /// One `BlinkPhaseTrace` line for this window, with the glyph counts every reader needs: tracked
+    /// labels carrying the marker, how many of those are mapped, and how many sit below full opacity.
+    private func traceBlink(_ event: String, _ fields: [(String, String)]) {
+        guard BlinkPhaseTrace.enabled else { return }
+        let marked = blinkTrackedGlyphs().filter {
+            gtk_widget_has_css_class(W($0), LinuxBlinkPolicy.markerClass) != 0
+        }
+        let mapped = marked.filter { gtk_widget_get_mapped(W($0)) != 0 }.count
+        let dimmed = marked.filter { gtk_widget_get_opacity(W($0)) < 1 }.count
+        BlinkPhaseTrace.emit(window: windowID, event: event,
+                             fields: fields + [("marked", "\(marked.count)"), ("mapped", "\(mapped)"),
+                                               ("dimmed", "\(dimmed)")])
+    }
+    #endif
 }

@@ -31,7 +31,7 @@ extension AppController {
         let pending = PendingAsk(id: ask.id, title: ask.title, message: ask.message,
                                  buttons: ask.buttons, defaultID: ask.defaultID,
                                  destructiveID: ask.destructiveID, style: ask.style,
-                                 align: ask.align, width: ask.width, anchor: anchor)
+                                 align: ask.align, width: ask.width, anchor: anchor, form: ask.form, cancelID: ask.cancelID)
         guard guiAskWindow == nil else { return err("ask already pending") }
         guard pickController.openAsk(pending) else {
             return err(pickController.pendingAsk == nil ? "pick already pending" : "ask already pending")

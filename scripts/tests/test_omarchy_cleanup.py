@@ -18,7 +18,7 @@ import uuid
 
 
 SOURCE = Path(__file__).resolve().parents[1] / "test-omarchy.sh"
-PYTHON = SOURCE.read_text().split("exec python3 - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+PYTHON = SOURCE.read_text().split("exec python3 -I - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
 MODULE = ast.parse(PYTHON)
 # Every helper (cleanup, zmx invocation, positive control, identity records) plus the real finally block.
 HELPERS = [node for node in MODULE.body if isinstance(node, ast.FunctionDef) or (

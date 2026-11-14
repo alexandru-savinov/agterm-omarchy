@@ -15,11 +15,15 @@ struct LinuxPaletteRow: Equatable {
     let shortcut: String?
     /// A trailing pill (currently only `custom`), nil for the ordinary catalog rows.
     let badge: String?
+    let indicator: AgentIndicator?
+    let enabled: Bool
 
-    init(title: String, shortcut: String? = nil, badge: String? = nil) {
+    init(title: String, shortcut: String? = nil, badge: String? = nil, indicator: AgentIndicator? = nil, enabled: Bool = true) {
         self.title = title
         self.shortcut = shortcut
         self.badge = badge
+        self.indicator = indicator
+        self.enabled = enabled
     }
 
     /// The keys `fuzzyRank` scores this row against: the bare title, plus — only when the row actually
@@ -49,6 +53,9 @@ typealias LinuxPaletteItem = (row: LinuxPaletteRow, run: () -> Void)
 /// be one more thing every close path had to remember to reset.
 struct LinuxPaletteList {
     var items: [LinuxPaletteItem] = []
+    var currentQuery = ""
+    var keepsOpenOnRun = false
+    var refresh: (() -> [LinuxPaletteItem])?
     /// True only for the attention palette, whose rows arrive ranked blocked→active→completed.
     var preservesNaturalOrder = false
 
@@ -84,7 +91,7 @@ extension LinuxPaletteRow {
     /// The chord renders as kitty syntax (`Chord.displayString`), which is what the user writes in
     /// `keymap.conf` — deliberately NOT macOS's `glyphString`, since Linux has no menu-glyph convention.
     static func action(_ command: PaletteCommand, in context: PaletteContext, chord: Chord?) -> LinuxPaletteRow {
-        LinuxPaletteRow(title: command.title(in: context), shortcut: chord?.displayString)
+        LinuxPaletteRow(title: command.title(in: context), shortcut: chord?.displayString, enabled: command.isEnabled(in: context))
     }
 
     /// A persisted window target. Closed entries use the same explicit "Open Window" wording as macOS;
