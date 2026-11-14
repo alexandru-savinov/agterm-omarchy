@@ -495,7 +495,8 @@ extension ControlServer: ControlActions {
             guard let parsedPane = ControlPaneFocusMode.parse(pane) else {
                 return ControlResponse(ok: false, error: "invalid pane: \(pane ?? "other")")
             }
-            let toSplit = parsedPane.wantsSplit(currentSplitFocused: session.splitFocused)
+            // macOS always lays the primary out in the left/top slot (only Linux can hold it in the end slot).
+            let toSplit = parsedPane.wantsSplit(currentSplitFocused: session.splitFocused, primaryInEndSlot: false)
             actions.setSplitFocus(toSplit, of: session)
             return ControlResponse(ok: true, result: ControlResult(id: id.uuidString))
         }
@@ -516,12 +517,11 @@ extension ControlServer: ControlActions {
             guard session.hasSplit else {
                 return ControlResponse(ok: false, error: "session has no split")
             }
-            let requested: Double
-            switch resize {
-            case .ratio(let ratio):
-                requested = ratio
-            case .delta(let delta):
-                requested = (session.splitRatio ?? AppStore.splitRatioDefault) + delta
+            let current = session.splitRatio ?? AppStore.splitRatioDefault
+            let requested = switch resize {
+            case .ratio(let ratio): ratio
+            case .delta(let delta): current + delta
+            case .paneDelta(let pane, let delta): current + pane.primaryRatioDelta(delta, primaryInEndSlot: false)
             }
             guard let applied = store.applySplitRatio(requested, forSession: id) else {
                 return ControlResponse(ok: false, error: "no such session: \(target ?? "active")")
