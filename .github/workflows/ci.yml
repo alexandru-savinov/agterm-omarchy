@@ -168,6 +168,14 @@ jobs:
           fetch-tags: true
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      # Reuses dependency checkouts and their compiled objects. Tests always run (no --skip-build), and
+      # SwiftPM rebuilds any module whose sources changed. Caches written by a pull_request run are scoped
+      # to that PR and are not readable by main; main's own cache is written only by runs on main.
+      - name: Restore SwiftPM build state
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: agtermCore/.build
+          key: swiftpm-core-${{ matrix.arch }}-swift-6.3.2-${{ hashFiles('agtermCore/Package.swift', 'agtermCore/Package.resolved') }}
       - name: Install test shell
         run: |
           scripts/ci-install-ubuntu-deps.sh ripgrep zsh fish
