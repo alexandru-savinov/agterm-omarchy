@@ -29,7 +29,8 @@ UTF8_TEXT = "text/plain;charset=utf-8"
 
 # Raw mode keeps the reply away from the line discipline and the shell; a second reply lands in `replies`.
 READER = rf"""
-import json, os, select, sys, time, tty
+import json, os, select, sys, termios, time, tty
+saved = termios.tcgetattr(0)
 tty.setraw(0)
 os.write(1, b"\x1b]52;c;?\x07")
 deadline = time.monotonic() + 30
@@ -39,18 +40,22 @@ while time.monotonic() < deadline:
         received += os.read(0, 4096)
         if b"\x1b\\" in received:
             deadline = min(deadline, time.monotonic() + {REPLY_QUIET_SECONDS})
+# hand the shell back a cooked tty: a shell that does not reset modes (dash) would never see Return
+termios.tcsetattr(0, termios.TCSANOW, saved)
 with open(sys.argv[1] + ".tmp", "w") as result:
     json.dump(received.decode("latin-1"), result)
 os.rename(sys.argv[1] + ".tmp", sys.argv[1])
 """
 
 PASTE_READER = r"""
-import os, select, sys, tty
+import os, select, sys, termios, tty
+saved = termios.tcgetattr(0)
 tty.setraw(0)
 open(sys.argv[1] + ".ready", "w").close()
 received = b""
 while select.select([0], [], [], 1 if received else 30)[0]:
     received += os.read(0, 4096)
+termios.tcsetattr(0, termios.TCSANOW, saved)
 with open(sys.argv[1] + ".tmp", "wb") as result:
     result.write(received)
 os.rename(sys.argv[1] + ".tmp", sys.argv[1])
@@ -120,7 +125,20 @@ def verify_clipboard_osc52(env):
 
         def read_answering(label, result):
             type_line(f"{sys.executable} {reader} {result}")
-            activate(wait_for(lambda: prompt_button(app, label), "OSC 52 read did not prompt"))
+            try:
+                button = wait_for(lambda: prompt_button(app, label), "OSC 52 read did not prompt")
+            except AssertionError:
+                # the diagnostic must not mask the failure it explains
+                try:
+                    showing = sorted({(node.get_role_name(), node.get_name() or "") for node in collect(app, role="button")
+                                      if node.get_state_set().contains(Atspi.StateType.SHOWING)})
+                    pane = control_json(env, "session", "text", "--target", session, "--window", window, "--json")
+                    print(f"diagnostic: showing buttons {showing}; result exists {os.path.exists(result)}; "
+                          f"pane {json.dumps(pane.get('result', pane))[-1500:]}", flush=True)
+                except Exception as error:
+                    print(f"diagnostic unavailable: {error!r}", flush=True)
+                raise
+            activate(button)
             wait_for(lambda: not prompt_button(app, label), "the clipboard prompt stayed after its answer")
             assert not poll(lambda: prompt_button(app, "Deny"), REPLY_QUIET_SECONDS), (
                 "one OSC 52 read prompted twice"

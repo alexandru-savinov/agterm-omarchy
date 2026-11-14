@@ -37,6 +37,23 @@ longer apply, and re-running `check.py`.
   on every attach exit, which erases a Live `--command --wait` pane's output under its hold prompt. A client
   with a valid `ZMX_MANAGED` instead turns off the input reports a program may have left on and resets SGR
   and the OSC colors. An unmanaged client and a session switch still write RIS.
+- `0005-drain-output-before-exit.patch` keeps a session's last output when it ends. Upstream's attach client
+  returned as soon as the daemon closed the socket or the socket hung up, dropping output it had read but
+  not yet written to a busy terminal, and output still unread behind the hangup. On every disconnect path
+  it now runs one loop that reads the socket and writes stdout, both nonblocking, bounded by an absolute
+  two-second deadline and 1 MiB from the socket. The terminal reset an exiting client sends is a bounded
+  write too. A Live command's final line under its hold prompt depended on that race.
+- `0006-nonblocking-stdout.patch` keeps the attach client responsive to its daemon while the terminal is
+  stalled (#409). Upstream writes session output to a blocking stdout, so a terminal that stopped reading
+  held the client in `write` while the daemon was still connected, and it never saw the hangup. stdout is
+  now nonblocking for the whole client loop, with its original flags restored on exit. Output is written
+  only when poll reports room. A closed reader (POLLHUP/ERR/NVAL) ends the client with its write error
+  instead of spinning. While 1 MiB is pending, the client stops reading further messages, so the
+  backpressure reaches the daemon. That is a high-water mark, not a memory bound: zmx has no IPC message
+  cap, so one whole message can still arrive past it (#409). Zig tests cover a stalled reader (the client
+  returns within a generous 10 s of the hangup, nominally 2 s, so starved CI cannot flake it, and does
+  not block forever) and a closed reader (it returns promptly); both run under a
+  watchdog.
 - `ghostty/0001-formatter-unstyled-blanks.patch` fixes the snapshot a re-attach replays. The formatter
   wrote cells a program skipped with a cursor move as spaces under the previous cell's style, so a gap
   after a colored run came back painted; a skipped cell now closes the style first. Spaces the program

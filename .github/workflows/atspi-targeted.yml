@@ -1,0 +1,183 @@
+name: AT-SPI targeted rerun
+
+# Diagnosis aid: rerun one or a few named GTK AT-SPI scenarios against a branch or SHA in minutes instead
+# of the whole suite. It is NOT a required check and NEVER replaces the full suite: a merge still needs the
+# complete "GTK build and tests" AT-SPI run in ci.yml. A green run here only says the named scenarios
+# passed once on this ref.
+#
+# The selection tooling comes from this workflow's own revision; the app, the scenario list and
+# test-linux-ui.sh come from the requested ref, so refs that predate this workflow can be rerun too.
+# The job uses no Actions cache at all (no restore, no save): libghostty and zmx are built from source on
+# every run, so nothing a dispatched ref produces is written to or read from a cache other workflows trust.
+# cache-mode: none also takes cache access away from the job's token, which workflow_dispatch would
+# otherwise grant with write access (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#cache-mode).
+# The two build images in the atspi-* jobs must stay equal to the build-linux matrix in ci.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit SHA to test
+        required: true
+        type: string
+      arch:
+        description: Architecture(s) to run on
+        required: true
+        type: choice
+        options: [x86_64, aarch64, both]
+        default: x86_64
+      scenarios:
+        description: Comma-separated scenario names from agterm-linux/tests/atspi_smoke.py, e.g. normal,context-menu
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+cache-mode: none
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  select:
+    name: Validate scenarios
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.validate.outputs.sha }}
+      x86_64: ${{ steps.validate.outputs.x86_64 }}
+      aarch64: ${{ steps.validate.outputs.aarch64 }}
+    steps:
+      - name: Check out selection tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: tooling
+          sparse-checkout: scripts/test-linux-ui-targeted.py
+          sparse-checkout-cone-mode: false
+      - name: Check out scenario list from the requested ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref }}
+          path: target
+          sparse-checkout: agterm-linux/tests/atspi_smoke.py
+          sparse-checkout-cone-mode: false
+      - name: Validate names and resolve the run matrix
+        id: validate
+        env:
+          SCENARIOS: ${{ inputs.scenarios }}
+          ARCH: ${{ inputs.arch }}
+        run: |
+          python3 -I tooling/scripts/test-linux-ui-targeted.py "$SCENARIOS" --root target --check-only
+          sha="$(git -C target rev-parse HEAD)"
+          case "$ARCH" in
+            both) x86_64=true aarch64=true ;;
+            x86_64) x86_64=true aarch64=false ;;
+            aarch64) x86_64=false aarch64=true ;;
+            *) echo "unknown arch: $ARCH" >&2; exit 2 ;;
+          esac
+          printf 'sha=%s\nx86_64=%s\naarch64=%s\n' "$sha" "$x86_64" "$aarch64" >> "$GITHUB_OUTPUT"
+          printf '### Targeted AT-SPI rerun (not a merge gate)\nref: %s\nscenarios: %s\n' \
+            "$sha" "$SCENARIOS" >> "$GITHUB_STEP_SUMMARY"
+
+  # One job per architecture, each with its pinned image spelled out (as in ci.yml's build-linux matrix)
+  # and skipped unless the arch input selects it; the two step lists are identical (a unit test checks). A matrix
+  # cannot do this: GitHub applies `exclude` before `include`, so an excluded row comes back as a new one.
+  atspi-x86_64:
+    name: AT-SPI targeted (x86_64)
+    needs: select
+    if: needs.select.outputs.x86_64 == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
+    env:
+      BUILD_ARCH: x86_64
+    steps:
+      - name: Check out the requested ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.select.outputs.sha }}
+      - name: Check out selection tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: .atspi-targeted-tooling
+          sparse-checkout: scripts/test-linux-ui-targeted.py
+          sparse-checkout-cone-mode: false
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Verify pinned GTK build image
+        run: /usr/local/bin/agterm-build-image-probe
+      - name: Build libghostty
+        run: scripts/setup-linux.sh
+      - name: Verify built libghostty
+        run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty
+      - name: Verify built zmx
+        run: scripts/verify-linux-zmx-cache.sh agterm-linux/vendor/zmx
+      - name: swift build (agterm-linux)
+        working-directory: agterm-linux
+        run: swift build
+      - name: GTK AT-SPI targeted scenarios
+        env:
+          SCENARIOS: ${{ inputs.scenarios }}
+          AGTERM_UI_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/linux-ui
+        run: python3 -I .atspi-targeted-tooling/scripts/test-linux-ui-targeted.py "$SCENARIOS" --root "$GITHUB_WORKSPACE"
+      - name: Upload GTK diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: linux-ui-targeted-${{ env.BUILD_ARCH }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/linux-ui
+          if-no-files-found: warn
+
+  atspi-aarch64:
+    name: AT-SPI targeted (aarch64)
+    needs: select
+    if: needs.select.outputs.aarch64 == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:74b7758f3d862a23e2d343c721aa47bfd33fbbf2bc17fde62091aeb329927c4e
+    env:
+      BUILD_ARCH: aarch64
+    steps:
+      - name: Check out the requested ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.select.outputs.sha }}
+      - name: Check out selection tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: .atspi-targeted-tooling
+          sparse-checkout: scripts/test-linux-ui-targeted.py
+          sparse-checkout-cone-mode: false
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Verify pinned GTK build image
+        run: /usr/local/bin/agterm-build-image-probe
+      - name: Build libghostty
+        run: scripts/setup-linux.sh
+      - name: Verify built libghostty
+        run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty
+      - name: Verify built zmx
+        run: scripts/verify-linux-zmx-cache.sh agterm-linux/vendor/zmx
+      - name: swift build (agterm-linux)
+        working-directory: agterm-linux
+        run: swift build
+      - name: GTK AT-SPI targeted scenarios
+        env:
+          SCENARIOS: ${{ inputs.scenarios }}
+          AGTERM_UI_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/linux-ui
+        run: python3 -I .atspi-targeted-tooling/scripts/test-linux-ui-targeted.py "$SCENARIOS" --root "$GITHUB_WORKSPACE"
+      - name: Upload GTK diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: linux-ui-targeted-${{ env.BUILD_ARCH }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/linux-ui
+          if-no-files-found: warn

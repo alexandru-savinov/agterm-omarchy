@@ -1,0 +1,9 @@
+# GitHub documents and accepts the workflow-level cache-mode key
+# (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#cache-mode),
+# but actionlint 1.7.12 does not know it yet (https://github.com/rhysd/actionlint/issues/745).
+# Scoped to the one workflow that sets it and to that one message; remove once the pinned actionlint
+# supports the key.
+paths:
+  .github/workflows/atspi-targeted.yml:
+    ignore:
+      - 'unexpected key "cache-mode" for "workflow" section'

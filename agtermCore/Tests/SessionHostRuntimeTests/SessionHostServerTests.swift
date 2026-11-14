@@ -1324,10 +1324,9 @@ private let sessionHostFixtureReady = Responsibility.system.isAvailable
             environment = ["ZMX_DIR": socketDirectory, "ZMX_SESSION": "", "ZMX_SESSION_PREFIX": "", "ZMX_NO_DETACH_KEY": "1",
                            "SHELL": "/bin/sh", "HOME": directory.path, "PATH": "/usr/bin:/bin", "TERM": "xterm-256color"]
             try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
-            let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            try FileManager.default.copyItem(at: package.appendingPathComponent(".build/debug/agterm-session-host"), to: executable)
+            try FileManager.default.copyItem(at: SessionHostTestExecutable.url("agterm-session-host"), to: executable)
             try FileManager.default.copyItem(atPath: stagedZmxPath, toPath: zmx.path)
-            try FileManager.default.copyItem(at: package.appendingPathComponent(".build/debug/session-host-test-client"), to: client)
+            try FileManager.default.copyItem(at: SessionHostTestExecutable.url("session-host-test-client"), to: client)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: client.path)
             let info = ["CFBundleIdentifier": identity.bundleID, "CFBundleExecutable": "agterm-session-host", "CFBundlePackageType": "APPL"]
             try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: bundle.appendingPathComponent("Contents/Info.plist"))

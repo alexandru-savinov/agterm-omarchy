@@ -5,6 +5,7 @@ import json
 import os
 import shlex
 import subprocess
+import time
 
 from atspi_smoke import ROOT, launch, raw_control_json, stop, wait_for
 
@@ -36,8 +37,17 @@ def verify_live_wait_output(env, state):
             return next((session for workspace in request("tree")["tree"]["workspaces"]
                          for session in workspace["sessions"] if session["id"] == identity), None)
 
-        def text():
-            return request("session.text", identity, {"all": True})["text"]
+        def text(args=None):
+            # A screen read races a busy pane now and then; only that error means "not yet", and the
+            # retries stay inside wait_for's deadline. Every other refusal still fails at once.
+            for _ in range(20):
+                reply = raw_control_json(live_env, {"cmd": "session.text", "target": identity,
+                                                    "args": {"all": True} if args is None else args})
+                if reply["ok"]:
+                    return reply.get("result", {})["text"]
+                assert reply.get("error") == "failed to read surface buffer", reply
+                time.sleep(0.1)
+            raise AssertionError(f"the pane's screen stayed unreadable: {reply}")
 
         wait_for(lambda: "WAIT-START-MARK" in text(), "Live command did not print its initial output")
         running = row()
@@ -49,8 +59,9 @@ def verify_live_wait_output(env, state):
             file.write("exit\n")
         wait_for(lambda: "Press any key" in text(), "Live command did not reach its exit hold")
         held = text()
-        assert "WAIT-START-MARK" in held and "WAIT-FINAL-MARK" in held, held
-        visible = request("session.text", identity)["text"]
+        missing = [mark for mark in ("WAIT-START-MARK", "WAIT-FINAL-MARK") if mark not in held]
+        assert not missing, f"held output lost {missing}: {held!r}"
+        visible = text({})
         assert "WAIT-FINAL-MARK" in visible, "final output was cleared from the held screen: " + visible
         assert row() is not None, "the held session closed instead of retaining its output"
         request("session.close", identity)

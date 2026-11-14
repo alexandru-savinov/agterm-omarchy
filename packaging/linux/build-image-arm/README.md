@@ -13,6 +13,8 @@ SwiftLint remains in the existing x86 lint job; this GTK environment does not in
 - Zig 0.16.0 aarch64 archive:
   `ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17`,
   from the [official release index](https://ziglang.org/download/index.json).
+- Zig 0.17.0 aarch64 archive (Ghostty 1.4, exposed as `GHOSTTY_ZIG`):
+  `9e8d11661d4ae3bd57702a3832781e23ad151dde5798e16a5ccd503f65234ff8`, from the same index.
   The Docker build verifies downloaded archive bytes before extraction.
 
 The base image supplies Ubuntu's signing keys; package installation retains APT signature verification.
