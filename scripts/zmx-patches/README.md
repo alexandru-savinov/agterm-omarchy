@@ -39,10 +39,10 @@ longer apply, and re-running `check.py`.
   and the OSC colors. An unmanaged client and a session switch still write RIS.
 - `0005-drain-output-before-exit.patch` keeps a session's last output when it ends. Upstream's attach client
   returned as soon as the daemon closed the socket or the socket hung up, dropping output it had read but
-  not yet written to a busy terminal, and output still unread behind the hangup. It now reads the socket
-  dry before honouring a hangup, for at most two seconds after the first one, and on every disconnect path
-  flushes what it holds for the terminal through a nonblocking stdout, also for at most two seconds.
-  A Live command's final line under its hold prompt depended on that race.
+  not yet written to a busy terminal, and output still unread behind the hangup. On every disconnect path
+  it now runs one loop that reads the socket and writes stdout, both nonblocking, bounded by an absolute
+  two-second deadline and 1 MiB from the socket. The terminal reset an exiting client sends is a bounded
+  write too. A Live command's final line under its hold prompt depended on that race.
 - `ghostty/0001-formatter-unstyled-blanks.patch` fixes the snapshot a re-attach replays. The formatter
   wrote cells a program skipped with a cursor move as spaces under the previous cell's style, so a gap
   after a colored run came back painted; a skipped cell now closes the style first. Spaces the program

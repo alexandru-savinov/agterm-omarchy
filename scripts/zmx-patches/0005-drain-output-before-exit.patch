@@ -1,127 +1,153 @@
 diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 --- zmx-orig/src/loop.zig
 +++ zmx/src/loop.zig
-@@ -77,6 +77,9 @@
+@@ -111,6 +111,13 @@
+         _ = try lib_posix.poll(poll_fds.items, poll_timeout);
+         if (relay) |*r| try r.expire(gpa, &stdout_buf, role.nowMs());
  
-     const detach_key_disabled = util.isDetachKeyDisabled();
- 
-+    // Set at the first hangup: from then on the client only drains, for a bounded time.
-+    var hangup_deadline_ms: ?i64 = null;
-+
-     while (true) {
-         poll_fds.clearRetainingCapacity();
- 
-@@ -143,11 +146,28 @@
-             }
-         }
- 
-+        // The drain deadline starts at the first hangup, before any of this pass's output is handled.
-+        if (hangup_deadline_ms == null and
-+            poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0)
-+        {
-+            hangup_deadline_ms = role.nowMs() + HANGUP_DRAIN_MS;
++        // The daemon is gone: what it queued is read and written by finishSession alone, bounded.
++        if (poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
++            std.log.info("poll hup|err|nval", .{});
++            finishSession(gpa, client_sock_fd, &read_buf, &stdout_buf, if (relay) |*r| r else null);
++            return ClientResult{ .kind = .detach, .session_name = null };
 +        }
 +
-         // Handle socket read (incoming Output messages from daemon)
-+        // Output read in this pass; a hangup is only final once the socket has been read dry.
-+        var read_output = false;
-         if (poll_fds.items[1].revents & lib_posix.POLL.IN != 0) {
+         if (poll_fds.items[2].revents & lib_posix.POLL.IN != 0) {
+             signal.drainSignalPipe();
+             const next_size = ipc.getTerminalSize(lib_posix.STDOUT_FILENO);
+@@ -148,6 +155,7 @@
              const n = read_buf.read(client_sock_fd) catch |err| {
--                if (err == error.WouldBlock) continue;
-+                if (err == error.WouldBlock) {
-+                    // this skips the hangup check below, so the drain deadline is enforced here too
-+                    if (hangup_deadline_ms) |deadline| if (role.nowMs() >= deadline) {
-+                        flushStdout(gpa, &stdout_buf);
-+                        return ClientResult{ .kind = .detach, .session_name = null };
-+                    };
-+                    continue;
-+                }
+                 if (err == error.WouldBlock) continue;
                  if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
-+                    flushStdout(gpa, &stdout_buf);
++                    finishSession(gpa, client_sock_fd, &read_buf, &stdout_buf, if (relay) |*r| r else null);
                      return ClientResult{ .kind = .detach, .session_name = null };
                  }
                  std.log.err("daemon read err={s}", .{@errorName(err)});
-@@ -155,9 +175,11 @@
+@@ -155,7 +163,7 @@
              };
              if (n == 0) {
                  std.log.info("server closed connection", .{});
 -                // Server closed connection
-+                // Server closed connection: the last output must still reach the terminal.
-+                flushStdout(gpa, &stdout_buf);
++                finishSession(gpa, client_sock_fd, &read_buf, &stdout_buf, if (relay) |*r| r else null);
                  return ClientResult{ .kind = .detach, .session_name = null };
              }
-+            read_output = true;
  
-             while (read_buf.next()) |msg| {
-                 switch (msg.header.tag) {
-@@ -205,6 +227,7 @@
+@@ -205,6 +213,7 @@
                      if (err == error.WouldBlock) break :blk 0;
                      if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
                          std.log.info("connection reset or broken pipe", .{});
-+                        flushStdout(gpa, &stdout_buf);
++                        finishSession(gpa, client_sock_fd, &read_buf, &stdout_buf, if (relay) |*r| r else null);
                          return ClientResult{ .kind = .detach, .session_name = null };
                      }
                      return err;
-@@ -215,7 +238,9 @@
+@@ -224,14 +233,94 @@
+                 try stdout_buf.replaceRange(gpa, 0, n, &[_]u8{});
              }
          }
++    }
++}
  
--        if (stdout_buf.items.len > 0) {
-+        // Once the daemon hung up, output is only flushed by flushStdout, whose writes cannot block past
-+        // its deadline; this ordinary write could block on a terminal that stopped reading.
-+        if (stdout_buf.items.len > 0 and hangup_deadline_ms == null) {
-             const n = lib_posix.write(lib_posix.STDOUT_FILENO, stdout_buf.items) catch |err| blk: {
-                 if (err == error.WouldBlock) break :blk 0;
-                 return err;
-@@ -226,12 +251,49 @@
-         }
- 
-         if (poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
+-        if (poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
 -            std.log.info("poll hup|err|nval", .{});
 -            return ClientResult{ .kind = .detach, .session_name = null };
-+            // Keep reading queued output after a hangup, but never past HANGUP_DRAIN_MS from the first one:
-+            // a socket reporting an error can stay readable.
-+            const deadline = hangup_deadline_ms orelse role.nowMs();
-+            if (!read_output or role.nowMs() >= deadline) {
-+                std.log.info("poll hup|err|nval", .{});
-+                flushStdout(gpa, &stdout_buf);
-+                return ClientResult{ .kind = .detach, .session_name = null };
-+            }
-         }
-     }
- }
- 
-+/// How long a client that lost its daemon keeps draining and flushing the session's last output.
-+const HANGUP_DRAIN_MS: i64 = 2000;
++/// What a client that lost its daemon may still spend on the session's last output.
++const DRAIN_BUDGET_MS: i64 = 2000;
++const DRAIN_MAX_BYTES: usize = 1 << 20;
 +
-+/// Writes what is still buffered for the terminal before the client exits, for at most HANGUP_DRAIN_MS.
-+/// stdout is made nonblocking for the flush, so a terminal that stops reading cannot hold the client,
-+/// and any write error ends it: EPIPE, EIO or EBADF mean the terminal is gone.
-+fn flushStdout(gpa: std.mem.Allocator, out: *std.ArrayList(u8)) void {
-+    if (out.items.len == 0) return;
++/// Reads what the daemon queued before it went away and writes it, with what is already buffered, to the
++/// terminal. One loop, bounded by an absolute monotonic deadline read on every pass and by DRAIN_MAX_BYTES
++/// from the socket. stdout is nonblocking here, so a terminal that stopped reading cannot hold the client;
++/// any write error ends it. The socket is done at EOF, at the byte cap, or when a read finds nothing.
++fn finishSession(
++    gpa: std.mem.Allocator,
++    sock: i32,
++    read_buf: *ipc.SocketBuffer,
++    out: *std.ArrayList(u8),
++    relay: ?*role.Relay,
++) void {
++    const deadline = role.nowMs() + DRAIN_BUDGET_MS;
 +    const fd = lib_posix.STDOUT_FILENO;
 +    const flags = lib_posix.fcntl(fd, lib_posix.F.GETFL, 0) catch return;
 +    _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags | lib_posix.O_NONBLOCK) catch return;
 +    defer _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags) catch {};
-+    const deadline = role.nowMs() + HANGUP_DRAIN_MS;
-+    var fds = [_]lib_posix.pollfd{.{ .fd = fd, .events = lib_posix.POLL.OUT, .revents = 0 }};
-+    while (out.items.len > 0) {
-+        const now = role.nowMs();
-+        if (now >= deadline) return;
-+        const n = lib_posix.write(fd, out.items) catch |err| switch (err) {
-+            error.WouldBlock => 0,
-+            else => return,
-+        };
-+        if (n > 0) {
-+            out.replaceRange(gpa, 0, n, &[_]u8{}) catch return;
-+            continue;
++    var drained: usize = 0;
++    var socket_done = false;
++    while (role.nowMs() < deadline) {
++        var progress = false;
++        if (!socket_done) {
++            if (read_buf.read(sock)) |n| {
++                if (n == 0) {
++                    socket_done = true;
++                } else {
++                    progress = true;
++                    drained += n;
++                    if (drained >= DRAIN_MAX_BYTES) socket_done = true;
++                    while (read_buf.next()) |msg| {
++                        if (msg.header.tag != .Output) continue;
++                        if (relay) |r| {
++                            r.forward(gpa, out, msg.payload) catch return;
++                        } else {
++                            out.appendSlice(gpa, msg.payload) catch return;
++                        }
++                    }
++                }
++            } else |_| {
++                socket_done = true;
++            }
 +        }
-+        // std.c.poll, not lib_posix.poll: that one retries EINTR with its original timeout, and a stream of
-+        // signals (SIGWINCH) would keep it from ever rechecking the deadline. An interrupted wait just loops.
-+        _ = std.c.poll(&fds, fds.len, @intCast(@min(deadline - now, 50)));
++        if (out.items.len > 0) {
++            if (lib_posix.write(fd, out.items)) |n| {
++                if (n > 0) {
++                    out.replaceRange(gpa, 0, n, &[_]u8{}) catch return;
++                    progress = true;
++                }
++            } else |err| {
++                if (err != error.WouldBlock) return;
++            }
++        } else if (socket_done) {
++            return;
+         }
++        if (!progress) sleepOneMs();
+     }
+ }
+ 
++/// Writes `bytes` to stdout, nonblocking, for at most `budget_ms`; for the terminal reset an exiting
++/// client sends, which must not hold it on a terminal that stopped reading.
++pub fn writeBounded(bytes: []const u8, budget_ms: i64) void {
++    const fd = lib_posix.STDOUT_FILENO;
++    const flags = lib_posix.fcntl(fd, lib_posix.F.GETFL, 0) catch return;
++    _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags | lib_posix.O_NONBLOCK) catch return;
++    defer _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags) catch {};
++    const deadline = role.nowMs() + budget_ms;
++    var rest = bytes;
++    while (rest.len > 0 and role.nowMs() < deadline) {
++        if (lib_posix.write(fd, rest)) |n| {
++            rest = rest[n..];
++        } else |err| {
++            if (err != error.WouldBlock) return;
++            sleepOneMs();
++        }
 +    }
++}
++
++fn sleepOneMs() void {
++    const ts = std.c.timespec{ .sec = 0, .nsec = std.time.ns_per_ms };
++    _ = std.c.nanosleep(&ts, null);
 +}
 +
  fn initTerminal(gpa: std.mem.Allocator, io: std.Io, size: ipc.Resize, cfg: *const Cfg) !ghostty_vt.Terminal {
      return ghostty_vt.Terminal.init(io, gpa, .{
          .cols = size.cols,
+diff -ruN zmx-orig/src/main.zig zmx/src/main.zig
+--- zmx-orig/src/main.zig
++++ zmx/src/main.zig
+@@ -1649,7 +1649,8 @@
+             _ = cross.c.tcsetattr(lib_posix.STDIN_FILENO, cross.c.TCSAFLUSH, &orig_termios);
+         }
+         // Reset terminal modes on detach
+-        _ = lib_posix.write(lib_posix.STDOUT_FILENO, exit_seq) catch {};
++        // bounded: a terminal that stopped reading must not hold an exiting client
++        loop.writeBounded(exit_seq, 500);
+     }
+ 
+     if (stdin_is_tty) {
