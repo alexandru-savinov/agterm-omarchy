@@ -1,0 +1,60 @@
+diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
+--- zmx-orig/src/loop.zig
++++ zmx/src/loop.zig
+@@ -144,6 +144,8 @@
+         }
+ 
+         // Handle socket read (incoming Output messages from daemon)
++        // Output read in this pass; a hangup is only final once the socket has been read dry.
++        var read_output = false;
+         if (poll_fds.items[1].revents & lib_posix.POLL.IN != 0) {
+             const n = read_buf.read(client_sock_fd) catch |err| {
+                 if (err == error.WouldBlock) continue;
+@@ -155,9 +157,11 @@
+             };
+             if (n == 0) {
+                 std.log.info("server closed connection", .{});
+-                // Server closed connection
++                // Server closed connection: the last output must still reach the terminal.
++                flushStdout(gpa, &stdout_buf);
+                 return ClientResult{ .kind = .detach, .session_name = null };
+             }
++            read_output = true;
+ 
+             while (read_buf.next()) |msg| {
+                 switch (msg.header.tag) {
+@@ -225,13 +229,33 @@
+             }
+         }
+ 
+-        if (poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
++        if (!read_output and poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
+             std.log.info("poll hup|err|nval", .{});
++            flushStdout(gpa, &stdout_buf);
+             return ClientResult{ .kind = .detach, .session_name = null };
+         }
+     }
+ }
+ 
++/// Writes what is still buffered for the terminal before the client exits. stdout is the terminal's pty,
++/// which can be full for a moment when the session ends; poll for room, but never wait past two seconds.
++fn flushStdout(gpa: std.mem.Allocator, out: *std.ArrayList(u8)) void {
++    var fds = [_]lib_posix.pollfd{.{ .fd = lib_posix.STDOUT_FILENO, .events = lib_posix.POLL.OUT, .revents = 0 }};
++    var waits: usize = 0;
++    while (out.items.len > 0 and waits < 200) {
++        const n = lib_posix.write(lib_posix.STDOUT_FILENO, out.items) catch |err| switch (err) {
++            error.WouldBlock => 0,
++            else => return,
++        };
++        if (n > 0) {
++            out.replaceRange(gpa, 0, n, &[_]u8{}) catch return;
++            continue;
++        }
++        _ = lib_posix.poll(&fds, 10) catch return;
++        waits += 1;
++    }
++}
++
+ fn initTerminal(gpa: std.mem.Allocator, io: std.Io, size: ipc.Resize, cfg: *const Cfg) !ghostty_vt.Terminal {
+     return ghostty_vt.Terminal.init(io, gpa, .{
+         .cols = size.cols,
