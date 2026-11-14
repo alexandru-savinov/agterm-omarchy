@@ -1,7 +1,17 @@
 diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 --- zmx-orig/src/loop.zig
 +++ zmx/src/loop.zig
-@@ -144,6 +144,8 @@
+@@ -77,6 +77,9 @@
+ 
+     const detach_key_disabled = util.isDetachKeyDisabled();
+ 
++    // Set at the first hangup: from then on the client only drains, for a bounded time.
++    var hangup_deadline_ms: ?i64 = null;
++
+     while (true) {
+         poll_fds.clearRetainingCapacity();
+ 
+@@ -144,10 +147,13 @@
          }
  
          // Handle socket read (incoming Output messages from daemon)
@@ -10,7 +20,12 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
          if (poll_fds.items[1].revents & lib_posix.POLL.IN != 0) {
              const n = read_buf.read(client_sock_fd) catch |err| {
                  if (err == error.WouldBlock) continue;
-@@ -155,9 +157,11 @@
+                 if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
++                    flushStdout(gpa, &stdout_buf);
+                     return ClientResult{ .kind = .detach, .session_name = null };
+                 }
+                 std.log.err("daemon read err={s}", .{@errorName(err)});
+@@ -155,9 +161,11 @@
              };
              if (n == 0) {
                  std.log.info("server closed connection", .{});
@@ -23,38 +38,60 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
  
              while (read_buf.next()) |msg| {
                  switch (msg.header.tag) {
-@@ -225,13 +229,33 @@
-             }
+@@ -205,6 +213,7 @@
+                     if (err == error.WouldBlock) break :blk 0;
+                     if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
+                         std.log.info("connection reset or broken pipe", .{});
++                        flushStdout(gpa, &stdout_buf);
+                         return ClientResult{ .kind = .detach, .session_name = null };
+                     }
+                     return err;
+@@ -226,9 +235,46 @@
          }
  
--        if (poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
-+        if (!read_output and poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
-             std.log.info("poll hup|err|nval", .{});
-+            flushStdout(gpa, &stdout_buf);
-             return ClientResult{ .kind = .detach, .session_name = null };
-         }
-     }
- }
- 
-+/// Writes what is still buffered for the terminal before the client exits. stdout is the terminal's pty,
-+/// which can be full for a moment when the session ends; poll for room, but never wait past two seconds.
+         if (poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
+-            std.log.info("poll hup|err|nval", .{});
+-            return ClientResult{ .kind = .detach, .session_name = null };
++            // Keep reading queued output after a hangup, but never past HANGUP_DRAIN_MS from the first one:
++            // a socket reporting an error can stay readable.
++            const now = role.nowMs();
++            const deadline = hangup_deadline_ms orelse now + HANGUP_DRAIN_MS;
++            hangup_deadline_ms = deadline;
++            if (!read_output or now >= deadline) {
++                std.log.info("poll hup|err|nval", .{});
++                flushStdout(gpa, &stdout_buf);
++                return ClientResult{ .kind = .detach, .session_name = null };
++            }
++        }
++    }
++}
++
++/// How long a client that lost its daemon keeps draining and flushing the session's last output.
++const HANGUP_DRAIN_MS: i64 = 2000;
++
++/// Writes what is still buffered for the terminal before the client exits, for at most HANGUP_DRAIN_MS.
++/// stdout is made nonblocking for the flush, so a terminal that stops reading cannot hold the client,
++/// and any write error ends it: EPIPE, EIO or EBADF mean the terminal is gone.
 +fn flushStdout(gpa: std.mem.Allocator, out: *std.ArrayList(u8)) void {
-+    var fds = [_]lib_posix.pollfd{.{ .fd = lib_posix.STDOUT_FILENO, .events = lib_posix.POLL.OUT, .revents = 0 }};
-+    var waits: usize = 0;
-+    while (out.items.len > 0 and waits < 200) {
-+        const n = lib_posix.write(lib_posix.STDOUT_FILENO, out.items) catch |err| switch (err) {
++    if (out.items.len == 0) return;
++    const fd = lib_posix.STDOUT_FILENO;
++    const flags = lib_posix.fcntl(fd, lib_posix.F.GETFL, 0) catch return;
++    _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags | lib_posix.O_NONBLOCK) catch return;
++    defer _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags) catch {};
++    const deadline = role.nowMs() + HANGUP_DRAIN_MS;
++    var fds = [_]lib_posix.pollfd{.{ .fd = fd, .events = lib_posix.POLL.OUT, .revents = 0 }};
++    while (out.items.len > 0) {
++        const now = role.nowMs();
++        if (now >= deadline) return;
++        const n = lib_posix.write(fd, out.items) catch |err| switch (err) {
 +            error.WouldBlock => 0,
 +            else => return,
 +        };
 +        if (n > 0) {
 +            out.replaceRange(gpa, 0, n, &[_]u8{}) catch return;
 +            continue;
-+        }
-+        _ = lib_posix.poll(&fds, 10) catch return;
-+        waits += 1;
-+    }
-+}
-+
- fn initTerminal(gpa: std.mem.Allocator, io: std.Io, size: ipc.Resize, cfg: *const Cfg) !ghostty_vt.Terminal {
-     return ghostty_vt.Terminal.init(io, gpa, .{
-         .cols = size.cols,
+         }
++        _ = lib_posix.poll(&fds, @intCast(@min(deadline - now, 50))) catch return;
+     }
+ }
+ 
