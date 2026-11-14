@@ -11,21 +11,37 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      while (true) {
          poll_fds.clearRetainingCapacity();
  
-@@ -144,10 +147,13 @@
+@@ -143,11 +146,28 @@
+             }
          }
  
++        // The drain deadline starts at the first hangup, before any of this pass's output is handled.
++        if (hangup_deadline_ms == null and
++            poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0)
++        {
++            hangup_deadline_ms = role.nowMs() + HANGUP_DRAIN_MS;
++        }
++
          // Handle socket read (incoming Output messages from daemon)
 +        // Output read in this pass; a hangup is only final once the socket has been read dry.
 +        var read_output = false;
          if (poll_fds.items[1].revents & lib_posix.POLL.IN != 0) {
              const n = read_buf.read(client_sock_fd) catch |err| {
-                 if (err == error.WouldBlock) continue;
+-                if (err == error.WouldBlock) continue;
++                if (err == error.WouldBlock) {
++                    // this skips the hangup check below, so the drain deadline is enforced here too
++                    if (hangup_deadline_ms) |deadline| if (role.nowMs() >= deadline) {
++                        flushStdout(gpa, &stdout_buf);
++                        return ClientResult{ .kind = .detach, .session_name = null };
++                    };
++                    continue;
++                }
                  if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
 +                    flushStdout(gpa, &stdout_buf);
                      return ClientResult{ .kind = .detach, .session_name = null };
                  }
                  std.log.err("daemon read err={s}", .{@errorName(err)});
-@@ -155,9 +161,11 @@
+@@ -155,9 +175,11 @@
              };
              if (n == 0) {
                  std.log.info("server closed connection", .{});
@@ -38,7 +54,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
  
              while (read_buf.next()) |msg| {
                  switch (msg.header.tag) {
-@@ -205,6 +213,7 @@
+@@ -205,6 +227,7 @@
                      if (err == error.WouldBlock) break :blk 0;
                      if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
                          std.log.info("connection reset or broken pipe", .{});
@@ -46,7 +62,18 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                          return ClientResult{ .kind = .detach, .session_name = null };
                      }
                      return err;
-@@ -226,9 +235,46 @@
+@@ -215,7 +238,9 @@
+             }
+         }
+ 
+-        if (stdout_buf.items.len > 0) {
++        // Once the daemon hung up, output is only flushed by flushStdout, whose writes cannot block past
++        // its deadline; this ordinary write could block on a terminal that stopped reading.
++        if (stdout_buf.items.len > 0 and hangup_deadline_ms == null) {
+             const n = lib_posix.write(lib_posix.STDOUT_FILENO, stdout_buf.items) catch |err| blk: {
+                 if (err == error.WouldBlock) break :blk 0;
+                 return err;
+@@ -226,12 +251,49 @@
          }
  
          if (poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
@@ -54,18 +81,16 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 -            return ClientResult{ .kind = .detach, .session_name = null };
 +            // Keep reading queued output after a hangup, but never past HANGUP_DRAIN_MS from the first one:
 +            // a socket reporting an error can stay readable.
-+            const now = role.nowMs();
-+            const deadline = hangup_deadline_ms orelse now + HANGUP_DRAIN_MS;
-+            hangup_deadline_ms = deadline;
-+            if (!read_output or now >= deadline) {
++            const deadline = hangup_deadline_ms orelse role.nowMs();
++            if (!read_output or role.nowMs() >= deadline) {
 +                std.log.info("poll hup|err|nval", .{});
 +                flushStdout(gpa, &stdout_buf);
 +                return ClientResult{ .kind = .detach, .session_name = null };
 +            }
-+        }
-+    }
-+}
-+
+         }
+     }
+ }
+ 
 +/// How long a client that lost its daemon keeps draining and flushing the session's last output.
 +const HANGUP_DRAIN_MS: i64 = 2000;
 +
@@ -90,8 +115,13 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +        if (n > 0) {
 +            out.replaceRange(gpa, 0, n, &[_]u8{}) catch return;
 +            continue;
-         }
-+        _ = lib_posix.poll(&fds, @intCast(@min(deadline - now, 50))) catch return;
-     }
- }
- 
++        }
++        // std.c.poll, not lib_posix.poll: that one retries EINTR with its original timeout, and a stream of
++        // signals (SIGWINCH) would keep it from ever rechecking the deadline. An interrupted wait just loops.
++        _ = std.c.poll(&fds, fds.len, @intCast(@min(deadline - now, 50)));
++    }
++}
++
+ fn initTerminal(gpa: std.mem.Allocator, io: std.Io, size: ipc.Resize, cfg: *const Cfg) !ghostty_vt.Terminal {
+     return ghostty_vt.Terminal.init(io, gpa, .{
+         .cols = size.cols,
