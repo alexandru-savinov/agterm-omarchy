@@ -1,5 +1,5 @@
 {
-  "observed_at": "2026-11-12T02:18:52+00:00",
+  "observed_at": "2026-11-12T04:43:10+00:00",
   "agents": [
     {
       "name": "root_mac_vm",
@@ -8,10 +8,10 @@
       "task_kind": "issues",
       "phase": "working",
       "reported_state": "working",
-      "work": "Leads native VM and Mac validation, artifact provenance and publication. Reports reviewing the completed integrated Mac core handoff and selecting one bounded component attempt. Current-candidate acceptance and the retained earlier subjects remain separate.",
-      "source": "/issues/305#issuecomment-6812427190",
-      "reported_at": "2026-11-12T02:17:26Z",
-      "role": "Native and Mac validation lead",
+      "work": "Owns Mac and native archive execution, prerequisite verification, cleanup and final admission. Scoped Mac core/PATH work in PR #369 and selector work in PR #362 are complete; parent #305 and exact native acceptance remain pending. The frozen 2c486ebe archive is a separate provisional subject.",
+      "source": "/issues/305#issuecomment-6814704281",
+      "reported_at": "2026-11-12T04:39:17Z",
+      "role": "Mac and native runtime owner",
       "workstream": "validation"
     },
     {
@@ -47,11 +47,11 @@
       "task_kind": "issues",
       "phase": "working",
       "reported_state": "working",
-      "work": "Audits candidate source, build inputs, fixture entry points and dependency requirements at 2ec40213. Reports a script-fixture setup blocker while completing the read-only delta handoff. Root retains runtime and candidate decisions; later source changes need separate review.",
-      "source": "/issues/305#issuecomment-6812361397",
-      "reported_at": "2026-11-12T02:13:10Z",
-      "role": "Candidate source and build auditor",
-      "workstream": "review"
+      "work": "Prepares the roster-only draft from public assignments and scoped Mac/selector completion records. The Mac bootstrap operator remains frozen for separate review. Root and the coordinator retain merge and deployment timing while product CI runs; this dated report describes responsibility, not process liveness.",
+      "source": "/issues/329#issuecomment-6814748927",
+      "reported_at": "2026-11-12T04:42:23Z",
+      "role": "Public roster draft preparer",
+      "workstream": "implementation"
     },
     {
       "name": "source_review322",
@@ -60,24 +60,24 @@
       "task_kind": "issues",
       "phase": "working",
       "reported_state": "working",
-      "work": "Prepares a bounded source77 Debug follow-up for selector compatibility and session-switch observations, preserving the original failures and completed Mac proposal. This is preparation and fake-only validation; root retains actual native execution and publication.",
-      "source": "/issues/305#issuecomment-6812286356",
-      "reported_at": "2026-11-12T02:08:20Z",
-      "role": "Focused native validation preparer",
-      "workstream": "review"
+      "work": "Prepares the explicit guest-agent carrier with file/fake controls against the unchanged frozen archive operator. Root retains carrier review, actual VM/runtime operation, measured prerequisites and final admission; preparation is not native execution.",
+      "source": "/issues/305#issuecomment-6814571455",
+      "reported_at": "2026-11-12T04:30:18Z",
+      "role": "Guest-agent carrier preparer",
+      "workstream": "implementation"
     },
     {
       "name": "retry_audit",
       "account": "alexandru-savinov",
       "task": 305,
       "task_kind": "issues",
-      "phase": "completed",
-      "reported_state": "complete",
-      "work": "Reports the complete integrated Mac core run at 62103cca: 4,152 passes, zero failures and two explicit fish-dependent skips. The compiler lane is released; root retains evidence review and publication. This pinned core result does not certify a later candidate, Mac app build or native acceptance.",
-      "source": "/issues/305#issuecomment-6812376727",
-      "reported_at": "2026-11-12T02:14:10Z",
-      "role": "Integrated Mac core validation",
-      "workstream": "validation"
+      "phase": "working",
+      "reported_state": "working",
+      "work": "Reviews the frozen Mac bootstrap operator, complete-bundle checks, five-second endpoint bound and identity-guarded recovery with file/fake controls. Owns no repository paths or runtime. An endpoint-only diagnostic cannot establish authenticated readiness, stop acceptance or native acceptance.",
+      "source": "/issues/305#issuecomment-6814697261",
+      "reported_at": "2026-11-12T04:38:48Z",
+      "role": "Mac bootstrap operator reviewer",
+      "workstream": "review"
     },
     {
       "name": "root",
