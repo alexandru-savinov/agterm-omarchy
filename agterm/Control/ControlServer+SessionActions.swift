@@ -483,6 +483,12 @@ extension ControlServer: ControlActions {
         scratchSession(target, window: window, mode: mode, command: command, follow: false)
     }
 
+    /// The macOS split always lays the primary pane out in the left/top slot (a promoted survivor becomes
+    /// the primary there), so physical selectors map as they did before the selectors split from the
+    /// roles: left/top = primary, right/bottom = split. Only the Linux host can hold the primary in the
+    /// end slot (`primaryInEndSlot` in `AppControllerSurfaces`).
+    static let primaryInEndSlot = false
+
     /// Move keyboard focus to a split session's pane: `pane` is `left`|`right`|`other` (`other` toggles).
     func focusSessionPane(_ target: String?, window: String?, pane: String?) -> ControlResponse {
         return resolver.resolveSession(target, window: window) { store, id in
@@ -495,7 +501,8 @@ extension ControlServer: ControlActions {
             guard let parsedPane = ControlPaneFocusMode.parse(pane) else {
                 return ControlResponse(ok: false, error: "invalid pane: \(pane ?? "other")")
             }
-            let toSplit = parsedPane.wantsSplit(currentSplitFocused: session.splitFocused)
+            let toSplit = parsedPane.wantsSplit(currentSplitFocused: session.splitFocused,
+                                                primaryInEndSlot: Self.primaryInEndSlot)
             actions.setSplitFocus(toSplit, of: session)
             return ControlResponse(ok: true, result: ControlResult(id: id.uuidString))
         }
@@ -522,6 +529,9 @@ extension ControlServer: ControlActions {
                 requested = ratio
             case .delta(let delta):
                 requested = (session.splitRatio ?? AppStore.splitRatioDefault) + delta
+            case .paneDelta(let pane, let delta):
+                requested = (session.splitRatio ?? AppStore.splitRatioDefault)
+                    + pane.primaryRatioDelta(delta, primaryInEndSlot: Self.primaryInEndSlot)
             }
             guard let applied = store.applySplitRatio(requested, forSession: id) else {
                 return ControlResponse(ok: false, error: "no such session: \(target ?? "active")")
