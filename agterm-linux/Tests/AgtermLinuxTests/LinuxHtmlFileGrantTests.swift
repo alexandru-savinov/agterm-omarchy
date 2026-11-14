@@ -44,6 +44,7 @@ private final class GrantTree {
         let id = UUID()
         let request = try #require(LinuxHtmlFileGrant.request("agterm-file://\(id.uuidString.lowercased())\(encodedPath)"))
         #expect(request.id == id)
+        #expect(request.scheme == "agterm-file")
         return resource(request.path)
     }
 }

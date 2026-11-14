@@ -23,9 +23,10 @@ class NoticeTests(unittest.TestCase):
         (self.repo / 'linux').mkdir()
         for name in ['linux-notices.py', 'verify-linux-vendor-cache.sh', 'setup-linux.sh']:
             shutil.copy2(ROOT / 'scripts' / name, self.repo / 'scripts' / name)
-        for name in ['ghostty-resources.env', 'arch.sh', 'zmx.env']:
+        for name in ['ghostty-resources.env', 'ghostty-build.sh', 'arch.sh', 'zmx.env']:
             shutil.copy2(ROOT / 'linux' / name, self.repo / 'linux' / name)
         shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
+        shutil.copytree(ROOT / 'scripts/ghostty-patches', self.repo / 'scripts/ghostty-patches')
         shutil.copytree(ROOT / 'scripts/zmx-patches', self.repo / 'scripts/zmx-patches')
         shutil.copytree(ROOT / 'packaging/linux/notices', self.repo / 'packaging/linux/notices')
         shutil.copy2(ROOT / 'LICENSE', self.repo / 'LICENSE')
@@ -63,13 +64,16 @@ class NoticeTests(unittest.TestCase):
                       self.command('verify-ghostty', self.cache, success=False).stderr)
 
     def test_patch_change_requires_profile_and_new_cache(self):
-        self.check_patch_change('ghostty-clipboard-request-kind.patch')
+        self.check_patch_change('ghostty-lib-resources.patch')
 
     def test_environment_unset_patch_change_requires_new_cache(self):
         self.check_patch_change('ghostty-surface-env-unset.patch')
 
-    def check_patch_change(self, name):
-        patch = self.repo / 'linux/patches' / name
+    def test_shared_teardown_patch_change_requires_new_cache(self):
+        self.check_patch_change('0001-drain-mailbox-during-surface-teardown.patch', 'scripts/ghostty-patches')
+
+    def check_patch_change(self, name, directory='linux/patches'):
+        patch = self.repo / directory / name
         patch.write_bytes(patch.read_bytes() + b'\n')
         self.assertIn('stale or changed Ghostty patch inputs',
                       self.command('verify-profile', success=False).stderr)
@@ -157,7 +161,7 @@ class NoticeTests(unittest.TestCase):
                      'shell-integration/zsh/.zshenv']:
             path = ghostty / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('fixture')
         themes = ghostty / 'themes'; themes.mkdir()
-        for name in ['Builtin Dark', 'Catppuccin Mocha', 'Dracula'] + [f'Fixture {i}' for i in range(599)]:
+        for name in ['Builtin Dark', 'Catppuccin Mocha', 'Dracula'] + [f'Fixture {i}' for i in range(816)]:
             (themes / name).write_text('background = 000000\n')
         shutil.copy2(ROOT / 'linux/ghostty-resources.env', themes / '.agterm-resource-manifest')
         terminfo = self.root / 'ghostty.terminfo'
@@ -254,7 +258,7 @@ class NoticeTests(unittest.TestCase):
         inventory = json.loads(original)
         self.assertIn('swift', inventory['bundled_libraries']['libswiftCore.so'])
         self.assertEqual(len(inventory['bundled_libraries']), 16)
-        self.assertEqual(len(inventory['themes']['files']), 602)
+        self.assertEqual(len(inventory['themes']['files']), 819)
         self.assertTrue(all(theme['attribution'] == 'unresolved-individual-author-license'
                             for theme in inventory['themes']['files']))
 
@@ -263,10 +267,12 @@ class NoticeTests(unittest.TestCase):
         for name in ['verify-linux-architecture.sh', 'verify-linux-resources.sh', 'verify-linux-zmx-cache.sh']:
             path = self.repo / 'scripts' / name; path.write_text('#!/bin/sh\nexit 0\n'); path.chmod(0o755)
         executable = self.root / 'bin'; executable.mkdir()
-        for name, content in {'zig': 'echo 0.16.0', 'mise': 'exit 1', 'uname': 'echo aarch64',
+        for name, content in {'zig': 'echo 0.16.0', 'ghostty-zig': 'echo 0.17.0',
+                              'mise': 'exit 1', 'uname': 'echo aarch64',
                               'file': 'exit 98', 'git': 'echo notice-fixture-rebuild >&2; exit 97'}.items():
             path = executable / name; path.write_text('#!/bin/sh\n' + content + '\n'); path.chmod(0o755)
-        return dict(os.environ, PATH=str(executable) + ':' + os.environ['PATH'], TMPDIR=str(self.root))
+        return dict(os.environ, PATH=str(executable) + ':' + os.environ['PATH'], TMPDIR=str(self.root),
+                    GHOSTTY_ZIG=str(executable / 'ghostty-zig'))
 
     def test_setup_reuses_complete_notice_cache(self):
         result = subprocess.run(['bash', str(self.repo / 'scripts/setup-linux.sh')], env=self.setup_fixture(),

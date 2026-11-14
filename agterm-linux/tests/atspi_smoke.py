@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 
 import gi
 
@@ -69,6 +70,15 @@ def find_app(process_id):
         ):
             matches.append(app)
     return matches[-1] if matches else None
+
+
+def file_holds(path, expected):
+    """`printf > file` creates the file before it writes, so existing proves nothing about its contents."""
+    try:
+        with open(path, encoding="utf-8") as source:
+            return source.read() == expected
+    except FileNotFoundError:
+        return False
 
 
 def wait_for(predicate, message, timeout=12, required=True):
@@ -1253,12 +1263,9 @@ def check_keymap_reload_fanout(app, process_id, env, first_title, second_title):
         return rows
 
     chorded_row = ["Chorded Demo", "custom", "ctrl+shift+e"]
-    # ctrl+shift+y is free everywhere the parser looks, the same reasoning as the seeded ctrl+shift+e:
-    # isReservedMonitorChord covers only ctrl+tab / ctrl+1 / ctrl+2, isLinuxReservedChord adds only
-    # ctrl+comma, the Linux default table binds no `y`, and no shared default uses key "y" — so
-    # cross-section validation never clears this shortcut and it reaches the row as the raw token.
+    # Keep the reload probe distinct from the Alternative Demo chord and all built-in shortcuts.
     with open(keymap, "a", encoding="utf-8") as target:
-        target.write('command "Late Demo" ctrl+shift+y true\n')
+        target.write('command "Late Demo" ctrl+shift+f12 true\n')
 
     for title in (first_title, second_title):
         rows = filtered_rows(title, "Demo", chorded_row,
@@ -1270,7 +1277,7 @@ def check_keymap_reload_fanout(app, process_id, env, first_title, second_title):
     # Bug one: `agtermctl keymap reload` used to rebuild only the controller it resolved.
     control_json(env, "keymap", "reload", "--json")
     for title in (first_title, second_title):
-        filtered_rows(title, "Demo", ["Late Demo", "custom", "ctrl+shift+y"],
+        filtered_rows(title, "Demo", ["Late Demo", "custom", "ctrl+shift+f12"],
                       f"agtermctl keymap reload did not reach {title}'s palette")
 
     # Bug two: the palette's own `Reload Keymap` row — driven in the FIRST window, asserted in the SECOND.
@@ -3141,7 +3148,7 @@ def verify_custom_command_failures(env):
             # is free in both the Linux and the upstream default chord tables, so it survives keymap
             # validation and reaches the row as the user's own raw token.
             'command "Chorded Demo" ctrl+shift+e true\n'
-            f'command "Alternative Demo" ctrl+shift+u|ctrl+shift+r printf fired > {alternative_marker}\n'
+            f'command "Alternative Demo" ctrl+shift+u|ctrl+shift+y printf fired > {alternative_marker}\n'
         )
     process, app = launch(env)
     try:
@@ -3165,7 +3172,7 @@ def verify_custom_command_failures(env):
 
         wait_for(lambda: frame("command-origin-a"), "first command window did not become accessible")
         wait_for(lambda: frame("command-origin-b"), "second command window did not become accessible")
-        press_x11_key("ctrl+shift+r", process.pid, window_title="command-origin-a")
+        press_x11_key("ctrl+shift+y", process.pid, window_title="command-origin-a")
         wait_for(lambda: os.path.exists(alternative_marker),
                  "the second custom-command alternative did not dispatch")
         check_palette_row_layout(app, process.pid, "command-origin-a")
@@ -3522,9 +3529,7 @@ def verify_remote_presentation(env):
                      "sizePercent": 60},
         })
         assert overlay["ok"], overlay
-        wait_for(lambda: os.path.exists(overlay_marker), "remote overlay job did not run on origin")
-        with open(overlay_marker, encoding="utf-8") as source:
-            assert source.read() == "origin-job"
+        wait_for(lambda: file_holds(overlay_marker, "origin-job"), "remote overlay job did not run on origin")
         wait_for(lambda: raw_control_json(origin_env, {
             "cmd": "session.overlay.result", "target": origin_id,
         }).get("result", {}).get("exitCode") == 0,
@@ -3535,9 +3540,8 @@ def verify_remote_presentation(env):
             "args": {"text": "printf 'daemon-typed' > " + shlex.quote(typed_marker) + "\n"},
         })
         assert typed["ok"], typed
-        wait_for(lambda: os.path.exists(typed_marker), "origin could not type through its daemon while following")
-        with open(typed_marker, encoding="utf-8") as source:
-            assert source.read() == "daemon-typed"
+        wait_for(lambda: file_holds(typed_marker, "daemon-typed"),
+                 "origin could not type through its daemon while following")
         text_read = raw_control_json(origin_env, {
             "cmd": "session.text", "target": origin_id, "args": {"all": True},
         })
@@ -5107,6 +5111,8 @@ def verify_sidebar_row_height_follows_font_size(env):
 # tree-row name lands 426px past the column's right edge, the flagged breadcrumb 771px and the unwrapped
 # hint 114px, so nothing real lands in the 1..8 band.
 SIDEBAR_EDGE_SLACK = 8
+# X11 coordinates are 16-bit; an AT-SPI extent past this is uninitialised memory, not geometry.
+X11_COORDINATE_LIMIT = 32767
 
 
 def window_extents(node):
@@ -5118,6 +5124,11 @@ def window_extents(node):
 
     ⚠️ A NEGATIVE ORIGIN is NORMAL, never "not yet allocated" — WINDOW coordinates start inside the CSD
     border. Every caller is origin-relative, so do not add an `x < 0` guard here.
+
+    A box outside X11's 16-bit coordinate space is no measurement either. GTK 4.14's GetExtents ignores
+    the result of `gtk_accessible_get_bounds` (a11y/gtkatspicomponent.c), so a node whose bounds cannot be
+    computed, such as an unmapped child, returns uninitialised stack: zeros on x86_64, observed as
+    width=1654381664 on aarch64. No real X11 window or child reaches past 32767.
     """
     try:
         component = node.get_component_iface()
@@ -5125,6 +5136,8 @@ def window_extents(node):
             return None
         bounds = component.get_extents(Atspi.CoordType.WINDOW)
     except Exception:
+        return None
+    if not all(abs(value) <= X11_COORDINATE_LIMIT for value in (bounds.x, bounds.y, bounds.width, bounds.height)):
         return None
     return bounds if bounds.width > 1 and bounds.height > 1 else None
 
@@ -7541,10 +7554,11 @@ def verify_recent_clear(env):
 
         created = control_json(env, "session", "new", "--json")["result"]["id"]
         control_json(env, "session", "close", "--target", created, "--json")
+        before = control_json(env, "recent", "list", "--json")["result"]["recent"]
+        assert len(before) == 1, before
         response = control_json(env, "recent", "clear", "--json")
-        assert response["result"]["affected"] == 1, (
-            "recent clear did not report the one item it removed"
-        )
+        assert response["ok"], response
+        assert control_json(env, "recent", "list", "--json")["result"].get("recent", []) == []
         print("OK: palette and control clear recently closed items")
     except AssertionError:
         describe_tree(app)
@@ -7685,18 +7699,21 @@ def main():
     if scenario is None:
         failures = []
         scenarios = (
-            "normal", "upstream-controls", "html-overlay", "live-restart", "dashboard-modal", "context-menu",
+            "normal", "upstream-controls", "upstream-v0391", "upstream-v0400", "upstream-v0411", "sidebar-v0400", "links-v0400", "remote-v0391", "html-overlay", "overlay-visual", "live-restart", "live-fish-restart", "live-command-restart",
+            "live-wait-output", "startup-environment",
+            "dashboard-modal", "context-menu",
             "window-key-dispatch",
-            "split-exit", "split-primary-exit", "window-ownership", "preferences-pages",
+            "split-exit", "split-primary-exit", "split-ratio-restore", "window-ownership", "preferences-pages",
             "notification-reveal", "notification-focus", "session-pickers",
             "session-switch-commit", "session-switch-zoom", "session-switch-scroll",
             "session-switch-sessionless", "session-switch-leader", "leader-repeat", "session-switch-entry",
             "session-switch-deactivate", "child-gdk-env",
             "child-gdk-env-inverted", "child-launcher-env",
             "custom-command-failures", "remote-presentation", "control-hooks",
-            "surface-lifetimes", "surface-failures",
+            "surface-lifetimes", "surface-failures", "gl-teardown", "gl-teardown-glx", "gl-teardown-quarantine",
+            "gl-teardown-quarantine-close",
             "background-overlay-grid", "zoom-floating-overlay", "pane-dimming-pixels",
-            "sidebar-row-height",
+            "sidebar-row-height", "companion-layout", "companion-identity", "ibus-lifecycle",
             "sidebar-search-focus",
             "sidebar-narrow-clipping",
             "sidebar-width-floor",
@@ -7706,7 +7723,8 @@ def main():
             "blink-unmapped",
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
             "window-close-cancel", "workspace-focus-filters", "quick-card-geometry", "clipboard-payloads",
-            "recent-clear", "control-picker", "control-ask", "auto-follow", "hidden-toolbar", "desktop-actions",
+            "recent-clear", "control-picker", "control-ask", "ask-visual", "palette-lifecycle", "palette-layout-navigation",
+            "clipboard-osc52", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-picker-cancel", "appearance-reset", "unavailable-font-family", "keymap-config-directory",
             "chrome-interface-controls",
             "theme-many-sessions", "clipboard-lifetime", "clipboard-read-lifetime",
@@ -7785,19 +7803,76 @@ def main():
             verify_normal_toolbar(env, state, home)
         elif scenario == "window-key-dispatch":
             verify_window_key_dispatch(env)
+        elif scenario == "split-ratio-restore":
+            from atspi_split_ratio import verify_split_ratio_restore
+            verify_split_ratio_restore(env, state)
         elif scenario == "upstream-controls":
             verify_upstream_control_parity(env)
+        elif scenario == "upstream-v0391":
+            from atspi_v0391 import verify_v0391
+            verify_v0391(env, state)
+        elif scenario == "upstream-v0400":
+            from atspi_v0400 import verify_v0400
+            verify_v0400(env, state)
+        elif scenario == "upstream-v0411":
+            from atspi_v0411 import verify_v0411
+            verify_v0411(env, state)
+        elif scenario == "sidebar-v0400":
+            from atspi_v0400_sidebar import verify_sidebar_v0400
+            verify_sidebar_v0400(env, state)
+        elif scenario == "links-v0400":
+            from atspi_v0400_links import verify_links_v0400
+            verify_links_v0400(env, state)
+        elif scenario == "companion-layout":
+            from atspi_companion_layout import verify_companion_layout
+            verify_companion_layout(env, state)
+        elif scenario == "ibus-lifecycle":
+            from atspi_ibus_lifecycle import verify_ibus_lifecycle
+            verify_ibus_lifecycle(env)
+        elif scenario == "companion-identity":
+            from atspi_companion_identity import verify_companion_identity
+            verify_companion_identity(env)
+        elif scenario == "remote-v0391":
+            from atspi_v0391_remote import verify_remote_v0391
+            verify_remote_v0391(env, state)
         elif scenario == "html-overlay":
             from atspi_html_overlay import verify_html_overlay
             verify_html_overlay(env, state)
             from atspi_html_v0351 import verify_html_v0351
             verify_html_v0351(env, state)
-        elif scenario == "live-restart":
-            from atspi_restart_v0351 import verify_restart_close_reopen, verify_restart_v0351
+        elif scenario == "overlay-visual":
+            from atspi_overlay_visual import verify_overlay_visual
+            verify_overlay_visual(env, state)
+        elif scenario in ("live-restart", "live-fish-restart", "live-command-restart"):
+            from atspi_restart_v0351 import verify_restart_v0351
+            if scenario == "live-fish-restart":
+                env = dict(env, AGTERM_TEST_LOGIN_SHELL="/usr/bin/fish")
+            if scenario == "live-command-restart":
+                env = dict(env, AGTERM_TEST_COMMAND_SHELL="/usr/bin/fish")
             verify_restart_v0351(env, state)
-            verify_restart_close_reopen(env, state)
+            if scenario == "live-restart":
+                from atspi_restart_v0351 import verify_restart_close_reopen
+                verify_restart_close_reopen(env, state)
+        elif scenario == "live-wait-output":
+            from atspi_live_wait_output import verify_live_wait_output
+            verify_live_wait_output(env, state)
+        elif scenario == "startup-environment":
+            from atspi_startup_environment import verify_startup_environment
+            verify_startup_environment(env, state)
         elif scenario == "control-ask":
             verify_control_ask(env)
+        elif scenario == "ask-visual":
+            from atspi_ask_visual import verify_ask_visual
+            verify_ask_visual(env, state)
+        elif scenario == "palette-lifecycle":
+            from atspi_palette_lifecycle import verify_palette_lifecycle
+            verify_palette_lifecycle(env)
+        elif scenario == "palette-layout-navigation":
+            from atspi_palette_layout import verify_palette_layout_navigation
+            verify_palette_layout_navigation(env)
+        elif scenario == "clipboard-osc52":
+            from atspi_clipboard_osc52 import verify_clipboard_osc52
+            verify_clipboard_osc52(env)
         elif scenario == "dashboard-modal":
             verify_dashboard_modal(env)
         elif scenario == "context-menu":
@@ -7831,6 +7906,18 @@ def main():
             verify_surface_configuration_lifetimes(env)
         elif scenario == "surface-failures":
             verify_surface_failure_diagnostics(env)
+        elif scenario == "gl-teardown":
+            from atspi_gl_teardown import verify_gl_teardown
+            verify_gl_teardown(env, state, scenario)
+        elif scenario == "gl-teardown-glx":
+            from atspi_gl_teardown import verify_gl_teardown
+            verify_gl_teardown(env, state, scenario, require_api="glx")
+        elif scenario == "gl-teardown-quarantine":
+            from atspi_gl_teardown import verify_gl_teardown_quarantine
+            verify_gl_teardown_quarantine(env, state)
+        elif scenario == "gl-teardown-quarantine-close":
+            from atspi_gl_teardown import verify_gl_teardown_quarantine_close
+            verify_gl_teardown_quarantine_close(env, state)
         elif scenario == "background-overlay-grid":
             # Function-local: this harness re-execs itself per scenario, so it runs as `__main__` and
             # the sibling's `from atspi_smoke import …` loads a SECOND copy of this file; a module-scope
@@ -7968,6 +8055,7 @@ def main():
         print(f"PASS: {scenario}")
         return 0
     except (AssertionError, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, ValueError) as error:
+        traceback.print_exc()
         print(f"FAIL: {error}")
         return 1
     finally:

@@ -112,8 +112,15 @@ such as window placement and blur.
 
 ## Rendering
 
-If an accelerated UTM guest reports `No EGL configuration available`, use Mesa software rendering for
-one app launch:
+If a VM reports an OpenGL context error, including `No EGL configuration available`, you can try
+Mesa software rendering for agterm.
+Save work and quit agterm completely through its normal quit flow; quitting can end ordinary shells
+and foreground commands.
+Wait for the app to exit.
+A second launcher invocation or New Window activates the existing process and keeps its renderer
+environment.
+
+From another terminal, start a fresh app process with a one-shot setting:
 
 ```bash
 LIBGL_ALWAYS_SOFTWARE=1 "$HOME/.local/bin/agterm-linux"
@@ -127,6 +134,7 @@ mise exec swift@6.3.2 -- scripts/install-linux.sh --software-rendering
 mise exec swift@6.3.2 -- scripts/install-linux.sh --default-rendering
 ```
 
+The renderer options belong to `scripts/install-linux.sh` and take effect on the next fresh app process.
 These commands reinstall from this checkout; add `--no-build` to use its existing Release build.
 Without either renderer option, reinstalling preserves the prior selection; new installations use the
 normal inherited environment.
@@ -135,7 +143,9 @@ The installer stores `software` or `default` as data in the payload's `share/agt
 Only the app wrapper reads this file; the `agtermctl` helper and compositor/global settings are unchanged.
 Software mode overrides an inherited `LIBGL_ALWAYS_SOFTWARE=0` for the app launch; default mode leaves
 the caller's value untouched, including an explicit one-shot override.
-Child processes launched by the app can inherit software rendering as well.
+For child processes, the packaged wrapper's software override is replaced with the caller's previous
+value, or removed if the caller had none.
+A caller-supplied one-shot value can therefore reach those children.
 The opt-in addresses the tested VM's EGL limitation; it is not enabled automatically for other Linux machines.
 Hardware rendering remains dependent on each machine's Mesa/driver configuration.
 

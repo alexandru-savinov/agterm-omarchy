@@ -37,7 +37,8 @@ def profile():
                     (ROOT / 'linux/ghostty-resources.env').read_text(), re.MULTILINE)
     require(pin and manifest['ghostty_revision'] == pin[1], 'stale Ghostty notice revision')
     patch_inputs = {str(path.relative_to(ROOT)): digest(read_regular(path))
-                    for path in sorted((ROOT / 'linux/patches').glob('ghostty-*.patch'))}
+                    for path in sorted([*(ROOT / 'scripts/ghostty-patches').glob('*.patch'),
+                                        *(ROOT / 'linux/patches').glob('*.patch')])}
     require(patch_inputs and manifest.get('ghostty_patch_inputs') == patch_inputs,
             'stale or changed Ghostty patch inputs')
     inventory_bytes = read_regular(NOTICES / 'inventory.json')
@@ -104,7 +105,7 @@ def verify_inventory(inventory, paths):
         require(Path(theme['file']).name == theme['file'] and theme['file'] not in names
                 and re.fullmatch(r'[0-9a-f]{64}', theme['sha256']), 'invalid theme inventory')
         names.add(theme['file'])
-    require(len(names) == 602, 'incomplete pinned theme inventory')
+    require(len(names) == 819, 'incomplete pinned theme inventory')
 
 
 def ghostty_record(manifest):

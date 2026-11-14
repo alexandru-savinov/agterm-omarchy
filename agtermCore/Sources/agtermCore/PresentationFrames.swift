@@ -103,6 +103,16 @@ public struct PresentationNotify: Codable, Equatable, Sendable {
     }
 }
 
+/// PresentationSound is a status sound the origin hands its presenter to play instead of playing it itself.
+/// A nil `name` is the presenter's own Settings blocked sound, so each Mac's choice applies where it plays.
+public struct PresentationSound: Codable, Equatable, Sendable {
+    public var name: String?
+
+    public init(name: String?) {
+        self.name = name
+    }
+}
+
 /// PresentationAsk is an ask the origin hands its presenter to draw. `owner` is the presenter generation it
 /// was handed under, and every answer echoes it, so one arriving after a handback is recognisably stale.
 public struct PresentationAsk: Codable, Equatable, Sendable {
@@ -118,6 +128,10 @@ public struct PresentationAsk: Codable, Equatable, Sendable {
     /// The origin's pane the dialog covers, nil for the whole session.
     public var pane: PresentationPane?
     public var owner: Int
+    /// input and choices carry the ask's form; a presenter without `ask.form` never receives either.
+    public var input: AskInputForm?
+    public var choices: AskChoiceForm?
+    public var cancelID: String?
 
     public init(_ ask: PendingAsk, pane: PresentationPane?, owner: Int) {
         id = ask.id
@@ -131,20 +145,64 @@ public struct PresentationAsk: Codable, Equatable, Sendable {
         width = ask.width
         self.pane = pane
         self.owner = owner
+        cancelID = ask.cancelID
+        switch ask.form {
+        case .input(let form): input = form
+        case .choices(let form): choices = form
+        case nil: break
+        }
+    }
+
+    /// The form the request carries, input first should a malformed frame carry both.
+    public var form: AskForm? {
+        if let input { return .input(input) }
+        return choices.map(AskForm.choices)
+    }
+
+    /// Whether the presenter must understand `ask.form` to show this ask as the origin means it.
+    public var needsFormSupport: Bool { input != nil || choices != nil || cancelID != nil }
+
+    /// Whether the presenter must also understand `ask.other` to show the choice list's free-form row.
+    public var needsOtherSupport: Bool { choices?.other != nil }
+
+    /// Whether the request, and the largest answer it can produce, each fit one stream frame, measured through
+    /// the codec with the widest counters. A text answer is tried with every button and the text cap at twice
+    /// its bytes, the worst escaping the allowed characters reach; a selection alone names only ids the request
+    /// already carried, but a checkbox list's free-form text rides beside every id.
+    public func fitsFrames() -> Bool {
+        guard Self.fits(.askRequest(self)) else { return false }
+        let text = String(repeating: "\"", count: AskInputForm.maxTextBytes)
+        if input != nil {
+            return buttons.allSatisfy { Self.fits(.askResolve(PresentationAskAnswer(id: id, owner: owner, button: $0.id, text: text))) }
+        }
+        guard let choices, choices.other != nil else { return true }
+        let selected = choices.multiple ? choices.choices.map(\.id) : []
+        return buttons.allSatisfy {
+            Self.fits(.askResolve(PresentationAskAnswer(id: id, owner: owner, button: $0.id, text: text, selected: selected)))
+        }
+    }
+
+    private static func fits(_ body: PresentationFrame.Body) -> Bool {
+        (try? PresentationCodec.encode(PresentationFrame(gen: .max, rev: .max, body: body))) != nil
     }
 }
 
 /// PresentationAskAnswer is the presenter's answer: a button id, or nil for a dismissal with Esc or Command-W.
-/// Only the id travels; the origin derives label and index from the buttons it stored.
+/// The origin derives label and index from the buttons it stored and checks `text` and `selected` against
+/// the form it stored.
 public struct PresentationAskAnswer: Codable, Equatable, Sendable {
     public var id: String
     public var owner: Int
     public var button: String?
+    public var text: String?
+    public var selected: [String]?
 
-    public init(id: String, owner: Int, button: String?) {
+    public init(id: String, owner: Int, button: String?, text: String? = nil, selected: [String]? = nil) {
         self.id = id
         self.owner = owner
         self.button = button
+        self.text = text
+        self.selected = selected
     }
 }
 
@@ -167,29 +225,220 @@ public struct PresentationOverlay: Codable, Equatable, Sendable {
     /// The origin's pane the overlay covers, nil for the session-wide slot.
     public var pane: PresentationPane?
     public var sizePercent: Int?
+    /// width and height are the `--width`/`--height` point overrides, sent only to a presenter listing
+    /// `PresentationHub.overlayPointsKind`.
+    public var width: Int?
+    public var height: Int?
     public var backgroundColor: String?
     public var follow: Bool
     public var wait: Bool
 
-    public init(job: String, pane: PresentationPane?, sizePercent: Int?, backgroundColor: String?, follow: Bool,
-                wait: Bool) {
+    public init(job: String, pane: PresentationPane?, sizePercent: Int?, points: OverlayPointSize = OverlayPointSize(),
+                backgroundColor: String?, follow: Bool, wait: Bool) {
         self.job = job
         self.pane = pane
         self.sizePercent = sizePercent
+        width = points.width
+        height = points.height
         self.backgroundColor = backgroundColor
         self.follow = follow
         self.wait = wait
     }
+
+    public var points: OverlayPointSize { OverlayPointSize(width: width, height: height) }
 }
 
 /// PresentationOverlayChange names one remote overlay job, with a size for a resize.
 public struct PresentationOverlayChange: Codable, Equatable, Sendable {
     public var job: String
     public var sizePercent: Int?
+    public var width: Int?
+    public var height: Int?
 
-    public init(job: String, sizePercent: Int? = nil) {
+    public init(job: String, sizePercent: Int? = nil, points: OverlayPointSize = OverlayPointSize()) {
         self.job = job
         self.sizePercent = sizePercent
+        width = points.width
+        height = points.height
+    }
+
+    public var points: OverlayPointSize { OverlayPointSize(width: width, height: height) }
+}
+
+/// PresentationPageSource is a handed-over page's full source on the origin: a file the viewer fetches over the
+/// page channel, with the grant that bounds which files it may ask for, or a complete URL it loads itself.
+/// The image, markdown and text cases are pages the viewer builds itself from bytes it fetches over the channel;
+/// they go only to a presenter listing `PresentationHub.pageContentKind`, since an older one fails the whole
+/// stream on a case it cannot decode.
+public enum PresentationPageSource: Codable, Equatable, Sendable {
+    case file(path: String, grantRoot: String?)
+    case url(String)
+    /// image carries the picture's oriented pixel size, which the viewer turns into points for its own screen.
+    case image(path: String, width: Int, height: Int)
+    case markdown(path: String)
+    case text(path: String, line: Int?)
+    /// document goes only to a presenter also listing `PresentationHub.pageDocumentKind`, for the same reason.
+    case document(path: String)
+
+    /// usesChannel says the viewer fetches this page over a page channel, which a single-use claim opens.
+    public var usesChannel: Bool {
+        if case .url = self { return false }
+        return true
+    }
+
+    /// isContent says this is a page the viewer builds from fetched bytes rather than loads as HTML.
+    public var isContent: Bool {
+        switch self {
+        case .file, .url: return false
+        case .image, .markdown, .text, .document: return true
+        }
+    }
+}
+
+/// PresentationPage asks the presenter to show a page the origin opened. `page` is the origin's page id, which
+/// the presenter never reuses as its own; `token` claims the page channel and is single-use.
+public struct PresentationPage: Codable, Equatable, Sendable {
+    public var page: String
+    public var token: String
+    public var source: PresentationPageSource
+    /// identity is the display text the identity strip shows, never used to load anything.
+    public var identity: String
+    public var chromeless: Bool
+    public var javascript: Bool
+    public var navigation: Bool
+    public var browse: Bool
+    public var persistent: Bool
+    public var backgroundColor: String?
+    /// pane is the origin's pane the page covers, nil for the session-wide slot.
+    public var pane: PresentationPane?
+    public var sizePercent: Int?
+    public var width: Int?
+    public var height: Int?
+    public var follow: Bool
+
+    public init(page: String, token: String, source: PresentationPageSource, identity: String, chromeless: Bool,
+                javascript: Bool, navigation: Bool, browse: Bool, persistent: Bool, backgroundColor: String?,
+                pane: PresentationPane?, sizePercent: Int?, points: OverlayPointSize = OverlayPointSize(),
+                follow: Bool) {
+        self.page = page
+        self.token = token
+        self.source = source
+        self.identity = identity
+        self.chromeless = chromeless
+        self.javascript = javascript
+        self.navigation = navigation
+        self.browse = browse
+        self.persistent = persistent
+        self.backgroundColor = backgroundColor
+        self.pane = pane
+        self.sizePercent = sizePercent
+        width = points.width
+        height = points.height
+        self.follow = follow
+    }
+
+    public var points: OverlayPointSize { OverlayPointSize(width: width, height: height) }
+}
+
+/// PresentationPageChange names one handed-over page by the origin's id, with a reason when the presenter
+/// refuses it.
+public struct PresentationPageChange: Codable, Equatable, Sendable {
+    public var page: String
+    public var reason: String?
+
+    public init(page: String, reason: String? = nil) {
+        self.page = page
+        self.reason = reason
+    }
+}
+
+/// PresentationPageAction is what the origin asks of a handed-over page.
+public enum PresentationPageAction: String, Codable, Sendable {
+    case hide, show, reloadOriginal, reloadCurrent, back, forward, browser, resize
+}
+
+/// PresentationPageCommand is one origin request for a handed-over page. `seq` grows per page, and the
+/// presenter echoes the last one it applied in `PresentationPageState.appliedSeq`.
+public struct PresentationPageCommand: Codable, Equatable, Sendable {
+    public var page: String
+    public var seq: Int
+    public var action: PresentationPageAction
+    public var sizePercent: Int?
+    public var width: Int?
+    public var height: Int?
+    /// merge asks a resize to keep the axes it does not name, for a picture the presenter sized itself; nil, and
+    /// left out of the frame, for every other command, which replaces the size whole.
+    public var merge: Bool?
+
+    public init(page: String, seq: Int, action: PresentationPageAction, sizePercent: Int? = nil,
+                points: OverlayPointSize = OverlayPointSize(), merge: Bool? = nil) {
+        self.page = page
+        self.seq = seq
+        self.action = action
+        self.sizePercent = sizePercent
+        width = points.width
+        height = points.height
+        self.merge = merge
+    }
+
+    public var points: OverlayPointSize { OverlayPointSize(width: width, height: height) }
+}
+
+/// PresentationPageState is what a handed-over page shows on the presenter. `address` is the origin's logical
+/// address, never the presenter's own scheme URL. Strings are bounded before sending, since the page writes
+/// its title and a long one must not cost a frame.
+public struct PresentationPageState: Codable, Equatable, Sendable {
+    public static let maxTitle = 1024
+    public static let maxAddress = 8192
+    public static let maxError = 1024
+
+    public var page: String
+    public var title: String?
+    public var address: String?
+    public var load: HtmlLoadState
+    public var error: String?
+    public var canGoBack: Bool
+    public var canGoForward: Bool
+    public var hidden: Bool
+    public var appliedSeq: Int
+
+    public init(page: String, title: String?, address: String?, load: HtmlLoadState, error: String?,
+                canGoBack: Bool, canGoForward: Bool, hidden: Bool, appliedSeq: Int) {
+        self.page = page
+        self.title = title.map { String($0.prefix(Self.maxTitle)) }
+        self.address = address.map { String($0.prefix(Self.maxAddress)) }
+        self.load = load
+        self.error = error.map { String($0.prefix(Self.maxError)) }
+        self.canGoBack = canGoBack
+        self.canGoForward = canGoForward
+        self.hidden = hidden
+        self.appliedSeq = appliedSeq
+    }
+}
+
+/// PresentationRespawns is how often the origin respawned each of a session's panes, by daemon name, in one
+/// origin app lifetime: `epoch` changes on every launch, so a counter that restarted is never read as older.
+public struct PresentationRespawns: Codable, Equatable, Sendable {
+    public let epoch: String
+    public let generations: [String: Int]
+
+    public init(epoch: String, generations: [String: Int]) {
+        self.epoch = epoch
+        self.generations = generations
+    }
+}
+
+/// PresentationInfo is a session's local info line as the origin mirrors it. The viewer parses the source itself and
+/// runs no timer: `hideAfter` is the configured value for read-back, and the origin's expiry arrives as a clear.
+public struct PresentationInfo: Codable, Equatable, Sendable {
+    public var source: String
+    public var markdown: Bool
+    public var hideAfter: Double
+
+    public init(source: String, markdown: Bool, hideAfter: Double) {
+        self.source = source
+        self.markdown = markdown
+        self.hideAfter = hideAfter
     }
 }
 
@@ -199,12 +448,19 @@ public struct PresentationSnapshot: Codable, Equatable, Sendable {
     public var hud: PresentationHud?
     public var context: String?
     public var layout: PresentationLayout?
+    /// respawns is nil from an origin that predates parent respawn.
+    public var respawns: PresentationRespawns?
+    /// info is nil from an origin that predates the info line, or with no local line set.
+    public var info: PresentationInfo?
 
-    public init(status: PresentationStatus?, hud: PresentationHud?, context: String? = nil, layout: PresentationLayout? = nil) {
+    public init(status: PresentationStatus?, hud: PresentationHud?, context: String? = nil, layout: PresentationLayout? = nil,
+                respawns: PresentationRespawns? = nil, info: PresentationInfo? = nil) {
         self.status = status
         self.hud = hud
         self.context = context
         self.layout = layout
+        self.respawns = respawns
+        self.info = info
     }
 }
 
@@ -218,9 +474,11 @@ public struct PresentationFrame: Equatable, Sendable {
         case snapshot(PresentationSnapshot)
         case status(PresentationStatus?)
         case context(String?)
+        case info(PresentationInfo?)
         case layout(PresentationLayout)
         case hud(PresentationHud?)
         case notify(PresentationNotify)
+        case sound(PresentationSound)
         /// A viewer asking to be the session's sole presenter. Sent only after the origin's hello offered it.
         case presenterAcquire
         case presenterGranted
@@ -239,6 +497,16 @@ public struct PresentationFrame: Equatable, Sendable {
         case overlayResize(PresentationOverlayChange)
         /// The viewer closed its surface, which frees a slot held only for a `--wait` surface.
         case overlayClosed(PresentationOverlayChange)
+        case pageRequest(PresentationPage)
+        /// pageRejected: the presenter cannot show the page, so the origin ends it without waiting for a claim.
+        case pageRejected(PresentationPageChange)
+        case pageClose(PresentationPageChange)
+        /// pageClosed: the presenter took the page down, so the origin ends it, keeping an answer it recorded.
+        case pageClosed(PresentationPageChange)
+        case pageCommand(PresentationPageCommand)
+        case pageState(PresentationPageState)
+        /// The origin respawned a pane's shell under the same daemon name; carries that pane's new count alone.
+        case respawn(PresentationRespawns)
         /// A kind this build does not speak. Kept, with its ordering, so a newer peer does not break the stream.
         case unknown(String)
 
@@ -250,9 +518,11 @@ public struct PresentationFrame: Equatable, Sendable {
             case .snapshot: return "snapshot"
             case .status: return "status"
             case .context: return "context"
+            case .info: return "info"
             case .layout: return "layout"
             case .hud: return "hud"
             case .notify: return "notify"
+            case .sound: return "sound"
             case .presenterAcquire: return "presenter.acquire"
             case .presenterGranted: return "presenter.granted"
             case .presenterRefused: return "presenter.refused"
@@ -265,6 +535,13 @@ public struct PresentationFrame: Equatable, Sendable {
             case .overlayClose: return "overlay.close"
             case .overlayResize: return "overlay.resize"
             case .overlayClosed: return "overlay.closed"
+            case .pageRequest: return "page.request"
+            case .pageRejected: return "page.rejected"
+            case .pageClose: return "page.close"
+            case .pageClosed: return "page.closed"
+            case .pageCommand: return "page.command"
+            case .pageState: return "page.state"
+            case .respawn: return "pane.respawn"
             case .unknown(let kind): return kind
             }
         }
@@ -283,7 +560,7 @@ public struct PresentationFrame: Equatable, Sendable {
 
 extension PresentationFrame: Codable {
     private enum CodingKeys: String, CodingKey {
-        case kind, gen, rev, hello, snapshot, status, context, layout, hud, notify, ask, overlay
+        case kind, gen, rev, hello, snapshot, status, context, info, layout, hud, notify, sound, ask, overlay, page, respawn
     }
 
     public init(from decoder: Decoder) throws {
@@ -298,9 +575,11 @@ extension PresentationFrame: Codable {
         case "snapshot": body = .snapshot(try container.decode(PresentationSnapshot.self, forKey: .snapshot))
         case "status": body = .status(try container.decodeIfPresent(PresentationStatus.self, forKey: .status))
         case "context": body = .context(try container.decodeIfPresent(String.self, forKey: .context))
+        case "info": body = .info(try container.decodeIfPresent(PresentationInfo.self, forKey: .info))
         case "layout": body = .layout((try? container.decode(PresentationLayout.self, forKey: .layout)) ?? .invalid)
         case "hud": body = .hud(try container.decodeIfPresent(PresentationHud.self, forKey: .hud))
         case "notify": body = .notify(try container.decode(PresentationNotify.self, forKey: .notify))
+        case "sound": body = .sound(try container.decode(PresentationSound.self, forKey: .sound))
         case "presenter.acquire": body = .presenterAcquire
         case "presenter.granted": body = .presenterGranted
         case "presenter.refused": body = .presenterRefused
@@ -314,6 +593,13 @@ extension PresentationFrame: Codable {
         case "overlay.close": body = .overlayClose(try container.decode(PresentationOverlayChange.self, forKey: .overlay))
         case "overlay.resize": body = .overlayResize(try container.decode(PresentationOverlayChange.self, forKey: .overlay))
         case "overlay.closed": body = .overlayClosed(try container.decode(PresentationOverlayChange.self, forKey: .overlay))
+        case "page.request": body = .pageRequest(try container.decode(PresentationPage.self, forKey: .page))
+        case "page.rejected": body = .pageRejected(try container.decode(PresentationPageChange.self, forKey: .page))
+        case "page.close": body = .pageClose(try container.decode(PresentationPageChange.self, forKey: .page))
+        case "page.closed": body = .pageClosed(try container.decode(PresentationPageChange.self, forKey: .page))
+        case "page.command": body = .pageCommand(try container.decode(PresentationPageCommand.self, forKey: .page))
+        case "page.state": body = .pageState(try container.decode(PresentationPageState.self, forKey: .page))
+        case "pane.respawn": body = .respawn(try container.decode(PresentationRespawns.self, forKey: .respawn))
         default: body = .unknown(kind)
         }
     }
@@ -328,9 +614,11 @@ extension PresentationFrame: Codable {
         case .snapshot(let snapshot): try container.encode(snapshot, forKey: .snapshot)
         case .status(let status): try container.encodeIfPresent(status, forKey: .status)
         case .context(let context): try container.encodeIfPresent(context, forKey: .context)
+        case .info(let info): try container.encodeIfPresent(info, forKey: .info)
         case .layout(let layout): try container.encode(layout, forKey: .layout)
         case .hud(let hud): try container.encodeIfPresent(hud, forKey: .hud)
         case .notify(let notify): try container.encode(notify, forKey: .notify)
+        case .sound(let sound): try container.encode(sound, forKey: .sound)
         case .askRequest(let ask): try container.encode(ask, forKey: .ask)
         case .askResolve(let answer): try container.encode(answer, forKey: .ask)
         case .askRejected(let ref), .askDismiss(let ref): try container.encode(ref, forKey: .ask)
@@ -338,6 +626,12 @@ extension PresentationFrame: Codable {
         case .overlayRejected(let change), .overlayClose(let change), .overlayResize(let change),
              .overlayClosed(let change):
             try container.encode(change, forKey: .overlay)
+        case .pageRequest(let page): try container.encode(page, forKey: .page)
+        case .pageRejected(let change), .pageClose(let change), .pageClosed(let change):
+            try container.encode(change, forKey: .page)
+        case .pageCommand(let command): try container.encode(command, forKey: .page)
+        case .pageState(let state): try container.encode(state, forKey: .page)
+        case .respawn(let respawns): try container.encode(respawns, forKey: .respawn)
         case .ping, .ack, .presenterAcquire, .presenterGranted, .presenterRefused, .unknown: break
         }
     }

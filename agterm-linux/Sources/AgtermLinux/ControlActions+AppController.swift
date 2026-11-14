@@ -75,6 +75,7 @@ extension AppController: ControlActions {
     }
 
     func controlTree(window: String?) -> ControlResponse {
+        for session in store.workspaces.flatMap(\.sessions) { cacheOverlayBounds(session) }
         let zmxSnapshot = gZmxForegroundResolver?.passSnapshot(for: store.workspaces.flatMap(\.sessions), timeout: nil)
         let baseTree = store.controlTree(
             paneForeground: { ($0.surface as? GhosttySurface)?.paneForeground(zmxSnapshot: zmxSnapshot) },
@@ -99,13 +100,19 @@ extension AppController: ControlActions {
                 }
             }, app: LinuxAppMetadata.identity,
             flaggedLayout: linuxSettingsStore().load().effectiveFlaggedViewLayout,
-            htmlZoom: linuxSettingsStore().load().effectiveHtmlOverlayZoom
+            htmlZoom: linuxSettingsStore().load().effectiveHtmlOverlayZoom,
+            linkOpenMode: linuxSettingsStore().load().effectiveLinkOpenMode,
+            sidebarDensity: linuxSettingsStore().load().effectiveSidebarDensity
         )
         let tree = projectingLinuxAutoFollow(baseTree)
         return ControlResponse(ok: true, result: ControlResult(tree: tree))
     }
 
     func createSession(_ options: ControlSessionCreateOptions) -> ControlResponse {
+        createSession(options, tint: nil)
+    }
+
+    func createSession(_ options: ControlSessionCreateOptions, tint: SidebarTint?) -> ControlResponse {
         let cwd = options.cwd ?? Self.homeCwd
         let shouldFocus = !options.noSelect && gtk_window_is_active(WIN(windowPointer)) != 0
         if let anchor = options.after ?? options.before {
@@ -116,7 +123,7 @@ extension AppController: ControlActions {
                 guard let session = store.addSession(toWorkspace: location.workspace, cwd: cwd,
                                                      command: options.command, name: options.name, wait: options.wait == true,
                                                      at: index,
-                                                     select: !options.noSelect) else {
+                                                     select: !options.noSelect, tint: tint) else {
                     return err("no such workspace")
                 }
                 reconcile(focusActive: shouldFocus)
@@ -142,7 +149,7 @@ extension AppController: ControlActions {
         }
         guard let session = store.addSession(toWorkspace: workspaceID, cwd: cwd,
                                              command: options.command, name: options.name, wait: options.wait == true,
-                                             select: !options.noSelect) else {
+                                             select: !options.noSelect, tint: tint) else {
             return err("no such workspace")
         }
         reconcile(focusActive: shouldFocus)
@@ -174,37 +181,11 @@ extension AppController: ControlActions {
     }
 
     func closeSession(_ target: String?, window: String?) -> ControlResponse {
-        switch resolveSessionResponse(target) {
-        case .failure(let response): return response
-        case .success(let id):
-            closeSession(id)
-            return ok(id)
-        }
+        closeSession(target, window: window, undoable: false)
     }
 
     func closeSessions(_ targets: [String], window: String?) -> ControlResponse {
-        switch resolveSessionResponses(targets) {
-        case .failure(let response): return response
-        case .success(let ids):
-            guard let first = ids.first else { return err("session.close requires at least one --target") }
-            if ids.count == 1 {
-                closeSession(first)
-                return ok(first)
-            }
-            let affected: Int
-            if linuxSettingsStore().load().closeGraceUndoEnabled ?? true {
-                affected = store.softCloseSessions(ids) ? ids.count : 0
-                if affected > 0 { reconcileSoftClose() }
-            } else {
-                affected = ids.reduce(into: 0) { count, id in
-                    guard store.session(withID: id) != nil else { return }
-                    store.closeSession(id)
-                    count += 1
-                }
-            }
-            if affected == 0 || !(linuxSettingsStore().load().closeGraceUndoEnabled ?? true) { reconcile() }
-            return ControlResponse(ok: true, result: ControlResult(affected: affected))
-        }
+        closeSessions(targets, window: window, undoable: false)
     }
 
     func renameSession(_ target: String?, window: String?, name: String) -> ControlResponse {
@@ -229,7 +210,12 @@ extension AppController: ControlActions {
     }
 
     func createWorkspace(window: String?, name: String?, collapsed: Bool) -> ControlResponse {
-        let workspace = store.addWorkspace(name: name?.linuxTrimmedOrNil ?? store.defaultWorkspaceName, collapsed: collapsed)
+        createWorkspace(window: window, name: name, collapsed: collapsed, tint: nil)
+    }
+
+    func createWorkspace(window: String?, name: String?, collapsed: Bool, tint: SidebarTint?) -> ControlResponse {
+        let workspace = store.addWorkspace(name: name?.linuxTrimmedOrNil ?? store.defaultWorkspaceName,
+                                           collapsed: collapsed, tint: tint)
         reconcile()
         return ok(workspace.id)
     }
@@ -421,7 +407,10 @@ extension AppController: ControlActions {
             }
             let blockedDefault = wasBlocked ? nil : linuxSettingsStore().load().blockedStatusSoundName
             if let sound = update.status.effectiveSound(perCall: update.sound, blockedDefault: blockedDefault) {
-                StatusSoundPlayer.shared.play(sound)
+                let forwarded = store.session(withID: id).map {
+                    store.presentStatusSoundRemotely(PresentationSound(name: update.sound == nil ? nil : sound), in: $0, pane: pane)
+                } ?? false
+                if !forwarded { StatusSoundPlayer.shared.play(sound) }
             }
             syncSidebar()
             return ok(id)
@@ -516,13 +505,7 @@ extension AppController: ControlActions {
             }
             _ = store.applySplitRatio(ratio, forSession: id)
             if let paned = sessionPanes[id] {
-                let extent = session.splitAxis == .topBottom
-                    ? gtk_widget_get_height(W(paned)) : gtk_widget_get_width(W(paned))
-                let applied = session.splitRatio ?? AppStore.splitRatioDefault
-                gtk_paned_set_position(
-                    paned,
-                    Int32(Double(max(1, extent)) * panedFraction(applied, session: id))
-                )
+                scheduleSplitRatioRestore(sessionID: id, paned: paned)
             }
             return ok(id)
         }

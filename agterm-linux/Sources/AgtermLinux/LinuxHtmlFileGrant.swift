@@ -9,11 +9,11 @@ enum LinuxHtmlFileGrant {
         let mime: String
     }
 
-    /// The page id and the percent-decoded path of a request URI, as `serve` reads them.
-    static func request(_ uri: String) -> (id: UUID, path: String)? {
+    /// The scheme, page id and percent-decoded path of a request URI, as `serve` reads them.
+    static func request(_ uri: String) -> (scheme: String?, id: UUID, path: String)? {
         guard let components = URLComponents(string: uri), let host = components.host,
               let id = UUID(uuidString: host) else { return nil }
-        return (id, components.path)
+        return (components.scheme, id, components.path)
     }
 
     /// The path of `path` below `grantRoot` after both are resolved, or nil when it is the root or outside it.
