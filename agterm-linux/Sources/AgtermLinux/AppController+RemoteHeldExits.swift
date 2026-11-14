@@ -31,12 +31,20 @@ struct LinuxRemoteHeldExitRouter {
     func attachmentEnded(_ surface: any TerminalSurface, forSession id: UUID) -> ZmxLeadState? {
         guard let pane = paneIdentity(surface, forSession: id) else { return nil }
         let state = ZmxLeadBook.shared.states[pane]
+        if LinuxReconnectDiagnostics.enabled {
+            LinuxReconnectDiagnostics.record("attachment-ended", surface: surface as? GhosttySurface,
+                                             fields: ["attachmentPresent": state != nil, "nonceTag": LinuxReconnectDiagnostics.nonceTag(state?.attachment.nonce)])
+        }
         ZmxLeadBook.shared.forget(pane: pane)
         return state
     }
 
     func linkLost(_ notice: RemoteLinkNotice, from surface: any TerminalSurface, forSession id: UUID,
                   heldAttachment: LinuxHeldLeadAttachment) -> Bool {
+        if LinuxReconnectDiagnostics.enabled {
+            LinuxReconnectDiagnostics.router(notice, surface: surface, session: store.session(withID: id),
+                                             pane: paneIdentity(surface, forSession: id), held: heldAttachment.state)
+        }
         guard let pane = paneIdentity(surface, forSession: id),
               let session = store.session(withID: id), let host = session.remoteHost,
               let attachment = ZmxLeadBook.shared.states[pane] ?? heldAttachment.state,
@@ -47,6 +55,7 @@ struct LinuxRemoteHeldExitRouter {
         store.remotePaneHeld(pane, forSession: id)
         paneHeld(surface, forSession: id)
         RemoteReconnectBook.shared.wait(pane: pane, session: id, host: host, cover: cover, now: Date())
+        LinuxReconnectDiagnostics.record("router-accepted", surface: surface as? GhosttySurface)
         return true
     }
 

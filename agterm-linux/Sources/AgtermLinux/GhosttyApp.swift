@@ -227,6 +227,9 @@ final class GhosttyApp: @unchecked Sendable {
                 Self.wrapper(fromTarget: target)?.queueRender()
                 return true
             case GHOSTTY_ACTION_SET_TITLE:
+                if LinuxReconnectDiagnostics.enabled {
+                    LinuxReconnectDiagnostics.title(action.action.set_title.title, surface: Self.wrapper(fromTarget: target))
+                }
                 guard let w = Self.wrapper(fromTarget: target), let ptr = action.action.set_title.title else { return true }
                 w.applyTitle(String(cString: ptr))
                 return true
@@ -235,6 +238,9 @@ final class GhosttyApp: @unchecked Sendable {
                 w.applyPwd(String(cString: ptr))
                 return true
             case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
+                if LinuxReconnectDiagnostics.enabled {
+                    LinuxReconnectDiagnostics.record("native-child-exit", surface: Self.wrapper(fromTarget: target))
+                }
                 guard let w = Self.wrapper(fromTarget: target) else { return false }
                 let retained = w.surface.flatMap { RetainedGhosttySurface(ghostty_surface_userdata($0)) }
                 guard w.shouldCloseOnChildExitAction else {
@@ -242,6 +248,7 @@ final class GhosttyApp: @unchecked Sendable {
                     // the held hook reaches the store, which may close and free this surface: never inside the callback
                     guard let retained else { return false }
                     runOnMain { MainActor.assumeIsolated {
+                        LinuxReconnectDiagnostics.record("held-idle", surface: retained.surface)
                         retained.surface.onExitHeld?()
                         retained.release()
                     } }
