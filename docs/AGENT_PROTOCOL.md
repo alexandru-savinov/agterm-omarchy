@@ -121,7 +121,7 @@ Settings as of 2026-11-15 (the owner's word; agents do not change them):
 
 - **Branches are deleted when their pull request merges** (`delete_branch_on_merge`). Do not reuse a merged branch name for new work.
 - **Auto-merge is allowed** (`allow_auto_merge`).
-- **The status check `CI` is required on `main`** (ruleset "Required CI on main"). It is the aggregate job of the `Omarchy CI` workflow; the pull request cannot merge until it reports success. It is not strict: a branch behind `main` is not forced to update.
+- **Four status checks are required on `main`** (ruleset "Required CI on main", see below). `CI` is the aggregate job of the `Omarchy CI` workflow. The rule is not strict: a branch behind `main` is not forced to update.
 - Merge, squash and rebase are all allowed; merge with `--merge` unless the owner says otherwise.
 
 The merge command, used only after the review at the current head has no finding of MEDIUM or higher (see the decision precedence below):
@@ -132,4 +132,4 @@ gh pr merge <number> --auto --merge --match-head-commit <head sha>
 
 `--match-head-commit` makes the merge fail if the branch moved after the review. Auto-merge waits for the required `CI`; it does not wait for the review, so request it only after the review.
 
-**Gap until the ruleset is widened:** only `CI` is required. Secret scan (full history), Vulnerability and misconfig scan (Trivy), Dependency review and CodeQL are not, so auto-merge would land a pull request even if one of them failed. Therefore arm `--auto` only after every check on that head other than `CI` has passed or been skipped; if one is pending or failing, disarm with `gh pr merge <number> --disable-auto` and re-arm once they are green. Edit this paragraph when the ruleset changes.
+**Required checks.** The ruleset "Required CI on main" requires four status checks: `CI`, "Secret scan (full history)", "Vulnerability and misconfig scan" and "Dependency review". A pull request cannot merge, auto-merge included, until all four succeed. CodeQL and the path-filtered checks (for example actionlint, zizmor, Semgrep and OSV) are not required, so before arming `--auto` check those yourself: arm only when every one of them on that head has passed or been skipped; if one is pending or failing, disarm with `gh pr merge <number> --disable-auto` and re-arm once it is green. If one of the four required checks never reports on a pull request, tell the lead at once. Edit this paragraph when the ruleset changes.
