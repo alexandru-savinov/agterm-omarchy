@@ -114,3 +114,20 @@ Keep it short:
 - Task check-ins, evidence and handoffs go on the task issue.
 - Nothing on the hub is locked or deleted. Existing check-ins stay where they are and are still read by the queue.
 - To find the work, read the index comment first, then the task issue.
+
+## Merging, as the repository is configured
+
+Settings as of 2026-11-15 (the owner's word; agents do not change them):
+
+- **Branches are deleted when their pull request merges** (`delete_branch_on_merge`). Do not reuse a merged branch name for new work.
+- **Auto-merge is allowed** (`allow_auto_merge`).
+- **The status check `CI` is required on `main`** (ruleset "Required CI on main"). It is the aggregate job of the `Omarchy CI` workflow; the pull request cannot merge until it reports success. It is not strict: a branch behind `main` is not forced to update.
+- Merge, squash and rebase are all allowed; merge with `--merge` unless the owner says otherwise.
+
+The merge command, used only after the review at the current head has no finding of MEDIUM or higher (see the decision precedence below):
+
+```text
+gh pr merge <number> --auto --merge --match-head-commit <head sha>
+```
+
+`--match-head-commit` makes the merge fail if the branch moved after the review. Auto-merge waits for the required `CI`; it does not wait for the review, so request it only after the review.
