@@ -1700,12 +1700,16 @@ final class WindowLibraryTests {
     // MARK: - Recovery matrix
 
     @Test func corruptIndexFallsBackToSeed() throws {
-        try Data("{ not valid json ]".utf8).write(to: indexURL)
+        let original = Data("{ not valid json ]".utf8)
+        try original.write(to: indexURL)
         let library = WindowLibrary(directory: directory)
         #expect(library.windows.count == 1)
         #expect(library.windows[0].name == "window 1")
         let store = try #require(library.store(for: library.windows[0].id))
         #expect(store.workspaces[0].sessions.count == 1)
+        // the seed rewrote windows.json; the names and open set the corrupt one held survive aside
+        #expect(try StateFileQuarantine.preservedCopies(of: indexURL).map { try Data(contentsOf: $0) } == [original])
+        #expect(library.loadIndex()?.windows.map(\.id) == library.windows.map(\.id))
     }
 
     @Test func corruptIndexWithLegacyMigrates() throws {
@@ -1722,14 +1726,18 @@ final class WindowLibraryTests {
         var future = WindowsIndex(windows: [WindowEntry(id: UUID(), name: "future", isOpen: true)])
         future.version = WindowsIndex.currentVersion + 1
         try writeIndex(future)
+        let original = try Data(contentsOf: indexURL)
         let library = WindowLibrary(directory: directory)
         #expect(library.windows.map(\.name) == ["window 1"])
+        #expect(try StateFileQuarantine.preservedCopies(of: indexURL).map { try Data(contentsOf: $0) } == [original])
     }
 
     @Test func emptyWindowsArrayIndexTreatedAsAbsent() throws {
         try writeIndex(WindowsIndex(frontmost: nil, windows: []))
         let library = WindowLibrary(directory: directory)
         #expect(library.windows.map(\.name) == ["window 1"])
+        // a valid, empty index is not unreadable and is not preserved
+        #expect(StateFileQuarantine.preservedCopies(of: indexURL).isEmpty)
     }
 
     @Test func missingPerWindowFileLoadsEmptyTree() throws {
@@ -1743,14 +1751,28 @@ final class WindowLibraryTests {
         #expect(library.isOpen(id))
     }
 
+    // the window still opens empty, but the close/quit path's unconditional save must not replace the
+    // user's only copy of the tree: the unreadable bytes survive under the preserved name.
     @Test func corruptPerWindowFileLoadsEmptyTree() throws {
         let id = UUID()
+        let original = Data("{ corrupt ]".utf8)
         try FileManager.default.createDirectory(at: directory.appendingPathComponent("windows"), withIntermediateDirectories: true)
-        try Data("{ corrupt ]".utf8).write(to: windowFileURL(id))
+        try original.write(to: windowFileURL(id))
         try writeIndex(WindowsIndex(frontmost: id, windows: [WindowEntry(id: id, name: "corrupt", isOpen: true)]))
         let library = WindowLibrary(directory: directory)
         let store = try #require(library.store(for: id))
         #expect(store.workspaces.isEmpty)
+
+        store.save()
+        library.closeWindow(id)
+
+        let preserved = StateFileQuarantine.preservedCopies(of: windowFileURL(id))
+        #expect(preserved.count == 1)
+        #expect(try preserved.map { try Data(contentsOf: $0) } == [original])
+        #expect(preserved.allSatisfy { $0.lastPathComponent.hasPrefix("\(id.uuidString).json.unreadable-") })
+        let written = try PersistenceStore(directory: directory.appendingPathComponent("windows"),
+                                           fileName: "\(id.uuidString).json").loadChecked()
+        #expect(written == store.snapshot())
     }
 
     // MARK: - Orphan recovery (index lost, per-window files survive)

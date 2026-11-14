@@ -13,11 +13,18 @@ final class LinuxHtmlOverlayRegistry {
 
     func install() {
         HtmlOverlayReleases.shared.onRelease = { [weak self] id in self?.release(id) }
+        HtmlOverlayReleases.shared.onReplicaRelease = { local, origin in
+            for controller in gWindows.values { controller.replicaPageReleased(local, origin: origin) }
+        }
         guard !installed, let context = webkit_web_context_get_default() else { return }
         installed = true
-        Self.fileScheme.withCString {
-            webkit_web_context_register_uri_scheme(context, $0, onHtmlSchemeRequest, nil, nil)
-            webkit_security_manager_register_uri_scheme_as_local(webkit_web_context_get_security_manager(context), $0)
+        for scheme in [Self.fileScheme, HtmlSource.replicaScheme] {
+            scheme.withCString {
+                webkit_web_context_register_uri_scheme(context, $0, onHtmlSchemeRequest, nil, nil)
+                let security = webkit_web_context_get_security_manager(context)
+                // Permit same-origin fetch; each request still passes the page's resource grant.
+                webkit_security_manager_register_uri_scheme_as_cors_enabled(security, $0)
+            }
         }
     }
 
@@ -51,6 +58,8 @@ final class LinuxHtmlOverlayRegistry {
         for page in pages.values { page.applyZoom() }
     }
 
+    func refreshChrome() { for page in pages.values { page.apply(page.overlay) } }
+
     func existing(_ id: UUID) -> LinuxHtmlOverlayPage? { pages[id] }
 
     func release(_ id: UUID) {
@@ -76,8 +85,8 @@ final class LinuxHtmlOverlayRegistry {
                 page.setOnScreen(false)
                 continue
             }
-            let hiddenByFullOverlay = slot.pane != nil && slot.session.fullOverlayActive
-            page.setOnScreen(!covered && !hiddenByFullOverlay && slot.session.id == selected)
+            let hiddenByFullOverlay = slot.pane != nil && slot.session.fullOverlayVisible
+            page.setOnScreen(!covered && !hiddenByFullOverlay && !slot.session.overlayOutOfSight(slot.pane) && slot.session.id == selected)
         }
     }
 
@@ -130,10 +139,14 @@ final class LinuxHtmlOverlayRegistry {
         guard let request, let pointer = webkit_uri_scheme_request_get_uri(request),
               let uri = URLComponents(string: String(cString: pointer)),
               let host = uri.host, let id = UUID(uuidString: host), let page = pages[id],
-              let resource = page.resource(for: uri.path) else {
+              webkit_uri_scheme_request_get_web_view(request).map({ UnsafeMutableRawPointer($0) }) == RAW(page.webView) else {
             if let request { agterm_uri_scheme_deny(request) }
             return
         }
+        if uri.scheme == HtmlSource.replicaScheme {
+            return page.fetchReplica(uri.path, request: request)
+        }
+        guard let resource = page.resource(for: uri.path) else { return agterm_uri_scheme_deny(request) }
         resource.path.withCString { path in
             resource.mime.withCString { mime in agterm_uri_scheme_finish_file(request, path, mime) }
         }

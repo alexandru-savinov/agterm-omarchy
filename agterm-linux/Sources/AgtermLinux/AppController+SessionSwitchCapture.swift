@@ -16,7 +16,10 @@ func installSessionSwitchCapture(on window: OpaquePointer?) {
 @MainActor
 extension AppController {
     /// Ctrl-Tab is consumed even when the gate refuses a cycle, so no widget below turns it into a focus move.
-    fileprivate func sessionSwitchKeyPressed(keyval: UInt32, keycode: UInt32, state: UInt32) -> Bool {
+    func sessionSwitchKeyPressed(keyval: UInt32, keycode: UInt32, state: UInt32) -> Bool {
+        if ModifierKeyMods.modifierBit(forKeyval: keyval) == ModifierKeyMods.controlBit {
+            invalidateSessionSwitchRelease()
+        }
         heldControlKeys.pressed(keyval: keyval, keycode: keycode, state: state)
         guard let key = SessionSwitchKey.classify(
             keyval: keyval, state: state, cycleActive: sessionSwitcher.isActive) else { return false }

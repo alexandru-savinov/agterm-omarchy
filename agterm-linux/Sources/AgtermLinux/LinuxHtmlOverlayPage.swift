@@ -47,10 +47,12 @@ final class LinuxHtmlOverlayPage {
     private var theme: HtmlOverlayTheme
     private var appliedRevision: Int
     private var loadFailed = false
+    private var sourceLoadRevision = 0
     private var pendingExternalURL: URL?
     private var pendingDialog: OpaquePointer?
     private var promptSilenced = false
-    private var onScreen = false
+    var onScreen = false
+    var textPage: LinuxTextPage?
     let manager: OpaquePointer
     private var inputController: OpaquePointer?
     private var strip: OpaquePointer?
@@ -96,6 +98,19 @@ final class LinuxHtmlOverlayPage {
             webkit_user_content_manager_add_script(manager, script)
             webkit_user_script_unref(script)
         }
+        if overlay.source.kind == .markdown {
+            MarkdownAssets.shared.script.withCString { source in
+                let script = "agterm-markdown".withCString { world in
+                    webkit_user_script_new_for_world(source, WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
+                                                     WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_END, world, nil, nil)
+                }
+                webkit_user_content_manager_add_script(manager, script)
+                webkit_user_script_unref(script)
+            }
+        }
+        if overlay.source.kind == .text {
+            installTextRenderer()
+        }
         installBridge()
         buildUI()
         applyZoom()
@@ -107,6 +122,7 @@ final class LinuxHtmlOverlayPage {
 
     func close() {
         closed = true
+        textPage?.stop()
         agterm_disconnect_signals(RAW(manager), Unmanaged.passUnretained(self).toOpaque())
         let data = Unmanaged.passUnretained(self).toOpaque()
         let dialog = pendingDialog
@@ -127,6 +143,7 @@ final class LinuxHtmlOverlayPage {
 
     func setOnScreen(_ visible: Bool) {
         onScreen = visible
+        textPage?.apply()
         guard !visible, let dialog = pendingDialog else { return }
         pendingDialog = nil
         pendingExternalURL = nil
@@ -135,8 +152,10 @@ final class LinuxHtmlOverlayPage {
 
     func apply(_ newer: HtmlOverlay) {
         overlay = newer
+        textPage?.apply()
         refreshToolbar()
         guard newer.reloadRevision != appliedRevision else { return }
+        controller?.replicaPages[id]?.channel?.cancelResources()
         appliedRevision = newer.reloadRevision
         if newer.reloadTarget == .current, !loadFailed, webkit_web_view_get_uri(cast(webView)) != nil {
             webkit_web_view_reload(cast(webView))
@@ -149,7 +168,10 @@ final class LinuxHtmlOverlayPage {
         guard theme != newer || webkit_web_view_get_uri(cast(webView)) == nil else { return }
         theme = newer
         webkit_user_content_manager_remove_all_style_sheets(manager)
-        let themed: Bool = if case .file = overlay.source { true } else { false }
+        let themed: Bool = switch overlay.source.kind {
+        case .url, .image, .document: false
+        case .file, .markdown, .text: true
+        }
         let look = themed ? "color-scheme: \(newer.dark ? "dark" : "light"); color: \(newer.foreground); " : ""
         let palette = newer.palette.enumerated().compactMap { index, color in
             color.isEmpty ? nil : "--agterm-color-\(index): \(color); "
@@ -162,7 +184,7 @@ final class LinuxHtmlOverlayPage {
             webkit_user_content_manager_add_style_sheet(manager, sheet)
             webkit_user_style_sheet_unref(sheet)
         }
-        if themed {
+        if themed || overlay.source.imagePath != nil {
             let rgb = UInt32(newer.background.dropFirst(), radix: 16) ?? 0x282c34
             var color = GdkRGBA(red: Float((rgb >> 16) & 255) / 255, green: Float((rgb >> 8) & 255) / 255,
                                 blue: Float(rgb & 255) / 255, alpha: 1)
@@ -180,6 +202,8 @@ final class LinuxHtmlOverlayPage {
             guard webkit_web_view_can_go_forward(cast(webView)) != 0 else { return OverlayHtmlError.noHistory(.forward) }
             webkit_web_view_go_forward(cast(webView))
         case .browser:
+            if case .replica = overlay.source { return OverlayHtmlError.remotePage }
+            if case .markdown = overlay.source { return OverlayHtmlError.markdownInOverlay }
             guard launchDefaultHandler(forURI: browserURL.absoluteString) else { return OverlayHtmlError.noBrowser }
         case .finder:
             guard case .file = overlay.source else { return OverlayHtmlError.finderRequiresFile }
@@ -217,6 +241,9 @@ final class LinuxHtmlOverlayPage {
     }
 
     private var pageURL: URL {
+        if let path = overlay.source.imagePath ?? overlay.source.markdownPath ?? overlay.source.textPath ?? overlay.source.linuxDocumentPath { return URL(fileURLWithPath: path) }
+        if let raw = webkit_web_view_get_uri(cast(webView)), let url = URL(string: String(cString: raw)),
+           url.scheme == HtmlSource.replicaScheme { return URL(fileURLWithPath: url.path) }
         if case .file(let path, let grantRoot) = overlay.source {
             guard let grantRoot, let current = webkit_web_view_get_uri(cast(webView)),
                   let uri = URLComponents(string: String(cString: current)), uri.scheme == "agterm-file" else {
@@ -231,14 +258,27 @@ final class LinuxHtmlOverlayPage {
     }
 
     private var browserURL: URL {
-        if case .file(let path, _) = overlay.source { return URL(fileURLWithPath: path) }
+        if case .file(let path, _) = overlay.source, overlay.current == nil { return URL(fileURLWithPath: path) }
         return pageURL
     }
 
     private func loadOriginal() {
+        sourceLoadRevision += 1
         loadFailed = false
         store?.setHtmlLoadState(id, state: .loading, error: nil)
         switch overlay.source {
+        case .text:
+            textPage?.load()
+        case .image, .markdown, .document:
+            loadGeneratedPage(overlay.source, revision: sourceLoadRevision)
+        case .replica(let path, let content):
+            if content != .html { return loadReplicaContent(path: path, content: content) }
+            var uri = URLComponents()
+            uri.scheme = HtmlSource.replicaScheme
+            uri.host = id.uuidString.lowercased()
+            uri.path = path
+            guard let address = uri.url?.absoluteString else { return fail("invalid remote page path") }
+            webkit_web_view_load_uri(cast(webView), address)
         case .url(let url):
             url.absoluteString.withCString { webkit_web_view_load_uri(cast(webView), $0) }
         case .file(let path, let grantRoot?):
@@ -253,6 +293,22 @@ final class LinuxHtmlOverlayPage {
                 return
             }
             html.withCString { webkit_web_view_load_html(cast(webView), $0, nil) }
+        }
+    }
+
+    private func loadGeneratedPage(_ source: HtmlSource, revision: Int) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let loaded = LinuxFilePageLoader.load(source)
+            runOnMain {
+                MainActor.assumeIsolated {
+                    guard let self, !self.closed, self.sourceLoadRevision == revision else { return }
+                    switch loaded {
+                    case .failure(let failure): self.fail(failure.message)
+                    case .success(let html):
+                        html.withCString { webkit_web_view_load_html(cast(self.webView), $0, nil) }
+                    }
+                }
+            }
         }
     }
 
@@ -295,6 +351,11 @@ final class LinuxHtmlOverlayPage {
         let current = store?.htmlOverlaySlot(id).flatMap { slot in
             slot.pane.map { slot.session.paneOverlay($0)?.html } ?? slot.session.htmlOverlay
         }?.current
+        if let button = buttons["hide"] {
+            let terminal = store?.htmlOverlaySlot(id)?.session.content == .terminal
+            let shown = !linuxSettingsStore().load().isInterfaceElementHidden(.overlayToggle) && terminal
+            gtk_widget_set_visible(W(button), shown ? 1 : 0)
+        }
         if let button = buttons["back"] { gtk_widget_set_sensitive(W(button), current?.canGoBack == true ? 1 : 0) }
         if let button = buttons["forward"] { gtk_widget_set_sensitive(W(button), current?.canGoForward == true ? 1 : 0) }
     }
@@ -318,6 +379,7 @@ final class LinuxHtmlOverlayPage {
             ("browser", "web-browser-symbolic", "Open in Browser"),
             ("finder", "folder-open-symbolic", "Show in Files"),
             ("copy", "edit-copy-symbolic", "Copy Link"),
+            ("hide", "window-minimize-symbolic", "Hide"),
             ("close", "window-close-symbolic", "Close"),
         ] { addButton(name, icon: icon, tooltip: tooltip, to: strip) }
         gtk_box_append(cast(root), W(strip))
@@ -365,6 +427,8 @@ final class LinuxHtmlOverlayPage {
             if let display = gdk_display_get_default(), let clipboard = gdk_display_get_clipboard(display) {
                 browserURL.absoluteString.withCString { gdk_clipboard_set_text(clipboard, $0) }
             }
+        case "hide":
+            if store?.hideHtmlOverlay(id) == true { controller?.reconcile() }
         case "close":
             if store?.closeHtmlOverlay(id) == true { controller?.reconcile() }
         default: break
@@ -380,6 +444,8 @@ final class LinuxHtmlOverlayPage {
                 unsafeBitCast(onHtmlUserEvent as @convention(c)
                     (OpaquePointer?, OpaquePointer?, gpointer?) -> gboolean, to: GCallback.self), data)
         gtk_widget_add_controller(W(webView), input)
+        connect(webView, "close", unsafeBitCast(onHtmlClose as @convention(c)
+            (OpaquePointer?, gpointer?) -> Void, to: GCallback.self), data)
         connect(webView, "load-changed", unsafeBitCast(onHtmlLoadChanged as @convention(c)
             (OpaquePointer?, Int32, gpointer?) -> Void, to: GCallback.self), data)
         connect(webView, "load-failed", unsafeBitCast(onHtmlLoadFailed as @convention(c)
@@ -566,3 +632,15 @@ private let onHtmlUserEvent: @MainActor @convention(c) (OpaquePointer?, OpaquePo
 private let onHtmlContextMenu: @MainActor @convention(c)
     (OpaquePointer?, OpaquePointer?, OpaquePointer?, gpointer?) -> gboolean =
     { _, _, _, data in htmlPage(data)?.blockFileContextMenu() ?? 0 }
+
+private let onHtmlClose: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { _, data in
+    guard let data else { return }
+    let page = Unmanaged<LinuxHtmlOverlayPage>.fromOpaque(data).takeUnretainedValue()
+    guard !page.closed else { return }
+    runOnMain { [weak page] in
+        MainActor.assumeIsolated {
+            guard let page, !page.closed else { return }
+            if page.store?.closeHtmlOverlay(page.id) == true { page.controller?.reconcile() }
+        }
+    }
+}

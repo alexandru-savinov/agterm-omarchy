@@ -9,7 +9,7 @@ if (( $# < 1 || $# > 2 )); then
   exit 2
 fi
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 VERSION="${1#v}"
 OUT="${2:-dist-linux}"
 [[ "$OUT" = /* ]] || OUT="$ROOT/$OUT"

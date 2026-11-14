@@ -3,6 +3,13 @@
 `.github/workflows/ci.yml` validates pull requests targeting `main` or `omarchy`, pushes to `main`, and manual runs.
 Pull request builds test GitHub's merge commit; trusted artifact promotion still requires a successful push or manual run at the exact branch head.
 
+Both GTK jobs use architecture-specific build images pinned by digest and run their compiler/dependency probe before building.
+The ARM image replaces repeated APT/Zig provisioning; core jobs retain their separate shell provisioning.
+Its [publication and fresh authenticated/anonymous pull probes](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/43159515243)
+and [signed provenance verification](https://github.com/alexandru-savinov/agterm-omarchy/issues/375#issuecomment-6815373926)
+bind the image to the reviewed recipe source.
+Image updates require the same native build, public pull and provenance checks before changing a digest.
+
 The **Installer and scripts** job discovers every `scripts/tests/test_*.py` module with:
 
 ```sh
@@ -26,3 +33,20 @@ This closes the real-helper coverage gap without requiring a graphical applicati
 
 The existing aggregate CI gate still requires these jobs to succeed.
 Hosted checks and archives do not establish native Omarchy/Wayland acceptance for the produced payload.
+
+The core boundary guard keeps `ConfigPathsTests.swift` identical to the upstream base by default.
+Its single reviewed exception in `packaging/linux/core-fixture-exceptions.tsv` pins the exact path,
+upstream Git blob, accepted fixture Git blob and task rationale; wildcards, additional records,
+malformed fields, different bases and any further content change fail.
+The file must remain regular and non-executable, and the host import/API checks still apply.
+The exception retains [#343](https://github.com/alexandru-savinov/agterm-omarchy/issues/343):
+a portable test fixture restores its editor environment after global zsh startup while preserving
+the product command, private login/interactive rc sourcing and every existing assertion.
+The replacement pair under [#368](https://github.com/alexandru-savinov/agterm-omarchy/issues/368) additionally
+allows the fixture to discover an executable fish on the caller's PATH before its existing fixed fallbacks.
+Discovery regressions use explicit inputs and inert files without changing the process environment.
+The enabled/require gates, actual login-shell command, recorder and output assertions remain unchanged.
+The single TSV row pins the complete accepted fixture blob and retains the original upstream blob.
+This is not an exemption for other core changes.
+Remove the exception when the upstream base includes both fixture corrections.
+Any replacement pair needs an explicit review and rationale rather than updating hashes to silence a failure.

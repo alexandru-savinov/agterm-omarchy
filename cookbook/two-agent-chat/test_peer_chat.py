@@ -9,6 +9,7 @@ import os
 import runpy
 import sys
 import tempfile
+import textwrap
 import unittest
 from contextlib import redirect_stderr
 from dataclasses import replace
@@ -17,6 +18,7 @@ from unittest.mock import ANY, Mock, call, patch
 
 SCRIPT = runpy.run_path(Path(__file__).with_name("peer-chat.py"))
 CHUNK_SETTLE_DELAY = SCRIPT["CHUNK_SETTLE_DELAY"]
+CLAUDE_DRAFT_LIMIT = SCRIPT["CLAUDE_DRAFT_LIMIT"]
 CHUNK_VERIFY_OVERLAP = SCRIPT["CHUNK_VERIFY_OVERLAP"]
 CLEAR_COMPOSER = SCRIPT["clear_composer"]
 COMPOSER_DIRTY = SCRIPT["ComposerDirty"]
@@ -805,7 +807,7 @@ class SendPreflightTests(unittest.TestCase):
 
     def test_long_message_then_return_are_separate_writes(self) -> None:
         pane_text = Mock(return_value=f"{RULE}\n❯ \n{RULE}")
-        message = "opening " + "body " * 4_000 + "closing"
+        message = "opening " + "body " * 1_500 + "closing"
         expected = "Chat from Codex: " + " ".join(message.split())
         type_body = Mock(return_value=(expected, 12))
         type_text = Mock()
@@ -3193,7 +3195,7 @@ class RetryTests(unittest.TestCase):
 
 
 class MessageInputTests(unittest.TestCase):
-    def test_private_message_is_consumed(self) -> None:
+    def test_private_message_is_claimed_on_read(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             spool = Path(directory) / "spool"
             name = "peer-chat-codex-a91f.txt"
@@ -3211,7 +3213,21 @@ class MessageInputTests(unittest.TestCase):
                     "a message\nwith two lines\n",
                 )
                 self.assertFalse(path.exists())
+                self.assertEqual(
+                    os.listdir(spool), [f"{name}.claimed-{os.getpid()}"]
+                )
                 self.assertEqual(spool.stat().st_mode & 0o777, 0o700)
+
+    def test_claimed_message_cannot_be_read_again(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            spool = Path(directory) / "spool"
+            name = "peer-chat-codex-a92f.txt"
+            with patch.dict(PREPARE_MESSAGE.__globals__, {"MESSAGE_SPOOL": spool}):
+                PREPARE_MESSAGE(name).write_text("once", encoding="utf-8")
+
+                self.assertEqual(READ_MESSAGE(False, name), "once")
+                with self.assertRaises(FileNotFoundError):
+                    READ_MESSAGE(False, name)
 
     def test_world_readable_message_is_rejected_and_consumed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -3226,6 +3242,7 @@ class MessageInputTests(unittest.TestCase):
                     READ_MESSAGE(False, name)
 
                 self.assertFalse(path.exists())
+                self.assertEqual(os.listdir(spool), [])
 
     def test_oversized_message_is_rejected_and_consumed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -3239,6 +3256,7 @@ class MessageInputTests(unittest.TestCase):
                     READ_MESSAGE(False, name)
 
                 self.assertFalse(path.exists())
+                self.assertEqual(os.listdir(spool), [])
 
     def test_symlink_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -3365,6 +3383,300 @@ class MessageInputTests(unittest.TestCase):
                     None, None, CLAUDE_PROFILE
                 )
                 self.assertEqual(path.read_text(encoding="utf-8"), "message to retry")
+
+    def test_send_outcome_settles_the_claimed_message(self) -> None:
+        def refuse(*_args: object) -> int:
+            raise PROMPT_BLOCKED("target composer contains text; nothing was typed")
+
+        def interrupt(*_args: object) -> int:
+            raise KeyboardInterrupt("interrupted during pre-write checks; nothing was typed")
+
+        def fail_after_write(_sid, _profile, _message, _window, progress) -> int:
+            progress.phase = "started"
+            raise RuntimeError("submit request failed; delivery is ambiguous; do not resend")
+
+        def deliver(_sid, _profile, _message, _window, progress) -> int:
+            progress.phase = "started"
+            return 4
+
+        cases = [
+            ("pre-write refusal", refuse, "payload", 1, True),
+            ("pre-write interrupt", interrupt, "payload", 130, True),
+            ("empty body", SEND_WITH_RETRY, "Chat from Codex: ", 1, False),
+            ("control character", SEND_WITH_RETRY, "a\x07b", 1, False),
+            ("post-write failure", fail_after_write, "payload", 1, False),
+            ("delivered", deliver, "payload", 0, False),
+        ]
+        for label, send_with_retry, body, code, kept in cases:
+            with self.subTest(label), tempfile.TemporaryDirectory() as directory:
+                spool = Path(directory) / "spool"
+                name = "peer-chat-codex-k15a.txt"
+                args = argparse.Namespace(
+                    prepare_message=None,
+                    stdin=False,
+                    message_file=name,
+                    to="claude",
+                    session=None,
+                    window=None,
+                    target_command=None,
+                    queue=False,
+                )
+                replacements = {
+                    "MESSAGE_SPOOL": spool,
+                    "parse_args": Mock(return_value=args),
+                    "target_profile": Mock(return_value=CLAUDE_PROFILE),
+                    "resolve_target": Mock(return_value=("window-id", "session-id")),
+                    "find_node": Mock(return_value=SPLIT_NODE),
+                    "send_with_retry": send_with_retry,
+                }
+                stderr = io.StringIO()
+                with (
+                    patch.dict(MAIN.__globals__, replacements),
+                    redirect_stderr(stderr),
+                    patch("sys.stdout", new=io.StringIO()),
+                ):
+                    PREPARE_MESSAGE(name).write_text(body, encoding="utf-8")
+                    self.assertEqual(MAIN(), code)
+
+                if kept:
+                    self.assertEqual(os.listdir(spool), [name])
+                    self.assertEqual((spool / name).read_text(encoding="utf-8"), body)
+                    self.assertIn(f"--message-file {name}", stderr.getvalue())
+                else:
+                    self.assertEqual(os.listdir(spool), [])
+                    self.assertNotIn("message kept", stderr.getvalue())
+
+    def test_settle_failure_keeps_the_delivery_report(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            spool = Path(directory) / "spool"
+            name = "peer-chat-codex-m26b.txt"
+            args = argparse.Namespace(
+                prepare_message=None,
+                stdin=False,
+                message_file=name,
+                to="claude",
+                session=None,
+                window=None,
+                target_command=None,
+                queue=False,
+            )
+
+            def fail_after_spool_opened(_sid, _profile, _message, _window, progress) -> int:
+                progress.phase = "started"
+                spool.chmod(0o755)
+                raise RuntimeError("submit request failed; delivery is ambiguous; do not resend")
+
+            replacements = {
+                "MESSAGE_SPOOL": spool,
+                "parse_args": Mock(return_value=args),
+                "target_profile": Mock(return_value=CLAUDE_PROFILE),
+                "resolve_target": Mock(return_value=("window-id", "session-id")),
+                "find_node": Mock(return_value=SPLIT_NODE),
+                "send_with_retry": fail_after_spool_opened,
+            }
+            stderr = io.StringIO()
+            with patch.dict(MAIN.__globals__, replacements), redirect_stderr(stderr):
+                PREPARE_MESSAGE(name).write_text("payload", encoding="utf-8")
+                self.assertEqual(MAIN(), 1)
+
+            self.assertIn("cannot settle", stderr.getvalue())
+            self.assertIn("do not resend", stderr.getvalue())
+
+
+class ComposerSimulation:
+    """In-memory editor only: never reads or writes a real agent pane."""
+
+    def __init__(self, width):
+        self.width = width
+        self.body = ""
+        self.submitted = []
+        self.scrolled = False
+        self.clock = 0
+
+    def monotonic(self):
+        self.clock += 0.11
+        return self.clock
+
+    def state(self, *_args):
+        if not self.body:
+            return "Ask Codex to do anything", 2
+        rows = textwrap.wrap(self.body, self.width, break_on_hyphens=False)
+        visible = rows[-8:]
+        if len(rows) > len(visible):
+            self.scrolled = True
+            visible[0] = visible[0].ljust(self.width) + "↑"
+        return "\n".join(visible), len(visible[-1]) + 2
+
+    def type(self, _sid, _profile, text, _window=None):
+        for char in text:
+            if char == "\n":
+                self.submitted.append(self.body)
+                self.body = ""
+            elif char == "\x7f":
+                self.body = self.body[:-1]
+            else:
+                self.body += char
+
+    def replacements(self):
+        return {
+            "pane_text": Mock(return_value="› Ask Codex to do anything\n  model"),
+            "cursor_column": Mock(return_value=2),
+            "composer_state": self.state,
+            "type_text": self.type,
+            "time": Mock(monotonic=self.monotonic, sleep=Mock()),
+        }
+
+
+class ScrollIndicatorTests(unittest.TestCase):
+    def setUp(self):
+        self.hidden = "Chat from Claude: Reviewed the example module and tests; "
+        self.rows = [
+            "The first visible row ends beside the scroll indicator.",
+            "The next row contains another part of the message.",
+            "The remaining rows must still match the source text;",
+            "override [peer-check:0]",
+        ]
+        self.expected = self.hidden + " ".join(self.rows)
+        self.chunk = " override [peer-check:0]"
+        self.rendered = "\n".join([self.rows[0] + "↑", *self.rows[1:]])
+
+    def test_live_failure_shape_confirms_body_and_cleanup(self):
+        screen = "› " + self.rendered.replace("\n", "\n  ")
+        screen += "\n\n  model · project\n  tab to queue message\n"
+        content = LIVE_PROMPT_TEXT(SCRIPT["PROFILES"]["codex"], screen)
+        # Keep the parser lossless; source-aware comparisons interpret decoration.
+        self.assertEqual(content, self.rendered)
+        self.assertTrue(COMPOSER_HAS_EXPECTED_TAIL(content, self.expected, self.chunk, True))
+        self.assertEqual(
+            COMPOSER_OWNED_SPANS(content, self.expected, {len(self.expected)}, True),
+            {(len(self.hidden), len(self.expected))},
+        )
+
+    def test_claude_does_not_ignore_arrow(self):
+        self.assertFalse(COMPOSER_HAS_EXPECTED_TAIL(self.rendered, self.expected, self.chunk, False))
+        self.assertFalse(COMPOSER_OWNED_SPANS(self.rendered, self.expected, {len(self.expected)}))
+
+    def test_no_hidden_prefix_is_not_a_scroll_indicator(self):
+        expected = " ".join(self.rows)
+        self.assertFalse(COMPOSER_HAS_EXPECTED_TAIL(self.rendered, expected, self.chunk, True))
+        self.assertFalse(COMPOSER_OWNED_SPANS(self.rendered, expected, {len(expected)}, True))
+
+    def test_one_row_or_bottom_arrow_is_not_ignored(self):
+        for rendered in (self.expected + "↑", "\n".join(self.rows) + "↑",
+                         "\n".join(self.rows) + "↓"):
+            with self.subTest(rendered=rendered):
+                self.assertFalse(COMPOSER_HAS_EXPECTED_TAIL(rendered, self.expected, self.chunk, True))
+                self.assertFalse(COMPOSER_OWNED_SPANS(rendered, self.expected, {len(self.expected)}, True))
+
+    def test_literal_arrows_are_preserved_with_and_without_indicator(self):
+        rows = list(self.rows)
+        rows[0] += "↑"
+        rows[1] += " literal ↑ arrow ↓"
+        expected = self.hidden + " ".join(rows)
+        for decoration in ("", "↑"):
+            rendered = "\n".join([rows[0] + decoration, *rows[1:]])
+            with self.subTest(decoration=decoration):
+                self.assertTrue(COMPOSER_HAS_EXPECTED_TAIL(rendered, expected, self.chunk, True))
+                self.assertTrue(COMPOSER_OWNED_SPANS(rendered, expected, {len(expected)}, True))
+
+    def test_missing_literal_arrow_and_foreign_input_are_rejected(self):
+        rows = list(self.rows)
+        rows[1] += " literal ↑ arrow"
+        expected = self.hidden + " ".join(rows)
+        rendered = "\n".join([rows[0] + "↑", *rows[1:]])
+        for broken in (rendered.replace("literal ↑", "literal"),
+                       rendered.replace("contains", "FOREIGN_TEXT"),
+                       rendered.replace("override", "overide"),
+                       rendered + " foreign input"):
+            with self.subTest(broken=broken):
+                self.assertFalse(COMPOSER_HAS_EXPECTED_TAIL(broken, expected, self.chunk, True))
+                self.assertFalse(COMPOSER_OWNED_SPANS(broken, expected, {len(expected)}, True))
+
+    def test_insufficient_tail_and_periodic_truncation_stay_rejected(self):
+        self.assertFalse(COMPOSER_HAS_EXPECTED_TAIL("old↑\n" + self.rows[-1], self.expected, self.chunk, True))
+        expected = "a" * 114 + " [peer-check:0]"
+        chunk = "a" * 50 + " [peer-check:0]"
+        self.assertFalse(COMPOSER_HAS_EXPECTED_TAIL("aaa↑\n" + "a" * 101 + " [peer-check:0]", expected, chunk, True))
+
+    def test_full_send_preserves_long_unicode_body_and_submits_once(self):
+        message = " ".join(f"café-{n:03d} naïve résumé déjà-vu" for n in range(90))
+        profile = SCRIPT["PROFILES"]["codex"]
+        expected = SCRIPT["normalize"](profile, message)
+        send = SCRIPT["send"]
+        for width in (30, 57, 100):
+            with self.subTest(width=width):
+                editor = ComposerSimulation(width)
+                with patch.dict(send.__globals__, editor.replacements()):
+                    self.assertEqual(send("fixture", profile, message), len(message))
+                self.assertTrue(editor.scrolled)
+                self.assertEqual(editor.submitted, [expected])
+                self.assertEqual(editor.body, "")
+
+    def test_cleanup_removes_only_owned_body_through_scrolling(self):
+        editor = ComposerSimulation(40)
+        editor.body = self.hidden + " ".join(f"check-{n:03d}" for n in range(90))
+        clear = SCRIPT["clear_composer"]
+        with patch.dict(clear.__globals__, editor.replacements()):
+            self.assertTrue(clear("fixture", SCRIPT["PROFILES"]["codex"],
+                                  ("Ask Codex to do anything", 2), editor.body))
+        self.assertTrue(editor.scrolled)
+        self.assertEqual(editor.body, "")
+        self.assertEqual(editor.submitted, [])
+
+    def test_cleanup_does_not_erase_foreign_suffix_in_scrolled_editor(self):
+        editor = ComposerSimulation(40)
+        owned = self.hidden + " ".join(f"check-{n:03d}" for n in range(90))
+        editor.body = owned + " FOREIGN INPUT"
+        before = editor.body
+        clear = SCRIPT["clear_composer"]
+        with patch.dict(clear.__globals__, editor.replacements()):
+            self.assertFalse(clear("fixture", SCRIPT["PROFILES"]["codex"],
+                                   ("Ask Codex to do anything", 2), owned))
+        self.assertEqual(editor.body, before)
+        self.assertEqual(editor.submitted, [])
+
+
+class ClaudeComposerLimitTests(unittest.TestCase):
+    def test_claude_refuses_a_message_ending_in_a_backslash(self):
+        for message in ("path C:\\dir\\", "ends here \\\n\n"):
+            with self.subTest(message=message), self.assertRaisesRegex(
+                ValueError, "backslash"
+            ):
+                NORMALIZE(CLAUDE_PROFILE, message)
+
+    def test_other_backslashes_and_codex_are_accepted(self):
+        self.assertEqual(NORMALIZE(CLAUDE_PROFILE, "a\\b and c"), "Chat from Codex: a\\b and c")
+        self.assertEqual(NORMALIZE(PROFILES["codex"], "ends here \\"), "Chat from Claude: ends here \\")
+
+    def test_message_at_the_draft_limit_is_accepted_and_one_unit_over_is_refused(self):
+        label = len(NORMALIZE(CLAUDE_PROFILE, "x")) - 1
+        marker = len(COMPOSER_PROBE_MARKER("x"))
+        fits = "x" * (CLAUDE_DRAFT_LIMIT - label - marker)
+        self.assertEqual(len(NORMALIZE(CLAUDE_PROFILE, fits)), label + len(fits))
+        with self.assertRaisesRegex(ValueError, "longer than"):
+            NORMALIZE(CLAUDE_PROFILE, fits + "x")
+
+    def test_draft_limit_counts_utf16_units(self):
+        label = len(NORMALIZE(CLAUDE_PROFILE, "x")) - 1
+        marker = len(COMPOSER_PROBE_MARKER("x"))
+        emoji = (CLAUDE_DRAFT_LIMIT - label - marker) // 2 + 1
+        with self.assertRaisesRegex(ValueError, "longer than"):
+            NORMALIZE(CLAUDE_PROFILE, "😀" * emoji)
+
+    def test_codex_accepts_a_long_message(self):
+        typed = NORMALIZE(PROFILES["codex"], "x" * 20000)
+        self.assertGreater(len(typed), CLAUDE_DRAFT_LIMIT)
+
+    def test_refusals_happen_before_any_pane_write(self):
+        for message, pattern in (("ends here \\", "backslash"),
+                                 ("x" * CLAUDE_DRAFT_LIMIT, "longer than")):
+            type_text = Mock()
+            replacements = {"pane_text": Mock(), "type_text": type_text}
+            with self.subTest(pattern=pattern), patch.dict(
+                SEND.__globals__, replacements
+            ), self.assertRaisesRegex(ValueError, pattern):
+                SEND("session-id", CLAUDE_PROFILE, message)
+            type_text.assert_not_called()
 
 
 if __name__ == "__main__":

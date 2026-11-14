@@ -4,6 +4,8 @@ import copy
 from html.parser import HTMLParser
 import json
 import re
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
@@ -40,7 +42,7 @@ class PagesTests(unittest.TestCase):
             self.assertIn('class="filters" hidden', team)
             self.assertIn('rel="icon" href="favicon.svg"', team)
             self.assertNotIn("$ agterm team --evidence", team)
-            self.assertIn("Exact candidate passed.", team)
+            self.assertIn("Historical candidate passed.", team)
             for page in (team, (root / "index.html").read_text()):
                 self.assertIn("7 ordinary and 9 Live checks passed", page)
                 self.assertIn("41357189891", page)
@@ -161,6 +163,28 @@ class PagesTests(unittest.TestCase):
             self.assertTrue((root / ".nojekyll").exists())
             self.assertIn("not a verified stable release", (root / "index.html").read_text())
 
+    def test_current_goal_is_visible_without_a_task_row_or_queue(self):
+        issues = [{"number": n, "title": str(n), "state": "open"} for n in range(1, 21)]
+        with tempfile.TemporaryDirectory() as temporary:
+            build.write_site(temporary, issues, "a" * 40, limit=10)
+            root = Path(temporary)
+            data = json.loads((root / "status.json").read_text())
+            self.assertNotIn(305, [task["number"] for task in data["tasks"]])
+            self.assertEqual(data["readiness"], "work-in-progress")
+            for name in ("index.html", "team.html"):
+                with self.subTest(page=name):
+                    page = (root / name).read_text()
+                    current = page.split('id="current-validation"', 1)[1].split("</section>", 1)[0]
+                    for target in ("issues/305", "issues/199", "issues/310", "issues/320", "pull/317", "pull/322"):
+                        self.assertIn(build.BASE + "/" + target, current)
+                    self.assertIn("Current acceptance remains incomplete.", current)
+                    self.assertIn("bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d", current)
+                    self.assertIn("one changed library", current)
+                    self.assertIn("Full-source candidate:", current)
+                    self.assertIn("not bash Live support", current)
+                    self.assertIn("same-account review is not independent approval", current)
+                    self.assertLess(page.index('id="current-validation"'), page.index("6775c336"))
+
     def test_issues_only_sorted_open_first_and_limited(self):
         issues = [{"number": n, "title": str(n), "state": "closed" if n == 1 else "open"}
                   for n in range(1, 16)]
@@ -179,6 +203,30 @@ class PagesTests(unittest.TestCase):
                 build.write_site(temporary, [], "123abcd", limit=999)
             with self.assertRaises(ValueError):
                 build.write_site(temporary, {}, "123abcd")
+
+    def test_default_and_explicit_hundred_include_late_open_tasks(self):
+        numbers = [*range(1, 54), 305, 310, 313, 318, 320, 323]
+        issues = [{"number": n, "title": str(n), "state": "open"} for n in numbers]
+        issues += [{"number": n, "title": str(n), "state": "closed"} for n in range(400, 461)]
+        issues.append({"number": 330, "title": "PR", "state": "open", "pull_request": {}})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            snapshot = root / "issues.json"
+            snapshot.write_text(json.dumps([issues]))
+            for name, arguments in (("builder-default", None), ("cli-default", []),
+                                    ("cli-hundred", ["--limit", "100"])):
+                with self.subTest(entrypoint=name):
+                    output = root / name
+                    if arguments is None:
+                        build.write_site(output, [issues], "a" * 40)
+                    else:
+                        subprocess.run([sys.executable, "-B", build.__file__, "--issues", str(snapshot),
+                                        "--output", str(output), "--commit", "a" * 40, *arguments],
+                                       check=True, capture_output=True, text=True, timeout=10)
+                    tasks = json.loads((output / "status.json").read_text())["tasks"]
+                    self.assertEqual(len(tasks), 100)
+                    self.assertEqual([task["number"] for task in tasks[:59]], numbers)
+                    self.assertNotIn(330, [task["number"] for task in tasks])
 
     def queue(self, roster, observed_at=None, extra=True):
         from datetime import datetime, timezone
@@ -367,6 +415,130 @@ class QueueDisplayRegressionTests(unittest.TestCase):
         self.assertIn(f'data-phase="{original["phase"]}"', team)
         self.assertIsNone(data['queue'])
         self.assertIn('1 contributors in this snapshot', team)
+
+
+class UpstreamDriftTests(unittest.TestCase):
+    """Hub drift block (#380, B4): numbers when fresh, a visible notice when stale or missing."""
+    NOW = datetime(2026, 11, 12, 12, 0, tzinfo=timezone.utc)
+
+    def run_entry(self, created="2026-11-09T05:17:00Z", run_id=43000000001):
+        return {"databaseId": run_id, "createdAt": created, "url": "https://evil.example/run",
+                "event": "schedule", "headBranch": "main"}
+
+    def test_only_scheduled_or_dispatched_main_runs_are_selected(self):
+        scheduled = self.run_entry("2026-11-09T05:17:00Z", 1)
+        dispatched = {**self.run_entry("2026-11-10T05:17:00Z", 2), "event": "workflow_dispatch"}
+        fork_pr = {**self.run_entry("2026-11-11T05:17:00Z", 3), "event": "pull_request"}
+        other_branch = {**self.run_entry("2026-11-11T06:17:00Z", 4), "headBranch": "feature"}
+        self.assertEqual(build.latest_drift_run([scheduled, fork_pr, dispatched, other_branch])["databaseId"], 2)
+        self.assertEqual(build.latest_drift_run([scheduled])["databaseId"], 1)
+        for runs in ([fork_pr, other_branch], [], None, {"databaseId": 1}, ["x"]):
+            with self.subTest(runs=runs):
+                self.assertIsNone(build.latest_drift_run(runs))
+
+    def drift(self, **changes):
+        return {"main": "a" * 40, "upstream": "b" * 40, "ahead": 12, "behind": 34,
+                "conflicting_paths": ["README.md", "<script>x</script>"], "conflict_count": 2, **changes}
+
+    def build_index(self, drift):
+        with tempfile.TemporaryDirectory() as temporary:
+            build.write_site(temporary, [], "a" * 40, roster=json.loads(
+                Path(__file__).with_name("roster.json").read_text()), drift=drift)
+            root = Path(temporary)
+            return (root / "index.html").read_text(), json.loads((root / "status.json").read_text())
+
+    def test_fresh_snapshot_shows_ahead_behind_conflicts_and_constructed_run_link(self):
+        snapshot = build.drift_snapshot(self.run_entry(), self.drift(), self.NOW)
+        self.assertEqual(snapshot["status"], "loaded")
+        index, data = self.build_index(snapshot)
+        self.assertIn("<strong>12 commits ahead</strong>", index)
+        self.assertIn("<strong>34 behind</strong>", index)
+        self.assertIn("<strong>2 paths</strong>", index)
+        self.assertIn(f'href="{build.BASE}/actions/runs/43000000001"', index)
+        self.assertNotIn("evil.example", index)
+        # Path names are untrusted text; they stay in the linked run's artifact, never on the page or in status.json.
+        self.assertNotIn("<script>", index)
+        self.assertNotIn("README.md", index)
+        self.assertNotIn("conflicting_paths", data["upstream_drift"])
+        self.assertNotIn("drift-notice", index)
+        self.assertEqual(data["upstream_drift_status"], "loaded")
+        self.assertEqual((data["upstream_drift"]["ahead"], data["upstream_drift"]["behind"],
+                          data["upstream_drift"]["conflict_count"]), (12, 34, 2))
+        self.assertEqual(data["upstream_drift"]["run_url"], f"{build.BASE}/actions/runs/43000000001")
+
+    def test_older_than_eight_days_is_flagged_but_keeps_numbers(self):
+        for created, status in (("2026-11-04T12:00:00Z", "loaded"), ("2026-11-04T11:00:00Z", "stale"),
+                                ("2026-10-01T00:00:00Z", "stale")):
+            with self.subTest(created=created):
+                snapshot = build.drift_snapshot(self.run_entry(created), self.drift(), self.NOW)
+                self.assertEqual(snapshot["status"], status)
+                index, data = self.build_index(snapshot)
+                self.assertEqual(data["upstream_drift_status"], status)
+                self.assertIn("<strong>12 commits ahead</strong>", index)
+                self.assertEqual("Stale drift snapshot" in index, status == "stale")
+
+    def test_missing_or_invalid_inputs_render_a_notice_and_no_numbers(self):
+        cases = {
+            "no run": (None, self.drift()),
+            "bad run id": (self.run_entry(run_id="1"), self.drift()),
+            "naive timestamp": (self.run_entry("2026-11-09T05:17:00"), self.drift()),
+            "future run": (self.run_entry("2026-11-20T00:00:00Z"), self.drift()),
+            "missing artifact": (self.run_entry(), None),
+            "negative count": (self.run_entry(), self.drift(behind=-1)),
+            "boolean count": (self.run_entry(), self.drift(ahead=True)),
+            "string count": (self.run_entry(), self.drift(conflict_count="2")),
+            "bad commit": (self.run_entry(), self.drift(main="HEAD")),
+        }
+        for name, (run, drift) in cases.items():
+            with self.subTest(case=name):
+                snapshot = build.drift_snapshot(run, drift, self.NOW)
+                self.assertEqual(snapshot["status"], "unavailable")
+                self.assertNotIn("ahead", snapshot)
+                index, data = self.build_index(snapshot)
+                self.assertIn("Drift snapshot unavailable:", index)
+                self.assertNotIn("commits ahead", index)
+                self.assertEqual(data["upstream_drift_status"], "unavailable")
+                self.assertTrue(data["upstream_drift"]["reason"])
+
+    def test_not_requested_renders_nothing(self):
+        index, data = self.build_index(None)
+        self.assertNotIn('id="upstream-drift"', index)
+        self.assertEqual(data["upstream_drift_status"], "not-requested")
+        self.assertIsNone(data["upstream_drift"])
+
+    def run_main(self, files):
+        import contextlib, io
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "issues.json").write_text("[]")
+            argv = ["build.py", "--issues", str(root / "issues.json"), "--output", str(root / "site"),
+                    "--commit", "a" * 40]
+            for flag, name, content in files:
+                if content is not None:
+                    (root / name).write_text(content)
+                argv += [flag, str(root / name)]
+            with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+                build.main()
+            return (root / "site" / "index.html").read_text(), json.loads((root / "site" / "status.json").read_text())
+
+    def test_main_reads_gh_run_list_output_and_artifact(self):
+        fresh = datetime.now(timezone.utc).isoformat()
+        index, data = self.run_main([("--drift-run", "run.json", json.dumps([self.run_entry(fresh)])),
+                                     ("--drift", "drift.json", json.dumps(self.drift()))])
+        self.assertEqual(data["upstream_drift_status"], "loaded")
+        self.assertIn("<strong>12 commits ahead</strong>", index)
+        for name, files in {
+            "empty run list": [("--drift-run", "run.json", "[]"), ("--drift", "drift.json", json.dumps(self.drift()))],
+            "artifact not downloaded": [("--drift-run", "run.json", json.dumps([self.run_entry(fresh)])),
+                                        ("--drift", "drift.json", None)],
+            "unreadable artifact": [("--drift-run", "run.json", json.dumps([self.run_entry(fresh)])),
+                                    ("--drift", "drift.json", "{not json")],
+        }.items():
+            with self.subTest(case=name):
+                index, data = self.run_main(files)
+                self.assertEqual(data["upstream_drift_status"], "unavailable")
+                self.assertIn("Drift snapshot unavailable:", index)
 
 
 if __name__ == "__main__":
