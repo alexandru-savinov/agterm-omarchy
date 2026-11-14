@@ -333,6 +333,10 @@ Local helper scripts:
 - `scripts/flatpak-linux.sh` builds and installs the local Flatpak manifest.
 - `scripts/test-linux-ui.sh` runs the GTK accessibility smoke suite locally under Xvfb (the same
   scenarios CI runs; works on dbus-broker hosts — the script pre-starts the AT-SPI registry).
+- `scripts/test-linux-ui-targeted.py normal,context-menu` reruns only the named scenarios, each in its own
+  desktop session. In CI the same rerun is the manual `AT-SPI targeted rerun` workflow
+  (`gh workflow run atspi-targeted.yml -f ref=<branch-or-sha> -f arch=x86_64 -f scenarios=<names>`).
+  It is a diagnosis aid, not a required check: merges still need the full suite in Omarchy CI.
 
 ### macOS
 
