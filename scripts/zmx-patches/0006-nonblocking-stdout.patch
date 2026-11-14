@@ -166,7 +166,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      const flags = lib_posix.fcntl(fd, lib_posix.F.GETFL, 0) catch return;
      _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags | lib_posix.O_NONBLOCK) catch return;
      defer _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags) catch {};
-@@ -2002,3 +2018,161 @@
+@@ -2002,3 +2018,165 @@
      const pay3 = client_req.write_buf.items[@sizeOf(ipc.Header)..];
      try std.testing.expectEqualStrings("DISPLAY=:99\n", pay3);
  }
@@ -177,8 +177,8 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +    const output = try lib_posix.pipe2(.{ .CLOEXEC = true });
 +    defer for (output) |fd| lib_posix.close(fd);
 +    const input_flags = try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0);
-+    const output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
-+    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, output_flags | lib_posix.O_NONBLOCK);
++    const initial_output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
++    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, initial_output_flags | lib_posix.O_NONBLOCK);
 +    const fill = [_]u8{'x'} ** 4096;
 +    while (true) {
 +        _ = lib_posix.write(output[1], &fill) catch |err| {
@@ -188,7 +188,9 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +    }
 +    // Start with blocking stdout, just like an ordinary attach. Nobody reads
 +    // the pipe, including after the daemon closes its socket.
-+    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, output_flags);
++    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, initial_output_flags);
++    // Prefill may change kernel-maintained flags; compare the client's entry state.
++    const output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
 +
 +    var sockets: [2]i32 = undefined;
 +    try std.testing.expectEqual(@as(c_int, 0), std.c.socketpair(lib_posix.AF.UNIX, lib_posix.SOCK.STREAM, 0, &sockets));
@@ -276,8 +278,8 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +    var reader_open = true;
 +    defer if (reader_open) lib_posix.close(output[0]);
 +    const input_flags = try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0);
-+    const output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
-+    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, output_flags | lib_posix.O_NONBLOCK);
++    const initial_output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
++    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, initial_output_flags | lib_posix.O_NONBLOCK);
 +    const fill = [_]u8{'x'} ** 4096;
 +    while (true) {
 +        _ = lib_posix.write(output[1], &fill) catch |err| {
@@ -285,7 +287,9 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +            return err;
 +        };
 +    }
-+    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, output_flags);
++    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, initial_output_flags);
++    // Prefill may change kernel-maintained flags; compare the client's entry state.
++    const output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
 +    lib_posix.close(output[0]);
 +    reader_open = false;
 +
