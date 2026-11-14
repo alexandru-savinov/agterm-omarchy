@@ -47,9 +47,12 @@ longer apply, and re-running `check.py`.
   stalled (#409). Upstream writes session output to a blocking stdout, so a terminal that stopped reading
   held the client in `write` while the daemon was still connected, and it never saw the hangup. stdout is
   now nonblocking for the whole client loop, with its original flags restored on exit. Output is written
-  only when poll reports room. While 1 MiB is pending, the client stops reading the socket, so the
-  backpressure reaches the daemon. A Zig test covers a stalled reader: the client still detaches within
-  0005's drain deadline.
+  only when poll reports room. A closed reader (POLLHUP/ERR/NVAL) ends the client with its write error
+  instead of spinning. While 1 MiB is pending, the client stops reading further messages, so the
+  backpressure reaches the daemon. That is a high-water mark, not a memory bound: zmx has no IPC message
+  cap, so one whole message can still arrive past it (#409). Zig tests cover a stalled reader (the client
+  still detaches within 0005's drain deadline) and a closed reader (it returns promptly); both run under a
+  watchdog.
 - `ghostty/0001-formatter-unstyled-blanks.patch` fixes the snapshot a re-attach replays. The formatter
   wrote cells a program skipped with a cursor move as spaces under the previous cell's style, so a gap
   after a colored run came back painted; a skipped cell now closes the style first. Spaces the program

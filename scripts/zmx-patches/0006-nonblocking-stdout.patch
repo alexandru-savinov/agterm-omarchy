@@ -1,20 +1,22 @@
 diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 --- zmx-orig/src/loop.zig
 +++ zmx/src/loop.zig
-@@ -17,6 +17,12 @@
+@@ -17,6 +17,14 @@
  /// clientLoop sends ipc commands to its corresponding daemon.  It uses poll() as its non-blocking
  /// mechanism. It will send stdin to the daemon and receive stdout from the daemon.
  pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
 +    return clientLoopWithFds(client_sock_fd, env_str, lib_posix.STDIN_FILENO, lib_posix.STDOUT_FILENO);
 +}
 +
++// A high-water mark, not a memory bound: socket reads pause while this much output is pending, but zmx
++// has no IPC message cap (Header.len is u32), so one whole message can still arrive past it (#409).
 +const STDOUT_BUFFER_LIMIT: usize = 1 << 20;
 +
 +fn clientLoopWithFds(client_sock_fd: i32, env_str: []const u8, stdin_fd: i32, stdout_fd: i32) !ClientResult {
      std.log.info("client loop fd={d}", .{client_sock_fd});
      const gpa: std.mem.Allocator = blk: {
          if (builtin.mode == .Debug) {
-@@ -30,6 +36,15 @@
+@@ -30,6 +38,15 @@
      };
      defer lib_posix.close(client_sock_fd);
  
@@ -30,7 +32,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      try signal.openSignalPipe();
      signal.installWakeHandler(@intFromEnum(lib_posix.SIG.WINCH));
  
-@@ -54,7 +69,7 @@
+@@ -54,7 +71,7 @@
      }
  
      // Send init message with terminal size (buffered)
@@ -39,7 +41,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      try ipc.appendSizeMessage(gpa, &sock_write_buf, .Init, size);
  
      var poll_fds = try std.ArrayList(lib_posix.pollfd).initCapacity(gpa, 4);
-@@ -66,15 +81,6 @@
+@@ -66,15 +83,6 @@
      var stdout_buf = try std.ArrayList(u8).initCapacity(gpa, 4096);
      defer stdout_buf.deinit(gpa);
  
@@ -55,19 +57,20 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      const detach_key_disabled = util.isDetachKeyDisabled();
  
      while (true) {
-@@ -86,8 +92,9 @@
+@@ -86,8 +94,10 @@
              .revents = 0,
          });
  
 -        // Poll socket for read, and also for write if we have pending data
 -        var sock_events: i16 = lib_posix.POLL.IN;
-+        // Pause reads at the high-water mark to backpressure the daemon.
++        // Stop reading further messages while STDOUT_BUFFER_LIMIT is pending, to backpressure the daemon.
++        // This is no memory bound: a message already being received is read whole (no IPC size cap).
 +        // Keep the socket in poll even then: HUP/ERR do not need POLLIN.
 +        var sock_events: i16 = if (stdout_buf.items.len < STDOUT_BUFFER_LIMIT) lib_posix.POLL.IN else 0;
          if (sock_write_buf.items.len > 0) {
              sock_events |= lib_posix.POLL.OUT;
          }
-@@ -101,7 +108,7 @@
+@@ -101,7 +111,7 @@
  
          if (stdout_buf.items.len > 0) {
              try poll_fds.append(gpa, .{
@@ -76,7 +79,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                  .events = lib_posix.POLL.OUT,
                  .revents = 0,
              });
-@@ -114,13 +121,13 @@
+@@ -114,13 +124,13 @@
          // The daemon is gone: what it queued is read and written by finishSession alone, bounded.
          if (poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
              std.log.info("poll hup|err|nval", .{});
@@ -92,7 +95,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
              try ipc.appendSizeMessage(gpa, &sock_write_buf, .Resize, next_size);
          }
  
-@@ -155,7 +162,7 @@
+@@ -155,7 +165,7 @@
              const n = read_buf.read(client_sock_fd) catch |err| {
                  if (err == error.WouldBlock) continue;
                  if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
@@ -101,7 +104,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                      return ClientResult{ .kind = .detach, .session_name = null };
                  }
                  std.log.err("daemon read err={s}", .{@errorName(err)});
-@@ -163,7 +170,7 @@
+@@ -163,7 +173,7 @@
              };
              if (n == 0) {
                  std.log.info("server closed connection", .{});
@@ -110,7 +113,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                  return ClientResult{ .kind = .detach, .session_name = null };
              }
  
-@@ -185,7 +192,7 @@
+@@ -185,7 +195,7 @@
                      .Resize => {
                          // daemon is asking for the client's window size usually in response
                          // to this client being set as leader.
@@ -119,7 +122,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                          try ipc.appendSizeMessage(gpa, &sock_write_buf, .Resize, next_size);
                      },
                      .Switch => {
-@@ -213,7 +220,7 @@
+@@ -213,7 +223,7 @@
                      if (err == error.WouldBlock) break :blk 0;
                      if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
                          std.log.info("connection reset or broken pipe", .{});
@@ -128,18 +131,28 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                          return ClientResult{ .kind = .detach, .session_name = null };
                      }
                      return err;
-@@ -224,8 +231,8 @@
+@@ -224,11 +234,17 @@
              }
          }
  
 -        if (stdout_buf.items.len > 0) {
 -            const n = lib_posix.write(lib_posix.STDOUT_FILENO, stdout_buf.items) catch |err| blk: {
-+        if (poll_fds.items.len > 3 and poll_fds.items[3].revents & lib_posix.POLL.OUT != 0) {
+-                if (err == error.WouldBlock) break :blk 0;
++        const stdout_errors = lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL;
++        if (poll_fds.items.len > 3 and poll_fds.items[3].revents & (lib_posix.POLL.OUT | stdout_errors) != 0) {
++            const stdout_failed = poll_fds.items[3].revents & stdout_errors != 0;
 +            const n = lib_posix.write(stdout_fd, stdout_buf.items) catch |err| blk: {
-                 if (err == error.WouldBlock) break :blk 0;
++                if (err == error.WouldBlock) {
++                    if (stdout_failed) return error.BrokenPipe;
++                    break :blk 0;
++                }
                  return err;
              };
-@@ -247,12 +254,12 @@
++            if (n == 0 and stdout_failed) return error.BrokenPipe;
+             if (n > 0) {
+                 try stdout_buf.replaceRange(gpa, 0, n, &[_]u8{});
+             }
+@@ -247,12 +263,12 @@
  fn finishSession(
      gpa: std.mem.Allocator,
      sock: i32,
@@ -153,7 +166,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      const flags = lib_posix.fcntl(fd, lib_posix.F.GETFL, 0) catch return;
      _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags | lib_posix.O_NONBLOCK) catch return;
      defer _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags) catch {};
-@@ -2002,3 +2009,63 @@
+@@ -2002,3 +2018,148 @@
      const pay3 = client_req.write_buf.items[@sizeOf(ipc.Header)..];
      try std.testing.expectEqualStrings("DISPLAY=:99\n", pay3);
  }
@@ -210,10 +223,95 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +    defer thread.join();
 +    const start = role.nowMs();
 +    client_owns_socket = true;
-+    const result = try clientLoopWithFds(sockets[0], "", input[0], output[1]);
++    var client = TestClient{};
++    const result = try client.runWithWatchdog(sockets[0], input[0], output[1], 5000);
 +    const elapsed = role.nowMs() - start;
 +    try std.testing.expectEqual(.detach, result.kind);
 +    try std.testing.expect(elapsed < DRAIN_BUDGET_MS + 1500);
++    try std.testing.expectEqual(input_flags, try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0));
++    try std.testing.expectEqual(output_flags, try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0));
++}
++
++// Panic on timeout: unwinding a test with a stuck worker would close its fds
++// and invalidate its stack state, while joining it would hang the test runner.
++const TestClient = struct {
++    done: std.atomic.Value(bool) = .init(false),
++    result: anyerror!ClientResult = undefined,
++
++    fn run(self: *TestClient, sock: i32, input: i32, output: i32) void {
++        self.result = clientLoopWithFds(sock, "", input, output);
++        self.done.store(true, .release);
++    }
++
++    fn runWithWatchdog(self: *TestClient, sock: i32, input: i32, output: i32, timeout_ms: i64) !ClientResult {
++        const deadline = role.nowMs() + timeout_ms;
++        const thread = try std.Thread.spawn(.{}, run, .{ self, sock, input, output });
++        while (!self.done.load(.acquire)) {
++            if (role.nowMs() >= deadline) @panic("client loop watchdog expired");
++            sleepOneMs();
++        }
++        thread.join();
++        return self.result;
++    }
++};
++
++test "client returns promptly when stdout reader closes with daemon connected" {
++    const input = try lib_posix.pipe2(.{ .CLOEXEC = true });
++    defer for (input) |fd| lib_posix.close(fd);
++    const output = try lib_posix.pipe2(.{ .CLOEXEC = true });
++    defer lib_posix.close(output[1]);
++    var reader_open = true;
++    defer if (reader_open) lib_posix.close(output[0]);
++    const input_flags = try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0);
++    const output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
++    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, output_flags | lib_posix.O_NONBLOCK);
++    const fill = [_]u8{'x'} ** 4096;
++    while (true) {
++        _ = lib_posix.write(output[1], &fill) catch |err| {
++            if (err == error.WouldBlock) break;
++            return err;
++        };
++    }
++    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, output_flags);
++    lib_posix.close(output[0]);
++    reader_open = false;
++
++    // A full pipe with no reader reports POLLERR without POLLOUT on Linux.
++    var poll_fds = [_]lib_posix.pollfd{.{ .fd = output[1], .events = lib_posix.POLL.OUT, .revents = 0 }};
++    _ = try lib_posix.poll(&poll_fds, 0);
++    if (builtin.os.tag == .linux) {
++        try std.testing.expect(poll_fds[0].revents & lib_posix.POLL.ERR != 0);
++        try std.testing.expect(poll_fds[0].revents & lib_posix.POLL.OUT == 0);
++    }
++
++    var sockets: [2]i32 = undefined;
++    try std.testing.expectEqual(@as(c_int, 0), std.c.socketpair(lib_posix.AF.UNIX, lib_posix.SOCK.STREAM, 0, &sockets));
++    var client_owns_socket = false;
++    defer if (!client_owns_socket) lib_posix.close(sockets[0]);
++    // Keep the daemon connected until the client has returned.
++    defer lib_posix.close(sockets[1]);
++    try ipc.send(sockets[1], .Output, "queued output\r\n");
++
++    const saved_pipe = signal.sig_pipe;
++    var saved_winch: lib_posix.Sigaction = undefined;
++    lib_posix.sigaction(lib_posix.SIG.WINCH, null, &saved_winch);
++    var saved_sigpipe: lib_posix.Sigaction = undefined;
++    lib_posix.sigaction(lib_posix.SIG.PIPE, null, &saved_sigpipe);
++    signal.ignoreSigpipe();
++    defer {
++        lib_posix.sigaction(lib_posix.SIG.PIPE, &saved_sigpipe, null);
++        lib_posix.sigaction(lib_posix.SIG.WINCH, &saved_winch, null);
++        if (signal.sig_pipe[0] != saved_pipe[0]) {
++            for (signal.sig_pipe) |fd| lib_posix.close(fd);
++            signal.sig_pipe = saved_pipe;
++        }
++    }
++
++    var client = TestClient{};
++    const start = role.nowMs();
++    client_owns_socket = true;
++    try std.testing.expectError(error.BrokenPipe, client.runWithWatchdog(sockets[0], input[0], output[1], 1000));
++    try std.testing.expect(role.nowMs() - start < 1000);
 +    try std.testing.expectEqual(input_flags, try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0));
 +    try std.testing.expectEqual(output_flags, try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0));
 +}
