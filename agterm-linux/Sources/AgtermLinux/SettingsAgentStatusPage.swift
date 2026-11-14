@@ -68,6 +68,15 @@ extension AppController {
         adw_preferences_group_add(cast(follow), W(away))
         adw_preferences_page_add(cast(page), cast(follow))
 
+        let navigation = preferencesGroup("Attention Navigation")
+        adw_preferences_group_add(cast(navigation), W(preferencesSwitch(
+            "Include active sessions", active: settings.attentionIncludesActive ?? false,
+            handler: unsafeBitCast(onSettingsAttentionActive, to: GCallback.self))))
+        adw_preferences_group_add(cast(navigation), W(preferencesSwitch(
+            "Navigate across windows", active: settings.attentionNavigationAcrossWindows ?? false,
+            handler: unsafeBitCast(onSettingsAttentionWindows, to: GCallback.self))))
+        adw_preferences_page_add(cast(page), cast(navigation))
+
         let setup = preferencesGroup("Setup")
         let integrations = OpaquePointer(adw_action_row_new())
         "Agent hooks and skill".withCString { adw_preferences_row_set_title(cast(integrations), $0) }
@@ -169,3 +178,17 @@ private let onManageAgentIntegrations: @MainActor @convention(c) (OpaquePointer?
 private let onResetAgentStatus: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { button, _ in
     MainActor.assumeIsolated { controllerForWidget(button)?.resetAgentStatus() }
 }
+
+private let onSettingsAttentionActive: @MainActor @convention(c)
+    (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { row, _, _ in
+        guard let controller = controllerForWidget(row) else { return }
+        controller.persist(\.attentionIncludesActive, adw_switch_row_get_active(row) != 0 ? true : nil)
+        for controller in gWindows.values { controller.applyAutoFollowSettings() }
+    }
+
+private let onSettingsAttentionWindows: @MainActor @convention(c)
+    (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { row, _, _ in
+        guard let controller = controllerForWidget(row) else { return }
+        controller.persist(\.attentionNavigationAcrossWindows, adw_switch_row_get_active(row) != 0 ? true : nil)
+        for controller in gWindows.values { controller.applyAutoFollowSettings() }
+    }

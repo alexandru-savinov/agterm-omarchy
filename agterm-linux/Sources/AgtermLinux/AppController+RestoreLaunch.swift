@@ -29,13 +29,18 @@ enum LinuxRestoreSeed {
 
     /// A capture still preempts the durable command. Only a newly created daemon's shell queues it;
     /// attaching to an existing daemon never sends restored bytes, even if the inventory was stale.
+    /// A fresh (not restored) session ends with its durable command as the pane command and may keep
+    /// the pane open after it exits (`waitAfterCommand`); a restored one only creates the daemon with it.
     static func wrappedSeed(_ configuration: ZmxSupport.Configuration, replay: [String]?, durable: String?,
-                            denylist: Set<String>, daemonRunning: Bool?) -> LinuxLaunchSeed {
+                            denylist: Set<String>, daemonRunning: Bool?, endsWithCommand: Bool = false,
+                            waitAfterCommand: Bool = false) -> LinuxLaunchSeed {
         guard let replay else {
             return LinuxLaunchSeed(
-                command: ZmxSupport.attachCommand(configuration, replaying: nil, creationCommand: durable,
+                command: ZmxSupport.attachCommand(configuration, replaying: nil,
+                                                  creationCommand: endsWithCommand ? nil : durable,
+                                                  paneCommand: endsWithCommand ? durable : nil,
                                                   denylist: denylist),
-                initialInput: nil, waitAfterCommand: false
+                initialInput: nil, waitAfterCommand: endsWithCommand && waitAfterCommand
             )
         }
         let line = daemonRunning == false ? restoreLine(replay, restoreEnabled: true, denylist: denylist) : nil
@@ -126,7 +131,9 @@ extension AppController {
             return LinuxRestoreSeed.wrappedSeed(
                 configuration, replay: session.takePendingForegroundCommand(pane: pane),
                 durable: durableCommand(session: session, pane: pane), denylist: policy.denylist,
-                daemonRunning: policy.runningNames.map { $0.contains(configuration.daemonName) }
+                daemonRunning: policy.runningNames.map { $0.contains(configuration.daemonName) },
+                endsWithCommand: !session.wasRestored,
+                waitAfterCommand: !session.wasRestored && requestedWait(session: session, pane: pane)
             )
         case .ordinary:
             let capture = session.takePendingForegroundCommand(pane: pane)
@@ -227,7 +234,7 @@ extension AppController {
                                waitAfterCommand: false)
     }
 
-    private func restoreDenylist() -> Set<String> {
+    func restoreDenylist() -> Set<String> {
         let path = ConfigPaths.restoreDenylistPath(configDirectory: configDirectory())
         return (try? String(contentsOf: path, encoding: .utf8)).map(CommandRestore.parseDenylist)
             ?? ["tmux", "screen", "zellij"]

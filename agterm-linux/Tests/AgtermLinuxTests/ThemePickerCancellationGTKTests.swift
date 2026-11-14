@@ -36,6 +36,7 @@ struct ThemePickerCancellationGTKTests {
         settings.theme = "Dracula"
         try settingsStore.save(settings)
         let savedBytes = try Data(contentsOf: directory.appendingPathComponent("settings.json"))
+        _ = GhosttyTestRuntime.initialized
         GhosttyApp.shared.start(appearanceSide: LinuxAppearanceSide(isDark: true))
         defer { GhosttyApp.shared.shutdown() }
         let library = WindowLibrary(directory: directory)

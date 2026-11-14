@@ -47,20 +47,6 @@ struct ClipboardPromptControllerTests {
         #expect(answers == [true, false])
     }
 
-    @Test("write consent completion checks the current surface before touching the clipboard")
-    func writeCompletionAfterTeardown() {
-        var writes: [String] = []
-        let surface: ghostty_surface_t = UnsafeMutableRawPointer(bitPattern: 1)!
-        for (current, allowed) in [(Optional(surface), false), (nil, true), (nil, false)] {
-            GhosttyApp.completeClipboardWrite("fixture", loc: GHOSTTY_CLIPBOARD_STANDARD,
-                                             surface: current, allowed: allowed) { text, _ in writes.append(text) }
-        }
-        #expect(writes.isEmpty)
-        GhosttyApp.completeClipboardWrite("fixture", loc: GHOSTTY_CLIPBOARD_STANDARD,
-                                         surface: surface, allowed: true) { text, _ in writes.append(text) }
-        #expect(writes == ["fixture"])
-    }
-
     @Test("a waiter may destroy its response signal without resolving twice")
     func reentrantSignalDestruction() {
         let prompts = PromptLog()

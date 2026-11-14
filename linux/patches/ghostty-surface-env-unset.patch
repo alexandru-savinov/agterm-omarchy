@@ -1,9 +1,9 @@
 diff --git a/include/ghostty.h b/include/ghostty.h
-index d670ba7..c91b1b7 100644
+index 6492ec6..b96c6fd 100644
 --- a/include/ghostty.h
 +++ b/include/ghostty.h
-@@ -1136,6 +1136,10 @@ GHOSTTY_API ghostty_surface_config_s ghostty_surface_config_new();
-
+@@ -1185,6 +1185,10 @@ GHOSTTY_API ghostty_surface_config_s ghostty_surface_config_new();
+ 
  GHOSTTY_API ghostty_surface_t ghostty_surface_new(ghostty_app_t,
                                                       const ghostty_surface_config_s*);
 +// Names are copied during creation. Deletions win over inherited/configured values;
@@ -14,10 +14,10 @@ index d670ba7..c91b1b7 100644
  GHOSTTY_API void* ghostty_surface_userdata(ghostty_surface_t);
  GHOSTTY_API ghostty_app_t ghostty_surface_app(ghostty_surface_t);
 diff --git a/src/Surface.zig b/src/Surface.zig
-index 01d7f40..2e834e9 100644
+index 62e67a0..233c004 100644
 --- a/src/Surface.zig
 +++ b/src/Surface.zig
-@@ -669,6 +669,7 @@ pub fn init(
+@@ -689,6 +689,7 @@ pub fn init(
              .command = command,
              .env = env,
              .env_override = config.env,
@@ -26,11 +26,11 @@ index 01d7f40..2e834e9 100644
              .shell_integration_features = config.@"shell-integration-features",
              .cursor_blink = config.@"cursor-style-blink",
 diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
-index 8ac3aee..2a61842 100644
+index 7e7f3b4..e32e2c6 100644
 --- a/src/apprt/embedded.zig
 +++ b/src/apprt/embedded.zig
-@@ -267,12 +267,16 @@ pub const App = struct {
-
+@@ -285,12 +285,16 @@ pub const App = struct {
+ 
      /// Create a new surface for the app.
      fn newSurface(self: *App, opts: Surface.Options) !*Surface {
 +        return self.newSurfaceWithEnvUnset(opts, &.{});
@@ -40,17 +40,17 @@ index 8ac3aee..2a61842 100644
          // Grab a surface allocation because we're going to need it.
          var surface = try self.core_app.alloc.create(Surface);
          errdefer self.core_app.alloc.destroy(surface);
-
+ 
          // Create the surface
 -        try surface.init(self, opts);
 +        try surface.initWithEnvUnset(self, opts, unset);
          errdefer surface.deinit();
-
+ 
          return surface;
-@@ -464,6 +468,56 @@ pub const EnvVar = extern struct {
+@@ -482,6 +486,56 @@ pub const EnvVar = extern struct {
      value: [*:0]const u8,
  };
-
+ 
 +fn environmentUnsetSlice(names: ?[*]const ?[*:0]const u8, count: usize) ![]const ?[*:0]const u8 {
 +    if (count == 0) return &.{};
 +    if (count > std.math.maxInt(usize) / @sizeOf(?[*:0]const u8)) return error.InvalidEnvironmentNames;
@@ -63,7 +63,7 @@ index 8ac3aee..2a61842 100644
 +        const value = std.mem.span(name orelse return error.InvalidEnvironmentName);
 +        if (value.len == 0 or std.mem.indexOfScalar(u8, value, '=') != null)
 +            return error.InvalidEnvironmentName;
-+        names[i] = try alloc.dupeZ(u8, value);
++        names[i] = try alloc.dupeSentinel(u8, value, 0);
 +    }
 +    return names;
 +}
@@ -104,18 +104,18 @@ index 8ac3aee..2a61842 100644
  pub const Surface = struct {
      app: *App,
      platform: Platform,
-@@ -473,6 +527,8 @@ pub const Surface = struct {
+@@ -491,6 +545,8 @@ pub const Surface = struct {
      size: apprt.SurfaceSize,
      cursor_pos: apprt.CursorPos,
      inspector: ?*Inspector = null,
 +    environment_arena: ?std.heap.ArenaAllocator = null,
 +    environment_unset: []const [*:0]const u8 = &.{},
-
+ 
      /// The current title of the surface. The embedded apprt saves this so
      /// that getTitle works without the implementer needing to save it.
-@@ -522,6 +578,10 @@ pub const Surface = struct {
+@@ -540,6 +596,10 @@ pub const Surface = struct {
      };
-
+ 
      pub fn init(self: *Surface, app: *App, opts: Options) !void {
 +        return self.initWithEnvUnset(app, opts, &.{});
 +    }
@@ -124,10 +124,10 @@ index 8ac3aee..2a61842 100644
          self.* = .{
              .app = app,
              .platform = try .init(opts.platform_tag, opts.platform),
-@@ -535,6 +595,15 @@ pub const Surface = struct {
+@@ -553,6 +613,15 @@ pub const Surface = struct {
              .cursor_pos = .{ .x = -1, .y = -1 },
          };
-
+ 
 +        // Own deletion names until core IO has stopped; the embedding caller may release its buffers.
 +        if (unset.len > 0) {
 +            self.environment_arena = std.heap.ArenaAllocator.init(app.core_app.alloc);
@@ -140,18 +140,18 @@ index 8ac3aee..2a61842 100644
          // Add ourselves to the list of surfaces on the app.
          try app.core_app.addSurface(self);
          errdefer app.core_app.deleteSurface(self);
-@@ -663,6 +732,7 @@ pub const Surface = struct {
-
+@@ -681,6 +750,7 @@ pub const Surface = struct {
+ 
          // Clean up our core surface so that all the rendering and IO stop.
          self.core_surface.deinit();
 +        if (self.environment_arena) |*arena| arena.deinit();
      }
-
+ 
      /// Initialize the inspector instance. A surface can only have one
-@@ -1007,6 +1077,10 @@ pub const Surface = struct {
+@@ -1256,6 +1326,10 @@ pub const Surface = struct {
          };
      }
-
+ 
 +    pub fn termioEnvUnset(self: *const Surface) []const [*:0]const u8 {
 +        return self.environment_unset;
 +    }
@@ -159,10 +159,10 @@ index 8ac3aee..2a61842 100644
      pub fn defaultTermioEnv(self: *const Surface) !std.process.Environ.Map {
          _ = self;
          var env = try global.environMap();
-@@ -1599,6 +1673,20 @@ pub const CAPI = struct {
+@@ -1893,6 +1967,20 @@ pub const CAPI = struct {
          };
      }
-
+ 
 +    /// Additive API: existing surface options retain their ABI and empty values still mean empty.
 +    export fn ghostty_surface_new_with_env_unset(
 +        app: *App,
@@ -181,21 +181,21 @@ index 8ac3aee..2a61842 100644
          app: *App,
          opts: *const apprt.Surface.Options,
 diff --git a/src/termio/Exec.zig b/src/termio/Exec.zig
-index 0162917..766d39a 100644
+index df57e0f..d2f73cf 100644
 --- a/src/termio/Exec.zig
 +++ b/src/termio/Exec.zig
-@@ -569,6 +569,7 @@ pub const Config = struct {
-     command: ?configpkg.Command = null,
+@@ -573,6 +573,7 @@ pub const Config = struct {
+     /// calling init.
      env: EnvMap,
      env_override: configpkg.RepeatableStringMap = .{},
 +    env_unset: []const [*:0]const u8 = &.{},
      shell_integration: configpkg.Config.ShellIntegration = .detect,
      shell_integration_features: configpkg.Config.ShellIntegrationFeatures = .{},
      cursor_blink: ?bool = null,
-@@ -825,6 +826,9 @@ const Subprocess = struct {
+@@ -826,6 +827,9 @@ const Subprocess = struct {
              );
          }
-
+ 
 +        // Explicit embedding deletions win over inherited and configured values, including empty ones.
 +        for (cfg.env_unset) |name| _ = env.orderedRemove(std.mem.span(name));
 +

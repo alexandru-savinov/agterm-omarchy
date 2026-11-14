@@ -8,7 +8,7 @@ import SwiftUI
 /// carries the per-window plumbing: persisting/restoring the frame, reporting frontmost (key/main) and close
 /// (`willClose`) to the `WindowLibrary`, and registering the `NSWindow` in `WindowRegistry`.
 struct WindowAccessor: NSViewRepresentable {
-    /// The OS window title, written on every change.
+    /// The OS window title; rapid changes are coalesced, see setTitle.
     let titleToken: String
     let windowID: WindowInfo.ID
     let library: WindowLibrary
@@ -54,12 +54,32 @@ struct WindowAccessor: NSViewRepresentable {
         /// XCUITest title-matching, but hidden via titleVisibility — the custom header draws the visible one.
         private var latestTitle = ""
 
+        /// The OS title is hidden yet each write still runs AppKit's title machinery, about 1.3 ms, so an
+        /// animated OSC title lands at most once per interval and a trailing write carries the final value.
+        private static let titleWriteInterval: Duration = .milliseconds(500)
+        private var lastTitleWrite: ContinuousClock.Instant?
+        private var pendingTitleWrite: Task<Void, Never>?
+
         /// Writes the title and nothing else: an animated OSC title ticks this many times a second, and the
         /// blend's other inputs reach `applyTitlebarBlend` through attach and the notifications below (#516).
         func setTitle(_ title: String) {
             latestTitle = title
-            guard let window, window.title != title else { return }
-            window.title = title
+            guard window != nil, pendingTitleWrite == nil else { return }
+            guard let last = lastTitleWrite, ContinuousClock.now - last < Self.titleWriteInterval else {
+                writeTitle()
+                return
+            }
+            pendingTitleWrite = Task { [weak self] in
+                try? await Task.sleep(until: last + Self.titleWriteInterval)
+                self?.writeTitle()
+            }
+        }
+
+        private func writeTitle() {
+            pendingTitleWrite = nil
+            guard let window, window.title != latestTitle else { return }
+            lastTitleWrite = .now
+            window.title = latestTitle
         }
 
         override func viewDidMoveToWindow() {
@@ -123,7 +143,7 @@ struct WindowAccessor: NSViewRepresentable {
                          NSWindow.didResignKeyNotification, NSWindow.didResignMainNotification,
                          NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
                 // the @Sendable observer block can't touch main-actor state directly; hop through the main queue.
-                let token = NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [windowID] notification in
+                let token = NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self, windowID] notification in
                     let becameFrontmost = frontmostNames.contains(notification.name)
                     DispatchQueue.main.async { [weak self] in
                         guard let self, let window = self.window else { return }
@@ -180,6 +200,7 @@ struct WindowAccessor: NSViewRepresentable {
                         session.teardownPaneOverlays()
                         session.scratchSurface?.teardown()
                         session.discardHudBody() // an unrealized HUD has no teardown to delete its body file
+                        session.discardInfo()
                     }
                     library.closeWindow(windowID)
                     // the quick-terminal panel belongs to no window, so nothing above tore it down. Usually
@@ -197,7 +218,7 @@ struct WindowAccessor: NSViewRepresentable {
             titlebarObservers.append(closeToken)
             // a settings theme change updates GhosttyApp.terminalBackgroundColor; re-apply so the title bar
             // and transparent sidebar pick up the new window color live, not on the next re-key.
-            let appearanceToken = NotificationCenter.default.addObserver(forName: .agtermAppearanceChanged, object: nil, queue: .main) { _ in
+            let appearanceToken = NotificationCenter.default.addObserver(forName: .agtermAppearanceChanged, object: nil, queue: .main) { [weak self] _ in
                 DispatchQueue.main.async { [weak self] in
                     guard let self, let window = self.window else { return }
                     self.applyTitlebarBlend(window)
@@ -342,7 +363,8 @@ struct WindowAccessor: NSViewRepresentable {
             WindowAppearance.sync(window: window, background: background,
                                   chrome: .init(opacity: GhosttyApp.shared.windowOpacity,
                                                 blurRadius: GhosttyApp.shared.windowBlurRadius,
-                                                toolbarMode: GhosttyApp.shared.toolbarMode))
+                                                toolbarMode: GhosttyApp.shared.toolbarMode,
+                                                reduceTransparency: GhosttyApp.shared.windowReducesTransparency))
         }
     }
 }
@@ -392,7 +414,8 @@ private final class WindowCloseDelegateProxy: NSObject, NSWindowDelegate {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Close \u{201C}\(name)\u{201D}?"
-        alert.informativeText = "This ends \(count) running session\(count == 1 ? "" : "s"). The window can be reopened from File ▸ Open Window."
+        alert.informativeText = QuitPrompt.windowCloseMessage(sessions: count,
+                                                              mode: GhosttyApp.shared.restoreLaunchDecision.active)
         alert.addButton(withTitle: "Close")
         alert.addButton(withTitle: "Cancel")
         alert.beginSheetModal(for: sender) { [weak self, weak sender] response in

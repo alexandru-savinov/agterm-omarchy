@@ -294,11 +294,13 @@ final class CustomCommandRunner {
                 return true
             }
             // a focused page receives key equivalents before the menu, and one cancelling the keydown makes WebKit
-            // report it handled, so close_session's menu chord never reaches Close Session. Taken here while a
-            // page holds focus; the chord's other owners keep the menu path.
-            if Self.pageHoldsFocus(responder), chord == settings.keymap.equivalent(for: .closeSession) {
-                actions.perform(.closeSession, in: keyWindow)
-                return true
+            // report it handled, so close_session's and toggle_overlay's menu chords never reach their items.
+            // Taken here while a page holds focus; the chords' other owners keep the menu path.
+            if Self.pageHoldsFocus(responder) {
+                for action in [BuiltinAction.closeSession, .toggleOverlay] where chord == settings.keymap.equivalent(for: action) {
+                    actions.perform(action, in: keyWindow)
+                    return true
+                }
             }
             return false
         }
@@ -317,29 +319,14 @@ final class CustomCommandRunner {
         commandEngine.isRepeating && chord(from: event).map(commandEngine.isRepeatTail) == true
     }
 
-    /// Map an `NSEvent` key-down to an agtermCore `Chord`, or nil when it carries no usable base key. The base
-    /// key is the named special key, else what `chordKey` resolves — the unmodified character on a layout that
-    /// can type ASCII, the physical position on one that cannot.
     private func chord(from event: NSEvent) -> Chord? {
-        var mods: Modifier = []
-        let flags = event.modifierFlags
-        if flags.contains(.control) { mods.insert(.control) }
-        if flags.contains(.command) { mods.insert(.command) }
-        if flags.contains(.option) { mods.insert(.option) }
-        if flags.contains(.shift) { mods.insert(.shift) }
-
-        if let named = namedKey(forKeyCode: event.keyCode) {
-            return Chord(mods: mods, key: named)
-        }
-        // `characters(byApplyingModifiers: [])` gives the UNSHIFTED base key (shift+/ → "/"), matching how
-        // the keymap spells `shift+<base>`. `charactersIgnoringModifiers` instead KEEPS shift (shift+/ → "?")
-        // and `.lowercased()` undoes that only for letters, so punctuation would land on the shifted glyph
-        // and never match a `shift+/` binding. `chordKey` then applies the layout rule, so `cmd+o` still
-        // fires on a Cyrillic layout (the key types `щ`).
-        let produced = event.characters(byApplyingModifiers: []) ?? event.charactersIgnoringModifiers
-        guard let key = chordKey(forKeyCode: event.keyCode, produced: produced,
-                                 layoutIsASCIICapable: KeyboardLayout.isASCIICapable) else { return nil }
-        return Chord(mods: mods, key: key)
+        // shift stays out so the base key comes back UNSHIFTED (shift+/ → "/"), matching how the keymap spells
+        // `shift+<base>`; `charactersIgnoringModifiers` keeps shift, and `.lowercased()` undoes that only for
+        // letters. Command goes in when held: a layout's Command table can differ from its plain one
+        // (Dvorak - QWERTY ⌘ types QWERTY, Lithuanian digits), and the menu matches through it, so without
+        // it a `cmd+` chord fires on another key than the same chord on a `map` line.
+        event.keymapChord(produced: event.characters(byApplyingModifiers: event.modifierFlags.intersection(.command))
+            ?? event.charactersIgnoringModifiers)
     }
 
     private func startLeaderTimer(_ interval: TimeInterval = CustomCommandRunner.leaderTimeout) {
@@ -481,13 +468,17 @@ final class CustomCommandRunner {
     }
 
     /// Spawn for a session pane: the context carries the pane's reported cwd raw, while the process starts
-    /// where `Session.localWorkingDirectory` says, which differs on a remote session whose path is not here.
+    /// where `Session.localWorkingDirectory` says, or in HOME when that is not a directory here: a deleted
+    /// one, or a remote path reported through an `ssh` typed into a local session.
     @discardableResult
     private func spawn(_ command: CustomCommand, for session: Session, in store: AppStore,
                        selectionSurface: GhosttySurfaceView?, pane: CommandContext.Pane) -> String? {
         let context = self.context(for: session, in: store, selectionSurface: selectionSurface, pane: pane)
-        let cwd = session.localWorkingDirectory(reported: context.sessionPWD, homeDirectory: NSHomeDirectory())
-        return spawn(command, context: context, cwd: cwd)
+        let home = NSHomeDirectory()
+        let cwd = session.localWorkingDirectory(reported: context.sessionPWD, homeDirectory: home)
+        var isDirectory: ObjCBool = false
+        let usable = FileManager.default.fileExists(atPath: cwd, isDirectory: &isDirectory) && isDirectory.boolValue
+        return spawn(command, context: context, cwd: usable ? cwd : home)
     }
 
     /// Resolve every `{AGT_X}` token for the given session: ids + cwd + remote host from the model, names

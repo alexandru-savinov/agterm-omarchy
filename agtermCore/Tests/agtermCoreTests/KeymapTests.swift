@@ -1332,6 +1332,56 @@ struct KeymapTests {
         #expect(keymap.equivalent(for: .dashboard) == nil)
     }
 
+    @Test func attachRemoteShipsOnCmdShiftRAndCanBeRemapped() {
+        let attachChord = Chord(mods: [.command, .shift], key: "r")
+        #expect(parseKeymap("").keymap.equivalent(for: .attachRemote) == attachChord)
+
+        let (keymap, diagnostics) = parseKeymap("map ctrl+shift+y attach_remote")
+        #expect(diagnostics.isEmpty)
+        #expect(keymap.equivalent(for: .attachRemote) == Chord(mods: [.control, .shift], key: "y"))
+    }
+
+    @Test func existingCmdShiftRBuiltinBindingIsNotBrokenByAttachRemoteDefault() {
+        let (keymap, diagnostics) = parseKeymap("map cmd+shift+r toggle_workspace_filter")
+        #expect(diagnostics.isEmpty)
+        #expect(keymap.equivalent(for: .toggleWorkspaceFilter) == Chord(mods: [.command, .shift], key: "r"))
+        #expect(keymap.equivalent(for: .attachRemote) == nil)
+        #expect(keymap.builtinUnbound.contains(.attachRemote))
+    }
+
+    @Test func existingCmdShiftRCustomCommandIsNotBrokenByAttachRemoteDefault() {
+        let (keymap, diagnostics) = parseKeymap("command \"Old binding\" cmd+shift+r echo ok")
+        #expect(diagnostics.isEmpty)
+        #expect(keymap.commands.first?.shortcut == "cmd+shift+r")
+        #expect(keymap.equivalent(for: .attachRemote) == nil)
+    }
+
+    @Test func anExplicitAttachRemoteMapKeepsTheChordOverAnOldCommandOnIt() {
+        let (keymap, _) = parseKeymap("""
+        map cmd+shift+r attach_remote
+        command "Old binding" cmd+shift+r echo ok
+        """)
+        #expect(keymap.equivalent(for: .attachRemote) == Chord(mods: [.command, .shift], key: "r"))
+        #expect(keymap.commands.first?.shortcut == "")
+    }
+
+    @Test func toggleOverlayShipsOnCmdShiftJAndCanBeRemapped() {
+        #expect(parseKeymap("").keymap.equivalent(for: .toggleOverlay) == Chord(mods: [.command, .shift], key: "j"))
+
+        let (keymap, diagnostics) = parseKeymap("map ctrl+shift+y toggle_overlay")
+        #expect(diagnostics.isEmpty)
+        #expect(keymap.equivalent(for: .toggleOverlay) == Chord(mods: [.control, .shift], key: "y"))
+    }
+
+    @Test(arguments: ["map cmd+shift+j toggle_workspace_filter", "command \"Old binding\" cmd+shift+j echo ok"])
+    func anExistingCmdShiftJBindingIsNotBrokenByTheToggleOverlayDefault(line: String) {
+        let (keymap, diagnostics) = parseKeymap(line)
+        #expect(diagnostics.isEmpty)
+        #expect(keymap.equivalent(for: .toggleOverlay) == nil)
+        #expect(keymap.equivalent(for: .toggleWorkspaceFilter) == (line.hasPrefix("map") ? Chord(mods: [.command, .shift], key: "j") : nil))
+        #expect(keymap.commands.first.map { $0.shortcut == "cmd+shift+j" } ?? true)
+    }
+
     @Test func keymapStoreLoadsFileAndRecoversWhenMissing() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("agterm-keymap-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

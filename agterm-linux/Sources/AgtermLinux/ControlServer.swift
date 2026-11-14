@@ -50,6 +50,13 @@ final class ControlServer: @unchecked Sendable {
     @MainActor lazy var overlayJobs = OverlayJobs()
     @MainActor var overlayJobStreams: [String: LinuxOverlayJobStream] = [:]
     @MainActor var pendingJobCancels: Set<String> = []
+    @MainActor let originEpoch = UUID().uuidString
+    @MainActor var respawnGenerations: [UUID: [String: Int]] = [:]
+    @MainActor var pageServeStreams: [UUID: LinuxPageServeStream] = [:]
+    @MainActor var pendingPageClaims: [UUID: HtmlSource] = [:]
+    @MainActor var companionPageTokens: [String: CompanionPageToken] = [:]
+    @MainActor var pendingCompanionClaims: [UUID: CompanionPageServing] = [:]
+    @MainActor var companionPageStreams: [UUID: LinuxPageServeStream] = [:]
     private let setSocketPermissions: (String, Int32) -> Int32
 
     /// The socket path once actually bound (nil before bind / after a bind failure), so a spawned
@@ -130,7 +137,7 @@ final class ControlServer: @unchecked Sendable {
             unlink(path)
             return
         }
-        guard listen(fd, 8) == 0 else {
+        guard listen(fd, SOMAXCONN) == 0 else {
             let reason = String(cString: strerror(errno))
             logger.notice("control listen() failed: \(reason)")
             close(fd)
@@ -261,6 +268,7 @@ final class ControlServer: @unchecked Sendable {
                       let id = reply.result?.id.flatMap(UUID.init(uuidString:)) else { return false }
                 return adoptPresentationOnMain(conn, session: id)
             }
+            if req.cmd == .sessionOverlayPageServe { return handlePageServe(conn, request: req) }
             if req.cmd == .sessionOverlayJobRun {
                 let reply = claimOverlayJobOnMain(req.target)
                 let written = writeResponse(conn, reply)
@@ -292,6 +300,9 @@ final class ControlServer: @unchecked Sendable {
 
     /// Shared one-request entry point for socket and file-page workers.
     func performRequest(_ request: ControlRequest) -> ControlResponse {
+        if [.sessionCompanionNew, .sessionCompanionPage, .sessionCompanionDuplicate].contains(request.cmd) {
+            return performCompanionRequest(request)
+        }
         if request.cmd == .sessionRestart { return restartOnMain(request) }
         if request.cmd == .browserClear { return clearBrowserOnMain(request) }
         if Self.isRemoteZmxRequest(request) { return dispatchRemoteZmx(request) }
@@ -376,6 +387,39 @@ final class ControlServer: @unchecked Sendable {
         }
     }
 
+    private func performCompanionRequest(_ request: ControlRequest) -> ControlResponse {
+        let box = LinuxRemoteCompanionBox(), ready = DispatchSemaphore(value: 0)
+        runOnMain {
+            MainActor.assumeIsolated {
+                defer { ready.signal() }
+                switch Self.route(for: request) {
+                case .failure(let error): box.response = ControlResponse(ok: false, error: error)
+                case .controller(nil): box.response = ControlResponse(ok: false, error: "no controller")
+                case .controller(let controller?):
+                    switch controller.resolveSessionResponse(request.target) {
+                    case .failure(let response): box.response = response
+                    case .success(let id):
+                        guard let row = controller.store.session(withID: id), let host = row.remoteHost else {
+                            box.response = controller.handleControl(request)
+                            return
+                        }
+                        box.response = LinuxControlDispatcher(actions: controller).dispatchCompanionCommand(request) { creation, select in
+                            guard let origin = row.remotePresentation?.binding.remoteSessionID else {
+                                return ControlResponse(ok: false, error: "the remote session is not attached")
+                            }
+                            let parent = controller.store.parent(of: row) ?? row
+                            box.plan = LinuxRemoteCompanionPlan(request: creation, host: host, origin: origin,
+                                parent: parent.id, parentOrigin: parent.remotePresentation?.binding.remoteSessionID ?? origin, select: select)
+                            return ControlResponse(ok: true)
+                        }
+                    }
+                }
+            }
+        }
+        ready.wait()
+        return box.plan.map(createRemoteCompanion) ?? box.response
+    }
+
     private func restartOnMain(_ request: ControlRequest) -> ControlResponse {
         awaitMain { reply in
             switch Self.route(for: request) {
@@ -393,21 +437,25 @@ final class ControlServer: @unchecked Sendable {
         return awaitMain { reply in LinuxBrowserStore.shared.clear { reply.resolve($0) } }
     }
 
-    private func writeResponse(_ conn: Int32, _ response: ControlResponse) -> Bool {
+    func writeResponse(_ conn: Int32, _ response: ControlResponse) -> Bool {
         guard var data = try? JSONEncoder().encode(response) else { return false }
         data.append(0x0A)
         return writeAll(conn, data)
     }
 
     private static func isRemoteZmxRequest(_ request: ControlRequest) -> Bool {
-        request.cmd == .zmxAttach
+        request.cmd == .zmxAttach || request.cmd == .zmxAttachGroup
             || (request.cmd == .zmxTree
                 && request.args?.host?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
     }
 
     /// SSH waits on a per-connection worker, never GTK's main thread and never the listener thread.
     private func dispatchRemoteZmx(_ request: ControlRequest) -> ControlResponse {
-        Self.dispatchRemoteZmx(request, readTree: readRemoteTree(host:), attach: attachRemoteOnMain)
+        Self.dispatchRemoteZmx(request, readTree: readRemoteTree(host:)) { host, session, tree, window in
+            request.cmd == .zmxAttachGroup
+                ? self.attachRemoteGroup(host: host, session: session, tree: tree, window: window)
+                : self.attachRemoteOnMain(host: host, session: session, tree: tree, window: window)
+        }
     }
 
     /// Validates and trims like the shared dispatcher, before any ssh call.
@@ -416,12 +464,12 @@ final class ControlServer: @unchecked Sendable {
         attach: (_ host: String, _ session: String, _ tree: ControlRemoteTree, _ window: String?) -> ControlResponse
     ) -> ControlResponse {
         guard let host = request.args?.host?.linuxTrimmedOrNil else {
-            return ControlResponse(ok: false, error: request.cmd == .zmxAttach
-                ? "zmx.attach requires a host" : "invalid host")
+            return ControlResponse(ok: false, error: request.cmd == .zmxTree
+                ? "invalid host" : "\(request.cmd.rawValue) requires a host")
         }
-        guard request.cmd == .zmxAttach else { return readTree(host) }
+        guard request.cmd == .zmxAttach || request.cmd == .zmxAttachGroup else { return readTree(host) }
         guard let remoteID = request.target?.linuxTrimmedOrNil else {
-            return ControlResponse(ok: false, error: "zmx.attach requires a remote session")
+            return ControlResponse(ok: false, error: "\(request.cmd.rawValue) requires a remote session")
         }
         guard isPlainRemoteToken(remoteID) else {
             return ControlResponse(ok: false, error: "invalid remote session")
@@ -431,7 +479,7 @@ final class ControlServer: @unchecked Sendable {
         return attach(host, remoteID, remote, request.args?.window?.linuxTrimmedOrNil)
     }
 
-    private func readRemoteTree(host: String) -> ControlResponse {
+    func readRemoteTree(host: String) -> ControlResponse {
         let argv: [String]
         do {
             argv = try RemoteSession.treeCommand(host: host)
@@ -455,9 +503,12 @@ final class ControlServer: @unchecked Sendable {
         }
     }
 
-    private func attachRemoteOnMain(host: String, session: String,
-                                    tree: ControlRemoteTree, window: String?) -> ControlResponse {
-        awaitMain { reply in
+    func attachRemoteOnMain(host: String, session: String,
+                            tree: ControlRemoteTree, window: String?) -> ControlResponse {
+        if let remote = tree.sessions.first(where: { $0.id == session && $0.content == "page" }) {
+            return attachRemotePageRow(remote, tree: tree, host: host, window: window)
+        }
+        return awaitMain { reply in
             let controller: AppController?
             if let window {
                 switch gLibrary?.resolveWindow(window) {
@@ -525,20 +576,23 @@ final class ControlServer: @unchecked Sendable {
             return .controller(controller)
         }
         switch req.cmd {
-        case .sessionRestart, .sessionOverlaySubmit, .keymapRun, .sessionClose, .sessionDuplicate, .sessionSelect, .sessionGo, .sessionRename, .sessionReveal,
+        case .sessionCompanionNew, .sessionCompanionPage, .sessionCompanionDuplicate, .sessionCompanionPageAttach,
+             .sessionCollapse, .sessionExpand, .sessionTint,
+             .sessionOverlayHide, .sessionOverlayShow, .sessionOverlayToggle,
+             .sessionRestart, .sessionOverlaySubmit, .keymapRun, .sessionClose, .sessionDuplicate, .sessionSelect, .sessionGo, .sessionRename, .sessionReveal,
              .sessionMove, .sessionType,
-             .sessionStatus, .sessionRestore, .sessionFlag, .sessionContext, .sessionSeen,
+             .sessionStatus, .sessionRestore, .sessionFlag, .sessionContext, .sessionInfo, .sessionSeen,
              .sessionSplit, .sessionSplitClose, .sessionSwap, .sessionLead, .sessionScratch, .sessionFocus,
              .sessionCopy, .sessionPaste, .sessionSelectAll, .sessionSearch,
              .sessionOverlayOpen, .sessionOverlayClose, .sessionOverlayResize, .sessionOverlayResult,
              .sessionOverlayReload, .sessionOverlayNavigate,
-             .sessionOverlayCopy, .sessionOverlayText,
+             .sessionOverlayCopy, .sessionOverlayText, .sessionOverlaySearch, .sessionOverlayChanges, .sessionOverlayFollow,
              .sessionHudOpen, .sessionHudUpdate, .sessionHudClose,
              .askOpen,
              .sessionBackground, .sessionResize, .sessionText, .notify,
              .fontInc, .fontDec, .fontReset:
             return routeOwningSession(req.target) ?? .controller(gController)
-        case .workspaceRename, .workspaceDelete, .workspaceSelect, .workspaceMove, .workspaceFocus,
+        case .workspaceTint, .workspaceFlag, .workspaceRename, .workspaceDelete, .workspaceSelect, .workspaceMove, .workspaceFocus,
              .workspaceCollapse, .workspaceExpand:
             return routeOwningWorkspace(req.target) ?? .controller(gController)
         case .sessionNew:
@@ -552,14 +606,15 @@ final class ControlServer: @unchecked Sendable {
         case .surfaceZoom, .surfaceCursor:
             return routeOwningSurface(req.target) ?? .controller(gController)
         case .tree, .eventsRead, .workspaceNew, .workspaceGo, .quick, .quickType, .quickText, .dashboard,
-             .sidebar, .sidebarMode, .sidebarFlaggedLayout, .sidebarExpand, .sidebarCollapse, .workspaceFilter,
+             .sidebar, .sidebarMode, .sidebarDensity, .sidebarFlaggedLayout, .sidebarExpand, .sidebarCollapse, .workspaceFilter,
              .windowNew, .windowList, .windowSelect, .windowGo, .windowClose, .windowRename, .windowDelete,
              .windowResize, .windowMove, .windowZoom, .windowFullscreen, .windowMinimize,
              .keymapReload, .keymapList, .hooksReload, .hooksList, .configReload, .themeSet, .themeList,
              .pickOpen, .pickResult, .pickCancel, .askResult, .askCancel, .sidebarWidth,
              .restoreClear, .restoreCapture, .restoreMode, .recentClear, .version,
+             .browserLinks, .recentList, .recentOpen, .sessionOverlayPageServe,
              .browserClear, .zmxScreen, .zmxList, .zmxPrune, .zmxKill, .zmxReset, .zmxTree, .zmxAttach, .zmxPresent,
-             .sessionOverlayJobRun, .debugAppearance:
+             .sessionOverlayJobRun, .msgSend, .msgRead, .msgAck, .zmxAttachGroup, .debugAppearance:
             return .controller(gController)
         }
     }
