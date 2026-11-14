@@ -29,7 +29,7 @@ public enum ZmxSupport {
         /// Nil leaves the attach unmanaged, as a zmx without explicit leadership expects.
         public let lead: ZmxLeadAttachment?
         /// Supplies the verified socket directory, run only after every other check passed. Nil keeps
-        /// `socketDirectory(forStateDirectory:)`, the macOS behavior.
+        /// `socketDirectory(forStateDirectory:)` unverified; both apps supply one.
         public let socketDirectory: (@Sendable () -> Result<String, ZmxSocketDirectory.Refusal>)?
         /// The shell `commandShell(fromCommand:)` took from ghostty `command`; it replaces
         /// `passwordDatabaseShell`, nil leaving the login shell in charge.
@@ -306,9 +306,9 @@ public enum ZmxSupport {
         }
     }
 
-    /// The directory every version up to this one used, and still the macOS one. Linux resolves its own
-    /// private location through `ZmxSocketDirectory.resolveLinux`, which keeps this one only for
-    /// daemons an earlier version left running this boot.
+    /// The directory earlier versions used on both platforms. Each app now resolves a private location
+    /// (`ZmxSocketDirectory.resolveLinux` / `resolveDarwin`), which keep this one only for daemons an
+    /// earlier version left running this boot, and otherwise as the verified last resort.
     public static func socketDirectory(forStateDirectory stateDirectory: String) -> String {
         "/tmp/" + socketDirectoryLeaf(forStateDirectory: stateDirectory)
     }

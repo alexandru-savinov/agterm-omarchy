@@ -149,7 +149,49 @@ enum ZmxLaunch {
             sessionHostExecutablePath: sessionHostExecutablePath(bundleURL: runtime.bundleURL, environment: runtime.environment,
                                                                   allowDebugOverride: runtime.allowDebugOverride),
             lead: lead,
-            commandShell: runtime.commandShell
+            commandShell: runtime.commandShell,
+            socketDirectory: { ZmxLaunch.verifiedSocketDirectory(forStateDirectory: stateDirectory) }
         ))
+    }
+
+    /// The socket directory for `stateDirectory`, chosen once per process (`ZmxSocketDirectory.resolveDarwin`
+    /// documents the order and the upgrade rule) so every pane and the zmx client use the same one.
+    static func socketDirectoryChoice(forStateDirectory stateDirectory: String) -> Result<String, ZmxSocketDirectory.Refusal> {
+        socketDirectoryChoices.choice(for: stateDirectory)
+    }
+
+    /// The chosen directory, re-verified (and re-created as 0700 if it vanished) at this call.
+    static func verifiedSocketDirectory(forStateDirectory stateDirectory: String) -> Result<String, ZmxSocketDirectory.Refusal> {
+        socketDirectoryChoice(forStateDirectory: stateDirectory).flatMap { ZmxSocketDirectory.verify($0) }
+    }
+
+    private static let socketDirectoryChoices = SocketDirectoryChoices()
+
+    private final class SocketDirectoryChoices: @unchecked Sendable {
+        private let lock = NSLock()
+        private var choices: [String: Result<String, ZmxSocketDirectory.Refusal>] = [:]
+
+        func choice(for stateDirectory: String) -> Result<String, ZmxSocketDirectory.Refusal> {
+            let key = URL(fileURLWithPath: stateDirectory, isDirectory: true).standardizedFileURL.path
+            lock.lock()
+            defer { lock.unlock() }
+            if let known = choices[key] { return known }
+            let chosen = ZmxSocketDirectory.resolveDarwin(
+                stateDirectory: key, userTemporaryDirectory: ZmxLaunch.userTemporaryDirectory()
+            )
+            choices[key] = chosen
+            return chosen
+        }
+    }
+
+    /// The per-user temporary directory, `confstr(_CS_DARWIN_USER_TEMP_DIR)`: created by the system as
+    /// mode 0700 for this user and, unlike `NSTemporaryDirectory()`, not taken from `$TMPDIR`. Nil when
+    /// the system does not provide it; `resolveDarwin` verifies it either way.
+    static func userTemporaryDirectory() -> String? {
+        let size = confstr(_CS_DARWIN_USER_TEMP_DIR, nil, 0)
+        guard size > 1 else { return nil }
+        var buffer = [CChar](repeating: 0, count: size)
+        guard confstr(_CS_DARWIN_USER_TEMP_DIR, &buffer, size) == size else { return nil }
+        return buffer.withUnsafeBufferPointer { pointer in pointer.baseAddress.map { String(cString: $0) } }
     }
 }
