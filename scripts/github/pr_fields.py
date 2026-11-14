@@ -13,7 +13,10 @@ import sys
 import urllib.request
 
 # Pull requests whose head commit is older than this get a warning instead of a failure, so
-# nothing already open turns red overnight. Set to the merge time when this lands; the far-future
+# nothing already open turns red overnight. Known limit: the committer date
+# is written by whoever makes the commit, so a backdated commit turns the failure into a warning.
+# That is acceptable while the check is advisory; before it is required, compare the PR's created_at
+# (from the API, not author-controlled) with this cutoff instead. Set to the merge time when this lands; the far-future
 # default means "never enforced", the safe state if that edit is forgotten.
 ENFORCED_FROM = "2099-01-01T00:00:00Z"
 
