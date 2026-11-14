@@ -1,0 +1,474 @@
+name: Temporary b76 Debug Mac artifact (DO NOT MERGE)
+
+# Root may add this only AFTER the existing run on this ref is terminal/audited.
+# Workflow code is this later commit; product checkout remains the immutable SHA.
+'on':
+  push:
+    branches: [validation/mac-b76-root-20261115-a1]
+    paths: [.github/workflows/mac-debug-artifact-retention.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mac-debug-artifact-b76d
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PRODUCT_COMMIT: b76d2b3b166729db6e3ac78fcc627fb83be32685
+  WORKFLOW_SHA: ${{ github.workflow_sha }}
+  WORKFLOW_REF: ${{ github.workflow_ref }}
+  EVENT_SHA: ${{ github.sha }}
+  RUN_ID: ${{ github.run_id }}
+  RUN_ATTEMPT: ${{ github.run_attempt }}
+
+jobs:
+  debug-artifact:
+    if: ${{ github.repository == 'alexandru-savinov/agterm-omarchy' && github.ref == 'refs/heads/validation/mac-b76-root-20261115-a1' }}
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Initialize bounded validation output
+        run: |
+          set -euo pipefail
+          retention_root="$RUNNER_TEMP/agterm-mac-debug-retention"
+          test ! -e "$retention_root"
+          mkdir -m 700 "$retention_root"
+          mkdir "$retention_root/logs" "$retention_root/payload"
+          printf 'RETENTION_ROOT=%s\n' "$retention_root" >> "$GITHUB_ENV"
+          printf 'product=%s\nworkflow=%s\nworkflow_ref=%s\nevent=%s\nrun=%s/%s\n' \
+            "$PRODUCT_COMMIT" "$WORKFLOW_SHA" "$WORKFLOW_REF" "$EVENT_SHA" "$RUN_ID" "$RUN_ATTEMPT" \
+            > "$retention_root/logs/request.log"
+
+      - name: Check out immutable product
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: b76d2b3b166729db6e3ac78fcc627fb83be32685
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Require native arm64 and full Xcode; record identity
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$PRODUCT_COMMIT"
+          /usr/bin/git diff --exit-code HEAD --
+          test "$(uname -m)" = arm64
+          developer_dir="$(xcode-select -p)"
+          case "$developer_dir" in
+            /Applications/Xcode*.app/Contents/Developer) ;;
+            *) echo 'Full Xcode app must already be selected' >&2; exit 1 ;;
+          esac
+          {
+            /usr/bin/git rev-parse HEAD HEAD^{tree}
+            /usr/bin/git --version
+            sw_vers
+            uname -m
+            printf 'ImageOS=%s\nImageVersion=%s\n' "${ImageOS:-unset}" "${ImageVersion:-unset}"
+            xcode-select -p
+            xcodebuild -version
+            xcrun --show-sdk-path
+            xcrun --show-sdk-version
+            command -v swift xcodebuild python3 make
+            swift --version
+            xcrun swift --version
+            xcrun --find swiftc
+            xcrun --find clang
+            shasum -a 256 "$(xcrun --find swiftc)" "$(xcrun --find clang)"
+            python3 --version
+            brew --version
+          } 2>&1 | tee "$RETENTION_ROOT/logs/identity.log"
+          /usr/bin/git ls-files -s > "$RETENTION_ROOT/logs/source-index.log"
+
+      - name: Read the current pinned vendor revisions
+        id: revisions
+        run: |
+          set -euo pipefail
+          ghostty=$(sed -nE 's/^GHOSTTY_REV="([^"]+)".*/\1/p' scripts/setup.sh)
+          zmx=$(sed -nE 's/^ZMX_REV="([^"]+)".*/\1/p' scripts/setup.sh)
+          target=$(sed -nE 's/^ZMX_TARGET="([^"]+)".*/\1/p' scripts/setup.sh)
+          [[ "$ghostty" =~ ^[0-9a-f]{40}$ && "$zmx" =~ ^[0-9a-f]{40}$ ]]
+          test "$target" = aarch64-macos.14.0
+          printf 'ghostty=%s\nzmx=%s\ntarget=%s\n' "$ghostty" "$zmx" "$target" >> "$GITHUB_OUTPUT"
+
+      # Exact ordinary weekly keys/paths. No ref override, prefix fallback or save.
+      - name: Restore ordinary GhosttyKit/resources cache
+        id: ghostty-cache
+        timeout-minutes: 5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            GhosttyKit.xcframework
+            agterm/Resources/ghostty
+            agterm/Resources/terminfo
+            .ghostty-build-stamp
+          key: macos-weekly-macos26-${{ runner.arch }}-ghostty-${{ steps.revisions.outputs.ghostty }}-${{ hashFiles('scripts/setup.sh', 'scripts/ghostty-patches/*.patch') }}
+          fail-on-cache-miss: true
+
+      - name: Restore ordinary zmx cache
+        id: zmx-cache
+        timeout-minutes: 5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            agterm/Resources/zmx
+            .zmx-build-stamp
+          key: macos-weekly-macos26-${{ runner.arch }}-zmx-${{ steps.revisions.outputs.zmx }}-${{ steps.revisions.outputs.target }}-${{ hashFiles('scripts/setup.sh', 'scripts/zmx-patches/**/*.patch') }}
+          fail-on-cache-miss: true
+
+      - name: Require exact warm caches and unchanged setup predicates
+        env:
+          GHOSTTY_REV: ${{ steps.revisions.outputs.ghostty }}
+          ZMX_REV: ${{ steps.revisions.outputs.zmx }}
+          ZMX_TARGET: ${{ steps.revisions.outputs.target }}
+          GHOSTTY_CACHE_HIT: ${{ steps.ghostty-cache.outputs.cache-hit }}
+          ZMX_CACHE_HIT: ${{ steps.zmx-cache.outputs.cache-hit }}
+          GHOSTTY_CACHE_PRIMARY: ${{ steps.ghostty-cache.outputs.cache-primary-key }}
+          GHOSTTY_CACHE_MATCHED: ${{ steps.ghostty-cache.outputs.cache-matched-key }}
+          ZMX_CACHE_PRIMARY: ${{ steps.zmx-cache.outputs.cache-primary-key }}
+          ZMX_CACHE_MATCHED: ${{ steps.zmx-cache.outputs.cache-matched-key }}
+        run: |
+          set -euo pipefail
+          test "$GHOSTTY_CACHE_HIT" = true
+          test "$ZMX_CACHE_HIT" = true
+          test -n "$GHOSTTY_CACHE_PRIMARY" && test "$GHOSTTY_CACHE_PRIMARY" = "$GHOSTTY_CACHE_MATCHED"
+          test -n "$ZMX_CACHE_PRIMARY" && test "$ZMX_CACHE_PRIMARY" = "$ZMX_CACHE_MATCHED"
+          ghostty_patch=$(cat scripts/ghostty-patches/*.patch | shasum -a 256 | cut -c1-16)
+          zmx_patch=$(cat scripts/zmx-patches/*.patch scripts/zmx-patches/ghostty/*.patch | shasum -a 256 | cut -c1-16)
+          test "$(cat .ghostty-build-stamp)" = "$GHOSTTY_REV $ghostty_patch"
+          test "$(cat .zmx-build-stamp)" = "$ZMX_REV $ZMX_TARGET $zmx_patch"
+          test -d GhosttyKit.xcframework
+          test -d agterm/Resources/ghostty
+          test -d agterm/Resources/terminfo
+          test -x agterm/Resources/zmx/zmx
+          test -s agterm/Resources/zmx/LICENSE
+          printf 'ghostty=%s\nzmx=%s\n' "$GHOSTTY_CACHE_MATCHED" "$ZMX_CACHE_MATCHED" \
+            > "$RETENTION_ROOT/logs/cache-keys.log"
+          shasum -a 256 scripts/setup.sh scripts/ghostty-patches/*.patch \
+            scripts/zmx-patches/*.patch scripts/zmx-patches/ghostty/*.patch \
+            > "$RETENTION_ROOT/logs/vendor-source-inputs.sha256"
+
+      - name: Install only the existing project generator prerequisite
+        run: |
+          set -euo pipefail
+          brew install xcodegen 2>&1 | tee "$RETENTION_ROOT/logs/prerequisites.log"
+          { xcodegen --version; brew list --versions xcodegen; } 2>&1 | tee -a "$RETENTION_ROOT/logs/prerequisites.log"
+
+      - name: Build actual Debug target without launch or tests
+        timeout-minutes: 35
+        run: |
+          set -euo pipefail
+          make build 2>&1 | tee "$RETENTION_ROOT/logs/make-build.log"
+
+      - name: Materialize the reviewed read-only verifier
+        run: |
+          set -euo pipefail
+          cat > "$RETENTION_ROOT/verify.py" <<'PYTHON'
+          """Exact verifier body embedded in the proposed workflow; main never runs locally.
+
+          Policy/verification predicates may use disposable data and command shims. main()
+          belongs only to a separately approved hosted job and never launches the app.
+          """
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import plistlib
+          import re
+          import shlex
+          import stat
+          import subprocess
+
+          PRODUCT = 'b76d2b3b166729db6e3ac78fcc627fb83be32685'
+          ACTIVE_PINS = {'swift-argument-parser', 'tomldecoder'}
+          EXCEPTIONS = {'com.apple.security.cs.disable-library-validation',
+                        'com.apple.security.cs.allow-jit',
+                        'com.apple.security.cs.allow-unsigned-executable-memory'}
+          GET_TASK = 'com.apple.security.get-task-allow'
+          REQUIRED = ('Contents/MacOS/agterm', 'Contents/MacOS/agtermctl',
+                      'Contents/MacOS/agterm-session-host', 'Contents/MacOS/zmx',
+                      'Contents/MacOS/agterm.debug.dylib')
+          MACHO = {bytes.fromhex(value) for value in ('cffaedfe', 'feedfacf', 'cefaedfe',
+                    'feedface', 'cafebabe', 'bebafeca', 'cafebabf', 'bfbafeca')}
+          MAX_BUNDLE = 1024 * 1024 * 1024
+          MAX_ZIP = 512 * 1024 * 1024
+
+
+          def require(condition, message):
+              if not condition:
+                  raise RuntimeError(message)
+
+
+          def digest(path):
+              hashed = hashlib.sha256()
+              with path.open('rb') as file:
+                  for chunk in iter(lambda: file.read(1024 * 1024), b''):
+                      hashed.update(chunk)
+              return hashed.hexdigest()
+
+
+          def run(arguments, timeout=120):
+              print('+ ' + shlex.join(map(str, arguments)), flush=True)
+              result = subprocess.run(list(map(str, arguments)), check=False, capture_output=True, timeout=timeout)
+              print(result.stderr.decode(errors='replace'), end='', flush=True)
+              require(result.returncode == 0, 'command failed: ' + str(result.returncode))
+              if str(arguments[0]) == '/usr/bin/codesign':
+                  signing_diagnostics_policy(result.stderr)
+              return result.stdout
+
+
+          def signing_diagnostics_policy(raw):
+              text = raw.decode(errors='replace')
+              require(re.search(r'(?im)^(?:warning|error):|invalid entitlements|will ignore', text) is None,
+                      'code-signing diagnostic does not establish a valid signature/entitlement observation')
+
+
+          def pin_policy(original, actual, app=False):
+              require(set(actual) == {'originHash', 'pins', 'version'} and type(actual['version']) is int
+                      and actual['version'] == original['version'] == 3,
+                      'unexpected resolved-file schema')
+              require(type(actual['originHash']) is str and re.fullmatch('[0-9a-f]{64}', actual['originHash']),
+                      'invalid resolver origin metadata')
+              expected = {pin['identity']: pin for pin in original['pins']}
+              require(set(expected) == ACTIVE_PINS | {'swift-markdown', 'swift-cmark'}, 'original pin roster differs')
+              require(type(actual['pins']) is list, 'invalid resolved pin roster')
+              observed = {pin['identity']: pin for pin in actual['pins']}
+              require(len(observed) == len(actual['pins']), 'duplicate dependency identity')
+              allowed = (set(expected), ACTIVE_PINS, {'tomldecoder'}) if app else (set(expected), ACTIVE_PINS)
+              require(set(observed) in allowed, 'unexpected Darwin dependency roster')
+              require(all(pin == expected[name] for name, pin in observed.items()), 'dependency pin changed')
+              return {'identities': sorted(observed), 'darwin_metadata_normalized': actual != original,
+                      'originHash': actual['originHash'], 'pins': actual['pins']}
+
+
+          def entitlement_policy(actual, expected, main):
+              require(type(actual) is dict, 'entitlements are not a dictionary')
+              checked = dict(actual)
+              if main and GET_TASK in checked:
+                  require(checked.pop(GET_TASK) is True, 'get-task-allow must be boolean true when present')
+              require(set(checked) == set(expected), 'unexpected entitlement key set')
+              require(all(type(value) is bool and value is True for value in checked.values()),
+                      'entitlements must grant exact boolean true values')
+              require(checked == expected, 'entitlement values changed')
+              return actual
+
+
+          def snapshot(app):
+              require(app.is_dir() and not app.is_symlink(), 'expected a real app directory')
+              root = app.resolve(); records = {}; total = 0
+              paths = [app]
+              for directory, dirs, files in os.walk(app, followlinks=False):
+                  paths.extend(Path(directory) / name for name in dirs + files)
+              for path in sorted(set(paths)):
+                  relative = path.relative_to(app).as_posix(); info = path.lstat()
+                  record = {'mode': stat.S_IMODE(info.st_mode)}
+                  if stat.S_ISLNK(info.st_mode):
+                      require(path.resolve().is_relative_to(root) and path.exists(), 'escaping or dangling bundle link')
+                      record.update(kind='symlink', target=os.readlink(path))
+                  elif stat.S_ISREG(info.st_mode):
+                      total += info.st_size
+                      record.update(kind='file', bytes=info.st_size, sha256=digest(path))
+                  else:
+                      require(stat.S_ISDIR(info.st_mode), 'unsupported bundle object')
+                      record['kind'] = 'directory'
+                  attributes = {}
+                  for name in sorted(os.listxattr(path, follow_symlinks=False)):
+                      raw = os.getxattr(path, name, follow_symlinks=False)
+                      total += len(raw)
+                      attributes[name] = {'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
+                  record['xattrs'] = attributes
+                  records[relative] = record
+                  require(total <= MAX_BUNDLE and len(records) <= 50000, 'bundle size/member cap exceeded')
+              return {'entries': records, 'total_data_and_xattr_bytes': total}
+
+
+          def source_policy(root, logs):
+              require(run(['/usr/bin/git', 'rev-parse', 'HEAD']).decode().strip() == PRODUCT, 'product checkout changed')
+              run(['/usr/bin/git', 'diff', '--cached', '--exit-code', 'HEAD', '--'])
+              changed = run(['/usr/bin/git', 'diff', '--name-only', 'HEAD', '--']).decode().splitlines()
+              require(set(changed) <= {'agtermCore/Package.resolved'}, 'tracked product source/resource changed')
+              original_raw = run(['/usr/bin/git', 'show', PRODUCT + ':agtermCore/Package.resolved'])
+              original = json.loads(original_raw)
+              tree = run(['/usr/bin/git', 'ls-tree', '-rz', '--full-tree', 'HEAD'])
+              tracked = {}
+              for entry in tree.split(b'\0'):
+                  if not entry:
+                      continue
+                  metadata, raw_name = entry.split(b'\t', 1)
+                  mode, kind, expected_blob = metadata.decode().split()
+                  name = raw_name.decode(); path = root / name
+                  require(kind == 'blob' and mode in ('100644', '100755', '120000'), 'unsupported tracked source object')
+                  if mode == '120000':
+                      require(path.is_symlink(), 'tracked link changed type')
+                      raw = os.fsencode(os.readlink(path))
+                  else:
+                      require(path.is_file() and not path.is_symlink(), 'tracked file changed type')
+                      require(bool(path.stat().st_mode & 0o111) == (mode == '100755'), 'tracked executable mode changed')
+                      raw = path.read_bytes()
+                  observed_blob = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+                  if name != 'agtermCore/Package.resolved':
+                      require(observed_blob == expected_blob, 'tracked source blob changed: ' + name)
+                  tracked[name] = {'git_blob': expected_blob, 'observed_blob': observed_blob,
+                                   'sha256': hashlib.sha256(raw).hexdigest()}
+              require(len(tracked) == 2144, 'unexpected pinned source roster')
+              (logs / 'tracked-source-blobs.json').write_text(json.dumps(tracked, sort_keys=True, indent=2) + '\n')
+              resolutions = {}
+              for name in ('agtermCore/Package.resolved',
+                           'agterm.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'):
+                  path = root / name
+                  require(path.is_file() and not path.is_symlink(), 'required resolver record absent: ' + name)
+                  actual = json.loads(path.read_bytes())
+                  record = pin_policy(original, actual, app=name.startswith('agterm.xcodeproj/'))
+                  record['sha256'] = digest(path); resolutions[name] = record
+              (logs / 'tracked-source.diff').write_bytes(run(['/usr/bin/git', 'diff', 'HEAD', '--']))
+              return {'product_commit': PRODUCT, 'tree': run(['/usr/bin/git', 'rev-parse', 'HEAD^{tree}']).decode().strip(),
+                      'tracked_changes': changed, 'original_lock_sha256': hashlib.sha256(original_raw).hexdigest(),
+                      'resolution': resolutions}
+
+
+          def verify(app, root):
+              info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
+              require(info['CFBundleIdentifier'] == 'com.umputun.agterm.debug'
+                      and info['CFBundleExecutable'] == 'agterm', 'wrong Debug product identity')
+              shipping = plistlib.loads((root / 'agterm/agterm.entitlements').read_bytes())
+              expected = plistlib.loads((root / 'agterm/agterm-debug.entitlements').read_bytes())
+              require(expected == dict(shipping, **dict.fromkeys(EXCEPTIONS, True)), 'Debug source entitlement drift')
+              require(all(type(value) is bool and value is True for value in expected.values()), 'invalid source entitlements')
+              run(['/usr/bin/codesign', '--verify', '--deep', '--strict', '--verbose=4', app])
+              native = {}
+              for path in sorted(app.rglob('*')):
+                  if path.is_symlink() or not path.is_file():
+                      continue
+                  with path.open('rb') as file:
+                      magic = file.read(4)
+                  if magic not in MACHO:
+                      continue
+                  relative = path.relative_to(app).as_posix()
+                  arch = run(['/usr/bin/lipo', '-archs', path]).decode().strip()
+                  require(arch.split() == ['arm64'], 'unexpected architecture: ' + relative + ': ' + arch)
+                  main = relative == REQUIRED[0]; code = app if main else path
+                  if not main:
+                      run(['/usr/bin/codesign', '--verify', '--strict', '--verbose=4', code])
+                  display = subprocess.run(['/usr/bin/codesign', '-d', '--verbose=4', str(code)],
+                                           capture_output=True, check=True, timeout=120)
+                  signing_diagnostics_policy(display.stderr)
+                  description = display.stderr.decode(errors='replace') + display.stdout.decode(errors='replace')
+                  print(description, flush=True)
+                  require('Signature=adhoc' in {line.strip() for line in description.splitlines()},
+                          'unexpected signing identity: ' + relative)
+                  flags = re.search(r'(?m)^CodeDirectory .*\bflags=0x([0-9a-fA-F]+)\(', description)
+                  require(flags is not None, 'missing code-signing flags')
+                  if relative in REQUIRED[:4]:
+                      require(int(flags.group(1), 16) & 0x10000, 'hardened runtime missing: ' + relative)
+                  raw = run(['/usr/bin/codesign', '-d', '--entitlements', '-', code])
+                  actual = plistlib.loads(raw) if raw.strip() else {}
+                  entitlement_policy(actual, expected if main else {}, main)
+                  native[relative] = {'architecture': arch, 'sha256': digest(path),
+                                      'entitlements': actual, 'codesign': description}
+              require(set(REQUIRED) <= set(native), 'missing main/helper/Debug dylib Mach-O')
+              require((app / 'Contents/Resources/zmx/BUILD').read_bytes() == (root / '.zmx-build-stamp').read_bytes(),
+                      'bundled zmx stamp differs')
+              return {'bundle_identifier': info['CFBundleIdentifier'], 'bundle_version': info.get('CFBundleVersion'),
+                      'short_version': info.get('CFBundleShortVersionString'), 'git_commit_field': info.get('GitCommit'),
+                      'native_images': native}
+
+
+          def main():
+              root = Path.cwd(); retained = Path(os.environ['RETENTION_ROOT'])
+              logs, payload = retained / 'logs', retained / 'payload'
+              require(os.environ['GHOSTTY_CACHE_HIT'] == os.environ['ZMX_CACHE_HIT'] == 'true', 'exact warm caches required')
+              cache_keys = {}
+              for label in ('GHOSTTY', 'ZMX'):
+                  primary, matched = os.environ[label + '_CACHE_PRIMARY'], os.environ[label + '_CACHE_MATCHED']
+                  require(primary and primary == matched, 'non-exact cache identity')
+                  cache_keys[label.lower()] = {'primary': primary, 'matched': matched}
+              source = source_policy(root, logs)
+              app = root / 'build/DerivedData/Build/Products/Debug/agterm.app'
+              before = snapshot(app); verified = verify(app, root)
+              require(snapshot(app) == before, 'verification modified the original bundle')
+              archive = payload / ('agterm-debug-arm64-' + PRODUCT + '.zip')
+              require(not archive.exists(), 'archive output already exists')
+              run(['/usr/bin/ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', app, archive], timeout=600)
+              require(0 < archive.stat().st_size <= MAX_ZIP, 'ZIP size cap exceeded')
+              restored = retained / 'roundtrip'; restored.mkdir()
+              run(['/usr/bin/ditto', '-x', '-k', archive, restored], timeout=600)
+              unpacked = restored / 'agterm.app'
+              require(snapshot(unpacked) == before, 'ZIP changed bytes, links, modes or extended attributes')
+              roundtrip = verify(unpacked, root)
+              require(snapshot(app) == before, 'packaging modified the original app')
+              checksum = digest(archive)
+              archive.with_suffix('.zip.sha256').write_text(checksum + '  ' + archive.name + '\n')
+              manifest = {'schema': 'mac-debug-validation-artifact/1', 'product': source,
+                  'workflow_sha': os.environ['WORKFLOW_SHA'], 'workflow_ref': os.environ['WORKFLOW_REF'],
+                  'event_sha': os.environ['EVENT_SHA'], 'run_id': os.environ['RUN_ID'], 'run_attempt': os.environ['RUN_ATTEMPT'],
+                  'cache_hits': {'ghostty': os.environ['GHOSTTY_CACHE_HIT'], 'zmx': os.environ['ZMX_CACHE_HIT']},
+                  'cache_keys': cache_keys,
+                  'vendor_inputs': {'GhosttyKit.xcframework': snapshot(root / 'GhosttyKit.xcframework'),
+                                   'staged_zmx_sha256': digest(root / 'agterm/Resources/zmx/zmx')},
+                  'archive': {'name': archive.name, 'sha256': checksum, 'bytes': archive.stat().st_size},
+                  'bundle_manifest': before, 'original_verification': verified,
+                  'roundtrip_architectures': {name: data['architecture'] for name, data in roundtrip['native_images'].items()},
+                  'signing': 'existing source-produced ad-hoc Debug signatures; no later re-sign or entitlement edit',
+                  'gatekeeper_or_runtime_acceptance': False}
+              (payload / 'artifact-manifest.json').write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
+              for name in ('.ghostty-build-stamp', '.zmx-build-stamp'):
+                  (logs / (name.lstrip('.') + '.txt')).write_bytes((root / name).read_bytes())
+              print(json.dumps({'verified_archive': archive.name, 'sha256': checksum,
+                                'unmodified_roundtrip': True, 'runtime_acceptance': False}), flush=True)
+
+
+          if __name__ == '__main__':
+              main()
+          PYTHON
+
+      - name: Verify and ZIP the unmodified Debug bundle
+        timeout-minutes: 10
+        env:
+          GHOSTTY_CACHE_HIT: ${{ steps.ghostty-cache.outputs.cache-hit }}
+          ZMX_CACHE_HIT: ${{ steps.zmx-cache.outputs.cache-hit }}
+          GHOSTTY_CACHE_PRIMARY: ${{ steps.ghostty-cache.outputs.cache-primary-key }}
+          GHOSTTY_CACHE_MATCHED: ${{ steps.ghostty-cache.outputs.cache-matched-key }}
+          ZMX_CACHE_PRIMARY: ${{ steps.zmx-cache.outputs.cache-primary-key }}
+          ZMX_CACHE_MATCHED: ${{ steps.zmx-cache.outputs.cache-matched-key }}
+        run: |
+          set -euo pipefail
+          python3 -I -S -B "$RETENTION_ROOT/verify.py" 2>&1 | tee "$RETENTION_ROOT/logs/verification.log"
+
+      - name: Retain verified Debug artifact for root admission
+        id: payload
+        timeout-minutes: 5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: mac-debug-b76d2b3b166729db6e3ac78fcc627fb83be32685-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/agterm-mac-debug-retention/payload
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Retain diagnostics even on build or verification failure
+        if: always()
+        timeout-minutes: 5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: mac-debug-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/agterm-mac-debug-retention/logs
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Record bounded result
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+          ARTIFACT_URL: ${{ steps.payload.outputs.artifact-url }}
+          ARTIFACT_DIGEST: ${{ steps.payload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          printf '### Temporary Debug artifact\nResult: %s\nProduct: %s\nWorkflow: %s\n' \
+            "$RESULT" "$PRODUCT_COMMIT" "$WORKFLOW_SHA" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "$ARTIFACT_URL" ]]; then
+            printf 'Artifact: %s\nActions digest: %s\n' "$ARTIFACT_URL" "$ARTIFACT_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo 'Ad-hoc Debug validation only. No app launch, Gatekeeper/notarization or release acceptance.' >> "$GITHUB_STEP_SUMMARY"
