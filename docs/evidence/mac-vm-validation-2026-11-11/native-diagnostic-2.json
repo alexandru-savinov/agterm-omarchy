@@ -1,0 +1,91 @@
+{
+  "schema": "agterm-native-shutdown-diagnostic/1",
+  "diagnostic_only": true,
+  "attempt": 2,
+  "artifact_source_commit": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "probe_source_commit": "e77b6ad448677e00cafd14a36c557b96affb6678",
+  "probe_sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+  "app_sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+  "libghostty_sha256": "baf8ba1957bd9bcf140d455f309e16f510f66261ff684f5fd4503586e44bfd6c",
+  "original_private_report_sha256": "783be0145f331d7867bbc08f22432d01a7e74c002beed4be961f9131e98264bf",
+  "observer": {
+    "captured": true,
+    "errors": [],
+    "started_at": 1794427644.4951613,
+    "ended_at": 1794427664.463572,
+    "operator_exit_code": 1,
+    "control_socket_unlinked": true,
+    "gdb_exit_code": 0,
+    "backtrace_sha256": "6d03bce66617ddb24a2081dbdc893a04463ef0a6b7f6e23dbb340c0eb4e55914",
+    "thread_count": 30,
+    "selected_wait_channels": [
+      {
+        "role": "main",
+        "wait_channel": "__futex_wait"
+      },
+      {
+        "role": "io",
+        "wait_channel": "__futex_wait"
+      },
+      {
+        "role": "io-reader",
+        "wait_channel": "__futex_wait"
+      },
+      {
+        "role": "io-gather",
+        "wait_channel": "__futex_wait"
+      }
+    ],
+    "symbolization_limit": "Frozen libghostty is stripped; internal frames and complete unwind unavailable. Source-level mailbox cause remains a hypothesis."
+  },
+  "operator": {
+    "passed": false,
+    "errors": [
+      "RuntimeError: Config probe failed"
+    ],
+    "remaining_owned_processes": [],
+    "preservation": {
+      "passed": true,
+      "protected_process_count": 2,
+      "lost": {}
+    },
+    "payload_unchanged": true,
+    "login_shell_unchanged": true
+  },
+  "probe": {
+    "passed": false,
+    "checks": [
+      "two exact mapped instances with private disjoint config paths and PTY execution",
+      "idle first shutdown cleans its config while peer remains usable",
+      "32 config reloads and OSC background updates preserve bounded usable theme files"
+    ],
+    "errors": [
+      "TimeoutError: graceful app shutdown"
+    ],
+    "forced_recovery": true,
+    "remaining_generated_paths": [
+      "agterm-ghostty-2ducro"
+    ],
+    "socket_directory_removed": true,
+    "sentinel_preserved": true,
+    "noisy_titles_written_before_shutdown": 100,
+    "apps": [
+      {
+        "name": "left",
+        "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+        "native_wayland": true,
+        "realized": true,
+        "shutdown_seconds": 0.060972570999638265
+      },
+      {
+        "name": "right",
+        "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+        "native_wayland": true,
+        "realized": true
+      }
+    ],
+    "cleanup_signals": [
+      15
+    ]
+  }
+}

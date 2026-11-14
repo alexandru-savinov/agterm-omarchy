@@ -1,0 +1,62 @@
+{
+  "schema": "agterm-native-shutdown-diagnostic/1",
+  "diagnostic_only": true,
+  "attempt": 1,
+  "artifact_source_commit": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "probe_source_commit": "e77b6ad448677e00cafd14a36c557b96affb6678",
+  "probe_sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+  "app_sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+  "libghostty_sha256": "baf8ba1957bd9bcf140d455f309e16f510f66261ff684f5fd4503586e44bfd6c",
+  "original_private_report_sha256": "adca46343018080b3af7439b043b7febda40c129b9632c0ba75bdfa45564bc83",
+  "observer": {
+    "captured": false,
+    "errors": [],
+    "started_at": 1794427551.3132403,
+    "ended_at": 1794427565.1385877,
+    "operator_exit_code": 0
+  },
+  "operator": {
+    "passed": true,
+    "errors": [],
+    "remaining_owned_processes": [],
+    "preservation": {
+      "passed": true,
+      "protected_process_count": 2,
+      "lost": {}
+    },
+    "payload_unchanged": true,
+    "login_shell_unchanged": true
+  },
+  "probe": {
+    "passed": true,
+    "checks": [
+      "two exact mapped instances with private disjoint config paths and PTY execution",
+      "idle first shutdown cleans its config while peer remains usable",
+      "32 config reloads and OSC background updates preserve bounded usable theme files",
+      "bounded noisy-title shutdown cleans generated files and preserves sentinel"
+    ],
+    "errors": [],
+    "forced_recovery": false,
+    "remaining_generated_paths": [],
+    "socket_directory_removed": true,
+    "sentinel_preserved": true,
+    "noisy_titles_written_before_shutdown": 100,
+    "apps": [
+      {
+        "name": "left",
+        "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+        "native_wayland": true,
+        "realized": true,
+        "shutdown_seconds": 0.06163832199990793
+      },
+      {
+        "name": "right",
+        "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+        "native_wayland": true,
+        "realized": true,
+        "shutdown_seconds": 3.218453434999901
+      }
+    ],
+    "cleanup_signals": []
+  }
+}

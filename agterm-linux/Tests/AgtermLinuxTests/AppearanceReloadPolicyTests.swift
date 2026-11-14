@@ -14,8 +14,8 @@ struct AppearanceReloadPolicyTests {
         #expect(dark.isDark)
     }
 
-    @Test("sync off skips an appearance reload")
-    func syncOffIsIneligible() {
+    @Test("sync off still reloads the terminal scheme config")
+    func syncOffIsEligible() {
         // Given
         let context = AppearanceReloadContext(
             followsSystemAppearance: false,
@@ -28,24 +28,28 @@ struct AppearanceReloadPolicyTests {
         let eligible = AppearanceReloadPolicy().isEligible(for: context)
 
         // Then
-        #expect(!eligible)
+        #expect(eligible)
     }
 
-    @Test("an ineligible reload still carries the settled side for live scheme synchronization")
+    @Test("sync off plans a config reload with the settled side")
     func syncOffStillPlansLiveSchemeSynchronization() {
         // Given
         let context = AppearanceReloadContext(
             followsSystemAppearance: false,
             hasLightSlot: true,
-            hasDarkSlot: true,
+            hasDarkSlot: false,
             currentSide: .dark
         )
 
         // When
-        let plan = AppearanceReloadPolicy().plan(for: context)
+        var policy = AppearanceReloadPolicy()
+        policy.recordAppliedColorSchemeSide(.light)
+        let plan = policy.plan(for: context)
+        policy.recordAppliedColorSchemeSide(.dark)
 
         // Then
-        #expect(plan == AppearanceReconciliationPlan(side: .dark, requiresConfigReload: false))
+        #expect(plan == AppearanceReconciliationPlan(side: .dark, requiresConfigReload: true))
+        #expect(!policy.plan(for: context).requiresConfigReload)
     }
 
     @Test("sync on with both slots accepts a side change")
@@ -65,8 +69,8 @@ struct AppearanceReloadPolicyTests {
         #expect(eligible)
     }
 
-    @Test("a missing light slot skips an appearance reload")
-    func missingLightSlotIsIneligible() {
+    @Test("a missing light slot still reloads the terminal scheme config")
+    func missingLightSlotIsEligible() {
         // Given
         let context = AppearanceReloadContext(
             followsSystemAppearance: true,
@@ -79,11 +83,11 @@ struct AppearanceReloadPolicyTests {
         let eligible = AppearanceReloadPolicy().isEligible(for: context)
 
         // Then
-        #expect(!eligible)
+        #expect(eligible)
     }
 
-    @Test("a missing dark slot skips an appearance reload")
-    func missingDarkSlotIsIneligible() {
+    @Test("a missing dark slot still reloads the terminal scheme config")
+    func missingDarkSlotIsEligible() {
         // Given
         let context = AppearanceReloadContext(
             followsSystemAppearance: true,
@@ -96,7 +100,7 @@ struct AppearanceReloadPolicyTests {
         let eligible = AppearanceReloadPolicy().isEligible(for: context)
 
         // Then
-        #expect(!eligible)
+        #expect(eligible)
     }
 
     @Test("the first valid appearance event reloads")
@@ -256,7 +260,7 @@ struct AppearanceReloadPolicyTests {
         let laterDarkEventEligible = policy.isEligible(for: dark)
 
         // Then
-        #expect(!disabledEventEligible)
+        #expect(disabledEventEligible)
         #expect(laterDarkEventEligible)
     }
 }

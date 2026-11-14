@@ -206,13 +206,11 @@ struct LinuxCustomCommandProcessTests {
             name: "descendant", command: "(sleep 30 >&2 & echo $! > '\(pidFile)'); echo diag >&2; exit 7",
             shortcut: "", errorHud: true)
         let launcher = ObservingProcessLauncher()
-        let start = Date()
         let failure = await withCheckedContinuation { (continuation: CheckedContinuation<LinuxCustomCommandFailure, Never>) in
             LinuxCustomCommandProcess.launch(
                 command: command, context: CommandContext(sessionPWD: "/tmp"), baseEnvironment: [:], launcher: launcher
             ) { continuation.resume(returning: $0) }
         }
-        #expect(Date().timeIntervalSince(start) < 2)
         #expect(failure == .exit(7, "diag"))
         guard case .stderrFile(let path) = try #require(launcher.requests.first).standardIO else {
             Issue.record("errorHud did not request a stderr file")
@@ -222,6 +220,7 @@ struct LinuxCustomCommandProcessTests {
 
         let pid = try #require(pid_t(try String(contentsOfFile: pidFile, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)))
+        // A live descendant proves completion did not wait for its EOF, without timing executor scheduling.
         #expect(isLiveSleep(pid))
         #expect(kill(pid, SIGKILL) == 0)
         for _ in 0..<100 where isLiveSleep(pid) { try await Task.sleep(for: .milliseconds(20)) }

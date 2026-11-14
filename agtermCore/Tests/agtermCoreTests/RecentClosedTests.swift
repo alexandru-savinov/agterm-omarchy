@@ -109,7 +109,12 @@ final class RecentClosedTests {
                                                               items: [item]))
         try data.write(to: fileURL)
 
-        #expect(RecentClosedStore(directory: directory).load().isEmpty)
+        let store = RecentClosedStore(directory: directory)
+        #expect(store.load().isEmpty)
+        // the next close records over the file; the newer build's whole list survives aside
+        store.record(sessionItem(title: "fresh"))
+        #expect(try StateFileQuarantine.preservedCopies(of: fileURL).map { try Data(contentsOf: $0) } == [data])
+        #expect(store.load().map(\.title) == ["fresh"])
     }
 
     @Test func clearReportsPersistenceFailure() throws {

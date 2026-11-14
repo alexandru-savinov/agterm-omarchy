@@ -49,6 +49,14 @@ enum ForegroundProcess {
     @MainActor
     static func running(for view: GhosttySurfaceView, shellBasename: String?,
                         zmxResolver: ZmxForegroundResolver? = nil) -> CommandRestore.PaneForeground? {
+        observed(for: view, shellBasename: shellBasename, zmxResolver: zmxResolver)?.foreground
+    }
+
+    /// `running`, with the pid whose argv it read, the group leader or the child the descent settled on, and that
+    /// process's PATH from the same read.
+    @MainActor
+    static func observed(for view: GhosttySurfaceView, shellBasename: String?, zmxResolver: ZmxForegroundResolver? = nil)
+        -> (pid: pid_t, foreground: CommandRestore.PaneForeground, searchPath: String?)? {
         let pgid: pid_t?
         if view.backedByZmx, let sessionName = view.zmxSessionName {
             pgid = zmxResolver?.foregroundPID(sessionName: sessionName)
@@ -56,27 +64,68 @@ enum ForegroundProcess {
             pgid = view.foregroundPid()
         }
         guard let pgid else { return nil }
-        if let argv = procArgs(pid: pgid) {
-            return CommandRestore.paneForeground(argv: argv, extra: shellBasename)
-        }
-        let members = CommandRestore.groupDescentCandidates(pgid: pgid, members: processGroup(pgid: pgid))
-        for pid in members {
-            if let argv = procArgs(pid: pid) {
-                return CommandRestore.paneForeground(argv: argv, extra: shellBasename)
-            }
+        if let found = foreground(of: pgid, shellBasename: shellBasename) { return found }
+        for pid in CommandRestore.groupDescentCandidates(pgid: pgid, members: processGroup(pgid: pgid)) {
+            if let found = foreground(of: pid, shellBasename: shellBasename) { return found }
         }
         return nil
+    }
+
+    /// foreground reads `pid`'s argv and PATH from one `KERN_PROCARGS2` blob: nil when the argv is unreadable,
+    /// otherwise its classification, itself nil when `paneForeground` does not classify it.
+    private static func foreground(of pid: pid_t, shellBasename: String?)
+        -> (pid: pid_t, foreground: CommandRestore.PaneForeground, searchPath: String?)?? {
+        guard let blob = procArgsBlob(pid: pid), let argv = CommandRestore.parseProcArgs(blob) else { return nil }
+        let path = CommandRestore.parseProcEnvironment(blob)?["PATH"]
+        return .some(CommandRestore.paneForeground(argv: argv, extra: shellBasename).map { (pid, $0, path) })
+    }
+
+    /// replayObservation reads a pane's foreground program and the directory it runs in, for a replay of it.
+    /// `leader` is the pane daemon's root pid, nil outside Live.
+    @MainActor
+    static func replayObservation(for view: GhosttySurfaceView, shellBasename: String?, zmxResolver: ZmxForegroundResolver?,
+                                  leader: pid_t?) -> RestartReplay.Observation {
+        let observed = observed(for: view, shellBasename: shellBasename, zmxResolver: zmxResolver)
+        var isDirectory: ObjCBool = false
+        let directory = observed.flatMap { workingDirectory(of: $0.pid) }
+            .flatMap { FileManager.default.fileExists(atPath: $0, isDirectory: &isDirectory) && isDirectory.boolValue ? $0 : nil }
+        return RestartReplay.Observation(foreground: observed?.foreground,
+                                         isDaemonLeader: leader != nil && observed?.pid == leader, workingDirectory: directory,
+                                         executablePath: observed.flatMap { executablePath(of: $0.pid) },
+                                         searchPath: observed?.searchPath)
+    }
+
+    static func executablePath(of pid: pid_t) -> String? {
+        var bytes = [UInt8](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        guard proc_pidpath(pid, &bytes, UInt32(bytes.count)) > 0 else { return nil }
+        return String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
+    }
+
+    /// workingDirectory returns nil when `proc_pidinfo` cannot read the process's cwd, as for one owned
+    /// by another user.
+    static func workingDirectory(of pid: pid_t) -> String? {
+        var info = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { return nil }
+        let path = withUnsafePointer(to: &info.pvi_cdir.vip_path) {
+            $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+        }
+        return path.isEmpty ? nil : path
     }
 
     /// Fetch and parse a process's argv via `sysctl(KERN_PROCARGS2)`; nil on any syscall failure, which is
     /// what a process owned by another user (setuid `login`, `sudo`) returns.
     private static func procArgs(pid: pid_t) -> [String]? {
+        procArgsBlob(pid: pid).flatMap(CommandRestore.parseProcArgs)
+    }
+
+    private static func procArgsBlob(pid: pid_t) -> Data? {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
         guard sysctl(&mib, u_int(mib.count), nil, &size, nil, 0) == 0, size > 0 else { return nil }
         var buffer = [UInt8](repeating: 0, count: size)
         guard sysctl(&mib, u_int(mib.count), &buffer, &size, nil, 0) == 0 else { return nil }
-        return CommandRestore.parseProcArgs(Data(buffer[0..<size]))
+        return Data(buffer[0..<size])
     }
 
     /// Every member of `pgid`'s process group via `sysctl(KERN_PROC_PGRP)`, with each one's parent; empty

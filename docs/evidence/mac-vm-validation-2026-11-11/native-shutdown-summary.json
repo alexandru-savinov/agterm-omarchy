@@ -1,0 +1,326 @@
+{
+  "schema": "agterm-public-shutdown-evidence/1",
+  "evidence_kind": "retained original extract",
+  "new_execution": false,
+  "full_current_source_acceptance": false,
+  "sources": [
+    {
+      "original": "native-shutdown-runtime-attempt1-private.json",
+      "original_sha256": "13e944de1a8e5179c55713c447f3a560e5422d5a87a4671517a5ee438e62cb7e",
+      "locator": "$.stdout(JSON).report",
+      "decoded_stdout_sha256": "1748bb7cdee16c00cdc5df81c8f2d751a530bd38888c6d647062f8ab4fe93084"
+    },
+    {
+      "original": "native-shutdown-runtime-attempt2-private.json",
+      "original_sha256": "0cf840420076a08df49b1e40f9e4d6856fa62715aa67666962045c95d53557b2",
+      "locator": "$.stdout(JSON).report",
+      "decoded_stdout_sha256": "b185931baa15a667af65302d2934191e30e491d499bbe81d48837e6fb9198172"
+    },
+    {
+      "original": "native-config-ab-baseline-result-private.json",
+      "original_sha256": "2cd6fef0e4e03fa8ea02a1e8d902665001d5b46d8dc9d6534630fe47faaceafc",
+      "locator": "$.stdout(JSON).report",
+      "decoded_stdout_sha256": "db99f9ac968fc09f114ba294d7fc36683ffda1321029eca776899596a95f80f6"
+    },
+    {
+      "original": "native-config-ab-patched-result-private.json",
+      "original_sha256": "a73cebc36756ebf3a1fc94c3d4163ea30a7eb0038d923a2d2e8ef11ddcba1459",
+      "locator": "$.stdout(JSON).report",
+      "decoded_stdout_sha256": "156f8eb0624f43a763fa0f27e82a272f9bb7855aebe5fd4346aa7ee88d6fa72b"
+    },
+    {
+      "original": "native-config-confirmation-patched-result-private.json",
+      "original_sha256": "4748218e4111d72f7c6da5ff4ef83ba0a7f9982d8bbbcf5225f29eb8aaadc3cc",
+      "locator": "$.stdout(JSON).report",
+      "decoded_stdout_sha256": "0e58ee3fc9de54ae0d5f0cf8417da9771d746a3458e88e87fd40a48b8fc15486"
+    }
+  ],
+  "experiments": {
+    "runtime-attempt-1": {
+      "passed": false,
+      "modes": {
+        "none": {
+          "passed": false,
+          "completed_check_count": 4,
+          "process_local_zsh_fixture": false
+        }
+      },
+      "config_repetitions": [],
+      "actual_image_count": 1,
+      "expected_image_count": 1,
+      "library_mapping_row_counts": [
+        7
+      ],
+      "mapping_rows_total": 7,
+      "observer_definition": "mapping_count is the number of /proc/PID/maps rows selecting the exact library path; image count is distinct frontend birth identities."
+    },
+    "runtime-attempt-2": {
+      "passed": false,
+      "modes": {
+        "none": {
+          "passed": true,
+          "completed_check_count": 7,
+          "process_local_zsh_fixture": false
+        },
+        "live": {
+          "passed": true,
+          "completed_check_count": 9,
+          "process_local_zsh_fixture": true
+        }
+      },
+      "config_repetitions": [
+        {
+          "index": 1,
+          "passed": true,
+          "classification": "passed",
+          "check_count": 4,
+          "forced_recovery": false,
+          "cleanup_signals": [],
+          "right_shutdown_seconds": 0.06382906100043328,
+          "live_producer_recorded": true,
+          "titles_before_shutdown": 100,
+          "remaining_generated_path_count": 0,
+          "remaining_process_count": 0,
+          "remaining_outer_owned_process_count": 0
+        },
+        {
+          "index": 2,
+          "passed": false,
+          "classification": "expired_live_producer_prerequisite",
+          "check_count": 3,
+          "forced_recovery": true,
+          "cleanup_signals": [
+            15,
+            15
+          ],
+          "right_shutdown_seconds": null,
+          "live_producer_recorded": false,
+          "titles_before_shutdown": null,
+          "remaining_generated_path_count": 0,
+          "remaining_process_count": 0,
+          "remaining_outer_owned_process_count": 0
+        }
+      ],
+      "actual_image_count": 7,
+      "expected_image_count": 7,
+      "library_mapping_row_counts": [
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7
+      ],
+      "mapping_rows_total": 49,
+      "observer_definition": "mapping_count is the number of /proc/PID/maps rows selecting the exact library path; image count is distinct frontend birth identities."
+    },
+    "config-baseline": {
+      "passed": false,
+      "modes": {},
+      "config_repetitions": [
+        {
+          "index": 1,
+          "passed": false,
+          "classification": "graceful_shutdown_timeout",
+          "check_count": 3,
+          "forced_recovery": true,
+          "cleanup_signals": [
+            15
+          ],
+          "right_shutdown_seconds": null,
+          "live_producer_recorded": true,
+          "titles_before_shutdown": 100,
+          "remaining_generated_path_count": 1,
+          "remaining_process_count": 0,
+          "remaining_outer_owned_process_count": 0
+        },
+        {
+          "index": 2,
+          "passed": false,
+          "classification": "graceful_shutdown_timeout",
+          "check_count": 3,
+          "forced_recovery": true,
+          "cleanup_signals": [
+            15
+          ],
+          "right_shutdown_seconds": null,
+          "live_producer_recorded": true,
+          "titles_before_shutdown": 100,
+          "remaining_generated_path_count": 1,
+          "remaining_process_count": 0,
+          "remaining_outer_owned_process_count": 0
+        },
+        {
+          "index": 3,
+          "passed": false,
+          "classification": "graceful_shutdown_timeout",
+          "check_count": 3,
+          "forced_recovery": true,
+          "cleanup_signals": [
+            15
+          ],
+          "right_shutdown_seconds": null,
+          "live_producer_recorded": true,
+          "titles_before_shutdown": 100,
+          "remaining_generated_path_count": 1,
+          "remaining_process_count": 0,
+          "remaining_outer_owned_process_count": 0
+        }
+      ],
+      "actual_image_count": 6,
+      "expected_image_count": 6,
+      "library_mapping_row_counts": [
+        7,
+        7,
+        7,
+        7,
+        7,
+        7
+      ],
+      "mapping_rows_total": 42,
+      "observer_definition": "mapping_count is the number of /proc/PID/maps rows selecting the exact library path; image count is distinct frontend birth identities.",
+      "session_text_observation": {
+        "count": 10,
+        "minimum_seconds": 7.080006980686449e-07,
+        "maximum_seconds": 4.309325777000595,
+        "at_least_one_second_count": 3,
+        "at_least_one_second_minimum": 1.3577532939998491,
+        "limit": "Sampled process-alive intervals, not a measured request latency or causal stack. All original observations are retained."
+      }
+    },
+    "config-patched": {
+      "passed": true,
+      "modes": {},
+      "config_repetitions": [
+        {
+          "index": 1,
+          "passed": true,
+          "classification": "passed",
+          "check_count": 4,
+          "forced_recovery": false,
+          "cleanup_signals": [],
+          "right_shutdown_seconds": 0.06406101100037631,
+          "live_producer_recorded": true,
+          "titles_before_shutdown": 100,
+          "remaining_generated_path_count": 0,
+          "remaining_process_count": 0,
+          "remaining_outer_owned_process_count": 0
+        },
+        {
+          "index": 2,
+          "passed": true,
+          "classification": "passed",
+          "check_count": 4,
+          "forced_recovery": false,
+          "cleanup_signals": [],
+          "right_shutdown_seconds": 4.758393748000344,
+          "live_producer_recorded": true,
+          "titles_before_shutdown": 100,
+          "remaining_generated_path_count": 0,
+          "remaining_process_count": 0,
+          "remaining_outer_owned_process_count": 0
+        },
+        {
+          "index": 3,
+          "passed": true,
+          "classification": "passed",
+          "check_count": 4,
+          "forced_recovery": false,
+          "cleanup_signals": [],
+          "right_shutdown_seconds": 2.0359895379997397,
+          "live_producer_recorded": true,
+          "titles_before_shutdown": 100,
+          "remaining_generated_path_count": 0,
+          "remaining_process_count": 0,
+          "remaining_outer_owned_process_count": 0
+        }
+      ],
+      "actual_image_count": 6,
+      "expected_image_count": 6,
+      "library_mapping_row_counts": [
+        7,
+        7,
+        7,
+        7,
+        7,
+        7
+      ],
+      "mapping_rows_total": 42,
+      "observer_definition": "mapping_count is the number of /proc/PID/maps rows selecting the exact library path; image count is distinct frontend birth identities.",
+      "session_text_observation": {
+        "count": 8,
+        "minimum_seconds": 6.250002115848474e-07,
+        "maximum_seconds": 4.250098139000329,
+        "at_least_one_second_count": 3,
+        "at_least_one_second_minimum": 2.2026177859997915,
+        "limit": "Sampled process-alive intervals, not a measured request latency or causal stack. All original observations are retained."
+      }
+    },
+    "config-confirmations": {
+      "passed": true,
+      "modes": {},
+      "config_repetitions": [
+        {
+          "index": 1,
+          "passed": true,
+          "classification": "passed",
+          "check_count": 4,
+          "forced_recovery": false,
+          "cleanup_signals": [],
+          "right_shutdown_seconds": 0.06364875600047526,
+          "live_producer_recorded": true,
+          "titles_before_shutdown": 100,
+          "remaining_generated_path_count": 0,
+          "remaining_process_count": 0,
+          "remaining_outer_owned_process_count": 0
+        },
+        {
+          "index": 2,
+          "passed": true,
+          "classification": "passed",
+          "check_count": 4,
+          "forced_recovery": false,
+          "cleanup_signals": [],
+          "right_shutdown_seconds": 0.061948905999997805,
+          "live_producer_recorded": true,
+          "titles_before_shutdown": 100,
+          "remaining_generated_path_count": 0,
+          "remaining_process_count": 0,
+          "remaining_outer_owned_process_count": 0
+        }
+      ],
+      "actual_image_count": 4,
+      "expected_image_count": 4,
+      "library_mapping_row_counts": [
+        7,
+        7,
+        7,
+        7
+      ],
+      "mapping_rows_total": 28,
+      "observer_definition": "mapping_count is the number of /proc/PID/maps rows selecting the exact library path; image count is distinct frontend birth identities.",
+      "session_text_observation": {
+        "count": 5,
+        "minimum_seconds": 7.499993444071151e-07,
+        "maximum_seconds": 6.838463701000364,
+        "at_least_one_second_count": 2,
+        "at_least_one_second_minimum": 5.278257943000426,
+        "limit": "Sampled process-alive intervals, not a measured request latency or causal stack. All original observations are retained."
+      }
+    }
+  },
+  "final_valid_patched_shutdown_seconds": [
+    0.06406101100037631,
+    4.758393748000344,
+    2.0359895379997397,
+    0.06364875600047526,
+    0.061948905999997805
+  ],
+  "final_valid_patched_frontend_images": 10,
+  "final_valid_patched_library_mapping_rows": 70,
+  "all_recorded_patched_config_attempts": 7,
+  "all_recorded_patched_config_passes": 6,
+  "all_recorded_patched_config_prerequisite_failures": 1,
+  "conclusion": "One-library diagnostic hybrid at frozen bec, not a complete current-source or combined-patch archive acceptance."
+}

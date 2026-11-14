@@ -96,8 +96,8 @@ extension WindowLibrary {
         try? content().write(to: path, atomically: true, encoding: .utf8)
     }
     ensure(ConfigPaths.ghosttyConfigPath(configDirectory: dir), ConfigPaths.starterGhosttyConfig())
-    ensure(ConfigPaths.keymapPath(configDirectory: dir), ConfigPaths.starterKeymapConf())
-    ensure(ConfigPaths.hooksPath(configDirectory: dir), ConfigPaths.starterHooksConf())
+    ensure(ConfigPaths.keymapPath(configDirectory: dir), ConfigPaths.linuxStarterKeymapConf())
+    ensure(ConfigPaths.hooksPath(configDirectory: dir), ConfigPaths.linuxStarterHooksConf())
     ensure(ConfigPaths.restoreDenylistPath(configDirectory: dir), ConfigPaths.starterRestoreDenylist())
 }
 
@@ -164,6 +164,8 @@ extension WindowLibrary {
     _ = gLibrary.loadStore(for: id)
     gExitCapture.windowOpened(id)
     gWindows[id] = AppController(app: gApp, windowID: id, library: gLibrary)
+    // Initial mapping can precede registry insertion, when map callbacks cannot resolve their owner.
+    gWindows[id]?.resumeMappedSplitRatioRestores()
     gControlServer.attachPresentationHub()
     for controller in gWindows.values { controller.updateAttentionButton(refocusOnDismiss: false) }
 }

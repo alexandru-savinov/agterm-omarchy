@@ -243,7 +243,7 @@ extension AppController {
             gtk_widget_set_valign(W(caption), GTK_ALIGN_END)
             gtk_widget_set_margin_start(W(caption), 8)
             gtk_widget_set_margin_bottom(W(caption), 8)
-            let statusIcon = OpaquePointer(gtk_label_new(nil))
+            let statusIcon = Self.makeEmptyStatusGlyph()
             dashboardRuntime.statusIcons[member] = statusIcon
             gtk_box_append(cast(caption), W(statusIcon))
             let captionLabel = OpaquePointer(gtk_label_new("\(sessionName) · \(paneName)"))
@@ -290,7 +290,7 @@ extension AppController {
         let context = DashboardDelayedClickContext(controller: self, member: member, generation: generation)
         dashboardRuntime.pendingClickContext = context
         let source = g_timeout_add_full(
-            G_PRIORITY_DEFAULT, DashboardClickIntent.delayMilliseconds, onDashboardClickDelay,
+            G_PRIORITY_DEFAULT, DashboardClickIntent.scheduledDelayMilliseconds, onDashboardClickDelay,
             Unmanaged.passRetained(context).toOpaque(), releaseDashboardDelayedClickContext)
         dashboardRuntime.pendingClickSource = source
         if source == 0 {

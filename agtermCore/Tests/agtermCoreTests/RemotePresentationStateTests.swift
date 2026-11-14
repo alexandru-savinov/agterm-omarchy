@@ -35,6 +35,18 @@ struct RemotePresentationStateTests {
         return (store, session)
     }
 
+    // a row attached while its stream was connecting kept the disconnected icon after it connected
+    @Test func aConnectionChangeIsAnnouncedToObservers() throws {
+        let (store, session) = try attached()
+        let announced = Flag()
+        withObservationTracking { _ = session.remoteConnection } onChange: { announced.set() }
+
+        store.setRemoteConnection(.connected, forSession: session.id)
+
+        #expect(session.remoteConnection == .connected)
+        #expect(announced.isSet)
+    }
+
     private final class Flag: @unchecked Sendable {
         private(set) var isSet = false
         func set() { isSet = true }
@@ -209,6 +221,52 @@ struct RemotePresentationStateTests {
         store.applyRemoteStatus(status(.completed, pane: nil), forSession: session.id)
 
         #expect(session.agentIndicator.status == .completed)
+    }
+
+    @Test func aMirroredInfoShowsOnARowWithNoneOfItsOwn() throws {
+        let (store, session) = try attached()
+
+        store.applyRemoteInfo(PresentationInfo(source: "**3** agents", markdown: true, hideAfter: 30), forSession: session.id)
+
+        #expect(session.effectiveInfo?.spans.first == SessionInfoSpan(text: "3", bold: true))
+        #expect(session.info == nil)
+        let node = store.controlTree().workspaces.flatMap(\.sessions).first { $0.id == session.id.uuidString }
+        #expect(node?.info == "**3** agents")
+        #expect(node?.infoHideAfter == 30)
+    }
+
+    @Test func anUnparseableMirroredInfoReadsAsNone() throws {
+        let (store, session) = try attached()
+        store.applyRemoteInfo(PresentationInfo(source: "previous", markdown: false, hideAfter: 0), forSession: session.id)
+
+        store.applyRemoteInfo(PresentationInfo(source: "^[a](color: \"maroon\")", markdown: true, hideAfter: 0),
+                              forSession: session.id)
+
+        #expect(session.mirroredInfo == nil)
+    }
+
+    @Test func aLocalInfoHidesOriginUpdatesUntilItIsCleared() throws {
+        let (store, session) = try attached()
+        store.applyRemoteInfo(PresentationInfo(source: "first", markdown: false, hideAfter: 0), forSession: session.id)
+        store.setInfo(try SessionInfo.make(source: "local", markdown: false, hideAfter: 0).get(), forSession: session.id)
+
+        store.applyRemoteInfo(PresentationInfo(source: "second", markdown: false, hideAfter: 0), forSession: session.id)
+        #expect(session.effectiveInfo?.source == "local")
+
+        store.setInfo(nil, forSession: session.id)
+        #expect(session.effectiveInfo?.source == "second")
+    }
+
+    @Test func aDisconnectDropsOnlyTheMirroredInfo() throws {
+        let (store, session) = try attached()
+        store.setRemoteConnection(.connected, forSession: session.id)
+        store.applyRemoteInfo(PresentationInfo(source: "origin", markdown: false, hideAfter: 0), forSession: session.id)
+        store.setInfo(try SessionInfo.make(source: "local", markdown: false, hideAfter: 0).get(), forSession: session.id)
+
+        store.setRemoteConnection(.failed("gone"), forSession: session.id)
+
+        #expect(session.mirroredInfo == nil)
+        #expect(session.effectiveInfo?.source == "local")
     }
 
     @Test func aMirroredContextShowsOnARowWithNoneOfItsOwn() throws {
@@ -475,7 +533,7 @@ struct RemotePresentationStateTests {
         let (store, session) = try attached()
         let ask = handedOver()
         var sent: [PresentationFrame.Body] = []
-        store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) }
+        #expect(store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) })
 
         session.resolveAsk(id: ask.id, ControlAskResult(result: .answered, id: "no", label: "No", index: 1))
 
@@ -483,11 +541,73 @@ struct RemotePresentationStateTests {
         #expect(session.askPending == nil)
     }
 
+    @Test func aFormReplicaSendsItsDraftWithTheAnswerAndTheFrameSurvivesTheCodec() throws {
+        let (store, session) = try attached()
+        let buttons = [ControlAskButton(id: "ok", label: "OK"), ControlAskButton(id: "cancel", label: "Cancel")]
+        let ask = PresentationAsk(PendingAsk(id: UUID().uuidString, title: "name?", buttons: buttons,
+                                             form: .input(AskInputForm(mode: .multiline, value: "draft")), cancelID: "cancel"),
+                                  pane: nil, owner: 4)
+        var sent: [PresentationFrame.Body] = []
+        #expect(store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) })
+        #expect(session.askPending?.form == ask.form)
+
+        session.updateAskDraft(id: ask.id) { $0.text = "é \"quoted\"\nsecond" }
+        session.answerAsk(id: ask.id, buttonAt: 0)
+
+        let expected = PresentationFrame.Body.askResolve(PresentationAskAnswer(id: ask.id, owner: 4, button: "ok",
+                                                                               text: "é \"quoted\"\nsecond"))
+        #expect(sent == [expected])
+        let line = try PresentationCodec.encode(PresentationFrame(gen: 1, rev: 1, body: expected))
+        #expect(try PresentationCodec.decode(line.dropLast()).body == expected)
+    }
+
+    @Test func aChoiceReplicaSendsTheSelectionAndItsCancelButtonSendsNoButton() throws {
+        let (store, session) = try attached()
+        let buttons = [ControlAskButton(id: "ok", label: "OK"), ControlAskButton(id: "cancel", label: "Cancel")]
+        let form = AskForm.choices(AskChoiceForm(choices: [ControlAskChoice(id: "a", label: "A"), ControlAskChoice(id: "b", label: "B")],
+                                                 multiple: true))
+        for (button, expected) in [(0, PresentationAskAnswer(id: "", owner: 4, button: "ok", selected: ["b"])),
+                                   (1, PresentationAskAnswer(id: "", owner: 4, button: nil))] {
+            let ask = PresentationAsk(PendingAsk(id: UUID().uuidString, title: "pick", buttons: buttons, form: form, cancelID: "cancel"),
+                                      pane: nil, owner: 4)
+            var sent: [PresentationFrame.Body] = []
+            #expect(store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) })
+            session.updateAskDraft(id: ask.id) { $0.toggle(at: 1) }
+            session.answerAsk(id: ask.id, buttonAt: button)
+            var answer = expected
+            answer.id = ask.id
+            #expect(sent == [.askResolve(answer)])
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func anOtherRowReplicaSendsItsTextAndTheOriginAppliesIt(multiple: Bool) throws {
+        let (store, session) = try attached()
+        let buttons = [ControlAskButton(id: "ok", label: "OK"), ControlAskButton(id: "cancel", label: "Cancel")]
+        let list = AskChoiceForm(choices: [ControlAskChoice(id: "a", label: "A"), ControlAskChoice(id: "b", label: "B")],
+                                 multiple: multiple, checked: ["a"], other: "Other")
+        let pending = PendingAsk(id: UUID().uuidString, title: "pick", buttons: buttons, form: .choices(list), cancelID: "cancel")
+        let ask = PresentationAsk(pending, pane: nil, owner: 4)
+        var sent: [PresentationFrame.Body] = []
+        #expect(store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) })
+        #expect(session.askPending?.form == .choices(list))
+
+        session.updateAskDraft(id: ask.id) { $0.text = " mine " }
+        session.answerAsk(id: ask.id, buttonAt: 0)
+
+        let answer = PresentationAskAnswer(id: ask.id, owner: 4, button: "ok", text: " mine ", selected: multiple ? ["a"] : [])
+        #expect(sent == [.askResolve(answer)])
+        let line = try PresentationCodec.encode(PresentationFrame(gen: 1, rev: 1, body: .askResolve(answer)))
+        #expect(try PresentationCodec.decode(line.dropLast()).body == .askResolve(answer))
+        #expect(pending.validatedAnswer(buttonID: "ok", text: answer.text, selected: answer.selected)
+            == ControlAskResult(result: .answered, id: "ok", label: "OK", index: 0, text: " mine ", selected: answer.selected))
+    }
+
     @Test func aDismissalWithEscSendsNoButton() throws {
         let (store, session) = try attached()
         let ask = handedOver()
         var sent: [PresentationFrame.Body] = []
-        store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) }
+        #expect(store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) })
 
         session.resolveAsk(id: ask.id, ControlAskResult(result: .escaped))
 
@@ -498,7 +618,7 @@ struct RemotePresentationStateTests {
         let (store, session) = try attached()
         let ask = handedOver()
         var sent: [PresentationFrame.Body] = []
-        store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) }
+        #expect(store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) })
 
         session.cancelPendingAsk()
 
@@ -509,7 +629,7 @@ struct RemotePresentationStateTests {
         let (store, session) = try attached()
         let ask = handedOver()
         var sent: [PresentationFrame.Body] = []
-        store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) }
+        #expect(store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) })
 
         store.dismissReplicaAsk(PresentationAskRef(id: ask.id, owner: 4), forSession: session.id)
 
@@ -521,7 +641,7 @@ struct RemotePresentationStateTests {
     @Test func aDismissalNamingAnotherAskLeavesTheReplica() throws {
         let (store, session) = try attached()
         let ask = handedOver()
-        store.presentReplicaAsk(ask, forSession: session.id) { _ in }
+        #expect(store.presentReplicaAsk(ask, forSession: session.id) { _ in })
 
         store.dismissReplicaAsk(PresentationAskRef(id: "other", owner: 4), forSession: session.id)
 
@@ -533,7 +653,7 @@ struct RemotePresentationStateTests {
         store.setRemoteConnection(.connected, forSession: session.id)
         let ask = handedOver()
         var sent: [PresentationFrame.Body] = []
-        store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) }
+        #expect(store.presentReplicaAsk(ask, forSession: session.id) { sent.append($0) })
 
         store.setRemoteConnection(.failed("exit 255"), forSession: session.id)
 
@@ -563,9 +683,10 @@ struct RemotePresentationStateTests {
 
     static let runJob = "ssh -tt buildbox run-job j1"
 
-    private func overlay(pane: PresentationPane? = nil, size: Int? = nil, wait: Bool = false,
-                         follow: Bool = false) -> PresentationOverlay {
-        PresentationOverlay(job: "j1", pane: pane, sizePercent: size, backgroundColor: "#102030", follow: follow, wait: wait)
+    private func overlay(pane: PresentationPane? = nil, size: Int? = nil, points: OverlayPointSize = OverlayPointSize(),
+                         wait: Bool = false, follow: Bool = false) -> PresentationOverlay {
+        PresentationOverlay(job: "j1", pane: pane, sizePercent: size, points: points, backgroundColor: "#102030", follow: follow,
+                            wait: wait)
     }
 
     private final class Closed { var jobs: [String] = [] }
@@ -573,6 +694,38 @@ struct RemotePresentationStateTests {
     @discardableResult
     private func show(_ overlay: PresentationOverlay, in store: AppStore, _ session: Session, closed: Closed = Closed()) -> Bool {
         store.presentReplicaOverlay(overlay, command: Self.runJob, forSession: session.id) { closed.jobs.append($0) }
+    }
+
+    @Test func aHandedOverOverlayTakesNoPointSizes() throws {
+        let (store, session) = try attached()
+        #expect(show(overlay(size: 60), in: store, session))
+
+        #expect(store.resizeOverlayInPoints(session.id, sizePercent: nil, points: OverlayPointSize(height: 240)) == .remote)
+
+        #expect(session.overlayPoints.isEmpty)
+    }
+
+    @Test func aHandedOverOverlayTakesTheOriginsPointSizes() throws {
+        let (store, session) = try attached()
+
+        #expect(show(overlay(size: 60, points: OverlayPointSize(width: 640, height: 240)), in: store, session))
+
+        #expect(session.overlaySizePercent == 60)
+        #expect(session.overlayPoints == OverlayPointSize(width: 640, height: 240))
+    }
+
+    @Test func theOriginsResizeReplacesTheHandedOverOverlaysSize() throws {
+        let (store, session) = try attached()
+        #expect(show(overlay(size: 60, points: OverlayPointSize(width: 640)), in: store, session))
+
+        store.resizeReplicaOverlay(PresentationOverlayChange(job: "j1", sizePercent: 60,
+                                                             points: OverlayPointSize(width: 640, height: 300)),
+                                   forSession: session.id)
+        #expect(session.overlayPoints == OverlayPointSize(width: 640, height: 300))
+
+        store.resizeReplicaOverlay(PresentationOverlayChange(job: "j1", sizePercent: 40), forSession: session.id)
+        #expect(session.overlaySizePercent == 40)
+        #expect(session.overlayPoints.isEmpty)
     }
 
     @Test func aHandedOverOverlayRunsTheJobsCommandInTheSessionWideSlot() throws {
@@ -733,7 +886,7 @@ struct RemotePresentationStateTests {
             store.openOverlay(session.id, command: "top")
         } else {
             show(overlay(wait: true), in: store, session, closed: closed)
-            store.openPaneOverlay(session.id, pane: .right, command: "top")
+            #expect(store.openPaneOverlay(session.id, pane: .right, command: "top") == nil)
         }
 
         #expect(store.softCloseSession(session.id))

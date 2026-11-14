@@ -7,11 +7,11 @@ public enum BuiltinAction: String, CaseIterable, Sendable {
     case previousWindow = "previous_window", nextWindow = "next_window"
     case newWorkspace = "new_workspace", renameWorkspace = "rename_workspace", deleteWorkspace = "delete_workspace"
     case newSession = "new_session", openDirectory = "open_directory", renameSession = "rename_session"
-    case duplicateSession = "duplicate_session"
+    case duplicateSession = "duplicate_session", newCompanion = "new_companion", duplicateCompanion = "duplicate_companion"
     case closeSession = "close_session", reopenRecent = "reopen_recent", undoClose = "undo_close", clearStatus = "clear_status"
     case increaseFontSize = "increase_font_size", decreaseFontSize = "decrease_font_size", resetFontSize = "reset_font_size"
     case toggleSplit = "toggle_split", toggleHorizontalSplit = "toggle_horizontal_split"
-    case toggleScratch = "toggle_scratch", toggleTerminalZoom = "toggle_terminal_zoom"
+    case toggleScratch = "toggle_scratch", toggleTerminalZoom = "toggle_terminal_zoom", toggleOverlay = "toggle_overlay"
     case toggleSearch = "toggle_search"
     case toggleSidebar = "toggle_sidebar", selectTheme = "select_theme", toggleFullscreen = "toggle_fullscreen"
     case toggleFlaggedView = "toggle_flagged_view", toggleFlag = "toggle_flag", focusWorkspace = "focus_workspace"
@@ -25,6 +25,8 @@ public enum BuiltinAction: String, CaseIterable, Sendable {
     case quickTerminal = "quick_terminal", sessionPalette = "session_palette", commandPalette = "command_palette"
     case customCommandPalette = "custom_command_palette", showAttention = "show_attention"
     case dashboard = "dashboard"
+    case attachRemote = "attach_remote"
+    case editFlaggedSessions = "edit_flagged_sessions", editFocusedWorkspaces = "edit_focused_workspaces"
 
     /// The shipped default chord, or `nil` for a keyless action, which gains a key only when the user
     /// `map`s one. Every action that ships with a key returns it here, including the six arrow-bound ones —
@@ -45,6 +47,8 @@ public enum BuiltinAction: String, CaseIterable, Sendable {
         case .toggleSplit: return Chord(mods: [.command], key: "d")
         case .toggleHorizontalSplit: return Chord(mods: [.command, .shift], key: "d")
         case .toggleScratch: return Chord(mods: [.command], key: "j")
+        // shadows libghostty's default write_screen_file:paste, as ⌘J shadows its scroll_to_selection
+        case .toggleOverlay: return Chord(mods: [.command, .shift], key: "j")
         case .toggleTerminalZoom: return Chord(mods: [.command, .shift], key: "return")
         case .toggleSearch: return Chord(mods: [.command], key: "f")
         case .toggleSidebar: return Chord(mods: [.command, .control], key: "s")
@@ -56,16 +60,17 @@ public enum BuiltinAction: String, CaseIterable, Sendable {
         case .customCommandPalette: return Chord(mods: [.control, .shift], key: "o")
         case .showAttention: return Chord(mods: [.control, .shift], key: "i")
         case .dashboard: return Chord(mods: [.command, .shift], key: "g")
+        case .attachRemote: return Chord(mods: [.command, .shift], key: "r")
         case .focusLeftPane: return Chord(mods: [.command, .option], key: "left")
         case .focusRightPane: return Chord(mods: [.command, .option], key: "right")
         case .previousSession: return Chord(mods: [.command, .option], key: "up")
         case .nextSession: return Chord(mods: [.command, .option], key: "down")
         case .previousAttentionSession: return Chord(mods: [.control, .option], key: "up")
         case .nextAttentionSession: return Chord(mods: [.control, .option], key: "down")
-        case .renameWindow, .deleteWindow, .renameWorkspace, .deleteWorkspace, .renameSession, .duplicateSession,
+        case .renameWindow, .deleteWindow, .renameWorkspace, .deleteWorkspace, .renameSession, .duplicateSession, .newCompanion, .duplicateCompanion,
              .clearStatus, .firstSession, .lastSession, .selectTheme, .toggleFlaggedView, .focusWorkspace,
              .toggleWorkspaceFilter, .previousWorkspace, .nextWorkspace, .toggleWorkspaceCollapse,
-             .previousWindow, .nextWindow:
+             .previousWindow, .nextWindow, .editFlaggedSessions, .editFocusedWorkspaces:
             return nil
         }
     }

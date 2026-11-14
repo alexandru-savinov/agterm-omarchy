@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Download and authenticate the exact public artifact set for a stable Linux release.
-# Usage: scripts/verify-published-linux-release.sh TAG
+# Download and authenticate the exact public artifact set for a Linux release.
+# Usage: scripts/verify-published-linux-release.sh TAG [--require-arch]
 set -euo pipefail
 
-if (( $# != 1 )); then
-  echo "usage: scripts/verify-published-linux-release.sh TAG" >&2
+if (( $# < 1 || $# > 2 )) || [[ "${2:---require-arch}" != --require-arch ]]; then
+  echo "usage: scripts/verify-published-linux-release.sh TAG [--require-arch]" >&2
   exit 2
 fi
 
 TAG="$1"
-if [[ ! "$TAG" =~ ^linux-(v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?)(\+linux\.[1-9][0-9]*)?$ ]]; then
-  echo "invalid stable Linux release tag: $TAG" >&2
+if [[ ! "$TAG" =~ ^linux-(v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*))*)?)(\+linux\.[1-9][0-9]*)?$ ]]; then
+  echo "invalid Linux release tag: $TAG (expected MAJOR.MINOR.PATCH[-PRERELEASE][+linux.N]; prerelease identifiers are dot-separated letters and digits without '-', numbers without leading zeros)" >&2
   exit 2
 fi
 
@@ -32,9 +32,6 @@ expected=(
 if [[ "$(printf '%s\n' "$VERSION" '0.33.1' | sort -V | head -n 1)" == "$VERSION" && "$VERSION" != 0.33.1* ]]; then
   expected+=("agterm-v${VERSION}-x86_64.AppImage")
 fi
-payloads=("${expected[@]}")
-expected+=("agterm-linux-v${VERSION}-SHA256SUMS")
-
 if [[ -n "$SOURCE" ]]; then
   [[ -d "$SOURCE" ]] || { echo "release fixture directory does not exist: $SOURCE" >&2; exit 1; }
   cp -a "$SOURCE/." "$DOWNLOAD/"
@@ -42,6 +39,21 @@ else
   command -v "$GH" >/dev/null || { echo "$GH is required to download and verify the release" >&2; exit 1; }
   "$GH" release download "$TAG" --repo "$REPOSITORY" --dir "$DOWNLOAD"
 fi
+
+# Older immutable releases have no Arch package. Authenticate it whenever present,
+# and require it explicitly for releases produced by the current stable workflow.
+arch_package="agterm-linux-bin-${VERSION}-1-x86_64.pkg.tar.zst"
+if [[ "${2:-}" == --require-arch || -f "$DOWNLOAD/$arch_package" ]]; then
+  expected+=("$arch_package")
+fi
+payloads=("${expected[@]}")
+# Releases after 0.41.1 carry an attested SPDX SBOM outside the checksum manifest. Every release
+# published before the SBOM job existed, up to and including linux-v0.41.1, shipped without one.
+SBOM_CUTOFF='0.41.1'
+if [[ "$(printf '%s\n' "$VERSION" "$SBOM_CUTOFF" | sort -V | tail -n 1)" == "$VERSION" && "$VERSION" != "$SBOM_CUTOFF" ]]; then
+  expected+=("agterm-linux-v${VERSION}.spdx.json")
+fi
+expected+=("agterm-linux-v${VERSION}-SHA256SUMS")
 
 actual_list="$WORK/actual"
 expected_list="$WORK/expected"
@@ -66,7 +78,8 @@ fi
 )
 
 for artifact in "${expected[@]}"; do
-  "$GH" attestation verify "$DOWNLOAD/$artifact" --repo "$REPOSITORY"
+  "$GH" attestation verify "$DOWNLOAD/$artifact" --repo "$REPOSITORY" \
+    --signer-workflow "$REPOSITORY/.github/workflows/release-linux.yml" --source-ref "refs/tags/$TAG"
 done
 
 echo "→ verified public $TAG artifact set, checksums, and attestations"

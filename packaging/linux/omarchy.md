@@ -58,11 +58,29 @@ The personal installer places the complete runtime under `~/.local/lib/agterm`, 
 `~/.local/bin`, and an **agterm** launcher in the desktop application menu.
 The installer builds Release; `--no-build` uses the checkout's existing `.build/release` products,
 and `--payload DIR` installs an extracted archive directory (such as `agterm-stage/`) without building.
+An incomplete payload is rejected before replacement.
+Failed or interrupted upgrades restore the previous payload and managed launcher/icon files; if restoration fails, the installer reports the retained recovery directory.
 Use `--prefix /another/prefix` (or `PREFIX=/another/prefix`) on the install command for another destination;
 the installer warns when that prefix's `share/` is not on the XDG data path, where launchers look.
 `--uninstall` removes exactly the files the installer recorded and keeps state in `~/.local/share/agterm`
 and configuration in `~/.config/agterm`; add `--purge-state` to delete the state directory too,
 including setup's `swift-compat`.
+Because `--purge-state` deletes `swift-compat`, and the build helpers silently skip a missing one,
+run `scripts/setup-omarchy.sh --skip-packages` again before rebuilding from source after a purge.
+
+Uninstalling does not undo what **Preferences ▸ Integrations** (or `agtermctl integration install`) wrote,
+and neither offers a remove action, so remove those edits by hand if you are not reinstalling.
+They stay behind pointing at an `agtermctl` that no longer exists:
+- the agent-status scripts in `~/.config/agterm/agent-status/`, which carry the `agtermctl` path baked
+  in at install time (kept with the rest of `~/.config/agterm`);
+- the hook entries merged into `~/.claude/settings.json` and the agterm hook block in
+  `~/.codex/config.toml`, which run those scripts;
+- the `# >>> agterm agent-status >>>` block in `~/.zshrc`, `~/.bashrc` and `~/.config/fish/config.fish`;
+- the skill copy in `~/.claude/skills/agterm` and `~/.codex/skills/agterm`, plus the Pi extension
+  (`~/.pi/agent/extensions/agterm-status.ts`) and the OpenCode plugin when those were installed.
+
+The hooks are no-ops outside an agterm session, so the leftovers are inert rather than failing, but the
+skill still teaches an agent to call `agtermctl`.
 For a VM with the documented EGL failure, add `--software-rendering` when installing; see [Rendering](#rendering).
 The installed runtime includes Swift libraries, libghostty, zmx, themes, shell integration, terminfo,
 and the agent integration resources; the source checkout is not needed to run it.
@@ -94,8 +112,15 @@ such as window placement and blur.
 
 ## Rendering
 
-If an accelerated UTM guest reports `No EGL configuration available`, use Mesa software rendering for
-one app launch:
+If a VM reports an OpenGL context error, including `No EGL configuration available`, you can try
+Mesa software rendering for agterm.
+Save work and quit agterm completely through its normal quit flow; quitting can end ordinary shells
+and foreground commands.
+Wait for the app to exit.
+A second launcher invocation or New Window activates the existing process and keeps its renderer
+environment.
+
+From another terminal, start a fresh app process with a one-shot setting:
 
 ```bash
 LIBGL_ALWAYS_SOFTWARE=1 "$HOME/.local/bin/agterm-linux"
@@ -109,6 +134,7 @@ mise exec swift@6.3.2 -- scripts/install-linux.sh --software-rendering
 mise exec swift@6.3.2 -- scripts/install-linux.sh --default-rendering
 ```
 
+The renderer options belong to `scripts/install-linux.sh` and take effect on the next fresh app process.
 These commands reinstall from this checkout; add `--no-build` to use its existing Release build.
 Without either renderer option, reinstalling preserves the prior selection; new installations use the
 normal inherited environment.
@@ -117,7 +143,9 @@ The installer stores `software` or `default` as data in the payload's `share/agt
 Only the app wrapper reads this file; the `agtermctl` helper and compositor/global settings are unchanged.
 Software mode overrides an inherited `LIBGL_ALWAYS_SOFTWARE=0` for the app launch; default mode leaves
 the caller's value untouched, including an explicit one-shot override.
-Child processes launched by the app can inherit software rendering as well.
+For child processes, the packaged wrapper's software override is replaced with the caller's previous
+value, or removed if the caller had none.
+A caller-supplied one-shot value can therefore reach those children.
 The opt-in addresses the tested VM's EGL limitation; it is not enabled automatically for other Linux machines.
 Hardware rendering remains dependent on each machine's Mesa/driver configuration.
 
@@ -139,6 +167,20 @@ The explicit build creates the Debug app and CLI used by the accessibility runne
 The runner checks `dbus-run-session`, `dbus-send`, `openbox`, `xdotool`, `xvfb-run`, Python and the
 GObject/AT-SPI bindings, and uses a private HOME, runtime directory, state, socket, D-Bus session and X11 display.
 It does not establish native Wayland acceptance.
+
+#### Manual check: desktop notification banner
+
+The `notification-banner` accessibility scenario is in neither the runner's default list nor CI, because it
+needs a real notification daemon driven by `makoctl` (Omarchy's mako), which the private Xvfb session lacks.
+It is a manual check: after the Debug build above, run it from a terminal inside the dedicated Hyprland test
+desktop described in the next section, where mako owns the session's notifications:
+
+```bash
+AGTERM_ATSPI_SCENARIO=notification-banner python3 agterm-linux/tests/atspi_smoke.py
+```
+
+It posts and invokes a real desktop banner, so expect one to appear. It passes only when it prints
+`OK: real desktop banner suppresses, delivers, and reopens its source window` and exits 0.
 
 ### Native Wayland test environment
 

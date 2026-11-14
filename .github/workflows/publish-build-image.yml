@@ -72,30 +72,10 @@ jobs:
           persist-credentials: false
       - name: Select a new immutable version
         id: identity
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="sha-$GITHUB_SHA-run-$GITHUB_RUN_ID-attempt-$GITHUB_RUN_ATTEMPT"
-          export TAG
-          # Fail closed on API errors; a new package legitimately returns 404.
-          python3 - <<'PY'
-          import json, os, urllib.error, urllib.request
-          url = 'https://api.github.com/users/alexandru-savinov/packages/container/agterm-omarchy-build-x86_64/versions?per_page=100'
-          while url:
-              request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
-              try:
-                  response = urllib.request.urlopen(request, timeout=30)
-              except urllib.error.HTTPError as error:
-                  if error.code == 404:
-                      break
-                  raise
-              versions = json.load(response)
-              if any(os.environ['TAG'] in item['metadata']['container']['tags'] for item in versions):
-                  raise SystemExit('Refusing to overwrite an existing package version')
-              links = response.headers.get('Link', '').split(',')
-              url = next((part.split(';')[0].strip()[1:-1] for part in links if 'rel="next"' in part), None)
-          PY
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # The run id and attempt make this tag unique, so no earlier push can carry it. A lookup for an
+          # existing version could never match, and it treated any 404 (including missing access) as new.
+          echo "tag=sha-$GITHUB_SHA-run-$GITHUB_RUN_ID-attempt-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
       - name: Build the isolated context and run compiler probes
         env:
           TAG: ${{ steps.identity.outputs.tag }}

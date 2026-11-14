@@ -51,6 +51,7 @@ extension AppController {
         let targets = store.sidebarSelectionTargets(forContextSession: sid)
         let sessions = targets.compactMap { store.session(withID: $0) }
         let suffix = targets.count > 1 ? " \(targets.count) Sessions" : ""
+        appendSessionParityMenu(to: box, targets: targets)
         addContextButton(box, sessions.allSatisfy(\.flagged) ? "Unflag\(suffix)" : "Flag\(suffix)",
                          unsafeBitCast(onCtxFlag as @convention(c) (OpaquePointer?, gpointer?) -> Void, to: GCallback.self))
         if targets.count == 1 {
@@ -204,6 +205,18 @@ extension AppController {
         addContextButton(box, store.focusedWorkspaceIDs.contains(wsID) ? "Remove from Focus" : "Add to Focus",
                          unsafeBitCast(onCtxWorkspaceFocusMembership as @convention(c)
                             (OpaquePointer?, gpointer?) -> Void, to: GCallback.self))
+        let expanded = isWorkspaceEffectivelyExpanded(wsID)
+        appendSidebarAction(to: box, title: expanded ? "Collapse Workspace" : "Expand Workspace") { [weak self] in
+            self?.dismissContextMenu()
+            _ = self?.setWorkspaceExpansion(wsID.uuidString, window: nil, expanded: !expanded)
+        }
+        appendTintMenu(to: box, workspaceID: wsID)
+        let allFlagged = store.workspaces.first { $0.id == wsID }?.sessions.allSatisfy(\.flagged) == true
+        appendSidebarAction(to: box, title: allFlagged ? "Unflag All Sessions" : "Flag All Sessions") { [weak self] in
+            guard let self else { return }
+            self.dismissContextMenu()
+            _ = self.setWorkspaceFlag(wsID.uuidString, window: nil, mode: allFlagged ? .off : .on)
+        }
         addContextButton(box, "Rename", unsafeBitCast(onCtxWorkspaceRename as @convention(c) (OpaquePointer?, gpointer?) -> Void, to: GCallback.self))
         addContextButton(box, "Copy Name", unsafeBitCast(onCtxWorkspaceCopyName as @convention(c) (OpaquePointer?, gpointer?) -> Void, to: GCallback.self))
         if store.canRemoveWorkspace {

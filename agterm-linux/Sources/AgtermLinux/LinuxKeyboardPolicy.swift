@@ -60,6 +60,8 @@ extension BuiltinAction {
         // Ctrl+Shift+O belongs to Open Directory on Linux. Keep the custom-command palette keyless so
         // restoring a reserved Open Directory override cannot create a default-vs-default collision.
         case .customCommandPalette: return nil
+        case .attachRemote: return Chord(mods: [.control, .shift], key: "r")
+        case .toggleOverlay: return Chord(mods: [.control, .option], key: "j")
         case .showAttention: return Chord(mods: [.control, .shift], key: "i")
         default: return nil
         }

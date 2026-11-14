@@ -128,12 +128,14 @@ struct LinuxForegroundCaptureTests {
         let configuration = ZmxSupport.Configuration(
             executablePath: "/usr/bin/zmx", environment: ["SHELL": "/bin/zsh", "ZDOTDIR": "/tmp/integration"],
             daemonName: "agterm-pane", socketDirectory: "/tmp/zmx", paneID: "pane")
-        let command = AppController.wrappedAttachCommand(
-            configuration, replay: session.foregroundCommand, durable: "make dev", denylist: ["tmux"])
-        #expect(command == configuration.command)
-        let lostDaemon = AppController.wrappedAttachCommand(
-            configuration, replay: nil, durable: "make dev", denylist: ["tmux"])
-        #expect(lostDaemon.contains("make dev"))
+        let seed = LinuxRestoreSeed.wrappedSeed(
+            configuration, replay: session.foregroundCommand, durable: "make dev", denylist: ["tmux"],
+            daemonRunning: false)
+        #expect(seed.command == configuration.command)
+        #expect(seed.initialInput == nil)
+        let lostDaemon = LinuxRestoreSeed.wrappedSeed(
+            configuration, replay: nil, durable: "make dev", denylist: ["tmux"], daemonRunning: false)
+        #expect(lostDaemon.command?.contains("make dev") == true)
     }
 
     @Test("remote rows are neither read nor counted; the count is slots written")

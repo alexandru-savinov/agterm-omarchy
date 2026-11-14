@@ -1,0 +1,26 @@
+{
+  "schema": "agterm-public-shutdown-evidence/1",
+  "evidence_kind": "retained original extract",
+  "new_execution": false,
+  "full_current_source_acceptance": false,
+  "sources": [
+    {
+      "original": "native-shutdown-queue-regression-private.json",
+      "original_sha256": "131a48b88465fa0e01b6504c965046d79da5f2d8507daf36a5c8f71d71dcd5da",
+      "locator": "$.stdout(JSON)",
+      "decoded_stdout_sha256": "c17865c98fa3933544127c9dfa25022229f98c90f609b95b81103412bd590bc6"
+    }
+  ],
+  "exit_code": 0,
+  "started_at": 1794430038.6224992,
+  "finished_at": 1794430044.4668777,
+  "script_sha256": "b2dd3598b9c0ce7d4a9c5527512c8b345be04f9ffd9a77e7396d2a2312bd760d",
+  "log_sha256": "eb300df68288f50c38ea60a4e2d6815ce5c51b26dc85740d759bbb0b31174bd5",
+  "log": "Pinned Ghostty source: 0ba6250388641f52135414b38c4259aa682c489b\nPatch SHA256: 5acad8dff653d70056471520270d03c1df59aa7d6112e895f10d3c903bea6ba9\n1/4 shutdown_regression.test.shutdown cancellation releases a full mailbox before any consumer drain...OK\n2/4 shutdown_regression.test.shutdown cancellation preserves blocked peer and app-wide producers...OK\n3/4 datastruct.blocking_queue.test.basic push and pop...OK\n4/4 datastruct.blocking_queue.test.timed push...OK\nAll 4 tests passed.\n1/1 shutdown_regression.test.shutdown cancellation releases a full mailbox before any consumer drain...shutdown negative control: producer blocked until fixture drain\nFAIL (TestUnexpectedResult)\n/usr/lib/zig/std/testing.zig:615:14: 0x117dd8f in expect (test)\n    if (!ok) return error.TestUnexpectedResult;\n             ^\n<private-stage-001>/tmp/<generated-config-001>.qILqQf/source/src/shutdown_regression.zig:84:5: 0x117e2bb in test.shutdown cancellation releases a full mailbox before any consumer drain (test)\n    try std.testing.expect(completed_before_drain);\n    ^\n0 passed; 0 skipped; 1 failed.\nerror: the following test command failed with exit code 1:\n<private-stage-001>/tmp/<generated-config-001>.qILqQf/zig-local-cache/o/7cf39d2bc0cc608588014f40d537f205/test --seed=0xed4b1425\nPASS: patched queue passes; original pinned queue fails the bounded shutdown assertion\n",
+  "executed_source_commit": "fd72c31902029e6d228ab3a254c37e28b9655ab3",
+  "corrected_runner_commit_not_executed_here": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+  "derived_run_seconds": 5.844378471374512,
+  "published_log_sha256": "e15fcc5630a03c62f7deaaafaa19e4c19843aaf474f7a101d35e6a07cc067301",
+  "log_sha256_applies_to": "original unredacted embedded log",
+  "log_redaction": "Only private guest stage paths replaced; original unredacted log SHA256 retained."
+}

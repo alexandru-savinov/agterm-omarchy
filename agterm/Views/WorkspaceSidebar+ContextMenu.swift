@@ -64,14 +64,25 @@ extension WorkspaceSidebar.Coordinator {
         let sessionTargets = node.kind == .session ? store.sidebarSelectionTargets(forContextSession: node.id) : []
         let sessionCount = sessionTargets.count
 
-        // "Clear Status" sits first for a session row with a status, the `agtermctl session status idle` effect.
-        if node.kind == .session, sessionTargets.contains(where: { store.session(withID: $0)?.agentIndicator.status != .idle }) {
-            let clearStatus = NSMenuItem(title: sessionCount == 1 ? "Clear Status" : "Clear Statuses",
-                                         action: #selector(menuClearStatus(_:)), keyEquivalent: "")
-            clearStatus.target = self
-            clearStatus.representedObject = SessionBatchRequest(sessionIDs: sessionTargets)
-            menu.addItem(clearStatus)
-            menu.addItem(.separator())
+        // "Clear Status" sits first for a session row with a status, the `agtermctl session status idle` effect;
+        // "Mark for Attention" is its idle-row counterpart, `session status completed` on the idle targets.
+        if node.kind == .session {
+            let statuses = sessionTargets.compactMap { store.session(withID: $0)?.agentIndicator.status }
+            if statuses.contains(where: { $0 != .idle }) {
+                let clearStatus = NSMenuItem(title: sessionCount == 1 ? "Clear Status" : "Clear Statuses",
+                                             action: #selector(menuClearStatus(_:)), keyEquivalent: "")
+                clearStatus.target = self
+                clearStatus.representedObject = SessionBatchRequest(sessionIDs: sessionTargets)
+                menu.addItem(clearStatus)
+            }
+            if statuses.contains(.idle) {
+                let mark = NSMenuItem(title: "Mark for Attention", action: #selector(menuMarkForAttention(_:)),
+                                      keyEquivalent: "")
+                mark.target = self
+                mark.representedObject = SessionBatchRequest(sessionIDs: sessionTargets)
+                menu.addItem(mark)
+            }
+            if !statuses.isEmpty { menu.addItem(.separator()) }
         }
 
         if node.kind == .workspace || sessionCount <= 1 {
@@ -99,8 +110,22 @@ extension WorkspaceSidebar.Coordinator {
                 duplicate.representedObject = node
                 menu.addItem(duplicate)
             }
+            if sessionCount == 1 {
+                let companion = NSMenuItem(title: "New Companion", action: #selector(menuNewCompanion(_:)), keyEquivalent: "")
+                companion.target = self
+                companion.representedObject = node
+                menu.addItem(companion)
+                if store.session(withID: node.id)?.content == .terminal {
+                    let copy = NSMenuItem(title: "Duplicate as Companion", action: #selector(menuDuplicateCompanion(_:)),
+                                          keyEquivalent: "")
+                    copy.target = self
+                    copy.representedObject = node
+                    menu.addItem(copy)
+                }
+            }
             let targets = store.workspaces.filter { workspace in
                 sessionTargets.contains { ownerWorkspaceID(ofSession: $0) != workspace.id }
+                    && store.canMoveSessions(sessionTargets, toWorkspace: workspace.id)
             }
             if !targets.isEmpty {
                 let moveTo = NSMenuItem(title: "Move to", action: nil, keyEquivalent: "")
@@ -126,6 +151,7 @@ extension WorkspaceSidebar.Coordinator {
             flag.target = self
             flag.representedObject = SessionBatchRequest(sessionIDs: sessionTargets)
             menu.addItem(flag)
+            menu.addItem(tintMenuItem(forSessions: sessionTargets))
             if sessionCount == 1 {
                 let reveal = NSMenuItem(title: "Reveal in Finder", action: #selector(menuRevealInFinder(_:)), keyEquivalent: "")
                 reveal.target = self
@@ -147,6 +173,12 @@ extension WorkspaceSidebar.Coordinator {
             openSession.target = self
             openSession.representedObject = node
             menu.addItem(openSession)
+            // the one per-row fold that survives a hidden chevron with row click turned off.
+            let fold = NSMenuItem(title: outline.isItemExpanded(node) ? "Collapse Workspace" : "Expand Workspace",
+                                  action: #selector(menuToggleWorkspaceExpansion(_:)), keyEquivalent: "")
+            fold.target = self
+            fold.representedObject = node
+            menu.addItem(fold)
             // the focus items are their own group: they filter what the tree shows, unlike the create items
             // above and the destructive one below.
             menu.addItem(.separator())
@@ -165,6 +197,15 @@ extension WorkspaceSidebar.Coordinator {
             membership.target = self
             membership.representedObject = node
             menu.addItem(membership)
+            menu.addItem(.separator())
+            // targets every session of the workspace, including the ones the flagged tree layout hides.
+            let flagAll = NSMenuItem(title: store.allSessionsFlagged(inWorkspace: node.id) ? "Unflag All Sessions" : "Flag All Sessions",
+                                     action: #selector(menuToggleWorkspaceFlag(_:)), keyEquivalent: "")
+            flagAll.target = self
+            flagAll.representedObject = node
+            flagAll.isEnabled = store.workspaces.first { $0.id == node.id }?.sessions.isEmpty == false
+            menu.addItem(flagAll)
+            menu.addItem(tintMenuItem(forWorkspace: node.id))
             menu.addItem(.separator())
             let delete = NSMenuItem(title: "Delete Workspace", action: #selector(menuDeleteWorkspace(_:)), keyEquivalent: "")
             delete.target = self
@@ -187,6 +228,12 @@ extension WorkspaceSidebar.Coordinator {
             self.sessionIDs = sessionIDs
             self.targetID = targetID
         }
+    }
+
+    @objc private func menuToggleWorkspaceExpansion(_ sender: NSMenuItem) {
+        guard let node = sender.representedObject as? SidebarNode, let outline = outlineView,
+              outline.row(forItem: node) >= 0 else { return }
+        toggleExpansion(of: node, in: outline)
     }
 
     @objc private func menuRename(_ sender: NSMenuItem) {
@@ -226,15 +273,35 @@ extension WorkspaceSidebar.Coordinator {
         for id in request.sessionIDs { store.setAgentIndicator(AgentIndicator(), forSession: id) }
     }
 
+    @objc private func menuMarkForAttention(_ sender: NSMenuItem) {
+        guard let request = sender.representedObject as? SessionBatchRequest else { return }
+        store.markForAttention(request.sessionIDs)
+    }
+
     @objc private func menuToggleFlag(_ sender: NSMenuItem) {
         guard let request = sender.representedObject as? SessionBatchRequest else { return }
         actions.toggleFlags(request.sessionIDs, in: store)
+    }
+
+    @objc private func menuToggleWorkspaceFlag(_ sender: NSMenuItem) {
+        guard let node = sender.representedObject as? SidebarNode else { return }
+        store.applyWorkspaceFlag(.toggle, to: node.id)
     }
 
     @objc private func menuDuplicate(_ sender: NSMenuItem) {
         guard let node = sender.representedObject as? SidebarNode else { return }
         // this sidebar's window-local store, like Close/Flag — a background window acts on its own row.
         actions.duplicateSession(node.id, in: store)
+    }
+
+    @objc private func menuDuplicateCompanion(_ sender: NSMenuItem) {
+        guard let node = sender.representedObject as? SidebarNode else { return }
+        actions.duplicateAsCompanion(node.id, in: store)
+    }
+
+    @objc private func menuNewCompanion(_ sender: NSMenuItem) {
+        guard let node = sender.representedObject as? SidebarNode else { return }
+        actions.newCompanion(node.id, in: store)
     }
 
     @objc private func menuRevealInFinder(_ sender: NSMenuItem) {

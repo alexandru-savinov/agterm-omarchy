@@ -1,0 +1,104 @@
+{
+  "platform": "macOS arm64",
+  "scope": "installed application comparison; not fork PR acceptance",
+  "started_at": 1794425562.027752,
+  "checks": [
+    {
+      "name": "private application socket and identity",
+      "passed": true,
+      "seconds": 0.0
+    },
+    {
+      "name": "private state has no owner session identities",
+      "passed": true,
+      "seconds": 0.0
+    },
+    {
+      "name": "real PTY input and output on primary pane",
+      "passed": true,
+      "seconds": 0.043
+    },
+    {
+      "name": "rename reads back through tree",
+      "passed": true,
+      "seconds": 0.011
+    },
+    {
+      "name": "horizontal split reaches realized state",
+      "passed": true,
+      "seconds": 0.024
+    },
+    {
+      "name": "real PTY input and output on split pane",
+      "passed": true,
+      "seconds": 0.03
+    },
+    {
+      "name": "split output is separate from primary",
+      "passed": true,
+      "seconds": 0.009
+    },
+    {
+      "name": "split output survives hide and show",
+      "passed": true,
+      "seconds": 0.009
+    },
+    {
+      "name": "status retains explicit pane ownership",
+      "passed": true,
+      "seconds": 0.021
+    },
+    {
+      "name": "private HTML overlay reports loaded",
+      "passed": true,
+      "seconds": 0.296
+    },
+    {
+      "name": "primary PTY remains usable after HTML overlay",
+      "passed": true,
+      "seconds": 0.041
+    },
+    {
+      "name": "scratch PTY input and output",
+      "passed": true,
+      "seconds": 0.04
+    },
+    {
+      "name": "scratch output survives hide and show",
+      "passed": true,
+      "seconds": 0.009
+    },
+    {
+      "name": "owned session closes without removing owner sessions",
+      "passed": true,
+      "seconds": 0.018
+    }
+  ],
+  "failures": [],
+  "forced_cleanup": false,
+  "protected_process_count": 1,
+  "protected_current_window_session_count": 7,
+  "app_sha256": "04abc755511fb07456070cc8b12348c2674dd1ad0530f78d9a36837b43e72306",
+  "cli_sha256": "426ecb736824f92af86646e4d53cf3e70393fab889a5495537319fe0cdb6073b",
+  "launch_method": "NSWorkspace new instance with private environment overrides",
+  "identity": {
+    "installed": {
+      "version": "0.38.1",
+      "commit": "09727610"
+    },
+    "app": {
+      "version": "0.38.1",
+      "commit": "09727610"
+    }
+  },
+  "app_termination_observed": true,
+  "app_waitpid_status": "unavailable for LaunchServices instance",
+  "owned_processes_remaining": 0,
+  "protected_processes_preserved": true,
+  "protected_current_window_sessions_preserved": true,
+  "app_binary_unchanged": true,
+  "finished_at": 1794425563.538381,
+  "passed": true,
+  "schema": "agterm-mac-vm-evidence/installed-mac-summary/1",
+  "original_private_report_sha256": "93c7ea3d27a100ef1191eddd29a985c0f0b101da6283337619d64b93c5f7a30f"
+}

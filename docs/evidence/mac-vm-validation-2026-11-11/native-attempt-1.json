@@ -1,0 +1,242 @@
+{
+  "passed": false,
+  "source_commit": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "source_run": 41532553668,
+  "started_at_utc": "2026-11-11T19:25:37.138459+00:00",
+  "ended_at_utc": "2026-11-11T19:26:09.537307+00:00",
+  "phase": "failed",
+  "archive_sha256": "d553f29e9fd978e83d60df73b1ef668292bc8414ec5b6617c94c0dc08d0b6995",
+  "zmx_sha256": "7d4d530c2741e7c8edc1ddbfadf528a247d19f032e660aeb7eaf0b1f6288d310",
+  "harness_sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40",
+  "software_rendering": true,
+  "real_login_shell": "/bin/bash",
+  "live_fixture_source_sha256": "b96b70613a14e562eb5d2edec02653b2a41221eedaaf06880334eda3b15ca470",
+  "live_fixture_binary_sha256": "24030151e8e10ff501349477a520c10331fe1cf58ff2990ef584602683a78860",
+  "error": "RuntimeError: Additional config/lifecycle probe failed",
+  "preservation": {
+    "passed": true,
+    "protected_process_count": 0,
+    "lost": {}
+  },
+  "installed_payload_unchanged": true,
+  "payload_unchanged": true,
+  "preexisting_sessions_preserved": true,
+  "login_shell_unchanged": true,
+  "shared_runtime_unchanged": true,
+  "signals": [],
+  "schema": "agterm-mac-vm-evidence/native-summary/1",
+  "attempt": 1,
+  "derivation": "Selected fields from retained private operator report; no VM identifier, environment, desktop image or absolute stage path is published.",
+  "original_private_report_sha256": "d3ebba88762a637c71094c41138e4d2f8c0bd66204f31f94738a5d5a8fb23be0",
+  "probe_source_commit": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+  "modes": {
+    "none": {
+      "passed": true,
+      "started_at_utc": "2026-11-11T19:25:38.944184+00:00",
+      "ended_at_utc": "2026-11-11T19:25:43.781683+00:00",
+      "returncode": 0,
+      "launcher_sha256": "35b99fd3ce1e63ca4c7c54ccaad5b540432c00f0d7a2cd3cd099a1f08d8e3bef",
+      "shared_runtime_unchanged": true,
+      "installed_payload_unchanged": true,
+      "login_shell_unchanged": true,
+      "checks": [
+        "primary PTY execution and screen read-back",
+        "native Wayland rendering: red-to-green PTY pixel change",
+        "workspace/session creation and split PTY execution",
+        "overlay output, dismissal, and restored split input",
+        "WebKitGTK HTML overlay load",
+        "split/session/workspace teardown",
+        "no terminal GL-context or app CSS failures"
+      ],
+      "identity": {
+        "schema": "agterm-omarchy-run-identity/1",
+        "run_id": "53d898190b2c4a1a96071102ea77c978",
+        "artifact_dir_name": "none",
+        "started_at_utc": "2026-11-11T19:25:38.971631Z",
+        "harness": {
+          "sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40",
+          "git_commit": null,
+          "git_blob": "38d8916e35c862f65bd2a206b411086cd95942ab",
+          "matches_commit": null
+        },
+        "binaries": {
+          "app": {
+            "name": "none-launch-app.py",
+            "sha256": "35b99fd3ce1e63ca4c7c54ccaad5b540432c00f0d7a2cd3cd099a1f08d8e3bef",
+            "resolved_name": "none-launch-app.py",
+            "kind": "script"
+          },
+          "cli": {
+            "name": "agtermctl",
+            "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+            "resolved_name": "agtermctl",
+            "kind": "script"
+          },
+          "zmx": null
+        },
+        "app_processes": [
+          {
+            "launch": 1,
+            "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+            "exe_name": "agterm-linux.bin"
+          }
+        ],
+        "zmx_list": [],
+        "positive_control": null,
+        "ended_at_utc": "2026-11-11T19:25:43.549842Z"
+      },
+      "cleanup": {
+        "passed": true,
+        "tracked_daemon_count": 0
+      },
+      "independent_cleanup": {
+        "passed": true,
+        "tracked_process_count": 22,
+        "remaining_processes": [],
+        "new_app_processes": [],
+        "timed_out": false,
+        "forced_cleanup": false,
+        "cleanup_actions": [],
+        "errors": [],
+        "preservation": {
+          "passed": true,
+          "protected_process_count": 0,
+          "lost": {}
+        }
+      },
+      "same_shell_pid_after_restart": null
+    },
+    "live": {
+      "passed": true,
+      "started_at_utc": "2026-11-11T19:25:43.881512+00:00",
+      "ended_at_utc": "2026-11-11T19:25:48.970946+00:00",
+      "returncode": 0,
+      "launcher_sha256": "d4037e01cbf39934d40aa824c22ed4d6757b281efadeaa13fa61cadbf025026e",
+      "shared_runtime_unchanged": true,
+      "installed_payload_unchanged": true,
+      "login_shell_unchanged": true,
+      "checks": [
+        "primary PTY execution and screen read-back",
+        "Live mode shell execution through bundled zmx",
+        "Live session preserves shell PID across application restart",
+        "native Wayland rendering: red-to-green PTY pixel change",
+        "workspace/session creation and split PTY execution",
+        "overlay output, dismissal, and restored split input",
+        "WebKitGTK HTML overlay load",
+        "split/session/workspace teardown",
+        "no terminal GL-context or app CSS failures"
+      ],
+      "identity": {
+        "schema": "agterm-omarchy-run-identity/1",
+        "run_id": "006721fb227546bfaaa14e89358c0175",
+        "artifact_dir_name": "live",
+        "started_at_utc": "2026-11-11T19:25:43.910393Z",
+        "harness": {
+          "sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40",
+          "git_commit": null,
+          "git_blob": "38d8916e35c862f65bd2a206b411086cd95942ab",
+          "matches_commit": null
+        },
+        "binaries": {
+          "app": {
+            "name": "live-launch-app.py",
+            "sha256": "d4037e01cbf39934d40aa824c22ed4d6757b281efadeaa13fa61cadbf025026e",
+            "resolved_name": "live-launch-app.py",
+            "kind": "script"
+          },
+          "cli": {
+            "name": "agtermctl",
+            "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+            "resolved_name": "agtermctl",
+            "kind": "script"
+          },
+          "zmx": {
+            "name": "zmx",
+            "sha256": "7d4d530c2741e7c8edc1ddbfadf528a247d19f032e660aeb7eaf0b1f6288d310",
+            "resolved_name": "zmx",
+            "kind": "elf"
+          }
+        },
+        "app_processes": [
+          {
+            "launch": 1,
+            "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+            "exe_name": "agterm-linux.bin"
+          },
+          {
+            "launch": 2,
+            "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+            "exe_name": "agterm-linux.bin"
+          }
+        ],
+        "zmx_list": [],
+        "positive_control": null,
+        "zmx_socket_directory_name": "agterm-zmx-c7fcf6842f84bf83",
+        "ended_at_utc": "2026-11-11T19:25:48.197028Z"
+      },
+      "cleanup": {
+        "passed": true,
+        "tracked_daemon_count": 3
+      },
+      "independent_cleanup": {
+        "passed": true,
+        "tracked_process_count": 34,
+        "remaining_processes": [],
+        "new_app_processes": [],
+        "timed_out": false,
+        "forced_cleanup": false,
+        "cleanup_actions": [],
+        "errors": [],
+        "preservation": {
+          "passed": true,
+          "protected_process_count": 0,
+          "lost": {}
+        }
+      },
+      "same_shell_pid_after_restart": true
+    }
+  },
+  "config_probe": {
+    "passed": false,
+    "probe_sha256": "c521ff81ffa6677eeb61b1601c5535cda140ee605682449d6abb63d683d6eed9",
+    "errors": [
+      "RuntimeError: Config probe failed"
+    ],
+    "remaining_owned_processes": [],
+    "preservation": {
+      "passed": true,
+      "protected_process_count": 0,
+      "lost": {}
+    },
+    "probe": {
+      "passed": false,
+      "started_at_utc": "2026-11-11T19:25:49.109496+00:00",
+      "ended_at_utc": "2026-11-11T19:26:09.185504+00:00",
+      "expected_app_sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+      "retained_file_limit": 2,
+      "checks": [],
+      "forced_recovery": true,
+      "errors": [
+        "TimeoutError: isolated control socket"
+      ],
+      "limits": [
+        "No desktop appearance switch or conditional-side transition is claimed.",
+        "Mapped realized surfaces and PTY read-back are checked; pixels are a separate gate.",
+        "Linux config.reload exposes no diagnostic count; app logs are checked separately."
+      ],
+      "remaining_generated_paths": [
+        "dconf"
+      ],
+      "socket_directory_removed": true,
+      "sentinel_preserved": true,
+      "caller_environment_unchanged": true,
+      "login_shell_unchanged": true,
+      "apps": [],
+      "cleanup_signals": [
+        15,
+        15
+      ],
+      "remaining_process_count": 0
+    }
+  }
+}

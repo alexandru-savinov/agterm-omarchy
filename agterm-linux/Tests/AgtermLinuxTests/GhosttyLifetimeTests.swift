@@ -30,7 +30,8 @@ struct GhosttyLifetimeTests {
             workingDirectory: "/tmp/work",
             command: "/bin/sh -lc true",
             initialInput: "printf ready",
-            environment: ["AGTERM_PANE": "main", "AGTERM_SESSION_ID": "session"]
+            environment: ["AGTERM_PANE": "main", "AGTERM_SESSION_ID": "session"],
+            environmentUnsets: ["LD_LIBRARY_PATH", "AGTERM_ORIG_SET"]
         ))
         var config = ghostty_surface_config_new()
         storage.apply(to: &config)
@@ -44,11 +45,14 @@ struct GhosttyLifetimeTests {
             (String(cString: $0.key), String(cString: $0.value))
         })
         #expect(values == ["AGTERM_PANE": "main", "AGTERM_SESSION_ID": "session"])
+        #expect(try #require(storage.environmentUnsets).map { $0.map { String(cString: $0) } } ==
+                ["LD_LIBRARY_PATH", "AGTERM_ORIG_SET"])
 
         storage.release()
         storage.release()
         #expect(storage.isReleased)
         #expect(storage.environment == nil)
+        #expect(storage.environmentUnsets == nil)
     }
 
     @Test("partial configuration allocation releases retained buffers")
@@ -72,5 +76,42 @@ struct GhosttyLifetimeTests {
         #expect(storage == nil)
         #expect(allocations == 2)
         #expect(deallocations == 1)
+    }
+
+    @Test("every deletion allocation failure releases all previously retained strings", arguments: 1...5)
+    func deletionAllocationFailure(failure: Int) {
+        var allocations = 0
+        var deallocations = 0
+        let storage = GhosttySurfaceConfigurationStorage(
+            workingDirectory: "/tmp", command: nil, initialInput: nil,
+            environment: ["EMPTY": ""], environmentUnsets: ["ABSENT", "AGTERM_ORIG_SET"],
+            duplicate: { value in
+                allocations += 1
+                return allocations == failure ? nil : strdup(value)
+            }, deallocate: { pointer in deallocations += 1; free(pointer) }
+        )
+        #expect(storage == nil)
+        #expect(allocations == failure)
+        #expect(deallocations == failure - 1)
+    }
+
+    @Test("deletion names work without set entries and deinit frees their strings")
+    func deletionOnlyDeinit() throws {
+        var deallocations = 0
+        do {
+            let storage = try #require(GhosttySurfaceConfigurationStorage(
+                workingDirectory: "/tmp", command: nil, initialInput: nil, environment: [:],
+                environmentUnsets: ["ABSENT"], deallocate: { pointer in deallocations += 1; free(pointer) }
+            ))
+            #expect(storage.environment == nil)
+            #expect(storage.environmentUnsets?.count == 1)
+        }
+        #expect(deallocations == 2)
+    }
+
+    @Test("invalid deletion names fail closed", arguments: ["", "A=B", "A\u{0}B"])
+    func invalidDeletionName(name: String) {
+        #expect(GhosttySurfaceConfigurationStorage(workingDirectory: "/tmp", command: nil, initialInput: nil,
+                                                 environment: [:], environmentUnsets: [name]) == nil)
     }
 }

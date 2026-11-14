@@ -1,0 +1,119 @@
+{
+  "schema": "agterm-mac-release-artifact-comparison/1",
+  "original": "mac-release-provenance/result-private.json",
+  "original_sha256": "291b666b3cd456be4bd900689c3b34efc207a85c94fb187403a8aaa08f47403d",
+  "evidence_kind": "retained original extract",
+  "new_execution": false,
+  "installed_bundle_source_attribution": "bundle-declared upstream09727610, not a reproduced source build",
+  "official_metadata": {
+    "observed_utc": "2026-11-11T21:32:00Z",
+    "url": "https://api.github.com/repos/umputun/agterm/releases/tags/v0.38.1",
+    "release_id": 421393405,
+    "tag_name": "v0.38.1",
+    "published_at": "2026-10-23T02:33:54Z",
+    "html_url": "https://github.com/umputun/agterm/releases/tag/v0.38.1",
+    "assets": [
+      {
+        "id": 667741009,
+        "name": "agterm-0.38.1.dmg",
+        "size": 22633778,
+        "digest": "sha256:96da24beb0561d43d0eb0411408549cbb44af9d291fe3b0b7f69a8f9415df81d",
+        "browser_download_url": "https://github.com/umputun/agterm/releases/download/v0.38.1/agterm-0.38.1.dmg"
+      }
+    ]
+  },
+  "started_at": 1794432716.365116,
+  "release_url": "https://github.com/umputun/agterm/releases/tag/v0.38.1",
+  "asset_url": "https://github.com/umputun/agterm/releases/download/v0.38.1/agterm-0.38.1.dmg",
+  "asset_id": 667741009,
+  "expected_sha256": "96da24beb0561d43d0eb0411408549cbb44af9d291fe3b0b7f69a8f9415df81d",
+  "expected_bytes": 22633778,
+  "errors": [],
+  "actual_sha256": "96da24beb0561d43d0eb0411408549cbb44af9d291fe3b0b7f69a8f9415df81d",
+  "mounted_read_only": true,
+  "binary_comparisons": {
+    "agterm": {
+      "release_sha256": "04abc755511fb07456070cc8b12348c2674dd1ad0530f78d9a36837b43e72306",
+      "installed_sha256": "04abc755511fb07456070cc8b12348c2674dd1ad0530f78d9a36837b43e72306",
+      "equal": true
+    },
+    "agtermctl": {
+      "release_sha256": "426ecb736824f92af86646e4d53cf3e70393fab889a5495537319fe0cdb6073b",
+      "installed_sha256": "426ecb736824f92af86646e4d53cf3e70393fab889a5495537319fe0cdb6073b",
+      "equal": true
+    },
+    "agterm-session-host": {
+      "release_sha256": "2865953dd40bed50a9557a8b344e13fb1a6167ac8babd8444560e91dc96152d7",
+      "installed_sha256": "2865953dd40bed50a9557a8b344e13fb1a6167ac8babd8444560e91dc96152d7",
+      "equal": true
+    },
+    "zmx": {
+      "release_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+      "installed_sha256": "4db635396d83ded73e102fb365375a9216c01da515d58c796537b83210b6eb01",
+      "equal": true
+    }
+  },
+  "release_bundle_metadata": {
+    "CFBundleIdentifier": "com.umputun.agterm",
+    "CFBundleShortVersionString": "0.38.1",
+    "CFBundleVersion": "0.38.1",
+    "GitCommit": "09727610"
+  },
+  "images_match_release": true,
+  "limit": "Byte correspondence to published release images; not a reproducible source build proof.",
+  "detached": true,
+  "finished_at": 1794432730.725725,
+  "passed": true,
+  "commands": [
+    {
+      "program": "curl",
+      "argv": [
+        "/usr/bin/curl",
+        "--disable",
+        "--fail",
+        "--location",
+        "--proto",
+        "=https",
+        "--proto-redir",
+        "=https",
+        "--silent",
+        "--show-error",
+        "--connect-timeout",
+        "20",
+        "--max-time",
+        "240",
+        "--output",
+        "<private-release-verification>/agterm-0.38.1.dmg",
+        "https://github.com/umputun/agterm/releases/download/v0.38.1/agterm-0.38.1.dmg"
+      ],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "program": "hdiutil",
+      "argv": [
+        "/usr/bin/hdiutil",
+        "attach",
+        "-readonly",
+        "-nobrowse",
+        "-noautoopen",
+        "-mountpoint",
+        "<private-release-verification>/mounted",
+        "-plist",
+        "<private-release-verification>/agterm-0.38.1.dmg"
+      ],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "program": "hdiutil",
+      "argv": [
+        "/usr/bin/hdiutil",
+        "detach",
+        "<private-release-verification>/mounted"
+      ],
+      "exit_code": 0,
+      "stderr": ""
+    }
+  ]
+}
