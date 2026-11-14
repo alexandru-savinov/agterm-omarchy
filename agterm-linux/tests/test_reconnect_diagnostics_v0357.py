@@ -1,0 +1,440 @@
+#!/usr/bin/env python3
+"""File/fake-only controls: python3 -B agterm-linux/tests/test_reconnect_diagnostics_v0357.py."""
+
+import contextlib
+import io
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import textwrap
+import unittest
+from unittest.mock import patch
+
+from atspi_reconnect_v0351 import (
+    ReconnectDiagnostics, append_wrapper_metadata, attachment_correlation, process_status, wrapper_events,
+    wrapper_writer_main,
+)
+
+PANE = "11111111-1111-1111-1111-111111111111"
+OTHER = "22222222-2222-2222-2222-222222222222"
+INCARNATION = "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"
+NONCE = "a" * 64
+
+
+class ReconnectMetadataTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="reconnect357-fake-")
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.proc = self.root / "proc"
+        self.proc.mkdir()
+        self.log = self.root / (INCARNATION + ".log")
+        self.write_log(self.line())
+        self.write_stat(100, 50, "1234")
+        self.write_stat(101, 100, "1235")
+        self.before = process_status(101, self.proc)
+        self.environment = [
+            ("AGTERM_PANE_ID=" + PANE).encode(),
+            ("AGTERM_DIAG357_INCARNATION=" + INCARNATION).encode(),
+            ("AGTERM_DIAG357_NONCE_TAG=" + NONCE).encode(),
+            b"PRIVATE_HOST=must-not-appear", b"SECRET=must-not-appear",
+        ]
+
+    def line(self, event="wrapper-start", status="na"):
+        return (f"DIAG357 wrapper event={event} incarnation={INCARNATION} pane={PANE} "
+                f"nonceTag={NONCE} pid=100 status={status}\n")
+
+    def write_log(self, content):
+        self.log.write_text(content)
+        self.log.chmod(0o600)
+
+    def write_stat(self, pid, parent, start):
+        directory = self.proc / str(pid)
+        directory.mkdir(exist_ok=True)
+        fields = ["0"] * 50
+        fields[0], fields[1], fields[19] = "S", str(parent), start
+        (directory / "stat").write_text(f"{pid} (fixture with ) parentheses) " + " ".join(fields))
+
+    def correlate(self, before=None, environment=None, panes=None):
+        return attachment_correlation(
+            self.before if before is None else before,
+            self.environment if environment is None else environment,
+            {"left": PANE, "right": OTHER} if panes is None else panes,
+            str(self.root), self.proc,
+        )
+
+    def test_correlates_selected_pane_to_matching_wrapper_and_start_identity(self):
+        result = self.correlate()
+        self.assertTrue(result["matched"])
+        self.assertEqual(result["wrapper_before"]["pid"], 100)
+        self.assertEqual(result["wrapper_before"]["start_ticks"], "1234")
+        self.assertEqual(result["pane"], PANE)
+        self.assertEqual(result["nonceTag"], NONCE)
+        self.assertNotIn("must-not-appear", json.dumps(result))
+
+    def test_refuses_mismatched_pane_nonce_parent_and_missing_tag(self):
+        cases = [
+            (self.before, self.environment, {"left": OTHER}),
+            (dict(self.before, ppid=200), self.environment, {"left": PANE}),
+            (dict(self.before, ppid=1), self.environment, {"left": PANE}),
+            (self.before, [item for item in self.environment if not item.startswith(b"AGTERM_DIAG357_NONCE_TAG=")],
+             {"left": PANE}),
+            (self.before, [item.replace(NONCE.encode(), b"b" * 64) for item in self.environment], {"left": PANE}),
+        ]
+        for before, environment, panes in cases:
+            with self.subTest(before=before, panes=panes):
+                self.assertEqual(self.correlate(before, environment, panes), {"pid": 101, "matched": False})
+
+    def test_refuses_ssh_reuse_or_parent_change_during_correlation(self):
+        for parent, start in [(100, "9999"), (200, "1235")]:
+            with self.subTest(parent=parent, start=start):
+                self.write_stat(101, parent, start)
+                self.assertFalse(self.correlate()["matched"])
+
+    def test_process_reuse_returns_no_replacement_process_details(self):
+        self.write_stat(100, 999, "new-start")
+        self.assertEqual(process_status(100, self.proc, expected_start="1234"),
+                         {"pid": 100, "identity_changed": True})
+        self.assertEqual(process_status(999, self.proc), {"pid": 999, "unavailable": True})
+
+    def test_metadata_reader_accepts_only_the_bounded_schema(self):
+        malformed = [
+            "private-host private-title private-environment\n",
+            self.line().replace("status=na", "status=private-title"),
+            self.line("ssh-return", "na"),
+            self.line("unknown", "0"),
+            self.line().replace("pane=" + PANE, "pane=private-title"),
+            self.line().replace(INCARNATION, OTHER),
+            self.line().rstrip() + " host=private-host\n",
+            "x" * 65537,
+            "private-\N{SNOWMAN}\n",
+        ]
+        for content in malformed:
+            with self.subTest(content=content[:50]):
+                self.write_log(content)
+                result = wrapper_events(str(self.root), INCARNATION)
+                self.assertEqual(result["events"], [])
+                self.assertIn("error", result)
+                self.assertNotIn("private", json.dumps(result))
+
+    def test_metadata_reader_refuses_symlink_hardlink_and_fifo(self):
+        target = self.root / "private-target"
+        self.log.rename(target)
+        for kind in ("symlink", "hardlink", "fifo"):
+            with self.subTest(kind=kind):
+                if kind == "symlink":
+                    self.log.symlink_to(target)
+                elif kind == "hardlink":
+                    os.link(target, self.log)
+                else:
+                    os.mkfifo(self.log)
+                self.assertEqual(wrapper_events(str(self.root), INCARNATION)["events"], [])
+                self.log.unlink()
+        self.assertEqual(target.read_text(), self.line())
+
+    def test_metadata_reader_refuses_shared_file_or_directory(self):
+        self.log.chmod(0o644)
+        self.assertEqual(wrapper_events(str(self.root), INCARNATION)["events"], [])
+        self.log.chmod(0o600)
+        for mode in (0o755, 0o1700):
+            self.root.chmod(mode)
+            self.assertEqual(wrapper_events(str(self.root), INCARNATION)["events"], [])
+        self.root.chmod(0o700)
+        self.assertEqual(len(wrapper_events(str(self.root), INCARNATION)["events"]), 1)
+
+    def test_disabled_observer_does_not_read_process_or_metadata_files(self):
+        with patch.dict(os.environ, {}, clear=True):
+            diagnostics = ReconnectDiagnostics()
+        with patch("atspi_reconnect_v0351.attachment_correlation", side_effect=AssertionError("unexpected read")):
+            diagnostics.correlate(self.before, self.environment, {"left": PANE})
+        self.assertEqual(diagnostics.correlations, [])
+
+    def test_report_keeps_the_recorded_start_identity_for_each_selected_process(self):
+        with patch.dict(os.environ, {"AGTERM_DIAG357": "1", "AGTERM_DIAG357_DIR": str(self.root)}, clear=True):
+            diagnostics = ReconnectDiagnostics()
+        diagnostics.correlations = [self.correlate()]
+        diagnostics.signalled = [self.before]
+        with patch("atspi_reconnect_v0351.process_status", return_value={"unavailable": True}) as status:
+            report = diagnostics.report("complete", str(self.root / "ssh-down"))
+        status.assert_any_call(101, expected_start="1235")
+        status.assert_any_call(100, expected_start="1234")
+        self.assertTrue(report["correlations"][0]["matched"])
+        self.assertEqual(len(report["correlations"][0]["wrapper_records"]["events"]), 1)
+        self.assertNotIn("must-not-appear", json.dumps(report))
+
+    def test_exact_shell_template_is_silent_preserves_stdin_and_saved_status(self):
+        source = Path(__file__).resolve().parents[2] / "agtermCore/Sources/agtermCore/RemoteSession.swift"
+        match = re.search(r'static let attachDiagnosticShell = #"""\n(.*?)\n    """#',
+                          source.read_text(), re.DOTALL)
+        self.assertIsNotNone(match)
+        template = textwrap.dedent(match.group(1))
+        subprocess.run(["/bin/sh", "-n"], input=template + "\n", text=True, check=True, timeout=5)
+        program = template + """
+        status=255
+        diag357 ssh-return "$status"
+        IFS= read -r payload
+        printf '%s:%s\\n' "$payload" "$status"
+        """
+        base = {
+            "PATH": "/usr/bin:/bin", "AGTERM_DIAG357": "1", "AGTERM_DIAG357_DIR": str(self.root),
+            "AGTERM_DIAG357_INCARNATION": INCARNATION, "AGTERM_PANE_ID": PANE,
+            "AGTERM_DIAG357_NONCE_TAG": NONCE,
+            "AGTERM_DIAG357_INTERPRETER": sys.executable,
+            "AGTERM_DIAG357_WRITER": str(Path(__file__).with_name("atspi_reconnect_v0351.py").resolve()),
+            "AGTERM_DIAG357_IDENTITY": ":".join(str(value) for value in (
+                self.root.stat().st_dev, self.root.stat().st_ino, self.log.stat().st_dev, self.log.stat().st_ino)),
+        }
+        variants = [
+            ({}, True), ({"AGTERM_DIAG357": "0"}, False),
+            ({"AGTERM_DIAG357_INCARNATION": "../private"}, False),
+            ({"AGTERM_PANE_ID": "private-title\ninjected"}, False),
+            ({"AGTERM_DIAG357_NONCE_TAG": "private-nonce"}, False),
+            ({"AGTERM_DIAG357_INTERPRETER": "/missing/fixture-interpreter"}, False),
+            ({"AGTERM_DIAG357_WRITER": "/missing/fixture-writer"}, False),
+            ({"AGTERM_DIAG357_IDENTITY": "bad"}, False),
+            ({"AGTERM_DIAG357_IDENTITY": "1:2:3:4"}, False),
+        ]
+        for extra, enabled in variants:
+            with self.subTest(extra=extra):
+                self.write_log("")
+                result = subprocess.run(["/bin/sh", "-c", program], env=dict(base, **extra),
+                                        input="fixture-input\n", text=True, capture_output=True,
+                                        check=True, timeout=5)
+                self.assertEqual(result.stdout, "fixture-input:255\n")
+                self.assertEqual(result.stderr, "")
+                records = wrapper_events(str(self.root), INCARNATION)["events"]
+                self.assertEqual(len(records), int(enabled))
+                if enabled:
+                    self.assertEqual(records[0]["event"], "ssh-return")
+                    self.assertEqual(records[0]["status"], "255")
+
+
+class WriterTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="diag357-writer-control-")
+        self.addCleanup(self.temporary.cleanup)
+        self.top = Path(self.temporary.name)
+        self.root = self.top / "private"
+        self.root.mkdir(mode=0o700)
+        self.log = self.root / (INCARNATION + ".log")
+        self.log.write_bytes(b"sentinel\n")
+        self.log.chmod(0o600)
+        # Keep the original identity live throughout replacement fixtures.
+        self.capability = os.open(self.log, os.O_RDONLY)
+        self.addCleanup(os.close, self.capability)
+        d, f = self.root.stat(), self.log.stat()
+        self.identity = (d.st_dev, d.st_ino, f.st_dev, f.st_ino)
+        self.call = dict(directory=str(self.root), incarnation=INCARNATION, pane=PANE, nonce_tag="a" * 64,
+                         pid="123", event="ssh-return", status="255", identity=self.identity)
+
+    def append(self, **changes):
+        output, error = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
+            result = append_wrapper_metadata(**dict(self.call, **changes))
+        self.assertEqual(output.getvalue(), "")
+        self.assertEqual(error.getvalue(), "")
+        return result
+
+    def original(self):
+        os.lseek(self.capability, 0, os.SEEK_SET)
+        return os.read(self.capability, 65537)
+
+    def unchanged(self):
+        self.assertEqual(self.original(), b"sentinel\n")
+
+    def test_positive_one_bounded_descriptor_write(self):
+        real_write = os.write
+        writes = []
+        def write(fd, data):
+            info = os.fstat(fd)
+            writes.append(((info.st_dev, info.st_ino), data))
+            return real_write(fd, data)
+        with patch("atspi_reconnect_v0351.os.write", side_effect=write):
+            self.assertTrue(self.append())
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(writes[0][0], self.identity[2:])
+        self.assertLessEqual(len(writes[0][1]), 512)
+        self.assertIn(b"pid=123 status=255", self.log.read_bytes())
+
+    def test_file_mode_refused(self):
+        self.log.chmod(0o644)
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_directory_mode_refused(self):
+        self.root.chmod(0o755)
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_special_directory_mode_refused(self):
+        self.root.chmod(0o1700)
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_symlink_directory_refused(self):
+        alias = self.top / "alias"
+        alias.symlink_to(self.root)
+        self.assertFalse(self.append(directory=str(alias))); self.unchanged()
+
+    def test_hardlink_unrelated_owned_fixture_refused(self):
+        target = self.root / "unrelated"
+        target.write_bytes(b"private unrelated sentinel\n"); target.chmod(0o600)
+        self.log.unlink(); os.link(target, self.log)
+        self.assertFalse(self.append()); self.unchanged()
+        self.assertEqual(target.read_bytes(), b"private unrelated sentinel\n")
+
+    def test_same_inode_additional_link_refused(self):
+        os.link(self.log, self.root / "alias")
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_regular_file_replacement_refused(self):
+        self.log.unlink(); self.log.write_bytes(b"replacement\n"); self.log.chmod(0o600)
+        self.assertFalse(self.append()); self.unchanged()
+        self.assertEqual(self.log.read_bytes(), b"replacement\n")
+
+    def test_directory_replacement_refused(self):
+        self.root.rename(self.top / "old-root")
+        self.root.mkdir(mode=0o700)
+        self.log.write_bytes(b"replacement\n"); self.log.chmod(0o600)
+        self.assertFalse(self.append()); self.unchanged()
+        self.assertEqual(self.log.read_bytes(), b"replacement\n")
+
+    def test_file_symlink_refused(self):
+        target = self.root / "target"
+        self.log.rename(target); self.log.symlink_to(target)
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_fifo_refused_without_waiting(self):
+        self.log.unlink(); os.mkfifo(self.log, 0o600)
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_missing_file_not_created(self):
+        self.log.unlink()
+        self.assertFalse(self.append()); self.assertFalse(self.log.exists()); self.unchanged()
+
+    def test_file_replaced_at_open_refused(self):
+        real_open = os.open
+        def opening(path, flags, *args, **kwargs):
+            if path == INCARNATION + ".log":
+                self.log.rename(self.root / "old-log")
+                self.log.write_bytes(b"replacement\n"); self.log.chmod(0o600)
+            return real_open(path, flags, *args, **kwargs)
+        with patch("atspi_reconnect_v0351.os.open", side_effect=opening):
+            self.assertFalse(self.append())
+        self.unchanged(); self.assertEqual(self.log.read_bytes(), b"replacement\n")
+
+    def test_file_replaced_after_open_refused(self):
+        real_open = os.open
+        def opening(path, flags, *args, **kwargs):
+            fd = real_open(path, flags, *args, **kwargs)
+            if path == INCARNATION + ".log":
+                self.log.rename(self.root / "old-log")
+                self.log.write_bytes(b"replacement\n"); self.log.chmod(0o600)
+            return fd
+        with patch("atspi_reconnect_v0351.os.open", side_effect=opening):
+            self.assertFalse(self.append())
+        self.unchanged(); self.assertEqual(self.log.read_bytes(), b"replacement\n")
+
+    def test_mode_changed_after_name_check_refused(self):
+        real_stat = os.stat
+        def checking(path, *args, **kwargs):
+            info = real_stat(path, *args, **kwargs)
+            if path == INCARNATION + ".log":
+                self.log.chmod(0o644)
+            return info
+        with patch("atspi_reconnect_v0351.os.stat", side_effect=checking):
+            self.assertFalse(self.append())
+        self.unchanged()
+
+    def test_link_added_after_name_check_refused(self):
+        real_stat = os.stat
+        def checking(path, *args, **kwargs):
+            info = real_stat(path, *args, **kwargs)
+            if path == INCARNATION + ".log":
+                os.link(self.log, self.root / "alias")
+            return info
+        with patch("atspi_reconnect_v0351.os.stat", side_effect=checking):
+            self.assertFalse(self.append())
+        self.unchanged()
+
+    def test_directory_replaced_after_file_open_refused(self):
+        real_open = os.open
+        def opening(path, flags, *args, **kwargs):
+            fd = real_open(path, flags, *args, **kwargs)
+            if path == INCARNATION + ".log":
+                self.root.rename(self.top / "old-root")
+                self.root.mkdir(mode=0o700)
+                self.log.write_bytes(b"replacement\n"); self.log.chmod(0o600)
+            return fd
+        with patch("atspi_reconnect_v0351.os.open", side_effect=opening):
+            self.assertFalse(self.append())
+        self.unchanged(); self.assertEqual(self.log.read_bytes(), b"replacement\n")
+
+    def test_directory_mode_changed_at_file_open_refused(self):
+        real_open = os.open
+        def opening(path, flags, *args, **kwargs):
+            if path == INCARNATION + ".log":
+                self.root.chmod(0o755)
+            return real_open(path, flags, *args, **kwargs)
+        with patch("atspi_reconnect_v0351.os.open", side_effect=opening):
+            self.assertFalse(self.append())
+        self.unchanged()
+
+    def test_full_file_refused_before_write(self):
+        self.log.write_bytes(b"x" * 65536)
+        with patch("atspi_reconnect_v0351.os.write", side_effect=AssertionError("unexpected write")):
+            self.assertFalse(self.append())
+        self.assertEqual(self.log.read_bytes(), b"x" * 65536)
+
+    def test_invalid_schema_rejected_before_open(self):
+        variants = [dict(event="unknown"), dict(status="private title"), dict(pid="../private"),
+                    dict(nonce_tag="private"), dict(pane="private"), dict(incarnation="../private"),
+                    dict(identity=(1,2,3)), dict(identity=(True,2,3,4)), dict(directory="relative")]
+        for extra in variants:
+            with self.subTest(extra=extra), patch("atspi_reconnect_v0351.os.open", side_effect=AssertionError("unexpected open")):
+                self.assertFalse(self.append(**extra))
+        self.unchanged()
+
+    def test_interrupted_or_failed_write_does_not_retry(self):
+        for failure in (InterruptedError(), OSError("disposable write failure")):
+            with self.subTest(failure=type(failure).__name__), patch(
+                    "atspi_reconnect_v0351.os.write", side_effect=failure) as write:
+                self.assertFalse(self.append())
+                self.assertEqual(write.call_count, 1)
+            self.unchanged()
+
+    def test_failed_open_does_not_create_or_repair(self):
+        with patch("atspi_reconnect_v0351.os.open", side_effect=PermissionError()) as opening:
+            self.assertFalse(self.append())
+            self.assertEqual(opening.call_count, 1)
+        self.unchanged()
+        self.assertEqual(self.log.stat().st_mode & 0o7777, 0o600)
+
+    def test_short_write_is_reported_without_retry_or_rollback(self):
+        with patch("atspi_reconnect_v0351.os.write", return_value=1) as write:
+            self.assertFalse(self.append())
+            self.assertEqual(write.call_count, 1)
+        self.unchanged()
+
+    def test_same_owner_mode_change_at_write_is_detected_without_reopening(self):
+        real_write = os.write
+        def changed(fd, data):
+            self.log.chmod(0o644)
+            return real_write(fd, data)
+        # No userspace check can make a concurrent chmod+write atomic. The data is still written only
+        # to the expected inode, and the result reports refusal; no unsafe rollback is attempted.
+        with patch("atspi_reconnect_v0351.os.write", side_effect=changed):
+            self.assertFalse(self.append())
+        self.assertIn(b"event=ssh-return", self.original())
+
+    def test_loader_refuses_wrong_arity_or_unbounded_identity_without_open(self):
+        for arguments in ([], ["bad"] * 9, ["--append-wrapper357", str(self.root), "9" * 80,
+                          INCARNATION, PANE, "a" * 64, "123", "ssh-return", "255"]):
+            with self.subTest(arguments=arguments), patch(
+                    "atspi_reconnect_v0351.os.open", side_effect=AssertionError("unexpected open")):
+                self.assertIsNone(wrapper_writer_main(arguments))
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

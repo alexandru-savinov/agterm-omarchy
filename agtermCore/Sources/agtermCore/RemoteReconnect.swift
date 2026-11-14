@@ -58,6 +58,17 @@ public final class RemoteReconnectBook {
 
     public private(set) var entries: [UUID: Entry] = [:]
     @ObservationIgnored private var resumed: [UUID: (at: Date, failures: Int)] = [:]
+    /// Optional host-owned metadata sink. No host, nonce, stderr, clock or I/O enters this snapshot.
+    public enum DiagnosticStage: String, Equatable, Sendable { case waiting, probing, failed, resumed, cancelled, retryNow }
+    public struct Diagnostic: Equatable, Sendable {
+        public let stage: DiagnosticStage
+        public let pane: UUID
+        public let waiting: Bool
+        public let failures: Int?
+        public let probing: Bool?
+        public let reasonPresent: Bool
+    }
+    @ObservationIgnored public var onDiagnostic: (@MainActor (Diagnostic) -> Void)?
     static let reasonLimit = 200
 
     init() {}
@@ -75,13 +86,17 @@ public final class RemoteReconnectBook {
             entry.retryAt = now.addingTimeInterval(RemoteRetryBackoff.delay(afterFailures: entry.failures))
         }
         entries[pane] = entry
+        diagnose(.waiting, pane: pane)
     }
 
     /// The panes to probe now, marked so a slow probe is not started twice.
     public func due(now: Date) -> [UUID] {
         resumed = resumed.filter { now.timeIntervalSince($0.value.at) < Self.settle }
         let panes = entries.filter { !$0.value.probing && $0.value.retryAt <= now }.map(\.key)
-        for pane in panes { entries[pane]?.probing = true }
+        for pane in panes {
+            entries[pane]?.probing = true
+            diagnose(.probing, pane: pane)
+        }
         return panes
     }
 
@@ -95,10 +110,12 @@ public final class RemoteReconnectBook {
             entry.reason = Self.reason(fromStderr: stderr)
             entry.retryAt = now.addingTimeInterval(RemoteRetryBackoff.delay(afterFailures: entry.failures))
             entries[pane] = entry
+            diagnose(.failed, pane: pane)
             return nil
         }
         entries[pane] = nil
         resumed[pane] = (now, entry.failures)
+        diagnose(.resumed, pane: pane)
         return entry
     }
 
@@ -118,6 +135,7 @@ public final class RemoteReconnectBook {
     /// Due now with the backoff over; a probe already running is not started twice.
     public func retryNow(pane: UUID, now: Date) {
         guard entries[pane] != nil else { return }
+        defer { diagnose(.retryNow, pane: pane) }
         entries[pane]?.failures = 0
         guard entries[pane]?.probing == false else { return }
         entries[pane]?.retryAt = now
@@ -130,5 +148,14 @@ public final class RemoteReconnectBook {
     public func cancel(pane: UUID) {
         entries[pane] = nil
         resumed[pane] = nil
+        diagnose(.cancelled, pane: pane)
+    }
+
+    private func diagnose(_ stage: DiagnosticStage, pane: UUID) {
+        guard let onDiagnostic else { return }
+        let entry = entries[pane]
+        onDiagnostic(Diagnostic(stage: stage, pane: pane, waiting: entry != nil,
+                                failures: entry?.failures, probing: entry?.probing,
+                                reasonPresent: entry?.reason != nil))
     }
 }

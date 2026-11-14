@@ -37,6 +37,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
 
     /// The owning session's id (so the host can route close/title back to the model).
     let sessionID: UUID
+    let reconnectDiagnosticID = LinuxReconnectDiagnostics.incarnation()
     weak var controller: AppController?
     var linkBrowserOverride = false
     /// Concrete host role; unlike a split boolean this distinguishes notification and focus behavior
@@ -131,7 +132,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
         self.reportsPaneState = reportsPaneState
         self.fontSize = fontSize
         self.initialInput = initialInput
-        self.env = gdkEnvironment.childEnvironment(merging: env)
+        self.env = gdkEnvironment.childEnvironment(merging: LinuxReconnectDiagnostics.childEnvironment(env, incarnation: reconnectDiagnosticID))
         environmentUnsets = gdkEnvironment.childEnvironmentUnsets(merging: env)
         rootWidget = OpaquePointer(gtk_overlay_new())
         glArea = OpaquePointer(gtk_gl_area_new())
@@ -759,6 +760,9 @@ final class GhosttySurface: PaneRoleMutableSurface {
 
     func applyTitle(_ title: String) {
         if let notice = RemoteLinkNotice(title: title) {
+            if LinuxReconnectDiagnostics.enabled {
+                LinuxReconnectDiagnostics.record("link-title", surface: self, fields: ["nonceTag": LinuxReconnectDiagnostics.nonceTag(notice.nonce)])
+            }
             controller?.remoteLinkLost(notice, surface: self)
             return
         }
@@ -800,6 +804,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     }
 
     func handleHeldProcessExit() {
+        LinuxReconnectDiagnostics.record("held-sync", surface: self)
         guard waitAfterCommand else { return }
         // The final link-loss title can follow the child-exit callback from the separate PTY reader.
         heldLeadAttachment.retain(controller?.remoteHeldExits.attachmentEnded(self, forSession: sessionID))
@@ -852,6 +857,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     // MARK: - TerminalSurface
 
     func teardown() {
+        LinuxReconnectDiagnostics.record("surface-teardown", surface: self)
         if !preservesReconnectOnTeardown, let pane = UUID(uuidString: paneToken) { RemoteReconnectBook.shared.cancel(pane: pane) }
         onExit = nil
         onExitHeld = nil

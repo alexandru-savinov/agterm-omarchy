@@ -162,14 +162,42 @@ public enum RemoteSession {
             let bar = CommandRestore.shellQuotedLine(["Connection to \(host) lost · reconnecting… · any key retries now"])
             let title = CommandRestore.shellQuotedLine([RemoteLinkNotice.title(nonce: lead.nonce)])
             let reset = "\\033[0m\\033[?1000l\\033[?1002l\\033[?1003l\\033[?1006l\\033[?1004l\\033[?2004l\\033[?2031l\\033[?2048l"
-            script = "\(keepAlive); \(attach); status=$?; if [ \"$status\" -eq 255 ]; then "
-                + "printf '\(reset)\\r\\n\\033[30;43m %s \\033[K\\033[0m\\n' \(bar); printf '\\033]2;%s\\007' \(title); "
-                + "printf '\\033[?25l'; stty -echo 2>/dev/null; cat >/dev/null; else \(report); fi; exit \"$status\""
+            script = Self.attachDiagnosticShell + "; diag357 wrapper-start na; "
+                + "\(keepAlive); \(attach); status=$?; diag357 ssh-return \"$status\"; if [ \"$status\" -eq 255 ]; then "
+                + "printf '\(reset)\\r\\n\\033[30;43m %s \\033[K\\033[0m\\n' \(bar); diag357 osc-before na; "
+                + "printf '\\033]2;%s\\007' \(title); diag357 osc-after \"$?\"; diag357 hold-before na; "
+                + "printf '\\033[?25l'; stty -echo 2>/dev/null; cat >/dev/null; diag357 hold-return \"$?\"; "
+                + "else \(report); fi; diag357 exit-intent \"$status\"; exit \"$status\""
         }
         // libghostty runs this as `exec -l <command>`: bare, the exec replaces the shell with ssh and nothing
         // after it runs. `env` takes the exec instead, and a plain `sh` beneath it reads no login profile.
         return CommandRestore.shellQuotedLine(["/usr/bin/env", "/bin/sh", "-c", script])
     }
+
+    /// The host supplies an explicit isolated writer and pinned sink identities. The default-off path launches
+    /// nothing; seven opt-in synchronous observations add overhead but no timer or reconnect scheduling change.
+    /// Stderr here is also the pane's PTY. The writer receives no terminal input and refuses silently.
+    static let attachDiagnosticShell = #"""
+    diag357() {
+        [ "${AGTERM_DIAG357:-}" = 1 ] || return 0
+        case "${AGTERM_DIAG357_INCARNATION:-}" in
+            ????????-????-????-????-????????????) ;; *) return 0 ;;
+        esac
+        case "$AGTERM_DIAG357_INCARNATION" in *[!0-9A-Fa-f-]*) return 0 ;; esac
+        case "${AGTERM_PANE_ID:-}" in ????????-????-????-????-????????????) ;; *) return 0 ;; esac
+        case "$AGTERM_PANE_ID" in *[!0-9A-Fa-f-]*) return 0 ;; esac
+        [ "${#AGTERM_DIAG357_NONCE_TAG}" -eq 64 ] || return 0
+        case "$AGTERM_DIAG357_NONCE_TAG" in *[!0-9a-f]*) return 0 ;; esac
+        case "${AGTERM_DIAG357_DIR:-}" in /*) ;; *) return 0 ;; esac
+        case "${AGTERM_DIAG357_INTERPRETER:-}" in /*) ;; *) return 0 ;; esac
+        case "${AGTERM_DIAG357_WRITER:-}" in /*) ;; *) return 0 ;; esac
+        case "${AGTERM_DIAG357_IDENTITY:-}" in ''|*[!0-9:]*) return 0 ;; esac
+        "$AGTERM_DIAG357_INTERPRETER" -I -S "$AGTERM_DIAG357_WRITER" --append-wrapper357 \
+            "$AGTERM_DIAG357_DIR" "$AGTERM_DIAG357_IDENTITY" "$AGTERM_DIAG357_INCARNATION" \
+            "$AGTERM_PANE_ID" "$AGTERM_DIAG357_NONCE_TAG" "$$" "$1" "$2" </dev/null >/dev/null 2>&1
+        return 0
+    } 2>/dev/null
+    """#
 
     /// One ssh invocation that only proves the host answers again, before a waiting pane is attached anew.
     public static func probeCommand(host: String) throws -> [String] {
