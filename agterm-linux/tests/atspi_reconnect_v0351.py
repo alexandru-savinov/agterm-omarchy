@@ -136,8 +136,8 @@ class ReconnectDiagnostics:
         report = {"phase": phase, "elapsed": round(time.monotonic() - self.started, 3),
                   "ssh_down": os.path.exists(ssh_down), "snapshots": self.snapshots,
                   "signalled": self.signalled,
-                  "processes_after": [process_status(row["pid"], expected_start=row.get("start_ticks"))
-                                      for row in self.signalled],
+                  "processes_after": [(process_status(row["pid"], expected_start=row.get("start_ticks"))
+                                       if self.directory else process_status(row["pid"])) for row in self.signalled],
                   "fixture_events": fixture_events}
         if self.correlations:
             correlated = []

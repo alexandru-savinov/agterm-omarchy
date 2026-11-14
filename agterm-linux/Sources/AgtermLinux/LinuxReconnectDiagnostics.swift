@@ -8,7 +8,7 @@ import Darwin
 #endif
 
 /// Opt in with AGTERM_DIAG357=1 and AGTERM_DIAG357_DIR naming an existing owned 0700 directory.
-/// Wrapper records stay outside the PTY; native metadata goes to app stderr, capped at 4096 records.
+/// Wrapper records stay outside the PTY; app stderr receives at most 4096 native events plus a limit marker.
 /// This adds no control action or model state to drive. The operator retains and removes the private files.
 @MainActor
 enum LinuxReconnectDiagnostics {
@@ -131,7 +131,7 @@ final class LinuxReconnectDiagnosticSink {
         guard fd >= 0 else { return nil }
         var info = stat()
         guard fstat(fd, &info) == 0, info.st_uid == geteuid(),
-              info.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR),
+              info.st_mode & mode_t(CGtk.S_IFMT) == mode_t(CGtk.S_IFDIR),
               info.st_mode & 0o7777 == 0o700 else {
             _ = close(fd)
             return nil
@@ -159,7 +159,7 @@ final class LinuxReconnectDiagnosticSink {
         var current = stat()
         return root.withCString({ lstat($0, &current) }) == 0
             && current.st_dev == identity.st_dev && current.st_ino == identity.st_ino
-            && current.st_uid == geteuid() && current.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR)
+            && current.st_uid == geteuid() && current.st_mode & mode_t(CGtk.S_IFMT) == mode_t(CGtk.S_IFDIR)
             && current.st_mode & 0o7777 == 0o700
     }
 }
