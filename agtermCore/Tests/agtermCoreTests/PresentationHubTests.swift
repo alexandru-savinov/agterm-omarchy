@@ -156,6 +156,55 @@ struct PresentationHubTests {
         #expect(next.frames.count == 3)
     }
 
+    static let shapesHello = PresentationHello(version: 1, kinds: hello.kinds + [PresentationHub.statusShapesKind],
+                                               mode: .mirror)
+
+    static func status(shape: StatusShape?) -> PresentationStatus {
+        PresentationStatus(status: .blocked, blink: true, color: "#ff8800", shape: shape, pane: .scratch, changedAt: 42)
+    }
+
+    @Test(arguments: StatusShape.allCases)
+    func oneStatusReachesAViewerWithoutTheShapesKindWithOnlyAShapeItDecodes(shape: StatusShape) throws {
+        let hub = makeHub()
+        let legacy = Sink()
+        let capable = Sink()
+
+        try hub.subscribe(session: Self.session, hello: Self.hello, sink: legacy) { Self.empty }
+        try hub.subscribe(session: Self.session, hello: Self.shapesHello, sink: capable) { Self.empty }
+        hub.publish(.status(Self.status(shape: shape)), session: Self.session)
+
+        let legacyShape = StatusShape.original.contains(shape) ? shape : nil
+        #expect(capable.bodies.last == .status(Self.status(shape: shape)))
+        #expect(legacy.bodies.last == .status(Self.status(shape: legacyShape)))
+        let line = String(decoding: try PresentationCodec.encode(try #require(legacy.frames.last)), as: UTF8.self)
+        #expect(line.contains("\"\(shape.rawValue)\"") == StatusShape.original.contains(shape))
+    }
+
+    @Test func aViewerWithoutTheShapesKindGetsTheSnapshotAndAHeldDeltaWithoutANewShape() throws {
+        let hub = makeHub()
+        let sink = Sink()
+        let snapshot = PresentationSnapshot(status: Self.status(shape: .bolt), hud: nil, context: "build")
+
+        try hub.subscribe(session: Self.session, hello: Self.hello, sink: sink) {
+            hub.publish(.status(Self.status(shape: .seal)), session: Self.session)
+            return snapshot
+        }
+
+        let expected = PresentationSnapshot(status: Self.status(shape: nil), hud: nil, context: "build")
+        #expect(sink.bodies == [.hello(Self.hello), .snapshot(expected), .status(Self.status(shape: nil))])
+    }
+
+    @Test func aViewerAdvertisingTheShapesKindGetsTheSnapshotUnchanged() throws {
+        let hub = makeHub()
+        let sink = Sink()
+        let snapshot = PresentationSnapshot(status: Self.status(shape: .triangleDown), hud: nil)
+
+        try hub.subscribe(session: Self.session, hello: Self.shapesHello, sink: sink) { snapshot }
+
+        #expect(sink.bodies == [.hello(Self.shapesHello), .snapshot(snapshot)])
+        #expect(PresentationHub.supportedKinds.contains(PresentationHub.statusShapesKind))
+    }
+
     @Test func theAnswerAdvertisesOnlyKindsBothSidesSpeak() throws {
         let hub = makeHub()
         let sink = Sink()
@@ -165,6 +214,40 @@ struct PresentationHubTests {
 
         #expect(sink.bodies.first == .hello(PresentationHello(version: 1, kinds: ["status", "notify"],
                                                               mode: .presenter)))
+    }
+
+    @Test(arguments: [true, false])
+    func aNegotiatedKindReachesOnlyAPresenterThatAdvertisedIt(advertised: Bool) throws {
+        let hub = makeHub()
+        let sink = Sink()
+        let kinds = advertised ? ["status", "sound"] : ["status"]
+        let id = try hub.subscribe(session: Self.session, hello: PresentationHello(version: 1, kinds: kinds, mode: .presenter),
+                                   sink: sink) { Self.empty }
+        hub.receive(PresentationFrame(gen: sink.frames[0].gen, rev: 0, body: .presenterAcquire), from: id)
+        let sound = PresentationFrame.Body.sound(PresentationSound(name: "Glass"))
+        let ask = PresentationFrame.Body.askRequest(PresentationAsk(
+            PendingAsk(id: "a1", title: "deploy?", buttons: [ControlAskButton(id: "y", label: "Yes")]), pane: nil, owner: 1))
+
+        #expect(hub.sendToPresenter(sound, session: Self.session) == advertised)
+        #expect(hub.sendToPresenter(ask, session: Self.session))
+
+        #expect(sink.bodies.contains(sound) == advertised)
+        #expect(sink.bodies.last == ask)
+    }
+
+    @Test(arguments: [true, false])
+    func presenterSupportReflectsTheHelloOfTheCurrentPresenterOnly(advertised: Bool) throws {
+        let hub = makeHub()
+        let sink = Sink()
+        let kinds = advertised ? ["status", PresentationHub.askFormKind] : ["status"]
+        let id = try hub.subscribe(session: Self.session, hello: PresentationHello(version: 1, kinds: kinds, mode: .presenter),
+                                   sink: sink) { Self.empty }
+        #expect(!hub.presenterSupports(PresentationHub.askFormKind, session: Self.session))
+
+        hub.receive(PresentationFrame(gen: sink.frames[0].gen, rev: 0, body: .presenterAcquire), from: id)
+
+        #expect(hub.presenterSupports(PresentationHub.askFormKind, session: Self.session) == advertised)
+        #expect(sink.bodies.first == .hello(PresentationHello(version: 1, kinds: kinds, mode: .presenter)))
     }
 
     @Test func aPeerWithNoUsableVersionIsRefused() {

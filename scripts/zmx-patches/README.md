@@ -25,6 +25,35 @@ longer apply, and re-running `check.py`.
   private checkout `setup.sh` patches, in place of the zig package cache. Its context names the pinned
   revision, so a `ZMX_REV` that moves ghostty stops it applying. zmx's build reads the dependency hash
   as its reported ghostty version, so the patch writes that string in, marked `+agterm`.
+- `0003-atomic-socket-publish.patch` gives a session socket its name only after it listens. Upstream binds
+  the session path and then listens, and `zmx list`, attach and the commands that connect to a session
+  delete a path that refuses a connection as stale. A probe between bind and listen can unlink the new socket
+  as stale and leave the daemon unreachable. The patch binds and listens in `.s/<pid>` beside the sessions,
+  a directory, which listing in every zmx version skips, then hard-links the socket to the session name. The link fails when the
+  name exists, so a losing creator gets the same `AddressInUse` a bind gave it and never removes the
+  winner's socket. When `.s` cannot be made or the staged path is too long for `sockaddr_un`, it binds the
+  session name directly and keeps the old window.
+- `0004-managed-exit-keeps-screen.patch` keeps the screen when a managed client exits. Upstream writes RIS
+  on every attach exit, which erases a Live `--command --wait` pane's output under its hold prompt. A client
+  with a valid `ZMX_MANAGED` instead turns off the input reports a program may have left on and resets SGR
+  and the OSC colors. An unmanaged client and a session switch still write RIS.
+- `0005-drain-output-before-exit.patch` keeps a session's last output when it ends. Upstream's attach client
+  returned as soon as the daemon closed the socket or the socket hung up, dropping output it had read but
+  not yet written to a busy terminal, and output still unread behind the hangup. On every disconnect path
+  it now runs one loop that reads the socket and writes stdout, both nonblocking, bounded by an absolute
+  two-second deadline and 1 MiB from the socket. The terminal reset an exiting client sends is a bounded
+  write too. A Live command's final line under its hold prompt depended on that race.
+- `0006-nonblocking-stdout.patch` keeps the attach client responsive to its daemon while the terminal is
+  stalled (#409). Upstream writes session output to a blocking stdout, so a terminal that stopped reading
+  held the client in `write` while the daemon was still connected, and it never saw the hangup. stdout is
+  now nonblocking for the whole client loop, with its original flags restored on exit. Output is written
+  only when poll reports room. A closed reader (POLLHUP/ERR/NVAL) ends the client with its write error
+  instead of spinning. While 1 MiB is pending, the client stops reading further messages, so the
+  backpressure reaches the daemon. That is a high-water mark, not a memory bound: zmx has no IPC message
+  cap, so one whole message can still arrive past it (#409). Zig tests cover a stalled reader (the client
+  returns within a generous 10 s of the hangup, nominally 2 s, so starved CI cannot flake it, and does
+  not block forever) and a closed reader (it returns promptly); both run under a
+  watchdog.
 - `ghostty/0001-formatter-unstyled-blanks.patch` fixes the snapshot a re-attach replays. The formatter
   wrote cells a program skipped with a cursor move as spaces under the previous cell's style, so a gap
   after a colored run came back painted; a skipped cell now closes the style first. Spaces the program

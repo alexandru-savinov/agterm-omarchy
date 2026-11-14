@@ -1,0 +1,347 @@
+{
+  "schema": "agterm-native-appendix/1",
+  "scope": "Additive recovery and separate renderer evidence for source 77cce43eb791ba1a983c19760c7df5259d0e452d. No new native execution, current-main or integrated-candidate acceptance, trusted hosted release, hardware rendering, or independent-account approval.",
+  "result": {
+    "original_file": "native-default-renderer-result-private.json",
+    "original_sha256": "ea74cc170c2ee5fb8b8df837e5d45e742703b4b12f9eb1340d0b5acbff151fdd",
+    "transport": {
+      "exit_code": 0,
+      "signal_code": 0,
+      "stderr": "",
+      "seconds": 0.33283305168151855
+    },
+    "stdout_utf8_sha256": "069de3f4c942e453b33ecc30d51f1c16acc3683f0ab6d9e193860ec07fcdfcc0",
+    "stdout_encoding": "JSON decoded without dropping fields",
+    "observation": {
+      "schema": "agterm-native-default-renderer/1",
+      "diagnostic_only": true,
+      "state": "complete",
+      "phase": "none",
+      "started_at": 1794434955.273125,
+      "settings": {
+        "payload": "<private-stage-002>/agterm-stage",
+        "frozen_payload": "<private-stage-005>/agterm-stage",
+        "source_commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+        "app_source_commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+        "library_source_commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+        "library_ghostty_commit": "0ba6250388641f52135414b38c4259aa682c489b",
+        "operator_sha256": "ffac8abb949c0cd26f85ba5ebef030ed635cd733691fd96362204f0a28d63258",
+        "worker_sha256": "b8631065847efcb35612492fd70b36286be2e75e870e0584659449feaf7004b9",
+        "fixture_sha256": "24030151e8e10ff501349477a520c10331fe1cf58ff2990ef584602683a78860",
+        "probe_source_commit": "e77b6ad448677e00cafd14a36c557b96affb6678",
+        "payload_hashes": {
+          "bin/agterm-linux.bin": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+          "bin/agtermctl.bin": "27d6c608638a7f942db518d4ccc4406a8a545f968825a2f743fd6a9fa00e0107",
+          "bin/zmx": "8b73d34daad6c039032bb851f8c52a898cdddd908e0dc65bf50c7cf0cf913a01",
+          "lib/libghostty.so": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72"
+        },
+        "build_status_path": "<private-stage-002>/status-3.json",
+        "build_status_sha256": "d61772ba0bd291c20f66600883c619bc5303bcadef948232321ba5b2bf6e8727",
+        "diagnostic_only": true,
+        "acceptance_scope": "Default-renderer ordinary mode on complete native branch source; no forced software environment or physical GPU claim.",
+        "operator_review_url": "https://github.com/alexandru-savinov/agterm-omarchy/issues/305#issuecomment-6807859789"
+      },
+      "modes": {
+        "none": {
+          "passed": false,
+          "started_at_utc": "2026-11-11T22:09:15.282038+00:00",
+          "launcher_sha256": "5036a6ed7c48fd28e7794803a2e35aee92dafb257d9e469fc649ae8c27c1cfd2",
+          "private_runtime_directory": "none-runtime",
+          "returncode": 1,
+          "independent_cleanup": {
+            "passed": true,
+            "tracked_process_count": 5,
+            "remaining_processes": [],
+            "new_app_processes": [],
+            "retained_recovery_paths": [],
+            "endpoints": [
+              "<private-runtime-001>/state/zmx"
+            ],
+            "preservation": {
+              "passed": true,
+              "protected_process_count": 2,
+              "lost": {}
+            },
+            "timed_out": false,
+            "forced_cleanup": false,
+            "shell_pids": {},
+            "cleanup_actions": [],
+            "errors": []
+          },
+          "ended_at_utc": "2026-11-11T22:09:35.910662+00:00",
+          "result": {
+            "passed": false,
+            "completed_checks": [],
+            "identity": {
+              "schema": "agterm-omarchy-run-identity/1",
+              "run_id": "<run-001>",
+              "artifact_dir_name": "none",
+              "started_at_utc": "2026-11-11T22:09:15.305802Z",
+              "harness": {
+                "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050",
+                "git_commit": null,
+                "git_blob": "7e4629818ca50b8823cee23d1589ad39b4f7a8ee",
+                "matches_commit": null
+              },
+              "binaries": {
+                "app": {
+                  "name": "none-launch-app.py",
+                  "sha256": "5036a6ed7c48fd28e7794803a2e35aee92dafb257d9e469fc649ae8c27c1cfd2",
+                  "resolved_name": "none-launch-app.py",
+                  "kind": "script"
+                },
+                "cli": {
+                  "name": "agtermctl",
+                  "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+                  "resolved_name": "agtermctl",
+                  "kind": "script"
+                },
+                "zmx": null
+              },
+              "app_processes": [
+                {
+                  "launch": 1,
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                  "exe_name": "agterm-linux.bin"
+                }
+              ],
+              "zmx_list": [],
+              "positive_control": null,
+              "ended_at_utc": "2026-11-11T22:09:35.848637Z"
+            }
+          },
+          "cleanup": {
+            "passed": true,
+            "tracked_daemon_count": 0,
+            "identity": {
+              "schema": "agterm-omarchy-run-identity/1",
+              "run_id": "<run-001>",
+              "artifact_dir_name": "none",
+              "started_at_utc": "2026-11-11T22:09:15.305802Z",
+              "harness": {
+                "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050",
+                "git_commit": null,
+                "git_blob": "7e4629818ca50b8823cee23d1589ad39b4f7a8ee",
+                "matches_commit": null
+              },
+              "binaries": {
+                "app": {
+                  "name": "none-launch-app.py",
+                  "sha256": "5036a6ed7c48fd28e7794803a2e35aee92dafb257d9e469fc649ae8c27c1cfd2",
+                  "resolved_name": "none-launch-app.py",
+                  "kind": "script"
+                },
+                "cli": {
+                  "name": "agtermctl",
+                  "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+                  "resolved_name": "agtermctl",
+                  "kind": "script"
+                },
+                "zmx": null
+              },
+              "app_processes": [
+                {
+                  "launch": 1,
+                  "sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+                  "exe_name": "agterm-linux.bin"
+                }
+              ],
+              "zmx_list": [],
+              "positive_control": null,
+              "ended_at_utc": "2026-11-11T22:09:35.848485Z"
+            }
+          }
+        }
+      },
+      "config_repetitions": [],
+      "errors": [
+        "RuntimeError: Harness/cleanup/preservation failed"
+      ],
+      "launch_renderer_environment": {
+        "LIBGL_ALWAYS_SOFTWARE": null,
+        "GALLIUM_DRIVER": null,
+        "MESA_LOADER_DRIVER_OVERRIDE": null,
+        "__EGL_VENDOR_LIBRARY_FILENAMES": null,
+        "GDK_DISABLE": null,
+        "GDK_DEBUG": null,
+        "GSK_RENDERER": null
+      },
+      "image_observer": {
+        "completed": true,
+        "errors": [],
+        "observed_images": [
+          {
+            "process": {
+              "pid": "<process-019>",
+              "name": "agterm-linux.bi",
+              "state": "R",
+              "parent": "<process-020>",
+              "start": "<process-birth-018>",
+              "uid": "<process-uid-001>"
+            },
+            "app_sha256": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+            "library_sha256": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72",
+            "mapping_count": 7
+          }
+        ],
+        "expected_image_count": 1,
+        "missing_expected_images": []
+      },
+      "payload_unchanged": true,
+      "frozen_payload_unchanged": true,
+      "installed_payload_unchanged": true,
+      "shared_runtime_unchanged": true,
+      "login_shell_unchanged": true,
+      "preservation": {
+        "passed": true,
+        "protected_process_count": 2,
+        "lost": {}
+      },
+      "passed": false,
+      "ended_at": 1794434976.2046874
+    }
+  },
+  "launch": {
+    "original_file": "native-default-renderer-launch-private.json",
+    "original_sha256": "238d473cd3d56c306a2180e8c065221ebccefc70c25dae6b32e6ee0673adef56",
+    "transport": {
+      "exit_code": 0,
+      "signal_code": 0,
+      "stderr": "",
+      "seconds": 0.5534429550170898
+    },
+    "stdout_utf8_sha256": "1845cdf8f483fdd04fc7a0a929c5e44bd468de3a003ee8d29d71cd5acf584356",
+    "stdout_encoding": "JSON decoded without dropping fields",
+    "observation": {
+      "launched": true,
+      "stage": "<private-stage-006>",
+      "pid": "<process-021>",
+      "launched_at": 1794434954.8244908,
+      "core_result": {
+        "passed": true,
+        "errors": []
+      },
+      "still_running": true
+    }
+  },
+  "intermediate_poll": {
+    "original_file": "native-default-renderer-poll-private.json",
+    "original_sha256": "36a43c4ee35dc6d63e03772f630821b0208caf754fc7fe4eaf9bba16129f336e",
+    "transport": {
+      "exit_code": 0,
+      "signal_code": 0,
+      "stderr": "",
+      "seconds": 0.13424110412597656
+    },
+    "stdout_utf8_sha256": "5f73eb01a82da4dddd8e0ce97f16afca5fa796435b2351ed82d2e9618cbd357e",
+    "stdout_encoding": "JSON decoded without dropping fields",
+    "observation": {
+      "schema": "agterm-native-default-renderer/1",
+      "diagnostic_only": true,
+      "state": "running",
+      "phase": "none",
+      "started_at": 1794434955.273125,
+      "settings": {
+        "payload": "<private-stage-002>/agterm-stage",
+        "frozen_payload": "<private-stage-005>/agterm-stage",
+        "source_commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+        "app_source_commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+        "library_source_commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+        "library_ghostty_commit": "0ba6250388641f52135414b38c4259aa682c489b",
+        "operator_sha256": "ffac8abb949c0cd26f85ba5ebef030ed635cd733691fd96362204f0a28d63258",
+        "worker_sha256": "b8631065847efcb35612492fd70b36286be2e75e870e0584659449feaf7004b9",
+        "fixture_sha256": "24030151e8e10ff501349477a520c10331fe1cf58ff2990ef584602683a78860",
+        "probe_source_commit": "e77b6ad448677e00cafd14a36c557b96affb6678",
+        "payload_hashes": {
+          "bin/agterm-linux.bin": "ddd9de8863dc6d192e7320300f58a070caabcac4dfbd9e5c4382166065718ab5",
+          "bin/agtermctl.bin": "27d6c608638a7f942db518d4ccc4406a8a545f968825a2f743fd6a9fa00e0107",
+          "bin/zmx": "8b73d34daad6c039032bb851f8c52a898cdddd908e0dc65bf50c7cf0cf913a01",
+          "lib/libghostty.so": "a2a4cd35f921c066a76ff5e348aa2d952dd9aca0c7bfdb62520f5eb44d632b72"
+        },
+        "build_status_path": "<private-stage-002>/status-3.json",
+        "build_status_sha256": "d61772ba0bd291c20f66600883c619bc5303bcadef948232321ba5b2bf6e8727",
+        "diagnostic_only": true,
+        "acceptance_scope": "Default-renderer ordinary mode on complete native branch source; no forced software environment or physical GPU claim.",
+        "operator_review_url": "https://github.com/alexandru-savinov/agterm-omarchy/issues/305#issuecomment-6807859789"
+      },
+      "modes": {},
+      "config_repetitions": [],
+      "errors": [],
+      "launch_renderer_environment": {
+        "LIBGL_ALWAYS_SOFTWARE": null,
+        "GALLIUM_DRIVER": null,
+        "MESA_LOADER_DRIVER_OVERRIDE": null,
+        "__EGL_VENDOR_LIBRARY_FILENAMES": null,
+        "GDK_DISABLE": null,
+        "GDK_DEBUG": null,
+        "GSK_RENDERER": null
+      }
+    }
+  },
+  "diagnostics_projection": {
+    "original_file": "native-default-renderer-diagnostics-private.json",
+    "original_sha256": "3e8dd15be99e580b4235683002adefec523539c07755df42b96abe26e11354be",
+    "transport": {
+      "exit_code": 0,
+      "signal_code": 0,
+      "stderr": "",
+      "seconds": 0.33146023750305176
+    },
+    "stdout_utf8_sha256": "e5cf28045fe8246b80be91a58286f93882e1ed8d302a086f8e21ec1c98a7529a",
+    "stdout_encoding": "JSON decoded without dropping fields",
+    "observation": {
+      "files": {
+        "harness.sh": 22619,
+        "fixture.so": 69896,
+        "config-probe.py": 26408,
+        "native-run-template.py": 43848,
+        "run-experiment.py": 8836,
+        "settings.json": 1645,
+        "operator.log": 0,
+        "launch.json": 222,
+        "none-launch-app.py": 3556,
+        "none.log": 255,
+        "none-recovery.json": 1484,
+        "experiment-report.json": 7010,
+        "__pycache__/native-run-template.cpython-314.pyc": 78831,
+        "none-launches/<process-019>-<process-birth-018>.json": 359,
+        "none/app.log": 10286,
+        "none/control.jsonl": 77171,
+        "none/cleanup.json": 1235,
+        "none/result.json": 1233,
+        "none/state/window-sizes.json": 67,
+        "none/state/windows.json": 210,
+        "none/state/recent-closed.json": 680,
+        "none/state/settings.json": 108,
+        "none-runtime/dconf/user": 2
+      },
+      "logs": {
+        "operator.log": "",
+        "none.log": "Artifacts: <private-stage-006>/none\nTraceback (most recent call last):\n  File \"<stdin>\", line 353, in <module>\n  File \"<stdin>\", line 160, in wait_for\nAssertionError: timed out: initial terminal GL surface ready; last error: None\n",
+        "none/app.log": {
+          "original_log_utf8_sha256": "81c273bc7f86f406e25b2f7ad6af955204226fe71b365e53940245b011831c81",
+          "original_log_utf8_bytes": 10286,
+          "original_split_line_count": 99,
+          "selection_regex": "EGL|GtkGLArea|GL context",
+          "selected_lines": [
+            {
+              "line": 95,
+              "text": "The overwriting error message was: Unable to create a GL context"
+            },
+            {
+              "line": 97,
+              "text": "** (agterm-linux.bin:<process-019>): WARNING **: 00:09:15.427: Disabled hardware acceleration because GTK failed to initialize GL: No EGL configuration available."
+            },
+            {
+              "line": 99,
+              "text": "agterm: GtkGLArea failed to create a GL context: No EGL configuration available"
+            }
+          ],
+          "omitted_line_count": 96,
+          "omission_reason": "Unfiltered Fontconfig and other system/app output stays in the immutable private original. Only the exact GL failure lines are published."
+        }
+      }
+    }
+  },
+  "interpretation": "Default native Wayland launch with seven renderer overrides absent failed to create an EGL context before ordinary checks completed. Successful transport and cleanup do not make the renderer run pass."
+}

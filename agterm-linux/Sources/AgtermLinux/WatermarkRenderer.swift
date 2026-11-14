@@ -18,14 +18,13 @@ enum WatermarkRenderer {
             return nil
         case .text:
             guard let text = watermark.text, WatermarkConfig.isValidText(text) else { return nil }
-            return renderText(text, colorHex: watermark.colorHex, sessionID: sessionID, paneKey: paneKey)
+            let out = WatermarkStorage.renderedTextURL(sessionID: sessionID, paneKey: paneKey, stateDir: nil)
+            _ = WatermarkStorage.ensureDirectory()
+            return renderText(text, colorHex: watermark.colorHex, output: out)
         }
     }
 
-    private static func renderText(_ text: String, colorHex: String?, sessionID: UUID,
-                                   paneKey: String?) -> String? {
-        let out = WatermarkStorage.renderedTextURL(sessionID: sessionID, paneKey: paneKey, stateDir: nil)
-        _ = WatermarkStorage.ensureDirectory()
+    static func renderText(_ text: String, colorHex: String?, output: URL) -> String? {
         let width = min(4096, max(1200, text.count * 150))
         let height = 420
         guard let surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, Int32(width), Int32(height)),
@@ -47,14 +46,18 @@ enum WatermarkRenderer {
         }
         pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER)
 
-        var textWidth: Int32 = 0
-        var textHeight: Int32 = 0
-        pango_layout_get_pixel_size(layout, &textWidth, &textHeight)
-        cairo_move_to(cr, Double(width - Int(textWidth)) / 2, Double(height - Int(textHeight)) / 2)
+        var ink = PangoRectangle()
+        pango_layout_get_pixel_extents(layout, &ink, nil)
+        let textWidth = Double(max(1, ink.width)), textHeight = Double(max(1, ink.height))
+        let scale = min(1, Double(width - 32) / textWidth, Double(height - 32) / textHeight)
+        cairo_translate(cr, (Double(width) - textWidth * scale) / 2 - Double(ink.x) * scale,
+                        (Double(height) - textHeight * scale) / 2 - Double(ink.y) * scale)
+        cairo_scale(cr, scale, scale)
+        cairo_move_to(cr, 0, 0)
         pango_cairo_show_layout(cr, layout)
         cairo_surface_flush(surface)
-        let status = out.path.withCString { cairo_surface_write_to_png(surface, $0) }
-        return status == CAIRO_STATUS_SUCCESS ? out.path : nil
+        let status = output.path.withCString { cairo_surface_write_to_png(surface, $0) }
+        return status == CAIRO_STATUS_SUCCESS ? output.path : nil
     }
 
     private static func rgb(_ hex: String?) -> (Double, Double, Double)? {

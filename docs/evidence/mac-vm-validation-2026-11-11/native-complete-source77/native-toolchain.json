@@ -1,0 +1,546 @@
+{
+  "schema": "agterm-native-complete-publication/1",
+  "scope": "Retained complete source77 native branch evidence. No new native execution, current-main/integrated-candidate acceptance, trusted hosted release, hardware rendering, bash Live support, or independent account approval is claimed.",
+  "records": [
+    {
+      "original_file": "native-swift-compat-result-private.json",
+      "original_sha256": "b2830f718a24c7736b2bd62f41d461b1215a1e11423212a36b63b81dd091c002",
+      "transport": {
+        "exit_code": 0,
+        "signal_code": 0,
+        "stderr": "",
+        "seconds": 1.380445957183838
+      },
+      "stdout_encoding": "decoded JSON",
+      "original_stdout_utf8_sha256": "596be3e6428c1dd289e067e6d26e83595deb71c8b702b31503c0dbc6c50d147c",
+      "observation": {
+        "started_at": 1794431739.6509967,
+        "toolchain_archive_sha256": "34ef6e0b78bc264321c701b20de452a8a0740f493e1849eab18c7b6a91a57e50",
+        "dependencies": [
+          {
+            "name": "libncurses6",
+            "filename": "libncurses6_6.4+20240113-1ubuntu2.2_arm64.deb",
+            "sha256": "46cd7885975573fc669d93f66f2453e014e6ccae4f568659febd49e5011630d4",
+            "source_url": "https://packages.ubuntu.com/noble-updates/arm64/libncurses6/download",
+            "download_url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/n/ncurses/libncurses6_6.4+20240113-1ubuntu2.2_arm64.deb"
+          },
+          {
+            "name": "libtinfo6",
+            "filename": "libtinfo6_6.4+20240113-1ubuntu2.2_arm64.deb",
+            "sha256": "00570dce13bd89b31e4f433001fb0a55436e57a76370afbae6c5ac491b3dd3e9",
+            "source_url": "https://packages.ubuntu.com/noble-updates/arm64/libtinfo6/download",
+            "download_url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/n/ncurses/libtinfo6_6.4+20240113-1ubuntu2.2_arm64.deb"
+          }
+        ],
+        "commands": [
+          {
+            "argv": [
+              "/usr/bin/curl",
+              "--disable",
+              "--fail",
+              "--location",
+              "--proto",
+              "=https",
+              "--proto-redir",
+              "=https",
+              "--silent",
+              "--show-error",
+              "--connect-timeout",
+              "20",
+              "--max-time",
+              "50",
+              "--output",
+              "<private-stage-001>/compat/libncurses6_6.4+20240113-1ubuntu2.2_arm64.deb",
+              "https://ports.ubuntu.com/ubuntu-ports/pool/main/n/ncurses/libncurses6_6.4+20240113-1ubuntu2.2_arm64.deb"
+            ],
+            "exit_code": 0,
+            "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "argv": [
+              "/usr/bin/ar",
+              "t",
+              "<private-stage-001>/compat/libncurses6_6.4+20240113-1ubuntu2.2_arm64.deb"
+            ],
+            "exit_code": 0,
+            "log_sha256": "ccb34417e1dd8543ff9f6f36e5565235b49d9302a278f5dafc184cc46c8d8d3f"
+          },
+          {
+            "argv": [
+              "/usr/bin/ar",
+              "p",
+              "<private-stage-001>/compat/libncurses6_6.4+20240113-1ubuntu2.2_arm64.deb",
+              "data.tar.zst"
+            ],
+            "exit_code": 0,
+            "log_sha256": "5bbf6c1a79d7fb9255ef2825e3af3eb0c97c0faa09f8cca61a2c1bb453aaf896"
+          },
+          {
+            "argv": [
+              "/usr/bin/curl",
+              "--disable",
+              "--fail",
+              "--location",
+              "--proto",
+              "=https",
+              "--proto-redir",
+              "=https",
+              "--silent",
+              "--show-error",
+              "--connect-timeout",
+              "20",
+              "--max-time",
+              "50",
+              "--output",
+              "<private-stage-001>/compat/libtinfo6_6.4+20240113-1ubuntu2.2_arm64.deb",
+              "https://ports.ubuntu.com/ubuntu-ports/pool/main/n/ncurses/libtinfo6_6.4+20240113-1ubuntu2.2_arm64.deb"
+            ],
+            "exit_code": 0,
+            "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "argv": [
+              "/usr/bin/ar",
+              "t",
+              "<private-stage-001>/compat/libtinfo6_6.4+20240113-1ubuntu2.2_arm64.deb"
+            ],
+            "exit_code": 0,
+            "log_sha256": "ccb34417e1dd8543ff9f6f36e5565235b49d9302a278f5dafc184cc46c8d8d3f"
+          },
+          {
+            "argv": [
+              "/usr/bin/ar",
+              "p",
+              "<private-stage-001>/compat/libtinfo6_6.4+20240113-1ubuntu2.2_arm64.deb",
+              "data.tar.zst"
+            ],
+            "exit_code": 0,
+            "log_sha256": "b713bacd790c301b4c1aa942127d0a93a53dba4e1c69131d4ad14ff95662dad1"
+          },
+          {
+            "argv": [
+              "/usr/bin/ldd",
+              "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift"
+            ],
+            "exit_code": 0,
+            "log_sha256": "016e9f27073efb8b94f7791cce6711b22bf66bbf6a0468cb1158fbb40859db68"
+          },
+          {
+            "argv": [
+              "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift",
+              "--version"
+            ],
+            "exit_code": 0,
+            "log_sha256": "eb261bc9961e4d25904b14279e889963753148301dec9433d93df9df2bcba860"
+          },
+          {
+            "argv": [
+              "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swiftc",
+              "-module-cache-path",
+              "<private-stage-001>/module-cache",
+              "<private-stage-001>/hello.swift",
+              "-o",
+              "<private-stage-001>/hello"
+            ],
+            "exit_code": 0,
+            "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "argv": [
+              "<private-stage-001>/hello"
+            ],
+            "exit_code": 0,
+            "log_sha256": "a5cbf37a3495e49aaedeed8c62682877f028a981e8b8cca940aa8e80bb0b18c6"
+          }
+        ],
+        "errors": [],
+        "swift_path": "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift",
+        "compat_library_path": "<private-stage-001>/compat/usr/lib/aarch64-linux-gnu",
+        "version_output": "Swift version 6.3.2 (swift-6.3.2-RELEASE)\nTarget: aarch64-unknown-linux-gnu",
+        "smoke_output": "AGTERM_NATIVE_SWIFT_632_OK",
+        "smoke_passed": true,
+        "private_library_hashes": {
+          "libform.so.6.4": "238cb07e0d0695eb906fd8c99f8d87fa93c44328dca199102f740bc105ca06b4",
+          "libmenu.so.6.4": "db54a4cebccbf01553c9ea8bc207726fc327df7c8fd66e8fda468fc060f9193a",
+          "libncurses.so.6.4": "6172460443debd9dd21536523cb0aca4b3f2b4cc43ea1821d00f0b9a011ecd0c",
+          "libpanel.so.6.4": "93abe8018df0f535b109ac98d13bc592e2d058d32cc219d49e742e0a03d9ceeb",
+          "libtic.so.6.4": "3adcbc5cba45a6dd5973c4df868fa505222cc670f279c59fb4f8332566985855",
+          "libtinfo.so.6.4": "2d2f2bb5a2dd09a3f54dfe7847a7f601203a0e3fed210cb58df740d07989f554"
+        },
+        "ended_at": 1794431740.7544248
+      }
+    },
+    {
+      "original_file": "native-swift-prerequisites-private.json",
+      "original_sha256": "0005bc0755c0c928e1f2d9e941e626b5e088e204886f98413f61d8dcf1ab76ef",
+      "transport": {
+        "exit_code": 0,
+        "signal_code": 0,
+        "stderr": "",
+        "seconds": 0.3586599826812744
+      },
+      "stdout_encoding": "decoded JSON",
+      "original_stdout_utf8_sha256": "ddc2729feccc14d98f33e936c4fab03479d9ba95123b72d190f74fafc4be2fbe",
+      "observation": {
+        "cpus": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "checks": [
+          {
+            "argv": [
+              "/usr/bin/bash",
+              "--noprofile",
+              "--norc",
+              "-c",
+              "printf BASH_OK"
+            ],
+            "exit_code": 0,
+            "stdout": "BASH_OK",
+            "stderr": ""
+          },
+          {
+            "argv": [
+              "/usr/bin/zsh",
+              "-f",
+              "-c",
+              "printf ZSH_OK"
+            ],
+            "exit_code": 0,
+            "stdout": "ZSH_OK",
+            "stderr": ""
+          },
+          {
+            "argv": [
+              "/usr/bin/tic",
+              "-V"
+            ],
+            "exit_code": 0,
+            "stdout": "ncurses 6.6.20251230\n",
+            "stderr": ""
+          },
+          {
+            "argv": [
+              "/usr/bin/pkg-config",
+              "--modversion",
+              "gtk4",
+              "libadwaita-1",
+              "webkitgtk-6.0",
+              "epoxy"
+            ],
+            "exit_code": 0,
+            "stdout": "4.22.4\n1.9.3\n2.54.2\n1.5.10\n",
+            "stderr": ""
+          },
+          {
+            "argv": [
+              "/usr/bin/ldd",
+              "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift-frontend"
+            ],
+            "exit_code": 0,
+            "stdout": "\tlinux-vdso.so.1 (<load-address-001>)\n\tlibswiftCore.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libswiftCore.so (<load-address-002>)\n\tlib_CompilerSwiftIDEUtils.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftIDEUtils.so (<load-address-003>)\n\tlib_CompilerSwiftLexicalLookup.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftLexicalLookup.so (<load-address-004>)\n\tlibuuid.so.1 => /usr/lib/libuuid.so.1 (<load-address-005>)\n\tlib_CompilerSwiftCompilerPluginMessageHandling.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftCompilerPluginMessageHandling.so (<load-address-006>)\n\tlib_CompilerSwiftSyntaxMacroExpansion.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftSyntaxMacroExpansion.so (<load-address-007>)\n\tlib_CompilerSwiftSyntaxMacros.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftSyntaxMacros.so (<load-address-008>)\n\tlib_CompilerSwiftIfConfig.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftIfConfig.so (<load-address-009>)\n\tlib_CompilerSwiftOperators.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftOperators.so (<load-address-010>)\n\tlib_CompilerSwiftSyntaxBuilder.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftSyntaxBuilder.so (<load-address-011>)\n\tlib_CompilerSwiftParserDiagnostics.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftParserDiagnostics.so (<load-address-012>)\n\tlib_CompilerSwiftBasicFormat.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftBasicFormat.so (<load-address-013>)\n\tlib_CompilerSwiftParser.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftParser.so (<load-address-014>)\n\tlib_CompilerSwiftDiagnostics.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftDiagnostics.so (<load-address-015>)\n\tlib_CompilerSwiftSyntax.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/lib_CompilerSwiftSyntax.so (<load-address-016>)\n\tlibm.so.6 => /usr/lib/libm.so.6 (<load-address-017>)\n\tlibz.so.1 => /usr/lib/libz.so.1 (<load-address-018>)\n\tlibstdc++.so.6 => /usr/lib/libstdc++.so.6 (<load-address-019>)\n\tlibgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (<load-address-020>)\n\tlibc.so.6 => /usr/lib/libc.so.6 (<load-address-021>)\n\t/lib/ld-linux-aarch64.so.1 => /usr/lib/ld-linux-aarch64.so.1 (<load-address-022>)\n\tlibswift_Concurrency.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/../../linux/libswift_Concurrency.so (<load-address-023>)\n\tlibswiftGlibc.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/../../linux/libswiftGlibc.so (<load-address-024>)\n\tlibdispatch.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/../../linux/libdispatch.so (<load-address-025>)\n\tlibswift_Builtin_float.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/../../linux/libswift_Builtin_float.so (<load-address-026>)\n\tlibBlocksRuntime.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/host/compiler/../../linux/libBlocksRuntime.so (<load-address-027>)\n",
+            "stderr": ""
+          }
+        ]
+      }
+    },
+    {
+      "original_file": "native-swift-toolchain-launch-private.json",
+      "original_sha256": "60bff7232150d7b05c44ac77ade69ad2048ccc73ed335e10123975bf61ec4277",
+      "transport": {
+        "exit_code": 0,
+        "signal_code": 0,
+        "stderr": "",
+        "seconds": 0.5566949844360352
+      },
+      "stdout_encoding": "decoded JSON",
+      "original_stdout_utf8_sha256": "11a847d1ad3bf61e6a01fcfb79987d5058f849cee27cfec878804005e3a0ec42",
+      "observation": {
+        "launched": true,
+        "stage": "<private-stage-001>",
+        "pid": "<process-001>",
+        "worker_sha256": "d087a819d6cee917f036445eeea4e4906fc312e03d25318bbe34fdd66dd78afd",
+        "started_at": 1794431391.7412472,
+        "still_running": true
+      }
+    },
+    {
+      "original_file": "native-swift-toolchain-linker-private.json",
+      "original_sha256": "fb47ba35f5487f42c8bff4b21565cb91100883160d120d0948da15038722b286",
+      "transport": {
+        "exit_code": 0,
+        "signal_code": 0,
+        "stderr": "",
+        "seconds": 0.35317015647888184
+      },
+      "stdout_encoding": "decoded JSON",
+      "original_stdout_utf8_sha256": "6a6a2f1fb0531dcdaefef952c988651fb4364d8233e1f940833858c32dc8aa0f",
+      "observation": {
+        "identity": {
+          "archive_sha256": "34ef6e0b78bc264321c701b20de452a8a0740f493e1849eab18c7b6a91a57e50",
+          "archive_bytes": 1054253064,
+          "swift_frontend_sha256": "7b4d04babb4f0ecdb0271d7af2371e4a55140c8e2d30a30b6fddd742f7913a62",
+          "valid_signature_status": "[GNUPG:] VALIDSIG 52BB7E3DE28A71BE22EC05FFEF80A866B47A981F 2026-05-12 1778619443 0 4 0 1 10 00 52BB7E3DE28A71BE22EC05FFEF80A866B47A981F",
+          "expanded_regular_bytes": 3485045165
+        },
+        "ldd": "\tlinux-vdso.so.1 (<load-address-028>)\n\tlibswiftCore.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libswiftCore.so (<load-address-029>)\n\tlibswift_Concurrency.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libswift_Concurrency.so (<load-address-030>)\n\tlibswift_StringProcessing.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libswift_StringProcessing.so (<load-address-031>)\n\tlibswift_RegexParser.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libswift_RegexParser.so (<load-address-032>)\n\tlibswiftGlibc.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libswiftGlibc.so (<load-address-033>)\n\tlibBlocksRuntime.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libBlocksRuntime.so (<load-address-034>)\n\tlibdispatch.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libdispatch.so (<load-address-035>)\n\tlibswiftDispatch.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libswiftDispatch.so (<load-address-036>)\n\tlibFoundation.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libFoundation.so (<load-address-037>)\n\tlibFoundationEssentials.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libFoundationEssentials.so (<load-address-038>)\n\tlibFoundationInternationalization.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libFoundationInternationalization.so (<load-address-039>)\n\tlibm.so.6 => /usr/lib/libm.so.6 (<load-address-040>)\n\tlibstdc++.so.6 => /usr/lib/libstdc++.so.6 (<load-address-041>)\n\tlibncurses.so.6 => not found\n\tlibtinfo.so.6 => /usr/lib/libtinfo.so.6 (<load-address-042>)\n\tlibsqlite3.so.0 => /usr/lib/libsqlite3.so.0 (<load-address-043>)\n\tlibgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (<load-address-044>)\n\tlibc.so.6 => /usr/lib/libc.so.6 (<load-address-045>)\n\t/lib/ld-linux-aarch64.so.1 => /usr/lib/ld-linux-aarch64.so.1 (<load-address-046>)\n\tlibswift_Builtin_float.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libswift_Builtin_float.so (<load-address-047>)\n\tlib_FoundationICU.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/lib_FoundationICU.so (<load-address-048>)\n\tlibswiftSynchronization.so => <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/../lib/swift/linux/libswiftSynchronization.so (<load-address-049>)\n",
+        "system_ncurses": [
+          "/usr/lib/libncurses++w_g.a",
+          "/usr/lib/libncurses++w.so.6.6",
+          "/usr/lib/libncurses++.so",
+          "/usr/lib/libncurses.so",
+          "/usr/lib/libncursesw.so.6.6",
+          "/usr/lib/libncurses++w.so",
+          "/usr/lib/libncursesw.so",
+          "/usr/lib/libncursesw.so.6",
+          "/usr/lib/libncurses++w.so.6",
+          "/usr/lib/libncursesw_g.a"
+        ],
+        "system_tinfo": [
+          "/usr/lib/libtinfo.so",
+          "/usr/lib/libtinfo.so.6"
+        ],
+        "payload_ncurses": []
+      }
+    },
+    {
+      "original_file": "native-swift-toolchain-poll-private.json",
+      "original_sha256": "c4193f7ccab5ec19caadb05a23e1c06f7d6387e4b81edcd5cca68c233bc5a3b4",
+      "transport": {
+        "exit_code": 0,
+        "signal_code": 0,
+        "stderr": "",
+        "seconds": 0.36689114570617676
+      },
+      "stdout_encoding": "decoded JSON",
+      "original_stdout_utf8_sha256": "d193c2e6c25e96215f2c066f624aeed87fcc7cab3f105ec7a26d3071a75a7226",
+      "observation": {
+        "status": {
+          "state": "complete",
+          "phase": "native-version-and-smoke",
+          "started_at": 1794431391.7634695,
+          "toolchain_url": "https://download.swift.org/swift-6.3.2-release/ubuntu2404-aarch64/swift-6.3.2-RELEASE/swift-6.3.2-RELEASE-ubuntu24.04-aarch64.tar.gz",
+          "signature_url": "https://download.swift.org/swift-6.3.2-release/ubuntu2404-aarch64/swift-6.3.2-RELEASE/swift-6.3.2-RELEASE-ubuntu24.04-aarch64.tar.gz.sig",
+          "key_url": "https://swift.org/keys/release-key-swift-6.x.asc",
+          "expected_signing_fingerprint": "52BB7E3DE28A71BE22EC05FFEF80A866B47A981F",
+          "commands": [
+            {
+              "argv": [
+                "/usr/bin/curl",
+                "--disable",
+                "--fail",
+                "--location",
+                "--proto",
+                "=https",
+                "--proto-redir",
+                "=https",
+                "--silent",
+                "--show-error",
+                "--retry",
+                "2",
+                "--connect-timeout",
+                "20",
+                "--max-time",
+                "600",
+                "--output",
+                "<private-stage-001>/swift-6.3.2-RELEASE-ubuntu24.04-aarch64.tar.gz",
+                "https://download.swift.org/swift-6.3.2-release/ubuntu2404-aarch64/swift-6.3.2-RELEASE/swift-6.3.2-RELEASE-ubuntu24.04-aarch64.tar.gz"
+              ],
+              "exit_code": 0,
+              "seconds": 38.72733235359192,
+              "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            {
+              "argv": [
+                "/usr/bin/curl",
+                "--disable",
+                "--fail",
+                "--location",
+                "--proto",
+                "=https",
+                "--proto-redir",
+                "=https",
+                "--silent",
+                "--show-error",
+                "--retry",
+                "2",
+                "--connect-timeout",
+                "20",
+                "--max-time",
+                "600",
+                "--output",
+                "<private-stage-001>/swift-6.3.2-RELEASE-ubuntu24.04-aarch64.tar.gz.sig",
+                "https://download.swift.org/swift-6.3.2-release/ubuntu2404-aarch64/swift-6.3.2-RELEASE/swift-6.3.2-RELEASE-ubuntu24.04-aarch64.tar.gz.sig"
+              ],
+              "exit_code": 0,
+              "seconds": 0.6548688411712646,
+              "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            {
+              "argv": [
+                "/usr/bin/curl",
+                "--disable",
+                "--fail",
+                "--location",
+                "--proto",
+                "=https",
+                "--proto-redir",
+                "=https",
+                "--silent",
+                "--show-error",
+                "--retry",
+                "2",
+                "--connect-timeout",
+                "20",
+                "--max-time",
+                "600",
+                "--output",
+                "<private-stage-001>/release-key.asc",
+                "https://swift.org/keys/release-key-swift-6.x.asc"
+              ],
+              "exit_code": 0,
+              "seconds": 0.8952569961547852,
+              "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            {
+              "argv": [
+                "/usr/bin/gpg",
+                "--no-options",
+                "--homedir",
+                "<private-stage-001>/gnupg",
+                "--batch",
+                "--no-autostart",
+                "--no-auto-key-retrieve",
+                "--import",
+                "<private-stage-001>/release-key.asc"
+              ],
+              "exit_code": 0,
+              "seconds": 0.01962113380432129,
+              "log_sha256": "f195fd9411a453de78c1cf067a58eac5b838df0f68afd6eadfcdb83dcb67e911"
+            },
+            {
+              "argv": [
+                "/usr/bin/gpg",
+                "--no-options",
+                "--homedir",
+                "<private-stage-001>/gnupg",
+                "--batch",
+                "--no-autostart",
+                "--no-auto-key-retrieve",
+                "--with-colons",
+                "--fingerprint"
+              ],
+              "exit_code": 0,
+              "seconds": 0.0036585330963134766,
+              "log_sha256": "870d5357a0cfc259ffb0bf1df0c9dfaadaeb1b39da9f79e453eef0012a338a4f"
+            },
+            {
+              "argv": [
+                "/usr/bin/gpg",
+                "--no-options",
+                "--homedir",
+                "<private-stage-001>/gnupg",
+                "--batch",
+                "--no-autostart",
+                "--no-auto-key-retrieve",
+                "--status-fd",
+                "1",
+                "--verify",
+                "<private-stage-001>/swift-6.3.2-RELEASE-ubuntu24.04-aarch64.tar.gz.sig",
+                "<private-stage-001>/swift-6.3.2-RELEASE-ubuntu24.04-aarch64.tar.gz"
+              ],
+              "exit_code": 0,
+              "seconds": 0.6616182327270508,
+              "log_sha256": "ac87a7be7df568a7767739f66f50a9f014c772d922ade66e5a619a6bc5f552c4"
+            },
+            {
+              "argv": [
+                "/usr/bin/ldd",
+                "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift"
+              ],
+              "exit_code": 0,
+              "seconds": 0.01024007797241211,
+              "log_sha256": "6880a3d437cf92d9c099bb79256b857fb4004fb403031832814222d04a03c8e7"
+            },
+            {
+              "argv": [
+                "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift",
+                "--version"
+              ],
+              "exit_code": 127,
+              "seconds": 0.001483917236328125,
+              "log_sha256": "ca0ce3c4994626ba3ad892c27da82d64af0ae166e6f8339a057680a4046d290e"
+            }
+          ],
+          "errors": [
+            "RuntimeError: Task-private toolchain command failed: <private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift"
+          ],
+          "signature_verified": true,
+          "valid_signature_status": "[GNUPG:] VALIDSIG 52BB7E3DE28A71BE22EC05FFEF80A866B47A981F 2026-05-12 1778619443 0 4 0 1 10 00 52BB7E3DE28A71BE22EC05FFEF80A866B47A981F",
+          "archive_sha256": "34ef6e0b78bc264321c701b20de452a8a0740f493e1849eab18c7b6a91a57e50",
+          "archive_bytes": 1054253064,
+          "expanded_regular_bytes": 3485045165,
+          "swift_path": "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift",
+          "swift_frontend_sha256": "7b4d04babb4f0ecdb0271d7af2371e4a55140c8e2d30a30b6fddd742f7913a62",
+          "ended_at": 1794431449.5261831
+        },
+        "archive_sizes": {
+          "swift-6.3.2-RELEASE-ubuntu24.04-aarch64.tar.gz": 1054253064
+        },
+        "last_command_tail": "<private-stage-001>/unpacked/swift-6.3.2-RELEASE-ubuntu24.04-aarch64/usr/bin/swift: error while loading shared libraries: libncurses.so.6: cannot open shared object file: No such file or directory\n",
+        "supervisor_log": ""
+      }
+    }
+  ],
+  "derived": {
+    "initial_signature_verified_but_version_exit": 127,
+    "compatible_smoke_passed": true,
+    "archive_sha256": "34ef6e0b78bc264321c701b20de452a8a0740f493e1849eab18c7b6a91a57e50",
+    "swift_frontend_sha256": "7b4d04babb4f0ecdb0271d7af2371e4a55140c8e2d30a30b6fddd742f7913a62",
+    "compiler_version": "Swift version 6.3.2 (swift-6.3.2-RELEASE)\nTarget: aarch64-unknown-linux-gnu",
+    "private_dependencies": [
+      {
+        "name": "libncurses6",
+        "filename": "libncurses6_6.4+20240113-1ubuntu2.2_arm64.deb",
+        "sha256": "46cd7885975573fc669d93f66f2453e014e6ccae4f568659febd49e5011630d4",
+        "source_url": "https://packages.ubuntu.com/noble-updates/arm64/libncurses6/download",
+        "download_url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/n/ncurses/libncurses6_6.4+20240113-1ubuntu2.2_arm64.deb"
+      },
+      {
+        "name": "libtinfo6",
+        "filename": "libtinfo6_6.4+20240113-1ubuntu2.2_arm64.deb",
+        "sha256": "00570dce13bd89b31e4f433001fb0a55436e57a76370afbae6c5ac491b3dd3e9",
+        "source_url": "https://packages.ubuntu.com/noble-updates/arm64/libtinfo6/download",
+        "download_url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/n/ncurses/libtinfo6_6.4+20240113-1ubuntu2.2_arm64.deb"
+      }
+    ]
+  },
+  "sanitization": {
+    "policy": "Only declared personal/local identifiers are aliased. All fields, array lengths, verdicts, timestamps, durations, counts, errors, recovery actions, hashes and public source links remain. Process ID/birth/UID values become stable string aliases; all other non-string observation values retain their original type and value.",
+    "scope": "One alias table per category shared across the entire package. No reverse maps are published.",
+    "categories": {
+      "generated-config": 5,
+      "guest-home": 2,
+      "host-home": 2,
+      "load-address": 49,
+      "local-uuid": 68,
+      "private-runtime": 2,
+      "private-stage": 7,
+      "private-zmx-endpoint": 3,
+      "process": 309,
+      "process-birth": 286,
+      "process-uid": 1,
+      "run": 2,
+      "sentinel": 1,
+      "session-runtime": 1,
+      "short-temporary-root": 2
+    },
+    "stdout_handling": "JSON-valued transport stdout is decoded to an object; all transport metadata is retained separately. Original file/encoded-stdout hashes bind its serialization.",
+    "logs": "Retained collected text is preserved with declared identifier substitutions. Guest-file hashes are reported observations, not hashes of normalized or sanitized text. Collected-text hashes and byte/line counts are recorded separately.",
+    "source_scripts": "Worker/operator/test source files are bound by original SHA256 and size. They are read for identity and selected static assertions, never imported or executed."
+  }
+}

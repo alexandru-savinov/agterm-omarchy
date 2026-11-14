@@ -1,0 +1,243 @@
+{
+  "schema": "agterm-public-shutdown-evidence/1",
+  "evidence_kind": "retained original extract",
+  "new_execution": false,
+  "full_current_source_acceptance": false,
+  "sources": [
+    {
+      "original": "native-shutdown-runtime-attempt1-private.json",
+      "original_sha256": "13e944de1a8e5179c55713c447f3a560e5422d5a87a4671517a5ee438e62cb7e",
+      "locator": "$.stdout(JSON).report",
+      "decoded_stdout_sha256": "1748bb7cdee16c00cdc5df81c8f2d751a530bd38888c6d647062f8ab4fe93084"
+    }
+  ],
+  "report": {
+    "schema": "agterm-native-shutdown-hybrid/1",
+    "diagnostic_only": true,
+    "state": "complete",
+    "phase": "none",
+    "started_at": 1794430354.2338321,
+    "settings": {
+      "payload": "<private-stage-001>/agterm-stage",
+      "frozen_payload": "<private-stage-002>/agterm-stage",
+      "app_source_commit": "bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d",
+      "library_source_commit": "fd72c31902029e6d228ab3a254c37e28b9655ab3",
+      "library_ghostty_commit": "0ba6250388641f52135414b38c4259aa682c489b",
+      "operator_sha256": "44111bba76d7701591f27fce86a049bcdb4ec5e73d610e1aef407057ac53488e",
+      "worker_sha256": "8b378c44d764c32213880137713309d0f43cfcbbf4e229d89aa6aba394cd7cdf",
+      "fixture_sha256": "24030151e8e10ff501349477a520c10331fe1cf58ff2990ef584602683a78860",
+      "probe_source_commit": "e77b6ad448677e00cafd14a36c557b96affb6678",
+      "payload_hashes": {
+        "bin/agterm-linux.bin": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+        "bin/zmx": "7d4d530c2741e7c8edc1ddbfadf528a247d19f032e660aeb7eaf0b1f6288d310",
+        "lib/libghostty.so": "5b9b5cf9aae72aa1418028c8d3b98aa8f72251ca9510bee15000f02981ad8bff"
+      },
+      "diagnostic_only": true
+    },
+    "modes": {
+      "none": {
+        "passed": false,
+        "started_at_utc": "2026-11-11T20:52:34.242804+00:00",
+        "launcher_sha256": "f3922e0f77f47fd77e4714598bad08c215dc14027661fa1835557f2411933bde",
+        "private_runtime_directory": "none-runtime",
+        "returncode": 1,
+        "independent_cleanup": {
+          "passed": true,
+          "tracked_process_count": 16,
+          "remaining_processes": [],
+          "new_app_processes": [],
+          "retained_recovery_paths": [],
+          "endpoints": [
+            "<private-zmx-endpoint-001>"
+          ],
+          "preservation": {
+            "passed": true,
+            "protected_process_count": 2,
+            "lost": {}
+          },
+          "timed_out": false,
+          "forced_cleanup": false,
+          "shell_pids": {},
+          "cleanup_actions": [],
+          "errors": []
+        },
+        "ended_at_utc": "2026-11-11T20:52:39.763016+00:00",
+        "result": {
+          "passed": false,
+          "completed_checks": [
+            "primary PTY execution and screen read-back",
+            "native Wayland rendering: red-to-green PTY pixel change",
+            "workspace/session creation and split PTY execution",
+            "overlay output, dismissal, and restored split input"
+          ],
+          "identity": {
+            "schema": "agterm-omarchy-run-identity/1",
+            "run_id": "1ab551098e1b42b9b99bb152a1b87de9",
+            "artifact_dir_name": "none",
+            "started_at_utc": "2026-11-11T20:52:34.266644Z",
+            "harness": {
+              "sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40",
+              "git_commit": null,
+              "git_blob": "38d8916e35c862f65bd2a206b411086cd95942ab",
+              "matches_commit": null
+            },
+            "binaries": {
+              "app": {
+                "name": "none-launch-app.py",
+                "sha256": "f3922e0f77f47fd77e4714598bad08c215dc14027661fa1835557f2411933bde",
+                "resolved_name": "none-launch-app.py",
+                "kind": "script"
+              },
+              "cli": {
+                "name": "agtermctl",
+                "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+                "resolved_name": "agtermctl",
+                "kind": "script"
+              },
+              "zmx": null
+            },
+            "app_processes": [
+              {
+                "launch": 1,
+                "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+                "exe_name": "agterm-linux.bin"
+              }
+            ],
+            "zmx_list": [],
+            "positive_control": null,
+            "ended_at_utc": "2026-11-11T20:52:39.616080Z"
+          }
+        },
+        "cleanup": {
+          "passed": true,
+          "tracked_daemon_count": 0,
+          "identity": {
+            "schema": "agterm-omarchy-run-identity/1",
+            "run_id": "1ab551098e1b42b9b99bb152a1b87de9",
+            "artifact_dir_name": "none",
+            "started_at_utc": "2026-11-11T20:52:34.266644Z",
+            "harness": {
+              "sha256": "9fe046d6fbbf0dbc79e0591b2fbe8869af4f79604d6a2f7a470c5750044cee40",
+              "git_commit": null,
+              "git_blob": "38d8916e35c862f65bd2a206b411086cd95942ab",
+              "matches_commit": null
+            },
+            "binaries": {
+              "app": {
+                "name": "none-launch-app.py",
+                "sha256": "f3922e0f77f47fd77e4714598bad08c215dc14027661fa1835557f2411933bde",
+                "resolved_name": "none-launch-app.py",
+                "kind": "script"
+              },
+              "cli": {
+                "name": "agtermctl",
+                "sha256": "c652ec1f6dc37f12410a125617449398d1a5ae2307d388ae825e3753ba7d6331",
+                "resolved_name": "agtermctl",
+                "kind": "script"
+              },
+              "zmx": null
+            },
+            "app_processes": [
+              {
+                "launch": 1,
+                "sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+                "exe_name": "agterm-linux.bin"
+              }
+            ],
+            "zmx_list": [],
+            "positive_control": null,
+            "ended_at_utc": "2026-11-11T20:52:39.615915Z"
+          }
+        }
+      }
+    },
+    "config_repetitions": [],
+    "errors": [
+      "RuntimeError: Harness/cleanup/preservation failed"
+    ],
+    "image_observer": {
+      "completed": true,
+      "errors": [],
+      "observed_images": [
+        {
+          "process": {
+            "pid": "<process-001>",
+            "name": "agterm-linux.bi",
+            "state": "D",
+            "parent": "<process-002>",
+            "start": "<birth-001>",
+            "uid": "<test-uid>"
+          },
+          "app_sha256": "c6f8ed5d6cd16be4af4997d363814cc2da3ab58f9e18d9ef81d17775d9a91946",
+          "library_sha256": "5b9b5cf9aae72aa1418028c8d3b98aa8f72251ca9510bee15000f02981ad8bff",
+          "mapping_count": 7
+        }
+      ],
+      "expected_image_count": 1,
+      "missing_expected_images": []
+    },
+    "payload_unchanged": true,
+    "frozen_payload_unchanged": true,
+    "installed_payload_unchanged": true,
+    "shared_runtime_unchanged": true,
+    "login_shell_unchanged": true,
+    "preservation": {
+      "passed": true,
+      "protected_process_count": 2,
+      "lost": {}
+    },
+    "passed": false,
+    "ended_at": 1794430360.0380292
+  },
+  "derived_summary": {
+    "passed": false,
+    "modes": {
+      "none": {
+        "passed": false,
+        "completed_check_count": 4,
+        "process_local_zsh_fixture": false
+      }
+    },
+    "config_repetitions": [],
+    "actual_image_count": 1,
+    "expected_image_count": 1,
+    "library_mapping_row_counts": [
+      7
+    ],
+    "mapping_rows_total": 7,
+    "observer_definition": "mapping_count is the number of /proc/PID/maps rows selecting the exact library path; image count is distinct frontend birth identities."
+  },
+  "sanitization": "Absolute guest stages/endpoints and process uid/pid/birth identifiers use stable per-file aliases. All report fields, array lengths, verdicts, counts, timings, hashes, recovery signals, errors and limits are retained. Raw surrounding app logs are excluded except the labeled failure excerpts.",
+  "startup_failure": {
+    "excerpts": [
+      {
+        "embedded_log_name": "none.log",
+        "original_log_sha256": "bd9ea19f6bc36d01884d4e48afd9a13c65f691b73311830d06a46d728398d2c3",
+        "original_log_bytes": 265,
+        "selected_lines": [
+          {
+            "line": 5,
+            "text": "AssertionError: app exited with -6: WebKitGTK file overlay loaded"
+          }
+        ]
+      },
+      {
+        "embedded_log_name": "none/app.log",
+        "original_log_sha256": "b4aca544457a6e1a0cb8a285c832aef6453d7d0308d659e4c1878839623a98d3",
+        "original_log_bytes": 19733,
+        "selected_lines": [
+          {
+            "line": 183,
+            "text": "bwrap: Can't find source path <private-stage-001>/none-runtime/webkitgtk/a11y-proxy-AI1QY3: No such file or directory"
+          },
+          {
+            "line": 185,
+            "text": "** (agterm-linux.bin:<test-pid>): ERROR **: 22:52:37.231: Connection: failed to receive credentials: Expecting to read a single byte for receiving credentials but read zero bytes"
+          }
+        ]
+      }
+    ],
+    "original_missing_socket_path_utf8_bytes": 108,
+    "classification": "WebKit accessibility proxy source-path failure after four ordinary checks; not a shutdown-gate observation."
+  }
+}

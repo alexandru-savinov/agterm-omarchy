@@ -15,8 +15,8 @@ on:
       task_limit:
         description: Number of tasks to show in the refreshed issue snapshot
         type: choice
-        options: ['10', '25', '50']
-        default: '25'
+        options: ['10', '25', '50', '100']
+        default: '100'
       deploy:
         description: Deploy after building (main branch only); otherwise upload a preview
         type: boolean
@@ -37,6 +37,8 @@ jobs:
     permissions:
       contents: read
       issues: read
+      # Download the upstream-drift artifact of another run (read-only).
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,12 +56,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/github/queue.py --output "$RUNNER_TEMP/queue"
+      - name: Snapshot upstream drift from the latest weekly run
+        # If no run or artifact is found, build.py renders a visible "unavailable" notice and status.json says so;
+        # older than 8 days renders a "stale" notice. Only scheduled/dispatched runs on main count, never PR runs
+        # (a fork's PR branch can be named main); build.py applies the same filter to the selected run.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/drift"
+          # Filter by event on the server, so newer PR runs can never push an eligible run past --limit.
+          for event in schedule workflow_dispatch; do
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow upstream-drift.yml --branch main --status success \
+              --event "$event" --limit 5 --json databaseId,createdAt,event,headBranch
+          done | jq -s '[add | map(select(.headBranch == "main" and (.event == "schedule" or .event == "workflow_dispatch")))
+                        | sort_by(.createdAt) | last | select(. != null)]' > "$RUNNER_TEMP/drift/run.json"
+          run_id="$(jq -r '.[0].databaseId // empty' "$RUNNER_TEMP/drift/run.json")"
+          if [[ -z "$run_id" ]]; then echo 'No successful scheduled/dispatched upstream-drift run on main.'; exit 0; fi
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name upstream-drift --dir "$RUNNER_TEMP/drift/artifact"
       - name: Build static site
         env:
-          TASK_LIMIT: ${{ inputs.task_limit || '25' }}
+          TASK_LIMIT: ${{ inputs.task_limit || '100' }}
         run: |
           python3 docs/omarchy-pages/build.py --issues "$RUNNER_TEMP/issues.json" \
             --queue "$RUNNER_TEMP/queue/queue.json" \
+            --drift-run "$RUNNER_TEMP/drift/run.json" --drift "$RUNNER_TEMP/drift/artifact/upstream-drift.json" \
             --output _site --commit "$GITHUB_SHA" --limit "$TASK_LIMIT"
       - name: Upload downloadable preview
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

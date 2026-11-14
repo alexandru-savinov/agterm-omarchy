@@ -36,8 +36,13 @@ final class SettingsStoreTests {
 
     @Test func corruptFileSeedsDefaultTheme() throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try Data("{ not valid json ]".utf8).write(to: fileURL)
+        let original = Data("{ not valid json ]".utf8)
+        try original.write(to: fileURL)
         #expect(store.load() == AppSettings(theme: AppSettings.defaultTheme))
+        // the next settings change saves over settings.json; the hand-edited original survives aside
+        try store.save(AppSettings(theme: "Alabaster"))
+        #expect(try StateFileQuarantine.preservedCopies(of: fileURL).map { try Data(contentsOf: $0) } == [original])
+        #expect(store.load().theme == "Alabaster")
     }
 
     @Test func existingFileWithoutThemeKeyStaysGhosttyDefault() throws {

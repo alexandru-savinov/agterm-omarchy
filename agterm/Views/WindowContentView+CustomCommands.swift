@@ -20,9 +20,9 @@ extension WindowContentView {
             guard !pick.modalPending else { return }
             customCommandsShown.toggle()
         } label: {
-            Label("Custom commands", systemImage: "ellipsis.circle")
+            Label("Custom commands", systemImage: InterfaceElement.customCommands.symbolName!)
         }
-        .help(helpHint("Custom commands", .customCommandPalette))
+        .toolTip(helpHint("Custom commands", .customCommandPalette), isShown: titlebarTipsShown)
         .foregroundStyle(chromeText)
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.35)

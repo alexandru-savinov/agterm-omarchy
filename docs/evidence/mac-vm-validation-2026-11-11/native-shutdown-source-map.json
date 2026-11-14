@@ -1,0 +1,418 @@
+{
+  "schema": "agterm-public-shutdown-evidence/1",
+  "evidence_kind": "retained original extract",
+  "new_execution": false,
+  "full_current_source_acceptance": false,
+  "sources": [],
+  "original_base": "output/agterm-omarchy/mac-vm-validation-20261111/",
+  "originals": [
+    {
+      "relative_original": "native-shutdown-build-preparation-private.json",
+      "sha256": "127c37995900393c623703370279c7e4fe9a1e37ddc85dc1487bea9025b47b68",
+      "bytes": 3584,
+      "purposes": [
+        "native full-library build setup and source/patch/compiler binding"
+      ],
+      "decoded_stdout_sha256": "a2ba354fbd450ab047d2093bfc70515da413871301a4d762832a1110453be42d"
+    },
+    {
+      "relative_original": "native-shutdown-build-poll-private.json",
+      "sha256": "0e416c931db18dcaeb8328005d1ca24fa2e8a7c251987adb63f32c5f1097d2b9",
+      "bytes": 1149,
+      "purposes": [
+        "actual completed native build state and log"
+      ],
+      "decoded_stdout_sha256": "80c5c960c2832e6b3d72379d27665c56c37348a1cd4be188979ae8f0a14527e1"
+    },
+    {
+      "relative_original": "native-shutdown-variant-preparation-private.json",
+      "sha256": "0eb9a9a6873fe17c0de882a1cc170d3a891929464721b83dbe03423f05ac9e9b",
+      "bytes": 1757,
+      "purposes": [
+        "single-library hybrid preparation and frozen-payload preservation"
+      ],
+      "decoded_stdout_sha256": "a42df9daee9262193e7071e2a98fb75f6aca9c7fc23cdd6766ed4a718977af69"
+    },
+    {
+      "relative_original": "native-shutdown-queue-regression-private.json",
+      "sha256": "131a48b88465fa0e01b6504c965046d79da5f2d8507daf36a5c8f71d71dcd5da",
+      "bytes": 1867,
+      "purposes": [
+        "original fd72 native queue pass and semantic original-source negative"
+      ],
+      "decoded_stdout_sha256": "c17865c98fa3933544127c9dfa25022229f98c90f609b95b81103412bd590bc6"
+    },
+    {
+      "relative_original": "native-shutdown-runtime-attempt1-private.json",
+      "sha256": "13e944de1a8e5179c55713c447f3a560e5422d5a87a4671517a5ee438e62cb7e",
+      "bytes": 30493,
+      "purposes": [
+        "complete result, failures, process mappings, cleanup and preservation: runtime-attempt-1"
+      ],
+      "decoded_stdout_sha256": "1748bb7cdee16c00cdc5df81c8f2d751a530bd38888c6d647062f8ab4fe93084"
+    },
+    {
+      "relative_original": "native-shutdown-runtime-attempt2-private.json",
+      "sha256": "0cf840420076a08df49b1e40f9e4d6856fa62715aa67666962045c95d53557b2",
+      "bytes": 49719,
+      "purposes": [
+        "complete result, failures, process mappings, cleanup and preservation: runtime-attempt-2"
+      ],
+      "decoded_stdout_sha256": "b185931baa15a667af65302d2934191e30e491d499bbe81d48837e6fb9198172"
+    },
+    {
+      "relative_original": "native-config-ab-baseline-result-private.json",
+      "sha256": "2cd6fef0e4e03fa8ea02a1e8d902665001d5b46d8dc9d6534630fe47faaceafc",
+      "bytes": 37674,
+      "purposes": [
+        "complete result, failures, process mappings, cleanup and preservation: config-baseline"
+      ],
+      "decoded_stdout_sha256": "db99f9ac968fc09f114ba294d7fc36683ffda1321029eca776899596a95f80f6"
+    },
+    {
+      "relative_original": "native-config-ab-patched-result-private.json",
+      "sha256": "a73cebc36756ebf3a1fc94c3d4163ea30a7eb0038d923a2d2e8ef11ddcba1459",
+      "bytes": 37306,
+      "purposes": [
+        "complete result, failures, process mappings, cleanup and preservation: config-patched"
+      ],
+      "decoded_stdout_sha256": "156f8eb0624f43a763fa0f27e82a272f9bb7855aebe5fd4346aa7ee88d6fa72b"
+    },
+    {
+      "relative_original": "native-config-confirmation-patched-result-private.json",
+      "sha256": "4748218e4111d72f7c6da5ff4ef83ba0a7f9982d8bbbcf5225f29eb8aaadc3cc",
+      "bytes": 25730,
+      "purposes": [
+        "complete result, failures, process mappings, cleanup and preservation: config-confirmations"
+      ],
+      "decoded_stdout_sha256": "0e58ee3fc9de54ae0d5f0cf8417da9771d746a3458e88e87fd40a48b8fc15486"
+    },
+    {
+      "relative_original": "native-shutdown-build-preparer.py",
+      "sha256": "05901b42b638655153df40bca715764b66bc4f6676d0dd1a4c99c518d00e30ca",
+      "bytes": 3470,
+      "purposes": [
+        "read-only operator/source binding; source is not executed or published"
+      ]
+    },
+    {
+      "relative_original": "native-shutdown-runtime-worker.py",
+      "sha256": "8b378c44d764c32213880137713309d0f43cfcbbf4e229d89aa6aba394cd7cdf",
+      "bytes": 8053,
+      "purposes": [
+        "read-only operator/source binding; source is not executed or published"
+      ]
+    },
+    {
+      "relative_original": "native-config-ab-worker.py",
+      "sha256": "c084349fd515febe2fdd94ee741f2abcdd54799ce79ea57828d13641713ae986",
+      "bytes": 9183,
+      "purposes": [
+        "read-only operator/source binding; source is not executed or published"
+      ]
+    },
+    {
+      "relative_original": "launch-shutdown-runtime-attempt1.py",
+      "sha256": "84063c29f4071b89e3a765ab28875d63733fa314669b89757e9202e65d4c7aab",
+      "bytes": 3244,
+      "purposes": [
+        "read-only operator/source binding; source is not executed or published"
+      ]
+    },
+    {
+      "relative_original": "launch-shutdown-runtime.py",
+      "sha256": "9fb37675b3906501e5bb8dd47e4eb9f92c9208262a07ac15d3b77c9c0b6eef64",
+      "bytes": 3232,
+      "purposes": [
+        "read-only operator/source binding; source is not executed or published"
+      ]
+    },
+    {
+      "relative_original": "launch-config-ab.py",
+      "sha256": "f2463a1a68e7a568789d945263717c01f15b10d432ab5c00de6080b0d290d199",
+      "bytes": 3623,
+      "purposes": [
+        "read-only operator/source binding; source is not executed or published"
+      ]
+    },
+    {
+      "relative_original": "launch-config-confirmation.py",
+      "sha256": "0604602266fd1225c98352ee29b2fd6abb804ec13f7e7ac4b75165ed4c70fe6b",
+      "bytes": 3633,
+      "purposes": [
+        "read-only operator/source binding; source is not executed or published"
+      ]
+    },
+    {
+      "relative_original": "bound-bec-probe-e77b6ad4/native-run-template.py",
+      "sha256": "44111bba76d7701591f27fce86a049bcdb4ec5e73d610e1aef407057ac53488e",
+      "bytes": 42617,
+      "purposes": [
+        "read-only operator/source binding; source is not executed or published"
+      ]
+    },
+    {
+      "relative_original": "native-config-ab-baseline-launch-private.json",
+      "sha256": "d0ebff9efc7e9f169387968cee7cd817c361fbd6ae527ed76eb6785b64f1c77b",
+      "bytes": 247,
+      "purposes": [
+        "inspected nonfinal launch/progress collection; final experiment reports provide the outcome"
+      ],
+      "decoded_stdout_sha256": "726dd467bb2d18f244d1d09dfc09b7e3dee9933594a8acf21844c0ffd9b72535"
+    },
+    {
+      "relative_original": "native-config-ab-patched-launch-private.json",
+      "sha256": "24b9fb1c1cb48165aa3a183f2798f7318f824222a6cee0cb972a2fff0ce10ccb",
+      "bytes": 245,
+      "purposes": [
+        "inspected nonfinal launch/progress collection; final experiment reports provide the outcome"
+      ],
+      "decoded_stdout_sha256": "3f2ae4726a0c49456e2c54530c3b885669f59b92cccba2690bac6cb82d1a0424"
+    },
+    {
+      "relative_original": "native-config-confirmation-patched-launch-private.json",
+      "sha256": "c70179e4f3aadb21bcd1e35bdd87eb477e745409228e304496f1e0116adc087c",
+      "bytes": 247,
+      "purposes": [
+        "inspected nonfinal launch/progress collection; final experiment reports provide the outcome"
+      ],
+      "decoded_stdout_sha256": "c26c09b00e2858c9f4bb427fbac234faab3734150b8968ed1ca8f71bec55e282"
+    },
+    {
+      "relative_original": "native-shutdown-runtime-attempt2-poll-private.json",
+      "sha256": "1649c920a2ab75989b3669b8f4a7217514a6a2a06a76bab69082568d5e930634",
+      "bytes": 773,
+      "purposes": [
+        "inspected nonfinal launch/progress collection; final experiment reports provide the outcome"
+      ],
+      "decoded_stdout_sha256": "59aabfac855724dff0bd6335874233a315c3796ff70ed9c842efe080abdb5561"
+    },
+    {
+      "relative_original": "native-shutdown-runtime-launch-attempt2-private.json",
+      "sha256": "346dc6bf1a5f0b84ddeafebe7d83b9731a62a902108afb6f8359506ae92380d8",
+      "bytes": 248,
+      "purposes": [
+        "inspected nonfinal launch/progress collection; final experiment reports provide the outcome"
+      ],
+      "decoded_stdout_sha256": "9a7f3dd56ea37c7e0525eb35ff318191966f30cff8a152fe1d0684017aac9c9c"
+    },
+    {
+      "relative_original": "native-shutdown-runtime-launch-private.json",
+      "sha256": "39e2fb379ca74c9d162309301615ec3dd2996ff35b53c5b48df00a648a39efbd",
+      "bytes": 269,
+      "purposes": [
+        "inspected nonfinal launch/progress collection; final experiment reports provide the outcome"
+      ],
+      "decoded_stdout_sha256": "b3cf45e2e0b18a4f2bf25467707bf227474a50a7cecd8cd2b08f45625513370a"
+    },
+    {
+      "relative_original": "native-shutdown-runtime-poll-private.json",
+      "sha256": "05b24f398a3c2ad3e5f8d64fc16a0ca501a66385b75a3a8924ab29df9fd67efa",
+      "bytes": 500,
+      "purposes": [
+        "inspected nonfinal launch/progress collection; final experiment reports provide the outcome"
+      ],
+      "decoded_stdout_sha256": "2f6a95f5c37d77804697064197fcdc282ec843411cf0e9840cb0deb1999a6a34"
+    }
+  ],
+  "public_git_sources": [
+    {
+      "ref": "fd72c31902029e6d228ab3a254c37e28b9655ab3",
+      "path": "linux/patches/ghostty-embedded-opengl.patch",
+      "git_blob": "de5ac39250d30fd94b13c786b5087cbe22226a64",
+      "sha256": "5acad8dff653d70056471520270d03c1df59aa7d6112e895f10d3c903bea6ba9",
+      "url": "https://github.com/alexandru-savinov/agterm-omarchy/blob/fd72c31902029e6d228ab3a254c37e28b9655ab3/linux/patches/ghostty-embedded-opengl.patch"
+    },
+    {
+      "ref": "fd72c31902029e6d228ab3a254c37e28b9655ab3",
+      "path": "scripts/test-linux-ghostty-shutdown.sh",
+      "git_blob": "cf25377762e676d2a4e43b6fc751799c1eeecf69",
+      "sha256": "b2dd3598b9c0ce7d4a9c5527512c8b345be04f9ffd9a77e7396d2a2312bd760d",
+      "url": "https://github.com/alexandru-savinov/agterm-omarchy/blob/fd72c31902029e6d228ab3a254c37e28b9655ab3/scripts/test-linux-ghostty-shutdown.sh"
+    },
+    {
+      "ref": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/patches/ghostty-embedded-opengl.patch",
+      "git_blob": "de5ac39250d30fd94b13c786b5087cbe22226a64",
+      "sha256": "5acad8dff653d70056471520270d03c1df59aa7d6112e895f10d3c903bea6ba9",
+      "url": "https://github.com/alexandru-savinov/agterm-omarchy/blob/77cce43eb791ba1a983c19760c7df5259d0e452d/linux/patches/ghostty-embedded-opengl.patch"
+    },
+    {
+      "ref": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "scripts/test-linux-ghostty-shutdown.sh",
+      "git_blob": "efbb0fc48f22add9bdb32960cc1cc77d2fb1e339",
+      "sha256": "0953dd05550ab81b99f24f5d2c7686e3cc2a73e5f9e3a08d04cf971c418b3f58",
+      "url": "https://github.com/alexandru-savinov/agterm-omarchy/blob/77cce43eb791ba1a983c19760c7df5259d0e452d/scripts/test-linux-ghostty-shutdown.sh"
+    }
+  ],
+  "output_map": {
+    "native-shutdown-build.json": {
+      "sha256": "097c26fb80bc123e714c8edc3dd675f7e4e92c3a4fb64be877e36c2d14835431",
+      "bytes": 8090,
+      "sources": [
+        {
+          "original": "native-shutdown-build-preparation-private.json",
+          "original_sha256": "127c37995900393c623703370279c7e4fe9a1e37ddc85dc1487bea9025b47b68",
+          "locator": "$.stdout(JSON)",
+          "decoded_stdout_sha256": "a2ba354fbd450ab047d2093bfc70515da413871301a4d762832a1110453be42d"
+        },
+        {
+          "original": "native-shutdown-build-poll-private.json",
+          "original_sha256": "0e416c931db18dcaeb8328005d1ca24fa2e8a7c251987adb63f32c5f1097d2b9",
+          "locator": "$.stdout(JSON)[build-status.json](JSON)",
+          "decoded_stdout_sha256": "80c5c960c2832e6b3d72379d27665c56c37348a1cd4be188979ae8f0a14527e1"
+        },
+        {
+          "original": "native-shutdown-variant-preparation-private.json",
+          "original_sha256": "0eb9a9a6873fe17c0de882a1cc170d3a891929464721b83dbe03423f05ac9e9b",
+          "locator": "$.stdout(JSON)",
+          "decoded_stdout_sha256": "a42df9daee9262193e7071e2a98fb75f6aca9c7fc23cdd6766ed4a718977af69"
+        }
+      ]
+    },
+    "native-shutdown-queue.json": {
+      "sha256": "aa87f02925d4e62f802aa15bb13e160eea97743ebb276c70dfa353a1e70a59d9",
+      "bytes": 2614,
+      "sources": [
+        {
+          "original": "native-shutdown-queue-regression-private.json",
+          "original_sha256": "131a48b88465fa0e01b6504c965046d79da5f2d8507daf36a5c8f71d71dcd5da",
+          "locator": "$.stdout(JSON)",
+          "decoded_stdout_sha256": "c17865c98fa3933544127c9dfa25022229f98c90f609b95b81103412bd590bc6"
+        }
+      ]
+    },
+    "native-shutdown-runtime-attempt-1.json": {
+      "sha256": "5c28e9aed59e07308c084e4e70f58971fc1ef7f8bebfd647a2ea3d08b7effddc",
+      "bytes": 9350,
+      "sources": [
+        {
+          "original": "native-shutdown-runtime-attempt1-private.json",
+          "original_sha256": "13e944de1a8e5179c55713c447f3a560e5422d5a87a4671517a5ee438e62cb7e",
+          "locator": "$.stdout(JSON).report",
+          "decoded_stdout_sha256": "1748bb7cdee16c00cdc5df81c8f2d751a530bd38888c6d647062f8ab4fe93084"
+        }
+      ]
+    },
+    "native-shutdown-runtime-attempt-2.json": {
+      "sha256": "79fee7f84196ee600e800159201b866d4e86b8ef91ba77c2469261be797c710d",
+      "bytes": 50482,
+      "sources": [
+        {
+          "original": "native-shutdown-runtime-attempt2-private.json",
+          "original_sha256": "0cf840420076a08df49b1e40f9e4d6856fa62715aa67666962045c95d53557b2",
+          "locator": "$.stdout(JSON).report",
+          "decoded_stdout_sha256": "b185931baa15a667af65302d2934191e30e491d499bbe81d48837e6fb9198172"
+        }
+      ]
+    },
+    "native-shutdown-config-baseline.json": {
+      "sha256": "c778b017dfba991f1c2dcfa7dfe8490d74c0fe6a72a1c68dd8ead1c509c4106f",
+      "bytes": 67739,
+      "sources": [
+        {
+          "original": "native-config-ab-baseline-result-private.json",
+          "original_sha256": "2cd6fef0e4e03fa8ea02a1e8d902665001d5b46d8dc9d6534630fe47faaceafc",
+          "locator": "$.stdout(JSON).report",
+          "decoded_stdout_sha256": "db99f9ac968fc09f114ba294d7fc36683ffda1321029eca776899596a95f80f6"
+        }
+      ]
+    },
+    "native-shutdown-config-patched.json": {
+      "sha256": "e78adf9effe0a2bd9ae44fe7a6f5a8eb247cd861c69c957b5ad336d8e5ba3306",
+      "bytes": 66590,
+      "sources": [
+        {
+          "original": "native-config-ab-patched-result-private.json",
+          "original_sha256": "a73cebc36756ebf3a1fc94c3d4163ea30a7eb0038d923a2d2e8ef11ddcba1459",
+          "locator": "$.stdout(JSON).report",
+          "decoded_stdout_sha256": "156f8eb0624f43a763fa0f27e82a272f9bb7855aebe5fd4346aa7ee88d6fa72b"
+        }
+      ]
+    },
+    "native-shutdown-config-confirmations.json": {
+      "sha256": "c052e84a95b057b65e960cc80f142d39dc76bd7164070bf117dc3c9211ceb36c",
+      "bytes": 45822,
+      "sources": [
+        {
+          "original": "native-config-confirmation-patched-result-private.json",
+          "original_sha256": "4748218e4111d72f7c6da5ff4ef83ba0a7f9982d8bbbcf5225f29eb8aaadc3cc",
+          "locator": "$.stdout(JSON).report",
+          "decoded_stdout_sha256": "0e58ee3fc9de54ae0d5f0cf8417da9771d746a3458e88e87fd40a48b8fc15486"
+        }
+      ]
+    },
+    "native-shutdown-source-binding.json": {
+      "sha256": "e5b3dee8d9e9d4f45a815dc3f14577fb5ab5309b60da9449b99358c00ec6b8e8",
+      "bytes": 2546,
+      "sources": []
+    },
+    "native-shutdown-summary.json": {
+      "sha256": "da8b166757f9a18c028f3c76efd0661209f9709831c00e75f160718673e28948",
+      "bytes": 11287,
+      "sources": [
+        {
+          "original": "native-shutdown-runtime-attempt1-private.json",
+          "original_sha256": "13e944de1a8e5179c55713c447f3a560e5422d5a87a4671517a5ee438e62cb7e",
+          "locator": "$.stdout(JSON).report",
+          "decoded_stdout_sha256": "1748bb7cdee16c00cdc5df81c8f2d751a530bd38888c6d647062f8ab4fe93084"
+        },
+        {
+          "original": "native-shutdown-runtime-attempt2-private.json",
+          "original_sha256": "0cf840420076a08df49b1e40f9e4d6856fa62715aa67666962045c95d53557b2",
+          "locator": "$.stdout(JSON).report",
+          "decoded_stdout_sha256": "b185931baa15a667af65302d2934191e30e491d499bbe81d48837e6fb9198172"
+        },
+        {
+          "original": "native-config-ab-baseline-result-private.json",
+          "original_sha256": "2cd6fef0e4e03fa8ea02a1e8d902665001d5b46d8dc9d6534630fe47faaceafc",
+          "locator": "$.stdout(JSON).report",
+          "decoded_stdout_sha256": "db99f9ac968fc09f114ba294d7fc36683ffda1321029eca776899596a95f80f6"
+        },
+        {
+          "original": "native-config-ab-patched-result-private.json",
+          "original_sha256": "a73cebc36756ebf3a1fc94c3d4163ea30a7eb0038d923a2d2e8ef11ddcba1459",
+          "locator": "$.stdout(JSON).report",
+          "decoded_stdout_sha256": "156f8eb0624f43a763fa0f27e82a272f9bb7855aebe5fd4346aa7ee88d6fa72b"
+        },
+        {
+          "original": "native-config-confirmation-patched-result-private.json",
+          "original_sha256": "4748218e4111d72f7c6da5ff4ef83ba0a7f9982d8bbbcf5225f29eb8aaadc3cc",
+          "locator": "$.stdout(JSON).report",
+          "decoded_stdout_sha256": "0e58ee3fc9de54ae0d5f0cf8417da9771d746a3458e88e87fd40a48b8fc15486"
+        }
+      ]
+    }
+  },
+  "nonfinal_collections": [
+    {
+      "original": "native-config-ab-baseline-launch-private.json",
+      "selection": "Hash retained for provenance; no final experiment verdict is inferred from a successful collection or launch."
+    },
+    {
+      "original": "native-config-ab-patched-launch-private.json",
+      "selection": "Hash retained for provenance; no final experiment verdict is inferred from a successful collection or launch."
+    },
+    {
+      "original": "native-config-confirmation-patched-launch-private.json",
+      "selection": "Hash retained for provenance; no final experiment verdict is inferred from a successful collection or launch."
+    },
+    {
+      "original": "native-shutdown-runtime-attempt2-poll-private.json",
+      "selection": "Hash retained for provenance; no final experiment verdict is inferred from a successful collection or launch."
+    },
+    {
+      "original": "native-shutdown-runtime-launch-attempt2-private.json",
+      "selection": "Hash retained for provenance; no final experiment verdict is inferred from a successful collection or launch."
+    },
+    {
+      "original": "native-shutdown-runtime-launch-private.json",
+      "selection": "Hash retained for provenance; no final experiment verdict is inferred from a successful collection or launch."
+    },
+    {
+      "original": "native-shutdown-runtime-poll-private.json",
+      "selection": "Hash retained for provenance; no final experiment verdict is inferred from a successful collection or launch."
+    }
+  ],
+  "literal_log_notes": "Queue and startup excerpts retain original unredacted log digests separately from redacted published text. Collection wrapper success is not the experiment verdict."
+}

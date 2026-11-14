@@ -28,6 +28,17 @@ struct DashboardCoverTests {
         #expect(session.dashboardCover(for: .left) == nil)
     }
 
+    @Test func aHiddenOverlayCoversNothing() {
+        #expect(store.openHtmlOverlay(session.id, pane: .right, overlay: page(), sizePercent: nil) == nil)
+        #expect(store.openOverlay(session.id, command: "less"))
+        #expect(session.dashboardCover(for: .left) == .program(command: "less"))
+
+        store.setOverlaysHidden(session.id, pane: nil, hidden: true)
+
+        #expect(session.dashboardCover(for: .left) == nil)
+        #expect(session.dashboardCover(for: .right) == nil)
+    }
+
     @Test func aPageCoverCarriesTheLoadedTitle() {
         #expect(store.openHtmlOverlay(session.id, pane: .left, overlay: page(), sizePercent: nil) == nil)
         session.leftOverlay?.html?.current = HtmlPageInfo(page: "/tmp/a/report.html", title: "Weekly report",
@@ -39,6 +50,14 @@ struct DashboardCoverTests {
         let overlay = HtmlOverlay(source: .url(try #require(URL(string: "http://localhost:5173/app"))))
         #expect(store.openHtmlOverlay(session.id, pane: .right, overlay: overlay, sizePercent: nil) == nil)
         #expect(session.dashboardCover(for: .right) == .page(identity: "http://localhost:5173", title: nil))
+    }
+
+    @Test func aBrowsingPageCoverNamesTheSiteShown() throws {
+        let overlay = HtmlOverlay(source: .url(try #require(URL(string: "http://localhost:5173/app"))), browse: true)
+        #expect(store.openHtmlOverlay(session.id, pane: .right, overlay: overlay, sizePercent: nil) == nil)
+        session.rightOverlay?.html?.current = HtmlPageInfo(page: "https://login.example/sso", title: nil,
+                                                           canGoBack: true, canGoForward: false)
+        #expect(session.dashboardCover(for: .right) == .page(identity: "https://login.example", title: nil))
     }
 
     @Test func aPaneProgramCoversItsPaneWithItsCommand() {

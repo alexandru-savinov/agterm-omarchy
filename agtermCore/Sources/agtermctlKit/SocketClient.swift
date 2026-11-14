@@ -13,9 +13,13 @@ struct SocketClientError: Error, CustomStringConvertible {
     enum Kind { case ordinary, transport }
     let description: String
     let kind: Kind
-    init(_ description: String, kind: Kind = .ordinary) {
+    /// The errno of a failed `connect`, nil for every other failure.
+    let connectErrno: Int32?
+    /// A failed `connect` is always a transport failure, so `connectErrno` alone implies `.transport`.
+    init(_ description: String, kind: Kind? = nil, connectErrno: Int32? = nil) {
         self.description = description
-        self.kind = kind
+        self.kind = kind ?? (connectErrno == nil ? .ordinary : .transport)
+        self.connectErrno = connectErrno
     }
 }
 
@@ -139,8 +143,10 @@ struct SocketClient {
                 }
                 if failure == 0 { break }
             }
+            // `failure` was captured before the hint's own probe or the deferred close() can overwrite errno.
             let message = String(cString: strerror(failure))
-            throw SocketClientError("connect(\(path)) failed: \(message) — \(Self.hint(forConnect: failure, path: path))", kind: .transport)
+            throw SocketClientError("connect(\(path)) failed: \(message) — \(Self.hint(forConnect: failure, path: path))",
+                                    kind: .transport, connectErrno: failure)
         }
         guard fcntl(fd, F_SETFL, flags) == 0 else {
             throw SocketClientError("could not restore socket flags: \(String(cString: strerror(errno)))", kind: .transport)
@@ -373,15 +379,26 @@ struct SocketClient {
         if let restore = response.result?.restore {
             return formatRestoreStatus(restore)
         }
+        if let recent = response.result?.recent {
+            return formatRecent(recent)
+        }
+        if let open = response.result?.recentOpen {
+            let reopened = "reopened \(open.item.kind) \(open.item.title)"
+            return open.complete ? reopened : reopened + " (incomplete: the entry stays in the list)"
+        }
         if let app = response.result?.app {
-            guard let commit = app.commit, !commit.isEmpty else { return app.version }
-            return "\(app.version) (\(commit))"
+            guard let installed = response.result?.installed, installed != app else { return formatIdentity(app) }
+            return "\(formatIdentity(app))\ninstalled: \(formatIdentity(installed))"
         }
         if let text = response.result?.text {
             return text
         }
         if let exitCode = response.result?.exitCode {
             return "exit \(exitCode)"
+        }
+        if let undoable = response.result?.undoable {
+            let closed = response.result?.affected.map(formatAffected) ?? "ok"
+            return "\(closed) (\(undoable ? "undoable" : "not undoable"))"
         }
         if let affected = response.result?.affected {
             let noun = affected == 1 ? affectedNoun : "\(affectedNoun)s"
@@ -417,6 +434,15 @@ struct SocketClient {
         return "ok"
     }
 
+    static func formatAffected(_ affected: Int) -> String {
+        affected == 1 ? "1 session" : "\(affected) sessions"
+    }
+
+    static func formatIdentity(_ identity: AppIdentity) -> String {
+        guard let commit = identity.commit, !commit.isEmpty else { return identity.version }
+        return "\(identity.version) (\(commit))"
+    }
+
     /// The restore policy as separate lines: "what the next launch will do" and "what this one did" are
     /// different questions, and collapsing them is what leaves a caller wondering why nothing happened.
     static func formatRestoreStatus(_ status: ControlRestoreStatus) -> String {
@@ -425,6 +451,17 @@ struct SocketClient {
         if status.restartRequired { lines.append("restart agterm to apply the configured mode") }
         if let reason = status.unavailableReason { lines.append("live unavailable: \(reason)") }
         return lines.joined(separator: "\n")
+    }
+
+    /// formatRemoteGroup is a successful group attach: the parent's local id, then one `origin -> local` line
+    /// per companion.
+    static func formatRemoteGroup(parent: String?, group: ControlRemoteGroup?) -> String {
+        let members = group?.companions.map { "  \($0.origin) -> \($0.id ?? "-")" } ?? []
+        return ([parent ?? "ok"] + members).joined(separator: "\n")
+    }
+
+    static func remoteGroupNote(host: String) -> String {
+        "note: \(host) does not report group membership; unlisted companions cannot be detected"
     }
 
     /// A remote host's attachable sessions, one per line, carrying the session id `zmx attach` takes. An
@@ -495,6 +532,17 @@ struct SocketClient {
         guard sync else { return body }
         let header = "syncing with macOS appearance — light: \(light ?? "default ghostty"), dark: \(dark ?? "default ghostty")"
         return header + "\n" + body
+    }
+
+    /// Render `recent.list` one entry per row with its full id, which `recent open` takes as is.
+    static func formatRecent(_ items: [ControlRecentItem]) -> String {
+        guard !items.isEmpty else { return RecentClosedTarget.emptyError }
+        return items.map { item in
+            let subtitle = item.subtitle.map { " (\($0))" } ?? ""
+            let companions = item.kind == "session" && item.sessionIDs.count > 1
+                ? " +\(item.sessionIDs.count - 1) companion(s)" : ""
+            return "\(item.id)  \(item.kind)  \(item.title)\(subtitle)\(companions)"
+        }.joined(separator: "\n")
     }
 
     /// Render the `hooks.list` payload: one row per hook in file order, then parse diagnostics.
@@ -594,7 +642,9 @@ struct SocketClient {
                 // a session whose main pane has no terminal looks identical to a working one here, which is
                 // the whole complaint in #416 — it is listed, named, and does nothing.
                 let realizedTag = session.realized == false ? " (not realized)" : ""
-                let tags = splitTag + realizedTag + (session.overlay ? " (overlay)" : "")
+                let overlayHidden = session.hiddenOverlays?.contains("session") == true
+                let overlayTag = session.overlay ? (overlayHidden ? " (overlay hidden)" : " (overlay)") : ""
+                let tags = splitTag + realizedTag + overlayTag
                     + (session.scratch ? " (scratch)" : "")
                 let splitCwdSuffix = session.splitCwd.map { $0 == session.cwd ? "" : "  split cwd: \($0)" } ?? ""
                 let titleSuffix = session.title.map { "  title: \($0)" } ?? ""
