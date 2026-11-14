@@ -90,6 +90,7 @@ private struct DiagnosticWrapperFixture {
     let incarnation = UUID()
     let pane = UUID()
     var log: URL { root.appendingPathComponent(incarnation.uuidString + ".log") }
+    var readyMarker: URL { root.appendingPathComponent(incarnation.uuidString + ".ready") }
 
     init() throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent("reconnect-diagnostic-\(UUID())")
@@ -105,21 +106,26 @@ private struct DiagnosticWrapperFixture {
         // Explicit disposable writer double exercises the fixed argv/stdin boundary without adding an
         // interpreter dependency to shared-core tests. The Linux file-only suite tests the real writer.
         let writer = root.appendingPathComponent("writer-double")
-        try """
+        try #"""
         #!/bin/sh
         [ "$1" = -I ] && [ "$2" = -S ] || exit 81
         shift 3
         [ "$1" = --append-wrapper357 ] || exit 82
         IFS= read -r unexpected && exit 83
-        printf 'DIAG357 wrapper event=%s incarnation=%s pane=%s nonceTag=%s pid=%s status=%s\\n' \\
-            "$8" "$4" "$5" "$6" "$7" "$9" >>"$2/$4.log"
-        """.write(to: writer, atomically: false, encoding: .utf8)
+        printf 'DIAG357 wrapper event=%s incarnation=%s pane=%s nonceTag=%s pid=%s status=%s\n' \
+            "$8" "$4" "$5" "$6" "$7" "$9" >>"$2/$4.log" || exit 84
+        if [ "$8" = hold-before ]; then
+            umask 077
+            printf '%s %s hold-before\n' "$4" "$5" >"$2/$4.ready"
+        fi
+        """#.write(to: writer, atomically: false, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: writer.path)
     }
 
     func cleanUp() { try? FileManager.default.removeItem(at: root) }
 
     func run(status: Int32, enabled: Bool, managed: Bool = true) async throws -> (status: Int32, output: Data, records: String) {
+        if FileManager.default.fileExists(atPath: readyMarker.path) { try FileManager.default.removeItem(at: readyMarker) }
         try "".write(to: log, atomically: false, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: log.path)
         let command = try RemoteSession.attachPaneCommand(
@@ -148,13 +154,23 @@ private struct DiagnosticWrapperFixture {
             try? input.fileHandleForWriting.close()
             if process.isRunning { process.terminate() }
         }
+        do {
+            try await feedInput(process, input: input, status: status, enabled: enabled, managed: managed)
+        } catch {
+            try? input.fileHandleForWriting.close()
+            if process.isRunning { process.terminate() }
+            for await _ in exited {}
+            throw error
+        }
+        for await _ in exited {}
+        return (process.terminationStatus, output.fileHandleForReading.readDataToEndOfFile(),
+                try String(contentsOf: log, encoding: .utf8))
+    }
+
+    private func feedInput(_ process: Process, input: Pipe, status: Int32, enabled: Bool, managed: Bool) async throws {
         if status == 255 && managed {
             if enabled {
-                for _ in 0..<100 {
-                    if (try String(contentsOf: log, encoding: .utf8)).contains("event=hold-before") { break }
-                    try await Task.sleep(for: .milliseconds(10))
-                }
-                #expect(try String(contentsOf: log, encoding: .utf8).contains("event=hold-before"))
+                try await waitForWriterHold(process)
             } else {
                 try await Task.sleep(for: .milliseconds(100))
             }
@@ -162,8 +178,30 @@ private struct DiagnosticWrapperFixture {
             try input.fileHandleForWriting.write(contentsOf: Data("fixture input\n".utf8))
         }
         try input.fileHandleForWriting.close()
-        for await _ in exited {}
-        return (process.terminationStatus, output.fileHandleForReading.readDataToEndOfFile(),
-                try String(contentsOf: log, encoding: .utf8))
+    }
+
+    private func waitForWriterHold(_ process: Process) async throws {
+        // A one-second readback missed hold-before on macOS with the new synchronous writer workload.
+        // This fixture-only budget admits their startup cost; no product/scenario deadline changes.
+        let clock = ContinuousClock(), deadline = clock.now.advanced(by: .seconds(5))
+        let expected = "\(incarnation.uuidString) \(pane.uuidString) hold-before\n"
+        var ready = false
+        while clock.now < deadline && process.isRunning {
+            if (try? String(contentsOf: readyMarker, encoding: .utf8)) == expected {
+                ready = true
+                break
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let known = Set(["wrapper-start", "ssh-return", "osc-before", "osc-after",
+                         "hold-before", "hold-return", "exit-intent"])
+        let records = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
+        let stages = records.split(separator: "\n").compactMap { line -> String? in
+            guard let field = line.split(separator: " ").first(where: { $0.hasPrefix("event=") }) else { return nil }
+            let stage = String(field.dropFirst("event=".count))
+            return known.contains(stage) ? stage : "invalid"
+        }.joined(separator: ",")
+        try #require(ready, "fixture writer hold handshake missing after bounded wait; stages=\(stages); running=\(process.isRunning)")
+        #expect(records.contains("event=hold-before"))
     }
 }
