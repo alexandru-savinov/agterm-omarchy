@@ -15,6 +15,7 @@ struct LinuxSpawnRegistryGTKTests {
         }
         try #require(gtk_init_check() != 0)
         adw_init()
+        _ = GhosttyTestRuntime.initialized
         GhosttyApp.shared.start(appearanceSide: .light)
         defer { GhosttyApp.shared.shutdown() }
         try #require(GhosttyApp.shared.app != nil)

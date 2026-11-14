@@ -35,6 +35,16 @@ struct ConfigPathsTests {
         #expect(ConfigPaths.hooksPath(configDirectory: dir).path == "/Users/test/.config/agterm/hooks.conf")
     }
 
+    @Test(arguments: [
+        ("/custom/dir", nil, "/custom/dir/remotes.conf"),
+        (nil, "/tmp/agt-state", "/tmp/agt-state/config/remotes.conf"),
+        (nil, nil, "/Users/test/.config/agterm/remotes.conf"),
+    ] as [(String?, String?, String)])
+    func remotesPathFollowsTheResolvedConfigDirectory(setting: String?, stateDir: String?, expected: String) {
+        let dir = ConfigPaths.configDirectory(setting: setting, stateDir: stateDir, home: URL(fileURLWithPath: "/Users/test"))
+        #expect(ConfigPaths.remotesPath(configDirectory: dir).path == expected)
+    }
+
     @Test func starterHooksConfIsCommentedListsKindsAndParsesToNothing() {
         let starter = ConfigPaths.starterHooksConf()
         #expect(starter.contains("on <kind> <shell...>"))
@@ -272,9 +282,61 @@ struct ConfigPathsTests {
         #expect((try? String(contentsOf: got, encoding: .utf8)) == path)
     }
 
-    /// The first installed `fish` binary, or nil — gates the non-POSIX behavioral test above.
-    private static func fishPath() -> String? {
-        ["/opt/homebrew/bin/fish", "/usr/local/bin/fish", "/usr/bin/fish"]
-            .first { FileManager.default.isExecutableFile(atPath: $0) }
+    @Test func fishPathPrefersPATHOrder() {
+        let available: Set<String> = ["/private/first/fish", "/private/second/fish", "/opt/homebrew/bin/fish"]
+        #expect(Self.fishPath(path: "/private/first:/private/second", isExecutableFile: available.contains)
+                == "/private/first/fish")
+        #expect(Self.fishPath(path: "/private/missing:/private/second", isExecutableFile: available.contains)
+                == "/private/second/fish")
+    }
+
+    @Test func fishPathIgnoresEmptyEntriesAndPreservesFallbacks() {
+        var checked: [String] = []
+        let found = Self.fishPath(path: ":/private/bin::", isExecutableFile: {
+            checked.append($0)
+            return false
+        })
+        #expect(found == nil)
+        #expect(checked == ["/private/bin/fish", "/opt/homebrew/bin/fish", "/usr/local/bin/fish", "/usr/bin/fish"])
+    }
+
+    @Test func fishPathFindsEachFixedFallback() {
+        for fallback in ["/opt/homebrew/bin/fish", "/usr/local/bin/fish", "/usr/bin/fish"] {
+            #expect(Self.fishPath(path: "/private/missing", isExecutableFile: { $0 == fallback }) == fallback)
+        }
+    }
+
+    @Test func fishPathReturnsNilWhenUnavailable() {
+        #expect(Self.fishPath(path: "", isExecutableFile: { _ in false }) == nil)
+        #expect(Self.fishPath(path: "/private/missing", isExecutableFile: { _ in false }) == nil)
+    }
+
+    @Test func fishPathSkipsMissingAndNonExecutableFiles() throws {
+        let tmp = try makeTmp(); defer { try? FileManager.default.removeItem(at: tmp) }
+        let blocked = tmp.appendingPathComponent("not-executable")
+        let available = tmp.appendingPathComponent("private-bin")
+        for directory in [blocked, available] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try "discovery fixture only\n".write(to: directory.appendingPathComponent("fish"),
+                                                atomically: true, encoding: .utf8)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o644],
+                                              ofItemAtPath: blocked.appendingPathComponent("fish").path)
+        let executable = available.appendingPathComponent("fish").path
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable)
+        let path = [tmp.appendingPathComponent("missing").path, blocked.path, available.path].joined(separator: ":")
+        #expect(Self.fishPath(path: path) == executable)
+    }
+
+    /// Prefer a caller's private PATH prerequisite, then keep the installed fallbacks.
+    /// Explicit inputs let discovery regressions avoid changing the process environment.
+    private static func fishPath(
+        path: String = ProcessInfo.processInfo.environment["PATH"] ?? "",
+        isExecutableFile: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
+    ) -> String? {
+        let directories = path.split(separator: ":").map(String.init)
+        let candidates = directories.map { ($0 as NSString).appendingPathComponent("fish") }
+        return (candidates + ["/opt/homebrew/bin/fish", "/usr/local/bin/fish", "/usr/bin/fish"])
+            .first(where: isExecutableFile)
     }
 }

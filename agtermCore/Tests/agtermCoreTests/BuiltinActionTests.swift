@@ -14,6 +14,7 @@ struct BuiltinActionTests {
         #expect(BuiltinAction.toggleSplit.rawValue == "toggle_split")
         #expect(BuiltinAction.toggleHorizontalSplit.rawValue == "toggle_horizontal_split")
         #expect(BuiltinAction.toggleTerminalZoom.rawValue == "toggle_terminal_zoom")
+        #expect(BuiltinAction.toggleOverlay.rawValue == "toggle_overlay")
         #expect(BuiltinAction.toggleSearch.rawValue == "toggle_search")
         #expect(BuiltinAction.commandPalette.rawValue == "command_palette")
         #expect(BuiltinAction.customCommandPalette.rawValue == "custom_command_palette")
@@ -30,12 +31,18 @@ struct BuiltinActionTests {
         #expect(BuiltinAction.toggleFullscreen.rawValue == "toggle_fullscreen")
         #expect(BuiltinAction.dashboard.rawValue == "dashboard")
         #expect(BuiltinAction.duplicateSession.rawValue == "duplicate_session")
+        #expect(BuiltinAction.newCompanion.rawValue == "new_companion")
+        #expect(BuiltinAction.newCompanion.defaultChord == nil)
+        #expect(BuiltinAction.duplicateCompanion.rawValue == "duplicate_companion")
         #expect(BuiltinAction.previousWorkspace.rawValue == "previous_workspace")
         #expect(BuiltinAction.nextWorkspace.rawValue == "next_workspace")
         #expect(BuiltinAction.toggleWorkspaceCollapse.rawValue == "toggle_workspace_collapse")
         #expect(BuiltinAction.previousWindow.rawValue == "previous_window")
         #expect(BuiltinAction.nextWindow.rawValue == "next_window")
-        #expect(BuiltinAction.allCases.count == 48)
+        #expect(BuiltinAction.attachRemote.rawValue == "attach_remote")
+        #expect(BuiltinAction.editFlaggedSessions.rawValue == "edit_flagged_sessions")
+        #expect(BuiltinAction.editFocusedWorkspaces.rawValue == "edit_focused_workspaces")
+        #expect(BuiltinAction.allCases.count == 54)
     }
 
     @Test func rejectsUnknownName() {
@@ -89,6 +96,8 @@ struct BuiltinActionTests {
             .openDirectory: Chord(mods: [.command], key: "o"),
             .renameSession: nil,
             .duplicateSession: nil,
+            .newCompanion: nil,
+            .duplicateCompanion: nil,
             .closeSession: Chord(mods: [.command], key: "w"),
             .reopenRecent: Chord(mods: [.command, .shift], key: "t"),
             .undoClose: Chord(mods: [.command], key: "z"),
@@ -99,6 +108,7 @@ struct BuiltinActionTests {
             .toggleSplit: Chord(mods: [.command], key: "d"),
             .toggleHorizontalSplit: Chord(mods: [.command, .shift], key: "d"),
             .toggleScratch: Chord(mods: [.command], key: "j"),
+            .toggleOverlay: Chord(mods: [.command, .shift], key: "j"),
             .toggleTerminalZoom: Chord(mods: [.command, .shift], key: "return"),
             .toggleSearch: Chord(mods: [.command], key: "f"),
             .toggleSidebar: Chord(mods: [.command, .control], key: "s"),
@@ -127,6 +137,9 @@ struct BuiltinActionTests {
             .customCommandPalette: Chord(mods: [.control, .shift], key: "o"),
             .showAttention: Chord(mods: [.control, .shift], key: "i"),
             .dashboard: Chord(mods: [.command, .shift], key: "g"),
+            .attachRemote: Chord(mods: [.command, .shift], key: "r"),
+            .editFlaggedSessions: nil,
+            .editFocusedWorkspaces: nil,
         ]
         #expect(expected.count == BuiltinAction.allCases.count)
         for action in BuiltinAction.allCases {
@@ -181,10 +194,11 @@ struct BuiltinActionTests {
 
     @Test func keylessActionsHaveNilDefault() {
         let keyless: Set<BuiltinAction> = [
-            .renameWindow, .deleteWindow, .renameWorkspace, .deleteWorkspace, .renameSession, .duplicateSession,
+            .renameWindow, .deleteWindow, .renameWorkspace, .deleteWorkspace, .renameSession, .duplicateSession, .newCompanion,
+            .duplicateCompanion,
             .clearStatus, .firstSession, .lastSession, .selectTheme, .toggleFlaggedView, .focusWorkspace,
             .toggleWorkspaceFilter, .previousWorkspace, .nextWorkspace, .toggleWorkspaceCollapse,
-            .previousWindow, .nextWindow,
+            .previousWindow, .nextWindow, .editFlaggedSessions, .editFocusedWorkspaces,
         ]
         for action in keyless {
             #expect(action.defaultChord == nil, "expected nil default for \(action.rawValue)")

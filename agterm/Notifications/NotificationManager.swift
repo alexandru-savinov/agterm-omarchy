@@ -119,7 +119,7 @@ final class NotificationManager: NSObject, @preconcurrency UNUserNotificationCen
         content.title = effectiveTitle
         content.body = body
         content.sound = notificationSound
-        let identity = TerminalNotification.identity(windowID: windowID, sessionID: session.id, pane: .main)
+        let identity = TerminalNotification.controlIdentity(windowID: windowID, sessionID: session.id)
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identity, content: content, trigger: nil)) { error in
             if let error { logger.error("send failed: \(error.localizedDescription, privacy: .public)") }
         }
@@ -127,14 +127,26 @@ final class NotificationManager: NSObject, @preconcurrency UNUserNotificationCen
     }
 
     /// Remove a session's delivered banners from Notification Center on focus, so one you navigated to doesn't
-    /// linger. Removes every pane's identifier. No-op when the session's window isn't open.
+    /// linger. Removes every pane's identifier and the control slot. No-op when the session's window isn't open.
     func clearDelivered(sessionID: UUID) {
         guard let windowID = library?.windowID(forSession: sessionID) else {
             logger.debug("clearDelivered: no open window owns session \(sessionID, privacy: .public); nothing to clear")
             return
         }
-        let identifiers = PaneRole.allCases.map { TerminalNotification.identity(windowID: windowID, sessionID: sessionID, pane: $0) }
+        let identifiers = TerminalNotification.sessionIdentities(windowID: windowID, sessionID: sessionID)
         UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    /// notifyRemotesDiagnostics posts a banner for a `remotes.conf` that has bad lines or cannot be read.
+    func notifyRemotesDiagnostics(count: Int) {
+        guard bannersEnabled else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Remotes"
+        content.body = "\(count) issue\(count == 1 ? "" : "s") in remotes.conf"
+        let request = UNNotificationRequest(identifier: "remotes-diagnostics", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error { logger.error("remotes-diagnostics banner add failed: \(error.localizedDescription, privacy: .public)") }
+        }
     }
 
     /// Post a banner for `hooks.conf` parse diagnostics, mirroring the keymap one.

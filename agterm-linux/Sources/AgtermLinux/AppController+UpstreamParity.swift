@@ -70,7 +70,7 @@ extension AppController {
 
     func closeActiveSplit() {
         guard let id = store.selectedSessionID, let session = store.session(withID: id),
-              session.hasSplit, !session.fullOverlayActive else { return }
+              session.hasSplit, !session.fullOverlayVisible else { return }
         if session.scratchActive {
             store.toggleScratch(id)
             reconcile()

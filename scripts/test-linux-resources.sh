@@ -5,8 +5,8 @@ set -euo pipefail
 ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 VERIFY="$ROOT/scripts/verify-linux-resources.sh"
 VERIFY_CACHE="$ROOT/scripts/verify-linux-vendor-cache.sh"
-# shellcheck source=../linux/ghostty-resources.env
-source "$ROOT/linux/ghostty-resources.env"
+# shellcheck source=../linux/ghostty-build.sh
+source "$ROOT/linux/ghostty-build.sh"
 
 command -v tic >/dev/null || { echo "tic is required to test Ghostty resources" >&2; exit 1; }
 ZIG="$(command -v zig || true)"
@@ -78,6 +78,12 @@ install -m755 "$WORK/libghostty-x86_64.so" "$WORK/complete/lib/libghostty.so"
 AGTERM_TEST_UNAME=x86_64 PATH="$WORK:$PATH" "$VERIFY_CACHE" "$WORK/complete" >/dev/null
 expect_cache_failure aarch64 "expected aarch64 (ARM aarch64)"
 
+# A cache built from other patches: the SOURCE_STAMP names every applied patch digest.
+printf 'ghostty-rev %s\npatch stale.patch 0\n' "$GHOSTTY_REV" > "$WORK/complete/SOURCE_STAMP"
+expect_cache_failure x86_64 "built from different Ghostty sources or patches"
+"$VERIFY_CACHE" --print-stamp > "$WORK/complete/SOURCE_STAMP"
+
+
 install -m755 "$WORK/libghostty-aarch64.so" "$WORK/complete/lib/libghostty.so"
 AGTERM_TEST_UNAME=aarch64 PATH="$WORK:$PATH" "$VERIFY_CACHE" "$WORK/complete" >/dev/null
 expect_cache_failure x86_64 "expected x86_64 (x86-64)"
@@ -98,7 +104,10 @@ mkdir -p "$SETUP_ROOT/scripts/zmx-patches/ghostty"
 cp "$ROOT/scripts/zmx-patches/"*.patch "$SETUP_ROOT/scripts/zmx-patches/"
 cp "$ROOT/scripts/zmx-patches/ghostty/"*.patch "$SETUP_ROOT/scripts/zmx-patches/ghostty/"
 cp "$ROOT/linux/arch.sh" "$ROOT/linux/ghostty-resources.env" "$ROOT/linux/zmx.env" "$SETUP_ROOT/linux/"
-cp -R "$ROOT/linux/patches" "$SETUP_ROOT/linux/"
+cp "$ROOT/linux/ghostty-build.sh" "$SETUP_ROOT/linux/"
+mkdir -p "$SETUP_ROOT/scripts/ghostty-patches" "$SETUP_ROOT/linux/patches"
+cp "$ROOT/scripts/ghostty-patches/"*.patch "$SETUP_ROOT/scripts/ghostty-patches/"
+cp "$ROOT/linux/patches/"*.patch "$SETUP_ROOT/linux/patches/"
 cp -R "$WORK/complete/." "$SETUP_ROOT/agterm-linux/vendor/ghostty/"
 # This helper is executed by the verifier: compile a real ELF for this test host.
 SETUP_ARCH="$(uname -m)"
@@ -113,16 +122,39 @@ printf 'int main(void) { return 0; }\n' > "$WORK/zmx-fixture.c"
 printf 'test license\n' > "$SETUP_ROOT/agterm-linux/vendor/zmx/LICENSE"
 # shellcheck source=../linux/zmx.env
 source "$ROOT/linux/zmx.env"
+# shellcheck source=../linux/arch.sh
+source "$ROOT/linux/arch.sh"
 ZMX_PATCH_DIGEST="$(cat "$ROOT/scripts/zmx-patches"/*.patch "$ROOT/scripts/zmx-patches/ghostty"/*.patch | sha256sum | cut -c1-16)"
+# The zmx cache names its commit, explicit Zig target and patch digest (REVISION) and the target and
+# CPU it was built for (BUILD_POLICY); both must match this host, on either CI architecture.
+printf '%s %s %s\n' "$ZMX_REV" "$ZIG_TARGET" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
+printf 'target=%s cpu=%s\n' "$ZIG_TARGET" "$ZMX_CPU" > "$SETUP_ROOT/agterm-linux/vendor/zmx/BUILD_POLICY"
+AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" \
+  "$SETUP_ROOT/scripts/verify-linux-zmx-cache.sh" "$SETUP_ROOT/agterm-linux/vendor/zmx" >/dev/null
+if AGTERM_TEST_UNAME="$STALE_ARCH" PATH="$WORK:$PATH" \
+    "$SETUP_ROOT/scripts/verify-linux-zmx-cache.sh" "$SETUP_ROOT/agterm-linux/vendor/zmx" >/dev/null 2>&1; then
+  echo "zmx cache with the wrong target unexpectedly passed verification" >&2
+  exit 1
+fi
 printf '%s %s\n' "$ZMX_REV" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
-printf 'target=%s-linux-gnu.2.39 cpu=%s\n' "$SETUP_ARCH" "$ZMX_CPU" \
-  > "$SETUP_ROOT/agterm-linux/vendor/zmx/BUILD_POLICY"
+if AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" \
+    "$SETUP_ROOT/scripts/verify-linux-zmx-cache.sh" "$SETUP_ROOT/agterm-linux/vendor/zmx" >/dev/null 2>&1; then
+  echo "zmx cache without an explicit target unexpectedly passed verification" >&2
+  exit 1
+fi
+printf '%s %s %s\n' "$ZMX_REV" "$ZIG_TARGET" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
 cat > "$WORK/git" <<'EOF'
 #!/usr/bin/env bash
 echo "agterm cache test reached the libghostty rebuild path" >&2
 exit 97
 EOF
 chmod 0755 "$WORK/git"
+cat > "$WORK/zig17" <<'EOF'
+#!/usr/bin/env bash
+[[ "$1" == version ]] || exit 96
+printf '0.17.0\n'
+EOF
+chmod 0755 "$WORK/zig17"
 
 install -m755 "$WORK/libghostty-$SETUP_ARCH.so" \
   "$SETUP_ROOT/agterm-linux/vendor/ghostty/lib/libghostty.so"
@@ -131,7 +163,7 @@ AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:/usr/bin:/bin" "$SETUP_ROOT/scripts/
 install -m755 "$WORK/libghostty-$STALE_ARCH.so" \
   "$SETUP_ROOT/agterm-linux/vendor/ghostty/lib/libghostty.so"
 setup_output=""
-if setup_output="$(AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" \
+if setup_output="$(AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" GHOSTTY_ZIG="$WORK/zig17" \
     "$SETUP_ROOT/scripts/setup-linux.sh" 2>&1)"; then
   echo "setup-linux.sh unexpectedly reused a stale $STALE_ARCH cache on $SETUP_ARCH" >&2
   exit 1

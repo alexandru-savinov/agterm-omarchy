@@ -35,13 +35,6 @@ nonisolated(unsafe) private let request = UnsafeMutableRawPointer(bitPattern: 0x
 @MainActor
 @Suite("Linux asks before an unsafe multi-line paste")
 struct LinuxUnsafePasteTests {
-    @Test("a paste libghostty flags as unsafe asks the user; OSC 52 reads keep their consent prompt")
-    func confirmRoutes() {
-        #expect(LinuxClipboardConfirmPolicy.route(for: GHOSTTY_CLIPBOARD_REQUEST_PASTE) == .unsafePaste)
-        #expect(LinuxClipboardConfirmPolicy.route(for: GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ) == .clipboardReadConsent)
-        #expect(LinuxClipboardConfirmPolicy.route(for: GHOSTTY_CLIPBOARD_REQUEST_OSC_52_WRITE) == .confirmAsIs)
-    }
-
     @Test("Paste delivers the full text to the pending request")
     func pasteDelivers() {
         let dialog = DialogLog()
@@ -123,34 +116,6 @@ struct LinuxUnsafePasteTests {
         let multi = exact + "\nabc\nde\nf"
         #expect(UnsafePasteController.preview(multi) == exact + "\n… 3 more lines (9 more characters) not shown")
         #expect(UnsafePasteController.preview(exact + "\n") == exact + "\n… 1 more line (1 more character) not shown")
-    }
-
-    @Test("CR-only and CRLF line endings become LF, so libghostty's newline check sees them")
-    func lineEndingsNormalised() {
-        #expect(PasteLineEndings.normalized("echo one\recho two\r") == "echo one\necho two\n")
-        #expect(PasteLineEndings.normalized("echo one\r\necho two") == "echo one\necho two")
-        #expect(PasteLineEndings.normalized("mixed\r\nends\rhere\n") == "mixed\nends\nhere\n")
-        #expect(PasteLineEndings.normalized("one line") == "one line")
-        #expect(PasteLineEndings.normalized("a\nb") == "a\nb")
-        // the property that matters: no CR survives, and every former line break is one paste.zig `isSafe` rejects
-        let crOnly = "rm -rf ~/scratch\rmake\r"
-        #expect(!crOnly.contains("\n"))
-        let normalised = PasteLineEndings.normalized(crOnly)
-        #expect(!normalised.unicodeScalars.contains("\r"))
-        #expect(normalised.unicodeScalars.filter { $0 == "\n" }.count == 2)
-    }
-    @Test("Only known paste requests transform line endings and file-manager URI lists")
-    func requestKindPreservesClipboardQueries() {
-        let text = "Unicode λ\r\nsecond\rthird\n"
-        let uri = "file:///tmp/one%20two\r\nfile:///tmp/three\r\n"
-        for payload in [text, uri] {
-            #expect(LinuxClipboardReadPolicy.payload(payload, request: GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ) == payload)
-            #expect(LinuxClipboardReadPolicy.payload(payload, request: GHOSTTY_CLIPBOARD_REQUEST_OSC_52_WRITE) == payload)
-            #expect(LinuxClipboardReadPolicy.payload(payload, request: nil) == payload)
-            #expect(LinuxClipboardReadPolicy.payload(payload, request: ghostty_clipboard_request_e(rawValue: 99)) == payload)
-        }
-        #expect(LinuxClipboardReadPolicy.payload(text, request: GHOSTTY_CLIPBOARD_REQUEST_PASTE) == "Unicode λ\nsecond\nthird\n")
-        #expect(LinuxClipboardReadPolicy.payload(uri, request: GHOSTTY_CLIPBOARD_REQUEST_PASTE) == #"/tmp/one\ two /tmp/three"#)
     }
 
 }

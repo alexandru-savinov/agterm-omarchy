@@ -4,8 +4,9 @@ import Testing
 @testable import SessionHostRuntime
 
 struct SessionHostTrampolineTests {
-    private static let probe = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent(".build/debug/session-host-pty-probe").path
+    private static var probe: String {
+        get throws { try SessionHostTestExecutable.url("session-host-pty-probe").path }
+    }
 
     @Test func outputReachesTheParentThroughThePTY() throws {
         let child = try PTYProcess.spawn(argv: [Self.probe, "args", "two words", "last"], env: [:], cwd: "/tmp", rows: 24, cols: 80)
@@ -52,6 +53,23 @@ struct SessionHostTrampolineTests {
         let child = try PTYProcess.spawn(argv: [Self.probe, "size"], env: [:], cwd: "/tmp", rows: 37, cols: 119)
         let result = try collect(child)
         #expect(result.output == "37 119\n")
+        #expect(result.status == 0)
+    }
+
+    @Test func blockedAndIgnoredSignalsAreResetBeforeExec() throws {
+        var blocked = sigset_t()
+        sigemptyset(&blocked)
+        sigaddset(&blocked, SIGTERM)
+        sigaddset(&blocked, SIGHUP)
+        var previousMask = sigset_t()
+        #expect(pthread_sigmask(SIG_BLOCK, &blocked, &previousMask) == 0)
+        // USR2, not TERM: a disposition is process-wide, and concurrent tests end their children with SIGTERM
+        let previousHandler = signal(SIGUSR2, SIG_IGN)
+        let spawned = Result(catching: { try PTYProcess.spawn(argv: [Self.probe, "signals"], env: [:], cwd: "/tmp", rows: 24, cols: 80) })
+        signal(SIGUSR2, previousHandler)
+        pthread_sigmask(SIG_SETMASK, &previousMask, nil)
+        let result = try collect(try spawned.get())
+        #expect(result.output == "TERM blocked=0 ignored=0\nHUP blocked=0 ignored=0\nUSR2 blocked=0 ignored=0\n")
         #expect(result.status == 0)
     }
 

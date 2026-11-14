@@ -51,6 +51,24 @@ struct LinuxControlDispatchCoverageTests {
             .map { linuxSources.appendingPathComponent($0) }
     }
 
+    /// Commands agtermCore's `ControlDispatcher.dispatchSynchronous` answers before any Linux switch runs.
+    static func sharedSynchronousCommands() throws -> Set<String> {
+        let source = try read(repository.appendingPathComponent("agtermCore/Sources/agtermCore/ControlDispatcher.swift"))
+        let start = try #require(source.range(of: "public func dispatchSynchronous("), "dispatchSynchronous not found")
+        let end = try #require(source.range(of: "default: return nil", range: start.upperBound..<source.endIndex),
+                               "dispatchSynchronous has no default arm")
+        var names = Set<String>()
+        for line in source[start.upperBound..<end.lowerBound].split(separator: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("case ") || trimmed.hasPrefix(".") else { continue }
+            let arms = trimmed.split(separator: ":", maxSplits: 1).first.map(String.init) ?? trimmed
+            for token in arms.split(whereSeparator: { $0 == "," || $0 == " " }) where token.hasPrefix(".") {
+                names.insert(String(token.dropFirst()))
+            }
+        }
+        return names
+    }
+
     /// Case name → raw value for every case of agtermCore's `Command`.
     static func commands() throws -> [(name: String, raw: String)] {
         let source = try read(repository.appendingPathComponent("agtermCore/Sources/agtermCore/ControlProtocol.swift"))
@@ -112,7 +130,8 @@ struct LinuxControlDispatchCoverageTests {
     @Test("every control command has a Linux handler or is listed as unsupported")
     func everyCommandHasALinuxHandler() throws {
         let names = Set(try Self.commands().map(\.name))
-        let handled = try Self.handledCommands()
+        // `LinuxControlDispatcher.dispatch` asks the shared core's synchronous dispatcher first.
+        let handled = try Self.handledCommands().union(Self.sharedSynchronousCommands())
         let unhandled = names.subtracting(handled)
         #expect(unhandled.subtracting(Self.intentionallyUnsupported).isEmpty,
                 "no Linux handler (falls to \"command not yet supported on Linux\"): \(unhandled.subtracting(Self.intentionallyUnsupported).sorted())")

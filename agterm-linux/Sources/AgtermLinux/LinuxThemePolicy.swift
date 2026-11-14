@@ -15,6 +15,7 @@ struct ThemeColors: Equatable, Sendable {
     let foreground: String?
     let selectionBackground: String?
     let selectionForeground: String?
+    var splitDivider: String?
 }
 
 enum ThemeColorResolver {
@@ -35,7 +36,8 @@ enum ThemeColorResolver {
             background: value("background"),
             foreground: value("foreground"),
             selectionBackground: value("selection-background"),
-            selectionForeground: value("selection-foreground")
+            selectionForeground: value("selection-foreground"),
+            splitDivider: value("split-divider-color")
         )
     }
 
@@ -86,7 +88,7 @@ enum ThemeColorResolver {
     /// provider (priority 650); string-pinned in `GhosttyConfigThemeTests`.
     static func windowThemeCSS(
         background: String, foreground: String, selectionBackground: String,
-        selectionForeground: String, sidebarBackground: String
+        selectionForeground: String, sidebarBackground: String, splitDivider: String? = nil
     ) -> String {
         """
         @define-color window_bg_color \(background);
@@ -115,15 +117,19 @@ enum ThemeColorResolver {
         }
         .agterm-sidebar label { color: \(foreground); }
         /* exact row-content path: a row-parented popover must not inherit the selection foreground */
-        .agterm-sidebar row.agterm-selected > .agterm-session-row-content > label,
-        .agterm-sidebar row.agterm-selected > .agterm-session-row-content > image,
-        .agterm-sidebar row.agterm-selected > .agterm-session-row-content > entry { color: \(selectionForeground); }
+        .agterm-sidebar row.agterm-selected > .agterm-session-row-body > .agterm-session-row-content > label,
+        .agterm-sidebar row.agterm-selected > .agterm-session-row-body > .agterm-session-row-content > image,
+        .agterm-sidebar row.agterm-selected > .agterm-session-row-body > .agterm-session-row-content > entry,
+        .agterm-sidebar row.agterm-selected > .agterm-session-row-body > .agterm-session-info { color: \(selectionForeground); }
         .agterm-sidebar button { color: \(foreground); }
         .agterm-sidebar separator { background-color: alpha(\(foreground), 0.22); }
         toolbarview.agterm-sidebar-column > .top-bar,
         toolbarview.agterm-sidebar-column > .bottom-bar { background-color: \(sidebarBackground); color: \(foreground); }
         paned.agterm-sidebar-split > separator {
             min-width: 1px; padding: 0 4px; background-color: alpha(\(foreground), 0.18); background-clip: content-box; box-shadow: none;
+        }
+        paned.agterm-terminal-split > separator {
+            background-color: \(splitDivider ?? "mix(\(background), \(foreground), 0.1)"); background-image: none; box-shadow: none;
         }
         .agterm-switcher-row.agterm-switcher-current { background-color: \(selectionBackground); color: \(selectionForeground); }
         """

@@ -11,6 +11,8 @@ extension ShellEscape {
 }
 
 enum PasteDecoder {
+    /// A drop and a clipboard paste (`LinuxClipboardPolicy.pastedPaths`) shell-escape each path so a name
+    /// with a space or shell syntax stays one literal word at the prompt.
     static func posixPaths(fromURIList text: String) -> String? {
         let lines = text.split(whereSeparator: \.isNewline).map(String.init)
             .map { $0.trimmingCharacters(in: .whitespaces) }

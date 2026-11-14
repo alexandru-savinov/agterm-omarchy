@@ -88,7 +88,7 @@ extension AppController {
     func applySidebarFontSize() {
         guard let display = gdk_display_get_default() else { return }
         let settings = linuxSettingsStore().load()
-        let css = LinuxSidebarPolicy.sidebarCSS(fontSize: settings.sidebarFontSize)
+        let css = LinuxSidebarPolicy.sidebarCSS(fontSize: settings.sidebarFontSize, density: settings.effectiveSidebarDensity)
         if Self.sidebarFontProvider == nil {
             let provider = OpaquePointer(gtk_css_provider_new())
             Self.sidebarFontProvider = provider
@@ -203,6 +203,7 @@ extension AppController {
             gtk_widget_set_margin_start(W(row), 4)
             if let button = op(gtk_button_new_from_icon_name(Self.disclosureIconName(expanded: section.expanded))) {
                 disc = button
+                gtk_widget_set_visible(W(button), content.chevronVisible ? 1 : 0)
                 gtk_button_set_has_frame(BUTTON(button), 0)
                 gtk_widget_set_focus_on_click(W(button), 0)
                 gtk_widget_add_css_class(W(button), "flat")
@@ -264,7 +265,7 @@ extension AppController {
 
         guard let header, let listBox = op(gtk_list_box_new()) else { return nil }
         gtk_widget_add_css_class(W(listBox), "navigation-sidebar")
-        if case .workspace = section.key { gtk_widget_set_margin_start(W(listBox), 14) }
+        if case .workspace = section.key { gtk_widget_set_margin_start(W(listBox), linuxSettingsStore().load().effectiveSidebarDensity == .compact ? 8 : 14) }
         // Selection mode NONE: the custom shift/ctrl logic owns selection (painted through the
         // `agterm-selected` class), which lets the session-row click gesture run WITHOUT claiming
         // the sequence — see agterm-linux/docs/sidebar.md (no claiming click gesture).
@@ -280,7 +281,11 @@ extension AppController {
         gtk_box_append(cast(wrapper), W(listBox))
         let widgets = SectionWidgets(wrapper: wrapper, header: header, listBox: listBox, disc: disc,
                                      icon: icon, name: nameWidget, add: add, hint: makeSectionHint(section, in: wrapper))
+        if let content = section.header {
+            applySidebarTint(content.tint, icon: icon, name: nameWidget)
+        }
         widgets.applied = section.header
+        if let icon, let content = section.header { gtk_widget_set_visible(W(icon), content.iconVisible ? 1 : 0) }
         sidebarRuntime.sections[section.key] = widgets
         return widgets
     }
@@ -308,11 +313,22 @@ extension AppController {
     private func makeSectionHint(_ section: SidebarSnapshot.Section,
                                  in wrapper: OpaquePointer) -> OpaquePointer? {
         guard section.key == .flagged,
-              let hint = op(gtk_label_new("No flagged sessions.\nRight-click a session → Flag.")) else { return nil }
-        gtk_label_set_justify(hint, GTK_JUSTIFY_CENTER)
+              let hint = op(gtk_box_new(GTK_ORIENTATION_VERTICAL, 8)),
+              let label = op(gtk_label_new("No flagged sessions.")) else { return nil }
+        gtk_label_set_justify(label, GTK_JUSTIFY_CENTER)
         // Fixed instructional text wraps rather than ellipsizes: wrapping drops the minimum
         // width from the longest line to the longest word, which is all the sidebar needs.
-        gtk_label_set_wrap(hint, 1)
+        gtk_label_set_wrap(label, 1)
+        gtk_box_append(cast(hint), W(label))
+        if let button = op(gtk_button_new_with_label("Edit Flagged Sessions…")) {
+            gtk_button_set_has_frame(cast(button), 0)
+            if let text = gtk_button_get_child(cast(button)) {
+                gtk_label_set_ellipsize(op(text), PANGO_ELLIPSIZE_END)
+            }
+            gtk_widget_set_tooltip_text(W(button), "Edit Flagged Sessions…")
+            connectAction(button) { [weak self] in self?.showMembershipEditor(workspaces: false) }
+            gtk_box_append(cast(hint), W(button))
+        }
         gtk_widget_set_margin_top(W(hint), 24)
         gtk_widget_add_css_class(W(hint), "dim-label")
         gtk_widget_set_visible(W(hint), section.showsHint ? 1 : 0)
@@ -331,8 +347,8 @@ extension AppController {
             ? op(gtk_label_new(content.name))
             : makeNameWidget(id: id, text: content.name, isWorkspace: false) else { return nil }
         gtk_widget_set_hexpand(W(widget), 1)
-        gtk_widget_set_margin_top(W(widget), 4)
-        gtk_widget_set_margin_bottom(W(widget), 4)
+        gtk_widget_set_margin_top(W(widget), linuxSettingsStore().load().effectiveSidebarDensity == .compact ? 1 : 4)
+        gtk_widget_set_margin_bottom(W(widget), linuxSettingsStore().load().effectiveSidebarDensity == .compact ? 1 : 4)
         gtk_widget_set_margin_start(W(widget), 4)
         if breadcrumb {
             gtk_label_set_xalign(widget, 0)
@@ -346,9 +362,10 @@ extension AppController {
 
     func makeRow(_ id: UUID, content: SidebarSnapshot.RowContent) -> OpaquePointer? {
         guard let row = op(gtk_list_box_row_new()), let box = op(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6)),
+              let body = op(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)), let info = op(gtk_label_new(nil)),
               let lead = op(gtk_image_new_from_icon_name(content.leadIconName)),
               let name = makeSessionNameWidget(id, content: content),
-              let glyph = op(gtk_label_new(nil)), let star = op(gtk_image_new_from_icon_name("starred-symbolic")),
+              let glyph = Self.makeEmptyStatusGlyph(), let star = op(gtk_image_new_from_icon_name("starred-symbolic")),
               let badge = op(gtk_label_new(nil)) else { return nil }
         "session-row".withCString { gtk_widget_set_name(W(row), $0) }
         gtk_widget_add_css_class(W(box), "agterm-session-row-content")
@@ -365,13 +382,27 @@ extension AppController {
         gtk_box_append(cast(box), W(badge))
         let widgets = SessionRowWidgets(row: row, box: box, lead: lead, name: name,
                                         glyph: glyph, star: star, badge: badge)
+        widgets.info = info
+        gtk_widget_add_css_class(W(body), "agterm-session-row-body")
+        gtk_widget_add_css_class(W(info), "agterm-session-info")
+        gtk_label_set_xalign(info, 0)
+        gtk_label_set_single_line_mode(info, 1)
+        gtk_label_set_ellipsize(info, PANGO_ELLIPSIZE_END)
+        gtk_widget_set_hexpand(W(info), 1)
+        gtk_widget_set_margin_end(W(info), 6)
+        gtk_box_append(cast(body), W(box))
+        gtk_box_append(cast(body), W(info))
+        gtk_widget_set_visible(W(lead), content.iconVisible ? 1 : 0)
+        if !content.iconVisible, let notice = content.notice { gtk_widget_set_tooltip_text(W(name), notice) }
+        applySessionInfo(widgets, content: content)
+        installCompanionRowWidgets(id, widgets: widgets, content: content)
         widgets.applied = content
         sidebarRuntime.rows[id] = widgets
         rowSession[row] = id
         // Keep the trailing inset inside the content box as CSS `padding-right` (installAppCSS),
         // rather than shrinking the row that paints the rounded selection background. This mirrors
         // the leading icon's margin_start on the left.
-        gtk_list_box_row_set_child(GLBR(row), W(box))
+        gtk_list_box_row_set_child(GLBR(row), W(body))
         // Rows are PASSIVE: under GTK_SELECTION_NONE the list box's built-in click gesture would
         // still move keyboard focus to a selectable/activatable row on release — after showActive()
         // already gave the terminal focus on press — sending subsequent typing into the sidebar.
@@ -393,7 +424,7 @@ extension AppController {
         gtk_event_controller_set_propagation_phase(rightClick, GTK_PHASE_CAPTURE)
         connect(rightClick, "pressed", unsafeBitCast(onSessionRowContextClick, to: GCallback.self), RAW(row))
         gtk_widget_add_controller(W(row), rightClick)
-        if store.sidebarMode != .flagged {
+        do {
             let drag = gtk_drag_source_new()
             gtk_drag_source_set_actions(drag, GDK_ACTION_MOVE)
             connect(drag, "prepare", unsafeBitCast(onRowDragPrepare as @convention(c) (OpaquePointer?, Double, Double, gpointer?) -> OpaquePointer?, to: GCallback.self))
@@ -470,6 +501,16 @@ extension AppController {
     /// unreachable. The slot comes from the drop's `y` against the target row's midpoint
     /// (`LinuxSidebarPolicy.dropInsertionSlot`): top half inserts before the target, bottom half after.
     func handleSessionDrop(source: UUID, onto target: UUID, y: Double, targetHeight: Double) {
+        if store.sidebarMode == .flagged, store.flaggedLayout != .tree {
+            let order = store.orderedFlaggedSessions.map(\.id)
+            guard let index = order.firstIndex(of: target) else { return }
+            let slot = LinuxSidebarPolicy.dropInsertionSlot(targetIndex: index, y: y, height: targetHeight)
+            let dragged = LinuxSidebarPolicy.draggedSessionBlock(source: source, selection: store.sidebarSelectionIDs)
+            guard let move = SidebarDrop.resolveFlaggedReorder(order: order, dragged: dragged, onRow: nil, childIndex: slot) else { return }
+            store.moveFlagged(move.ids, to: move.placement, of: move.anchor)
+            syncSidebar(preferMoving: Set(move.ids))
+            return
+        }
         guard let tgt = store.sessionLocation(ofSession: target) else { return }
         let dropTarget = SidebarDrop.SessionDropTarget.sessionRow(workspace: tgt.workspace, sessionIndex: tgt.index, sessionCount: tgt.count)
         let slot = LinuxSidebarPolicy.dropInsertionSlot(targetIndex: tgt.index, y: y, height: targetHeight)
@@ -480,6 +521,7 @@ extension AppController {
         }
         guard let resolution = SidebarDrop.resolveSessions(sources: sources, target: dropTarget,
                                                            childIndex: slot) else { return }
+        guard store.canMoveSessions(ids, toWorkspace: resolution.workspace, at: resolution.destination) else { return }
         store.moveSessions(ids, toWorkspace: resolution.workspace, at: resolution.destination)
         // The dragged block breaks the planner's LIS ties: without the hint an equally minimal plan
         // may move the rows the block passed over instead of the rows the user dragged.
@@ -599,6 +641,7 @@ extension AppController {
             sources: sources,
             target: .workspaceRow(id: workspace, sessionCount: target.sessions.count),
             childIndex: SidebarDrop.onItemIndex) else { return }
+        guard store.canMoveSessions(ids, toWorkspace: resolution.workspace, at: resolution.destination) else { return }
         store.moveSessions(ids, toWorkspace: resolution.workspace, at: resolution.destination)
         reconcile(preferMoving: Set(ids))
     }

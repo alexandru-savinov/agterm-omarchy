@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_DIR="${AGTERM_UI_ARTIFACT_DIR:-$ROOT/artifacts/linux-ui}"
+export AGTERM_UI_ARTIFACT_DIR="$ARTIFACT_DIR"
 PYTHON="${PYTHON:-/usr/bin/python3}"
 BIN="${AGTERM_TEST_BIN:-$ROOT/agterm-linux/.build/debug/AgtermLinux}"
 CTL="${AGTERM_TEST_CTL:-$ROOT/agterm-linux/.build/debug/agtermctl-linux}"
@@ -13,7 +14,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command in dbus-run-session dbus-send openbox xdotool xvfb-run "$PYTHON"; do
+for command in dbus-run-session dbus-send dbus-update-activation-environment ibus ibus-daemon openbox setxkbmap xdotool xvfb-run "$PYTHON"; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "missing Linux UI test dependency: $command" >&2
     exit 1
@@ -26,6 +27,10 @@ for product in "$BIN" "$CTL"; do
   fi
 done
 "$PYTHON" -c 'import gi; gi.require_version("Atspi", "2.0"); from gi.repository import Atspi'
+"$PYTHON" "$ROOT/agterm-linux/tests/check_svg_icons.py" "$ROOT/agterm-linux/Resources/icons"
+"$PYTHON" "$ROOT/agterm-linux/tests/gl_teardown_analyze_test.py"
+"$PYTHON" "$ROOT/agterm-linux/tests/gl_teardown_paths_test.py"
+"$PYTHON" "$ROOT/agterm-linux/tests/gl_teardown_exit_test.py"
 
 mkdir -p "$ARTIFACT_DIR" "$RUN_ROOT/home" "$RUN_ROOT/state" "$RUN_ROOT/runtime" "$RUN_ROOT/tmp"
 chmod 0700 "$RUN_ROOT/runtime"
@@ -36,6 +41,22 @@ export XDG_CACHE_HOME="$RUN_ROOT/home/.cache"
 export XDG_DATA_HOME="$RUN_ROOT/home/.local/share"
 export XDG_RUNTIME_DIR="$RUN_ROOT/runtime"
 export TMPDIR="$RUN_ROOT/tmp"
+# URI routing is exercised through GIO, but a real browser/keyring prompt must not take test input.
+mkdir -p "$XDG_DATA_HOME/applications" "$XDG_CONFIG_HOME"
+cat >"$XDG_DATA_HOME/applications/agterm-ui-uri.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=agterm UI test URI handler
+Exec=/usr/bin/true %u
+NoDisplay=true
+MimeType=x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/file;
+DESKTOP
+cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'MIMEAPPS'
+[Default Applications]
+x-scheme-handler/http=agterm-ui-uri.desktop;
+x-scheme-handler/https=agterm-ui-uri.desktop;
+x-scheme-handler/file=agterm-ui-uri.desktop;
+MIMEAPPS
 export AGTERM_STATE_DIR="$RUN_ROOT/state"
 export AGTERM_CONTROL_SOCKET="$RUN_ROOT/state/agterm.sock"
 export AGTERM_TEST_BIN="$BIN"
@@ -47,10 +68,13 @@ if [[ -z "${AGTERM_RESOURCE_ROOT:-}" ]]; then
   # Integration installers stage and customize bundled resources. Real copies keep those writes inside
   # this disposable root instead of following a fixture symlink back into the checkout.
   cp -R "$ROOT/agterm/Resources/agent-status" "$resource_root/agent-status"
+  cp -R "$ROOT/agterm/Resources/markdown" "$resource_root/markdown"
   cp -R "$ROOT/plugins/agterm/skills/agterm" "$resource_root/agent-skill"
   export AGTERM_RESOURCE_ROOT="$resource_root"
 fi
 export GDK_BACKEND=x11
+# Keep the runner's logical geometry independent of the desktop that invoked it.
+export GDK_SCALE=1 GDK_DPI_SCALE=1
 export GTK_A11Y=atspi
 export NO_AT_BRIDGE=0
 export LIBGL_ALWAYS_SOFTWARE=1
@@ -94,6 +118,8 @@ dbus-run-session -- \
     bash -c '
       openbox --sm-disable >"$1" 2>&1 &
       wm_pid=$!
+      # D-Bus starts before Xvfb; activated GTK services must use the private display too.
+      dbus-update-activation-environment DISPLAY XAUTHORITY XDG_SESSION_TYPE
       # The AT-SPI registry is normally D-Bus-activated on demand. Where the a11y bus is dbus-broker,
       # activation is delegated to systemd, which is unreachable from the private bus dbus-run-session
       # creates: the registry never starts and every app is absent from the accessible tree ("agterm app
@@ -218,6 +244,14 @@ fail_on_log_pattern -E 'Unrecognized value .*Try GDK_(DISABLE|DEBUG)=help' \
 # scoped to its own stderr window, where a library assertion cannot be mistaken for the app's.
 fail_on_log_pattern -F "assertion 'GTK_IS_WIDGET (widget)' failed" \
   "GTK typecheck assertion on a finalized widget; see $APP_LOG"
+
+# Applying a saved split ratio before its GtkPaned has a current allocation leaves the terminal blank.
+fail_on_log_pattern -F "Trying to snapshot GtkPaned" \
+  "GtkPaned was snapshotted without a current allocation; see $APP_LOG"
+
+# GtkSearchEntry is not a GtkEntry. The wrong setter silently drops picker prompts after this critical.
+fail_on_log_pattern -F "gtk_entry_set_placeholder_text: assertion 'GTK_IS_ENTRY (entry)' failed" \
+  "a picker passed GtkSearchEntry to the GtkEntry placeholder setter; see $APP_LOG"
 
 # A second realize over a live surface means a GtkGLArea was moved to a new parent and its GL context is
 # gone: the pane is blank from then on and no AT-SPI assertion can see it ([[libghostty]]). The app logs it

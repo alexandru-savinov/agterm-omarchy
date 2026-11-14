@@ -18,6 +18,8 @@ final class AppController {
     let library: WindowLibrary
     let customCommandOrigin: LinuxCustomCommandOrigin
     let remoteTransport = LinuxPresentationTransport()
+    var replicaPages: [UUID: LinuxReplicaPageRecord] = [:]
+    var replicaPageFlushCancel: (@MainActor () -> Void)?
     var remoteClients: [UUID: RemotePresentationClient] = [:]
     var remoteTickCancel: (@MainActor () -> Void)?
     let window: OpaquePointer        // AdwApplicationWindow
@@ -71,11 +73,13 @@ final class AppController {
     var controlPickEntry: OpaquePointer?
     var controlPickRows: [LinuxControlPickRow] = []
     var controlPickSuppressesAutoFollow = false
+    var controlPickCompletion: ((ControlPickResult) -> Void)?
     var guiAskSuppressesAutoFollow = false
     var guiAskWindow: OpaquePointer?
     var replicaGUIAskSessionID: UUID?
     var guiAskButtons: [OpaquePointer] = []
     var guiAskNavigation: AskNavigation?
+    var guiAskForm: LinuxAskFormWidgets?
     var terminalAskSurfaces: [UUID: LinuxAskSurface] = [:]
     // In-terminal search bar (Ctrl+Shift+F)
     var searchBar: OpaquePointer?
@@ -177,6 +181,8 @@ final class AppController {
     var backgroundSettingsSource: guint = 0
     var confirmedClose = false                       // set once the quit-confirm is accepted
     var sessionSwitcher = SessionSwitcherModel()                                  // Ctrl-Tab hold-to-cycle state
+    var sessionSwitchReleaseGeneration: UInt64 = 0
+    var cancelSessionSwitchReleaseRecheck: (@MainActor () -> Void)?
     var heldControlKeys = HeldControlKeys()                      // which Ctrl keys are down (the commit signal)
     var contextMenuPopover: OpaquePointer?                       // live row context menu
     var popoverTookKeyboardFromSearchEntry = false               // set at popup: it took the keyboard from a live search
@@ -266,7 +272,6 @@ final class AppController {
         footerFlaggedButton = footerButton("agterm-flag-symbolic", "Show Flagged Only", onFlaggedToggle)
         gtk_box_append(cast(bottomBar), W(footerFlaggedButton))
         adw_toolbar_view_add_bottom_bar(sidebarToolbar, W(bottomBar))
-
         // Content side: header over [search bar (hidden) + deck]. No menu button and no window controls
         // on the right (matching macOS — the window controls live on the left, on the sidebar header);
         // the right side carries only the terminal toggles. The palette is still on Ctrl+Shift+P.
@@ -294,6 +299,8 @@ final class AppController {
         recentSessionsButton = linuxHeaderToggle(contentHeader, "document-open-recent-symbolic",
                                                  LinuxChromeTooltip.text("Recent Sessions", shortcut: "Ctrl+Tab"), onRecentSessionsButton)
         registerInterfaceWidgets(sidebarToggle: sidebarToggleBtn)
+        installOverlayToggle(in: contentHeader)
+        LinuxHudLinkRouter.install(on: window, controller: self)
         updateAttentionButton()
         updateDashboardButton()
         applyInterfaceElements()
@@ -313,6 +320,8 @@ final class AppController {
         // The whole split (sidebar + deck) sits under a GtkOverlay so the quick terminal can float over
         // the FULL window content (matching macOS), not just the deck.
         let windowOverlay = OpaquePointer(gtk_overlay_new())
+        // Match upstream's content minimum even when the sidebar and toolbar are hidden.
+        gtk_widget_set_size_request(W(windowOverlay), 640, 400)
         self.deckOverlay = windowOverlay
         gtk_overlay_set_child(windowOverlay, W(split))
         installQuickCardPlacement(on: windowOverlay)   // percent-sized quick card; see AppControllerCallbacks
@@ -329,7 +338,6 @@ final class AppController {
         TerminalZoomRegistry.shared.register(windowID, controller: terminalZoom)
         DashboardControllerRegistry.shared.register(windowID, controller: dashboard)
         PickRegistry.shared.register(windowID, controller: pickController)
-
         // Become frontmost on activation (routes global shortcuts + control to this window);
         // tear down + deregister when the window closes.
         let me = Unmanaged.passUnretained(self).toOpaque()
@@ -379,7 +387,6 @@ final class AppController {
         updateRecentSessionsButton()
         syncSidebar()
     }
-
     func navigate(_ dir: SessionNavigation, userInitiated: Bool = true) {
         if userInitiated { noteUserActivity() }
         store.navigateSession(dir)
@@ -471,7 +478,8 @@ final class AppController {
                 setQuick(false)
                 return
             }
-            if store.session(withID: id)?.overlayActive == true {
+            if let session = store.session(withID: id), session.content != .page,
+               session.hudActive || session.coverOverlayVisible {
                 closeOverlay(id)
                 return
             }
@@ -518,7 +526,11 @@ final class AppController {
         let survivorOverlay = rightOverlaySurfaces[id]; let survivorWash = rightOverlayWashes[id]
         let survivorWashProvider = rightOverlayWashProviders[id]
         let zoomTarget = suspendTerminalZoomForPrimaryPanePromotion(id)
-        store.closePrimaryPane(id, alreadyFinalized: alreadyFinalized)
+        let prior = surfaces[id]?.backedByZmx == true ? gZmxForegroundResolver?.freshSnapshot(timeout: 1)?.leaders : nil
+        if store.closePrimaryPane(id, alreadyFinalized: alreadyFinalized) == .respawned {
+            respawnPrimaryAdapters(id, prior: prior)
+            return
+        }
         guard store.session(withID: id) != nil, let survivor, let survivorHost,
               let paned = sessionPanes[id] else {
             reconcile()   // no split → the store closed the session; reconcile drops its widgets
@@ -801,7 +813,7 @@ final class AppController {
 
     func toggleSplit(axis: SplitAxis? = nil) {
         guard let id = store.selectedSessionID, let session = store.session(withID: id),
-              !session.fullOverlayActive else { return }
+              !session.fullOverlayVisible else { return }
         if session.scratchActive {
             store.toggleScratch(id)
             reconcile(); updateToggleIcons()
@@ -815,6 +827,9 @@ final class AppController {
     }
 
     func closeSplitPane(_ id: UUID, alreadyFinalized: UUID? = nil) {
+        guard store.session(withID: id)?.splitSurface != nil else {
+            return closePrimaryPane(id, alreadyFinalized: alreadyFinalized)
+        }
         store.closeSplitPane(id, alreadyFinalized: alreadyFinalized)
         reconcile()
         if store.selectedSessionID == id {
@@ -842,29 +857,6 @@ final class AppController {
         focusPane(wantSplit: primaryInEndSlot(id) ? left : !left)
     }
 
-    /// Show a persistent, centered message when the GtkGLArea can't create a GL context (VM/headless/
-    /// llvmpipe-less/Wayland-no-GL) — the terminal can't render, so explain it instead of a blank pane.
-    func showGLError() {
-        guard let overlay = deckOverlay, glErrorLabel == nil else { return }
-        let presentation = LinuxSurfaceFailurePresentation.resolve(.glContext, role: .main)
-        guard presentation.scope == .displayWide,
-              let label = op(gtk_label_new(presentation.message)) else { return }
-        gtk_label_set_justify(label, GTK_JUSTIFY_CENTER)
-        gtk_label_set_wrap(label, 1)
-        gtk_widget_set_halign(W(label), GTK_ALIGN_CENTER)
-        gtk_widget_set_valign(W(label), GTK_ALIGN_CENTER)
-        gtk_widget_add_css_class(W(label), "agterm-gl-error")
-        glErrorLabel = label
-        gtk_overlay_add_overlay(overlay, W(label))
-    }
-
-    /// Surface a transient banner (AdwToast) over the window content — keymap/config parse diagnostics
-    /// and other non-modal alerts. No-op before the content (and its toast overlay) is built.
-    func showToast(_ message: String) {
-        guard let overlay = toastOverlay else { return }
-        message.withCString { adw_toast_overlay_add_toast(overlay, adw_toast_new($0)) }
-    }
-
     func closeScratch(_ id: UUID) {
         store.closeScratch(id)
         reconcile()
@@ -883,7 +875,7 @@ final class AppController {
 
     /// Bundled ghostty theme names (the file names in the resolved themes dir).
     nonisolated static func bundledThemes() -> [String] {
-        var names = themesDir().map { ThemeCatalog.names(in: $0) } ?? []
+        var names = themesDir().map { ThemeCatalog.names(in: $0).filter { $0 != ".agterm-resource-manifest" } } ?? []
         if !names.contains(AppSettings.defaultTheme) {
             names.append(AppSettings.defaultTheme)
         }
@@ -982,7 +974,7 @@ final class AppController {
         let sidebarBg = ThemeColorResolver.shiftedHex(themeBg, amount: AppSettings.sidebarShiftAmount(strength: shift))
         let css = ThemeColorResolver.windowThemeCSS(
             background: themeBg, foreground: fg, selectionBackground: sel,
-            selectionForeground: selFg, sidebarBackground: sidebarBg)
+            selectionForeground: selFg, sidebarBackground: sidebarBg, splitDivider: colors.splitDivider)
         if Self.sidebarThemeProvider == nil {
             let provider = OpaquePointer(gtk_css_provider_new())
             Self.sidebarThemeProvider = provider

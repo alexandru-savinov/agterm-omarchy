@@ -21,12 +21,14 @@ final class GhosttySurface: PaneRoleMutableSurface {
     let rootWidget: OpaquePointer
     /// The GtkGLArea widget (stored as OpaquePointer; cast at GTK call sites).
     let glArea: OpaquePointer
-    private(set) var surface: ghostty_surface_t?
+    var surface: ghostty_surface_t?
+    var retainedGLOwner: OpaquePointer?
     var isRealized: Bool { surface != nil }
     /// The key controller + a GtkIMContext for composed input (dead-keys / compose / CJK): key events are
     /// filtered through the IM, which commits the composed text via the `commit` signal.
     private var keyController: OpaquePointer?
-    private var imContext: OpaquePointer?
+    private let inputMethod = LinuxInputMethodClient()
+    private var imContext: OpaquePointer? { inputMethod.context }
     private var creationErrorLabel: OpaquePointer?
     weak var spawnPacer: SpawnPacer?
     var spawnKey: UUID?
@@ -36,6 +38,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     /// The owning session's id (so the host can route close/title back to the model).
     let sessionID: UUID
     weak var controller: AppController?
+    var linkBrowserOverride = false
     /// Concrete host role; unlike a split boolean this distinguishes notification and focus behavior
     /// for main, split, overlay, scratch, and quick surfaces.
     private(set) var role: LinuxSurfaceRole
@@ -73,13 +76,13 @@ final class GhosttySurface: PaneRoleMutableSurface {
     /// actions independently, so keep all three and re-apply their precedence instead of letting one
     /// callback accidentally reset another.
     private var mouseVisible = true
-    private var mouseOverLink = false
+    var mouseOverLink = false
     private var mouseShapeName = "text"
     /// Surface-owned C configuration buffers. libghostty may consume these after surface creation.
-    private var configurationStorage: GhosttySurfaceConfigurationStorage?
+    var configurationStorage: GhosttySurfaceConfigurationStorage?
     /// Per-surface overlay configs (session background/font override), retained until a newer overlay
     /// replaces them or the surface is torn down.
-    private var ownedConfigs: [ghostty_config_t] = []
+    var ownedConfigs: [ghostty_config_t] = []
     private var oscBackgroundColorHex: String?
     var suppressFontSizePersistence = false
     var dashboardFontOverride: Double? {
@@ -105,7 +108,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     let heldLeadAttachment = LinuxHeldLeadAttachment()
 
     isolated deinit {
-        if let surface { ghostty_surface_free(surface) }
+        assert(surface == nil, "the widget's destroy discharges the engine surface")
         ownedConfigs.forEach { ghostty_config_free($0) }
         configurationStorage?.release()
         if let exitCodeFile { try? FileManager.default.removeItem(atPath: exitCodeFile) }
@@ -146,6 +149,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
         // controller firing "leave" during widget teardown dereferenced a freed GhosttySurface (a
         // use-after-free SIGSEGV in `wrap`). The widget lifetime now bounds the object lifetime.
         let me = Unmanaged.passRetained(self).toOpaque()
+        inputMethod.bind(to: glArea)
         connect(glArea, "destroy", unsafeBitCast(surfaceDestroy as @convention(c) (OpaquePointer?, gpointer?) -> Void, to: GCallback.self), me)
         connect(glArea, "realize", unsafeBitCast(surfaceRealize as @convention(c) (OpaquePointer?, gpointer?) -> Void, to: GCallback.self), me)
         installVisibilityTracking()
@@ -158,9 +162,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
         connect(keyCtl, "key-released", unsafeBitCast(surfaceKeyReleased as @convention(c) (OpaquePointer?, UInt32, UInt32, UInt32, gpointer?) -> Void, to: GCallback.self), me)
         gtk_widget_add_controller(W(glArea), keyCtl)
 
-        let im = OpaquePointer(gtk_im_multicontext_new())
-        imContext = im
-        gtk_im_context_set_client_widget(cast(im), W(glArea))
+        let im = imContext
         connect(im, "commit", unsafeBitCast(surfaceIMCommit as @convention(c) (OpaquePointer?, UnsafePointer<CChar>?, gpointer?) -> Void, to: GCallback.self), me)
         connect(im, "preedit-changed", unsafeBitCast(surfacePreeditChanged as @convention(c) (OpaquePointer?, gpointer?) -> Void, to: GCallback.self), me)
 
@@ -269,12 +271,8 @@ final class GhosttySurface: PaneRoleMutableSurface {
         }
         let appearanceSide = LinuxAppearanceSide(isDark: AppController.systemIsDark)
         GhosttyApp.shared.applyColorScheme(appearanceSide)
-        if LinuxSurfaceFailureInjection.failure(for: role) == .creation {
-            surface = nil
-        } else {
-            surface = ghostty_surface_new_with_env_unset(app, &cfg, storage.environmentUnsets?.baseAddress,
-                                                       storage.environmentUnsets?.count ?? 0)
-        }
+        let injected = LinuxSurfaceFailureInjection.failure(for: role) == .creation
+        surface = injected ? nil : newSurfaceRetainingGLContext(app, &cfg)
         guard let surface else {
             // libghostty exposes no error value here and may reject one surface for fonts, renderer,
             // config, terminal initialization, or allocation. Keep the diagnostic on this exact host;
@@ -563,7 +561,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     func mouseMoved(_ controller: OpaquePointer?, x: Double, y: Double) {
         guard let surface else { return }
         let point = GhosttySurfaceGeometry.pointerPosition(gtkX: x, gtkY: y)
-        ghostty_surface_mouse_pos(surface, point.x, point.y, currentMods(controller))
+        ghostty_surface_mouse_pos(surface, point.x, point.y, linkInputModifiers(currentMods(controller)))
     }
 
     /// Pointer left the surface: report an out-of-bounds position so libghostty clears
@@ -577,10 +575,12 @@ final class GhosttySurface: PaneRoleMutableSurface {
         guard let surface else { return }
         let point = GhosttySurfaceGeometry.pointerPosition(gtkX: x, gtkY: y)
         let mods = currentMods(gesture)
-        ghostty_surface_mouse_pos(surface, point.x, point.y, mods)
+        if pressed { rememberLinkModifiers(mods) }
+        let engineMods = linkInputModifiers(mods)
+        ghostty_surface_mouse_pos(surface, point.x, point.y, engineMods)
         let btn = gesture.map { gtk_gesture_single_get_current_button($0) } ?? 1
         let gbtn: ghostty_input_mouse_button_e = btn == 2 ? GHOSTTY_MOUSE_MIDDLE : (btn == 3 ? GHOSTTY_MOUSE_RIGHT : GHOSTTY_MOUSE_LEFT)
-        _ = ghostty_surface_mouse_button(surface, pressed ? GHOSTTY_MOUSE_PRESS : GHOSTTY_MOUSE_RELEASE, gbtn, mods)
+        _ = ghostty_surface_mouse_button(surface, pressed ? GHOSTTY_MOUSE_PRESS : GHOSTTY_MOUSE_RELEASE, gbtn, engineMods)
     }
 
     func setFocus(_ focused: Bool) {
@@ -599,7 +599,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     /// the default otherwise.
     func setLinkHover(_ overLink: Bool) {
         mouseOverLink = overLink
-        applyMouseCursor()
+        refreshLinkCursor()
     }
 
     /// Set the pointer shape over this surface (GHOSTTY_ACTION_MOUSE_SHAPE). The enum→CSS-name
@@ -610,8 +610,8 @@ final class GhosttySurface: PaneRoleMutableSurface {
         applyMouseCursor()
     }
 
-    private func applyMouseCursor() {
-        let name = !mouseVisible ? "none" : (mouseOverLink ? "pointer" : mouseShapeName)
+    func applyMouseCursor() {
+        let name = LinuxHudLinkRouter.cursorOverride(for: self) ?? (!mouseVisible ? "none" : (mouseOverLink ? "pointer" : mouseShapeName))
         name.withCString { gtk_widget_set_cursor_from_name(W(glArea), $0) }
     }
 
@@ -859,10 +859,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
         spawnPacer = nil
         spawnKey = nil
         launchSeed = nil
-        if let surface {
-            ghostty_surface_free(surface)
-            self.surface = nil
-        }
+        dischargeEngineSurface()
         finishExitCodeCapture()
         ownedConfigs.forEach { ghostty_config_free($0) }
         ownedConfigs = []
@@ -882,7 +879,7 @@ private func wrap(_ data: gpointer?) -> GhosttySurface? {
 /// time). Fired when the widget is destroyed — the LAST signal, so the object stays valid through any
 /// focus-leave/etc. emitted during teardown.
 private let surfaceDestroy: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { _, data in
-    if let data { Unmanaged<GhosttySurface>.fromOpaque(data).release() }
+    if let data { MainActor.assumeIsolated { surfaceWidgetDestroyed(data) } }
 }
 private let surfaceRealize: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { _, data in
     MainActor.assumeIsolated { wrap(data)?.realize() }

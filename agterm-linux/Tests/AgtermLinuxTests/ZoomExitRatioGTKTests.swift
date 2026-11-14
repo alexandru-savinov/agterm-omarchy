@@ -55,7 +55,12 @@ struct ZoomExitRatioGTKTests {
             #expect(controller.restoreRatioAfterZoomExit(context) == 1)
             #expect(controller.restoreRatioAfterZoomExit(context) == 0)
             #expect(context.ticks == 3)
-            #expect(gtk_paned_get_position(paned) == Int32(Double(width) * 0.31))
+            // The settle tick schedules the ratio restore on the paned's frame clock (upstream's
+            // widget-tick restore), so the position lands within a few frames, not synchronously.
+            let expected = Int32(Double(width) * 0.31)
+            let deadline = Date().addingTimeInterval(2)
+            while gtk_paned_get_position(paned) != expected, Date() < deadline { pump(for: 0.02) }
+            #expect(gtk_paned_get_position(paned) == expected)
             #expect(!controller.zoomPendingRatioRestore.contains(session.id))
             #expect(session.splitRatio == 0.31)
             print("measured: current callback restored width \(width), position \(gtk_paned_get_position(paned)), ratio 0.31")

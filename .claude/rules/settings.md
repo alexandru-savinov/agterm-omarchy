@@ -2,6 +2,7 @@
 paths:
   - "agterm/SettingsModel.swift"
   - "agterm/Views/SettingsView.swift"
+  - "agterm/Views/AppearanceSettingsView.swift"
   - "agterm/SettingsCatalog.swift"
   - "agterm/Views/WindowAppearance.swift"
   - "agterm/NSColor+AgtermHex.swift"
@@ -29,8 +30,9 @@ paths:
 - Default-on nil fields are `notificationsEnabled`, `notificationBadgeEnabled`, `rightClickPaste`, and
   `workspaceRowClickExpands`, whose mirror gates the sidebar row-click toggle only ([[sidebar]]).
   Default-off nil fields include attention button, Dock bounce, global config inheritance, close
-  confirmation, auto-follow, hidden inactive sidebars, and interface hiding. `restoreMode` defaults to
-  `none`; the legacy `restoreRunningCommand` boolean migrates to `rerun` or `none`.
+  confirmation, auto-follow, attention-includes-active, attention-across-windows, hidden inactive sidebars,
+  and interface hiding.
+  `restoreMode` defaults to `none`; the legacy `restoreRunningCommand` boolean migrates to `rerun` or `none`.
 - `newSessionPlacement` (nil = `end`) applies only to New Session: `AppActions.newSession()` and the
   workspace row's New Session and "+", through `AppActions.resolvedNewSessionIndex`. It inserts after the
   selection only when that lives in the destination workspace. Open Directory, folder drops, and
@@ -85,6 +87,14 @@ paths:
   auto-follow.
 - Auto-follow choices are Disabled, 5s, 10s, 30s, 60s, and 5m, plus the guard against leaving a running
   session.
+- `attentionIncludesActive` makes attention navigation also stop on `active` sessions; `needsAttention`,
+  auto-follow, the bell and pane reveal are unchanged. `SettingsModel.applyWindowSettings` pushes it with
+  auto-follow into every store; read back as top-level `tree.attentionIncludesActive`, no setter. Reset
+  leaves it, as it leaves auto-follow.
+- `attentionNavigationAcrossWindows` makes GUI attention navigation walk every open window
+  (`WindowLibrary.attentionStep`, [[menu-actions]]). Pushed into every store the same way and read back as
+  top-level `tree.attentionNavigationAcrossWindows`, no setter; `session.go` stays window-scoped. Reset
+  leaves it.
 - Notification badges gate only the sidebar pill/workspace roll-up and Dock total; counts keep tracking
   while hidden. Banners are a separate `notificationsEnabled` mirror, and neither gates agent status.
 - `SettingsModel` saves and writes last-loaded `ghostty-settings.conf`. Reload app/surfaces and clear
@@ -95,18 +105,29 @@ paths:
   contract, so freeing it risks a crash and the rare leak is accepted.
 - `.agtermAppearanceChanged` is required because terminal color is not observable; it updates
   `terminalColor`, quick-terminal backing, title/window appearance, and non-observable chrome mirrors.
-- Settings is a 540x680 six-tab SwiftUI scene with explicit selection defaulting General, preventing
-  `com_apple_SwiftUI_Settings_selectedTabIndex` persistence. General holds Mouse, Sessions, and Ghostty
-  Config. Appearance holds Terminal and Window. Interface groups `InterfaceElement`s two per row, plus
-  Multiple Windows and the quick terminal's panel size, which sits there rather than under Appearance's
-  Window because the panel belongs to no window.
+- Settings is a 540x710 six-tab SwiftUI scene with explicit selection defaulting General, preventing
+  `com_apple_SwiftUI_Settings_selectedTabIndex` persistence. General holds Mouse and Sessions; the
+  global-Ghostty-config toggle and its hint close Sessions, since a third section made the tab scroll.
+  Appearance holds Terminal and Window. Interface groups `InterfaceElement`s two per row, with the
+  Session info picker (`sessionInfoDisplay`, owned by [[sidebar]]) and the Multiple Windows toggle sharing the
+  Sidebar section's last row, since the grid's eight toggles leave no half-cell, plus the quick terminal's panel size,
+  which sits there rather than under Appearance's Window because the panel belongs to no window.
   Notifications holds banner/badge/attention/bounce/sound. Agent Status holds colors/shapes, sound,
-  status reset, auto-follow, and Reset. Key Mapping holds config directory, diagnostics, and Reload.
+  status reset, Navigation (attention-includes-active, attention-across-windows, auto-follow), and Reset,
+  and must not scroll:
+  `testAttentionIncludesActiveTogglePersists` requires Reset not to move when scrolled. Key Mapping holds the keyboard layout lock,
+  config directory, diagnostics, and Reload.
+- Every change that adds or moves a Settings control checks that its tab does not scroll: scroll the
+  tab's last control and require it not to move, as `assertGeneralTabFits` does, and look at the tab.
+  To capture it, have the XCUITest write `window.screenshot().pngRepresentation` to
+  `NSTemporaryDirectory()` and read it from
+  `~/Library/Containers/com.umputun.agtermUITests.xctrunner/Data/tmp`; xcresult attachment export
+  returned 60-byte stubs.
 - `statusReset` stores a raw `StatusReset` (`firstKey`|`enter`|`never`), nil for the default `firstKey`,
   resolved by `effectiveStatusReset` and mirrored to `GhosttyApp.statusReset`, which the surface factories'
   keystroke-clear closure reads at keystroke time. Reset to defaults clears it with the glyph settings.
 - Keep titlebar construction in `WindowContentView+Titlebar.swift` so `WindowContentView.swift` remains
-  below the 1000-line limit.
+  below the 1000-line limit. The Appearance tab lives in `AppearanceSettingsView.swift` for the same reason.
 - Keep Agent Status shape pickers in a trailing-aligned 80-point column wider than the 64.5...68-point
   buttons; centered alignment leaves the cluster about 38 points inboard. Keep color wells aligned.
   `testAgentStatusShapePickerRowLayoutAndOptions` checks picker `maxX`
@@ -123,6 +144,10 @@ paths:
   `CGSSetWindowBackgroundBlurRadius`; absence is a no-op. `ghosttyConfigLines()` pins renderer opacity and
   blur to 0. At opacity 1, restore opaque rendering. Reduce Transparency temporarily forces opaque,
   unblurred windows/panels without changing saved settings or config.
+- `ignoreReduceTransparency` (default off) exempts the WINDOW from that rule, never palettes or the switcher,
+  whose system material the user never chose. `AppSettings.windowReducesTransparency` is the one rule:
+  `WindowAppearance.sync` gets it resolved through `Chrome`, and the mute wash and Settings hint call it too.
+  Mirrored through `setWindowTranslucency`; GUI-only, like opacity and blur.
 - On macOS 26, find the wrapping `NSContainerConcentricGlassEffectView` by walking from
   `agterm-sidebar-scroll`; for translucent windows use clear style plus terminal tint. Its Liquid Glass
   blur is not pixel-identical to CGS blur. Reapply on key/main/fullscreen and appearance changes.
@@ -146,8 +171,9 @@ paths:
   cached diagnostics.
 - **Process restore mode is frozen at launch; capture follows the configured next mode.** `none` restores fresh shells, `rerun` uses the captured-command path
   below, and `live` is zmx-backed. Settings changes apply after restart. A live request falls back to
-  `none` when the bundled executable, zsh integration, or password-database login shell is unsupported, and
-  Settings reports the reason. The requested-live latch still claims persisted daemons during fallback; only
+  `none` when the bundled executable, the bundled zsh or fish integration, or the Live shell is unsupported
+  (the password-database login shell, replaced by an absolute zsh or fish `command` that `GhosttyApp` reads
+  with the restore decision), and Settings reports the reason. The requested-live latch still claims persisted daemons during fallback; only
   a deliberate `none` or `rerun` launch reaps them. Factories, control status, and reap read the immutable
   requested or active mode. Exit capture and `restore.capture` read the configured next-launch mode.
 - **Command replay is launch-scoped; capture runs at two exits and on demand.**
@@ -249,18 +275,22 @@ paths:
   close and sidebar row close; skip under XCUITest. Control `session.close` must never prompt.
 - `hiddenInterfaceElements` stores raw names and preserves unknown values while toggling known ones; empty
   maps nil. Titlebar cases are `sidebarToggle`, `workspaceName`, `sessionName`, `windowName`, `remoteHost`,
-  `sessionContext`, `recentSessions`, `scratch`, `split`, `dashboard`, `quickTerminal`, `customCommands`;
+  `sessionContext`, `recentSessions`, `scratch`, `split`, `dashboard`, `quickTerminal`, `customCommands`,
+  `overlayToggle`;
   sidebar cases are `newWorkspace`, `newSession`, `flaggedView`, `focusFilter`, and row-level
-  `workspaceAddSession`.
-  A `hiddenByDefault` case (`workspaceName` and `customCommands`) is governed by `shownInterfaceElements`
-  instead, the same shape with the opposite sense, and its name in the hidden list is ignored. Attention
+  `workspaceAddSession`, `workspaceIcons`, `sessionIcons` and `workspaceChevrons` ([[sidebar]] owns its layout).
+  The two icon toggles show the glyph their rows
+  draw, so they share it with `focusFilter` and `quickTerminal`.
+  A `hiddenByDefault` case (`workspaceName`, `customCommands` and `overlayToggle`) is governed by
+  `shownInterfaceElements` instead, the same shape with the opposite sense, and its name in the hidden list is ignored. Attention
   has its separate default-off setting.
   `workspaceName` leads the identity as `workspace — session — window`, looked up from the ACTIVE SESSION
   (`workspace(forSession:)`, never `currentWorkspaceID`, which an empty workspace can hold while the old
   session stays selected). `TitlebarComposition` caps it at `workspaceNameLimit` characters with an
   ellipsis, display only, because the identity is one tail-truncated text and an uncapped prefix would
   push the session name off the bar. The OS window title (`WindowTitleSync`) does not carry it.
-- `InterfaceElement` owns section/display name; the tab iterates `allCases`. Mutate the raw set, then push
+- `InterfaceElement` owns section, display name, and the resting glyph its control and Settings toggle
+  share; the tab lists `settingsOrder(in:)`, text-only elements first. Mutate the raw set, then push
   resolved known values to `GhosttyApp`. SwiftUI gates with `shows(_:)`; the AppKit row "+" checks the
   mirror on hover. Titlebar group dividers appear only between adjacent groups that each retain at least
   two buttons, as computed by `titlebarGroupDividers`. Add a case/render gate only after user approval.
@@ -275,14 +305,36 @@ paths:
   settings predate the flag never sees it. Decide it in `agtermApp.init()`: the first launch saves its own
   window within a second of the scene appearing, which would read back as prior state.
   `WelcomeAlert` suppresses itself under XCUITest unless `AGTERM_UITEST_SHOW_WELCOME` is set.
-- `flaggedViewLayout` is a raw `FlaggedViewLayout` (`flat`|`tree`), nil for the default `flat`, resolved by
+- `flaggedViewLayout` is a raw `FlaggedViewLayout` (`flat`|`plain`|`tree`), nil for the default `flat`, resolved by
   `effectiveFlaggedViewLayout` and mirrored to `GhosttyApp.flaggedViewLayout`. App-wide, never per window.
   Every sidebar Coordinator picks it up on `.agtermAppearanceChanged`, and only one showing the flagged view
-  rebuilds. The picker sits at the bottom of the General tab's Sessions section: the Interface tab is exactly full at
-  540x680, and one more row pushes the quick-terminal Size off the bottom. A grouped Form scrolls, so an
-  overflowing tab still reports every control hittable; `testFlaggedViewLayoutPickerPersists` compares the
-  tab's last line against the window frame instead.
+  rebuilds. The picker sits at the bottom of the General tab's Sessions section: the Interface tab is full at
+  540x710, and one more row pushes the quick-terminal Size off the bottom. A grouped Form scrolls, so an
+  overflowing tab still reports every control hittable, and its last text can sit inside the window while
+  the section's bottom inset does not; `assertGeneralTabFits` in `SettingsUITests` scrolls the tab and
+  requires the closing hint not to move.
   The control catalog carries it as `sidebar.flagged-layout` ([[control-api]]).
+- `sidebarDensity` is a raw `SidebarDensity` (`default`|`compact`), nil for the default, resolved by
+  `effectiveSidebarDensity` and mirrored to `GhosttyApp.sidebarDensity`; app-wide. `SidebarDensity` owns every
+  metric it changes, and [[sidebar]] owns how a mounted outline applies them. Its picker sits under Sidebar font
+  size in Appearance, which `testSidebarDensityPickerPersistsAndTheAppearanceTabFits` keeps from scrolling.
+  The control catalog carries it as `sidebar.density`.
+- `terminalInputSource` is a macOS input source id, nil = off. `InputSourceLock` in `agtermCore` decides and
+  `TerminalInputSource` is the only caller of Text Input Source selection: it selects the id while the key
+  window's first responder is a live `GhosttySurfaceView` or sits inside an `HtmlOverlayWebView`, page form
+  fields included, reselects on every source-change notification, and
+  restores the earlier source when that stops being true and in `applicationWillTerminate`.
+  It keys on key-window and responder changes, never app activation, because the quick terminal takes key
+  while agterm stays inactive. The source-change notification is delivered to an inactive app (measured
+  with the quick panel key), so the observer needs no suspension override.
+  Selection is system-wide and macOS restores nothing itself (measured with the per-document input source
+  option off), so a crash leaves the id selected; never persist the baseline to restore at the next
+  launch, which would overwrite a later choice made elsewhere.
+  Deliberate control exemption, like `newSessionPlacement`: no command sets or reads it.
+- `linkOpenMode` is raw `LinkOpenMode`, nil = `browser`, read through `effectiveLinkOpenMode` at each link
+  click; nothing renders from it. Its picker sits in the General tab's Mouse section, and
+  `testLinkOpenModePickerPersists` runs the same fit check. The control catalog carries it as
+  `browser.links` ([[control-api]]).
 - `htmlOverlayZoom` is the one page zoom every HTML overlay shows at, nil = 1, stepped only by the font
   commands through `SettingsModel.stepHtmlOverlayZoom`, which saves and mirrors to `HtmlOverlayRegistry`
   without `persistAndApply`: nothing else renders it, so a keypress must not broadcast an appearance change.

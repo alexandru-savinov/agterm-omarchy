@@ -10,11 +10,15 @@ private final class LoopbackServer: @unchecked Sendable {
         var status = 200
         var headers: [String: String] = [:]
         var body = ""
+        var hold = false
     }
 
     private let listener: NWListener
     private let queue = DispatchQueue(label: "agterm.test.loopback")
     private var routes: [String: Response]
+    private var held: [NWConnection] = []
+    private var asked: [String] = []
+    private var accepted = 0
 
     init(_ host: NWEndpoint.Host, routes: [String: Response]) throws {
         let parameters = NWParameters.tcp
@@ -24,7 +28,10 @@ private final class LoopbackServer: @unchecked Sendable {
     }
 
     func start() async throws -> UInt16 {
-        listener.newConnectionHandler = { [weak self] connection in self?.serve(connection) }
+        listener.newConnectionHandler = { [weak self] connection in
+            self?.accepted += 1
+            self?.serve(connection)
+        }
         return try await withCheckedThrowingContinuation { continuation in
             listener.stateUpdateHandler = { [listener] state in
                 switch state {
@@ -41,6 +48,9 @@ private final class LoopbackServer: @unchecked Sendable {
 
     func set(_ path: String, _ response: Response) { queue.sync { routes[path] = response } }
 
+    var requests: [String] { queue.sync { asked } }
+    var connections: Int { queue.sync { accepted } }
+
     private func serve(_ connection: NWConnection) {
         connection.start(queue: queue)
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, _, _ in
@@ -49,7 +59,9 @@ private final class LoopbackServer: @unchecked Sendable {
                 return
             }
             let path = line.split(separator: " ").dropFirst().first.map(String.init) ?? "/"
+            asked.append(path)
             let response = routes[path] ?? Response(status: 404, body: "not found")
+            if response.hold { return held.append(connection) }
             let headers = (["Content-Type": "text/html", "Content-Length": "\(response.body.utf8.count)",
                             "Connection": "close"].merging(response.headers) { $1 })
                 .map { "\($0): \($1)\r\n" }.joined()
@@ -96,6 +108,26 @@ private final class FakeDrag: NSObject, @preconcurrency NSDraggingInfo {
     func resetSpringLoading() {}
 }
 
+@MainActor
+private final class KeyRecordingWindow: NSWindow {
+    var reached: [String] = []
+
+    override func cancelOperation(_ sender: Any?) {
+        reached.append("cancelOperation")
+        super.cancelOperation(sender)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        reached.append("keyDown")
+        super.keyDown(with: event)
+    }
+
+    override func noResponder(for eventSelector: Selector) {
+        reached.append("noResponder:\(NSStringFromSelector(eventSelector))")
+        super.noResponder(for: eventSelector)
+    }
+}
+
 @MainActor @Observable
 private final class Mount {
     var shown = true
@@ -115,37 +147,7 @@ private struct MountedPage: View {
 }
 
 @MainActor
-private final class FakeBrowser: HtmlBrowser {
-    var prompts: [URL] = []
-    var answers: [(Bool) -> Void] = []
-    var dismissals = 0
-    var opened: [URL] = []
-    var available = true
-
-    func confirm(_ url: URL, over _: NSView, _ done: @escaping (Bool) -> Void) -> (() -> Void)? {
-        prompts.append(url)
-        answers.append(done)
-        return { self.dismissals += 1 }
-    }
-
-    func open(_ url: URL) -> Bool {
-        guard available else { return false }
-        opened.append(url)
-        return true
-    }
-}
-
-@MainActor
-private final class FakeSharing: HtmlSharing {
-    var revealed: [URL] = []
-    var copied: [String] = []
-
-    func reveal(_ url: URL) { revealed.append(url) }
-    func copy(_ text: String) { copied.append(text) }
-}
-
-@MainActor
-final class HtmlOverlayRegistryTests: XCTestCase {
+final class HtmlOverlayRegistryTests: HtmlPageTestCase {
     private final class StubSurface: PaneRoleMutableSurface {
         let paneToken: String
         init(_ token: String) { paneToken = token }
@@ -155,27 +157,12 @@ final class HtmlOverlayRegistryTests: XCTestCase {
         func setPaneRole(_: SwappablePaneRole) {}
     }
 
-    private var directory: URL!
-    private var pages: URL!
     private var servers: [LoopbackServer] = []
     private var profiles: [BrowserProfile] = []
     private var removal: (@MainActor (WKWebsiteDataStore) async -> Void)!
-    private var store: AppStore!
-    private var session: Session!
-    private let registry = HtmlOverlayRegistry.shared
-    private let browser = FakeBrowser()
-    private let sharing = FakeSharing()
 
     override func setUp() async throws {
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent("agterm-html-reg-\(UUID().uuidString)")
-        pages = directory.appendingPathComponent("pages")
-        try FileManager.default.createDirectory(at: pages, withIntermediateDirectories: true)
-        store = AppStore(persistence: PersistenceStore(directory: directory.appendingPathComponent("state")))
-        let workspace = store.addWorkspace(name: "work")
-        session = try XCTUnwrap(store.addSession(toWorkspace: workspace.id, cwd: "/tmp"))
-        registry.install()
-        registry.browser = browser
-        registry.sharing = sharing
+        try await super.setUp()
         removal = registry.removeWebsiteData
         useProfile("profile")
         try write("a.html", #"<title>A</title><script src="s.js"></script><a href="b.html">b</a>"#)
@@ -185,15 +172,13 @@ final class HtmlOverlayRegistryTests: XCTestCase {
 
     override func tearDown() async throws {
         servers.forEach { $0.stop() }
-        registry.browser = SystemBrowser()
-        registry.sharing = SystemHtmlSharing()
-        registry.setZoom(1)
-        registry.dispatch = nil
-        store.closeSession(session.id)
+        try await super.tearDown()
+    }
+
+    override func afterSessionClose() async throws {
         registry.removeWebsiteData = removal
         for profile in profiles { try await TestBrowserStore.remove(profile) }
         profiles = []
-        try? FileManager.default.removeItem(at: directory)
     }
 
     func testAPageIsCreatedOncePerIdentityAndReleasedByTheModel() throws {
@@ -478,6 +463,134 @@ final class HtmlOverlayRegistryTests: XCTestCase {
         XCTAssertNotNil(current?.loadError)
     }
 
+    func testABrowsingPageFollowsARedirectToAnotherOriginAndNamesIt() async throws {
+        let second = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>second</title>")])
+        let first = try await serve(.ipv4(.loopback), [
+            "/away": .init(status: 302, headers: ["Location": "http://127.0.0.1:\(second)/"]),
+        ])
+        _ = registry.page(for: try openURL("http://127.0.0.1:\(first)/away", browse: true), store: store)
+        try await waitFor("redirect followed") { self.current?.current?.title == "second" && self.current?.loadState == .loaded }
+        XCTAssertEqual(current?.identity, "http://127.0.0.1:\(second)")
+        XCTAssertTrue(store.closeOverlay(session.id))
+
+        _ = registry.page(for: try openURL("http://127.0.0.1:\(first)/away"), store: store)
+        try await waitFor("ordinary page blocked") { self.current?.loadState == .failed }
+        XCTAssertEqual(current?.loadError, "navigation blocked: http://127.0.0.1:\(second)/")
+    }
+
+    func testABrowsingPageNamesTheSiteShownThroughNavigationAndBack() async throws {
+        let first = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>first</title>")])
+        let second = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>second</title>")])
+        let page = try openURL("http://127.0.0.1:\(first)/", browse: true)
+        let live = registry.page(for: page, store: store)
+        try await waitFor("first loaded") { self.current?.current?.title == "first" && self.current?.loadState == .loaded }
+        XCTAssertEqual(current?.identity, "http://127.0.0.1:\(first)")
+
+        _ = try await live.webView.evaluateJavaScript("location.href = 'http://127.0.0.1:\(second)/'")
+        try await waitFor("second loaded") { self.current?.current?.title == "second" && self.current?.loadState == .loaded }
+        XCTAssertEqual(current?.identity, "http://127.0.0.1:\(second)")
+
+        XCTAssertNil(registry.navigate(page.id, .back))
+        try await waitFor("back on first") { self.current?.current?.title == "first" }
+        XCTAssertEqual(current?.identity, "http://127.0.0.1:\(first)")
+    }
+
+    func testABrowsingPageKeepsNamingTheShownSiteWhileAnotherSiteLoads() async throws {
+        let first = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>first</title>")])
+        let slow = try await serve(.ipv4(.loopback), ["/": .init(hold: true)])
+        let live = registry.page(for: try openURL("http://127.0.0.1:\(first)/", browse: true), store: store)
+        try await waitFor("first loaded") { self.current?.current?.title == "first" && self.current?.loadState == .loaded }
+
+        _ = try await live.webView.evaluateJavaScript("location.href = 'http://127.0.0.1:\(slow)/'")
+        try await waitFor("second site loading") { self.current?.loadState == .loading }
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(current?.identity, "http://127.0.0.1:\(first)")
+        XCTAssertEqual(current?.current?.page, "http://127.0.0.1:\(first)/")
+    }
+
+    func testABrowsingPageSentBackToItsSourceNamesTheShownSiteUntilTheSourceCommits() async throws {
+        let server = try LoopbackServer(.ipv4(.loopback), routes: ["/": .init(body: "<title>first</title>")])
+        servers.append(server)
+        let first = try await server.start()
+        let second = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>second</title>")])
+        let page = try openURL("http://127.0.0.1:\(first)/", browse: true)
+        let live = registry.page(for: page, store: store)
+        try await waitFor("first loaded") { self.current?.current?.title == "first" && self.current?.loadState == .loaded }
+        _ = try await live.webView.evaluateJavaScript("location.href = 'http://127.0.0.1:\(second)/'")
+        try await waitFor("second loaded") { self.current?.current?.title == "second" && self.current?.loadState == .loaded }
+
+        server.set("/", .init(hold: true))
+        XCTAssertNil(registry.reload(page.id, target: .original, store: store))
+        try await waitFor("source loading") { self.current?.loadState == .loading }
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(current?.identity, "http://127.0.0.1:\(second)")
+    }
+
+    func testABrowsingPageNamesItsSourceWhileItsFirstLoadRedirectsToASiteStillLoading() async throws {
+        let slow = try await serve(.ipv4(.loopback), ["/": .init(hold: true)])
+        let first = try await serve(.ipv4(.loopback), [
+            "/away": .init(status: 302, headers: ["Location": "http://127.0.0.1:\(slow)/"]),
+        ])
+        let live = registry.page(for: try openURL("http://127.0.0.1:\(first)/away", browse: true), store: store)
+        try await waitFor("redirect pending on the slow site") { live.webView.url?.port == Int(slow) }
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(current?.loadState, .loading)
+        XCTAssertEqual(current?.identity, "http://127.0.0.1:\(first)")
+    }
+
+    func testABrowsingPageOpensAndCopiesTheSiteShownWhileAnotherLoads() async throws {
+        let first = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>first</title>")])
+        let slow = try await serve(.ipv4(.loopback), ["/": .init(hold: true)])
+        let page = try openURL("http://127.0.0.1:\(first)/", browse: true)
+        let live = registry.page(for: page, store: store)
+        try await waitFor("first loaded") { self.current?.current?.title == "first" && self.current?.loadState == .loaded }
+        _ = try await live.webView.evaluateJavaScript("location.href = 'http://127.0.0.1:\(slow)/'")
+        try await waitFor("second site pending") { live.webView.url?.port == Int(slow) }
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertNil(registry.navigate(page.id, .browser))
+        registry.copyLink(page.id)
+
+        XCTAssertEqual(browser.opened, [try XCTUnwrap(URL(string: "http://127.0.0.1:\(first)/"))])
+        XCTAssertEqual(sharing.copied, ["http://127.0.0.1:\(first)/"])
+    }
+
+    func testABrowsingPageOnABlankDocumentOpensItsSourceInTheBrowser() async throws {
+        let first = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>first</title>")])
+        let page = try openURL("http://127.0.0.1:\(first)/", browse: true)
+        let live = registry.page(for: page, store: store)
+        try await waitFor("first loaded") { self.current?.current?.title == "first" && self.current?.loadState == .loaded }
+        _ = try await live.webView.evaluateJavaScript("location.href = 'about:blank'")
+        try await waitFor("blank shown") { self.current?.current?.page == "about:blank" }
+
+        XCTAssertNil(registry.navigate(page.id, .browser))
+
+        XCTAssertEqual(browser.opened, [try XCTUnwrap(URL(string: "http://127.0.0.1:\(first)/"))])
+    }
+
+    func testABrowsingPageNamesABlankDocumentAsBlank() async throws {
+        let first = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>first</title>")])
+        let live = registry.page(for: try openURL("http://127.0.0.1:\(first)/", browse: true), store: store)
+        try await waitFor("first loaded") { self.current?.current?.title == "first" && self.current?.loadState == .loaded }
+
+        _ = try await live.webView.evaluateJavaScript("location.href = 'about:blank'")
+        try await waitFor("blank shown") { self.current?.current?.page == "about:blank" }
+        XCTAssertEqual(current?.identity, "about:blank")
+    }
+
+    func testABrowsingPageKeepsNamingTheShownSiteWhenALoadElsewhereFails() async throws {
+        let first = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>first</title>")])
+        let closed = try LoopbackServer(.ipv4(.loopback), routes: [:])
+        let dead = try await closed.start()
+        closed.stop()
+        let live = registry.page(for: try openURL("http://127.0.0.1:\(first)/", browse: true), store: store)
+        try await waitFor("first loaded") { self.current?.current?.title == "first" && self.current?.loadState == .loaded }
+
+        _ = try await live.webView.evaluateJavaScript("location.href = 'http://127.0.0.1:\(dead)/'")
+        try await waitFor("load elsewhere failed") { self.current?.loadState == .failed }
+        XCTAssertEqual(current?.identity, "http://127.0.0.1:\(first)")
+    }
+
     func testCurrentReloadStaysOnTheNavigatedPageAndOriginalReturnsToTheUrl() async throws {
         let port = try await serve(.ipv4(.loopback), ["/a": .init(body: "<title>a</title>"), "/b": .init(body: "<title>b</title>")])
         let page = try openURL("http://127.0.0.1:\(port)/a")
@@ -749,6 +862,46 @@ final class HtmlOverlayRegistryTests: XCTestCase {
         XCTAssertEqual(background, "#000000")
     }
 
+    // regression: reload --current reloaded the about:blank document instead of the picture
+    func testAnImagePageShowsThePictureAndReloadsItFromTheFile() async throws {
+        let path = try writePNG("shot.png", width: 30)
+        let overlay = HtmlOverlay(source: .image(path: path))
+        XCTAssertNil(store.openHtmlOverlay(session.id, pane: nil, overlay: overlay, sizePercent: nil))
+        let page = registry.page(for: overlay, store: store)
+        try await waitForScript("document.images[0] ? String(document.images[0].naturalWidth) : ''", in: page.webView) { $0 == "30" }
+
+        _ = try writePNG("shot.png", width: 40)
+        XCTAssertNil(registry.reload(page.id, target: .current, store: store))
+
+        try await waitForScript("document.images[0] ? String(document.images[0].naturalWidth) : ''", in: page.webView) { $0 == "40" }
+    }
+
+    func testAnImageReplicaShowsTheFetchedPictureUnthemedOnAClearCanvas() async throws {
+        let path = try writePNG("shot.png", width: 30)
+        let page = registry.page(for: openReplica(path, .image(width: 30, height: 10)), store: store, replica: replicaLink())
+
+        try await waitForScript("document.images[0] ? String(document.images[0].naturalWidth) : ''", in: page.webView) { $0 == "30" }
+        XCTAssertEqual(page.webView.value(forKey: "drawsBackground") as? Bool, false)
+        XCTAssertEqual(page.webView.configuration.userContentController.userScripts.count, 1, "the theme script alone")
+        XCTAssertEqual(fetched, [path])
+
+        _ = try writePNG("shot.png", width: 40)
+        XCTAssertNil(registry.reload(page.id, target: .current, store: store))
+        try await waitForScript("document.images[0] ? String(document.images[0].naturalWidth) : ''", in: page.webView) { $0 == "40" }
+    }
+
+    func testAnImageReadFinishingAfterCloseIsDropped() async throws {
+        let overlay = HtmlOverlay(source: .image(path: try writePNG("late.png", width: 30)))
+        XCTAssertNil(store.openHtmlOverlay(session.id, pane: nil, overlay: overlay, sizePercent: nil))
+        let page = registry.page(for: overlay, store: store)
+
+        page.close()
+        try await Task.sleep(for: .milliseconds(500))
+
+        XCTAssertNil(page.webView.url)
+        store.closeOverlay(session.id)
+    }
+
     func testAUrlPageKeepsTheBrowserCanvasThroughAThemeChange() async throws {
         let port = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>app</title><body style=\"color: #333\"><p>app text</p></body>")])
         let page = registry.page(for: try openURL("http://127.0.0.1:\(port)/"), store: store)
@@ -994,6 +1147,60 @@ final class HtmlOverlayRegistryTests: XCTestCase {
         XCTAssertFalse(probe.messages.contains { $0.hasPrefix("file:") || $0.hasPrefix("paste:1") }, "\(probe.messages)")
     }
 
+    // #753: an Esc the page leaves unhandled reached the window's cancelOperation:, which exits full screen
+    func testEscapeOnAPageWithNoKeyHandlerNeverReachesTheWindow() async throws {
+        try write("plain.html", "<title>P</title><p>no handlers</p>")
+        let page = registry.page(for: try open(file: "plain.html"), store: store)
+        let window = try presentRecording(page.webView)
+        defer { window.orderOut(nil) }
+        try await waitFor("loaded") { self.current?.loadState == .loaded }
+
+        try sendEscape(to: window)
+        _ = try await page.webView.evaluateJavaScript("1")
+
+        XCTAssertEqual(window.reached, [])
+    }
+
+    func testEscapeStillReachesAPageListeningForItAndNeverReachesTheWindow() async throws {
+        try write("esc.html", """
+            <title>E</title><script>
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') webkit.messageHandlers.probe.postMessage('escape') })
+            </script>
+            """)
+        let probe = PageProbe()
+        let page = registry.page(for: try open(file: "esc.html", javascript: true), store: store)
+        page.webView.configuration.userContentController.add(probe, name: "probe")
+        let window = try presentRecording(page.webView)
+        defer { window.orderOut(nil) }
+        try await waitFor("loaded") { self.current?.loadState == .loaded }
+
+        try sendEscape(to: window)
+        try await waitFor("page saw escape") { probe.messages == ["escape"] }
+        _ = try await page.webView.evaluateJavaScript("1")
+
+        XCTAssertEqual(window.reached, [])
+    }
+
+    private func presentRecording(_ view: NSView) throws -> KeyRecordingWindow {
+        let window = KeyRecordingWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300), styleMask: [.titled],
+                                        backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        view.frame = try XCTUnwrap(window.contentView).bounds
+        window.contentView?.addSubview(view)
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(view)
+        return window
+    }
+
+    private func sendEscape(to window: NSWindow) throws {
+        for type in [NSEvent.EventType.keyDown, .keyUp] {
+            window.sendEvent(try XCTUnwrap(NSEvent.keyEvent(
+                with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber, context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}",
+                isARepeat: false, keyCode: 53)))
+        }
+    }
+
     func testPageScriptRunsOnlyWhenTheOverlayAllowsIt() async throws {
         let body = #"<title>S</title><p id="i">static</p><script>document.getElementById('i').textContent = 'inline'</script>"#
             + #"<script src="ext.js"></script><iframe srcdoc="<script>parent.document.documentElement.dataset.frame = 'ran'</script>"></iframe>"#
@@ -1042,6 +1249,64 @@ final class HtmlOverlayRegistryTests: XCTestCase {
         try await waitFor("two loaded") { self.current?.loadState == .loaded && self.current?.current?.title == "two" }
         let afterNavigation = try await page.webView.evaluateJavaScript("document.getElementById('i').textContent")
         XCTAssertEqual(afterNavigation as? String, "static")
+    }
+
+    func testAPageClosingItsWindowClosesItsOverlayAsDismissed() async throws {
+        let port = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>done</title><script>window.close()</script>")])
+        let page = try openURL("http://127.0.0.1:\(port)/", javascript: true)
+        let live = registry.page(for: page, store: store)
+
+        try await waitFor("the page closed its overlay") { !self.session.overlayActive }
+        XCTAssertNil(session.htmlOverlay)
+        XCTAssertNil(registry.existing(page.id))
+        XCTAssertNil(live.webView.uiDelegate)
+        XCTAssertEqual(HtmlPageOutcomes.shared.outcome(for: page.id)?.outcome, .dismissed)
+    }
+
+    func testAPageWithScriptOffCannotCloseItsOverlay() async throws {
+        let port = try await serve(.ipv4(.loopback), ["/": .init(body: "<title>static</title><script>window.close()</script>")])
+        let page = try openURL("http://127.0.0.1:\(port)/")
+        _ = registry.page(for: page, store: store)
+
+        try await waitFor("loaded") { self.current?.loadState == .loaded }
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(session.htmlOverlay?.id, page.id)
+        XCTAssertEqual(HtmlPageOutcomes.shared.outcome(for: page.id)?.outcome, .pending)
+    }
+
+    func testAPanePageClosingItsWindowAfterASwapClosesOnlyItsOwnSlot() async throws {
+        store.toggleSplit(session.id)
+        session.surface = StubSurface("left")
+        session.splitSurface = StubSurface("right")
+        let closing = try open(pane: .left, file: "a.html", javascript: true)
+        let staying = try open(pane: .right, file: "b.html")
+        let live = registry.page(for: closing, store: store)
+        _ = registry.page(for: staying, store: store)
+        try await waitFor("both loaded") {
+            self.session.paneOverlay(.left)?.html?.loadState == .loaded && self.session.paneOverlay(.right)?.html?.loadState == .loaded
+        }
+
+        XCTAssertNil(store.swapPanes(session.id))
+        _ = try await live.webView.evaluateJavaScript("window.close()")
+
+        try await waitFor("the swapped page closed") { self.session.paneOverlay(.right) == nil }
+        XCTAssertEqual(session.paneOverlay(.left)?.html?.id, staying.id)
+        XCTAssertNil(registry.existing(closing.id))
+    }
+
+    func testAPageThatClosedDuringAnUndoableCloseStaysClosedAfterUndo() async throws {
+        let page = try open()
+        let live = registry.page(for: page, store: store)
+        XCTAssertTrue(store.softCloseSession(session.id, grace: 60))
+
+        live.webViewDidClose(live.webView)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertNotNil(registry.existing(page.id))
+
+        XCTAssertTrue(store.undoPendingClose())
+        live.apply(try XCTUnwrap(session.htmlOverlay))
+        try await waitFor("the restored page closed") { !self.session.overlayActive }
+        XCTAssertNil(registry.existing(page.id))
     }
 
     func testAPageKeepsTheZoomThroughNavigationAndReloadAndANewPageOpensAtIt() async throws {
@@ -1293,6 +1558,123 @@ final class HtmlOverlayRegistryTests: XCTestCase {
         XCTAssertEqual(bridge as? String, "undefined")
     }
 
+    func testAClickedDocumentRunsNoTaggedControlAndNoScript() async throws {
+        let requests = recordDispatch()
+        try write("tags.html", Self.taggedPage(destination: "about:blank"))
+        let overlay = HtmlOverlay(source: .document(path: pages.appendingPathComponent("tags.html").path))
+        XCTAssertNil(store.openHtmlOverlay(session.id, pane: nil, overlay: overlay, sizePercent: nil))
+
+        try await checkInertDocument(registry.page(for: overlay, store: store), requests: requests)
+    }
+
+    func testADocumentReplicaRunsNoTaggedControlAndNoScript() async throws {
+        let requests = recordDispatch()
+        try write("tags.html", Self.taggedPage(destination: "about:blank"))
+        let path = pages.appendingPathComponent("tags.html").path
+
+        try await checkInertDocument(registry.page(for: openReplica(path, .document), store: store, replica: replicaLink()),
+                                     requests: requests)
+        XCTAssertEqual(fetched, [path])
+    }
+
+    func testAnUnreadableDocumentReportsAFailure() async throws {
+        let path = pages.appendingPathComponent("missing.html").path
+        let overlay = HtmlOverlay(source: .document(path: path))
+        XCTAssertNil(store.openHtmlOverlay(session.id, pane: nil, overlay: overlay, sizePercent: nil))
+        _ = registry.page(for: overlay, store: store)
+
+        try await waitFor("failed") { self.current?.loadState == .failed }
+        XCTAssertEqual(current?.loadError, DocumentProbe.Failure.unreadable(path).description)
+    }
+
+    func testAClickedDocumentTakesTheThemeDefaultsLikeAFilePage() async throws {
+        try write("plain.html", "<title>P</title><p>short</p>")
+        let overlay = HtmlOverlay(source: .document(path: pages.appendingPathComponent("plain.html").path))
+        XCTAssertNil(store.openHtmlOverlay(session.id, pane: nil, overlay: overlay, sizePercent: nil))
+        let page = registry.page(for: overlay, store: store)
+        try await waitFor("loaded") { self.current?.loadState == .loaded }
+        XCTAssertEqual(page.webView.value(forKey: "drawsBackground") as? Bool, false)
+
+        page.applyTheme(HtmlOverlayTheme(background: "#000000", foreground: "#102030", dark: true))
+        try await waitForVariable("--agterm-foreground", "#102030", in: page.webView)
+        let scheme = try await page.webView.evaluateJavaScript("getComputedStyle(document.documentElement).colorScheme")
+        XCTAssertEqual(scheme as? String, "dark")
+        let color = try await page.webView.evaluateJavaScript("getComputedStyle(document.body).color")
+        XCTAssertEqual(color as? String, "rgb(16, 32, 48)")
+    }
+
+    func testAClickedDocumentStaysInItsOverlay() async throws {
+        try write("pr.html", "<title>pr</title>")
+        let overlay = HtmlOverlay(source: .document(path: pages.appendingPathComponent("pr.html").path))
+        XCTAssertNil(store.openHtmlOverlay(session.id, pane: nil, overlay: overlay, sizePercent: nil))
+        _ = registry.page(for: overlay, store: store)
+        try await waitFor("loaded") { self.current?.loadState == .loaded }
+
+        XCTAssertEqual(registry.navigate(overlay.id, .browser), OverlayHtmlError.documentInOverlay)
+        XCTAssertEqual(registry.navigate(overlay.id, .finder), OverlayHtmlError.finderRequiresFile)
+        XCTAssertEqual(browser.opened, [])
+        XCTAssertEqual(sharing.revealed, [])
+    }
+
+    func testAClickedDocumentLoadsNothingFromTheNetwork() async throws {
+        let (server, path) = try await writeBeacon()
+        let overlay = HtmlOverlay(source: .document(path: path))
+        XCTAssertNil(store.openHtmlOverlay(session.id, pane: nil, overlay: overlay, sizePercent: nil))
+
+        try await checkSilentDocument(registry.page(for: overlay, store: store), server: server)
+    }
+
+    func testADocumentReplicaLoadsNothingFromTheNetwork() async throws {
+        let (server, path) = try await writeBeacon()
+
+        try await checkSilentDocument(registry.page(for: openReplica(path, .document), store: store, replica: replicaLink()),
+                                      server: server)
+    }
+
+    private func writeBeacon() async throws -> (LoopbackServer, String) {
+        let server = try LoopbackServer(.ipv4(.loopback), routes: [:])
+        servers.append(server)
+        let origin = "http://127.0.0.1:\(try await server.start())"
+        try write("beacon.html", """
+            <!doctype html><title>B</title><a id="p" href="\(origin)/link" ping="\(origin)/ping">x</a>
+            <link rel="stylesheet" href="\(origin)/css"><link rel="prefetch" href="\(origin)/prefetch">
+            <style>body { background: url(\(origin)/bg) } @font-face { font-family: f; src: url(\(origin)/font) }</style>
+            <img src="\(origin)/img"><video src="\(origin)/video"></video><iframe src="\(origin)/frame"></iframe>
+            <link rel="preconnect" href="\(origin)"><link rel="dns-prefetch" href="\(origin)">
+            <svg><use href="\(origin)/sprite.svg#a"/></svg>
+            """)
+        return (server, pages.appendingPathComponent("beacon.html").path)
+    }
+
+    private func checkSilentDocument(_ page: HtmlOverlayPage, server: LoopbackServer) async throws {
+        let window = try present(page.webView)
+        defer { window.orderOut(nil) }
+        try await waitFor("loaded") { self.current?.loadState == .loaded }
+        try await waitForTitle("B", in: page.webView)
+        try await Task.sleep(for: .milliseconds(500))
+        XCTAssertEqual(server.connections, 0, "opening the page contacts nothing")
+        try await click("p", in: page.webView, window: window)
+        try await Task.sleep(for: .milliseconds(500))
+        XCTAssertEqual(server.requests, [], "a clicked link sends no ping")
+    }
+
+    private func checkInertDocument(_ page: HtmlOverlayPage, requests: Recorded) async throws {
+        let window = try present(page.webView)
+        defer { window.orderOut(nil) }
+        try await waitFor("loaded") { self.current?.loadState == .loaded }
+        try await waitForTitle("T", in: page.webView)
+        for world in [HtmlOverlayBridge.world, WKContentWorld.page] {
+            let handler = try await page.webView.evaluateJavaScript("typeof window.webkit?.messageHandlers?.agterm", in: nil,
+                                                                    contentWorld: world)
+            XCTAssertEqual(handler as? String, "undefined")
+        }
+
+        try await click("b", in: page.webView, window: window)
+        try await click("fb", in: page.webView, window: window)
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertTrue(requests.value.isEmpty)
+    }
+
     func testAReleasedPageSendsNothingFurther() async throws {
         let requests = recordDispatch()
         try write("tags.html", Self.taggedPage(destination: "about:blank"))
@@ -1315,16 +1697,6 @@ final class HtmlOverlayRegistryTests: XCTestCase {
             return respond(request)
         }
         return recorded
-    }
-
-    private func waitForScript(_ script: String, in view: WKWebView, _ matches: @escaping (String) -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(10)
-        while true {
-            let value = try await view.evaluateJavaScript("String(\(script))") as? String ?? ""
-            if matches(value) { return }
-            guard Date() < deadline else { return XCTFail("\(script) never matched, last: \(value)") }
-            try await Task.sleep(for: .milliseconds(50))
-        }
     }
 
     private func present(_ view: NSView) throws -> NSWindow {
@@ -1370,8 +1742,6 @@ final class HtmlOverlayRegistryTests: XCTestCase {
         try await waitFor("title \(title)") { view.title == title }
     }
 
-    private var current: HtmlOverlay? { session.htmlOverlay ?? session.paneOverlay(.left)?.html }
-
     private func snapshotPixel(file: String) async throws -> NSColor {
         let page = registry.page(for: try open(file: file), store: store)
         let window = try host(page.webView)
@@ -1380,34 +1750,12 @@ final class HtmlOverlayRegistryTests: XCTestCase {
         return try await bottomPixel(page.webView)
     }
 
-    private func host(_ view: NSView) throws -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300), styleMask: [.titled],
-                              backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        view.frame = try XCTUnwrap(window.contentView).bounds
-        window.contentView?.addSubview(view)
-        return window
-    }
-
     private func bottomPixel(_ view: WKWebView) async throws -> NSColor {
         let image = try await view.takeSnapshot(configuration: nil)
         let rep = try XCTUnwrap(image.representations.first as? NSBitmapImageRep
             ?? image.cgImage(forProposedRect: nil, context: nil, hints: nil).map(NSBitmapImageRep.init(cgImage:)))
         let color = try XCTUnwrap(rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh - 10))
         return color.usingColorSpace(.sRGB) ?? color
-    }
-
-    private func variable(_ name: String, in view: WKWebView) async throws -> String? {
-        let value = try await view.evaluateJavaScript("getComputedStyle(document.documentElement).getPropertyValue('\(name)').trim()")
-        return value as? String
-    }
-
-    private func waitForVariable(_ name: String, _ expected: String, in view: WKWebView) async throws {
-        let deadline = Date().addingTimeInterval(10)
-        while try await variable(name, in: view) != expected {
-            guard Date() < deadline else { return XCTFail("\(name) never became \(expected)") }
-            try await Task.sleep(for: .milliseconds(50))
-        }
     }
 
     private func scriptEffects(_ view: WKWebView) async throws -> String? {
@@ -1441,9 +1789,10 @@ final class HtmlOverlayRegistryTests: XCTestCase {
         return overlay
     }
 
-    private func openURL(_ address: String, javascript: Bool = false, persistent: Bool = false) throws -> HtmlOverlay {
+    private func openURL(_ address: String, javascript: Bool = false, persistent: Bool = false,
+                         browse: Bool = false) throws -> HtmlOverlay {
         let overlay = HtmlOverlay(source: .url(try XCTUnwrap(URL(string: address))), javascript: javascript,
-                                  persistent: persistent)
+                                  persistent: persistent, browse: browse)
         XCTAssertNil(store.openHtmlOverlay(session.id, pane: nil, overlay: overlay, sizePercent: nil))
         return overlay
     }
@@ -1487,13 +1836,13 @@ final class HtmlOverlayRegistryTests: XCTestCase {
         return try await server.start()
     }
 
-    private func waitFor(_ what: String, timeout: TimeInterval = 10, _ condition: @escaping () -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !condition() {
-            guard Date() < deadline else {
-                return XCTFail("\(what) not reached within \(timeout)s: \(String(describing: current))")
-            }
-            try await Task.sleep(for: .milliseconds(50))
-        }
+    func testOnlyAReloadOrNavigationWithNoTargetIsThePagesOwn() {
+        XCTAssertTrue(HtmlOverlayPage.addressesOwnPage(["cmd": "session.overlay.reload"]))
+        XCTAssertTrue(HtmlOverlayPage.addressesOwnPage(["cmd": "session.overlay.navigate", "args": ["to": "back"]]))
+        XCTAssertFalse(HtmlOverlayPage.addressesOwnPage(["cmd": "session.overlay.reload", "target": "other"]))
+        XCTAssertFalse(HtmlOverlayPage.addressesOwnPage(["cmd": "session.overlay.reload", "args": ["window": "w1"]]))
+        XCTAssertFalse(HtmlOverlayPage.addressesOwnPage(["cmd": "session.overlay.navigate", "args": ["targets": ["a"], "to": "back"]]))
+        XCTAssertTrue(HtmlOverlayPage.addressesOwnPage(["cmd": "session.overlay.reload", "target": NSNull()]))
+        XCTAssertFalse(HtmlOverlayPage.addressesOwnPage(["cmd": "session.rename", "args": ["name": "x"]]))
     }
 }

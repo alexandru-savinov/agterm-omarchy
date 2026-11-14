@@ -1,2 +1,2 @@
 # path	upstream blob	reviewed fixture blob	rationale
-agtermCore/Tests/agtermCoreTests/ConfigPathsTests.swift	60fe0f4f69c528b29be47287ecd06e0414c1ed7b	cff2ccdb8bdac8f1a1e00d1ff8ba4046c3615aae	https://github.com/alexandru-savinov/agterm-omarchy/issues/343
+agtermCore/Tests/agtermCoreTests/ConfigPathsTests.swift	123a1753499d50a1a104483759871931d9b6b981	ef6c66adb11c6964490ffd406839fdfbdec85af3	https://github.com/alexandru-savinov/agterm-omarchy/issues/368
