@@ -59,14 +59,15 @@ jobs:
           { cat .zmx-build-stamp; shasum -a 256 arms/fork/zmx; arms/fork/zmx version; } | tee logs/fork-zmx.log
       - name: Run the scenario on both arms
         run: |
-          for reader in fast slow; do
+          for config in fast:200000 stall:200000 stall:20000 slow:200000; do
+            reader="${config%%:*}" burst="${config#*:}"
             for arm in upstream fork; do
               python3 -I scripts/zmx-drain-repro.py "arms/$arm/zmx" --runs "$RUNS" --reader "$reader" \
-                2>&1 | tee "logs/$arm-$reader.log"
+                --burst "$burst" 2>&1 | tee "logs/run-$arm-$reader-$burst.log"
             done
           done
           echo "== summary"
-          for f in logs/*-fast.log logs/*-slow.log; do echo "$f: $(grep '^RESULT' "$f")"; done | tee logs/summary.log
+          for f in logs/run-*.log; do echo "$f: $(grep '^RESULT' "$f")"; done | tee logs/summary.log
       - name: Retain logs
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

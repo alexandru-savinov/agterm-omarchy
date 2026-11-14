@@ -4,9 +4,11 @@
 Each run attaches a fresh session under a pty whose command prints a start mark, a burst of filler,
 a final mark, and exits. The pty master is read to EOF; a run whose captured bytes hold the start mark
 but not the final mark lost its last line. `--reader slow` reads the pty in small, spaced chunks, the
-way a busy terminal does; `--reader fast` reads as fast as it can.
+way a terminal that keeps falling behind does; `--reader stall` reads fast but stops reading for
+STALL_S once the start mark arrives, the way a terminal busy rendering does, then reads fast to EOF;
+`--reader fast` reads as fast as it can.
 
-usage: zmx-drain-repro.py ZMX_BINARY --runs N --reader fast|slow [--burst BYTES]
+usage: zmx-drain-repro.py ZMX_BINARY --runs N --reader fast|slow|stall [--burst BYTES]
 Prints one line per run and a summary line `RESULT reader=<r> runs=<n> lost=<k> invalid=<i>`.
 Exits 0 whatever the count; the count is the result.
 """
@@ -24,6 +26,7 @@ import time
 START = b"DRAIN-START-MARK"
 FINAL = b"DRAIN-FINAL-MARK"
 RUN_TIMEOUT_S = 60
+STALL_S = 0.5
 
 
 def run_once(zmx, index, reader, burst, sock_dir):
@@ -45,7 +48,8 @@ def run_once(zmx, index, reader, burst, sock_dir):
     captured = bytearray()
     deadline = time.monotonic() + RUN_TIMEOUT_S
     timed_out = False
-    chunk, pause = (65536, 0.0) if reader == "fast" else (1024, 0.002)
+    chunk, pause = (1024, 0.002) if reader == "slow" else (65536, 0.0)
+    stalled = reader != "stall"
     while True:
         if time.monotonic() > deadline:
             timed_out = True
@@ -61,6 +65,9 @@ def run_once(zmx, index, reader, burst, sock_dir):
         if not data:
             break
         captured.extend(data)
+        if not stalled and START in captured:
+            stalled = True
+            time.sleep(STALL_S)
         if pause:
             time.sleep(pause)
     _, status = os.waitpid(pid, 0)
@@ -85,7 +92,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("zmx")
     parser.add_argument("--runs", type=int, default=30)
-    parser.add_argument("--reader", choices=("fast", "slow"), default="fast")
+    parser.add_argument("--reader", choices=("fast", "slow", "stall"), default="fast")
     parser.add_argument("--burst", type=int, default=200000)
     args = parser.parse_args()
     zmx = os.path.abspath(args.zmx)
