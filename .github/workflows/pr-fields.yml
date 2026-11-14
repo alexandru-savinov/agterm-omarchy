@@ -1,0 +1,26 @@
+name: PR fields
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-fields-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fields:
+    name: PR fields
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # The checker comes from the base branch, so a pull request cannot edit the rule it is judged by.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Check Task, Agent, Reviewed head and Review fields
+        run: python3 scripts/github/pr_fields.py
