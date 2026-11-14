@@ -92,7 +92,7 @@ jobs:
     if: needs.select.outputs.x86_64 == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:e2d48733b2fd8481c314bd639fd15e523110e106418cb982cc830a7e620a839f
+    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
     env:
       BUILD_ARCH: x86_64
     steps:
@@ -112,18 +112,6 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Verify pinned GTK build image
         run: /usr/local/bin/agterm-build-image-probe
-      # Same as ci.yml: the pinned x86_64 image predates the Ghostty 1.4 packages and Zig 0.17 (#385);
-      # the aarch64 image carries them and runs as uid 1001, so it installs nothing.
-      - name: Add packages the pinned x86_64 image predates
-        if: env.BUILD_ARCH == 'x86_64'
-        run: scripts/ci-install-ubuntu-deps.sh librsvg2-common webp-pixbuf-loader fish x11-xkb-utils ibus ibus-gtk4
-      - name: Install Zig 0.17 for Ghostty 1.4
-        if: env.BUILD_ARCH == 'x86_64'
-        run: |
-          curl -fsSLo /tmp/zig17.tar.xz "https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz"
-          echo "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026  /tmp/zig17.tar.xz" | sha256sum --check
-          tar -xJf /tmp/zig17.tar.xz -C /opt
-          echo "GHOSTTY_ZIG=/opt/zig-x86_64-linux-0.17.0/zig" >> "$GITHUB_ENV"
       - name: Build libghostty
         run: scripts/setup-linux.sh
       - name: Verify built libghostty
@@ -172,18 +160,6 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Verify pinned GTK build image
         run: /usr/local/bin/agterm-build-image-probe
-      # Same as ci.yml: the pinned x86_64 image predates the Ghostty 1.4 packages and Zig 0.17 (#385);
-      # the aarch64 image carries them and runs as uid 1001, so it installs nothing.
-      - name: Add packages the pinned x86_64 image predates
-        if: env.BUILD_ARCH == 'x86_64'
-        run: scripts/ci-install-ubuntu-deps.sh librsvg2-common webp-pixbuf-loader fish x11-xkb-utils ibus ibus-gtk4
-      - name: Install Zig 0.17 for Ghostty 1.4
-        if: env.BUILD_ARCH == 'x86_64'
-        run: |
-          curl -fsSLo /tmp/zig17.tar.xz "https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz"
-          echo "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026  /tmp/zig17.tar.xz" | sha256sum --check
-          tar -xJf /tmp/zig17.tar.xz -C /opt
-          echo "GHOSTTY_ZIG=/opt/zig-x86_64-linux-0.17.0/zig" >> "$GITHUB_ENV"
       - name: Build libghostty
         run: scripts/setup-linux.sh
       - name: Verify built libghostty
