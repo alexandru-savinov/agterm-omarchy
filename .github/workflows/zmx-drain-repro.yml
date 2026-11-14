@@ -57,11 +57,23 @@ jobs:
           mkdir -p arms/fork
           cp agterm/Resources/zmx/zmx arms/fork/zmx
           { cat .zmx-build-stamp; shasum -a 256 arms/fork/zmx; arms/fork/zmx version; } | tee logs/fork-zmx.log
-      - name: Run the scenario on both arms
+      # upstream's own source and patch set at the release tag, plus only the fork's drain patch on top,
+      # built by upstream's own setup.sh: the change a PR would propose, isolated from the fork's other patches.
+      - name: Build upstream's zmx with only the drain patch added
+        run: |
+          git clone -q --depth 1 --branch "$UPSTREAM_TAG" https://github.com/umputun/agterm.git up
+          git -C up rev-parse HEAD | tee logs/updrain-source.log
+          cp scripts/zmx-patches/0005-drain-output-before-exit.patch up/scripts/zmx-patches/0099-drain-output-before-exit.patch
+          ls up/scripts/zmx-patches | tee -a logs/updrain-source.log
+          (cd up && scripts/setup.sh --zmx-only) 2>&1 | tee logs/updrain-setup.log
+          mkdir -p arms/updrain
+          cp up/agterm/Resources/zmx/zmx arms/updrain/zmx
+          { cat up/.zmx-build-stamp; shasum -a 256 arms/updrain/zmx; arms/updrain/zmx version; } | tee logs/updrain-zmx.log
+      - name: Run the scenario on every arm
         run: |
           for config in fast:200000 stall:200000 stall:20000 slow:200000; do
             reader="${config%%:*}" burst="${config#*:}"
-            for arm in upstream fork; do
+            for arm in upstream updrain fork; do
               python3 -I scripts/zmx-drain-repro.py "arms/$arm/zmx" --runs "$RUNS" --reader "$reader" \
                 --burst "$burst" 2>&1 | tee "logs/run-$arm-$reader-$burst.log"
             done
