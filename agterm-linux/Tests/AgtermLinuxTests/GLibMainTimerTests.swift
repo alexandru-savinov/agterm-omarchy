@@ -23,6 +23,16 @@ struct GLibMainTimerTests {
         }
     }
 
+    @Test func observationHopRunsOnTheGLibLoop() {
+        withGLibMainTimer {
+            var fired = false
+            MainActorHop.enqueue { fired = true }
+            #expect(!fired)
+            pumpGLib(until: { fired })
+            #expect(fired)
+        }
+    }
+
     @Test func cancellingBeforeTheTimeoutStopsTheFire() {
         withGLibMainTimer {
             var fired = 0
@@ -72,7 +82,8 @@ struct GLibMainTimerTests {
     private func withGLibMainTimer<R>(_ body: () throws -> R) rethrows -> R {
         let original = MainTimer.scheduleTimer
         defer { MainTimer.scheduleTimer = original }
-        installGLibMainTimer()
+        let previousHop = installGLibMainTimer()
+        defer { MainActorHop.install(previousHop) }
         return try body()
     }
 

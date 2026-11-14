@@ -321,9 +321,7 @@ extension AppController {
         }
         gtk_widget_set_size_request(W(rows), interfacePanelWidth(320), -1)
 
-        // One read for the whole popover — `SettingsStore.load()` is an uncached file read — and only
-        // the attention palette renders glyphs at all.
-        let glyphSettings = attention ? linuxSettingsStore().load() : nil
+        let glyphSettings = linuxSettingsStore().load()
         for entry in entries {
             let session = entry.session
             guard let button = op(gtk_button_new()), let row = op(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8)),
@@ -333,14 +331,6 @@ extension AppController {
             gtk_widget_set_hexpand(W(button), 1)
             (attention ? "attention-session-row" : "recent-session-row").withCString {
                 gtk_widget_set_name(W(button), $0)
-            }
-
-            if let glyphSettings, let icon = Self.makeStatusGlyphLabel(
-                session.agentIndicator, settings: glyphSettings,
-                phase: sidebarRuntime.blinkPhase.phase
-            ) {
-                sidebarRuntime.pickerGlyphs[session.id] = icon
-                gtk_box_append(cast(row), W(icon))
             }
 
             let titleLine = op(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4))
@@ -359,6 +349,11 @@ extension AppController {
             gtk_box_append(cast(labels), W(subtitle))
             gtk_widget_set_hexpand(W(labels), 1)
             gtk_box_append(cast(row), W(labels))
+            if let icon = Self.makeStatusGlyphLabel(session.agentIndicator, settings: glyphSettings,
+                                                   phase: sidebarRuntime.blinkPhase.phase) {
+                sidebarRuntime.pickerGlyphs[session.id] = icon
+                gtk_box_append(cast(row), W(icon))
+            }
             gtk_button_set_child(BUTTON(button), W(row))
 
             let context = SessionPickerRowContext(controller: self, windowID: entry.windowID, sessionID: session.id,

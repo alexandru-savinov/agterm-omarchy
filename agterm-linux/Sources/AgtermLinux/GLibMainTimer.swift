@@ -7,11 +7,14 @@ import Foundation
 import agtermCore
 
 @MainActor
-func installGLibMainTimer() {
+@discardableResult
+func installGLibMainTimer() -> MainActorHop.Scheduler {
+    let previousHop = MainActorHop.install { work in runOnMain { MainActor.assumeIsolated { work() } } }
     MainTimer.scheduleTimer = { delay, fire in
         let timer = GLibMainTimerSource(delay: delay, fire: fire)
         return { timer.cancel() }
     }
+    return previousHop
 }
 
 /// One pending fire: a one-shot g_timeout source retaining this object as its user data, released

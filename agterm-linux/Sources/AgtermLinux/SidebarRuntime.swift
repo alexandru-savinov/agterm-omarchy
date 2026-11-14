@@ -15,6 +15,10 @@ final class SessionRowWidgets {
     let glyph: OpaquePointer
     let star: OpaquePointer
     let badge: OpaquePointer
+    var info: OpaquePointer?
+    var disclosure: OpaquePointer?
+    var disclosureSlot: OpaquePointer?
+    var foldedMarker: OpaquePointer?
     var applied: SidebarSnapshot.RowContent?
 
     init(row: OpaquePointer, box: OpaquePointer, lead: OpaquePointer, name: OpaquePointer,
@@ -64,6 +68,8 @@ final class SectionWidgets {
 /// `windowWillClose` before `blinkPhase.cancel()`, so no later resync can reach a destroyed tree.
 @MainActor
 final class SidebarRuntime {
+    var transientParentIDs: Set<UUID> = []
+    var lastParentRevealedSelection: UUID?
     var current = SidebarSnapshot()
     var rows: [UUID: SessionRowWidgets] = [:]
     var sections: [SidebarSnapshot.Section.Key: SectionWidgets] = [:]

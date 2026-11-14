@@ -27,6 +27,11 @@ public enum ConfigPaths {
         configDirectory.appendingPathComponent("hooks.conf")
     }
 
+    /// remotesPath is `<dir>/remotes.conf` within a resolved config directory.
+    public static func remotesPath(configDirectory: URL) -> URL {
+        configDirectory.appendingPathComponent("remotes.conf")
+    }
+
     /// The commented starter `hooks.conf`: the one-verb syntax, every event kind, the delivery contract and
     /// example lines. Every line is a comment so a fresh file runs nothing.
     public static func starterHooksConf() -> String {

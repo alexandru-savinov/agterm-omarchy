@@ -52,6 +52,38 @@ public enum RemoteSession {
         return sshArguments(host: host, connectTimeout: connectTimeout, interactive: true) + [remote]
     }
 
+    /// pageServeCommand uses plain ssh stdio to claim and carry a remote page's channel.
+    public static func pageServeCommand(host: String, token: String, connectTimeout: Int = 5) throws -> [String] {
+        try validate(host: host)
+        guard isPlain(token) else { throw InvocationError.invalidSession }
+        let chain = cliPathPrefix + " && exec agtermctl session overlay page-serve " + CommandRestore.shellQuotedLine([token])
+        let remote = CommandRestore.shellQuotedLine(["/bin/sh", "-c", chain])
+        return sshArguments(host: host, connectTimeout: connectTimeout, interactive: false) + [remote]
+    }
+
+    /// One ssh invocation running the far side's `agtermctl` with `arguments` plus `--json`, so the reply is the
+    /// server's own response line. Arguments carry user text, so the outer layer is quoted for any login shell.
+    public static func controlCommand(host: String, arguments: [String], connectTimeout: Int = 5) throws -> [String] {
+        try validate(host: host)
+        let chain = cliPathPrefix + " && agtermctl " + CommandRestore.shellQuotedLine(arguments + ["--json"])
+        let remote = ["/bin/sh", "-c", chain].map(accountShellQuoted).joined(separator: " ")
+        return sshArguments(host: host, connectTimeout: connectTimeout, interactive: false) + [remote]
+    }
+
+    /// accountShellQuoted quotes `value` as one word that sh, zsh, tcsh and fish all read alike: an apostrophe or
+    /// a backslash goes outside the quotes, escaped, since fish treats both specially inside single quotes.
+    static func accountShellQuoted(_ value: String) -> String {
+        var quoted = "'"
+        for character in value {
+            switch character {
+            case "'": quoted += "'\\''"
+            case "\\": quoted += "'\\\\'"
+            default: quoted.append(character)
+            }
+        }
+        return quoted + "'"
+    }
+
     /// sshd runs a remote command with `/usr/bin:/bin:/usr/sbin:/sbin` and a non-interactive shell reads no
     /// profile, so an installed CLI is otherwise not found and every command exits 127. `CommandPath` owns
     /// where it can live; APPENDED, so a user's own `agtermctl` earlier on PATH still wins.
@@ -155,7 +187,12 @@ public enum RemoteSession {
     /// Refused rather than escaped, and a leading `-` with it: ssh would read that as an option.
     private static func validate(host: String) throws {
         guard !host.isEmpty else { throw InvocationError.emptyHost }
-        guard isPlain(host), !host.hasPrefix("-") else { throw InvocationError.invalidHost }
+        guard isHost(host) else { throw InvocationError.invalidHost }
+    }
+
+    /// isHost reports whether `value` may be handed to ssh as its destination argument.
+    static func isHost(_ value: String) -> Bool {
+        isPlain(value) && !value.hasPrefix("-")
     }
 
     /// A host or remote-session token: no whitespace, no control characters. Shared with the dispatcher,

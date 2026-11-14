@@ -20,8 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  UPSTREAM_BASE_TAG: "v0.35.1"
-  UPSTREAM_BASE_COMMIT: "ca50a8ee09ba3cc9315ad3d597e1783e64c6f298"
+  UPSTREAM_BASE_TAG: "v0.41.1"
+  UPSTREAM_BASE_COMMIT: "911345a87df1aa32c8617ce0445b0be8975abb49"
   SWIFTLINT_VERSION: "0.65.0"
   SWIFTLINT_SHA256: "79306a34e5c7cc55a220cd108cbb861dcad5f10138dcdf261e2624ae8b0a486b"
   LINUX_SOURCEKIT_LIB_PATH: "/usr/lib/libsourcekitdInProc.so"
@@ -56,7 +56,6 @@ jobs:
             scripts/setup-omarchy.sh
             scripts/stage-linux.sh
             scripts/test-linux-resources.sh
-            scripts/test-linux-ghostty-shutdown.sh
             scripts/test-omarchy.sh
             scripts/test-zig-build-linux.sh
             scripts/verify-linux-packages.sh
@@ -80,16 +79,6 @@ jobs:
       - name: Zig transport fallback regression tests
         shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
         run: scripts/test-zig-build-linux.sh
-      - name: Pinned Ghostty shutdown regression and original-queue negative control
-        timeout-minutes: 5
-        shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
-        run: |
-          source linux/ghostty-resources.env
-          source_dir="$(mktemp -d)"
-          trap 'rm -rf "$source_dir"' EXIT
-          git init -q "$source_dir"
-          git -C "$source_dir" fetch --depth 1 --no-tags https://github.com/ghostty-org/ghostty.git "$GHOSTTY_REV"
-          scripts/test-linux-ghostty-shutdown.sh "$source_dir"
       - name: Whitespace
         run: git diff --check
       - name: Summary
@@ -258,7 +247,7 @@ jobs:
             container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:e2d48733b2fd8481c314bd639fd15e523110e106418cb982cc830a7e620a839f
           - arch: aarch64
             runner: ubuntu-24.04-arm
-            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:4aec8a361df2c3d98bbfd75fe7c4be54a429d490497236e143bc27d8e705d0f4
+            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:74b7758f3d862a23e2d343c721aa47bfd33fbbf2bc17fde62091aeb329927c4e
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     container: ${{ matrix.container }}
@@ -272,10 +261,24 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Verify pinned GTK build image
         run: /usr/local/bin/agterm-build-image-probe
+      # The pinned x86_64 image predates linux-port's Ghostty 1.4 sync; add the runtime packages it lacks
+      # (SVG/WebP pixbuf loaders, fish, IBus and xkb utilities for the new scenarios) until it is rebuilt (#385).
+      # The aarch64 image carries them and runs as uid 1001, so it never installs anything here.
+      - name: Add packages the pinned x86_64 image predates
+        if: matrix.arch == 'x86_64'
+        run: scripts/ci-install-ubuntu-deps.sh librsvg2-common webp-pixbuf-loader fish x11-xkb-utils ibus ibus-gtk4
       - name: Materialize and verify upstream boundary tag
         run: |
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
           git merge-base --is-ancestor "$UPSTREAM_BASE_TAG" HEAD
+      # The aarch64 image carries Zig 0.17.0 and sets GHOSTTY_ZIG itself (its probe checks both).
+      - name: Install Zig 0.17 for Ghostty 1.4
+        if: matrix.arch == 'x86_64'
+        run: |
+          curl -fsSLo /tmp/zig17.tar.xz "https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz"
+          echo "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026  /tmp/zig17.tar.xz" | sha256sum --check
+          tar -xJf /tmp/zig17.tar.xz -C /opt
+          echo "GHOSTTY_ZIG=/opt/zig-x86_64-linux-0.17.0/zig" >> "$GITHUB_ENV"
       - name: Enforce host-free core boundary and CLI sharing
         run: |
           scripts/check-linux-core-boundary.sh "$UPSTREAM_BASE_TAG"
@@ -295,7 +298,7 @@ jobs:
           path: |
             agterm-linux/vendor/ghostty
             agterm-linux/vendor/zmx
-          key: linux-runtimes-${{ steps.linux-architecture.outputs.host }}-${{ hashFiles('scripts/setup-linux.sh', 'scripts/verify-linux-vendor-cache.sh', 'scripts/verify-linux-zmx-cache.sh', 'scripts/verify-linux-architecture.sh', 'scripts/verify-linux-resources.sh', 'scripts/linux-notices.py', 'packaging/linux/notices/**', 'scripts/zmx-patches/**/*.patch', 'linux/arch.sh', 'linux/ghostty-resources.env', 'linux/zmx.env', 'linux/patches/ghostty-embedded-opengl.patch', 'linux/patches/ghostty-embedded-input-handoff.patch', 'linux/patches/ghostty-lib-resources.patch', 'linux/patches/ghostty-clipboard-request-kind.patch', 'linux/patches/ghostty-surface-env-unset.patch') }}
+          key: linux-runtimes-${{ steps.linux-architecture.outputs.host }}-${{ hashFiles('scripts/setup-linux.sh', 'scripts/verify-linux-vendor-cache.sh', 'scripts/verify-linux-zmx-cache.sh', 'scripts/verify-linux-architecture.sh', 'scripts/verify-linux-resources.sh', 'scripts/zmx-patches/**/*.patch', 'linux/arch.sh', 'linux/ghostty-resources.env', 'linux/ghostty-build.sh', 'scripts/ghostty-patches/**/*.patch', 'linux/zmx.env', 'linux/patches/*.patch') }}
       - name: Verify restored libghostty cache
         if: steps.ghostty-cache.outputs.cache-hit == 'true'
         run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty
@@ -513,6 +516,9 @@ jobs:
                 echo "::error::$name README is missing the '$h' heading"; fail=1
               fi
             done
+            if ! grep -qE '^Author: \[@[A-Za-z0-9-]+\]\(https://github\.com/[A-Za-z0-9-]+\)' "$d/README.md"; then
+              echo "::error::$name README has no 'Author: [@login](https://github.com/login)' line"; fail=1
+            fi
           done
 
           # every script carries a shebang

@@ -428,9 +428,11 @@ class PayloadStageTests(unittest.TestCase):
         shutil.copy2(ROOT / 'scripts/stage-linux.sh', self.repo / 'scripts/stage-linux.sh')
         shutil.copy2(ROOT / 'scripts/linux-notices.py', self.repo / 'scripts/linux-notices.py')
         shutil.copytree(ROOT / 'packaging/linux/notices', self.repo / 'packaging/linux/notices')
+        shutil.copytree(ROOT / 'packaging/linux/licenses', self.repo / 'packaging/linux/licenses')
         (self.repo / 'linux').mkdir()
         shutil.copy2(ROOT / 'linux/ghostty-resources.env', self.repo / 'linux/ghostty-resources.env')
         shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
+        shutil.copytree(ROOT / 'scripts/ghostty-patches', self.repo / 'scripts/ghostty-patches')
         shutil.copy2(ROOT / 'LICENSE', self.repo / 'LICENSE')
         for name in ('verify-linux-resources.sh', 'verify-linux-zmx-cache.sh'):
             script = self.repo / 'scripts' / name
@@ -441,7 +443,7 @@ class PayloadStageTests(unittest.TestCase):
                           'agterm-linux/vendor/ghostty/share/ghostty',
                           'agterm-linux/vendor/ghostty/share/terminfo',
                           'agterm-linux/vendor/zmx', 'agterm/Resources/agent-status',
-                          'plugins/agterm/skills/agterm', 'agterm/AppIcon.icon/Assets',
+                          'agterm/Resources/markdown', 'plugins/agterm/skills/agterm', 'agterm/AppIcon.icon/Assets',
                           'packaging/linux'):
             (self.repo / directory).mkdir(parents=True, exist_ok=True)
         for name in ('AgtermLinux', 'agtermctl-linux', 'agterm-linux_AgtermLinux.resources/hud/hud.sh',

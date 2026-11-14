@@ -24,9 +24,17 @@ struct EventStreamDependencies {
 }
 
 struct EventStreamState {
+    static let firstRetryDelay: TimeInterval = 0.25
+    static let maxRetryDelay: TimeInterval = 4
+    /// Seconds of consecutive refused connects before the stream gives up, so it never waits forever on an
+    /// app that is gone.
+    static let retryBudget: TimeInterval = 30
+
     private(set) var cursor: ControlEventCursor?
     let kinds: Set<ControlEventKind>?
     let limit: Int?
+    private var nextRetryDelay = firstRetryDelay
+    private var retriedFor: TimeInterval = 0
 
     init(cursor: ControlEventCursor? = nil, kinds: Set<ControlEventKind>?, limit: Int?) {
         self.cursor = cursor
@@ -44,7 +52,22 @@ struct EventStreamState {
         return ControlRequest(cmd: .eventsRead, args: args)
     }
 
+    /// The wait before reading again after `error`, nil when the error ends the stream. Only a refused
+    /// connect is retried: on Darwin a live server whose backlog is full refuses, while a missing
+    /// socket means the app quit, and a relaunch is a new run the cursor cannot resume. Without a cursor
+    /// there is nothing to keep, so the first read still fails fast.
+    mutating func retryDelay(after error: Error) -> TimeInterval? {
+        guard cursor != nil, let failure = (error as? SocketClientError)?.connectErrno,
+              failure == ECONNREFUSED, retriedFor < Self.retryBudget else { return nil }
+        let delay = nextRetryDelay
+        retriedFor += delay
+        nextRetryDelay = min(delay * 2, Self.maxRetryDelay)
+        return delay
+    }
+
     mutating func consume(_ response: ControlResponse) throws -> [ControlEvent] {
+        nextRetryDelay = Self.firstRetryDelay
+        retriedFor = 0
         guard response.ok else { throw EventStreamError(response.error ?? "events.read failed") }
         guard let batch = response.result?.events else { throw EventStreamError("events.read response missing events") }
         cursor = ControlEventCursor(run: batch.run, after: batch.next)
@@ -75,14 +98,23 @@ enum EventFormatter {
             return parts.joined(separator: " ")
         case .notify:
             return "\(time) \(event.kind.rawValue) \(name) \(event.payload.title ?? name): \(event.payload.body ?? "")"
-        case .sessionCreated, .sessionClosed, .treeChanged:
+        case .sessionCreated:
+            return "\(time) \(event.kind.rawValue) \(name)" + (event.payload.parent.map { " parent=\($0)" } ?? "")
+        case .sessionClosed, .treeChanged:
             return "\(time) \(event.kind.rawValue) \(name)"
         case .sessionSelected:
             return "\(time) \(event.kind.rawValue) \(name) previous=\(event.payload.previous ?? "-")"
         case .paneSplit, .paneScratch:
             return "\(time) \(event.kind.rawValue) \(name) \(event.payload.status ?? "")"
+        case .paneFocused:
+            return "\(time) \(event.kind.rawValue) \(name) \(event.payload.pane ?? "") pane-id=\(event.payload.paneID ?? "-")"
         case .remoteOpened, .remoteClosed:
             return "\(time) \(event.kind.rawValue) \(name) host=\(event.payload.host ?? "")"
+        case .appLaunched:
+            return "\(time) \(event.kind.rawValue)"
+        case .message:
+            return "\(time) \(event.kind.rawValue) \(name) pane-id=\(event.payload.paneID ?? "-")"
+                + " from=\(event.payload.from ?? "-") id=\(event.payload.messageID ?? "-")"
         }
     }
 }
@@ -131,7 +163,15 @@ struct Events: ParsableCommand {
     }
 
     func poll(state: inout EventStreamState, dependencies: EventStreamDependencies) throws {
-        let events = try state.consume(dependencies.send(state.makeRequest()))
+        let response: ControlResponse
+        do {
+            response = try dependencies.send(state.makeRequest())
+        } catch {
+            guard let delay = state.retryDelay(after: error) else { throw error }
+            dependencies.sleep(delay)
+            return
+        }
+        let events = try state.consume(response)
         for event in events {
             let line = try options.json ? EventFormatter.json(event) : EventFormatter.human(event)
             try dependencies.writeLine(line)

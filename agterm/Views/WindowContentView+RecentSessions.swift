@@ -26,9 +26,9 @@ extension WindowContentView {
             guard !pick.modalPending else { return }
             recentSessionsShown.toggle()
         } label: {
-            Label("Recent sessions", systemImage: "clock.arrow.circlepath")
+            Label("Recent sessions", systemImage: InterfaceElement.recentSessions.symbolName!)
         }
-        .help("Recent sessions (⌃Tab)")
+        .toolTip("Recent sessions (⌃Tab)", isShown: titlebarTipsShown)
         // pin the tint to chromeText like the attention bell: a disabled plain button otherwise resolves the SF
         // Symbol to the system disabled color, near-invisible on the themed titlebar — the dimmed clock would
         // vanish instead of graying out like the bell.
@@ -74,12 +74,12 @@ extension WindowContentView {
     @ViewBuilder private func recentSessionRow(_ id: UUID) -> some View {
         if let session = store.session(withID: id) {
             SessionPopoverRow(
-                title: session.displayName,
+                title: store.listLabel(for: session),
                 subtitle: "\(store.workspace(forSession: id)?.name ?? "") · \(session.switcherDetail)",
                 remote: session.remoteHost != nil,
-                status: nil,
-                statusColorHex: nil,
-                statusShape: nil,
+                status: session.agentIndicator.status,
+                statusColorHex: session.agentIndicator.color,
+                statusShape: session.agentIndicator.shape,
                 foreground: chromeText,
                 hoverColor: popoverHoverColor,
                 accessibilityID: "recent-session-row"
@@ -128,7 +128,8 @@ extension WindowContentView {
         .foregroundStyle(blocked ? Color(nsColor: GhosttyApp.shared.blockedStatusColor) : chromeText)
         .opacity(enabled ? 1 : 0.35)
         .disabled(!enabled)
-        .help(helpHint(empty ? "No sessions need attention" : "Show sessions that need attention", .showAttention))
+        .toolTip(helpHint(empty ? "No sessions need attention" : "Show sessions that need attention", .showAttention),
+                 isShown: titlebarTipsShown)
         .accessibilityIdentifier("attention-button")
         .accessibilityValue(empty ? "none" : (blocked ? "blocked" : "attention"))
         .popover(isPresented: $attentionPopoverShown, arrowEdge: .bottom) {
@@ -146,7 +147,7 @@ extension WindowContentView {
     }
 
     /// The attention popover body: every open window's sessions needing attention as full-row
-    /// `SessionPopoverRow`s with a leading status glyph — the mouse form of the ⌃⇧I attention palette. A row
+    /// `SessionPopoverRow`s with a trailing status glyph — the mouse form of the ⌃⇧I attention palette. A row
     /// whose window sits under a cover renders disabled, as the palette's does, rather than dismissing into
     /// a no-op. The rows are measured so short lists stay compact and long lists scroll at
     /// `attentionRowsCap`, for the reason `measuredPanelHeight` gives.
@@ -156,7 +157,7 @@ extension WindowContentView {
             VStack(spacing: 2) {
                 ForEach(library.attentionAcrossWindows) { entry in
                     SessionPopoverRow(
-                        title: entry.session.displayName,
+                        title: library.attentionLabel(entry),
                         subtitle: library.attentionSubtitle(entry),
                         remote: entry.session.remoteHost != nil,
                         status: entry.session.agentIndicator.status,
@@ -203,10 +204,9 @@ extension WindowContentView {
 }
 
 /// One clickable session row for the title-bar popovers (recent-sessions and attention) — the shared two-line
-/// `SessionSwitcherRow` tinted with the terminal theme (`foreground`), with an optional leading status glyph
-/// (`status` plus its per-call `statusColorHex`/`statusShape` overrides, set only by the attention popover so
-/// the row matches the sidebar glyph), a pointer-hover highlight (`hoverColor`) and a full-row hit area
-/// (`.contentShape`), so the WHOLE row selects on click, not just the text. Kept a `Button` so it reads as an
+/// `SessionSwitcherRow` tinted with the terminal theme (`foreground`), with an optional trailing status glyph
+/// (`status` plus its per-call `statusColorHex`/`statusShape` overrides, matching the sidebar glyph), a
+/// pointer-hover highlight (`hoverColor`) and a full-row hit area (`.contentShape`), so the WHOLE row selects on click, not just the text. Kept a `Button` so it reads as an
 /// actionable control to VoiceOver; `accessibilityID` distinguishes the two popovers' rows for the tests.
 /// `isEnabled` false renders the row dimmed and inert, for an attention row whose window is under a cover.
 private struct SessionPopoverRow: View {

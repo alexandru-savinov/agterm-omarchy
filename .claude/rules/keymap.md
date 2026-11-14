@@ -79,7 +79,7 @@ paths:
   alternative, `alternative skipped`/`alternative dropped` with more), pinned by
   `KeymapTests.pipeFreeKeymapParsesExactlyAsItDidBeforeAlternatives`.
 - Pure types live in `Keybind.swift`, `KeybindMatcher`, `CustomCommand`/`CommandContext`,
-  `BuiltinAction` (48 cases, pinned by `BuiltinActionTests`), `Keymap`, and `ConfigPaths`.
+  `BuiltinAction` (54 cases, pinned by `BuiltinActionTests`), `Keymap`, and `ConfigPaths`.
   `CommandContext` owns the shared expansion/environment token table.
 - Built-ins use AppKit menu key equivalents from `keymap.equivalent(for:)`; apply only non-nil
   `KeyboardShortcut`s. SwiftUI rebuilds menu shortcuts lazily, on activation or key dispatch rather than on
@@ -160,7 +160,11 @@ paths:
   any cwd reports that shell emits. `AGT_SESSION_PWD` stays the pane's reported path, remote or not; the
   command's execution directory comes separately from `Session.localWorkingDirectory`, which returns
   that path for a local session and, for a remote one, only when it exists here as a directory, else
-  HOME. Scratch, overlay default, quick terminal, a local split (the first on an unsplit remote session
+  HOME.
+  The runner then applies the same existence rule to every session, so a local session whose directory
+  was deleted runs its commands in HOME; the other launches leave a missing path to libghostty, which
+  ignores it.
+  Scratch, overlay default, quick terminal, a local split (the first on an unsplit remote session
   or one after the attach-time split closes), Duplicate Session and a new session under the
   current-directory setting seed through the same helper.
 - `{AGT_PANE}`/`$AGT_PANE` is `left`, `right`, or `scratch`, derived from the firing surface for keybinds
@@ -208,11 +212,11 @@ paths:
   rather than a menu equivalent: `undo_close` through `UndoCloseShortcut`, so native text undo still
   works, and `toggle_fullscreen` through `CustomCommandRunner`, because agterm ships no full screen menu
   item for it to ride — see [[windows]]. Both are absent from `keymap list`'s `menu` by design.
-  `close_session` keeps its menu item, but `CustomCommandRunner` also matches its chord while an
-  `HtmlOverlayWebView` holds focus: WebKit hands key equivalents to the page first and reports a cancelled
+  `close_session` and `toggle_overlay` keep their menu items, but `CustomCommandRunner` also matches their
+  chords while an `HtmlOverlayWebView` holds focus: WebKit hands key equivalents to the page first and reports a cancelled
   keydown as handled, so the menu would never see it.
 - Write shifted symbols as `shift+<base>`: `shift+/` for `?`, `shift+=` for `+`, `shift+5` for `%`, and
-  `shift+.` for `>`. `CustomCommandRunner` uses `characters(byApplyingModifiers: [])` to recover that
+  `shift+.` for `>`. `CustomCommandRunner` translates with Shift left out to recover that
   base; keep `KeymapUITests.testCustomCommandShiftedSymbolFires`.
 - Named keys are `left/right/up/down/tab/space/return/delete` and `f1` through `f20`.
   `parseMapLine` rejects modifier-less arrows because an always-on menu equivalent would swallow
@@ -221,7 +225,8 @@ paths:
   leader tail such as `ctrl+a>left`.
   Bare function keys may start commands, map alternatives/leaders, and global hotkeys.
   `global-hotkey f5` takes F5 machine-wide, including from local map/command bindings.
-- Host-free `namedKey(forKeyCode:)` is shared by `CustomCommandRunner` and `UndoCloseShortcut`.
+- `CustomCommandRunner` and `UndoCloseShortcut` build their chord through `NSEvent.keymapChord(produced:)`,
+  which applies host-free `namedKey(forKeyCode:)` and then `chordKey`; each passes its own accessor.
   `KeybindTests` pins its range exactly to `bindableNamedKeys`; keep
   `KeymapUITests.testCustomCommandArrowChordFires` because a private-use AppKit glyph can otherwise
   create an unspellable runtime chord.
@@ -232,6 +237,10 @@ paths:
   `latinKey(forKeyCode:)` position for non-ASCII layouts. Do not use a per-key ASCII fallback: Greek Q
   emits `;`, Hebrew Q emits `/`, and Hebrew can collapse two physical positions to `,`, causing false
   firing plus consumed input.
+  The runner translates with Command applied when it is held (`modifierFlags.intersection(.command)`),
+  because the menu matches through the layout's Command table: Dvorak - QWERTY ⌘ switches to QWERTY there
+  and Lithuanian's number row types digits (discussion 795). Shift, Option and Control stay out: Shift breaks
+  `shift+<base>`, Option types `∂` for D, Control types control characters.
 - Drop ISO section key code 10 on non-ASCII layouts because Ukrainian-PC `\` and Hebrew-PC `;` collide
   with table codes 42/41. Keypad/number-row aliases are deliberate because keypad output is
   layout-independent. Keep `latinKey` disjoint from named-key codes and pin every entry individually;
@@ -239,7 +248,8 @@ paths:
   Latin positions, not their produced Cyrillic glyphs.
 - Do not merge this policy with `InterruptKeystroke`, which classifies one produced letter.
   The live non-Latin monitor branch cannot be unit-tested because tests cannot change the input source.
-  `characters(byApplyingModifiers: [])` re-translates synthesized runner events through the live layout;
+  `characters(byApplyingModifiers:)` re-translates synthesized runner events through the live layout, and
+  U.S.'s Command table equals its plain one, so no hosted test can observe the Command-table branch either;
   `UndoCloseShortcut` uses verbatim `charactersIgnoringModifiers`. Hosted tests pin wiring and named-key
   precedence; host-free tests take `layoutIsASCIICapable`.
 - Do not switch the runner to `charactersIgnoringModifiers`: it breaks shifted-symbol normalization and
@@ -247,8 +257,8 @@ paths:
   punctuation/digits on ASCII layouts (`shift+/` parses `/`, but runtime reports `?`); shifted letters
   work, and non-ASCII physical lookup works. Hosted tests skip when the machine layout is non-ASCII.
   After monitor changes, manually verify a letter, `cmd+r>t`, `ctrl+a>d`, and ⌘Z on isolated
-  Russian-Phonetic and U.S. instances. Russian-Phonetic does not cover Greek/Hebrew punctuation, which
-  host-free measured-data tests cover.
+  Russian-Phonetic and U.S. instances, plus `cmd+d` and `cmd+1` on Dvorak - QWERTY ⌘ and Lithuanian.
+  Russian-Phonetic does not cover Greek/Hebrew punctuation, which host-free measured-data tests cover.
 - `ghostty.conf` has a separate upstream grammar: bare `g` is Unicode and `key_g` physical; Unicode
   triggers cannot fire on non-Latin layouts. agterm matches Ghostty.app and cannot fix this app-side.
   Use `key_`, as `ghostty-defaults.conf` does for `super+key_c/key_v/key_a` (issue #30).
@@ -268,9 +278,16 @@ paths:
   it to parse clean, and counts the chords that survive.
   Both verbs rot: `validateBindings` clears a custom shortcut a built-in has claimed just as
   `resolveBuiltinOverrides` drops the colliding `map`.
+- A new shipped default must also avoid the shortcuts macOS Services claim in every app while text is
+  selected. Terminal.app's `NSServices` take ⇧⌘A and ⇧⌘M, both enabled on a stock Mac;
+  `plutil -convert json -o - <App>/Contents/Info.plist | jq '.NSServices'` lists an app's.
+  It may shadow a Ghostty default on the same chord, which the menu claims first: ⌘J hides
+  `scroll_to_selection` and ⇧⌘J `write_screen_file:paste`.
 - New shipped defaults must not break a valid existing keymap. `parseKeymap` vacates the new horizontal
   split default when an old file explicitly uses `cmd+shift+d`, and vacates Dashboard's new default when
-  an old file explicitly uses `cmd+shift+g`. An explicit map for the new action opts into its new chord.
+  an old file explicitly uses `cmd+shift+g`, `attach_remote`'s when one uses `cmd+shift+r`, and
+  `toggle_overlay`'s when one uses `cmd+shift+j`.
+  An explicit map for the new action opts into its new chord.
 - **`{AGT_X}` interpolation is intentionally raw and unquoted.** Selection, OSC title, OSC 7 pwd, and the
   session/workspace/window names and `--cwd` a caller supplies over control or the GUI can all inject
   visible shell metacharacters. `TerminalText.sanitized` strips control characters, not `;`,

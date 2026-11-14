@@ -29,7 +29,13 @@ final class HostedWindowHider: NSObject {
             guard let made = original(allocated, selector, rect, style, backing, deferred) else { return nil }
             guard Thread.isMainThread else { return made }
             nonisolated(unsafe) let window = made
-            MainActor.assumeIsolated { Unmanaged<NSWindow>.fromOpaque(window).takeUnretainedValue().alphaValue = 0 }
+            MainActor.assumeIsolated {
+                let window = Unmanaged<NSWindow>.fromOpaque(window).takeUnretainedValue()
+                window.alphaValue = 0
+                // an order-in animation never finishes on a sleeping display and parks a dispatch worker
+                // each; enough of them starve every later dispatch callback in the host
+                window.animationBehavior = .none
+            }
             return made
         }
         method_setImplementation(method, imp_implementationWithBlock(replacement))

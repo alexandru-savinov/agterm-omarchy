@@ -1,44 +1,12 @@
 import CGtk
 import Foundation
 
-/// What agterm does when libghostty asks it to confirm a clipboard request. libghostty makes the safety
-/// call itself (Surface.zig `completeClipboardPaste`: `clipboard-paste-protection`, bracketed-paste mode,
-/// `clipboard-paste-bracketed-safe`); it only reaches this callback for a paste it judged unsafe, and the
-/// app's job is to ask the user rather than wave it through.
-enum ClipboardConfirmRoute: Equatable {
-    /// A paste libghostty judged unsafe: show the text and ask Paste / Cancel.
-    case unsafePaste
-    /// An OSC 52 read: the existing per-access clipboard consent prompt.
-    case clipboardReadConsent
-    /// Anything else this libghostty revision might raise: complete as before.
-    case confirmAsIs
-}
-
-enum PasteLineEndings {
-    /// libghostty's safety check looks only for "\n" (paste.zig `isSafe`) and its encoder leaves a lone
-    /// "\r" alone, so CR-only lines would reach a raw prompt unasked and each CR would submit one.
-    /// Apply only to known paste requests; OSC 52 replies must preserve the original bytes.
-    static func normalized(_ text: String) -> String {
-        guard text.contains("\r") else { return text }
-        return text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
-    }
-}
-
-enum LinuxClipboardReadPolicy {
-    static func payload(_ text: String, request: ghostty_clipboard_request_e?) -> String {
-        guard request == GHOSTTY_CLIPBOARD_REQUEST_PASTE else { return text }
-        // File-manager copies become shell paths only for paste, never for a terminal clipboard query.
-        return PasteLineEndings.normalized(PasteDecoder.posixPaths(fromURIList: text) ?? text)
-    }
-}
-
-enum LinuxClipboardConfirmPolicy {
-    static func route(for request: ghostty_clipboard_request_e) -> ClipboardConfirmRoute {
-        switch request {
-        case GHOSTTY_CLIPBOARD_REQUEST_PASTE: .unsafePaste
-        case GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ: .clipboardReadConsent
-        default: .confirmAsIs
-        }
+/// The text an unsafe-paste confirmation carries: its plain-text representation (UTF-8 preferred).
+enum LinuxUnsafePasteText {
+    static func text(of items: [ClipboardItem]) -> String {
+        let preferred = items.first { $0.mime == LinuxClipboardPolicy.utf8TextMime }
+            ?? items.first { $0.mime == LinuxClipboardPolicy.textMime }
+        return preferred.map { String(decoding: $0.data, as: UTF8.self) } ?? ""
     }
 }
 

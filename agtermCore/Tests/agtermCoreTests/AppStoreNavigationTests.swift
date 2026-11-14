@@ -168,6 +168,23 @@ struct AppStoreNavigationTests {
         #expect(store.selectedSessionID == ids[2])
     }
 
+    @Test func navigateAttentionStopsOnActiveWhenIncluded() {
+        let (store, ids) = Self.makeNavTree()
+        store.attentionIncludesActive = true
+        store.session(withID: ids[1])?.agentIndicator = AgentIndicator(status: .active)
+        store.session(withID: ids[2])?.agentIndicator = AgentIndicator(status: .blocked)
+        store.session(withID: ids[3])?.agentIndicator = AgentIndicator(status: .idle)
+        store.selectSession(ids[0])
+        store.navigateSession(.nextAttention)
+        #expect(store.selectedSessionID == ids[1])
+        store.navigateSession(.nextAttention)
+        #expect(store.selectedSessionID == ids[2])
+        store.navigateSession(.nextAttention)
+        #expect(store.selectedSessionID == ids[1])
+        store.navigateSession(.previousAttention)
+        #expect(store.selectedSessionID == ids[2])
+    }
+
     @Test func navigateAttentionWithSingleAttentionSessionStaysPut() {
         let (store, ids) = Self.makeNavTree()
         store.session(withID: ids[2])?.agentIndicator = AgentIndicator(status: .completed)
@@ -574,5 +591,31 @@ struct AppStoreNavigationTests {
         other.selectSession(nil)
         #expect(try #require(other.navigateWorkspace(.previous)).workspaceID == otherWorkspaces[1],
                 "previous enters from the other end")
+    }
+
+    @Test(arguments: [(FlaggedViewLayout.flat, [3, 0, 2]), (.plain, [3, 0, 2]), (.tree, [0, 2, 3])])
+    func flaggedNavigationFollowsTheOrderTheLayoutShows(layout: FlaggedViewLayout, want: [Int]) {
+        let (store, ids) = Self.makeNavTree()
+        for index in [3, 0, 2] { store.setFlag(true, forSession: ids[index]) }
+        store.setSidebarMode(.flagged)
+        store.flaggedLayout = layout
+
+        #expect(store.navigableSessions.map(\.id) == want.map { ids[$0] })
+    }
+
+    @Test(arguments: [(FlaggedViewLayout.plain, 2), (.tree, 0)])
+    func restoreIntoTheFlaggedViewReselectsTheFirstRowOfTheLayoutsOrder(layout: FlaggedViewLayout, want: Int) {
+        let ids = [UUID(), UUID(), UUID()]
+        let sessions = ids.enumerated().map { index, id in
+            SessionSnapshot(id: id, customName: nil, cwd: "/\(index)", flagged: index != 1)
+        }
+        let store = makeStore()
+        store.flaggedLayout = layout
+
+        store.restore(from: Snapshot(selectedSessionID: ids[1],
+                                     workspaces: [WorkspaceSnapshot(id: UUID(), name: "work", sessions: sessions)],
+                                     sidebarMode: .flagged, flaggedOrder: [ids[2], ids[0]]))
+
+        #expect(store.selectedSessionID == ids[want])
     }
 }

@@ -134,8 +134,18 @@ struct ControlModesTests {
     @Test func flaggedLayoutModeParsesModes() {
         #expect(ControlFlaggedLayoutMode.parse(nil) == .toggle)
         #expect(ControlFlaggedLayoutMode.parse("flat") == .flat)
+        #expect(ControlFlaggedLayoutMode.parse("plain") == .plain)
         #expect(ControlFlaggedLayoutMode.parse("tree") == .tree)
         #expect(ControlFlaggedLayoutMode.parse("toggle") == .toggle)
         #expect(ControlFlaggedLayoutMode.parse("grid") == nil)
+    }
+
+    @Test func sidebarDensityModeParsesModes() {
+        #expect(ControlSidebarDensityMode.parse(nil) == .toggle)
+        #expect(ControlSidebarDensityMode.parse("default") == .standard)
+        #expect(ControlSidebarDensityMode.parse("compact") == .compact)
+        #expect(ControlSidebarDensityMode.parse("toggle") == .toggle)
+        #expect(ControlSidebarDensityMode.parse("standard") == nil)
+        #expect(ControlSidebarDensityMode.parse("Compact") == nil)
     }
 }

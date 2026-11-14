@@ -1,40 +1,40 @@
 {
   "schema": "agterm-linux-notice-inventory/1",
-  "ghostty_revision": "0ba6250388641f52135414b38c4259aa682c489b",
+  "ghostty_revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
   "zmx_ghostty_revision": "8af6897c0afc63037a8a3efee4162a380e3a4572",
   "archives": {
     "libxev": {
-      "url": "https://deps.files.ghostty.org/libxev-9ce8e8e6ff89e583258a7f8e7adeeeaeae8611bf.tar.gz",
-      "sha256": "e2b9b224cd78101156abb8f46479a51f6cce66c4815c632856e20a1440dd02b7",
-      "zig_hash": "libxev-0.0.0-86vtcwIRFADbH4hk-EjROXxlrKIRPQdA41XiTSytYO-F",
+      "url": "https://deps.files.ghostty.org/libxev-819ffa180ca20e31c7eded74e2e1aceb1eab557f.tar.gz",
+      "sha256": "42993af02089811fc26ea90deabbe8a60fb469059dd5947f1debf57c560c3f36",
+      "zig_hash": "libxev-0.0.0-86vtc8QQFACz0sVc7U-VDiDIgH-XfBuEY5JpABLjHNpn",
       "manifest": "ghostty-inputs/build.zig.zon",
       "dependency": "libxev"
     },
     "vaxis": {
-      "url": "https://deps.files.ghostty.org/vaxis-1dbbe575dff4586fe51e3217aa5c3fecdcbb6089.tar.gz",
-      "sha256": "3ea050e905887c46bca1a2c18e41d6edf574c1aa6ebfbc5cf3c52846275e4fa8",
-      "zig_hash": "vaxis-0.6.0-BWNV_CrbCQCscGpzsAlR402rYQ_tV3aAl081c2iRRkka",
+      "url": "https://deps.files.ghostty.org/vaxis-6fd944a27fb3d6f596e981076381a3131f2448b4.tar.gz",
+      "sha256": "39d50c983da3dc952c9449c5ef7aadd49142758376ab09149d6212a49c37e16a",
+      "zig_hash": "vaxis-0.6.0-BWNV_MafDAAEzkVUvrW9NFUqnnMUoeHqrs2mecnD6D7w",
       "manifest": "ghostty-inputs/build.zig.zon",
       "dependency": "vaxis"
     },
     "z2d": {
-      "url": "https://deps.files.ghostty.org/z2d-7dbae85c81784dba9988320bf9543ed9a81350c8.tar.gz",
-      "sha256": "e55c9d0b156edaddfea32fb1c0e3597e1b6306b9a4ec1888e2f8008c598bced8",
-      "zig_hash": "z2d-0.12.1-j5P_Hsw8EQAKyZTQICCQnAH2xYkLDW8k9uefbsYdfPZ-",
+      "url": "https://deps.files.ghostty.org/z2d-40af3e84a4e15a9f31d126b3f281f23ce6a3dae5.tar.gz",
+      "sha256": "fdaca4e2789bb8b781eef2cc76eab5ef3490d8cceec699e40d1cc96b53ad3f74",
+      "zig_hash": "z2d-0.13.0-j5P_HgsRFABzZDH54gI35P0OSrg7HFyJwS2bXX5uBdU4",
       "manifest": "ghostty-inputs/build.zig.zon",
       "dependency": "z2d"
     },
     "uucode": {
-      "url": "https://deps.files.ghostty.org/uucode-2826a37a4562284fdacd8fa029d49509cc9bffcd.tar.gz",
-      "sha256": "7e76fc7fab1e7ac728c52b35bbb3e5b8c639841abfc7fe1a4bcb13050594bc9e",
-      "zig_hash": "uucode-0.2.0-ZZjBPlK5VADj7fdoq7G8LIHzD5o6FSkcBXXrRWr4jnrA",
+      "url": "https://deps.files.ghostty.org/uucode-ea62149739404a73c202b48a33bf6dd2af4bd9b0.tar.gz",
+      "sha256": "f37c4071a217853450d084cb9c12b6d4b68f887eb9cb42fe77a84f86056eacbf",
+      "zig_hash": "uucode-0.2.0-ZZjBPoGFVgCiflJNFc6Io8xzC67B6PA5bUkk4LT0kCxg",
       "manifest": "ghostty-inputs/build.zig.zon",
       "dependency": "uucode"
     },
     "zf": {
-      "url": "https://deps.files.ghostty.org/zf-c35c421f84895193246db06c40683c1a30e616ef.tar.gz",
-      "sha256": "ca4bc109fd9d97cedae2f5bdb879cc78c346d43c14a34e3a2abd2ee9208c8547",
-      "zig_hash": "zf-0.11.0-OIRy8X-RAAAwaRXHMYpj2uvBnuGTZWEE_3V7acqHQNtW",
+      "url": "https://deps.files.ghostty.org/zf-87153bb86b75d21fbac897b738f316d449f5d0c9.tar.gz",
+      "sha256": "56174bcd35fbeab7fd5501bdfa7175fd0474c88d733a6455050977075b8da50a",
+      "zig_hash": "zf-0.11.0-OIRy8XCRAAB6FiMwIrtD6FqlagnFwpI6YyOu7bXeYH5J",
       "manifest": "ghostty-inputs/build.zig.zon",
       "dependency": "zf"
     },
@@ -53,9 +53,9 @@
       "dependency": "nerd_fonts_symbols_only"
     },
     "iterm2_themes": {
-      "url": "https://deps.files.ghostty.org/ghostty-themes-release-20260810-152212-0173c3c.tgz",
-      "sha256": "ea9878471420ee5b12e7f2ff480099c954ea50e573a1bdf83f43e105c9be63f0",
-      "zig_hash": "N-V-__8AAPpcBAD4_75xLBbLiYqdojOwQP74eoWmpL3jPrBl",
+      "url": "https://deps.files.ghostty.org/ghostty-themes-release-20261019-151001-86a776d.tgz",
+      "sha256": "ab2513e316372c45c9f86e3e511aebdbfa6c39fa03c210096b19152fe288505b",
+      "zig_hash": "N-V-__8AAJ3vBQAq1fLMh5J8uWLkeDLS6WAdR2x5KcrmEyz6",
       "manifest": "ghostty-inputs/build.zig.zon",
       "dependency": "iterm2_themes"
     },
@@ -67,9 +67,9 @@
       "dependency": "freetype"
     },
     "fontconfig": {
-      "url": "https://deps.files.ghostty.org/fontconfig-2.14.2.tar.gz",
-      "sha256": "3ba2dd92158718acec5caaf1a716043b5aa055c27b081d914af3ccb40dce8a55",
-      "zig_hash": "N-V-__8AAIrfdwARSa-zMmxWwFuwpXf1T3asIN7s5jqi9c1v",
+      "url": "https://deps.files.ghostty.org/N-V-__8AAOgqbADacob-q2_DMQlmgaG4xKHRuW-6PJ4oJzMZ.tar.xz",
+      "sha256": "4f7b554a38cdf78c033f666c8871f3749e14a094f65a07f630c91ed0b43d35e3",
+      "zig_hash": "N-V-__8AAOgqbADacob-q2_DMQlmgaG4xKHRuW-6PJ4oJzMZ",
       "manifest": "ghostty-inputs/pkg-fontconfig-build.zig.zon",
       "dependency": "fontconfig"
     },
@@ -123,9 +123,9 @@
       "dependency": "oniguruma"
     },
     "wuffs": {
-      "url": "https://deps.files.ghostty.org/wuffs-122037b39d577ec2db3fd7b2130e7b69ef6cc1807d68607a7c232c958315d381b5cd.tar.gz",
-      "sha256": "9e4cd20abe96e6c4c6ede9c3057108860126e7be2e2c3e35515476c250be1c13",
-      "zig_hash": "N-V-__8AAAzZywE3s51XfsLbP9eyEw57ae9swYB9aGB6fCMs",
+      "url": "https://deps.files.ghostty.org/wuffs-7411f488fe2e2c205c3d3b3d28638b7356522930.tar.gz",
+      "sha256": "17877d346f7988651d6c62e45b2e3b05c86809a6442c5e34612374b2a9719a1c",
+      "zig_hash": "N-V-__8AAP5JWgCGP_AD0teWpa4krRvE9VPZzvviGdbmN4jI",
       "manifest": "ghostty-inputs/pkg-wuffs-build.zig.zon",
       "dependency": "wuffs"
     },
@@ -155,6 +155,13 @@
       "sha256": "43186959edc87d5c7a1be7b7d2a25efffd22ce5807c7af99067f86f99641bfdf",
       "checksum_source": "https://ziglang.org/download/index.json",
       "version": "0.16.0"
+    },
+    "zmx_uucode": {
+      "url": "https://deps.files.ghostty.org/uucode-2826a37a4562284fdacd8fa029d49509cc9bffcd.tar.gz",
+      "sha256": "7e76fc7fab1e7ac728c52b35bbb3e5b8c639841abfc7fe1a4bcb13050594bc9e",
+      "zig_hash": "uucode-0.2.0-ZZjBPlK5VADj7fdoq7G8LIHzD5o6FSkcBXXrRWr4jnrA",
+      "manifest": "zmx-ghostty/build.zig.zon",
+      "dependency": "uucode"
     }
   },
   "components": {
@@ -238,7 +245,7 @@
         "uucode/licenses-LICENSE_Bjoern_Hoehrmann",
         "uucode/licenses-LICENSE_unicode"
       ],
-      "association": "libghostty.so default Linux build input; no per-symbol survival assertion"
+      "association": "libghostty.so default Linux build input; no per-symbol survival assertion; zmx uses the distinct archives.zmx_uucode pin with identical retained license bytes"
     },
     "zf": {
       "notices": [
@@ -401,7 +408,7 @@
         "iterm2-themes/CREDITS.md",
         "iterm2-themes/README-CREDITS.md"
       ],
-      "association": "share/ghostty/themes; collection license/credits only, individual-theme attribution unresolved"
+      "association": "share/ghostty/themes; 819 files from iTerm2-Color-Schemes 86a776d947b6f0c95d35005cb67f3cea435362fc; collection license/credits only, individual-theme attribution unresolved"
     },
     "zmx-ghostty": {
       "notices": [
@@ -414,25 +421,25 @@
       "notices": [
         "zig-runtime/LICENSE"
       ],
-      "association": "libghostty.so default Linux build input; no per-symbol survival assertion"
+      "association": "Retained Zig 0.16.0 toolchain notice; not evidence for Ghostty 1.4's Zig 0.17.0 toolchain"
     },
     "zig-libcxx": {
       "notices": [
         "zig-libcxx/LICENSE.TXT"
       ],
-      "association": "libghostty.so default Linux build input; no per-symbol survival assertion"
+      "association": "Retained Zig 0.16.0 toolchain notice; not evidence for Ghostty 1.4's Zig 0.17.0 toolchain"
     },
     "zig-libcxxabi": {
       "notices": [
         "zig-libcxxabi/LICENSE.TXT"
       ],
-      "association": "libghostty.so default Linux build input; no per-symbol survival assertion"
+      "association": "Retained Zig 0.16.0 toolchain notice; not evidence for Ghostty 1.4's Zig 0.17.0 toolchain"
     },
     "zig-libunwind": {
       "notices": [
         "zig-libunwind/LICENSE.TXT"
       ],
-      "association": "libghostty.so default Linux build input; no per-symbol survival assertion"
+      "association": "Retained Zig 0.16.0 toolchain notice; not evidence for Ghostty 1.4's Zig 0.17.0 toolchain"
     },
     "glad": {
       "notices": [
@@ -479,10 +486,6 @@
       "simdutf",
       "stb",
       "khronos",
-      "zig-runtime",
-      "zig-libcxx",
-      "zig-libcxxabi",
-      "zig-libunwind",
       "jetbrains-mono",
       "nerd-fonts-symbols-only",
       "noto-emoji",
@@ -541,51 +544,51 @@
   "source_inputs": [
     {
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "path": "src/build/SharedDeps.zig",
-      "sha256": "484e1a0f11657d4040de5506c78ea095898a2e9a922bd554345b49371a140b0a"
+      "sha256": "946d6d8762629e26fe42b832cf10e329644fe0b6bc41cd9d3f30577692a24488"
     },
     {
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "path": "src/build/Config.zig",
-      "sha256": "d7751edf4b37bfa352861e6a361a95603d094468bcf3dbbbb6aad7e883b59b85"
+      "sha256": "da8b93dfcdd5cd4e362271f916cda2cb3b1c2658eb441b6bb0832177b440e913"
     },
     {
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "path": "src/font/embedded.zig",
       "sha256": "9525dea377ddc2b9d4ada72846c046dc86d42eb6ab0580202349f3cc1ac9bc33"
     },
     {
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "path": "src/font/SharedGridSet.zig",
-      "sha256": "27d0e0734e1e19952ad87edab3afdfaa56059c2ced3b7bdc368d9b391977c880"
+      "sha256": "c54db6bed77abf2d4a5334964a6ef941ffc0574cc1a12f8a90d6a050a6d41df9"
     },
     {
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "path": "pkg/simdutf/vendor/simdutf.h",
       "sha256": "d3501fc2143f0edc5c84e6bb013a7fdb8ccd95514f7fd0816669248e62676301"
     },
     {
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "path": "pkg/simdutf/vendor/simdutf.cpp",
       "sha256": "38dc5481dc4b7eef95cea8056b84d940419288100f317ecaff683bd89f163263"
     },
     {
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "path": "src/font/res/NotoColorEmoji.ttf",
-      "sha256": "bf2a8506b80614ba190a34c7b037af1269a7d614fe9f3b613cc15cdeec6f814b"
+      "sha256": "72a635cb3d2f3524c51620cdde406b217204e8a6a06c6a096ff8ed4b5fd6e27b"
     },
     {
       "repository": "ghostty-org/ghostty",
-      "revision": "0ba6250388641f52135414b38c4259aa682c489b",
+      "revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
       "path": "src/font/res/NotoEmoji-Regular.ttf",
-      "sha256": "84a38f2f02374efb72cac2b7eb5589102e06fffc33f7b531ed708f4a08236c91"
+      "sha256": "cd07743a4c93d8da929afdd28c1d368f11da478a1093146a13610081c2a58440"
     },
     {
       "repository": "neurosnap/zmx",
@@ -597,7 +600,7 @@
   "themes": {
     "archive": "iterm2_themes",
     "source_repository": "mbadolato/iTerm2-Color-Schemes",
-    "source_revision": "0173c3cc154aab5d43b03241286d32372a87dec6",
+    "source_revision": "86a776d947b6f0c95d35005cb67f3cea435362fc",
     "files": [
       {
         "file": "0x96f",
@@ -607,6 +610,11 @@
       {
         "file": "12-bit Rainbow",
         "sha256": "cd83815f36863cb8110c7ec9cd2a8a4c16f741400460da9c7eece44903934c20",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "13th Floor",
+        "sha256": "65a6f7d2dce3f6010103feaea6b67de9084616833b55d600e7c49d31d05a237f",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -620,6 +628,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "5150 Mode",
+        "sha256": "bf678c3cd78d5bebdb1b34fa95a383a19a69f179a451283cdca6cb3e802a7b08",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Aardvark Blue",
         "sha256": "bb7db5f10de88e09045e8a9af65b4ce2fb9761cee59486988082732ae8161f43",
         "attribution": "unresolved-individual-author-license"
@@ -630,6 +643,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Abandoned",
+        "sha256": "9d10f1979b20d419f31169767df8067240650f374329070d4419a51369b4d05d",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Abernathy",
         "sha256": "e439319f48602480472dc3d822aa86a71027a5b2c08d246c6774f0377d5435f4",
         "attribution": "unresolved-individual-author-license"
@@ -637,6 +655,11 @@
       {
         "file": "Acid Lime",
         "sha256": "7166aa1874f32be3614a04eba6e76aa8e821945cdc91408471929c88471311eb",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Adobe Moon",
+        "sha256": "1a411c082db37f1cd3a4f2c65d06c71bdbdb484a04d9c537886a1e6285ba97ec",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -660,8 +683,23 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "After Hours",
+        "sha256": "09b7b8ca1999ddeeaaf056f223c98d6f7c0a5352da96215103e0dabf3b4f5822",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Afterglow",
         "sha256": "c46e2507f66acc8d9c92a4019c12437f80a34ea67978e05e5bc93a3858561479",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Afterimage",
+        "sha256": "4abae78c9a45aa2bdef440df40eb82fb0ef39ebcf4a45d6e33d26bbc59dde966",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Agave Dusk",
+        "sha256": "03dad078639af2cc748ba7465b8da1fa38e0b03291066167d0f56f34b709d0fe",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -687,6 +725,16 @@
       {
         "file": "Amber CRT Retro",
         "sha256": "b9d6de6b25d8e1c9e8ab03df4ad4e553d02aaa3007959bd8c6601949523688bb",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Analyzed Dark",
+        "sha256": "0bb1895894fb2f19cc245d337af5d0c0b9f47cb4a3fcbd115ed23b5bb2bc7d11",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Analyzed Light",
+        "sha256": "2564c62f6f754a97216bb835194cdb25e5fb6016e159483401663d53290cc342",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -725,6 +773,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Arizona Monsoon",
+        "sha256": "a817764a9cbf144d9c43347068a82f48872a0b18f2ecf106e5a434ff0434c97e",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Arthur",
         "sha256": "e4461b991056978423b90e8565a65b209ac488a6bc339872a21468e3de4b6efb",
         "attribution": "unresolved-individual-author-license"
@@ -751,7 +804,7 @@
       },
       {
         "file": "Atom One Light",
-        "sha256": "b879fbfb255499ea2dae12d56cfba22d1e52f45319b13df89c8779c5f2f1d2f3",
+        "sha256": "63f401d91d46db27ac840c61d488b4c3a332bc5225ecf77b1e11ac19d503698a",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -775,6 +828,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Aurora Drift",
+        "sha256": "04a146df07435db52d34561aebef7365a0318ecff9d6663dd1133079ac9521fd",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Autumn After Dark",
+        "sha256": "b594def0019e09949d6c3d15674ebb97bf42335c86b9f32e9aeb1d037e4e9d10",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Ayu",
         "sha256": "e25221f4dd236557c72954ab25be41dc5ce29efa36171eb0e85c2a77b8bcc346",
         "attribution": "unresolved-individual-author-license"
@@ -790,8 +853,18 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Aztec Sunset",
+        "sha256": "eaffb9d7a145cc70ef49be6b68bfc4e05941531f14bee689b30286ca9f4890d0",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Banana Blueberry",
         "sha256": "a8d19cace05cc66571f5c29e0c458bfd488bea0f95e7db9acd2ace1461624ed8",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Barrel Cactus",
+        "sha256": "e469be3104b7976634155b15cb6e8a123d3bf0142c05afed728783dd08cdaa33",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -810,8 +883,23 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Belfry",
+        "sha256": "be3517edddcdea16a65dab86c1db5f0eea5ff15ffe9ae0c8e68b77176ac3a3cb",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Birds Of Paradise",
         "sha256": "4260e187605a48275680e426a4ec3ccae19ccc962bbef7d5b71807cf5a7094f2",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Black Box Recorder",
+        "sha256": "09a920babbf98eabca1c6f30d43b2a7ef86a46be82af90a2dda0e04ae250df3f",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Black Cat",
+        "sha256": "a697d8ff6c0b2aee7ebd032fa895e284fad24f95bd5162403dd413398fcf9547",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -875,6 +963,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Blood Moon",
+        "sha256": "e46aab492c838047512e5cf1b2240fd6ea979e7b4835b1d17cb42a8d6eb605a3",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Blue Berry Pie",
         "sha256": "0ed980e3e556ef6cbe24790c043eefd0283e72eda47a7b45ec31c362e1d41171",
         "attribution": "unresolved-individual-author-license"
@@ -890,6 +983,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Blueprint",
+        "sha256": "0443b9ab69bc52fcc497fb31713437ff1cf1bab1f3314ac9114d5fec47dc44d3",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Bluloco Dark",
         "sha256": "fbe1aa64fa38af4671c9fbe31c832e52200ef7eb5b2dffe91ff150c60f1497a2",
         "attribution": "unresolved-individual-author-license"
@@ -897,6 +995,11 @@
       {
         "file": "Bluloco Light",
         "sha256": "ec603c8aeb3b4ec032851b2f7b0455b864c58394e5ceb6859f090161c54a733c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Bone Yard",
+        "sha256": "a9236cbeea48c71a9149350b17ac4a5680b5d3d325c268f786442b71c20c6a22",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -975,13 +1078,63 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "CRT Afterglow",
+        "sha256": "69990d1e38a805d4120dc7375a8694b3395c20a1a5766817a42efaec47350df6",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "CRT Amber",
         "sha256": "0c73a61dffb3aa20d585f93ebc0c09a1e5348a8917f02ce5b8139ef24f694046",
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Cactus Bloom",
+        "sha256": "fccad01954fc2941bb9b951a73822d794f151562625f138e99137f91b00e892f",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Calamity",
         "sha256": "6b49453ec75d8f8cafbde1e0e37eb5589b6559d8142fc8f0aa19b6012004e78c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Caliche",
+        "sha256": "3c746db4706cfabc32b98c0b608ea00f7246f59d943ecba0461e844ccb850c21",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Callie",
+        "sha256": "166365a16437c377584a49b2a10d1bc345782144bc4f7bba7a1fbfd01aa6dabe",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Callie Light",
+        "sha256": "a0163629895b85efb66d285b4bad638cc0336e8325b16a6163543f1331bb13dd",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Candlelight",
+        "sha256": "dc70cabfba4001f3b197cf01c7076182a85583c965d20ab7a56556179d6aad02",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Candy Corn",
+        "sha256": "1a9c929190baaa6f02fce214009fa41e54e7a233ee575f96808f742dc24010dd",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Canyon Shadow",
+        "sha256": "2061d8f3570bb3cfd5bf96a6592af1736a106009bdbf39625c61e2330edff7d3",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Canyon Walnut",
+        "sha256": "da3d14c1081dac0b0cb26258228edb20dbfc075b93979039834984aea851a06a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Carbon Paper",
+        "sha256": "6a404e2cdfebf77ddb21cf39ec9a5fffda3b422f9532ed1933830313d96e2853",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1015,6 +1168,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Catthode",
+        "sha256": "0126a9db01c69344bc6e98cfc911938ca1af5b7c50c39affeac10a1b331fb006",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Chalk",
         "sha256": "f8dfcc87ea4e684225e028ccfc80317d8c3f081cae5749437ac23ce1bf73f4a8",
         "attribution": "unresolved-individual-author-license"
@@ -1030,8 +1188,18 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Charcoal",
+        "sha256": "a54f20c6ffff098523530b5de4b1a76c540b2a311e2a650be8fe9162d4852ddd",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Chester",
         "sha256": "99e123d11e9477c04cb8507509fe37479b8795e57324496054be3348f1789e1d",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Cholla",
+        "sha256": "d9fa00a437ced5b9f6d720ab72d2886fa31970b1b7eebc3f3a3c5f9aa79248f4",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1071,7 +1239,17 @@
       },
       {
         "file": "Clear Light",
-        "sha256": "cefde8508cfac8a69448e9b191ce4d1c82664b112f7df06607429cb81069363d",
+        "sha256": "95f53a7c9a4816615bef2c7e6638f6cd4967d44c2317ac480bdc897b84608f2b",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Clockwork Gold",
+        "sha256": "8f463965576fa2c17a08351560f38a91ec59e05c69a388035adeb0a1a2c60aaa",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Clu",
+        "sha256": "f8c10ee4272ab644ee6a3c655aae54d553cc6a58b33af1dfa621ffab9d1dd2b5",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1100,8 +1278,18 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Cobweb",
+        "sha256": "0fa1b82760eef499e2243cf152382f21cf5895cca1bb4a9f24e5c98fe19bd6c7",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Coffee Theme",
         "sha256": "75208bfff1ee9c748ca895246ab7292dc85d1968893a24721d39c5d0e9513871",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Cold Storage",
+        "sha256": "8cb32d262455b6b0f05ac027f235f1e8bcd52180ead6ddafe8bef3c57a98300c",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1110,8 +1298,33 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Copper Canyon",
+        "sha256": "257a91f520c057350ade7a4bf89351d246607bdcf32eb17da0c452b463c0cd03",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Count Terminal",
+        "sha256": "dbac58f939a7cc54d7757bae30d801526ecaef3d6991f59b6f580387cc3fdd2f",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Crayon Pony Fish",
         "sha256": "9a2d3d8484ae3118620393fe608cdefb0220b5fb95d0fd89e9f91e6117698b2b",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Crypt Keeper",
+        "sha256": "51b7e8ecc7b4ef477342b3afe7e097814f7c0c2234d964596c23d4bdf37cf438",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Crystal Ball",
+        "sha256": "41562cfe25e9c5c8a6052a3689e37a68b758ef84035312e643dc206e783a7555",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Cursed VHS",
+        "sha256": "dc72eb4dc79063c8023836d991a5747d917bedcc668baf2e153caf268921f189",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1150,8 +1363,13 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Dark 2026",
+        "sha256": "740d51e3215281ebc952068b5b87e0b1f8e31f42029fdb682d676300a70f4cdf",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Dark Modern",
-        "sha256": "3f3964de4b6326413fe1d2a3d90ca947175e6f01a2d5dbb5a669f99665c77c9b",
+        "sha256": "033d4d5ecb2ce12d187e5a1853f529aacddf2dd8c87b2e84b91f6ba38db3b8e4",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1190,8 +1408,18 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Daybreaker",
+        "sha256": "a82bcc441033c4a15e632cf26f0bc8a28e9f6e1c164fb09942d5854f64f8f19c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Dayfox",
         "sha256": "a1ce8f30b19aee164768670b156b3e003fc80ecce024df94f9a9b12a4f9caafc",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Dead Letter Office",
+        "sha256": "b46c1bca0029615d7ad2148504c534fbf8b575eaf07fc27d96ad5e73d3ea2dea",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1200,13 +1428,53 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Deep Current",
+        "sha256": "84c47731a3ddeff429cf132dffe07a5ca8460e95f270fa8b479299be35bb22c7",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Desert",
         "sha256": "6e4d7801d1dd02d1bf75126f05976f6261b1894fa7edd9d6690e9b3dc4acf8da",
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Desert Bloom",
+        "sha256": "060092335ede95d26e44b1f5c69213c825c812d91d13fa7d30122d796132a7a7",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Desert Moon",
+        "sha256": "c68e391578aeb2ea9263463f7c22a6a768ee83e66838c361a086ef95d8cfc37e",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Desert Morning",
+        "sha256": "7e5c870a39229431c2fdbf507c71e2458b71213d19c03f3d743a31e25342eff3",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Desert Rose",
+        "sha256": "c3a5b4ffbab2b93269e79dbea7c00981a15c12eb902a7447b10a54e4eb21121c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Desert Thunder",
+        "sha256": "251484480c6778991cdcde62f28b37b8fd2d3232f3f3e70b066bad1ba457a8f8",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Detroit After Dark",
+        "sha256": "740b545f55211ae049363200f72cda3e0de8b14744b374679e98d5171f5e23b0",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Detuned",
         "sha256": "8021a7489714a75795cee4c8490a21d0dedcbab1831e341688b8f64bbe438470",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Diary of a Lunatic",
+        "sha256": "e9dc4481addbd1cb1e68e30c6e6a1d348f6ec5c41313bc37e19dfaf1a9c91beb",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1265,6 +1533,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Dracula+ High Contrast",
+        "sha256": "6ad28e02746d37dc07faa81328dc7dca5e805f4d0b67444eaa7e992d7fbc0c52",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Dream Onward",
+        "sha256": "e0ed094c73aca7c02cc89ddc7f0df75a415b4013432648a8a04f5ee67fce682e",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Driftwood",
         "sha256": "c1a6cbcdfa3776a45b308cd682b3c1883f6aec69ebebd5287b39db7c34cf5397",
         "attribution": "unresolved-individual-author-license"
@@ -1290,6 +1568,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "EVH FrankenTone",
+        "sha256": "9ad29702a6d9cfa065b7f760b54a7111ea65574971876624b16adb5dc29bf621",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Earl Grey",
+        "sha256": "198d3d1192c14f5716609169acd3fb62b8921f1c32c89083d94bafd3b582cc57",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Earthsong",
         "sha256": "6d7ae6442abc0fc4a554ba1fd14ed6bb0c8f59e0af97bf3ce70a9eb833f7ca9c",
         "attribution": "unresolved-individual-author-license"
@@ -1297,6 +1585,21 @@
       {
         "file": "Eclipse",
         "sha256": "d5cc473695a1f7c8071a9909784e8a700377d118cb286d9dfe9a6df553bfb1d5",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Ectoplasm",
+        "sha256": "a6304589a769b242b3577bd08348ea7fb079b8d6ba59fd1333676c5d57f8bb17",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Eight Hundred",
+        "sha256": "82328e8ad9ccc135f0073a760d29ee340cb99b07e70d45e3a64f766865f2ba8c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Electric Voodoo",
+        "sha256": "ad939ecce51a1809b84761182cbee063eec748123083be3e7a171efc0f53a89b",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1330,6 +1633,21 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Ember",
+        "sha256": "36b4438c5205895135fb4fafc6fca9895f10746437f32a5200eeffb8383119ee",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Ember Peak",
+        "sha256": "b659f2e7c749b18fd2eccc6b31ab022002868e4e0605e7258e3787877efc20ef",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Emberglass",
+        "sha256": "ebabea520d1d7710f8c91f61ebd821c81bae75c5f149180a3f8796b9bcc10a15",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Embers Dark",
         "sha256": "c7dde0b0ae10a93b855ca1760d9e01a6fa9d93c4d18200fe12a0212335ba0f7c",
         "attribution": "unresolved-individual-author-license"
@@ -1347,6 +1665,11 @@
       {
         "file": "Espresso Libre",
         "sha256": "8e82fa90085ab43f341b941cb9ff2cbdc1482ca26f350735929500a0c54d9e14",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Eventide",
+        "sha256": "c4ac143a5b89aac745faf745b2d56c275399da868af5049ca94f1ba6f9576574",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1382,6 +1705,11 @@
       {
         "file": "Everforest Light Soft",
         "sha256": "bf51b9f48172fb217989dbd765cefe2ca3a4c382f0ab2a3fd1f12a1022e8f054",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Evergreen",
+        "sha256": "4cba73742b8eba859302b5bb680cc24163e45a58987c877c1cb2ee07768303ea",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1465,6 +1793,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Forged in Steel",
+        "sha256": "2895e56536bb9243e1bccc0334f5c1bac955be9ca45c8f7d4c90f5a1f46ae387",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Framer",
         "sha256": "6eb781a0c2b1b034ef4c930b86f4ff1963c88577f0141764150fe1075fcec327",
         "attribution": "unresolved-individual-author-license"
@@ -1477,6 +1810,11 @@
       {
         "file": "Frostbyte",
         "sha256": "7c7958c7af012a83376cdcdfe0feefd9b84a847ec794e51f0b6f5ccb04991f7a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Frostline",
+        "sha256": "f4eb0d7f7ce45eb502f50a508805e07d460d57e21473ec0cfc503883f49059d3",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1495,8 +1833,18 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Ghost Circuit",
+        "sha256": "0efd74a559f7ed0b1531ed94f4b59857ef7b96b3a04329d55a53def09ff03ca3",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Ghostty Default Style Dark",
         "sha256": "6af5446d2ef6538ec892939707fce19ba2c5188056801e7d5ab56d1f9dc8203a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Gilded-Forest-Dark",
+        "sha256": "6d24a94c815425cb8deb276f14eb033f7fe81a61b0125aa26ce9ecbeb8f1da05",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1575,6 +1923,26 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Golden Mischief",
+        "sha256": "e0d79626bf5b5baa7e0bafcccd3f379149c4172ce5f30d77caf6583b012c8011",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Golden Retriever Cream",
+        "sha256": "7e972cdce07db9a9fed5ee99d79e6b0c2f14546750fb48fa7d10bc9aa2ac76bf",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Golden Retriever Honey",
+        "sha256": "0f78e6a0aa20cd733447355c8dc09022ca57bbc7cfb4c94673ee95857f588a77",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Golden Retriever Red",
+        "sha256": "72ccf0e6ebf7d0bf75b01d89e7940bcf70f21e4b7a280e1496b2bff39a3051c1",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Grape",
         "sha256": "2ae3e5d9ca4dbd37b3e0448cdb7e29e0fc780c4332a4a634c49cd4c46efa24cd",
         "attribution": "unresolved-individual-author-license"
@@ -1590,13 +1958,38 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Graveyard Shift",
+        "sha256": "53ab66bd69a3bce0d52600faed13aabdff277b05d1db5d3c34e07ee19478180c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Great Pumpkin",
+        "sha256": "71a2f2cd99703601f6fd23298582a574425712f36028cf990241f23499e07b7e",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Green Phosphor CRT",
         "sha256": "d427339c6c71797434fe80de5f472ca9623d056b13323f7c057777e48885ffcf",
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Green Screen",
+        "sha256": "dbc1f5409c2925bfca2dca2b54f4639905bc0f846288a8c540bc50748dc67261",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Grey Green",
         "sha256": "852d562525036da3619b2c828e61ae57033b565c6bea91e9959227ee271b0e46",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Grok Day",
+        "sha256": "7e94fb95d4f215657803b475c9da75587e579cde392d511a6b129b44968119d1",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Grok Night",
+        "sha256": "c16904a89628e415b9c069441ef38716daaef899f5f0cc9912e1d67f8800dd54",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1645,6 +2038,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "HN After Dark",
+        "sha256": "fa17a5f3bfa5dc954ee7fd70cf26cabf23e9e1ee053cb8839958b34007b85e6b",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "HN Classic",
+        "sha256": "48b5c2a2e45a925003d5c8271a54777ef72c7b4f4f5b0c2daffc3cccf9d7c8ff",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "HaX0R Blue",
         "sha256": "8d294ef0c00377978b088bfed8fc4aaeb9043c7108054913d37543fc1628f0ec",
         "attribution": "unresolved-individual-author-license"
@@ -1675,6 +2078,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Harvest Moon",
+        "sha256": "f0aaae5e82bce44bf666e0b65b880e4abc861f7a36ae6a76b5204cb04169ba67",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Haunted House",
+        "sha256": "f7884159ad9680fba4a60d25aa73232d4215d49e1b95776417d826f46b9f0a5a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Havn Daggry",
         "sha256": "06131936beea80d87be85bcb7c36c396a3f2014906a948a25d7673161640e504",
         "attribution": "unresolved-individual-author-license"
@@ -1690,6 +2103,21 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Hellfire",
+        "sha256": "64f6bc2a3e3cdc7d0165a751634a22907307bae7bded39fa4ea5ffaa04fbc312",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "High Desert Snow",
+        "sha256": "53d12c444e34d0a524b7ea81566ae079ec51b7192fe8c0516d807abbc598674c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "High Voltage Highway",
+        "sha256": "2c97b534f5b64aa5cf2cdb23ce9d655da5cbdee32f6814e2f50b83646d70ed8e",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Highway",
         "sha256": "12e32a32caf9ce7cff708269db418af0bbd7baca85cb1012f85f3470df6b25c0",
         "attribution": "unresolved-individual-author-license"
@@ -1702,6 +2130,11 @@
       {
         "file": "Hivacruz",
         "sha256": "91d3a08719dc2a12617234132ead5dff7deee70007ee39e90b1cc8879c359d05",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Hocus Pocus",
+        "sha256": "1fab97eee6c8027b79b41bc9e0e7ac5af460dfdb9b570fd92c0a6f1f5c9a0da7",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1730,6 +2163,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Horizons",
+        "sha256": "4da7204f1da1bbe0e03dfa36d74c78016ff39e396d2a071f986e380e8006b8b5",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Hot Dog Stand",
         "sha256": "e4227e4b4903b6d9d3ce6311c61d45671515aeb4ab201ae0bddf3dcd2cbd39e0",
         "attribution": "unresolved-individual-author-license"
@@ -1747,6 +2185,16 @@
       {
         "file": "Hybrid",
         "sha256": "d42396ab731e1a24102508bc988f8c1f60cc191cbe965764fd0fbdb650502b67",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Hyper",
+        "sha256": "5e8e0b662f0b04546cfb36cc44d8a4176bdaf601185c3e47b9defa0a8511fbf1",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Hysterical Frequency",
+        "sha256": "4380fd079bf2bf46764a650519362026a2b3afd3bbcfe16c83b0c1566676d3e9",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1795,6 +2243,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Icy Glacier",
+        "sha256": "6a181561f41f8046444f71e5c678acac2e9fd4d06c855592319bff94fd4de23e",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Idea",
         "sha256": "8fb07c72c64bd81c208bd980a9e2f027b2376360a363743d9efb689713430e05",
         "attribution": "unresolved-individual-author-license"
@@ -1802,6 +2255,21 @@
       {
         "file": "Idle Toes",
         "sha256": "a00a84ce3902461b2a16c90eedff05d1570a81c98fb293db2302f6e09aad44fe",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Isocon Dark",
+        "sha256": "946267a0366dea407f1de345cfbf7b76f7a6201dc6244af80238440bf4648cd0",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Isocon Light",
+        "sha256": "b10f306f502fd15df40b95d38b8f2f0b4d59bad43ed623287c11d96f736e202f",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Jack O' Lantern",
+        "sha256": "755e108bbabdc2ff6053e0f8f7c6517b4f3d1eee1a8e905449910fbce1f8722f",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1837,6 +2305,16 @@
       {
         "file": "Jubi",
         "sha256": "1959a2e5a605d3e3a3f0f1b268cee9a79435f6adfa097d9a4a3f0cfad3133a06",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Jump Start",
+        "sha256": "a09002c9683ebb5916fe20572f45c48ab50e815195e412725582beedbd3cd6f2",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Jute Espresso",
+        "sha256": "5529aa4802629d6c70c42d2221af49c18a992310e483053dc3afa393be86569e",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1920,6 +2398,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Kashmir Nights",
+        "sha256": "91b587652610650a3b9ec3868c8e1d7c57b6f37b2453bb646c700ebaf840f40d",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Keys Ocean Sunset",
         "sha256": "7f3a97284fd3ed675e9f4f349f6f0a7bb4fee688f294bbff0f8b445b9f1ff8c2",
         "attribution": "unresolved-individual-author-license"
@@ -1965,6 +2448,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Kwyjibo",
+        "sha256": "6f662b1715c314d68917b91a54ff49e0112f4eef95b359cd518ce62492eb57f1",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Lab Fox",
         "sha256": "346a207c5347140faff727819f5794f0f0fc0b4624e3cf4957757f3c7a46cdb7",
         "attribution": "unresolved-individual-author-license"
@@ -1972,6 +2460,11 @@
       {
         "file": "Laser",
         "sha256": "d4724bed3bfc0ba6985db22ce1324f5215138415f2d16a126743dbe517dd2887",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Last Broadcast",
+        "sha256": "84001e6dca6d454cbf00ec96a6735b085d72e9feb5f243c8df390c1cf18b6f02",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -1985,8 +2478,18 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Lemon Graphite",
+        "sha256": "e8c1de4d9770df16a3f5d3ac9745f6881c57c5ef1fa4448743836882cbdc3cb3",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Letterpress",
         "sha256": "265d58342373c88e14e53cd590f7318d9073e0d49d7ad7814005d3090ef02b9f",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Light 2026",
+        "sha256": "1236fe0ae989809fb53276ae21faeacb4db52e2a3c3ce7e2b62fc6a990746a26",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2002,6 +2505,16 @@
       {
         "file": "Liquid Carbon Transparent",
         "sha256": "c00b31dfeff0454612c74d1e4b37ba08c291f0e8c6678d5d1a21e2fca7f884c9",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Lit Cell",
+        "sha256": "17c2d518d12b3b48dc9a80bbcffe62dea11631b04fba81867f5730a2cdc2d845",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Lit Cell Light",
+        "sha256": "52598e5ef32e5c186e258830a3407495dfc5970a612952feb96e7300a54eb910",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2030,8 +2543,23 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Lunar Dust",
+        "sha256": "853a18279d9615c4808b707e351e4ff902cae09004a486bd3cce22abc3ce1d9a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Madman's Diary",
+        "sha256": "6fce1c211a251d412e5a5bc42dcd34b2dec72734ff8f9819c0c8afed9bb81ce8",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Man Page",
         "sha256": "bc1eac7995923fb6aaf598ae4a9f83ddbdefd741a43b8046dd34ddd745f18834",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Maple Jute",
+        "sha256": "36b1738b214fe3b671771bf3d04c9d13010c7b91d8ce00be4a1202e1f309d7fa",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2110,6 +2638,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Mesa Blue",
+        "sha256": "8d237e5ed73c26166e724ba90dad5813ed6e7d7bd8c914cec19a4d29e9e820a0",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Mesa Twilight",
+        "sha256": "17ef2cf8fa35437bb54d66a535378c0cbbd59b6851a50c9e0c115108c4921693",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Mesila One",
         "sha256": "5cddb6d16643e587761e93ac6e66d4dcd1d80d4b60fa3737f1751147107191b7",
         "attribution": "unresolved-individual-author-license"
@@ -2132,6 +2670,16 @@
       {
         "file": "Midnight In Mojave",
         "sha256": "c0b725274944f93c0d027d7df3d5752f32066cbd1e54f6d0623f3c8334cca4e9",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Midnight Rambler",
+        "sha256": "ce862ebefadd87b09febbd2715690ebc6174f632da1d66f0e194fa042ceaf2d1",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Mindcrime",
+        "sha256": "99c9c507f6fe78b20d8c35bb9c58cdd1a972c4361bb8234671973a46298a06b1",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2187,6 +2735,11 @@
       {
         "file": "Molokai",
         "sha256": "d0e971e4a74def448104b6a98c6113cd56503feab9f3a8756afc248bee02bb67",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Molten Core",
+        "sha256": "1aa239fa53a0f1ac88fc857d0fa765388eda1db7acb7b0013768fc2c7476d70a",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2265,6 +2818,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Monsoon Mesa",
+        "sha256": "c633c6ab0945a4a966c805f69b3aad7ae451a9f7d588925ab95f637fbedb59bd",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Monster Mash",
+        "sha256": "d1c2f128b9dde4ba4921c139d7dc737afe5d8f0872fd98375e3894832a45b472",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Moonfly",
         "sha256": "a9e6482ebad6971e8594fdc9564e7a9d442b449d20a5d5be642d9f098b5aa292",
         "attribution": "unresolved-individual-author-license"
@@ -2275,8 +2838,23 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Motel Vacancy",
+        "sha256": "7be5d9c460c067793923c035b897f6a06534b74c0fae61fff38431cceca29a12",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Moving Signals",
+        "sha256": "6c059ef8f9c19b1808e0f9787dab7a92130b0f702fbe929c40f9291158525600",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "N0Tch2K",
         "sha256": "0ad9dcfc8070a76ef5b9b2a4e9fcd82c69d18cf1e31afa24f80fff2e8acebf71",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Nachtschicht",
+        "sha256": "85a938714a206368c9c83e1476333a3ac068bace69c58968ace1a87a0a3eede4",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2297,6 +2875,11 @@
       {
         "file": "Neon",
         "sha256": "f1d2359d8479b71dc6874114a2a0210e2f906ab0cd1980426bdd0fdd028293ef",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Neon Analog",
+        "sha256": "0d086ea76f0d20b54fda0cf7089e821ebcb556fe7f816879a4f236023833e70a",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2332,6 +2915,16 @@
       {
         "file": "Night Owlish Light",
         "sha256": "1b6dadb72a96ae634f045b69d11fa08047ff26f62a80eed993138b3567211b3b",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Night Pharmacy",
+        "sha256": "3d498f27ac8b6f4cba42318c55e5b9217f0bdbbf7ef87da5910bbd181649d698",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Nightfall",
+        "sha256": "aec87895fab08a6d109d987fbdbe6545bf4ed6c336be7b1c03292f18d92436bf",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2435,8 +3028,18 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Northstar",
+        "sha256": "507a759fe03ae6fe2f73f772bcf5b0842e76567d399382d64bfd4b07d5d745fc",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Novel",
         "sha256": "b879761904edf786fa27896dd3120fe0c2b849a4008cd7262c84f87cbc872dd4",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Numbers Station",
+        "sha256": "68a382dadfa60b17786ac6cc984ec1196ec071f4bd1fc79132305308370bad97",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2455,6 +3058,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Obsurdian",
+        "sha256": "0331716bf69699e7a3c706a6be4004607177494f313dfa294609096c631474e6",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Ocean",
         "sha256": "9df41e326f6e8aa0d534ce6fc87165c34657a9765c56f1f439649adb9ada7c13",
         "attribution": "unresolved-individual-author-license"
@@ -2467,6 +3075,11 @@
       {
         "file": "Oceanic Next",
         "sha256": "2790407a30d1ba03a0c112d337641d1ecd8be059e9e506f42aa04fb97e09020a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Ocotillo",
+        "sha256": "5d835c9c223bf0412afac3ec687b40a0d28f8775c16778a15ec98a6bf2373dae",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2545,6 +3158,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Ozz's Blizzard",
+        "sha256": "c6963a3fa8f5aa62ec05783694966178e3611d8808cae63b845ae903d761c2a4",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Painted Desert",
+        "sha256": "48b4603e7b0b1d3c9e8cba37d65f75f1a3404b52e9a7358808cd2b90acc41b1b",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Pale Night Hc",
         "sha256": "2f363a25f30cda9a545ca81959296b419b1dfe264e1fcf10bf287b0f677da7c5",
         "attribution": "unresolved-individual-author-license"
@@ -2555,8 +3178,23 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Paper Tiger",
+        "sha256": "89e1a8faeecdaa42e21376971d72df2b62288e42794560e5836be7d38a411716",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Paraiso Dark",
         "sha256": "a3b7f26e78041272b01e3dd6ebc00595dd77dcd777ab6d32eb9cf20c2d686f33",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Paranoid Circuit",
+        "sha256": "a25aefe28aa4dedd4a747397be0d94246dda23500bf61c5d7709b4a3b4848c73",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Parchment",
+        "sha256": "f008c53518fbe412974d28a092838d794349a54f34ba018a950823e53223afe2",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2615,8 +3253,18 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Petrified",
+        "sha256": "2731cc2a6ed3604916b203618e7c3637698c312ce3c917682fccab1c60d447d8",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Phala Green Dark",
         "sha256": "aacfae6d56315d5acbbcd2013afe86da9caeda02e1b4174844cc711a741c4ca1",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Pharaoh's Voltage",
+        "sha256": "2b737367d5259e480fe878620a8767ac2f40fec769f2a42d8b7dd218a1f94f41",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2632,6 +3280,11 @@
       {
         "file": "Pierre Light",
         "sha256": "cac37acbb2756142294bcc9a3088195af362d93aa69f2b8e07feb3d24a3e142b",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Pissed Off Pancakes",
+        "sha256": "b194cf6b7e55929571c3f3759d8d615d2878bbc46e31740c290341c5085c21da",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2660,6 +3313,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Poison Apple",
+        "sha256": "b5b151807459c18cc693012873dc0dd40f6e45f3bd3e407c0f9147226da7c0e2",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Poltergeist",
+        "sha256": "d2699bf8c692b8a9f3811b27891020804fe288456559839338ad078939dfb08a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Popping And Locking",
         "sha256": "2bc75fd8ec67d4bf9f84d8304b5f6968b357cf0fc3c41c0aab9e73c27b7fc38f",
         "attribution": "unresolved-individual-author-license"
@@ -2670,8 +3333,18 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Possessed Toaster",
+        "sha256": "fb814fc6ec24ee60d10a5aea5241a361d74ab316bf30c8a31d6a036a4cb8569e",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Powershell",
         "sha256": "33e69baa3f6ddc6719256d4194f26304bd0e3cac12319956697aa48e4b1658c7",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Prickly Pear",
+        "sha256": "010fe11057b24f2d20a8a786e7ae6ade54a7cd56b071c855cbaff3482de7b4ae",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2680,8 +3353,23 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Prince of Barkness",
+        "sha256": "dc63bd9c903a7a36e1a4dd76a332a395118718f5d85c1c28eaae727d0c0b279b",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Prince of Darkness",
+        "sha256": "236436a632107bab9adadb5f2afb2133121685cf341a232c9d8779c686a89cb4",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Prism",
         "sha256": "fa9ad4f0873a988e689dff287c738d399de6de2624be5546d6d1ec2bcd17e1f6",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Prismatica",
+        "sha256": "43e54f760a3776c3ead6079e51bb11985110daeaa265646fa52576c2e9eb9a64",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2692,6 +3380,26 @@
       {
         "file": "Pro Light",
         "sha256": "3d1e12fab579dc64a60f252221990b8fb0921e2bc8f381ba9453d6be5ff01973",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Pueblo Night",
+        "sha256": "0b757c08ab2a24e7539d0cc31e96f553c7d2d4a8919ee9933aa02168b315c7ed",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Pumpkin Patch",
+        "sha256": "aec2b22e11360fcc202ed39335bed970e54028e52cdb38d0d702c60714838e84",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Pumpkin Spice",
+        "sha256": "f2097a569fe51ae5cb6a1d1236190b02d2b6bd82ca6b12bdfb225426d4025a28",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Puppet's Master",
+        "sha256": "f27adde92c595817ac6679049b5c00345c64c756e55dd3d7bf8d01cee2b0ac71",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2717,6 +3425,11 @@
       {
         "file": "Pyrokai Light",
         "sha256": "55ec766c573003fb8de0e1f279be5ab59860ef9dc82ddf399e63521ce8258d5d",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "RadicalReborn",
+        "sha256": "77a8d5fb654895214aad644c61d9a82053ea992b87090f542774c18c20cf8b14",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2750,8 +3463,18 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Red Rock",
+        "sha256": "60331f27f649bcad076b9b95f1fb188d1632cb74a1731fdb4b03336863660ec9",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Red Sands",
         "sha256": "61d7e9eb35e3b3bd334be5e526034483c843a793a15894ed99dcc25b4bd9c2d3",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Redacted",
+        "sha256": "0322c95ad5e55f67a28c8224ecd689556a4c7b9d94aedb09b2ec6f098d309ec6",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2767,6 +3490,41 @@
       {
         "file": "Retro Legends",
         "sha256": "5bb79b813110b7d59ac9dc555d11ed2c6f1c9e9fc7c97e255c8d3ddaa8e88a3e",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Rhoads Concord",
+        "sha256": "65930f94c263a5a302e89821ea4398ac3d9bf00207e712af851910368d767bd9",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Rhoads Insipired",
+        "sha256": "b9e66f6a5014faf344b9c5cdc9e156ad444e02e3d37a0c173d9079f4294bfe8b",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Rhoads LP",
+        "sha256": "91667a593f03f9732b185212c1d93222b14266efb1a355a3e88baa4159639e2a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Rhoads Legacy",
+        "sha256": "ada1fbf98445cb527cbe85b44980ef5c79732f8a0fcca75afeecfd0dce01c4fe",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Rhoads RR Black",
+        "sha256": "4e27adc1838a78fe077196a4bb4f79b16fb9fc1d38250a02234007ee50c654d2",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Rhoads Tribute",
+        "sha256": "951c92c3918600e082372156368f5fe937d9a780cc1dee1a357b0b9969e0f227",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Ride the Current",
+        "sha256": "984a6042cb84e34b0316756cd67ddb4df0002e531c170002d94ab9794282e335",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2800,13 +3558,38 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Royal Rhapsody",
+        "sha256": "21a8c48112410385a34597c6235edfd3b25c6553f9c70b117a12741483c9822e",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Ryuuko",
         "sha256": "b912f8c90eb11a8b3e0c2b8cdced71dc390da0ed7b46586535477923a42be012",
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "SLOMP",
+        "sha256": "7a6d5e35e3dd54106c0fa8d9f06c48b8abeafc5ef210899ee8866e99d7e9bd01",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Safety Glass",
+        "sha256": "22ba0bc303ef99f8f883d95763fb4c5f5157acae1b218040bc2505fc5b5f927b",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Saguaro",
+        "sha256": "c25ca63a549096b433508c368a487105f1099d7123515460a4137e2d20ec85a1",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Sakura",
         "sha256": "1d012102328de7f98827ac1d38b404c7fe7b05a44baa8fda9c19aeafffdcb8d4",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Salem",
+        "sha256": "e6ec23ee6a57979734d154228537e43f97b4596a1d1a2393e3221485babd1a2b",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -2830,6 +3613,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Scabos Sand",
+        "sha256": "6e940b1224f03280d8c7ca3ce2036ff65aad1b2f011053cc6227d57c88f4ff6b",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Scarlet Protocol",
         "sha256": "4a7ee62b78acc68c621c181265548f835daf925a53406c2ba1292e1303c3fb58",
         "attribution": "unresolved-individual-author-license"
@@ -2842,6 +3630,16 @@
       {
         "file": "Seafoam Pastel",
         "sha256": "001e57f7a6d2605c0cdad68d52591c68a0976c9fdeb61a88640e388af6c0029a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Seance",
+        "sha256": "eda1427f2b863ec4d176ced50a428ea88c54b03183c1f004b5b09dce5a8f4b27",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Sedona",
+        "sha256": "91af42d3e4e674d34830fddb1b17aca1b68d1be25113817aad3661ce95572ce3",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3010,6 +3808,46 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Sierra Gold",
+        "sha256": "5122a007b29fd3bb5b9d23ba603d6a1b3031edaac9a2eb22dd23ecef89f826c9",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Signal Ghost",
+        "sha256": "f6036a233dff0ff4093fc74c23fbc0db0fc540be1edc8cef3c6f981a1a7be0a3",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Silent Empire",
+        "sha256": "8fc056b342da3cab7c3835ff6f77b82e56c7ce3468e1af6781e67f12bf452156",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "SilkCircuit Dawn",
+        "sha256": "7d2256029b5df51bb96dfdc5363b1c362d6230bcf69e164020c8d0bb59f19a5c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "SilkCircuit Glow",
+        "sha256": "4b097dfde3c409bb5908a62f804d85e5a63d256778bf23a98cc256e20325752c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "SilkCircuit Neon",
+        "sha256": "f0af412c0df76833e7c8990b26fd7cc9496893dd77d5564dfdfbb8702bb772d6",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "SilkCircuit Soft",
+        "sha256": "102c2020baa7835b90774463485412e0c16a232ed2e80a1cd43faf28c5397943",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "SilkCircuit Vibrant",
+        "sha256": "e1c68b16f09a2fc73f4482c1eddeea6919eb2ef0365c98fed5f7654f0afab47c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Slate",
         "sha256": "d58a7fea15041bc1ae59bd515cb43e8c4a008dc66ecd5f316cbcd35d34912b52",
         "attribution": "unresolved-individual-author-license"
@@ -3017,6 +3855,11 @@
       {
         "file": "Sleepy Hollow",
         "sha256": "3788ec5cdf3990c227a1cc44535c61e9af0163b384af3b3cbf317f35f5848673",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Smoke on the Terminal",
+        "sha256": "66973a18ac2ea8d905bc4e19bc35ea653c693882c91c0be990b0bd36fa90de58",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3037,6 +3880,11 @@
       {
         "file": "Soft Server",
         "sha256": "b06b5503eb0b0886a8a36e5d2982b529a65219f831043e7c6585a8c0d2cb57f3",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Solar Flare",
+        "sha256": "1f6fbd55cbcdf230f7ac2166995665a8669c3325cfd2fa0be8d82399042fa3ef",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3062,6 +3910,11 @@
       {
         "file": "Sonokai",
         "sha256": "788cd27a7758c452928ce1761e1f087456c1ce94024138b6eb246881055ca28a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Sonoran Dusk",
+        "sha256": "182f7e555813806ba576c03f58e9dbaa6b699706620616783f31749f8aded14a",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3100,6 +3953,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Springfield Resident",
+        "sha256": "b18565e8828ce0295f2191b6cd23e8c18904a71e724d9acead902824c9079bd8",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Springfield Resident Hight Contrast",
+        "sha256": "efafbc18bd85fedafc52e747ff0ae678c41f2f9d2dc8af50abe9402dd9abf35f",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Square",
         "sha256": "cc6824716211c5947e9e511209a0bb6c55fbfb2eec9b86092734e6bcc21ef980",
         "attribution": "unresolved-individual-author-license"
@@ -3120,8 +3983,23 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Stairway Skies",
+        "sha256": "1a475891b99f9ca3408401a435a7940e07726226bcb65ebb7d0b6b17894bb89c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Stardust Voltage",
+        "sha256": "659bd1330701e27fdf73ec9caf6288e4c77eb2ec565115bd41eb061a9c40b992",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Starlight",
         "sha256": "e1cf4b882defe6f1abae15281102d7f3f8e633ce8d46e87cfbd66e3ad4094ea6",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Static Memory",
+        "sha256": "d5f2566919a3e0566840810eff4b6ba1b0b2e8954d764d52f4dc45825f850af6",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3150,8 +4028,18 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Sun Bleached",
+        "sha256": "458ab5b7d20be669e62c1e7b689de4b9b92cb42ec123e91ac1eae39a21b5a55c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Sundried",
         "sha256": "409e15cfc5c13d5fa624a05dcc088fb65c15ca09428475fbf668ae84ad5c3d65",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Sunset Copper Relay",
+        "sha256": "3dbef801d57bb8f8604ad4f4657ea7e40df71b6952a02dea4415be7ee8b3932d",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3160,8 +4048,23 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Sunset Strip",
+        "sha256": "ece41c11c355822bdcf3b58d600fa0eaeca2ef6ee461849eb33c6693b4972d33",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Sweet Emotion",
+        "sha256": "803d250fcff465dafca8c141a494f8e0ab45b5347649793a4af149af8fdbf32a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Symfonic",
         "sha256": "20f8754c7bd412c45d968ffde28b8667cadff335ae044a73583566c8a77e970f",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Syncopation",
+        "sha256": "6ebb26e88f04ad9348eeb0f3a72e5448365410c80ff1bab0ee26919615f58a90",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3177,6 +4080,16 @@
       {
         "file": "Synthwave Everything",
         "sha256": "170cde64e73e7833433ca367aba59fd6d672856a2d31f59fa0135b497b170817",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Tailwind Dark",
+        "sha256": "cb73b7ebd99d6902206b4a1acbe9c82e7e8230838332ac077c3a3d55c4e426a9",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Tailwind Light",
+        "sha256": "e414a28d94e5fca8882c34bb7b43adf1d6c76caa316adcc00460056f8aa3da86",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3225,8 +4138,23 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "The Fog",
+        "sha256": "7c48bb16f86a4a9b5abdd06859eee4f8a8aa3763c052b156dd181d1012ca5904",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "The Hulk",
         "sha256": "caed1f4adc36780d3671face228e52739c2f7320ce102d9cd327dbcd2b96f836",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Thermal Receipt",
+        "sha256": "c2bfd2efa127198bce4f15bc4937900bece75e5e8eb287f8daec36aed55c95eb",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Thirteen",
+        "sha256": "746771423c4b0b879f7d0e8d06851d291dbab1b3781f4c103b7cb6658a5a07d0",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3320,6 +4248,21 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Trick or Treat",
+        "sha256": "27862734cf5570d49374ff1e266b57b56cf5ef7e4f917e5a2932f146fc6b62b2",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Tumbling Stones",
+        "sha256": "614ed9aa4c7e2df5ec7b50fc1d37395c6655cee071a19e59a11ce11051d09b22",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Turquoise Trail",
+        "sha256": "a6313c403a527bf5bd6214af631241f0cc22e28c5b24572daed3ddbe3b82f795",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Twilight",
         "sha256": "fd5efd9ffb20fde5b4bcf8f6dc093c40aa4e8b33bba589acef9dce0ae5a501a7",
         "attribution": "unresolved-individual-author-license"
@@ -3340,6 +4283,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Unalive 'Em All",
+        "sha256": "49fe4c3e75e5b9041511fd2d705befef36b2f5bcca30ecff6ee2f875fc1cc348",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Undead",
+        "sha256": "869b74ef3fa3d0e41681d4fa4496b0f9e61ca9b400027f86087575a7f9506a3c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Under The Sea",
         "sha256": "fc8da6ab5213f0ccfa5f30ebc7905728248ea13dc218e0efc79c7572e66f05a2",
         "attribution": "unresolved-individual-author-license"
@@ -3352,6 +4305,11 @@
       {
         "file": "Urple",
         "sha256": "80df2c1296f977e1f029f5f111aa8b6c5fb6fcc4a5b7ceddf16b2cfede16d0e6",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Vacuum Tube",
+        "sha256": "4b148369ec1a5fbae4c452a23adbc6bef46d6c04edbf87070888bd3f164d52f6",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3415,6 +4373,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Warm Burnout Dark",
+        "sha256": "0dcced2efc7ab6815c766d82618a31aa5d30d470bc381af18a7f032bd31dddc5",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Warm Burnout Light",
+        "sha256": "64b0824c5ded5c8ad9b45096da3e800db8c0f56aa23c3257d3b61ac92469813f",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Warm Neon",
         "sha256": "54382e32a93e480e9b12a473b26276bf23937619c6e60ee717c0ec679384e666",
         "attribution": "unresolved-individual-author-license"
@@ -3430,13 +4398,33 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "White Sands",
+        "sha256": "3078c379675611c6791d99e2e3c19d6ca5377d3ce4e397374b64f11d81b2f27c",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Wild Cherry",
         "sha256": "2042995873de132c369d87f4742efb7e77250b04c89beef843a5f9f155c9ffe3",
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "Willow Grove",
+        "sha256": "433e45c910a38a755a6d5926892f6f384a10d7cbf2dde66c0fa84a7dd266c628",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "Wilmersdorf",
         "sha256": "fd3bf4b17157ec3a7ec007abbfa11e5f3d0dbeaa4f35aa3a7924d6a57cf30ba1",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Witches' Brew",
+        "sha256": "76ca935bacd5ed233d1781644eb8724c63112faaab28a4d61e6b214daea581ca",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Witching Hour",
+        "sha256": "2615d3efddd9b21d5ab330a02c793d4cb3c05a90096fcfb3e15859f3da4b61d8",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3447,6 +4435,66 @@
       {
         "file": "Wryan",
         "sha256": "97b82f568cd4b9fd376776e4552e043a8a27880c2e897bcd2eeaef426157647e",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X",
+        "sha256": "db1299f3b53a9a9df95f60108970d15afbbdcce2d5beee3aa376be7c3ecb56bd",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X Berlin",
+        "sha256": "1c60664a9f09ce0b67be23bac5dedd477df695840338af0d0f25364e9c66a31a",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X Bogota",
+        "sha256": "d1cd91a681d2f2dd8add1d77a40405e9b20311c5380a22f6f7d74319cab7e00b",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X Helsinki",
+        "sha256": "9c2a652d703c8e1d2347fd89c3ff8eb21b2b6ce14436d9678f3009c39b6dff43",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X Lahabana",
+        "sha256": "1f3289a647f77f4bb8010c5778fce440caf1c18dac6c705b079767a127114f70",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X London",
+        "sha256": "8b596d0da117e75f9f7ca4af5a51e5fcd86df6dcfd297534319ded77254fd1ae",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X Madrid",
+        "sha256": "5021e880e1089155d05219ed6a7daa5d51856865dba81ff924b375065a460be1",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X Miami",
+        "sha256": "91408d074fec0e9b245c82652f48480ec0c6eb207e60c026fa7a940748028087",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X Oslo",
+        "sha256": "bd03d4066de927be338543417c56839578e19ce6fd3505052e30126c79c61a57",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X Paris",
+        "sha256": "29f3cb9b68564170bffdcb8a26e4dc1185a2d18d55a0ecb753312ed4087a4c7d",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X Praha",
+        "sha256": "6ed86c9fdc9e954b5ede72a55ec6ef5b52e9aea0a29f05f5b10ecce6eeed786f",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "X Tokio",
+        "sha256": "2462f3da46bfb96700533ebece52819502ce51ce6df0a5d091ea4de4744236ef",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3477,6 +4525,31 @@
       {
         "file": "Y2K Chrome",
         "sha256": "300d8d66c984069368e707dc2a33f0c3ec6944f4daa9d49e1763a2e92c0e3c99",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Yngwie's Strat",
+        "sha256": "abc2f90491baeaef2b508d821c1d705cb60a79587b6a50bbcec7c71cd38c5543",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Zacess Cream",
+        "sha256": "d23084469be4e99ab82e93033086565d2634ba2c1b879962677800d10d16a1ef",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Zacess Dark",
+        "sha256": "71ac8fd9845d06b6dc648ba24472c3f1a7995fa4a30b938f67b5b215c70123d8",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Zacess Light",
+        "sha256": "3479004311f805e77f01170f71f2dd3941a0f1354a74b3ef47ddf4fc54f2d72f",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "Zacess Yellow on Black",
+        "sha256": "22ad2ea9bffb048a17228ed8e04bb0071b069244d369993e001e86c95ea1000a",
         "attribution": "unresolved-individual-author-license"
       },
       {
@@ -3540,6 +4613,11 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "eyesclosed",
+        "sha256": "afda8dbca5a46ca542a1e63c18c1a25d79a11f9ebcb8505a8616b4c4b4e632ed",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "hazyland",
         "sha256": "5d05cc9a48b7517cbf8ca143d1e1cb306143c781025af64b22555d5c8f749e66",
         "attribution": "unresolved-individual-author-license"
@@ -3590,6 +4668,16 @@
         "attribution": "unresolved-individual-author-license"
       },
       {
+        "file": "iglass Dark",
+        "sha256": "2cbad135003d34e56736063f0db8c69a55406a67baf1cab01577b16978231c93",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
+        "file": "iglass Light",
+        "sha256": "7877d7ff5018b36abb87b599d32042d0dda5d5cc01323add0ef2c59a5240c60e",
+        "attribution": "unresolved-individual-author-license"
+      },
+      {
         "file": "novmbr",
         "sha256": "4131de5c2754e88f20e1965b2770c4d755ec876681eb2245d29b6ab8f1aaf5bd",
         "attribution": "unresolved-individual-author-license"
@@ -3612,11 +4700,12 @@
     ]
   },
   "unresolved": [
-    "Individual author licenses for the 602 themes are not established by the collection MIT license.",
+    "Individual author licenses for the 819 themes are not established by the collection MIT license.",
     "A library filename/component mapping does not attest arbitrary externally supplied toolchain bytes.",
     "Optional copied libraries outside the reviewed 16-name runtime profile require a notice profile update.",
     "Zig-generated runtime and remaining source-embedded attribution require review before blanket distribution clearance; this collection is bounded.",
-    "Nerd Fonts preserves glyph-source licenses supplied at v3.4.0; logo/trademark terms and any glyph sources without separate retained notices remain a distribution review item."
+    "Nerd Fonts preserves glyph-source licenses supplied at v3.4.0; logo/trademark terms and any glyph sources without separate retained notices remain a distribution review item.",
+    "Ghostty 1.4 uses Zig 0.17.0; the retained Zig 0.16.0 notices cover the independent zmx toolchain only, pending a separate 0.17.0 toolchain notice review."
   ],
   "executables": {
     "bin/zmx": [
@@ -3647,12 +4736,12 @@
     },
     {
       "file": "NotoColorEmoji.ttf",
-      "sha256": "bf2a8506b80614ba190a34c7b037af1269a7d614fe9f3b613cc15cdeec6f814b",
-      "source_url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/src/font/res/NotoColorEmoji.ttf",
+      "sha256": "72a635cb3d2f3524c51620cdde406b217204e8a6a06c6a096ff8ed4b5fd6e27b",
+      "source_url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/src/font/res/NotoColorEmoji.ttf",
       "name_records": [
         {
           "name_id": 0,
-          "text": "Copyright 2013 Google Inc."
+          "text": "Copyright 2022 Google Inc."
         },
         {
           "name_id": 13,
@@ -3666,12 +4755,12 @@
     },
     {
       "file": "NotoEmoji-Regular.ttf",
-      "sha256": "84a38f2f02374efb72cac2b7eb5589102e06fffc33f7b531ed708f4a08236c91",
-      "source_url": "https://raw.githubusercontent.com/ghostty-org/ghostty/0ba6250388641f52135414b38c4259aa682c489b/src/font/res/NotoEmoji-Regular.ttf",
+      "sha256": "cd07743a4c93d8da929afdd28c1d368f11da478a1093146a13610081c2a58440",
+      "source_url": "https://raw.githubusercontent.com/ghostty-org/ghostty/83fb95624b0439ee660c2679b43b38c8b63769cd/src/font/res/NotoEmoji-Regular.ttf",
       "name_records": [
         {
           "name_id": 0,
-          "text": "Copyright 2013, 2021 Google Inc. All Rights Reserved."
+          "text": "Copyright 2013 Google LLC"
         },
         {
           "name_id": 13,

@@ -14,6 +14,12 @@ struct HtmlOverlayView: View {
     let isActive: Bool
     /// visible is whether the page is on screen, which decides drop registration apart from focus.
     let visible: Bool
+    /// toolTipsShown is `visible` minus what covers the strip without hiding the page: a window modal or an ask.
+    let toolTipsShown: Bool
+    /// hideShown follows the title-bar overlays button; without it nothing on screen shows how to get a hidden page back.
+    let hideShown: Bool
+    /// onClose replaces the strip's close for a page companion, whose close is the session's own.
+    var onClose: (() -> Void)?
     let foreground: Color
     let background: Color
 
@@ -48,28 +54,34 @@ struct HtmlOverlayView: View {
             }
             label
             if overlay.navigation {
-                button("safari", "Open in Browser", "htmlOverlay.browser", enabled: true) {
-                    _ = registry.navigate(overlay.id, .browser)
-                }
                 switch overlay.source {
                 case .file:
+                    browserButton
                     button("arrow.up.forward.app", "Show in Finder", "htmlOverlay.finder", enabled: true) {
                         _ = registry.navigate(overlay.id, .finder)
                     }
                 case .url:
+                    browserButton
                     button("link", "Copy Link", "htmlOverlay.copy", enabled: true) {
                         registry.copyLink(overlay.id)
                     }
+                case .replica, .image, .markdown, .text, .document:
+                    EmptyView()
+                }
+            }
+            if hideShown {
+                button("minus", "Hide", "htmlOverlay.hide", enabled: true) {
+                    store.hideHtmlOverlay(overlay.id)
                 }
             }
             button("xmark", "Close", "htmlOverlay.close", enabled: true) {
-                store.closeHtmlOverlay(overlay.id)
+                if let onClose { onClose() } else { store.closeHtmlOverlay(overlay.id) }
             }
         }
         .font(.system(size: 12))
         .foregroundStyle(foreground)
         .padding(.horizontal, 10)
-        .frame(height: 28)
+        .frame(height: HtmlOverlay.stripHeight)
         .background(foreground.opacity(0.06))
         .background(background)
     }
@@ -82,7 +94,7 @@ struct HtmlOverlayView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .layoutPriority(1)
-                .help(overlay.current?.page ?? sourceText)
+                .toolTip(overlay.current?.page ?? sourceText, isShown: toolTipsShown)
                 .accessibilityIdentifier("htmlOverlay.identity")
             if let title = overlay.current?.title {
                 Text("·")
@@ -91,7 +103,7 @@ struct HtmlOverlayView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .foregroundStyle(foreground.opacity(0.55))
-                    .help(title)
+                    .toolTip(title, isShown: toolTipsShown)
                     .accessibilityIdentifier("htmlOverlay.title")
             }
         }
@@ -122,8 +134,14 @@ struct HtmlOverlayView: View {
 
     private var sourceText: String {
         switch overlay.source {
-        case .file(let path, _): path
+        case .file(let path, _), .replica(let path, _), .image(let path), .markdown(let path), .text(let path, _), .document(let path): path
         case .url(let url): url.absoluteString
+        }
+    }
+
+    private var browserButton: some View {
+        button("safari", "Open in Browser", "htmlOverlay.browser", enabled: true) {
+            _ = HtmlOverlayRegistry.shared.navigate(overlay.id, .browser)
         }
     }
 
@@ -134,7 +152,7 @@ struct HtmlOverlayView: View {
         }
         .buttonStyle(HtmlToolbarButtonStyle(tint: foreground))
         .disabled(!enabled)
-        .help(label)
+        .toolTip(label, isShown: toolTipsShown)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier)
     }

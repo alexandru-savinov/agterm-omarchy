@@ -46,5 +46,15 @@ enum LinuxAppMetadata {
         return nil
     }()
 
+    /// Read sidecars afresh so package replacement is visible without restarting the running process.
+    static func installedIdentity(executable: URL = URL(fileURLWithPath: CommandLine.arguments.first ?? "")) -> AppIdentity? {
+        let directory = executable.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("share/agterm")
+        guard let version = try? String(contentsOf: directory.appendingPathComponent("VERSION"), encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines), !version.isEmpty else { return nil }
+        let commit = try? String(contentsOf: directory.appendingPathComponent("COMMIT"), encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return AppIdentity(version: version, recordedCommit: commit)
+    }
+
     static let identity = AppIdentity(version: version, commit: commit)
 }

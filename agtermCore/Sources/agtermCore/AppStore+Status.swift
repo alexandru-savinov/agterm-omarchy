@@ -77,12 +77,28 @@ extension AppStore {
         )
     }
 
+    /// Marks each idle session `completed` so it rejoins the attention list until the usual keystroke, Clear
+    /// Status or hook write clears it. No `autoReset`, or merely visiting the session would undo the mark; a
+    /// non-idle session is skipped so a live `active` or `blocked` is never overwritten.
+    public func markForAttention(_ sessionIDs: [UUID]) {
+        for id in sessionIDs where session(withID: id)?.agentIndicator.status == .idle {
+            setAgentIndicator(AgentIndicator(status: .completed), forSession: id)
+        }
+    }
+
     /// The window's non-idle sessions across ALL workspaces, ignoring the focus/flagged sidebar filter
     /// (unlike `navigableSessions`) so they stay visible with the sidebar hidden. Ordered by `attentionPrecedes`.
     public var attentionSessions: [Session] {
         workspaces.flatMap(\.sessions)
             .filter { $0.agentIndicator.status != .idle }
             .sorted(by: Self.attentionPrecedes)
+    }
+
+    /// Whether attention navigation lands on `session`: `needsAttention`, or `active` under
+    /// `attentionIncludesActive`. Shared with `WindowLibrary.attentionStep`.
+    func stopsAttentionNavigation(_ session: Session) -> Bool {
+        let status = session.agentIndicator.status
+        return status.needsAttention || (attentionIncludesActive && status == .active)
     }
 
     /// The attention order every attention list shares, so the per-window and cross-window lists cannot

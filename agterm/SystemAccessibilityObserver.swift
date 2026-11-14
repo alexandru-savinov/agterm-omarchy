@@ -4,7 +4,7 @@ import Foundation
 /// Bridges macOS accessibility display-option changes into agterm's app-local notification center: AppKit
 /// posts them on `NSWorkspace.notificationCenter`, not the default center that agterm's window and sidebar
 /// consumers observe with lifecycle-scoped tokens. Consumers read the settled values directly from
-/// `NSWorkspace` when handling the bridged event — `WindowAppearance` for Reduce Transparency,
+/// `NSWorkspace` when handling the bridged event — `GhosttyApp.windowReducesTransparency` for Reduce Transparency,
 /// `StatusIconView` for Reduce Motion; native SwiftUI consumers use the matching accessibility environment
 /// values and update independently.
 @MainActor

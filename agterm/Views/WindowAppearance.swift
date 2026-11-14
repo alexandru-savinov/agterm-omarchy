@@ -13,6 +13,7 @@ enum WindowAppearance {
         var opacity: Double = 1
         var blurRadius: Int = 0
         var toolbarMode: ToolbarMode = .compact
+        var reduceTransparency = false
     }
 
     /// Apply the blend to `window` using `background` (the terminal background color) and the `chrome`
@@ -24,7 +25,7 @@ enum WindowAppearance {
     /// and its background carries the alpha — the renderer is pinned transparent
     /// (`AppSettings.ghosttyConfigLines`) and the chrome paints nothing, so the interior reads as one
     /// continuous translucent, optionally blurred surface. macOS Reduce Transparency leaves the saved
-    /// chrome inputs unchanged and presents opaque and unblurred until it is turned off.
+    /// chrome inputs unchanged and presents opaque and unblurred, unless Ignore Reduce Transparency is on.
     static func sync(window: NSWindow, background: NSColor, chrome: Chrome) {
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
@@ -42,10 +43,9 @@ enum WindowAppearance {
 
         // native fullscreen draws its own opaque background and the chrome shows through any transparency,
         // so force opaque there; Reduce Transparency forces the same without touching the saved inputs.
-        let reduceTransparency = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
         let transparent = chrome.opacity < 1
             && !window.styleMask.contains(.fullScreen)
-            && !reduceTransparency
+            && !chrome.reduceTransparency
         if transparent {
             window.isOpaque = false
             window.backgroundColor = background.withAlphaComponent(chrome.opacity)

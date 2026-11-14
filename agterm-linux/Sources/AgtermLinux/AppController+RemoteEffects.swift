@@ -32,6 +32,10 @@ extension AppController {
                 self?.store.applyRemoteContext(context, forSession: id)
                 self?.reconcile(focusActive: false)
             },
+            info: { [weak self] info in
+                self?.store.applyRemoteInfo(info, forSession: id)
+                self?.syncSidebar()
+            },
             mode: { [weak self] mode in
                 self?.store.setRemoteMode(mode, forSession: id)
                 self?.syncSidebar()
@@ -52,7 +56,22 @@ extension AppController {
                 self?.store.resizeReplicaOverlay(change, forSession: id)
                 self?.reconcile(focusActive: false)
             },
+            sound: { [weak self] sound in
+                guard self?.store.session(withID: id) != nil,
+                      let name = sound.name ?? linuxSettingsStore().load().blockedStatusSoundName, !name.isEmpty else { return }
+                StatusSoundPlayer.shared.play(name)
+            },
             layout: { [weak self] layout in self?.applyRemoteLayout(layout, forSession: id) },
+            pageRequest: { [weak self] page in
+                guard let self else { return "session closed" }
+                return self.showReplicaPage(page, forSession: id)
+            },
+            pageClose: { [weak self] change in
+                self?.store.closeReplicaPage(change.page, forSession: id)
+                self?.reconcile(focusActive: false)
+            },
+            pageCommand: { [weak self] command in self?.applyReplicaPageCommand(command, forSession: id) },
+            respawns: { [weak self] counts, seed in self?.applyRemoteRespawns(counts, seed: seed, forSession: id) },
             warn: { reason in
                 LinuxStructuredLogger(category: "RemotePresentation")
                     .notice("presentation stream for \(id): \(reason)")
@@ -89,7 +108,8 @@ extension AppController {
         let spec = HudSpec(message: hud.spec.message, detail: hud.spec.detail, spinner: hud.spec.spinner,
                            backgroundColor: hud.spec.backgroundColor, textColor: hud.spec.textColor,
                            sizePercent: hud.spec.sizePercent, position: hud.spec.position,
-                           hideAfter: hud.remaining, markdown: hud.spec.markdown, fontSize: hud.spec.fontSize)
+                           hideAfter: hud.remaining, markdown: hud.spec.markdown, fontSize: hud.spec.fontSize,
+                           sticky: hud.spec.sticky, frame: hud.spec.frame)
         let pane = store.localPane(hud.pane, in: session).flatMap { session.rendersPane($0) ? $0 : nil }
         let placement = ControlHudPlacement(pane: pane)
         let bridged = session.hudActive && session.remotePresentation?.hudBridged == true

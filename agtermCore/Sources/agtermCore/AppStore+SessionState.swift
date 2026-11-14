@@ -10,6 +10,7 @@ extension AppStore {
     public func setFlag(_ on: Bool, forSession id: UUID) {
         guard let session = session(withID: id), session.flagged != on else { return }
         session.flagged = on
+        if on { appendFlaggedArrivals() } else { dropFromFlaggedOrder([id]) }
         pruneSidebarSelection()
         reselectIfSelectionHidden()
         save()
@@ -30,6 +31,19 @@ extension AppStore {
         return true
     }
 
+    /// setInfo sets or clears a session's local sidebar info line. Runtime-only, so nothing is saved. Returns whether
+    /// the local value CHANGED, while `tree.changed` fires only when the effective line did; a clear goes through
+    /// `Session.discardInfo`, which cancels the app's expiry timer.
+    @discardableResult
+    public func setInfo(_ info: SessionInfo?, forSession id: UUID) -> Bool {
+        guard let session = session(withID: id), session.info != info else { return false }
+        let previous = session.effectiveInfo
+        if let info { session.info = info } else { session.discardInfo() }
+        presentationHub?.publish(.info(info.map(Self.presentationInfo)), session: id)
+        if previous != session.effectiveInfo { scheduleTreeChanged() }
+        return true
+    }
+
     /// Sets (or clears) multiple sessions' flags in one save. Unknown ids are ignored.
     public func setFlag(_ on: Bool, forSessions ids: [UUID]) {
         let targetIDs = Set(ids)
@@ -42,10 +56,26 @@ extension AppStore {
             }
         }
         if changed {
+            if on { appendFlaggedArrivals() } else { dropFromFlaggedOrder(targetIDs) }
             pruneSidebarSelection()
             reselectIfSelectionHidden() // the batch can unflag the active session too
             save()
         }
+    }
+
+    /// Whether every session of the workspace is flagged; false for an empty or unknown workspace. The one
+    /// predicate behind the row menu's Flag All/Unflag All label and `workspace.flag toggle`.
+    public func allSessionsFlagged(inWorkspace id: UUID) -> Bool {
+        guard let workspace = workspaces.first(where: { $0.id == id }), !workspace.sessions.isEmpty else { return false }
+        return workspace.sessions.allSatisfy(\.flagged)
+    }
+
+    /// Applies one `workspace.flag` mode to EVERY session of the workspace, including ones the flagged view
+    /// hides. `toggle` unflags all only when all are flagged, otherwise flags all, so a mixed workspace
+    /// converges instead of inverting per session.
+    public func applyWorkspaceFlag(_ mode: ControlToggleMode, to id: UUID) {
+        guard let workspace = workspaces.first(where: { $0.id == id }) else { return }
+        setFlag(mode.desiredValue(current: allSessionsFlagged(inWorkspace: id)), forSessions: workspace.sessions.map(\.id))
     }
 
     /// setBackgroundWatermark writes the session default when `pane` is nil, leaving pane overrides in
@@ -78,6 +108,8 @@ extension AppStore {
     /// `session.flag clear` control mode. No `reselectIfSelectionHidden`, unlike the `setFlag` mutators:
     /// clearing EVERY flag leaves the list empty, so there is nowhere to move — a partial clear would need it.
     public func clearFlags() {
+        // parked pending-close ids go too, so an undo after the clear appends
+        if !flaggedOrder.isEmpty { flaggedOrder = [] }
         var changed = false
         for workspace in workspaces {
             for session in workspace.sessions where session.flagged {

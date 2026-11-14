@@ -9,8 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private static let logger = Logger(subsystem: "com.umputun.agterm", category: "AppDelegate")
 
-    // Leaves 150 ms after the refresh's 350 ms worst case for the per-pane kernel reads.
-    private static let exitCaptureBudget: Duration = .milliseconds(500)
+    // leaves 150 ms after the listing's 550 ms worst case for the per-pane kernel reads
+    private static let exitCaptureBudget: Duration = .milliseconds(700)
 
     /// App-global window library, set on scene appear; terminate flushes every window's state.
     var library: WindowLibrary?
@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if !agtermApp.isHostedUnitTest {
             NSApp.activate()
         }
-        // libghostty is already booted: `SettingsModel.init` touches `GhosttyApp.shared` during App.init,
+        // libghostty is already booted: `restoredRuntime` touches `GhosttyApp.shared` during App.init,
         // before NSApp exists. This keeps the dependency explicit ahead of the re-side below.
         _ = GhosttyApp.shared
         // then re-side the config to the launch appearance, while NSApp exists and no scene has mounted —
@@ -398,6 +398,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         actions?.cancelAllPendingModals()
         controlServer?.stop()
         customCommandRunner?.stop()
+        TerminalInputSource.shared.stop()
         // clear the OS-level Dock badge — it outlives the process while unseenCount is ephemeral, so a quit
         // with unseen > 0 pins a stale count (the willClose refresh() can't: isTerminating no-ops closeWindow).
         DockBadgeController.shared.clear()

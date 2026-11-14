@@ -305,7 +305,7 @@ struct GhosttyGeneratedConfigStorageTests {
                     }
                     return true
                 }
-                runtime.read_clipboard_cb = { _, _, _ in false }
+                runtime.read_clipboard_cb = { _, _, _, _, _, _ in GHOSTTY_CLIPBOARD_READ_UNSUPPORTED }
                 runtime.confirm_read_clipboard_cb = { _, _, _, _ in }
                 runtime.write_clipboard_cb = { _, _, _, _, _ in }
                 runtime.close_surface_cb = { _, _ in }

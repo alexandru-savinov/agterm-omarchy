@@ -5,8 +5,8 @@ extension Session {
     /// surface, zoom target or exit status, so it never counts as `programOverlayActive`.
     public var htmlOverlayActive: Bool { overlayActive && htmlOverlay != nil }
 
-    /// coverOverlayActive is the input-exclusion question; terminal-surface questions ask
-    /// `programOverlayActive` instead.
+    /// coverOverlayActive says a program or page holds the session-wide slot, hidden or not; input exclusion
+    /// asks `coverOverlayVisible`, terminal-surface questions `programOverlayActive`.
     public var coverOverlayActive: Bool { programOverlayActive || htmlOverlayActive }
 
     public func paneOverlayIsHtml(_ pane: OverlayPane) -> Bool { paneOverlay(pane)?.html != nil }
@@ -21,23 +21,24 @@ extension Session {
     /// session-wide page covers both split panes and a shown scratch, a pane page only its own pane.
     public func htmlHidesTerminal(_ pane: StatusPane?) -> Bool {
         switch pane {
-        case .scratch: return htmlOverlayActive && scratchActive
-        case nil, .left: return htmlOverlayActive || paneOverlayIsHtml(.left)
-        case .right: return htmlOverlayActive || paneOverlayIsHtml(.right)
+        case .scratch: return htmlOverlayVisible && scratchActive
+        case nil, .left: return htmlOverlayVisible || (paneOverlayVisible(.left) && paneOverlayIsHtml(.left))
+        case .right: return htmlOverlayVisible || (paneOverlayVisible(.right) && paneOverlayIsHtml(.right))
         }
     }
 
     /// topmostHtmlOverlay is the page that takes the keyboard when focus returns to this session, in the
     /// order `topmostSurface` resolves covers; nil when a terminal is on top.
     public var topmostHtmlOverlay: HtmlOverlay? {
-        if htmlOverlayActive { return htmlOverlay }
-        if programOverlayActive || scratchActive { return nil }
+        if htmlOverlayVisible { return htmlOverlay }
+        if programOverlayVisible || scratchActive { return nil }
         return focusedOverlayPane.flatMap { paneOverlay($0)?.html }
     }
 
     /// teardownOverlaySlot discards the session-wide occupant where the whole session goes away; a page has
     /// no surface, so tearing down `overlaySurface` alone would leave it running.
     public func teardownOverlaySlot() {
+        forgetSessionCoverHolds()
         overlaySurface?.teardown()
         HtmlOverlayReleases.shared.release(htmlOverlay)
         htmlOverlay = nil
