@@ -102,6 +102,19 @@ private struct DiagnosticWrapperFixture {
         exit "$AGTERM_FAKE_SSH_STATUS"
         """.write(to: ssh, atomically: false, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ssh.path)
+        // Explicit disposable writer double exercises the fixed argv/stdin boundary without adding an
+        // interpreter dependency to shared-core tests. The Linux file-only suite tests the real writer.
+        let writer = root.appendingPathComponent("writer-double")
+        try """
+        #!/bin/sh
+        [ "$1" = -I ] && [ "$2" = -S ] || exit 81
+        shift 3
+        [ "$1" = --append-wrapper357 ] || exit 82
+        IFS= read -r unexpected && exit 83
+        printf 'DIAG357 wrapper event=%s incarnation=%s pane=%s nonceTag=%s pid=%s status=%s\\n' \\
+            "$8" "$4" "$5" "$6" "$7" "$9" >>"$2/$4.log"
+        """.write(to: writer, atomically: false, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: writer.path)
     }
 
     func cleanUp() { try? FileManager.default.removeItem(at: root) }
@@ -120,7 +133,10 @@ private struct DiagnosticWrapperFixture {
             "PATH": root.path + ":/usr/bin:/bin", "AGTERM_FAKE_SSH_STATUS": String(status),
             "AGTERM_DIAG357": enabled ? "1" : "0", "AGTERM_DIAG357_DIR": root.path,
             "AGTERM_DIAG357_INCARNATION": incarnation.uuidString, "AGTERM_PANE_ID": pane.uuidString,
-            "AGTERM_DIAG357_NONCE_TAG": String(repeating: "a", count: 64)
+            "AGTERM_DIAG357_NONCE_TAG": String(repeating: "a", count: 64),
+            "AGTERM_DIAG357_INTERPRETER": root.appendingPathComponent("writer-double").path,
+            "AGTERM_DIAG357_WRITER": root.appendingPathComponent("unused-module-double").path,
+            "AGTERM_DIAG357_IDENTITY": "1:2:3:4"
         ]
         process.standardInput = input
         process.standardOutput = output

@@ -142,8 +142,9 @@ public enum RemoteSession {
         return CommandRestore.shellQuotedLine(["/usr/bin/env", "/bin/sh", "-c", script])
     }
 
-    /// The host supplies a precreated private sink and opaque metadata; stderr here is also the pane's PTY.
-    /// Linux's fixture records process start identities separately. This template stays portable and host-free.
+    /// The host supplies an explicit isolated writer and pinned sink identities. The default-off path launches
+    /// nothing; seven opt-in synchronous observations add overhead but no timer or reconnect scheduling change.
+    /// Stderr here is also the pane's PTY. The writer receives no terminal input and refuses silently.
     static let attachDiagnosticShell = #"""
     diag357() {
         [ "${AGTERM_DIAG357:-}" = 1 ] || return 0
@@ -155,11 +156,13 @@ public enum RemoteSession {
         case "$AGTERM_PANE_ID" in *[!0-9A-Fa-f-]*) return 0 ;; esac
         [ "${#AGTERM_DIAG357_NONCE_TAG}" -eq 64 ] || return 0
         case "$AGTERM_DIAG357_NONCE_TAG" in *[!0-9a-f]*) return 0 ;; esac
-        [ -n "${AGTERM_DIAG357_DIR:-}" ] || return 0
-        diag357_file="$AGTERM_DIAG357_DIR/$AGTERM_DIAG357_INCARNATION.log"
-        [ -f "$diag357_file" ] && [ ! -L "$diag357_file" ] && [ -O "$diag357_file" ] || return 0
-        printf 'DIAG357 wrapper event=%s incarnation=%s pane=%s nonceTag=%s pid=%s status=%s\n' \
-            "$1" "$AGTERM_DIAG357_INCARNATION" "$AGTERM_PANE_ID" "$AGTERM_DIAG357_NONCE_TAG" "$$" "$2" >>"$diag357_file"
+        case "${AGTERM_DIAG357_DIR:-}" in /*) ;; *) return 0 ;; esac
+        case "${AGTERM_DIAG357_INTERPRETER:-}" in /*) ;; *) return 0 ;; esac
+        case "${AGTERM_DIAG357_WRITER:-}" in /*) ;; *) return 0 ;; esac
+        case "${AGTERM_DIAG357_IDENTITY:-}" in ''|*[!0-9:]*) return 0 ;; esac
+        "$AGTERM_DIAG357_INTERPRETER" -I -S "$AGTERM_DIAG357_WRITER" --append-wrapper357 \
+            "$AGTERM_DIAG357_DIR" "$AGTERM_DIAG357_IDENTITY" "$AGTERM_DIAG357_INCARNATION" \
+            "$AGTERM_PANE_ID" "$AGTERM_DIAG357_NONCE_TAG" "$$" "$1" "$2" </dev/null >/dev/null 2>&1
         return 0
     } 2>/dev/null
     """#

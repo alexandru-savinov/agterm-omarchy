@@ -39,17 +39,23 @@ struct LinuxReconnectDiagnosticsTests {
         }
         let sink = try #require(LinuxReconnectDiagnosticSink(root: root.path))
         let incarnation = UUID(), name = incarnation.uuidString + ".log"
-        #expect(sink.createLog(incarnation: incarnation))
+        let identity = try #require(sink.createLog(incarnation: incarnation))
         let file = root.appendingPathComponent(name)
         let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
         #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+        let directoryAttributes = try FileManager.default.attributesOfItem(atPath: root.path)
+        let expected = try [directoryAttributes[.systemNumber], directoryAttributes[.systemFileNumber],
+                            attributes[.systemNumber], attributes[.systemFileNumber]].map {
+            String(try #require($0 as? NSNumber).uint64Value)
+        }.joined(separator: ":")
+        #expect(identity == expected)
         try "preserved".write(to: file, atomically: false, encoding: .utf8)
-        #expect(!sink.createLog(incarnation: incarnation))
+        #expect(sink.createLog(incarnation: incarnation) == nil)
         #expect(try String(contentsOf: file, encoding: .utf8) == "preserved")
         try FileManager.default.moveItem(at: root, to: moved)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false,
                                                 attributes: [.posixPermissions: 0o700])
-        #expect(!sink.createLog(incarnation: UUID()))
+        #expect(sink.createLog(incarnation: UUID()) == nil)
         #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
     }
 
@@ -68,8 +74,25 @@ struct LinuxReconnectDiagnosticsTests {
         let incarnation = UUID()
         try FileManager.default.createSymbolicLink(at: root.appendingPathComponent(incarnation.uuidString + ".log"),
                                                    withDestinationURL: target)
-        #expect(!sink.createLog(incarnation: incarnation))
+        #expect(sink.createLog(incarnation: incarnation) == nil)
         #expect(try String(contentsOf: target, encoding: .utf8) == "preserved")
+    }
+
+    @Test func writerRequiresExplicitReadableModuleAndExecutableInterpreter() throws {
+        let root = try directory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let interpreter = root.appendingPathComponent("fixture-interpreter")
+        let module = root.appendingPathComponent("fixture-module")
+        try "unused fixture".write(to: interpreter, atomically: false, encoding: .utf8)
+        try "unused fixture".write(to: module, atomically: false, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: interpreter.path)
+        let values = ["AGTERM_DIAG357_INTERPRETER": interpreter.path, "AGTERM_DIAG357_WRITER": module.path]
+        #expect(LinuxReconnectDiagnostics.configuredWriter([:]) == nil)
+        #expect(LinuxReconnectDiagnostics.configuredWriter(values)?.module == module.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o400], ofItemAtPath: interpreter.path)
+        #expect(LinuxReconnectDiagnostics.configuredWriter(values) == nil)
+        #expect(LinuxReconnectDiagnostics.configuredWriter([
+            "AGTERM_DIAG357_INTERPRETER": "/bin/sh", "AGTERM_DIAG357_WRITER": root.path]) == nil)
     }
 
     private func directory() throws -> URL {

@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """File/fake-only controls: python3 -B agterm-linux/tests/test_reconnect_diagnostics_v0357.py."""
 
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
 from unittest.mock import patch
 
 from atspi_reconnect_v0351 import (
-    ReconnectDiagnostics, attachment_correlation, process_status, wrapper_events,
+    ReconnectDiagnostics, append_wrapper_metadata, attachment_correlation, process_status, wrapper_events,
+    wrapper_writer_main,
 )
 
 PANE = "11111111-1111-1111-1111-111111111111"
@@ -179,12 +183,20 @@ class ReconnectMetadataTests(unittest.TestCase):
             "PATH": "/usr/bin:/bin", "AGTERM_DIAG357": "1", "AGTERM_DIAG357_DIR": str(self.root),
             "AGTERM_DIAG357_INCARNATION": INCARNATION, "AGTERM_PANE_ID": PANE,
             "AGTERM_DIAG357_NONCE_TAG": NONCE,
+            "AGTERM_DIAG357_INTERPRETER": sys.executable,
+            "AGTERM_DIAG357_WRITER": str(Path(__file__).with_name("atspi_reconnect_v0351.py").resolve()),
+            "AGTERM_DIAG357_IDENTITY": ":".join(str(value) for value in (
+                self.root.stat().st_dev, self.root.stat().st_ino, self.log.stat().st_dev, self.log.stat().st_ino)),
         }
         variants = [
             ({}, True), ({"AGTERM_DIAG357": "0"}, False),
             ({"AGTERM_DIAG357_INCARNATION": "../private"}, False),
             ({"AGTERM_PANE_ID": "private-title\ninjected"}, False),
             ({"AGTERM_DIAG357_NONCE_TAG": "private-nonce"}, False),
+            ({"AGTERM_DIAG357_INTERPRETER": "/missing/fixture-interpreter"}, False),
+            ({"AGTERM_DIAG357_WRITER": "/missing/fixture-writer"}, False),
+            ({"AGTERM_DIAG357_IDENTITY": "bad"}, False),
+            ({"AGTERM_DIAG357_IDENTITY": "1:2:3:4"}, False),
         ]
         for extra, enabled in variants:
             with self.subTest(extra=extra):
@@ -199,6 +211,229 @@ class ReconnectMetadataTests(unittest.TestCase):
                 if enabled:
                     self.assertEqual(records[0]["event"], "ssh-return")
                     self.assertEqual(records[0]["status"], "255")
+
+
+class WriterTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="diag357-writer-control-")
+        self.addCleanup(self.temporary.cleanup)
+        self.top = Path(self.temporary.name)
+        self.root = self.top / "private"
+        self.root.mkdir(mode=0o700)
+        self.log = self.root / (INCARNATION + ".log")
+        self.log.write_bytes(b"sentinel\n")
+        self.log.chmod(0o600)
+        # Keep the original identity live throughout replacement fixtures.
+        self.capability = os.open(self.log, os.O_RDONLY)
+        self.addCleanup(os.close, self.capability)
+        d, f = self.root.stat(), self.log.stat()
+        self.identity = (d.st_dev, d.st_ino, f.st_dev, f.st_ino)
+        self.call = dict(directory=str(self.root), incarnation=INCARNATION, pane=PANE, nonce_tag="a" * 64,
+                         pid="123", event="ssh-return", status="255", identity=self.identity)
+
+    def append(self, **changes):
+        output, error = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
+            result = append_wrapper_metadata(**dict(self.call, **changes))
+        self.assertEqual(output.getvalue(), "")
+        self.assertEqual(error.getvalue(), "")
+        return result
+
+    def original(self):
+        os.lseek(self.capability, 0, os.SEEK_SET)
+        return os.read(self.capability, 65537)
+
+    def unchanged(self):
+        self.assertEqual(self.original(), b"sentinel\n")
+
+    def test_positive_one_bounded_descriptor_write(self):
+        real_write = os.write
+        writes = []
+        def write(fd, data):
+            info = os.fstat(fd)
+            writes.append(((info.st_dev, info.st_ino), data))
+            return real_write(fd, data)
+        with patch("atspi_reconnect_v0351.os.write", side_effect=write):
+            self.assertTrue(self.append())
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(writes[0][0], self.identity[2:])
+        self.assertLessEqual(len(writes[0][1]), 512)
+        self.assertIn(b"pid=123 status=255", self.log.read_bytes())
+
+    def test_file_mode_refused(self):
+        self.log.chmod(0o644)
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_directory_mode_refused(self):
+        self.root.chmod(0o755)
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_special_directory_mode_refused(self):
+        self.root.chmod(0o1700)
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_symlink_directory_refused(self):
+        alias = self.top / "alias"
+        alias.symlink_to(self.root)
+        self.assertFalse(self.append(directory=str(alias))); self.unchanged()
+
+    def test_hardlink_unrelated_owned_fixture_refused(self):
+        target = self.root / "unrelated"
+        target.write_bytes(b"private unrelated sentinel\n"); target.chmod(0o600)
+        self.log.unlink(); os.link(target, self.log)
+        self.assertFalse(self.append()); self.unchanged()
+        self.assertEqual(target.read_bytes(), b"private unrelated sentinel\n")
+
+    def test_same_inode_additional_link_refused(self):
+        os.link(self.log, self.root / "alias")
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_regular_file_replacement_refused(self):
+        self.log.unlink(); self.log.write_bytes(b"replacement\n"); self.log.chmod(0o600)
+        self.assertFalse(self.append()); self.unchanged()
+        self.assertEqual(self.log.read_bytes(), b"replacement\n")
+
+    def test_directory_replacement_refused(self):
+        self.root.rename(self.top / "old-root")
+        self.root.mkdir(mode=0o700)
+        self.log.write_bytes(b"replacement\n"); self.log.chmod(0o600)
+        self.assertFalse(self.append()); self.unchanged()
+        self.assertEqual(self.log.read_bytes(), b"replacement\n")
+
+    def test_file_symlink_refused(self):
+        target = self.root / "target"
+        self.log.rename(target); self.log.symlink_to(target)
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_fifo_refused_without_waiting(self):
+        self.log.unlink(); os.mkfifo(self.log, 0o600)
+        self.assertFalse(self.append()); self.unchanged()
+
+    def test_missing_file_not_created(self):
+        self.log.unlink()
+        self.assertFalse(self.append()); self.assertFalse(self.log.exists()); self.unchanged()
+
+    def test_file_replaced_at_open_refused(self):
+        real_open = os.open
+        def opening(path, flags, *args, **kwargs):
+            if path == INCARNATION + ".log":
+                self.log.rename(self.root / "old-log")
+                self.log.write_bytes(b"replacement\n"); self.log.chmod(0o600)
+            return real_open(path, flags, *args, **kwargs)
+        with patch("atspi_reconnect_v0351.os.open", side_effect=opening):
+            self.assertFalse(self.append())
+        self.unchanged(); self.assertEqual(self.log.read_bytes(), b"replacement\n")
+
+    def test_file_replaced_after_open_refused(self):
+        real_open = os.open
+        def opening(path, flags, *args, **kwargs):
+            fd = real_open(path, flags, *args, **kwargs)
+            if path == INCARNATION + ".log":
+                self.log.rename(self.root / "old-log")
+                self.log.write_bytes(b"replacement\n"); self.log.chmod(0o600)
+            return fd
+        with patch("atspi_reconnect_v0351.os.open", side_effect=opening):
+            self.assertFalse(self.append())
+        self.unchanged(); self.assertEqual(self.log.read_bytes(), b"replacement\n")
+
+    def test_mode_changed_after_name_check_refused(self):
+        real_stat = os.stat
+        def checking(path, *args, **kwargs):
+            info = real_stat(path, *args, **kwargs)
+            if path == INCARNATION + ".log":
+                self.log.chmod(0o644)
+            return info
+        with patch("atspi_reconnect_v0351.os.stat", side_effect=checking):
+            self.assertFalse(self.append())
+        self.unchanged()
+
+    def test_link_added_after_name_check_refused(self):
+        real_stat = os.stat
+        def checking(path, *args, **kwargs):
+            info = real_stat(path, *args, **kwargs)
+            if path == INCARNATION + ".log":
+                os.link(self.log, self.root / "alias")
+            return info
+        with patch("atspi_reconnect_v0351.os.stat", side_effect=checking):
+            self.assertFalse(self.append())
+        self.unchanged()
+
+    def test_directory_replaced_after_file_open_refused(self):
+        real_open = os.open
+        def opening(path, flags, *args, **kwargs):
+            fd = real_open(path, flags, *args, **kwargs)
+            if path == INCARNATION + ".log":
+                self.root.rename(self.top / "old-root")
+                self.root.mkdir(mode=0o700)
+                self.log.write_bytes(b"replacement\n"); self.log.chmod(0o600)
+            return fd
+        with patch("atspi_reconnect_v0351.os.open", side_effect=opening):
+            self.assertFalse(self.append())
+        self.unchanged(); self.assertEqual(self.log.read_bytes(), b"replacement\n")
+
+    def test_directory_mode_changed_at_file_open_refused(self):
+        real_open = os.open
+        def opening(path, flags, *args, **kwargs):
+            if path == INCARNATION + ".log":
+                self.root.chmod(0o755)
+            return real_open(path, flags, *args, **kwargs)
+        with patch("atspi_reconnect_v0351.os.open", side_effect=opening):
+            self.assertFalse(self.append())
+        self.unchanged()
+
+    def test_full_file_refused_before_write(self):
+        self.log.write_bytes(b"x" * 65536)
+        with patch("atspi_reconnect_v0351.os.write", side_effect=AssertionError("unexpected write")):
+            self.assertFalse(self.append())
+        self.assertEqual(self.log.read_bytes(), b"x" * 65536)
+
+    def test_invalid_schema_rejected_before_open(self):
+        variants = [dict(event="unknown"), dict(status="private title"), dict(pid="../private"),
+                    dict(nonce_tag="private"), dict(pane="private"), dict(incarnation="../private"),
+                    dict(identity=(1,2,3)), dict(identity=(True,2,3,4)), dict(directory="relative")]
+        for extra in variants:
+            with self.subTest(extra=extra), patch("atspi_reconnect_v0351.os.open", side_effect=AssertionError("unexpected open")):
+                self.assertFalse(self.append(**extra))
+        self.unchanged()
+
+    def test_interrupted_or_failed_write_does_not_retry(self):
+        for failure in (InterruptedError(), OSError("disposable write failure")):
+            with self.subTest(failure=type(failure).__name__), patch(
+                    "atspi_reconnect_v0351.os.write", side_effect=failure) as write:
+                self.assertFalse(self.append())
+                self.assertEqual(write.call_count, 1)
+            self.unchanged()
+
+    def test_failed_open_does_not_create_or_repair(self):
+        with patch("atspi_reconnect_v0351.os.open", side_effect=PermissionError()) as opening:
+            self.assertFalse(self.append())
+            self.assertEqual(opening.call_count, 1)
+        self.unchanged()
+        self.assertEqual(self.log.stat().st_mode & 0o7777, 0o600)
+
+    def test_short_write_is_reported_without_retry_or_rollback(self):
+        with patch("atspi_reconnect_v0351.os.write", return_value=1) as write:
+            self.assertFalse(self.append())
+            self.assertEqual(write.call_count, 1)
+        self.unchanged()
+
+    def test_same_owner_mode_change_at_write_is_detected_without_reopening(self):
+        real_write = os.write
+        def changed(fd, data):
+            self.log.chmod(0o644)
+            return real_write(fd, data)
+        # No userspace check can make a concurrent chmod+write atomic. The data is still written only
+        # to the expected inode, and the result reports refusal; no unsafe rollback is attempted.
+        with patch("atspi_reconnect_v0351.os.write", side_effect=changed):
+            self.assertFalse(self.append())
+        self.assertIn(b"event=ssh-return", self.original())
+
+    def test_loader_refuses_wrong_arity_or_unbounded_identity_without_open(self):
+        for arguments in ([], ["bad"] * 9, ["--append-wrapper357", str(self.root), "9" * 80,
+                          INCARNATION, PANE, "a" * 64, "123", "ssh-return", "255"]):
+            with self.subTest(arguments=arguments), patch(
+                    "atspi_reconnect_v0351.os.open", side_effect=AssertionError("unexpected open")):
+                self.assertIsNone(wrapper_writer_main(arguments))
 
 
 if __name__ == "__main__":

@@ -75,6 +75,65 @@ def wrapper_events(directory, incarnation):
         return {"events": [], "error": type(error).__name__}
 
 
+def append_wrapper_metadata(directory, incarnation, pane, nonce_tag, pid, event, status, identity):
+    """One silent bounded append to the descriptor validated against native creation pins."""
+    try:
+        incarnation = str(uuid.UUID(incarnation)).upper()
+        pane = str(uuid.UUID(pane)).upper()
+        if not os.path.isabs(directory) or not re.fullmatch(r"[0-9a-f]{64}", nonce_tag):
+            return False
+        if not re.fullmatch(r"[1-9][0-9]*", str(pid)):
+            return False
+        allowed = {"wrapper-start", "ssh-return", "osc-before", "osc-after",
+                   "hold-before", "hold-return", "exit-intent"}
+        before = event in {"wrapper-start", "osc-before", "hold-before"}
+        if event not in allowed or (before and status != "na") or (
+                not before and not (status.isascii() and status.isdigit() and 0 <= int(status) <= 255)):
+            return False
+        if len(identity) != 4 or any(type(value) is not int or not 0 <= value < 2**64 for value in identity):
+            return False
+        root_pin, file_pin = tuple(identity[:2]), tuple(identity[2:])
+        def valid_root(info):
+            return (stat.S_ISDIR(info.st_mode) and info.st_uid == os.geteuid()
+                    and stat.S_IMODE(info.st_mode) == 0o700 and (info.st_dev, info.st_ino) == root_pin)
+        def valid_file(info, maximum=65536):
+            return (stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid()
+                    and stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink == 1
+                    and (info.st_dev, info.st_ino) == file_pin and info.st_size <= maximum)
+        line = (f"DIAG357 wrapper event={event} incarnation={incarnation} pane={pane} "
+                f"nonceTag={nonce_tag} pid={pid} status={status}\n").encode("ascii")
+        if len(line) > 512:
+            return False
+        root_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            if not valid_root(os.fstat(root_fd)):
+                return False
+            name = incarnation + ".log"
+            descriptor = os.open(name, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+                                 dir_fd=root_fd)
+            try:
+                if not valid_file(os.fstat(descriptor), 65536 - len(line)):
+                    return False
+                # Validate both names and both held descriptors at the write boundary.
+                if (not valid_root(os.stat(directory, follow_symlinks=False))
+                        or not valid_file(os.stat(name, dir_fd=root_fd, follow_symlinks=False))
+                        or not valid_root(os.fstat(root_fd)) or not valid_file(os.fstat(descriptor))):
+                    return False
+                written = os.write(descriptor, line)
+                # A concurrent same-owner chmod/link can occur even after the last check. Detect it;
+                # never roll back/truncate or reopen a pathname. No syscall makes metadata+write atomic.
+                return (written == len(line) and valid_root(os.fstat(root_fd))
+                        and valid_file(os.fstat(descriptor))
+                        and valid_root(os.stat(directory, follow_symlinks=False))
+                        and valid_file(os.stat(name, dir_fd=root_fd, follow_symlinks=False)))
+            finally:
+                os.close(descriptor)
+        finally:
+            os.close(root_fd)
+    except (OSError, ValueError, TypeError, UnicodeError):
+        return False
+
+
 def attachment_correlation(before, environment, panes, directory, proc_root="/proc"):
     """Only correlate a selected fixture SSH to the wrapper that recorded its matching opaque tags."""
     rejected = {"pid": before["pid"], "matched": False}
@@ -212,3 +271,23 @@ def verify_pane_reconnect(viewer_session, ssh, ssh_down, origin_state):
         print("RECONNECT_DIAGNOSTICS " + json.dumps(diagnostics.report("complete", ssh_down), sort_keys=True),
               flush=True)
     print("OK: SSH-255 pane loss published retry reason/count and reattached with stable pane identities")
+
+
+def wrapper_writer_main(arguments):
+    """Explicit isolated loader entry; no process reads, child launches, repair or retries."""
+    if len(arguments) != 9 or arguments[0] != "--append-wrapper357":
+        return
+    _, directory, identity, incarnation, pane, nonce, pid, event, status = arguments
+    try:
+        parts = identity.split(":")
+        if len(parts) != 4 or any(not re.fullmatch(r"[0-9]{1,20}", value) for value in parts):
+            return
+        append_wrapper_metadata(directory, incarnation, pane, nonce, pid, event, status,
+                                tuple(int(value) for value in parts))
+    except (OSError, ValueError, TypeError):
+        return
+
+
+if __name__ == "__main__":
+    import sys
+    wrapper_writer_main(sys.argv[1:])

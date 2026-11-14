@@ -13,6 +13,7 @@ import Darwin
 @MainActor
 enum LinuxReconnectDiagnostics {
     private static let sink = configuredSink(ProcessInfo.processInfo.environment)
+    private static let writer = configuredWriter(ProcessInfo.processInfo.environment)
     private static var observingBook = false
     private static var count = 0
     static var enabled: Bool { sink != nil }
@@ -24,25 +25,42 @@ enum LinuxReconnectDiagnostics {
 
     static func incarnation() -> UUID? { enabled ? UUID() : nil }
 
+    /// The operator admits the exact interpreter/module/loader before enabling observation. Never use PATH.
+    static func configuredWriter(_ environment: [String: String]) -> (interpreter: String, module: String)? {
+        guard let interpreter = environment["AGTERM_DIAG357_INTERPRETER"],
+              let module = environment["AGTERM_DIAG357_WRITER"],
+              [interpreter, module].allSatisfy({ $0.hasPrefix("/") && !$0.utf8.contains(0) }),
+              [interpreter, module].allSatisfy({
+                  (try? FileManager.default.attributesOfItem(atPath: $0)[.type] as? FileAttributeType) == .typeRegular
+              }),
+              FileManager.default.isExecutableFile(atPath: interpreter),
+              FileManager.default.isReadableFile(atPath: module) else { return nil }
+        return (interpreter, module)
+    }
+
     static func childEnvironment(_ base: [String: String], incarnation: UUID?) -> [String: String] {
         guard let sink else { return base }
         installBookObserver()
         var result = base
-        for key in ["AGTERM_DIAG357_INCARNATION", "AGTERM_DIAG357_NONCE_TAG", "AGTERM_DIAG357_DIR"] { result[key] = nil }
+        for key in ["AGTERM_DIAG357_INCARNATION", "AGTERM_DIAG357_NONCE_TAG", "AGTERM_DIAG357_DIR",
+                    "AGTERM_DIAG357_IDENTITY", "AGTERM_DIAG357_INTERPRETER", "AGTERM_DIAG357_WRITER"] { result[key] = nil }
         result["AGTERM_DIAG357"] = "0"
         let pane = base["AGTERM_PANE_ID"].flatMap(UUID.init(uuidString:))
         let nonce = base[ZmxLeadAttachment.nonceVariable]
             ?? pane.flatMap { ZmxLeadBook.shared.states[$0]?.attachment.nonce }
-        guard let incarnation, let pane, let nonce else { return result }
+        guard let incarnation, let pane, let nonce, let writer else { return result }
         let tag = nonceTag(nonce)
-        let ready = tag != "none" && sink.createLog(incarnation: incarnation)
+        let identity = tag == "none" ? nil : sink.createLog(incarnation: incarnation)
         emit("surface-environment", pane: pane, incarnation: incarnation,
-             fields: ["nonceTag": tag, "wrapperSink": ready])
-        guard ready else { return result }
+             fields: ["nonceTag": tag, "wrapperSink": identity != nil])
+        guard let identity else { return result }
         result["AGTERM_DIAG357"] = "1"
         result["AGTERM_DIAG357_DIR"] = sink.root
         result["AGTERM_DIAG357_INCARNATION"] = incarnation.uuidString
         result["AGTERM_DIAG357_NONCE_TAG"] = tag
+        result["AGTERM_DIAG357_IDENTITY"] = identity
+        result["AGTERM_DIAG357_INTERPRETER"] = writer.interpreter
+        result["AGTERM_DIAG357_WRITER"] = writer.module
         return result
     }
 
@@ -143,16 +161,20 @@ final class LinuxReconnectDiagnosticSink {
 
     deinit { _ = close(descriptor) }
 
-    func createLog(incarnation: UUID) -> Bool {
-        guard ownsRoot else { return false }
+    func createLog(incarnation: UUID) -> String? {
+        guard ownsRoot else { return nil }
         let name = incarnation.uuidString + ".log"
         let fd = name.withCString {
             openat(descriptor, $0, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, mode_t(0o600))
         }
-        guard fd >= 0 else { return false }
-        let privateMode = fchmod(fd, mode_t(0o600)) == 0
+        guard fd >= 0 else { return nil }
+        var info = stat()
+        let valid = fchmod(fd, mode_t(0o600)) == 0 && fstat(fd, &info) == 0
+            && info.st_uid == geteuid() && info.st_mode & mode_t(CGtk.S_IFMT) == mode_t(CGtk.S_IFREG)
+            && info.st_mode & 0o7777 == 0o600 && info.st_nlink == 1 && info.st_size == 0
         let closed = close(fd) == 0
-        return privateMode && closed && ownsRoot
+        guard valid, closed, ownsRoot else { return nil }
+        return "\(identity.st_dev):\(identity.st_ino):\(info.st_dev):\(info.st_ino)"
     }
 
     private var ownsRoot: Bool {
