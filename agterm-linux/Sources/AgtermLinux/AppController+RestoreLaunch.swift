@@ -1,10 +1,57 @@
 import agtermCore
 import Foundation
 
-struct LinuxLaunchSeed {
+struct LinuxLaunchSeed: Equatable {
     let command: String?
     let initialInput: String?
     let waitAfterCommand: Bool
+}
+
+/// The pure seed decisions behind a restored Linux pane, kept off the main actor so tests can pin them.
+///
+/// Linux policy: a restored command is PRE-FILLED at the prompt and waits for Enter; it never runs by itself.
+/// Every line typed here therefore ends without CR/LF, and `CommandRestore.shouldRestore` (captures) and
+/// `CommandRestore.restoreInput` (pins) refuse any control character, so nothing inside a line can submit it.
+/// The shared core keeps its newline-terminated input for macOS; the Linux target drops it here.
+enum LinuxRestoreSeed {
+    /// The captured foreground argv as the line pre-filled into a restored login shell, or nil when the launch is
+    /// not in rerun mode or `CommandRestore.shouldRestore` refuses it (denylisted, control character, invalid UTF-8).
+    static func restoreLine(_ argv: [String]?, restoreEnabled: Bool, denylist: Set<String>) -> String? {
+        guard restoreEnabled, let argv, CommandRestore.shouldRestore(argv: argv, denylist: denylist) else { return nil }
+        return CommandRestore.shellQuotedLine(argv)
+    }
+
+    /// The ordinary (non-zmx) seed for a restore plan, with the pinned line's trailing newline removed.
+    static func ordinarySeed(_ plan: CommandRestore.RestorePlan) -> LinuxLaunchSeed {
+        LinuxLaunchSeed(command: plan.command, initialInput: plan.initialInput.map(prefilled),
+                        waitAfterCommand: plan.waitAfterCommand)
+    }
+
+    /// A capture still preempts the durable command. Only a newly created daemon's shell queues it;
+    /// attaching to an existing daemon never sends restored bytes, even if the inventory was stale.
+    /// A fresh (not restored) session ends with its durable command as the pane command and may keep
+    /// the pane open after it exits (`waitAfterCommand`); a restored one only creates the daemon with it.
+    static func wrappedSeed(_ configuration: ZmxSupport.Configuration, replay: [String]?, durable: String?,
+                            denylist: Set<String>, daemonRunning: Bool?, endsWithCommand: Bool = false,
+                            waitAfterCommand: Bool = false) -> LinuxLaunchSeed {
+        guard let replay else {
+            return LinuxLaunchSeed(
+                command: ZmxSupport.attachCommand(configuration, replaying: nil,
+                                                  creationCommand: endsWithCommand ? nil : durable,
+                                                  paneCommand: endsWithCommand ? durable : nil,
+                                                  denylist: denylist),
+                initialInput: nil, waitAfterCommand: endsWithCommand && waitAfterCommand
+            )
+        }
+        let line = daemonRunning == false ? restoreLine(replay, restoreEnabled: true, denylist: denylist) : nil
+        let command = line.flatMap { LinuxZmxLaunch.prefillCommand(configuration, line: $0) }
+            ?? ZmxSupport.attachCommand(configuration, replaying: nil, denylist: denylist)
+        return LinuxLaunchSeed(command: command, initialInput: nil, waitAfterCommand: false)
+    }
+
+    private static func prefilled(_ input: String) -> String {
+        input.hasSuffix("\n") ? String(input.dropLast()) : input
+    }
 }
 
 struct LinuxPaneLaunchProvider {
@@ -81,13 +128,12 @@ extension AppController {
                             policy: LinuxLaunchSeedPolicy) -> LinuxLaunchSeed {
         switch disposition {
         case .wrapped(let configuration):
-            return LinuxLaunchSeed(
-                command: Self.wrappedAttachCommand(
-                    configuration, replay: session.takePendingForegroundCommand(pane: pane),
-                    durable: durableCommand(session: session, pane: pane), denylist: policy.denylist
-                ),
-                initialInput: nil,
-                waitAfterCommand: false
+            return LinuxRestoreSeed.wrappedSeed(
+                configuration, replay: session.takePendingForegroundCommand(pane: pane),
+                durable: durableCommand(session: session, pane: pane), denylist: policy.denylist,
+                daemonRunning: policy.runningNames.map { $0.contains(configuration.daemonName) },
+                endsWithCommand: !session.wasRestored,
+                waitAfterCommand: !session.wasRestored && requestedWait(session: session, pane: pane)
             )
         case .ordinary:
             let capture = session.takePendingForegroundCommand(pane: pane)
@@ -100,8 +146,7 @@ extension AppController {
                 restoreOverride: session.takePendingRestoreOverride(pane: pane),
                 requestedWait: requestedWait(session: session, pane: pane)
             ))
-            return LinuxLaunchSeed(command: plan.command, initialInput: plan.initialInput,
-                                   waitAfterCommand: plan.waitAfterCommand)
+            return LinuxRestoreSeed.ordinarySeed(plan)
         case .fallback:
             let plan = CommandRestore.restorePlan(.init(
                 wasRestored: session.wasRestored,
@@ -115,13 +160,6 @@ extension AppController {
             return LinuxLaunchSeed(command: plan.command, initialInput: plan.initialInput,
                                    waitAfterCommand: plan.waitAfterCommand)
         }
-    }
-
-    /// A captured argv, even a denylisted one, preempts the durable creation command after daemon loss.
-    nonisolated static func wrappedAttachCommand(_ configuration: ZmxSupport.Configuration, replay: [String]?,
-                                                 durable: String?, denylist: Set<String>) -> String {
-        ZmxSupport.attachCommand(configuration, replaying: replay,
-                                 creationCommand: replay == nil ? durable : nil, denylist: denylist)
     }
 
     private func shouldPace(session: Session, pane: StatusPane,
@@ -153,9 +191,7 @@ extension AppController {
     }
 
     private func restoreInput(_ argv: [String]?, policy: LinuxLaunchSeedPolicy) -> String? {
-        guard policy.restoreEnabled, let argv,
-              CommandRestore.shouldRestore(argv: argv, denylist: policy.denylist) else { return nil }
-        return CommandRestore.shellQuotedLine(argv) + "\n"
+        LinuxRestoreSeed.restoreLine(argv, restoreEnabled: policy.restoreEnabled, denylist: policy.denylist)
     }
 
     private func peekCapture(session: Session, pane: StatusPane) -> [String]? {
@@ -198,7 +234,7 @@ extension AppController {
                                waitAfterCommand: false)
     }
 
-    private func restoreDenylist() -> Set<String> {
+    func restoreDenylist() -> Set<String> {
         let path = ConfigPaths.restoreDenylistPath(configDirectory: configDirectory())
         return (try? String(contentsOf: path, encoding: .utf8)).map(CommandRestore.parseDenylist)
             ?? ["tmux", "screen", "zellij"]

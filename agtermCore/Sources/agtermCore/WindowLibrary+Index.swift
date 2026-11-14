@@ -38,11 +38,18 @@ extension WindowLibrary {
     }
 
     /// Reads `windows.json`; a missing/corrupt/version-mismatched file reads as nil, so the caller falls
-    /// through to recovery/migration/seeding.
+    /// through to recovery/migration/seeding. Recovery rewrites the index, so a corrupt or
+    /// version-mismatched file is moved aside first (`StateFileQuarantine`): the window names and open set
+    /// it held live nowhere else. An empty window list is valid and stays in place.
     func loadIndex() -> WindowsIndex? {
-        guard let data = try? Data(contentsOf: indexURL) else { return nil }
-        guard let index = try? JSONDecoder().decode(WindowsIndex.self, from: data) else { return nil }
-        guard index.version == WindowsIndex.currentVersion, !index.windows.isEmpty else { return nil }
+        let index = StateFileQuarantine.load(indexURL, supportedVersion: WindowsIndex.currentVersion) { data in
+            let index = try JSONDecoder().decode(WindowsIndex.self, from: data)
+            guard index.version == WindowsIndex.currentVersion else {
+                throw StateFileQuarantine.VersionMismatch(found: index.version)
+            }
+            return index
+        }
+        guard let index, !index.windows.isEmpty else { return nil }
         return index
     }
 }

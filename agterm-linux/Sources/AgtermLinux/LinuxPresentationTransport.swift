@@ -13,7 +13,7 @@ final class LinuxPresentationTransport: RemotePresentationTransport {
 
 @MainActor
 private final class LinuxPresentationLink: RemotePresentationLink {
-    private let process = Process()
+    private var process: LinuxChildProcess?
     private let input = Pipe()
     private let wake = Pipe()
     private let logger = LinuxStructuredLogger(category: "RemotePresentation")
@@ -33,20 +33,18 @@ private final class LinuxPresentationLink: RemotePresentationLink {
         self.onClose = onClose
         let output = Pipe()
         let errors = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = argv
-        process.environment = gdkEnvironment.restoringChildEnvironment(ProcessInfo.processInfo.environment)
-        process.standardInput = input
-        process.standardOutput = output
-        process.standardError = errors
         let writeFD = input.fileHandleForWriting.fileDescriptor
         _ = fcntl(writeFD, F_SETFL, fcntl(writeFD, F_GETFL) | O_NONBLOCK)
-        process.terminationHandler = { [weak self] finished in
-            let reason = "exit \(finished.terminationStatus)"
-            runOnMain { MainActor.assumeIsolated { self?.exited(reason) } }
-        }
         do {
-            try process.run()
+            process = try LinuxChildProcess(argv: argv,
+                environment: gdkEnvironment.restoringChildEnvironment(ProcessInfo.processInfo.environment),
+                input: input.fileHandleForReading.fileDescriptor, output: output.fileHandleForWriting.fileDescriptor,
+                errors: errors.fileHandleForWriting.fileDescriptor) { [weak self] status in
+                    runOnMain { MainActor.assumeIsolated { self?.exited("exit \(status)") } }
+                }
+            try? input.fileHandleForReading.close()
+            try? output.fileHandleForWriting.close()
+            try? errors.fileHandleForWriting.close()
         } catch {
             let reason = "could not run \(argv.first ?? "the bridge"): \(error.localizedDescription)"
             MainTimer.schedule(after: 0) { [weak self] in self?.finish(reason) }
@@ -133,7 +131,7 @@ private final class LinuxPresentationLink: RemotePresentationLink {
         guard !stopping else { return }
         stopping = true
         endReaders()
-        if process.isRunning { process.terminate() }
+        process?.terminate()
     }
 
     private func exited(_ reason: String) {

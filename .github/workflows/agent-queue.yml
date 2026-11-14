@@ -33,6 +33,8 @@ jobs:
           persist-credentials: false
       - name: Test queue interpretation
         run: python3 scripts/github/test_queue.py
+      - name: Test wave planning
+        run: python3 scripts/github/test_waves.py
       - name: Read tasks and named check-ins
         env:
           GITHUB_TOKEN: ${{ github.token }}

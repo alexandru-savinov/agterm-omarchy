@@ -13,6 +13,7 @@ struct LinuxControlDispatcher {
     let actions: AppController
 
     func dispatch(_ request: ControlRequest) -> ControlResponse? {
+        if let response = ControlDispatcher(actions: actions).dispatchSynchronous(request) { return response }
         if let response = dispatchNewParityCommand(request) { return response }
         switch request.cmd {
         case .tree:
@@ -122,6 +123,9 @@ struct LinuxControlDispatcher {
             }) else {
                 return ControlResponse(ok: false, error: "item text must not contain control characters")
             }
+            if let error = items.compactMap(linuxPickItemStatusError).first {
+                return ControlResponse(ok: false, error: error)
+            }
             let selection = request.args?.selection
             if let selection, !items.contains(where: { $0.id == selection }) {
                 return ControlResponse(ok: false, error: "pick select must name an item id")
@@ -176,6 +180,11 @@ struct LinuxControlDispatcher {
             if args?.wait == true, args?.command == nil {
                 return ControlResponse(ok: false, error: "--wait requires --command")
             }
+            let tint: SidebarTint?
+            switch Self.creationTint(args) {
+            case .failure(let rejection): return ControlResponse(ok: false, error: rejection.message)
+            case .success(let value): tint = value
+            }
             return actions.createSession(ControlSessionCreateOptions(
                 window: args?.window,
                 cwd: args?.cwd,
@@ -188,7 +197,7 @@ struct LinuxControlDispatcher {
                 after: args?.after,
                 before: args?.before,
                 noSelect: args?.noSelect == true
-            ))
+            ), tint: tint)
         case .sessionDuplicate:
             return actions.duplicateSession(request.target, window: request.args?.window)
         case .sessionSelect:
@@ -200,9 +209,9 @@ struct LinuxControlDispatcher {
             return actions.goSession(window: request.args?.window, direction: dir)
         case .sessionClose:
             if let targets = request.args?.targets {
-                return actions.closeSessions(targets, window: request.args?.window)
+                return actions.closeSessions(targets, window: request.args?.window, undoable: request.args?.undoable == true)
             }
-            return actions.closeSession(request.target, window: request.args?.window)
+            return actions.closeSession(request.target, window: request.args?.window, undoable: request.args?.undoable == true)
         case .sessionRename:
             guard let name = request.args?.name else {
                 return ControlResponse(ok: false, error: "session.rename requires a name")
@@ -252,7 +261,7 @@ struct LinuxControlDispatcher {
             }
             return actions.moveSession(request.target, window: args?.window, move: move)
         case .sessionFlag:
-            return actions.setSessionFlag(request.target, window: request.args?.window, mode: request.args?.mode)
+            return dispatchSessionFlag(request)
         case .sessionContext:
             return dispatchSessionContext(request)
         case .sessionSeen:
@@ -332,8 +341,13 @@ struct LinuxControlDispatcher {
     private func dispatchWorkspaceCommand(_ request: ControlRequest) -> ControlResponse {
         switch request.cmd {
         case .workspaceNew:
+            let tint: SidebarTint?
+            switch Self.creationTint(request.args) {
+            case .failure(let rejection): return ControlResponse(ok: false, error: rejection.message)
+            case .success(let value): tint = value
+            }
             return actions.createWorkspace(window: request.args?.window, name: request.args?.name,
-                                           collapsed: request.args?.collapsed ?? false)
+                                           collapsed: request.args?.collapsed == true, tint: tint)
         case .workspaceSelect:
             return actions.selectWorkspace(request.target, window: request.args?.window)
         case .workspaceGo:
@@ -620,7 +634,8 @@ struct LinuxControlDispatcher {
         return .spec(HudSpec(message: message, detail: args?.detail, spinner: spinner,
                              backgroundColor: args?.color, textColor: args?.textColor,
                              sizePercent: args?.sizePercent, position: position,
-                             hideAfter: args?.hideAfter, markdown: markdown, fontSize: args?.fontSize))
+                             hideAfter: args?.hideAfter, markdown: markdown, fontSize: args?.fontSize,
+                             sticky: args?.sticky ?? false, frame: args?.frame ?? true))
     }
 
     private func containsMarkdownControlCharacters(_ text: String) -> Bool {

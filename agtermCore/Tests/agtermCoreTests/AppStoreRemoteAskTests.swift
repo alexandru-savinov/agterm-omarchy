@@ -25,7 +25,8 @@ struct AppStoreRemoteAskTests {
     let presenter = Sink()
     let mirror = Sink()
 
-    private func origin(presented: Bool = true, split: Bool = false) throws -> (Session, PresentationHub.SubscriberID?) {
+    private func origin(presented: Bool = true, split: Bool = false,
+                        kinds: [String] = []) throws -> (Session, PresentationHub.SubscriberID?) {
         store.presentationHub = hub
         let workspace = store.addWorkspace(name: "work")
         let session = try #require(store.addSession(toWorkspace: workspace.id, cwd: "/tmp"))
@@ -33,7 +34,7 @@ struct AppStoreRemoteAskTests {
         setLead(.follower, pane: session.paneIdentity)
         if let pane = session.splitPaneIdentity { setLead(.follower, pane: pane) }
         guard presented else { return (session, nil) }
-        let hello = PresentationHello(version: 1, kinds: [], mode: .presenter)
+        let hello = PresentationHello(version: 1, kinds: kinds, mode: .presenter)
         let id = try hub.subscribe(session: session.id, hello: hello, sink: presenter) {
             PresentationSnapshot(status: nil, hud: nil)
         }
@@ -193,6 +194,164 @@ struct AppStoreRemoteAskTests {
         #expect(session.askPending?.id == pending.id)
     }
 
+    @Test(arguments: [AskForm.input(AskInputForm(mode: .line)), .choices(AskChoiceForm(choices: [ControlAskChoice(id: "a", label: "A")])), nil])
+    func aFormOrCancelRoleAskStaysHereForAPresenterWithoutTheCapability(form: AskForm?) throws {
+        let (session, _) = try origin()
+        let pending = PendingAsk(id: UUID().uuidString, title: "t", buttons: Self.buttons, form: form, cancelID: "no")
+
+        #expect(store.presentAskRemotely(pending, in: session, paneIdentity: nil, window: Self.window) == nil)
+        #expect(session.askPending == nil)
+        #expect(!presenter.bodies.contains { if case .askRequest = $0 { true } else { false } })
+    }
+
+    @Test func aFormAskGoesToAPresenterListingTheCapability() throws {
+        let (session, _) = try origin(kinds: [PresentationHub.askFormKind])
+        let pending = PendingAsk(id: UUID().uuidString, title: "t", buttons: Self.buttons,
+                                 form: .input(AskInputForm(mode: .multiline, value: "v")), cancelID: "no")
+
+        #expect(store.presentAskRemotely(pending, in: session, paneIdentity: nil, window: Self.window) == true)
+        let request = PresentationAsk(pending, pane: nil, owner: owner(of: session))
+        #expect(presenter.bodies.last == .askRequest(request))
+        #expect(request.form == pending.form)
+        #expect(request.cancelID == "no")
+    }
+
+    @Test func aFormAskWhoseFrameIsTooLargeStaysHere() throws {
+        let (session, _) = try origin(kinds: [PresentationHub.askFormKind])
+        let pending = PendingAsk(id: UUID().uuidString, title: "t", message: String(repeating: "m", count: PresentationCodec.maxFrameBytes),
+                                 buttons: Self.buttons, form: .input(AskInputForm(mode: .line)))
+
+        #expect(store.presentAskRemotely(pending, in: session, paneIdentity: nil, window: Self.window) == nil)
+    }
+
+    @Test func anInputAskStaysHereWhenItsLongestButtonAndTheReservedTextCannotFitAnAnswer() throws {
+        let (session, _) = try origin(kinds: [PresentationHub.askFormKind])
+        let long = ControlAskButton(id: String(repeating: "b", count: 200 * 1024), label: "Long")
+        let input = PendingAsk(id: UUID().uuidString, title: "t", buttons: [long], form: .input(AskInputForm(mode: .line)))
+        let list = PendingAsk(id: UUID().uuidString, title: "t", buttons: [long],
+                              form: .choices(AskChoiceForm(choices: [ControlAskChoice(id: "a", label: "A")])))
+
+        #expect(PresentationAsk(input, pane: nil, owner: 1).fitsFrames() == false)
+        #expect(PresentationAsk(list, pane: nil, owner: 1).fitsFrames())
+        #expect(store.presentAskRemotely(input, in: session, paneIdentity: nil, window: Self.window) == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func anOtherRowAskStaysHereUnlessThePresenterListsBothCapabilities(formOnly: Bool) throws {
+        let (session, _) = try origin(kinds: [formOnly ? PresentationHub.askFormKind : PresentationHub.askOtherKind])
+        let pending = PendingAsk(id: UUID().uuidString, title: "t", buttons: Self.buttons, form: .choices(remoteRadioOther), cancelID: "no")
+
+        #expect(store.presentAskRemotely(pending, in: session, paneIdentity: nil, window: Self.window) == nil)
+        #expect(session.askPending == nil)
+    }
+
+    @Test func anOtherRowAskGoesToAPresenterListingBothCapabilities() throws {
+        let (session, _) = try origin(kinds: [PresentationHub.askFormKind, PresentationHub.askOtherKind])
+        let pending = PendingAsk(id: UUID().uuidString, title: "t", buttons: Self.buttons, form: .choices(remoteRadioOther), cancelID: "no")
+
+        #expect(store.presentAskRemotely(pending, in: session, paneIdentity: nil, window: Self.window) == true)
+        #expect(presenter.bodies.last == .askRequest(PresentationAsk(pending, pane: nil, owner: owner(of: session))))
+    }
+
+    @Test func aCheckboxOtherAskReservesEveryIDPlusTheWidestText() throws {
+        let otherAnswer = PresentationAskAnswer(id: "a", owner: 1, button: "ok", text: String(repeating: "\"", count: AskInputForm.maxTextBytes),
+                                                selected: [])
+        let base = try PresentationCodec.encode(PresentationFrame(gen: .max, rev: .max, body: .askResolve(otherAnswer))).count
+        let room = PresentationCodec.maxFrameBytes - base
+        func ask(idLength: Int, multiple: Bool) -> PresentationAsk {
+            let items = (0..<2).map { ControlAskChoice(id: "\($0)" + String(repeating: "i", count: idLength), label: "L") }
+            return PresentationAsk(PendingAsk(id: "a", title: "t", buttons: [ControlAskButton(id: "ok", label: "OK")],
+                                              form: .choices(AskChoiceForm(choices: items, multiple: multiple, other: "Other"))),
+                                   pane: nil, owner: 1)
+        }
+        #expect(ask(idLength: room / 2, multiple: true).fitsFrames() == false)
+        #expect(ask(idLength: room / 2, multiple: false).fitsFrames())
+        #expect(ask(idLength: room / 8, multiple: true).fitsFrames())
+    }
+
+    @Test func slashesInAButtonIDCountAsTheCodecWritesThem() {
+        let slashes = ControlAskButton(id: String(repeating: "/", count: 90 * 1024), label: "Slashes")
+        let letters = ControlAskButton(id: String(repeating: "b", count: 150 * 1024), label: "Letters")
+        let ask = PendingAsk(id: "a", title: "t", buttons: [slashes, letters], form: .input(AskInputForm(mode: .line)))
+
+        #expect(PresentationAsk(ask, pane: nil, owner: 1).fitsFrames() == false)
+    }
+
+    @Test func anAnswerThatFitsOnlyWithShortCountersIsRefused() throws {
+        let probe = PresentationAskAnswer(id: "a", owner: 1, button: "", text: String(repeating: "\"", count: AskInputForm.maxTextBytes))
+        let base = try PresentationCodec.encode(PresentationFrame(gen: 0, rev: 0, body: .askResolve(probe))).count
+        let slack = PresentationCodec.maxFrameBytes - base - 1
+        let id = String(repeating: "b", count: slack - 5)
+        let ask = PendingAsk(id: "a", title: "t", buttons: [ControlAskButton(id: id, label: "B")],
+                             form: .input(AskInputForm(mode: .line)))
+        let answer = PresentationAskAnswer(id: "a", owner: 1, button: id, text: String(repeating: "\"", count: AskInputForm.maxTextBytes))
+
+        #expect((try? PresentationCodec.encode(PresentationFrame(gen: 0, rev: 0, body: .askResolve(answer)))) != nil)
+        #expect(PresentationAsk(ask, pane: nil, owner: 1).fitsFrames() == false)
+    }
+
+    @Test(arguments: [
+        (RemoteFormAnswer(.input(AskInputForm(mode: .multiline)), "yes", "a \"q\"\nb\tc", nil),
+         ControlAskResult(result: .answered, id: "yes", label: "Yes", index: 0, text: "a \"q\"\nb\tc")),
+        (RemoteFormAnswer(.choices(remoteCheckboxes), "yes", nil, ["a", "b"]),
+         ControlAskResult(result: .answered, id: "yes", label: "Yes", index: 0, selected: ["a", "b"])),
+        (RemoteFormAnswer(.choices(remoteCheckboxes), "yes", nil, []),
+         ControlAskResult(result: .answered, id: "yes", label: "Yes", index: 0, selected: [])),
+        (RemoteFormAnswer(.input(AskInputForm(mode: .line)), "no", nil, nil), ControlAskResult(result: .escaped)),
+        (RemoteFormAnswer(.choices(remoteRadioOther), "yes", " mine ", []),
+         ControlAskResult(result: .answered, id: "yes", label: "Yes", index: 0, text: " mine ", selected: [])),
+        (RemoteFormAnswer(.choices(remoteCheckboxesOther), "yes", "mine", ["b"]),
+         ControlAskResult(result: .answered, id: "yes", label: "Yes", index: 0, text: "mine", selected: ["b"])),
+    ])
+    func aFormAnswerIsAppliedWithItsPayload(answer: RemoteFormAnswer, expected: ControlAskResult) throws {
+        let (session, _) = try origin(kinds: [PresentationHub.askFormKind, PresentationHub.askOtherKind])
+        let pending = PendingAsk(id: UUID().uuidString, title: "t", buttons: Self.buttons, form: answer.form, cancelID: "no")
+        store.presentAskRemotely(pending, in: session, paneIdentity: nil, window: Self.window)
+
+        #expect(store.resolveRemoteAsk(answer.frame(id: pending.id, owner: owner(of: session)), forSession: session.id))
+        #expect(AskRegistry.shared.result(for: pending.id)?.result == expected)
+    }
+
+    @Test(arguments: [
+        RemoteFormAnswer(.input(AskInputForm(mode: .line)), "yes", nil, ["a"]),
+        RemoteFormAnswer(.input(AskInputForm(mode: .line)), "yes", nil, nil),
+        RemoteFormAnswer(.input(AskInputForm(mode: .line)), "yes", String(repeating: "x", count: AskInputForm.maxTextBytes + 1), nil),
+        RemoteFormAnswer(.input(AskInputForm(mode: .line)), "yes", "a\u{1}b", nil),
+        RemoteFormAnswer(.input(AskInputForm(mode: .line)), "yes", "a\tb", nil),
+        RemoteFormAnswer(.input(AskInputForm(mode: .multiline)), "yes", "a\u{7f}\nb", nil),
+        RemoteFormAnswer(.input(AskInputForm(mode: .line)), "no", "typed", nil),
+        RemoteFormAnswer(.input(AskInputForm(mode: .line)), nil, "typed", nil),
+        RemoteFormAnswer(.choices(remoteRadio), "yes", nil, ["c"]),
+        RemoteFormAnswer(.choices(remoteRadio), "yes", nil, []),
+        RemoteFormAnswer(.choices(remoteRadio), "yes", nil, ["a", "b"]),
+        RemoteFormAnswer(.choices(remoteRadio), "yes", "text", ["a"]),
+        RemoteFormAnswer(.choices(remoteCheckboxes), "yes", nil, ["b", "a"]),
+        RemoteFormAnswer(.choices(remoteCheckboxes), "yes", nil, ["a", "a"]),
+        RemoteFormAnswer(.choices(remoteCheckboxes), "yes", nil, nil),
+        RemoteFormAnswer(.choices(remoteCheckboxes), "yes", "mine", ["a"]),
+        RemoteFormAnswer(.choices(remoteRadioOther), "yes", "mine", ["a"]),
+        RemoteFormAnswer(.choices(remoteRadioOther), "yes", "  ", []),
+        RemoteFormAnswer(.choices(remoteCheckboxesOther), "yes", "a\tb", ["a"]),
+    ])
+    func aFormAnswerWithAPayloadItsFormWouldNotProduceIsRefused(answer: RemoteFormAnswer) throws {
+        let (session, _) = try origin(kinds: [PresentationHub.askFormKind, PresentationHub.askOtherKind])
+        let pending = PendingAsk(id: UUID().uuidString, title: "t", buttons: Self.buttons, form: answer.form, cancelID: "no")
+        store.presentAskRemotely(pending, in: session, paneIdentity: nil, window: Self.window)
+
+        #expect(!store.resolveRemoteAsk(answer.frame(id: pending.id, owner: owner(of: session)), forSession: session.id))
+        #expect(session.askPending?.id == pending.id)
+    }
+
+    @Test func aPlainAskAnswerCarryingAPayloadIsRefused() throws {
+        let (session, _) = try origin()
+        let pending = ask()
+        store.presentAskRemotely(pending, in: session, paneIdentity: nil, window: Self.window)
+
+        #expect(!store.resolveRemoteAsk(PresentationAskAnswer(id: pending.id, owner: owner(of: session), button: "yes", text: "x"),
+                                        forSession: session.id))
+        #expect(session.askPending?.id == pending.id)
+    }
+
     @Test func aDismissalOnTheViewerCompletesEscaped() throws {
         let (session, _) = try origin()
         let pending = ask()
@@ -319,5 +478,31 @@ struct AppStoreRemoteAskTests {
         hub.receive(PresentationFrame(gen: presenter.frames[0].gen, rev: 1, body: rejected), from: presenterID)
 
         #expect(received == [rejected])
+    }
+}
+
+private let remoteRadio = AskChoiceForm(choices: [ControlAskChoice(id: "a", label: "A"), ControlAskChoice(id: "b", label: "B")])
+private let remoteRadioOther = AskChoiceForm(choices: [ControlAskChoice(id: "a", label: "A"), ControlAskChoice(id: "b", label: "B")],
+                                             other: "Other")
+private let remoteCheckboxesOther = AskChoiceForm(choices: [ControlAskChoice(id: "a", label: "A"), ControlAskChoice(id: "b", label: "B")],
+                                                  multiple: true, other: "Other")
+private let remoteCheckboxes = AskChoiceForm(choices: [ControlAskChoice(id: "a", label: "A"), ControlAskChoice(id: "b", label: "B")],
+                                             multiple: true)
+
+struct RemoteFormAnswer: Sendable {
+    let form: AskForm
+    let button: String?
+    let text: String?
+    let selected: [String]?
+
+    init(_ form: AskForm, _ button: String?, _ text: String?, _ selected: [String]?) {
+        self.form = form
+        self.button = button
+        self.text = text
+        self.selected = selected
+    }
+
+    func frame(id: String, owner: Int) -> PresentationAskAnswer {
+        PresentationAskAnswer(id: id, owner: owner, button: button, text: text, selected: selected)
     }
 }

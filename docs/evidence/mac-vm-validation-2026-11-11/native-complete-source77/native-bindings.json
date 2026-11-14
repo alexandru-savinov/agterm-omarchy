@@ -1,0 +1,279 @@
+{
+  "schema": "agterm-native-complete-publication/1",
+  "scope": "Retained complete source77 native branch evidence. No new native execution, current-main/integrated-candidate acceptance, trusted hosted release, hardware rendering, bash Live support, or independent account approval is claimed.",
+  "operator_binding": {
+    "original_file": "bound-77-native/binding.json",
+    "original_sha256": "e70a6cc1aff47dcf1eb51126f5ac941bbe923d821795005d698f35952c970262",
+    "transport": null,
+    "stdout_encoding": "direct JSON document",
+    "observation": {
+      "source_commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "operator_parent_sha256": "44111bba76d7701591f27fce86a049bcdb4ec5e73d610e1aef407057ac53488e",
+      "probe_source_commit": "e77b6ad448677e00cafd14a36c557b96affb6678",
+      "purpose": "Helper-only operator for a complete task-private native build; no hosted archive claim.",
+      "unused_archive_entrypoint": "main(config) is not invoked by the runtime driver.",
+      "changes": [
+        "Source/run labels identify native source build, not frozen hosted archive.",
+        "Use exact source77 test-omarchy.sh; only changed harness predicate accepts the new private endpoint location.",
+        "Derive endpoint using verified private runtime and Linux107-byte socket bound, with state/zmx fallback.",
+        "Refuse any pre-existing legacy endpoint; retain prior-launch, ownership, mode and transcript checks.",
+        "Probe remains reviewed PR312 e77; its live-producer and shutdown deadlines are unchanged."
+      ],
+      "operator_sha256": "ffac8abb949c0cd26f85ba5ebef030ed635cd733691fd96362204f0a28d63258",
+      "assets": {
+        "harness.sh": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050",
+        "config-probe.py": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73"
+      },
+      "checks": {
+        "test-native-helpers.py": {
+          "exit_code": 0,
+          "log_sha256": "2e76685b64d01b722757504e6e8ac66a78b27e41a95f82837c39ae0889fd0f55",
+          "tail": [
+            "",
+            "----------------------------------------------------------------------",
+            "Ran 29 tests in 0.015s",
+            "",
+            "OK"
+          ]
+        },
+        "test-config-probe-operator.py": {
+          "exit_code": 0,
+          "log_sha256": "460057b268f456c2486a702a1c81ecf60579ea2e6f9fc665ac99acb4791a9199",
+          "tail": [
+            "",
+            "----------------------------------------------------------------------",
+            "Ran 10 tests in 0.024s",
+            "",
+            "OK"
+          ]
+        },
+        "test-current-endpoints.py": {
+          "exit_code": 0,
+          "log_sha256": "77ecdaf76b0a4f9f157b08dc741287943417847cdfae17660c5fea600de76490",
+          "source_sha256": "757135d055082c1ac49c4d2ed004d48035bdf86686598fd6873d8b9521982372",
+          "tail": [
+            ".......",
+            "----------------------------------------------------------------------",
+            "Ran 7 tests in 0.013s",
+            "",
+            "OK"
+          ]
+        }
+      }
+    }
+  },
+  "retained_helper_logs": [
+    {
+      "original_file": "bound-77-native/test-config-probe-operator.py.log",
+      "original_sha256": "460057b268f456c2486a702a1c81ecf60579ea2e6f9fc665ac99acb4791a9199",
+      "text": "test_child_success_without_observed_images_does_not_pass (__main__.OperatorTests.test_child_success_without_observed_images_does_not_pass) ... ok\ntest_exact_two_observed_app_images_and_clean_exit_are_required (__main__.OperatorTests.test_exact_two_observed_app_images_and_clean_exit_are_required) ... ok\ntest_failed_launch_preserves_baseline_and_records_failure (__main__.OperatorTests.test_failed_launch_preserves_baseline_and_records_failure) ... ok\ntest_final_report_failure_returns_failed_result_after_cleaning (__main__.OperatorTests.test_final_report_failure_returns_failed_result_after_cleaning) ... ok\ntest_journal_failure_cannot_prevent_owned_process_recovery (__main__.OperatorTests.test_journal_failure_cannot_prevent_owned_process_recovery) ... ok\ntest_normal_control_client_is_tracked_but_is_not_a_frontend_image (__main__.OperatorTests.test_normal_control_client_is_tracked_but_is_not_a_frontend_image) ... ok\ntest_recovery_signals_only_owned_processes_and_disqualifies_result (__main__.OperatorTests.test_recovery_signals_only_owned_processes_and_disqualifies_result) ... ok\ntest_replay_rejection_preserves_every_existing_evidence_byte (__main__.OperatorTests.test_replay_rejection_preserves_every_existing_evidence_byte) ... ok\ntest_wrong_probe_identity_does_not_claim_or_launch (__main__.OperatorTests.test_wrong_probe_identity_does_not_claim_or_launch) ... ok\ntest_wrong_running_image_does_not_pass (__main__.OperatorTests.test_wrong_running_image_does_not_pass) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 0.024s\n\nOK\n"
+    },
+    {
+      "original_file": "bound-77-native/test-current-endpoints.py.log",
+      "original_sha256": "77ecdaf76b0a4f9f157b08dc741287943417847cdfae17660c5fea600de76490",
+      "text": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.013s\n\nOK\n"
+    },
+    {
+      "original_file": "bound-77-native/test-native-helpers.py.log",
+      "original_sha256": "2e76685b64d01b722757504e6e8ac66a78b27e41a95f82837c39ae0889fd0f55",
+      "text": "test_complete_ordinary_evidence_passes (__main__.AcceptanceTests.test_complete_ordinary_evidence_passes) ... ok\ntest_forced_cleanup_cannot_turn_a_failure_into_acceptance (__main__.AcceptanceTests.test_forced_cleanup_cannot_turn_a_failure_into_acceptance) ... ok\ntest_live_without_positive_control_fails (__main__.AcceptanceTests.test_live_without_positive_control_fails) ... ok\ntest_mixed_run_identity_fails (__main__.AcceptanceTests.test_mixed_run_identity_fails) ... ok\ntest_unequal_live_shell_pid_fails (__main__.AcceptanceTests.test_unequal_live_shell_pid_fails) ... ok\ntest_wrong_running_binary_fails (__main__.AcceptanceTests.test_wrong_running_binary_fails) ... ok\ntest_cleanup_audit_exception_is_retained_instead_of_success (__main__.FailurePathTests.test_cleanup_audit_exception_is_retained_instead_of_success) ... ok\ntest_cleanup_refuses_preexisting_identity (__main__.FailurePathTests.test_cleanup_refuses_preexisting_identity) ... ok\ntest_failed_attempt_still_records_installed_payload_and_session_preservation (__main__.FailurePathTests.test_failed_attempt_still_records_installed_payload_and_session_preservation) ... ok\ntest_preflight_failure_prints_failure_record_without_changing_user (__main__.FailurePathTests.test_preflight_failure_prints_failure_record_without_changing_user) ... ok\ntest_preparation_compiler_timeout_retains_failure_and_targets_only_compiler_group (__main__.FailurePathTests.test_preparation_compiler_timeout_retains_failure_and_targets_only_compiler_group) ... ok\ntest_prepare_rejects_wrong_source_before_compilation_or_user_change (__main__.FailurePathTests.test_prepare_rejects_wrong_source_before_compilation_or_user_change) ... ok\ntest_sigterm_is_catchable_and_repeated_signal_does_not_abort_cleanup (__main__.FailurePathTests.test_sigterm_is_catchable_and_repeated_signal_does_not_abort_cleanup) ... ok\ntest_timeout_and_endpoint_failure_still_clean_detached_owned_processes_and_report (__main__.FailurePathTests.test_timeout_and_endpoint_failure_still_clean_detached_owned_processes_and_report) ... ok\ntest_unexpected_collection_exception_still_runs_cleanup (__main__.FailurePathTests.test_unexpected_collection_exception_still_runs_cleanup) ... ok\ntest_generated_launcher_isolates_runtime_and_retains_desktop_routes (__main__.FilesystemSafetyTests.test_generated_launcher_isolates_runtime_and_retains_desktop_routes) ... ok\ntest_manifest_detects_permissions_symlink_targets_and_absence (__main__.FilesystemSafetyTests.test_manifest_detects_permissions_symlink_targets_and_absence) ... ok\ntest_stage_refuses_existing_payload_even_if_dangling_symlink (__main__.FilesystemSafetyTests.test_stage_refuses_existing_payload_even_if_dangling_symlink) ... ok\ntest_stage_refuses_replay_before_overwriting_evidence (__main__.FilesystemSafetyTests.test_stage_refuses_replay_before_overwriting_evidence) ... ok\ntest_stage_refuses_symlink (__main__.FilesystemSafetyTests.test_stage_refuses_symlink) ... ok\ntest_baseline_process_never_becomes_owned_even_if_tagged (__main__.ProcessSafetyTests.test_baseline_process_never_becomes_owned_even_if_tagged) ... ok\ntest_foreign_uid_is_not_owned (__main__.ProcessSafetyTests.test_foreign_uid_is_not_owned) ... ok\ntest_lineage_is_tracked_but_recycled_parent_is_not (__main__.ProcessSafetyTests.test_lineage_is_tracked_but_recycled_parent_is_not) ... ok\ntest_marked_reparented_daemon_is_owned (__main__.ProcessSafetyTests.test_marked_reparented_daemon_is_owned) ... ok\ntest_pid_reuse_is_not_preservation (__main__.ProcessSafetyTests.test_pid_reuse_is_not_preservation) ... ok\ntest_pidfd_refuses_reused_identity_without_signal (__main__.ProcessSafetyTests.test_pidfd_refuses_reused_identity_without_signal) ... ok\ntest_pidfd_sends_only_to_the_opened_verified_handle (__main__.ProcessSafetyTests.test_pidfd_sends_only_to_the_opened_verified_handle) ... ok\ntest_protects_shell_agent_and_all_descendants (__main__.ProcessSafetyTests.test_protects_shell_agent_and_all_descendants) ... ok\ntest_zombie_frontend_is_not_preserved (__main__.ProcessSafetyTests.test_zombie_frontend_is_not_preserved) ... ok\n\n----------------------------------------------------------------------\nRan 29 tests in 0.015s\n\nOK\n"
+    }
+  ],
+  "worker_operator_and_test_sources": [
+    {
+      "path": "bound-77-native/config-probe.py",
+      "sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+      "bytes": 26408
+    },
+    {
+      "path": "bound-77-native/harness.sh",
+      "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050",
+      "bytes": 22619
+    },
+    {
+      "path": "bound-77-native/native-prepare-template.py",
+      "sha256": "e403fe3a573d9b763e44bf735fedd671464f92815a5446ef8daab0659d9d0121",
+      "bytes": 5728
+    },
+    {
+      "path": "bound-77-native/native-run-template.py",
+      "sha256": "ffac8abb949c0cd26f85ba5ebef030ed635cd733691fd96362204f0a28d63258",
+      "bytes": 43848
+    },
+    {
+      "path": "bound-77-native/test-config-probe-operator.py",
+      "sha256": "36782022134534aeb0dcc4ba0a749f7eb9b0efa26837a56fc02f65527d24a580",
+      "bytes": 8607
+    },
+    {
+      "path": "bound-77-native/test-current-endpoints.py",
+      "sha256": "757135d055082c1ac49c4d2ed004d48035bdf86686598fd6873d8b9521982372",
+      "bytes": 5038
+    },
+    {
+      "path": "bound-77-native/test-native-helpers.py",
+      "sha256": "1373c7272a6bc454484b9507e499846047f15a5407fdba2002d2b038fa8fc766",
+      "bytes": 22800
+    },
+    {
+      "path": "native-core-test-worker.py",
+      "sha256": "9972291fe7e044c4a2fc162b8df05a4ef7933d6f7bdf1f49d692b06177b8b25e",
+      "bytes": 5797
+    },
+    {
+      "path": "native-current-source-runtime-worker.py",
+      "sha256": "4b744d820c116e94da072d103309d9c5c0adae7cfb88afbd5895b64d425976fc",
+      "bytes": 8527
+    },
+    {
+      "path": "native-full-build-worker-continuation.py",
+      "sha256": "ba677b0aaddd4358c646b22fe21e74cc90a02d57137a041b3f35b3c6c034211e",
+      "bytes": 8612
+    },
+    {
+      "path": "native-full-build-worker-continuation3.py",
+      "sha256": "95eae4f73d335b25980d6b1e83acbc8d04ef6fa8f5c9661773fa04d65ad9606e",
+      "bytes": 8854
+    },
+    {
+      "path": "native-full-build-worker.py",
+      "sha256": "29ab7d09435c4a323fb47a154708bddde265df30a09c15ef58370fb1f45bc057",
+      "bytes": 8613
+    },
+    {
+      "path": "native-swift-compat-host.py",
+      "sha256": "2a26c55369778e6a75e2930a3660fe2d9366697ae261729bf11cb632793ccdb6",
+      "bytes": 4502
+    },
+    {
+      "path": "native-swift-toolchain-worker.py",
+      "sha256": "d087a819d6cee917f036445eeea4e4906fc312e03d25318bbe34fdd66dd78afd",
+      "bytes": 5659
+    }
+  ],
+  "pinned_git_source_bindings": [
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "scripts/setup-linux.sh",
+      "git_blob": "b3ca08ee2957c8a22a71e641c444cd179e487442",
+      "sha256": "341cb1819750751951281abe574e155b1f62234108808b76ef4f3c1c80fa30da",
+      "bytes": 6970
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "scripts/zig-build-linux.sh",
+      "git_blob": "8b627782e9e6f83c9ea3b5a8d8f41553e0235091",
+      "sha256": "6ca7583671aba020faf7082c990826376269aec0a3ec97fbefc5a854c6593e01",
+      "bytes": 1510
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "scripts/stage-linux.sh",
+      "git_blob": "7a0a1a9cae7633e194f2e154ed157a3c4ebdde11",
+      "sha256": "7fdf6db6e74efdf04bf25dce37c61171d84e231a38ac26383046bb2392fe887f",
+      "bytes": 5862
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/ghostty-resources.env",
+      "git_blob": "1d632b958527dc3f740c3f8cb8b2a3fcdbabdbe6",
+      "sha256": "b2652652c7df8f4b80112668fcb4a104083e753fbfb956aac857d6ab9df39ce9",
+      "bytes": 492
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/zmx.env",
+      "git_blob": "cecff5d1bf3e220695db2f763611502b84c29e96",
+      "sha256": "5bf7e06d21c8382133260a1b1265b7747b3129f8a5512698e4112643751213f2",
+      "bytes": 268
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/arch.sh",
+      "git_blob": "3e5c846e718c0babc0fff5eb78ef7151866a2ce6",
+      "sha256": "83d3aee3a2be9a1a7b7e44c07be1ef2a8e34e2f8027fb37aabb317054773b3bc",
+      "bytes": 607
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/patches/ghostty-embedded-opengl.patch",
+      "git_blob": "de5ac39250d30fd94b13c786b5087cbe22226a64",
+      "sha256": "5acad8dff653d70056471520270d03c1df59aa7d6112e895f10d3c903bea6ba9",
+      "bytes": 27275
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/patches/ghostty-embedded-input-handoff.patch",
+      "git_blob": "b95e5b299842e76b1cf35dfd66b7eab49e1232a9",
+      "sha256": "746aabfd306f78563837c9257b22c90cc3ffd6dfe7f1c374f7f0532a3c1bb0fe",
+      "bytes": 3960
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "linux/patches/ghostty-lib-resources.patch",
+      "git_blob": "6104adfd0c7d304573ac4900203be953c12a8917",
+      "sha256": "14f31007327295bdca035a75394a4c1a2cfe3671d602c3105aef30823c0e9eab",
+      "bytes": 1077
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "agterm-linux/Package.resolved",
+      "git_blob": "7aa999a243e068db88af5cc75d5bbed330a52dcc",
+      "sha256": "6b858fab0188b2f54f8d934c67c09c23e4e6921f236700cac47474221ed00762",
+      "bytes": 583
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "agterm-linux/Package.swift",
+      "git_blob": "158c913f1ff6472b54c105d2ade391b85b8284b5",
+      "sha256": "8307298fbf75e661a6e84c79f7dc6a7a367066fa9ab05f1785364050f86a679d",
+      "bytes": 2976
+    },
+    {
+      "commit": "77cce43eb791ba1a983c19760c7df5259d0e452d",
+      "path": "scripts/test-omarchy.sh",
+      "git_blob": "7e4629818ca50b8823cee23d1589ad39b4f7a8ee",
+      "sha256": "8f3833edcfe9ffcab62c4dd8fa8c62d9ae089bed1d134f1b9e28c4e7f3b17050",
+      "bytes": 22619
+    },
+    {
+      "commit": "e77b6ad448677e00cafd14a36c557b96affb6678",
+      "path": "scripts/omarchy-config-probe.py",
+      "git_blob": "48974e2f3c56d391343c5b3e627f12ee2dbef3d7",
+      "sha256": "28d1e5d1d44763aeeb3321d178d457ca26f2d24ec1ebb144075e6c9f44d77e73",
+      "bytes": 26408
+    }
+  ],
+  "review": {
+    "url": "https://github.com/alexandru-savinov/agterm-omarchy/issues/305#issuecomment-6807859789",
+    "id": 6807859789,
+    "created_at": "2026-11-11T21:49:39Z",
+    "updated_at": "2026-11-11T21:49:39Z",
+    "body_sha256": "452ae23899bbe13779d5b31b93cc533c961d4209e230e48b1ed286a0fea7dd88",
+    "qualification": "Existing 58 synthetic-method same-account review; not new runtime execution or independent account approval."
+  },
+  "sanitization": {
+    "policy": "Only declared personal/local identifiers are aliased. All fields, array lengths, verdicts, timestamps, durations, counts, errors, recovery actions, hashes and public source links remain. Process ID/birth/UID values become stable string aliases; all other non-string observation values retain their original type and value.",
+    "scope": "One alias table per category shared across the entire package. No reverse maps are published.",
+    "categories": {
+      "generated-config": 5,
+      "guest-home": 2,
+      "host-home": 2,
+      "load-address": 49,
+      "local-uuid": 68,
+      "private-runtime": 2,
+      "private-stage": 7,
+      "private-zmx-endpoint": 3,
+      "process": 309,
+      "process-birth": 286,
+      "process-uid": 1,
+      "run": 2,
+      "sentinel": 1,
+      "session-runtime": 1,
+      "short-temporary-root": 2
+    },
+    "stdout_handling": "JSON-valued transport stdout is decoded to an object; all transport metadata is retained separately. Original file/encoded-stdout hashes bind its serialization.",
+    "logs": "Retained collected text is preserved with declared identifier substitutions. Guest-file hashes are reported observations, not hashes of normalized or sanitized text. Collected-text hashes and byte/line counts are recorded separately.",
+    "source_scripts": "Worker/operator/test source files are bound by original SHA256 and size. They are read for identity and selected static assertions, never imported or executed."
+  }
+}

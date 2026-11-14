@@ -57,6 +57,43 @@ def validate_jobs(jobs):
                 require(len(steps) == 1 and steps[0]["conclusion"] == "success", f"Missing successful {step}")
 
 
+def resolve_member_path(parts, links, depth=0):
+    """Resolve a path the way extraction would, following symlinks among the archive's own members."""
+    require(depth <= 40, "Tar link chain too deep")
+    resolved = []
+    for part in parts:
+        if part in ("", "."):
+            continue
+        if part == "..":
+            # Leaving agterm-stage, even transiently, escapes the directory the payload is extracted into.
+            require(len(resolved) > 1, "Escaping tar link")
+            resolved.pop()
+            continue
+        resolved.append(part)
+        link = links.get("/".join(resolved))
+        if link is not None:
+            require(not link.startswith("/"), "Escaping tar link")
+            resolved = resolve_member_path(resolved[:-1] + list(PurePosixPath(link).parts), links, depth + 1)
+    require(resolved[:1] == ["agterm-stage"], "Escaping tar link")
+    return resolved
+
+
+def resolve_member_links(members):
+    for member in members:
+        # Only canonical spellings ("a/b", no "./" or "//"), so the link map and every lookup share one key.
+        require(member.name.rstrip("/") == str(PurePosixPath(member.name)), "Non-canonical tar path")
+    links = {member.name.rstrip("/"): member.linkname for member in members if member.issym()}
+    for member in members:
+        parent = list(PurePosixPath(member.name).parent.parts)
+        # A member written below a symlink would land wherever that link points. The top-level
+        # agterm-stage entry has no parent inside the archive to resolve.
+        require(not parent or resolve_member_path(parent, links) == parent, "Tar member below a link")
+        if member.issym():
+            resolve_member_path(parent + list(PurePosixPath(member.linkname).parts), links)
+        elif member.islnk():
+            resolve_member_path(list(PurePosixPath(member.linkname).parts), links)
+
+
 def validate_payload(data, arch, sha):
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
         names = set()
@@ -64,13 +101,17 @@ def validate_payload(data, arch, sha):
             path = PurePosixPath(member.name)
             require(not path.is_absolute() and ".." not in path.parts
                     and path.parts[0] == "agterm-stage", "Unsafe or unexpected tar path")
-            require(member.name not in names, "Duplicate tar entry")
-            names.add(member.name)
+            # Keyed like the link map, so two spellings of one path count as one entry.
+            key = member.name.rstrip("/")
+            require(member.isdir() or key == member.name, "Trailing slash on a non-directory tar entry")
+            require(key not in names, "Duplicate tar entry")
+            names.add(key)
             require(member.isfile() or member.isdir() or member.issym() or member.islnk(), "Special tar entry")
             if member.issym() or member.islnk():
                 target = posixpath.normpath(posixpath.join(str(path.parent), member.linkname)
                                             if member.issym() else member.linkname)
                 require(target.startswith("agterm-stage/") and not member.linkname.startswith("/"), "Escaping tar link")
+        resolve_member_links(archive.getmembers())
 
         def read(name, limit):
             member = archive.getmember("agterm-stage/" + name)
@@ -86,6 +127,12 @@ def validate_payload(data, arch, sha):
             header = archive.extractfile(member).read(20)
             require(header[:6] == b"\x7fELF\x02\x01" and len(header) == 20
                     and int.from_bytes(header[18:20], "little") == ARCHITECTURES[arch], f"Wrong ELF architecture: {name}")
+        for name in ("agterm-linux", "agtermctl"):
+            path = "agterm-stage/bin/" + name
+            require(path in names, f"Missing executable wrapper {name}")
+            member = archive.getmember(path)
+            require(member.isfile() and member.mode & 0o111 and member.size > 0,
+                    f"Invalid executable wrapper {name}")
         return version
 
 

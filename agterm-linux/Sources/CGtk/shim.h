@@ -5,6 +5,13 @@
 #include <epoxy/gl.h>
 #include "ghostty.h"
 
+// GLib 2.88 imports flag-enum members differently in Swift. Keep the C constant at the boundary.
+static inline GFileMonitorFlags
+agterm_file_monitor_watch_moves(void)
+{
+    return G_FILE_MONITOR_WATCH_MOVES;
+}
+
 static inline gboolean
 agterm_object_get_boolean_property(GObject *object, const char *name, gboolean *value)
 {

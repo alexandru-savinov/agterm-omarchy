@@ -105,7 +105,7 @@ struct TerminfoInstallTests {
         let remote = try #require(TerminfoInstall.installCommand(TerminfoInstall.Connection(destination: "buildbox")).last)
         let home = try fixture.remoteHome(withTic: true)
 
-        let run = try fixture.run(shell, arguments: ["-c", remote], stdin: "xterm-ghostty|test,\n", environment: home.environment)
+        let run = try fixture.runRemoteCommand(remote, shell: shell, stdin: "xterm-ghostty|test,\n", environment: home.environment)
 
         #expect(run.status == 0, Comment(rawValue: run.stderr))
         #expect(try fixture.ticArguments() == ["-x", "-o", "\(home.path)/.terminfo", "-"])
@@ -113,12 +113,12 @@ struct TerminfoInstallTests {
         #expect(FileManager.default.fileExists(atPath: "\(home.path)/.terminfo"))
     }
 
-    @Test(arguments: ["/bin/sh", "/bin/tcsh"].filter { FileManager.default.isExecutableFile(atPath: $0) })
+    @Test(arguments: loginShells)
     func theRemoteCommandSaysSoAndExits3WhenTheHostHasNoTic(_ shell: String) throws {
         let remote = try #require(TerminfoInstall.installCommand(TerminfoInstall.Connection(destination: "buildbox")).last)
         let home = try fixture.remoteHome(withTic: false)
 
-        let run = try fixture.run(shell, arguments: ["-c", remote], stdin: "unused", environment: home.environment)
+        let run = try fixture.runRemoteCommand(remote, shell: shell, stdin: "unused", environment: home.environment)
 
         #expect(run.status == 3)
         #expect(run.stderr.contains("tic is not installed on this host"))
@@ -381,6 +381,15 @@ private struct Fixture {
     }
 
     func ticStdin() throws -> String { try String(contentsOf: root.appendingPathComponent("tic.stdin"), encoding: .utf8) }
+
+    /// Shell startup can replace PATH despite an isolated environment.
+    /// Restore the fixture PATH afterwards, keeping the product's remote command intact for that shell to parse.
+    func runRemoteCommand(_ command: String, shell: String, stdin: String, environment: [String: String]) throws
+        -> (status: Int32, stdout: String, stderr: String) {
+        let path = try #require(environment["PATH"])
+        let invocation = CommandRestore.shellQuotedLine(["/usr/bin/env", "PATH=\(path)"]) + " " + command
+        return try run(shell, arguments: ["-c", invocation], stdin: stdin, environment: environment)
+    }
 
     /// Runs one executable with captured output, an optional stdin body and an optional whole environment.
     func run(_ executable: String, arguments: [String], stdin: String? = nil,

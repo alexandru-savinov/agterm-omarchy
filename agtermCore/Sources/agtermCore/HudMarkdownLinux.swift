@@ -207,13 +207,13 @@ private struct LinuxParser {
         var style = base
         var index = 0
         var mayMerge = true
-        func append(_ value: String, style: Style, separate: Bool = false) {
+        func append(_ value: String, style: Style, separate: Bool = false, link: String? = nil) {
             guard !value.isEmpty else { return }
             let value = HudMarkdown.sanitized(value)
-            if !separate && mayMerge && runs.last?.style == style {
+            if !separate && mayMerge && runs.last?.style == style && runs.last?.link == link {
                 runs[runs.count - 1].text += value
             } else {
-                runs.append(Run(text: value, style: style))
+                runs.append(Run(text: value, style: style, link: link))
             }
             mayMerge = !separate
         }
@@ -239,7 +239,7 @@ private struct LinuxParser {
                 append(String(chars[(index + 1)..<end]), style: base, separate: true)
                 index = end + 1
             } else if let link = linkText(chars, at: index) {
-                append(link.text, style: style, separate: true)
+                append(link.text, style: link.target == nil ? style : style.union(.underline), separate: true, link: link.target)
                 index = link.next
             } else if let entity = numericEntity(chars, at: index) {
                 append(entity.text, style: style)
@@ -252,13 +252,30 @@ private struct LinuxParser {
         return runs
     }
 
-    private func linkText(_ chars: [Character], at start: Int) -> (text: String, next: Int)? {
+    private func linkText(_ chars: [Character], at start: Int) -> (text: String, next: Int, target: String?)? {
+        if chars[start] == "<", let end = chars[(start + 1)...].firstIndex(of: ">") {
+            let text = String(chars[(start + 1)..<end])
+            guard let url = URL(string: text), url.scheme != nil,
+                  let target = HudMarkdown.linkTarget(url) else { return nil }
+            return (text, end + 1, target)
+        }
         let image = chars[start] == "!"
         let open = image ? start + 1 : start
         guard open < chars.count, chars[open] == "[",
               let close = chars[(open + 1)...].firstIndex(of: "]"), close + 1 < chars.count,
-              chars[close + 1] == "(", let end = chars[(close + 2)...].firstIndex(of: ")") else { return nil }
-        return (String(chars[(open + 1)..<close]), end + 1)
+              chars[close + 1] == "(" else { return nil }
+        var depth = 1
+        var end = close + 2
+        while end < chars.count {
+            if chars[end] == "(" { depth += 1 }
+            if chars[end] == ")" { depth -= 1 }
+            if depth == 0 { break }
+            end += 1
+        }
+        guard depth == 0 else { return nil }
+        let destination = String(chars[(close + 2)..<end])
+        let target = image ? nil : URL(string: destination).flatMap(HudMarkdown.linkTarget)
+        return (String(chars[(open + 1)..<close]), end + 1, target)
     }
 
     private func numericEntity(_ chars: [Character], at start: Int) -> (text: String, next: Int)? {

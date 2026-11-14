@@ -7,18 +7,20 @@ struct Workspace: ParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Workspace commands.",
         subcommands: [New.self, Rename.self, Delete.self, Select.self, Go.self, Move.self, Focus.self, Filter.self,
-                      Collapse.self, Expand.self]
+                      FlagCommand.self, Collapse.self, Expand.self, Tint.self]
     )
 
     struct New: RequestCommand {
         static let configuration = CommandConfiguration(abstract: "Create a workspace.")
         @Argument(help: "Workspace name (defaults to the auto-generated name).") var name: String?
         @Flag(name: .long, help: "Create the workspace collapsed in the sidebar.") var collapsed = false
+        @OptionGroup var tint: TintCreateOptions
         @OptionGroup var options: ClientOptions
         var echoesResultID: Bool { true }
 
         func makeRequest() throws -> ControlRequest {
-            ControlRequest(cmd: .workspaceNew, args: options.withWindow(ControlArgs(name: name, collapsed: collapsed ? true : nil)))
+            ControlRequest(cmd: .workspaceNew, args: options.withWindow(tint.apply(to:
+                ControlArgs(name: name, collapsed: collapsed ? true : nil))))
         }
     }
 
@@ -123,6 +125,29 @@ struct Workspace: ParsableCommand {
 
         func makeRequest() throws -> ControlRequest {
             ControlRequest(cmd: .workspaceFilter, args: options.withWindow(ControlArgs(mode: mode)))
+        }
+    }
+
+    /// `agtermctl workspace flag [on|off|toggle] [--target W]` — flags or unflags EVERY session of one workspace
+    /// as one value. `toggle` unflags only when all are flagged, otherwise flags all, so it is not a per-session
+    /// invert; the read-back is each session's `flagged` in `tree`.
+    struct FlagCommand: RequestCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "flag", abstract: "Flag or unflag every session in a workspace (on|off|toggle)."
+        )
+        @Argument(help: "Mode: on, off, or toggle (default; unflags only when every session is flagged).")
+        var mode: String = "toggle"
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var options: ClientOptions
+
+        func validate() throws {
+            guard ["on", "off", "toggle"].contains(mode) else {
+                throw ValidationError("mode must be on, off, or toggle")
+            }
+        }
+
+        func makeRequest() throws -> ControlRequest {
+            ControlRequest(cmd: .workspaceFlag, target: target.target, args: options.withWindow(ControlArgs(mode: mode)))
         }
     }
 
