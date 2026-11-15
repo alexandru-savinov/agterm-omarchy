@@ -292,8 +292,8 @@ def zipped(arch, sha=SHA):
 class FakeGitHub:
     """Answers the read-only API calls a promotion makes; any write or unknown path fails the test."""
 
-    def __init__(self, run_id=7, sha=SHA, branch="main", existing=()):
-        self.run_id, self.sha, self.existing = run_id, sha, set(existing)
+    def __init__(self, run_id=7, sha=SHA, branch="main", existing=(), failing=()):
+        self.run_id, self.sha, self.existing, self.failing = run_id, sha, set(existing), set(failing)
         self.calls = []
         self.zips = {arch: zipped(arch, sha) for arch in promotion.ARCHITECTURES}
         steps = [{"name": name, "conclusion": "success"} for name in promotion.REQUIRED_GTK_STEPS]
@@ -310,6 +310,20 @@ class FakeGitHub:
                            "workflow_run": {"id": run_id, "head_sha": sha}, "created_at": "2026-11-01T00:10:00Z",
                            "digest": "sha256:" + hashlib.sha256(self.zips[arch]).hexdigest()}
                           for index, arch in enumerate(promotion.ARCHITECTURES)]
+        self.runs = {run_id: (self.run, self.jobs, self.artifacts)}
+        self.listed = [self.run]
+
+    def add_run(self, run_id, created_at, jobs=None, artifacts=None, **changes):
+        """Another run at the same head, listed newest first; its artifacts default to fresh copies of the base run's."""
+        run = dict(self.run, id=run_id, created_at=created_at, run_started_at=created_at,
+                   html_url=f"https://github.com/{promotion.REPOSITORY}/actions/runs/{run_id}")
+        run.update(changes)
+        if artifacts is None:
+            artifacts = [dict(item, workflow_run={"id": run_id, "head_sha": self.sha}, created_at=created_at)
+                         for item in self.artifacts]
+        self.runs[run_id] = (run, copy.deepcopy(self.jobs) if jobs is None else jobs, artifacts)
+        self.listed.insert(0, run)
+        return run
 
     def answer(self, path):
         base = f"repos/{promotion.REPOSITORY}/"
@@ -320,12 +334,15 @@ class FakeGitHub:
             return {"id": 42}
         if path.startswith("git/ref/heads/"):
             return {"object": {"sha": self.sha}}
-        if path == f"actions/runs/{self.run_id}":
-            return self.run
-        if path.startswith(f"actions/runs/{self.run_id}/attempts/1/jobs"):
-            return [{"jobs": self.jobs}]
-        if path.startswith(f"actions/runs/{self.run_id}/artifacts"):
-            return [{"artifacts": self.artifacts}]
+        if path.startswith("actions/workflows/ci.yml/runs?"):
+            return [{"workflow_runs": self.listed if "branch=main&" in path else []}]
+        for run_id, (run, jobs, artifacts) in self.runs.items():
+            if path == f"actions/runs/{run_id}":
+                return run
+            if path.startswith(f"actions/runs/{run_id}/attempts/{run['run_attempt']}/jobs?"):
+                return [{"jobs": jobs}]
+            if path.startswith(f"actions/runs/{run_id}/artifacts?"):
+                return [{"artifacts": artifacts}]
         for index, arch in enumerate(promotion.ARCHITECTURES):
             if path == f"actions/artifacts/{100 + index}/zip":
                 return self.zips[arch]
@@ -343,7 +360,9 @@ class FakeGitHub:
     def run_command(self, command, **kwargs):
         self.calls.append(command)
         path = command[2].split(f"repos/{promotion.REPOSITORY}/", 1)[1]
-        found = any(path.endswith(tag) for tag in self.existing)
+        if path in self.failing:
+            return subprocess.CompletedProcess(command, 1, "", "gh: Bad credentials (HTTP 401)")
+        found = path in self.existing
         return subprocess.CompletedProcess(command, 0 if found else 1, "", "" if found else "gh: Not Found (HTTP 404)")
 
     def patches(self):
@@ -410,24 +429,65 @@ class DryRunTests(unittest.TestCase):
             with self.subTest(sha=sha, run_id=run_id), self.assertRaises(ValueError):
                 promotion.promotion_tag(sha, run_id)
 
+    def discover(self, github):
+        first, second = github.patches()
+        with first, second:
+            return promotion.discover()
+
     def test_discover_picks_the_newest_trusted_run_with_both_artifacts(self):
         github = FakeGitHub()
-        newer_pr = dict(github.run, id=9, event="pull_request", created_at="2026-11-03T00:00:00Z")
-        newer_without_artifacts = dict(github.run, id=8, created_at="2026-11-02T00:00:00Z")
-        runs = [newer_pr, newer_without_artifacts, github.run]
+        expired = [dict(github.artifacts[0], expired=True, workflow_run={"id": 8, "head_sha": SHA}),
+                   dict(github.artifacts[1], workflow_run={"id": 8, "head_sha": SHA})]
+        github.add_run(8, "2026-11-02T00:00:00Z", artifacts=expired)
+        github.add_run(9, "2026-11-03T00:00:00Z", event="pull_request")
+        self.assertEqual(self.discover(github)["id"], 7)
+        github.listed[:] = [github.runs[9][0]]
+        self.assertIsNone(self.discover(github))
 
-        def answer(path):
-            if "/actions/workflows/ci.yml/runs?" in path:
-                return [{"workflow_runs": runs if "branch=main&" in path else []}]
-            if path.endswith("actions/runs/8/artifacts?per_page=100"):
-                return [{"artifacts": [dict(github.artifacts[0], expired=True), github.artifacts[1]]}]
-            return github.answer(path)
+    def test_discover_skips_a_run_whose_tag_or_release_exists(self):
+        for kind in ("git/ref/tags", "releases/tags"):
+            with self.subTest(kind=kind):
+                github = FakeGitHub(existing=[f"{kind}/omarchy-dev-{SHA[:12]}-run8"])
+                github.add_run(8, "2026-11-02T00:00:00Z")
+                found = self.discover(github)
+                self.assertEqual(found["id"], 7)
+                with tempfile.TemporaryDirectory() as temp:
+                    self.prepare(github, Path(temp) / "promotion")
+                github.existing.add(f"{kind}/omarchy-dev-{SHA[:12]}-run7")
+                self.assertIsNone(self.discover(github))
 
-        with patch.object(promotion, "api", side_effect=lambda path, pages=False: answer(
-                f"repos/{promotion.REPOSITORY}/{path}")):
-            self.assertEqual(promotion.discover()["id"], 7)
-            runs[:] = [newer_pr]
-            self.assertIsNone(promotion.discover())
+    def test_discover_skips_a_run_whose_gates_main_would_reject(self):
+        github = FakeGitHub()
+        jobs = copy.deepcopy(github.jobs)
+        gtk = next(job for job in jobs if job["name"].startswith("GTK build"))
+        gtk["steps"] = [dict(step, conclusion="skipped") if step["name"] == "GTK AT-SPI smoke tests" else step
+                        for step in gtk["steps"]]
+        github.add_run(8, "2026-11-02T00:00:00Z", jobs=jobs)
+        self.assertEqual(self.discover(github)["id"], 7)
+        with tempfile.TemporaryDirectory() as temp, self.assertRaisesRegex(ValueError, "GTK AT-SPI smoke tests"):
+            self.prepare(FakeGitHubFor(github, 8), Path(temp) / "promotion")
+
+    def test_discover_skips_a_rerun_attempt_whose_artifacts_predate_it(self):
+        github = FakeGitHub()
+        stale = [dict(item, workflow_run={"id": 8, "head_sha": SHA}, created_at="2026-11-02T00:10:00Z")
+                 for item in github.artifacts]
+        github.add_run(8, "2026-11-02T00:00:00Z", artifacts=stale, run_attempt=2, run_started_at="2026-11-02T01:00:00Z")
+        self.assertEqual(self.discover(github)["id"], 7)
+        with tempfile.TemporaryDirectory() as temp, self.assertRaisesRegex(ValueError, "predates this run attempt"):
+            self.prepare(FakeGitHubFor(github, 8), Path(temp) / "promotion")
+
+    def test_discover_reports_a_failed_tag_lookup_instead_of_skipping_the_run(self):
+        github = FakeGitHub(failing=[f"git/ref/tags/omarchy-dev-{SHA[:12]}-run7"])
+        with self.assertRaisesRegex(ValueError, "Could not check"):
+            self.discover(github)
+
+
+def FakeGitHubFor(github, run_id):
+    """The same fake, prepared against another of its runs."""
+    view = copy.copy(github)
+    view.run_id = run_id
+    view.run = github.runs[run_id][0]
+    return view
 
 
 class WorkflowTests(unittest.TestCase):
@@ -450,6 +510,34 @@ class WorkflowTests(unittest.TestCase):
                                "gh release", "git/refs", "--method"):
                 with self.subTest(job=name, privileged=privileged):
                     self.assertNotIn(privileged, job)
+
+    def test_workflow_token_is_read_only_unless_a_job_widens_it(self):
+        top = self.text[:self.text.index("\njobs:\n")]
+        self.assertIn("\npermissions:\n  contents: read\n\n", top)
+        self.assertEqual(top.count("permissions:"), 1)
+
+    def test_attestation_verification_pins_the_source_runner_and_both_predicates(self):
+        job = self.jobs["publish"]
+        verify = job[job.index("      - name: Verify the new attestations before creating any tag\n"):
+                     job.index("      - name: Create new tag and prerelease")]
+        self.assertIn('for predicate in https://slsa.dev/provenance/v1 '
+                      '"https://github.com/$GH_REPO/attestations/promotion/v1"; do', verify)
+        for flag in ('--source-digest "$GITHUB_SHA"', "--deny-self-hosted-runners",
+                     '--predicate-type "$predicate"', "--source-ref refs/heads/main"):
+            with self.subTest(flag=flag):
+                self.assertIn(flag, verify)
+
+    def test_only_a_publishing_dispatch_uploads_the_release_payload(self):
+        job = self.jobs["prepare"]
+        upload = job[job.rindex("      - uses: actions/upload-artifact@"):]
+        self.assertIn("name: verified-prerelease-", upload)
+        self.assertIn("        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false\n", upload)
+        self.assertEqual(job.count("verified-prerelease-"), 1)
+
+    def test_a_dry_run_without_a_source_says_it_checked_nothing(self):
+        job = self.jobs["prepare"]
+        self.assertIn("        if: steps.source.outputs.run != ''\n", job)
+        self.assertIn('echo "::warning::No promotable source run: promotion checks were not exercised"', job)
 
     def test_publication_verifies_attestations_before_creating_the_tag(self):
         job = self.jobs["publish"]

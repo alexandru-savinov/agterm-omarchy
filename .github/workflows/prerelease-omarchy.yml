@@ -21,7 +21,7 @@ on:
         required: true
         type: string
       dry_run:
-        description: Run every check, then stop before any tag, attestation or release (uncheck to publish)
+        description: Run every check up to attestation, then stop before any tag, attestation or release (uncheck to publish)
         required: false
         type: boolean
         default: true
