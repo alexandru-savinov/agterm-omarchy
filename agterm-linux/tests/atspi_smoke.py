@@ -3267,7 +3267,7 @@ def verify_custom_command_failures(env):
         stop(process)
 
 
-def verify_remote_presentation(env):
+def verify_remote_presentation(env, cycles=0):
     """Two isolated apps exchange the real zmx presentation stream through a local SSH stand-in."""
     assert shutil.which("cc"), "remote presentation smoke needs a C compiler"
     assert shutil.which("zsh"), "remote presentation smoke needs zsh"
@@ -3360,6 +3360,69 @@ def verify_remote_presentation(env):
         wait_for(lambda: len(next(session for session in origin_tree()["sessions"]
                                   if session["id"] == origin_id)["panes"]) == 2,
                  "origin did not offer its split pane")
+        if cycles:
+            # DIAGNOSTIC ONLY (#357): repeat attach + SSH-255 loss on one origin; never merged.
+            from atspi_reconnect_v0351 import verify_pane_reconnect
+            marker = ("AGTERM_TEST_ORIGIN_STATE=" + origin_state).encode()
+
+            def reap_viewer_children():
+                for _ in range(50):
+                    left = []
+                    for pid in filter(str.isdigit, os.listdir("/proc")):
+                        try:
+                            with open(f"/proc/{pid}/environ", "rb") as source:
+                                if marker not in source.read().split(b"\0"):
+                                    continue
+                        except OSError:
+                            continue
+                        left.append(int(pid))
+                        with contextlib.suppress(ProcessLookupError):
+                            os.kill(int(pid), signal.SIGKILL)
+                    if not left:
+                        return
+                    time.sleep(0.1)
+
+            outcomes = []
+            for cycle in range(cycles):
+                stress = []
+                if cycle % 2:
+                    stress = [subprocess.Popen(["sh", "-c", "while :; do :; done"]) for _ in range(2 * (os.cpu_count() or 2))]
+                print(f"TRACE357 CYCLE {cycle} stress={bool(stress)}", flush=True)
+                with contextlib.suppress(FileNotFoundError):
+                    os.remove(ssh_down)
+                viewer_process = None
+                try:
+                    viewer_process, viewer_app = launch(viewer_env)
+                    attached = control_json(viewer_env, "zmx", "attach", "local-test", origin_id, "--json")
+                    assert attached["ok"], attached
+                    cycle_viewer = attached["result"]["id"]
+
+                    def cycle_session():
+                        tree = control_json(viewer_env, "tree", "--json")["result"]["tree"]
+                        return next(item for workspace in tree["workspaces"] for item in workspace["sessions"]
+                                    if item["id"] == cycle_viewer)
+
+                    wait_for(lambda: cycle_session().get("hasSplit") is True and all(
+                        row.get("lead") == "leader" for row in cycle_session()["surfaces"] if row["kind"] in ("left", "right")),
+                        "cycle viewer did not lead both panes", timeout=20)
+                    verify_pane_reconnect(cycle_session, ssh, ssh_down, origin_state)
+                    outcomes.append((cycle, "pass"))
+                except Exception as error:  # noqa: BLE001
+                    print(f"TRACE357 CYCLE {cycle} FAILED: {type(error).__name__}: {str(error)[:3000]}", flush=True)
+                    outcomes.append((cycle, "fail"))
+                finally:
+                    for child in stress:
+                        child.kill()
+                        child.wait()
+                    if viewer_process is not None:
+                        stop(viewer_process)
+                    reap_viewer_children()
+                    with contextlib.suppress(FileNotFoundError):
+                        os.remove(ssh_down + ".processes.log")
+            viewer_process = None
+            print("TRACE357 CYCLES " + json.dumps(outcomes), flush=True)
+            assert all(outcome == "pass" for _, outcome in outcomes), outcomes
+            return
         viewer_process, viewer_app = launch(viewer_env)
         discovered = control_json(viewer_env, "zmx", "tree", "local-test", "--json")
         assert discovered["ok"] and discovered["result"]["remote"]["presentation"], discovered
@@ -7909,7 +7972,7 @@ def main():
         elif scenario == "remote-presentation":
             # DIAGNOSTIC ONLY (#357): repeat with alternating CPU load; never merged.
             results = []
-            for iteration in range(12):
+            for iteration in range(2):
                 stress = []
                 if iteration % 2:
                     stress = [subprocess.Popen(["sh", "-c", "while :; do :; done"]) for _ in range(os.cpu_count() or 2)]
@@ -7918,7 +7981,7 @@ def main():
                 print(f"TRACE357 ITERATION {iteration} stress={bool(stress)}", flush=True)
                 sys.stderr.flush()
                 try:
-                    verify_remote_presentation(iteration_env)
+                    verify_remote_presentation(iteration_env, cycles=40)
                     results.append((iteration, "pass"))
                 except Exception as error:  # noqa: BLE001
                     print(f"TRACE357 ITERATION {iteration} FAILED: {type(error).__name__}: {str(error)[:4000]}", flush=True)
