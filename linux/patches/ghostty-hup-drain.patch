@@ -1,0 +1,39 @@
+diff --git a/src/termio/Exec.zig b/src/termio/Exec.zig
+index df57e0f..c141ef3 100644
+--- a/src/termio/Exec.zig
++++ b/src/termio/Exec.zig
+@@ -1566,6 +1566,7 @@ pub const ReadThread = struct {
+             var bridge_start: ?std.Io.Timestamp = null;
+             var spins: usize = 0;
+             var fatal = false;
++            var eof = false;
+ 
+             // Fill the buffer from the pty. For a saturated stream the
+             // kernel queue momentarily runs dry while the writer
+@@ -1685,7 +1686,10 @@ pub const ReadThread = struct {
+                 // This happens on macOS instead of WouldBlock when the
+                 // child process dies. Deliver what we have and let the
+                 // outer poll detect HUP.
+-                if (n == 0) break :gather;
++                if (n == 0) {
++                    eof = true;
++                    break :gather;
++                }
+ 
+                 total += n;
+ 
+@@ -1724,8 +1728,12 @@ pub const ReadThread = struct {
+             }
+ 
+             // If our pty fd is closed, then we're also done with our
+-            // read thread.
+-            if (pollfds[0].revents & posix.POLL.HUP != 0) {
++            // read thread. A hangup can be reported together with the
++            // child's last output still queued: read that first. Linux
++            // reports EIO once it is drained, macOS a zero-length read.
++            if (pollfds[0].revents & posix.POLL.HUP != 0 and
++                (pollfds[0].revents & posix.POLL.IN == 0 or eof))
++            {
+                 log.info("pty fd closed, read thread exiting", .{});
+                 return;
+             }
