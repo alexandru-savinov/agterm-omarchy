@@ -488,6 +488,10 @@ jobs:
                       require(stat.S_ISDIR(current.st_mode)
                               and (current.st_dev, current.st_ino) == (held.st_dev, held.st_ino),
                               'metadata ancestor changed')
+                  member = '.swiftpm'; observed_info = metadata
+                  require(fingerprint(os.fstat(descriptor)) == fingerprint(metadata), 'metadata directory changed')
+                  member = '.swiftpm/xcode'; observed_info = xcode_info
+                  require(fingerprint(os.fstat(xcode)) == fingerprint(xcode_info), 'xcode directory changed')
                   footprint = [
                       {'member': '.swiftpm', 'kind': 'directory', 'mode': stat.S_IMODE(metadata.st_mode),
                        'entries': ['xcode'], 'children_complete': True},
