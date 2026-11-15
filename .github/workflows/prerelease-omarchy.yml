@@ -8,6 +8,8 @@ on:
       - scripts/prepare-omarchy-prerelease.py
       - scripts/tests/test_omarchy_prerelease.py
       - packaging/linux/prerelease-omarchy.md
+      # The validator requires ci.yml job and step names.
+      - .github/workflows/ci.yml
   workflow_dispatch:
     inputs:
       source_run:
@@ -18,6 +20,11 @@ on:
         description: Full 40-character commit SHA of the tested current main/omarchy head
         required: true
         type: string
+      dry_run:
+        description: Run every check, then stop before any tag, attestation or release (uncheck to publish)
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -44,7 +51,8 @@ jobs:
 
   prepare:
     name: Verify existing CI artifacts
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    # Pull requests dry-run the newest promotable source; nothing in this job can publish.
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -58,14 +66,60 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Validate source, gates, artifacts, metadata and ELF architecture
-        id: prepare
+      - name: Select source run
+        id: source
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
           SOURCE_RUN: ${{ inputs.source_run }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          if [[ "$EVENT" == workflow_dispatch ]]; then
+            printf 'run=%s\nsha=%s\n' "$SOURCE_RUN" "$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          else
+            python3 scripts/prepare-omarchy-prerelease.py --discover
+          fi
+      - name: Validate source, gates, artifacts, metadata and ELF architecture
+        id: prepare
+        if: steps.source.outputs.run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ steps.source.outputs.run }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA" "$RUNNER_TEMP/promotion"
+      - name: Verify transfer checksums
+        if: steps.prepare.outcome == 'success'
+        working-directory: ${{ runner.temp }}/promotion
+        run: sha256sum --check SHA256SUMS
+      - name: Report dry run
+        if: github.event_name == 'pull_request' || inputs.dry_run != false
+        env:
+          SOURCE_RUN: ${{ steps.source.outputs.run }}
+          TAG: ${{ steps.prepare.outputs.tag }}
+        run: |
+          if [[ -z "$SOURCE_RUN" ]]; then
+            echo "::warning::No promotable source run: promotion checks were not exercised"
+            echo 'Dry run: no promotable Omarchy CI run at a current main/omarchy head; nothing was checked.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            printf '### Dry run passed: %s\n\nNo tag, attestation or release was created.\n\n' "$TAG"
+            printf '```\n'; cat "$RUNNER_TEMP/promotion/SHA256SUMS"; printf '```\n\n'
+            cat "$RUNNER_TEMP/promotion/release-notes.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload dry-run evidence
+        if: steps.prepare.outcome == 'success' && (github.event_name == 'pull_request' || inputs.dry_run != false)
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: dry-run-promotion-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/promotion/SHA256SUMS
+            ${{ runner.temp }}/promotion/promotion.json
+            ${{ runner.temp }}/promotion/release-notes.md
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false
         with:
           name: verified-prerelease-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/promotion/*
@@ -74,6 +128,8 @@ jobs:
 
   publish:
     name: Attest and publish development prerelease
+    # Explicit event check: on pull_request inputs.dry_run is null, which compares equal to false.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.dry_run == false
     needs: prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -104,6 +160,20 @@ jobs:
           subject-path: dist/*.tar.gz
           predicate-type: https://github.com/alexandru-savinov/agterm-omarchy/attestations/promotion/v1
           predicate-path: dist/promotion.json
+      - name: Verify the new attestations before creating any tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # The published notes tell users to run this verification; it must pass before anything is tagged.
+          for archive in dist/*.tar.gz; do
+            for predicate in https://slsa.dev/provenance/v1 "https://github.com/$GH_REPO/attestations/promotion/v1"; do
+              gh attestation verify "$archive" --repo "$GH_REPO" \
+                --signer-workflow "$GH_REPO/.github/workflows/prerelease-omarchy.yml" \
+                --source-ref refs/heads/main --source-digest "$GITHUB_SHA" \
+                --deny-self-hosted-runners --predicate-type "$predicate" > /dev/null
+            done
+          done
       - name: Create new tag and prerelease without replacing anything
         env:
           GH_TOKEN: ${{ github.token }}

@@ -17,6 +17,12 @@ import zipfile
 REPOSITORY = "alexandru-savinov/agterm-omarchy"
 WORKFLOW = ".github/workflows/ci.yml"
 ARCHITECTURES = {"x86_64": 62, "aarch64": 183}
+BRANCHES = ("main", "omarchy")
+TAG = re.compile(r"omarchy-dev-[0-9a-f]{12}-run[1-9][0-9]*")
+REQUIRED_JOBS = ("Installer and scripts", "SwiftLint (Linux)", "CI")
+REQUIRED_ARCH_JOBS = ("Core tests ({arch})", "GTK build and tests ({arch})")
+REQUIRED_GTK_STEPS = ("swift test (agterm-linux)", "swift build Release/WMO (agterm-linux)",
+                      "Validate staged Linux payload", "GTK AT-SPI smoke tests", "Upload tested runtime payload")
 
 
 def require(condition, message):
@@ -31,6 +37,41 @@ def api(path, pages=False):
     return json.loads(subprocess.check_output(command))
 
 
+def absent(path):
+    """True when the API answers 404; any other failure is an error, never a pass."""
+    result = subprocess.run(["gh", "api", f"repos/{REPOSITORY}/{path}", "--silent"], capture_output=True, text=True)
+    if result.returncode == 0:
+        return False
+    require("HTTP 404" in result.stderr, f"Could not check {path}: {result.stderr.strip()}")
+    return True
+
+
+def promotion_tag(sha, run_id):
+    tag = f"omarchy-dev-{sha[:12]}-run{run_id}"
+    require(TAG.fullmatch(tag), f"Invalid promotion tag {tag}")
+    return tag
+
+
+def discover():
+    """Newest successful trusted CI run at a current trusted branch head that still has both artifacts."""
+    workflow = api("actions/workflows/ci.yml")
+    candidates = []
+    for branch in BRANCHES:
+        head = api(f"git/ref/heads/{branch}")["object"]["sha"]
+        pages = api(f"actions/workflows/ci.yml/runs?branch={branch}&head_sha={head}&status=success&per_page=100",
+                    pages=True)
+        for run in (run for page in pages for run in page["workflow_runs"]):
+            try:
+                validate_run(run, workflow, head, head)
+            except ValueError:
+                continue
+            names = {item["name"] for page in api(f"actions/runs/{run['id']}/artifacts?per_page=100", pages=True)
+                     for item in page["artifacts"] if not item["expired"]}
+            if all(f"agterm-omarchy-{arch}-{head}" in names for arch in ARCHITECTURES):
+                candidates.append(run)
+    return max(candidates, key=lambda run: run["created_at"], default=None)
+
+
 def validate_run(run, workflow, sha, branch_sha):
     require(re.fullmatch(r"[0-9a-f]{40}", sha), "Expected a full lowercase source SHA")
     require(run["repository"]["full_name"] == REPOSITORY, "Wrong source repository")
@@ -39,20 +80,19 @@ def validate_run(run, workflow, sha, branch_sha):
             and run["name"] == "Omarchy CI", "Wrong CI workflow")
     require(run["status"] == "completed" and run["conclusion"] == "success", "CI is not green")
     require(run["event"] in ("push", "workflow_dispatch"), "PR merge runs cannot be promoted")
-    require(run["head_branch"] in ("main", "omarchy"), "Untrusted source branch")
+    require(run["head_branch"] in BRANCHES, "Untrusted source branch")
     require(run["head_sha"] == sha == branch_sha, "Source is not the requested current branch head")
 
 
 def validate_jobs(jobs):
-    required = {"Installer and scripts", "SwiftLint (Linux)", "CI"}
+    required = set(REQUIRED_JOBS)
     for arch in ARCHITECTURES:
-        required.update((f"Core tests ({arch})", f"GTK build and tests ({arch})"))
+        required.update(name.format(arch=arch) for name in REQUIRED_ARCH_JOBS)
     for name in required:
         matches = [job for job in jobs if job["name"] == name]
         require(len(matches) == 1 and matches[0]["conclusion"] == "success", f"Missing successful {name}")
         if name.startswith("GTK build"):
-            for step in ("swift test (agterm-linux)", "swift build Release/WMO (agterm-linux)",
-                         "Validate staged Linux payload", "GTK AT-SPI smoke tests", "Upload tested runtime payload"):
+            for step in REQUIRED_GTK_STEPS:
                 steps = [item for item in matches[0]["steps"] if item["name"] == step]
                 require(len(steps) == 1 and steps[0]["conclusion"] == "success", f"Missing successful {step}")
 
@@ -153,19 +193,34 @@ def download_artifact(artifact, arch, sha):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("run_id", type=int)
-    parser.add_argument("sha")
-    parser.add_argument("output", type=Path)
+    parser.add_argument("--discover", action="store_true",
+                        help="print the newest promotable source run and SHA instead of validating one")
+    parser.add_argument("run_id", type=int, nargs="?")
+    parser.add_argument("sha", nargs="?")
+    parser.add_argument("output", type=Path, nargs="?")
     args = parser.parse_args()
+    if args.discover:
+        require(args.run_id is None, "--discover takes no arguments")
+        run = discover()
+        found = f"run={run['id']}\nsha={run['head_sha']}\n" if run else ""
+        if os.environ.get("GITHUB_OUTPUT"):
+            with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+                output.write(found or "run=\n")
+        print(f"{run['id']} {run['head_sha']}" if run else "No promotable source run")
+        return
+    require(None not in (args.run_id, args.sha, args.output), "Expected RUN_ID SHA OUTPUT")
     require(args.run_id > 0, "Invalid run ID")
+    tag = promotion_tag(args.sha, args.run_id)
     run = api(f"actions/runs/{args.run_id}")
-    require(run["head_branch"] in ("main", "omarchy"), "Untrusted source branch")
+    require(run["head_branch"] in BRANCHES, "Untrusted source branch")
     branch = api(f"git/ref/heads/{run['head_branch']}")
     validate_run(run, api("actions/workflows/ci.yml"), args.sha, branch["object"]["sha"])
     jobs = api(f"actions/runs/{args.run_id}/attempts/{run['run_attempt']}/jobs?per_page=100", pages=True)
     validate_jobs([job for page in jobs for job in page["jobs"]])
     pages = api(f"actions/runs/{args.run_id}/artifacts?per_page=100", pages=True)
     artifacts = [artifact for page in pages for artifact in page["artifacts"]]
+    # A dry run must fail where publication would: tag creation refuses an existing ref.
+    require(absent(f"git/ref/tags/{tag}") and absent(f"releases/tags/{tag}"), f"Tag or release {tag} already exists")
     args.output.mkdir(parents=True, exist_ok=False)
     evidence = {"repository": REPOSITORY, "source_commit": args.sha, "source_branch": run["head_branch"],
                 "source_run": run["html_url"], "source_run_attempt": run["run_attempt"],
@@ -191,7 +246,6 @@ def main():
     (args.output / "promotion.json").write_text(json.dumps(evidence, indent=2) + "\n")
     checksums.append(f"{hashlib.sha256((args.output / 'promotion.json').read_bytes()).hexdigest()}  promotion.json\n")
     (args.output / "SHA256SUMS").write_text("".join(checksums))
-    tag = f"omarchy-dev-{args.sha[:12]}-run{args.run_id}"
     (args.output / "release-notes.md").write_text(
         f"Experimental Omarchy development snapshot `{tag}`; not an upstream stable release.\n\n"
         f"Source: https://github.com/{REPOSITORY}/commit/{args.sha}\n\n"
