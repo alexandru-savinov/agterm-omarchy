@@ -1,0 +1,120 @@
+diff --git a/src/App.zig b/src/App.zig
+index a297d68..2fb1374 100644
+--- a/src/App.zig
++++ b/src/App.zig
+@@ -283,6 +283,10 @@ pub fn needsConfirmQuit(self: *const App) bool {
+     return false;
+ }
+ 
++/// Messages one tick takes from the mailbox. Producers refill it while a drain runs, so a drain
++/// that stops only on empty holds the app thread for as long as a program keeps writing titles.
++const mailbox_tick_budget = @typeInfo(@FieldType(Mailbox.Queue, "data")).array.len;
++
+ /// Drain the mailbox.
+ fn drainMailbox(self: *App, rt_app: *apprt.App) !void {
+     while (self.nextDeferred()) |message| {
+@@ -291,9 +295,27 @@ fn drainMailbox(self: *App, rt_app: *apprt.App) !void {
+             return;
+         }
+     }
+-    while (self.mailbox.pop(global.io())) |message| {
+-        if (!try self.processMessage(rt_app, message)) return;
++    // The runtime's other sources run before the next tick takes the rest.
++    const handler: MessageHandler = .{ .app = self, .rt_app = rt_app };
++    if (try self.drainQueue(mailbox_tick_budget, handler)) rt_app.wakeup();
++}
++
++const MessageHandler = struct {
++    app: *App,
++    rt_app: *apprt.App,
++
++    fn process(self: MessageHandler, message: Message) !bool {
++        return self.app.processMessage(self.rt_app, message);
++    }
++};
++
++/// Hand up to `budget` queued messages to `handler.process`; true when the budget ran out first.
++fn drainQueue(self: *App, budget: usize, handler: anytype) !bool {
++    for (0..budget) |_| {
++        const message = self.mailbox.pop(global.io()) orelse return false;
++        if (!try handler.process(message)) return false;
+     }
++    return true;
+ }
+ 
+ /// Take the oldest unread deferred message, or reset the list once all are read.
+@@ -1008,3 +1030,74 @@ test "teardown backlog: a filter discarding every unread message leaves only the
+     try std.testing.expectEqual(@as(usize, 1), app.deferred_head);
+     try expectDeferredFrom(&app, &.{});
+ }
++
++const BudgetRecorder = struct {
++    seen: std.ArrayList(*Surface) = .empty,
++    stop_after: ?usize = null,
++
++    fn process(self: *BudgetRecorder, message: Message) !bool {
++        try self.seen.append(std.testing.allocator, message.surface_message.surface);
++        return self.stop_after != self.seen.items.len;
++    }
++};
++
++test "mailbox tick budget: a drain returns after the budget while a producer keeps refilling" {
++    if (builtin.single_threaded) return error.SkipZigTest;
++    var app = teardownTestApp();
++    var source: Surface = undefined;
++    var recorder: BudgetRecorder = .{};
++    defer recorder.seen.deinit(std.testing.allocator);
++    var stopping: std.atomic.Value(bool) = .init(false);
++    var pushed: std.atomic.Value(usize) = .init(0);
++    const Producer = struct {
++        fn run(queue: *Mailbox.Queue, surface: *Surface, stop: *std.atomic.Value(bool), count: *std.atomic.Value(usize)) void {
++            while (!stop.load(.acquire)) {
++                if (queue.push(global.io(), bell(surface), .{ .ns = std.time.ns_per_ms }) > 0) _ = count.fetchAdd(1, .monotonic);
++            }
++        }
++    };
++    const producer = try std.Thread.spawn(.{}, Producer.run, .{ &app.mailbox, &source, &stopping, &pushed });
++    defer producer.join();
++    defer stopping.store(true, .release);
++    for (1..4) |round| {
++        while (pushed.load(.monotonic) < round * mailbox_tick_budget) try std.Io.sleep(global.io(), .fromMilliseconds(1), .awake);
++        // A drain that stopped only on empty would not return before the producer is stopped.
++        try std.testing.expect(try app.drainQueue(mailbox_tick_budget, &recorder));
++        try std.testing.expectEqual(round * mailbox_tick_budget, recorder.seen.items.len);
++    }
++}
++
++test "mailbox tick budget: emptying the queue within the budget reports no remaining work" {
++    const io = global.io();
++    var app = teardownTestApp();
++    var source: Surface = undefined;
++    var recorder: BudgetRecorder = .{};
++    defer recorder.seen.deinit(std.testing.allocator);
++    for (0..mailbox_tick_budget - 1) |_| _ = app.mailbox.push(io, bell(&source), .instant);
++    try std.testing.expect(!try app.drainQueue(mailbox_tick_budget, &recorder));
++    try std.testing.expectEqual(mailbox_tick_budget - 1, recorder.seen.items.len);
++}
++
++test "mailbox tick budget: successive ticks deliver every message in order" {
++    const io = global.io();
++    var app = teardownTestApp();
++    var surfaces: [mailbox_tick_budget]Surface = undefined;
++    var recorder: BudgetRecorder = .{};
++    defer recorder.seen.deinit(std.testing.allocator);
++    for (&surfaces) |*surface| _ = app.mailbox.push(io, bell(surface), .instant);
++    try std.testing.expect(try app.drainQueue(mailbox_tick_budget / 2, &recorder));
++    try std.testing.expect(try app.drainQueue(mailbox_tick_budget / 2, &recorder));
++    try std.testing.expect(!try app.drainQueue(mailbox_tick_budget, &recorder));
++    for (&surfaces, recorder.seen.items) |*surface, seen| try std.testing.expect(seen == surface);
++}
++
++test "mailbox tick budget: a stopping message ends the drain without asking for another tick" {
++    const io = global.io();
++    var app = teardownTestApp();
++    var source: Surface = undefined;
++    var recorder: BudgetRecorder = .{ .stop_after = 1 };
++    defer recorder.seen.deinit(std.testing.allocator);
++    for (0..mailbox_tick_budget) |_| _ = app.mailbox.push(io, bell(&source), .instant);
++    try std.testing.expect(!try app.drainQueue(mailbox_tick_budget, &recorder));
++    try std.testing.expectEqual(@as(usize, 1), recorder.seen.items.len);
++}
