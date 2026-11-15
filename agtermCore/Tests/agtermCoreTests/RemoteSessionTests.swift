@@ -428,27 +428,27 @@ struct RemoteSessionTests {
         let command = try RemoteSession.attachPaneCommand(host: "buildbox", endpoint: endpoint, daemon: daemon,
                                                           session: "build", pane: .left,
                                                           lead: ZmxLeadAttachment(nonce: "n1", claim: true))
-        let terminal = try PseudoTerminal()
-        defer { terminal.closeMaster() }
-        try #require(fcntl(terminal.slave, F_SETFL, fcntl(terminal.slave, F_GETFL) | O_NONBLOCK) == 0)
+        let pty = try PseudoTerminal()
+        defer { pty.closeControlling() }
+        try #require(fcntl(pty.terminal, F_SETFL, fcntl(pty.terminal, F_GETFL) | O_NONBLOCK) == 0)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = ["-c", command]
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = fake.root.path + ":" + (environment["PATH"] ?? "/usr/bin:/bin")
         process.environment = environment
-        let handle = FileHandle(fileDescriptor: terminal.slave, closeOnDealloc: false)
+        let handle = FileHandle(fileDescriptor: pty.terminal, closeOnDealloc: false)
         process.standardInput = handle
         process.standardOutput = handle
         process.standardError = handle
         let (exited, exit) = AsyncStream<Void>.makeStream()
         process.terminationHandler = { _ in exit.finish() }
         try process.run()
-        terminal.closeSlave()
+        pty.closeTerminal()
         try await Task.sleep(for: .milliseconds(500))
 
         #expect(process.isRunning, "the pane holds until the app replaces it")
-        terminal.closeMaster()
+        pty.closeControlling()
         let deadline = Date().addingTimeInterval(5)
         while process.isRunning, Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
         if process.isRunning { process.terminate() }
@@ -684,27 +684,40 @@ private struct FakeRemote {
     }
 }
 
-/// A pty pair whose slave a test hands to a child as its terminal.
+/// A pty pair: the test keeps the controlling side and hands the terminal side to a child.
 private final class PseudoTerminal {
-    private(set) var master: Int32
-    private(set) var slave: Int32
+    private(set) var controlling: Int32
+    private(set) var terminal: Int32
 
     init() throws {
-        master = posix_openpt(O_RDWR | O_NOCTTY)
-        try #require(master >= 0 && grantpt(master) == 0 && unlockpt(master) == 0)
-        let name = try #require(ptsname(master).map { String(cString: $0) })
-        slave = open(name, O_RDWR | O_NOCTTY)
-        try #require(slave >= 0)
+        #if canImport(Glibc)
+        // Glibc's module hides the XSI pty calls behind feature macros; the symbols are there.
+        let library = dlopen(nil, RTLD_NOW)
+        func call<T>(_ name: String, as _: T.Type) throws -> T {
+            unsafeBitCast(try #require(dlsym(library, name)), to: T.self)
+        }
+        let openPTY = try call("posix_openpt", as: (@convention(c) (Int32) -> Int32).self)
+        let grant = try call("grantpt", as: (@convention(c) (Int32) -> Int32).self)
+        let unlock = try call("unlockpt", as: (@convention(c) (Int32) -> Int32).self)
+        let nameOf = try call("ptsname", as: (@convention(c) (Int32) -> UnsafeMutablePointer<CChar>?).self)
+        #else
+        let (openPTY, grant, unlock, nameOf) = (posix_openpt, grantpt, unlockpt, ptsname)
+        #endif
+        controlling = openPTY(O_RDWR | O_NOCTTY)
+        try #require(controlling >= 0 && grant(controlling) == 0 && unlock(controlling) == 0)
+        let name = try #require(nameOf(controlling).map { String(cString: $0) })
+        terminal = open(name, O_RDWR | O_NOCTTY)
+        try #require(terminal >= 0)
     }
 
-    func closeSlave() {
-        if slave >= 0 { close(slave) }
-        slave = -1
+    func closeTerminal() {
+        if terminal >= 0 { close(terminal) }
+        terminal = -1
     }
 
-    func closeMaster() {
-        closeSlave()
-        if master >= 0 { close(master) }
-        master = -1
+    func closeControlling() {
+        closeTerminal()
+        if controlling >= 0 { close(controlling) }
+        controlling = -1
     }
 }
