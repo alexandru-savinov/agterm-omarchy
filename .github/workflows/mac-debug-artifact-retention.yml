@@ -63,7 +63,7 @@ jobs:
             *) echo 'Full Xcode app must already be selected' >&2; exit 1 ;;
           esac
           {
-            /usr/bin/git rev-parse HEAD HEAD^{tree}
+            /usr/bin/git rev-parse HEAD 'HEAD^{tree}'
             /usr/bin/git --version
             sw_vers
             uname -m
