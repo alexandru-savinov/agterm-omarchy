@@ -5,7 +5,7 @@ Review:
 
 <!-- Machine fields, one per line, outside code blocks. Task: the issue number. Agent: your name.
 Reviewed head: the full 40-character sha the review covered; update it after every push.
-Review: link to the review comment. Checked by the "PR fields" workflow on non-draft pull requests. -->
+Review: link to the review comment. Advisory check by the "PR fields" workflow on non-draft pull requests; see docs/PR_FIELDS.md. -->
 
 ## Problem and resulting behavior
 

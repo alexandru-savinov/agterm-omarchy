@@ -17,14 +17,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      # The checker comes from the base branch, so a pull request cannot edit the rule it is judged by.
+      # The checker script is taken from the base commit. The workflow file itself comes from the pull
+      # request, so a PR can still change this job: a green "PR fields" is advisory, never proof that a
+      # review is current (see docs/PR_FIELDS.md).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
       - name: Check Task, Agent, Reviewed head and Review fields
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           # The pull request that introduces the checker has no checker on its base commit yet.
           if [ ! -f scripts/github/pr_fields.py ]; then

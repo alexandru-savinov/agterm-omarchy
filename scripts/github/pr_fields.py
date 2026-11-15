@@ -5,19 +5,19 @@ An agent that merges on a review needs to know the review was of the code that w
 `Reviewed head` must therefore equal the pull request's current head, so a push after the
 review makes the check fail until the review is redone and the field updated.
 Reads the pull_request event payload; the body is data and is never run or interpolated.
+
+Advisory only. A pull request can edit the workflow that runs this checker, so a green
+"PR fields" is never evidence that a review is current: read the review itself.
 """
 import json
 import os
 import re
 import sys
-import urllib.request
 
-# Pull requests whose head commit is older than this get a warning instead of a failure, so
-# nothing already open turns red overnight. Known limit: the committer date
-# is written by whoever makes the commit, so a backdated commit turns the failure into a warning.
-# That is acceptable while the check is advisory; before it is required, compare the PR's created_at
-# (from the API, not author-controlled) with this cutoff instead. Set to the merge time when this lands; the far-future
-# default means "never enforced", the safe state if that edit is forgotten.
+# Pull requests opened before this get a warning instead of a failure, so nothing already open
+# turns red overnight. It compares the PR's created_at from the event payload, which the author
+# cannot set. Set it to the merge time when this lands; the far-future default means "never
+# enforced", the safe state if that edit is forgotten.
 ENFORCED_FROM = "2099-01-01T00:00:00Z"
 
 FIELDS = ("Task", "Agent", "Reviewed head", "Review")
@@ -33,18 +33,34 @@ MESSAGES = {
     "Reviewed head": "Reviewed head: <the full 40-character sha the review covered>",
     "Review": "Review: <https://github.com/... link to the review>",
 }
+FENCE = re.compile(r" {0,3}(`{3,}|~{3,})(.*)")
+COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
+
+
+def visible_lines(body):
+    """Body lines outside fenced code blocks and HTML comments, fences tracked as CommonMark does.
+
+    An opening fence is up to 3 spaces of indent plus 3 or more backticks or tildes; it closes
+    only on the same character, at least as long, with nothing after it. An unclosed fence or
+    comment hides the rest of the body, which can only cause a failure, never a pass."""
+    kept, fence = [], None
+    for line in body.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        match = FENCE.fullmatch(line)
+        if fence is None:
+            if match and not (match.group(1)[0] == "`" and "`" in match.group(2)):
+                fence = (match.group(1)[0], len(match.group(1)))
+            else:
+                kept.append(line)
+        elif (match and match.group(1)[0] == fence[0] and len(match.group(1)) >= fence[1]
+              and not match.group(2).strip()):
+            fence = None
+    return COMMENT.sub("", "\n".join(kept)).split("\n")
 
 
 def values(body):
-    """Each field's values, one per unindented `Name: value` line outside code fences."""
+    """Each field's values, one per unindented `Name: value` line that is visible Markdown text."""
     found = {name: [] for name in FIELDS}
-    fenced = False
-    for line in body.replace("\r\n", "\n").split("\n"):
-        if line.startswith(("```", "~~~")):
-            fenced = not fenced
-            continue
-        if fenced:
-            continue
+    for line in visible_lines(body):
         for name in FIELDS:
             prefix = name + ": "
             if line.startswith(prefix):
@@ -71,24 +87,9 @@ def problems(body, head_sha):
     return out
 
 
-def head_date(pull, fetch=None):
-    """Committer date (ISO, UTC) of the PR head, or None if it cannot be read."""
-    try:
-        if fetch is not None:
-            return fetch(pull)
-        url = f"https://api.github.com/repos/{pull['base']['repo']['full_name']}/commits/{pull['head']['sha']}"
-        request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json",
-                                                       "Authorization": "Bearer " + os.environ["GITHUB_TOKEN"],
-                                                       "User-Agent": "agterm-pr-fields"})
-        with urllib.request.urlopen(request, timeout=20) as response:
-            return json.load(response)["commit"]["committer"]["date"]
-    except Exception:  # noqa: BLE001 - an unreadable date must not turn into a silent pass
-        return None
-
-
-def enforced(date, since=None):
-    """False only for a head provably older than the cutoff. Unknown dates are enforced."""
-    return date is None or date >= (since or ENFORCED_FROM)
+def enforced(created_at, since=None):
+    """True only for a pull request provably opened at or after the cutoff; unknown means warn."""
+    return bool(created_at) and created_at >= (since or ENFORCED_FROM)
 
 
 def main():
@@ -101,13 +102,13 @@ def main():
         print("Draft pull request: fields are checked when it is marked ready for review.")
         return 0
     found = problems(pull.get("body") or "", pull["head"]["sha"])
-    strict = enforced(head_date(pull))
+    strict = enforced(pull.get("created_at"))
     for item in found:
         print(f"::{'error' if strict else 'warning'} title=PR fields::{item}")
     if not found:
         print("PR fields OK.")
     elif not strict:
-        print("Warning only: this head predates the rule.")
+        print("Warning only: this pull request was opened before the rule took effect.")
     return 1 if found and strict else 0
 
 
