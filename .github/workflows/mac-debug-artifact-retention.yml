@@ -172,6 +172,7 @@ jobs:
           Policy/verification predicates may use disposable data and command shims. main()
           belongs only to a separately approved hosted job and never launches the app.
           """
+          import ctypes
           import hashlib
           import json
           import os
@@ -181,6 +182,7 @@ jobs:
           import shlex
           import stat
           import subprocess
+          import sys
 
           PRODUCT = '5cf067a153efe798a0cfe9952658f98bf64e8179'
           ACTIVE_PINS = {'swift-argument-parser', 'tomldecoder'}
@@ -195,6 +197,8 @@ jobs:
                     'feedface', 'cafebabe', 'bebafeca', 'cafebabf', 'bfbafeca')}
           MAX_BUNDLE = 1024 * 1024 * 1024
           MAX_ZIP = 512 * 1024 * 1024
+          MAX_XATTR_ROSTER = 64 * 1024
+          MAX_XATTR_VALUE = 16 * 1024 * 1024
 
 
           def require(condition, message):
@@ -693,9 +697,65 @@ jobs:
               return actual
 
 
+          def darwin_xattr_reader():
+              require(sys.platform == 'darwin', 'extended attribute reader requires Darwin')
+              library = ctypes.CDLL('/usr/lib/libSystem.B.dylib', use_errno=True)
+              native_list = library.listxattr
+              native_list.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int]
+              native_list.restype = ctypes.c_ssize_t
+              native_get = library.getxattr
+              native_get.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_void_p,
+                                     ctypes.c_size_t, ctypes.c_uint32, ctypes.c_int]
+              native_get.restype = ctypes.c_ssize_t
+              nofollow = 0x0001  # Darwin sys/xattr.h: XATTR_NOFOLLOW; getxattr position is uint32_t.
+
+              def read(function, prefix, suffix, limit, label):
+                  size = function(*prefix, None, 0, *suffix)
+                  require(type(size) is int, label + ' returned an unsupported size')
+                  if size < 0:
+                      raise OSError(ctypes.get_errno(), label + ' size query failed')
+                  require(size <= limit, label + ' size cap exceeded')
+                  capacity = max(size, 1)  # A zero-sized attribute still gets a real bounded read.
+                  buffer = ctypes.create_string_buffer(capacity)
+                  received = function(*prefix, buffer, capacity, *suffix)
+                  require(type(received) is int, label + ' returned an unsupported read length')
+                  if received < 0:
+                      raise OSError(ctypes.get_errno(), label + ' read failed')
+                  require(received == size, label + ' changed between size query and read')
+                  return buffer.raw[:size]
+
+              def names(path):
+                  raw = read(native_list, (path,), (nofollow,), MAX_XATTR_ROSTER, 'xattr roster')
+                  if not raw:
+                      return []
+                  require(raw.endswith(b'\0'), 'unterminated xattr roster')
+                  encoded = raw[:-1].split(b'\0')
+                  require(all(0 < len(name) <= 127 for name in encoded)
+                          and len(set(encoded)) == len(encoded), 'malformed xattr roster')
+                  try:
+                      return sorted((name.decode('utf-8'), name) for name in encoded)
+                  except UnicodeDecodeError:
+                      raise RuntimeError('unsupported xattr name encoding') from None
+
+              def attributes(path, budget):
+                  require(type(budget) is int and 0 <= budget <= MAX_BUNDLE, 'xattr budget exceeded')
+                  encoded_path = os.fsencode(path)
+                  require(encoded_path and b'\0' not in encoded_path, 'unsupported xattr path')
+                  roster = names(encoded_path)
+                  for name, encoded in roster:
+                      raw = read(native_get, (encoded_path, encoded), (0, nofollow),
+                                 min(MAX_XATTR_VALUE, budget), 'xattr value')
+                      budget -= len(raw)
+                      yield name, raw
+                  require(names(encoded_path) == roster, 'xattr roster changed during observation')
+
+              return attributes
+
+
           def snapshot(app):
               require(app.is_dir() and not app.is_symlink(), 'expected a real app directory')
               root = app.resolve(); records = {}; total = 0
+              read_xattrs = darwin_xattr_reader()
               paths = [app]
               for directory, dirs, files in os.walk(app, followlinks=False):
                   paths.extend(Path(directory) / name for name in dirs + files)
@@ -712,8 +772,7 @@ jobs:
                       require(stat.S_ISDIR(info.st_mode), 'unsupported bundle object')
                       record['kind'] = 'directory'
                   attributes = {}
-                  for name in sorted(os.listxattr(path, follow_symlinks=False)):
-                      raw = os.getxattr(path, name, follow_symlinks=False)
+                  for name, raw in read_xattrs(path, MAX_BUNDLE - total):
                       total += len(raw)
                       attributes[name] = {'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
                   record['xattrs'] = attributes
