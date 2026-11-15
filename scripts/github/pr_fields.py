@@ -6,6 +6,10 @@ An agent that merges on a review needs to know the review was of the code that w
 review makes the check fail until the review is redone and the field updated.
 Reads the pull_request event payload; the body is data and is never run or interpolated.
 
+The four fields must be the leading block of the body: the first non-blank lines, one
+`Name: value` per line, in any order. Everything after the block is ignored, so the checker
+never has to guess what Markdown would hide or render (fences, comments, HTML).
+
 Advisory only. A pull request can edit the workflow that runs this checker, so a green
 "PR fields" is never evidence that a review is current: read the review itself.
 """
@@ -16,8 +20,8 @@ import sys
 
 # Pull requests opened before this get a warning instead of a failure, so nothing already open
 # turns red overnight. It compares the PR's created_at from the event payload, which the author
-# cannot set. Set it to the merge time when this lands; the far-future default means "never
-# enforced", the safe state if that edit is forgotten.
+# cannot set. Set it to the merge time in a second reviewed commit (issue #423); the far-future
+# default means "never enforced", the safe state while that has not happened.
 ENFORCED_FROM = "2099-01-01T00:00:00Z"
 
 FIELDS = ("Task", "Agent", "Reviewed head", "Review")
@@ -33,38 +37,21 @@ MESSAGES = {
     "Reviewed head": "Reviewed head: <the full 40-character sha the review covered>",
     "Review": "Review: <https://github.com/... link to the review>",
 }
-FENCE = re.compile(r" {0,3}(`{3,}|~{3,})(.*)")
-COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
-
-
-def visible_lines(body):
-    """Body lines outside fenced code blocks and HTML comments, fences tracked as CommonMark does.
-
-    An opening fence is up to 3 spaces of indent plus 3 or more backticks or tildes; it closes
-    only on the same character, at least as long, with nothing after it. An unclosed fence or
-    comment hides the rest of the body, which can only cause a failure, never a pass."""
-    kept, fence = [], None
-    for line in body.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
-        match = FENCE.fullmatch(line)
-        if fence is None:
-            if match and not (match.group(1)[0] == "`" and "`" in match.group(2)):
-                fence = (match.group(1)[0], len(match.group(1)))
-            else:
-                kept.append(line)
-        elif (match and match.group(1)[0] == fence[0] and len(match.group(1)) >= fence[1]
-              and not match.group(2).strip()):
-            fence = None
-    return COMMENT.sub("", "\n".join(kept)).split("\n")
+LINE = re.compile(r"(" + "|".join(re.escape(name) for name in FIELDS) + r"): (.*)", re.DOTALL)
 
 
 def values(body):
-    """Each field's values, one per unindented `Name: value` line that is visible Markdown text."""
+    """Each field's values from the leading block: first non-blank lines, each `Name: value`."""
     found = {name: [] for name in FIELDS}
-    for line in visible_lines(body):
-        for name in FIELDS:
-            prefix = name + ": "
-            if line.startswith(prefix):
-                found[name].append(line[len(prefix):].rstrip(" "))
+    lines = body.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    start = 0
+    while start < len(lines) and not lines[start].strip():
+        start += 1
+    for line in lines[start:]:
+        match = LINE.fullmatch(line)
+        if not match:
+            break
+        found[match.group(1)].append(match.group(2).rstrip(" "))
     return found
 
 
@@ -75,7 +62,7 @@ def problems(body, head_sha):
     for name in FIELDS:
         got = found[name]
         if not got:
-            out.append(f"missing field, add a line: {MESSAGES[name]}")
+            out.append(f"missing field, put it in the first lines of the body: {MESSAGES[name]}")
         elif len(got) > 1:
             out.append(f"`{name}:` appears {len(got)} times; keep exactly one")
         elif not PATTERNS[name].fullmatch(got[0]):
