@@ -59,6 +59,7 @@ jobs:
             scripts/setup-linux.sh
             scripts/setup-omarchy.sh
             scripts/stage-linux.sh
+            scripts/test-ghostty-patches-linux.sh
             scripts/test-linux-resources.sh
             scripts/test-omarchy.sh
             scripts/test-zig-build-linux.sh
@@ -374,9 +375,14 @@ jobs:
         run: |
           fixture="$(mktemp -d)"
           trap 'rm -rf "$fixture"' EXIT
-          HOME="$fixture" XDG_CONFIG_HOME="$fixture/config" AGTERM_STATE_DIR="$fixture/state" \
-            AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" AGTERM_TITLE_NOISE_GTK_TESTS=1 \
-            xvfb-run -a swift test --skip-build --filter NoisyTitleMainLoopGTKTests
+          mkdir -p "$fixture"/{home,state,config,data,cache,runtime}
+          chmod 700 "$fixture/runtime"
+          xvfb-run -a dbus-run-session -- env AGTERM_TITLE_NOISE_GTK_TESTS=1 GDK_BACKEND=x11 \
+            HOME="$fixture/home" AGTERM_STATE_DIR="$fixture/state" \
+            XDG_CONFIG_HOME="$fixture/config" XDG_DATA_HOME="$fixture/data" \
+            XDG_CACHE_HOME="$fixture/cache" XDG_RUNTIME_DIR="$fixture/runtime" \
+            AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" \
+            swift test --skip-build --filter NoisyTitleMainLoopGTKTests
       - name: swift build (agterm-linux)
         working-directory: agterm-linux
         run: swift build
@@ -459,11 +465,26 @@ jobs:
           printf '### Linux %s\nResult: %s\n\nSwift 6.3.2; Zig 0.16.0. GTK tests use Xvfb.\n' "$BUILD_ARCH" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
           echo 'Native Hyprland/Wayland validation remains a separate Omarchy VM check.' >> "$GITHUB_STEP_SUMMARY"
 
+  ghostty-patch-tests:
+    name: libghostty patch Zig tests
+    # The patches' own Zig tests; the GTK jobs only link the ReleaseFast library they produce.
+    needs: changes
+    if: needs.changes.outputs.product == 'true'
+    runs-on: ubuntu-24.04
+    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Zig tests added by the Linux libghostty patches
+        run: scripts/test-ghostty-patches-linux.sh
+
   ci:
     name: CI
     # Superseded runs must not hold the concurrency slot while this job waits for a runner.
     if: ${{ !cancelled() }}
-    needs: [scripts, changes, test-linux, lint-linux, build-linux, cookbook]
+    needs: [scripts, changes, test-linux, lint-linux, build-linux, ghostty-patch-tests, cookbook]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
