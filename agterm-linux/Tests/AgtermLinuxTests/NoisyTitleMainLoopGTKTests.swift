@@ -28,7 +28,7 @@ struct NoisyTitleMainLoopGTKTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let marker = root.appendingPathComponent("noise-started.json")
-        // scripts/omarchy-config-probe.py's producer: one flushed OSC 2 write per title, a marker after 100.
+        // scripts/omarchy-config-probe.py's OSC 2 flood, batched so the PTY always holds a backlog for libghostty.
         let producer = root.appendingPathComponent("noise.py")
         try """
         import json, os, pathlib, sys, time
@@ -37,8 +37,9 @@ struct NoisyTitleMainLoopGTKTests {
         end = time.monotonic() + \(Self.producerSeconds)
         i = 0
         while time.monotonic() < end:
-            sys.stdout.write('\\033]2;AGTERM_TITLE_NOISE_%d\\007' % i); sys.stdout.flush(); i += 1
-            if i == 100:
+            sys.stdout.write(''.join('\\033]2;AGTERM_TITLE_NOISE_%d\\007' % n for n in range(i, i + 256))); sys.stdout.flush()
+            i += 256
+            if i == 256:
                 marker.write_text(json.dumps({'pid': os.getpid()}))
         """.write(to: producer, atomically: true, encoding: .utf8)
 
@@ -65,7 +66,7 @@ struct NoisyTitleMainLoopGTKTests {
             noisePID = Int32(pid)
             return true
         }
-        try #require(started, "the producer never wrote 100 titles; surface created: \(pane!.surface != nil)")
+        try #require(started, "the producer never wrote its first batch; surface created: \(pane!.surface != nil)")
         let pid = try #require(noisePID)
         let noisy = try #require(pane)
 
@@ -81,6 +82,7 @@ struct NoisyTitleMainLoopGTKTests {
             }
             _ = pumpGLib(timeout: 3) { ran.value != nil }
             let latency = try #require(ran.value, "attempt \(attempt): an idle callback did not run within 3 s of title noise")
+            print("title-noise attempt \(attempt): idle callback latency \(latency) s")
             #expect(latency < 1, "attempt \(attempt): idle callback waited \(latency) s behind the title drain")
             #expect(screen.value?.contains("AGTERM_TITLE_NOISE_STARTED") == true, "attempt \(attempt): screen read missed output")
             #expect(Self.isRunning(pid), "attempt \(attempt): the producer ended before the callback ran")
