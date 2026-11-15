@@ -368,6 +368,15 @@ jobs:
           HOME="$fixture" XDG_CONFIG_HOME="$fixture/config" AGTERM_STATE_DIR="$fixture/state" \
             AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" AGTERM_GTK_TESTS=1 \
             xvfb-run -a swift test --skip-build --filter LinuxSpawnRegistryGTKTests
+      - name: GTK main loop under title noise
+        timeout-minutes: 3
+        working-directory: agterm-linux
+        run: |
+          fixture="$(mktemp -d)"
+          trap 'rm -rf "$fixture"' EXIT
+          HOME="$fixture" XDG_CONFIG_HOME="$fixture/config" AGTERM_STATE_DIR="$fixture/state" \
+            AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" AGTERM_TITLE_NOISE_GTK_TESTS=1 \
+            xvfb-run -a swift test --skip-build --filter NoisyTitleMainLoopGTKTests
       - name: swift build (agterm-linux)
         working-directory: agterm-linux
         run: swift build
