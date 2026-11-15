@@ -35,7 +35,7 @@ enum LinuxHtmlPasteTrace {
 
     static func emit(_ event: String, _ fields: [(String, String)]) {
         guard enabled else { return }
-        FileHandle.standardError.write(Data((line(event: event, at: g_get_monotonic_time(), fields: fields) + "\n").utf8))
+        FileHandle.standardError.write(Data((line(event: event, at: Int64(g_get_monotonic_time()), fields: fields) + "\n").utf8))
     }
 
     /// The fields the page's key guard decides on, recomputed from the same cached formats.
