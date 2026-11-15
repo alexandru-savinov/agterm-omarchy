@@ -20,6 +20,7 @@ The `PR fields` workflow fails a pull request when a field is missing, repeated 
 
 ## Known limits
 
-- Draft pull requests are skipped, so a pull request can stay a draft to avoid the check.
-- Pull requests whose author is a bot account are skipped.
-- Values are checked for format only: the `Task` issue and the `Review` link are not fetched, and `Reviewed head` is self-reported.
+- **Self-attestation only.** Typing the pull request's current head sha into `Reviewed head` passes without any new review, and `Review` accepts any github.com URL from any repository. The `Task` issue and the `Review` link are not fetched.
+- **Bot exemption.** A pull request opened through a GitHub App token counts as bot-authored and is skipped, and so is a branch a bot opened that a human later pushes to.
+- **Base without a checker.** A pull request aimed at a base branch that has no checker passes with a notice.
+- **Drafts are skipped,** so a pull request can stay a draft to avoid the check.
