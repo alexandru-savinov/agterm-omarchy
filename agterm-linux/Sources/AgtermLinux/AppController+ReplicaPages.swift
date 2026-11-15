@@ -16,7 +16,7 @@ extension AppController {
         var page = page
         var command: [String]?
         if case .url = page.source {
-            if page.persistent, let failure = LinuxBrowserStore.shared.failure() { return failure }
+            if let failure = LinuxBrowserStore.shared.failure(persistent: page.persistent) { return failure }
         } else {
             guard let host = session.remoteHost,
                   let argv = try? RemoteSession.pageServeCommand(host: host, token: page.token) else {

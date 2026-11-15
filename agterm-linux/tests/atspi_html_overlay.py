@@ -16,6 +16,43 @@ from gi.repository import Gdk, GLib, GObject, Gtk  # noqa: E402
 from atspi_smoke import CTL, collect, control_json, launch, raw_control_json, stop, wait_for, window_list, window_tree
 
 
+def title_class(title):
+    if not title:
+        return "none"
+    return "initial" if title == "Paste check" else "pasted" if title.startswith("pasted:") else "other"
+
+
+class PasteTrace:
+    """Correlates producer steps with the app's paste trace lines (#421): types, booleans and CLOCK_MONOTONIC only."""
+
+    PREFIX = "agterm-paste-trace: "
+
+    def __init__(self):
+        self.log = os.environ.get("AGTERM_UI_APP_STDERR")
+
+    def mark(self):
+        return os.path.getsize(self.log) if self.log and os.path.exists(self.log) else None
+
+    def report(self, phase, mark, producer):
+        origin = producer["set"]
+        steps = " ".join(f"{name}={(value - origin) * 1000:.1f}ms" if isinstance(value, float) else f"{name}={value}"
+                         for name, value in producer.items())
+        print(f"html-paste-trace {phase}: producer {steps}")
+        if mark is None:
+            print(f"html-paste-trace {phase}: app trace unavailable (AGTERM_UI_APP_STDERR unset)")
+            return
+        with open(self.log, encoding="utf-8", errors="replace") as source:
+            source.seek(mark)
+            lines = [line[len(self.PREFIX):] for line in source.read().splitlines() if line.startswith(self.PREFIX)]
+        for line in lines:
+            fields = line.split(" ")
+            at = next((field for field in fields if field.startswith("at=")), None)
+            relative = f"{int(at[3:]) / 1000 - origin * 1000:.1f}ms" if at and at[3:].isdigit() else "?"
+            print(f"html-paste-trace {phase}: app +{relative} " + " ".join(field for field in fields if field != at))
+        if not lines:
+            print(f"html-paste-trace {phase}: no app trace lines")
+
+
 def verify_html_overlay(env, state):
     def cli(*args):
         command = subprocess.run([CTL, *args, "--socket", env["AGTERM_CONTROL_SOCKET"]],
@@ -38,7 +75,8 @@ def verify_html_overlay(env, state):
         target.write('document.title = "Unapproved script loaded";')
     os.symlink(os.path.join(state, "outside.js"), os.path.join(pages, "link.js"))
 
-    process, app = launch(env)
+    # PASTE_TRACE is DEBUG-only and observation-only (LinuxHtmlPasteTrace.swift); see paste_trace below.
+    process, app = launch(dict(env, AGTERM_ATSPI_PASTE_TRACE="1"))
     try:
         window = next(item["id"] for item in window_list(env) if item["open"])
         session = window_tree(env, window)["workspaces"][0]["sessions"][0]["id"]
@@ -203,11 +241,18 @@ def verify_html_overlay(env, state):
                 time.sleep(0.05)
             assert predicate(), f"clipboard test did not reach expected page state: {page()}"
 
+        paste_trace = PasteTrace()
         plain = GObject.Value(GObject.TYPE_STRING)
         plain.set_string("plain")
+        plain_mark = paste_trace.mark()
+        plain_set = time.monotonic()
         clipboard.set(plain)
+        plain_send = time.monotonic()
         send_into_page("key", "--clearmodifiers", "ctrl+v")
+        plain_sent = time.monotonic()
         wait_clipboard(lambda: page() and page().get("title") == "pasted:plain")
+        paste_trace.report("plain", plain_mark, {"set": plain_set, "sendStart": plain_send, "sendEnd": plain_sent,
+                                                 "observed": time.monotonic(), "title": "pasted"})
 
         assert cli("session", "overlay", "reload", "--target", session,
                    "--window", window, "--json")["ok"]
@@ -216,15 +261,24 @@ def verify_html_overlay(env, state):
         blocked = GObject.Value(GObject.TYPE_STRING)
         blocked.set_string("blocked")
         text_provider = Gdk.ContentProvider.new_for_value(blocked)
+        mixed_mark = paste_trace.mark()
+        mixed_set = time.monotonic()
         clipboard.set_content(Gdk.ContentProvider.new_union([uri_provider, text_provider]))
-        assert clipboard.get_formats().contain_mime_type("text/uri-list")
+        producer_uri = clipboard.get_formats().contain_mime_type("text/uri-list")
+        assert producer_uri
         time.sleep(1)
+        mixed_send = time.monotonic()
         send_into_page("key", "--clearmodifiers", "ctrl+v")
+        mixed_sent = time.monotonic()
         for _ in range(30):
             while GLib.MainContext.default().pending():
                 GLib.MainContext.default().iteration(False)
             time.sleep(0.05)
-        assert page().get("title") == "Paste check", f"URI-list clipboard reached the page: {page()}"
+        final = page()
+        paste_trace.report("mixed", mixed_mark, {"set": mixed_set, "producerUriList": producer_uri,
+                                                 "sendStart": mixed_send, "sendEnd": mixed_sent,
+                                                 "observed": time.monotonic(), "title": title_class(final.get("title"))})
+        assert final.get("title") == "Paste check", f"URI-list clipboard reached the page: {page()}"
         assert cli("session", "overlay", "close", "--target", session,
                    "--window", window, "--json")["ok"]
 

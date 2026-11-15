@@ -37,7 +37,7 @@ extension AppController {
         if case .url(let text) = page.source, HtmlSource.isLoopback(text) {
             return err("a page on \(host)'s loopback cannot be shown on this machine")
         }
-        if page.persistent, let failure = LinuxBrowserStore.shared.failure() { return err(failure) }
+        if let failure = LinuxBrowserStore.shared.failure(persistent: page.persistent) { return err(failure) }
         guard let command = try? RemoteSession.pageServeCommand(host: host, token: page.token) else { return err("invalid host") }
         let row: Session
         switch store.addReplicaPageCompanion(to: parent, page: page, select: select) {

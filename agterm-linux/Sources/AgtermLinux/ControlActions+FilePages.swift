@@ -24,7 +24,7 @@ extension AppController {
         if store.session(withID: id)?.remoteOverlays.slot(options.pane) != nil {
             return err(options.pane == nil ? "overlay already open" : PaneOverlayError.alreadyOpen)
         }
-        if options.persistent, let error = LinuxBrowserStore.shared.failure() { return err("session.overlay.open: \(error)") }
+        if let error = LinuxBrowserStore.shared.failure(persistent: options.persistent) { return err("session.overlay.open: \(error)") }
         if let failure = store.openHtmlOverlay(id, pane: options.pane, overlay: overlay, sizePercent: options.sizePercent,
                                                points: options.points, backgroundColor: options.backgroundColor) {
             return err(failure.message(pane: options.pane))
