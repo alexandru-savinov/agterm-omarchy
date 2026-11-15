@@ -10,13 +10,19 @@ final class LinuxBrowserStore {
     private(set) var session: OpaquePointer?
     private var clearing = false
 
-    func failure() -> String? {
+    /// The persistent store's directory, derived from `stateRoot` alone; creates the profile id on first use.
+    nonisolated static func dataDirectory(stateRoot: URL) throws -> URL {
+        let id = try BrowserProfile(directory: stateRoot).identifier()
+        return stateRoot.appendingPathComponent("browser/\(id.uuidString)", isDirectory: true)
+    }
+
+    /// Prepares the persistent session for a persistent page; an ephemeral page never touches `stateRoot`.
+    func failure(persistent: Bool, stateRoot: URL = linuxStateDirectory()) -> String? {
+        guard persistent else { return nil }
         if clearing { return "browser storage is being cleared" }
         if session != nil { return nil }
         do {
-            let root = linuxStateDirectory()
-            let id = try BrowserProfile(directory: root).identifier()
-            let data = root.appendingPathComponent("browser/\(id.uuidString)", isDirectory: true)
+            let data = try Self.dataDirectory(stateRoot: stateRoot)
             try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
             session = data.path.withCString { path in
                 data.appendingPathComponent("cache").path.withCString { cache in
@@ -38,7 +44,7 @@ final class LinuxBrowserStore {
                 return completion(ControlResponse(ok: true))
             }
         } catch { return completion(ControlResponse(ok: false, error: "browser.clear: " + String(describing: error))) }
-        if let error = failure() { return completion(ControlResponse(ok: false, error: "browser.clear: " + error)) }
+        if let error = failure(persistent: true) { return completion(ControlResponse(ok: false, error: "browser.clear: " + error)) }
         guard let session, let manager = webkit_network_session_get_website_data_manager(session) else {
             return completion(ControlResponse(ok: false, error: "browser.clear: browser storage is unavailable"))
         }
