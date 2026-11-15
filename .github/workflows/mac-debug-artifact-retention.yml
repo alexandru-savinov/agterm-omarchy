@@ -565,7 +565,7 @@ jobs:
                       member = path.relative_to(checkout).as_posix()
                       if stat.S_ISDIR(info.st_mode):
                           if (member == '.swiftpm' and member not in directories
-                                  and base == DEPENDENCY_ROOTS[1] and identity == 'swift-argument-parser'):
+                                  and base == DEPENDENCY_ROOTS[1] and identity in ACTIVE_PINS):
                               members += 1  # Count both metadata directories inside the existing member cap.
                               require(members <= MAX_DEPENDENCY_MEMBERS, 'dependency working-tree member cap exceeded')
                               dependency_empty_xcode_layout(root, relative, identity, info)
