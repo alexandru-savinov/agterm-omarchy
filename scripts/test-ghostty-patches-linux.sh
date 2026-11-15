@@ -46,13 +46,18 @@ for name in "${names[@]}"; do filters+=("-Dtest-filter=$name"); done
   ZIG="$GHOSTTY_ZIG" "$ROOT/scripts/zig-build-linux.sh" test -Dapp-runtime=none -Demit-test-exe=true "${filters[@]}"
 )
 
-# The build runner's summary does not name a count; the installed runner does, so a filter that
-# matches nothing or a skipped test fails here.
+# The build runner's summary names no tests; the installed runner lists each one, so a filter that
+# matches nothing or a skipped test fails here. Unnamed reference blocks match every filter and run too.
 status=0
 "$SOURCE/zig-out/bin/ghostty-test" > "$WORK/tests.log" 2>&1 || status=$?
 cat "$WORK/tests.log"
-[[ $status -eq 0 && "$(tail -n 1 "$WORK/tests.log")" == "All ${#names[@]} tests passed." ]] || {
-  printf 'expected all %d patch tests to pass:\n' "${#names[@]}" >&2
-  printf '  %s\n' "${names[@]}" >&2
+missing=()
+for name in "${names[@]}"; do
+  [[ "$(grep -cF -- " App.test.$name...OK" "$WORK/tests.log")" == 1 ]] || missing+=("$name")
+done
+[[ $status -eq 0 && ${#missing[@]} -eq 0 && "$(tail -n 1 "$WORK/tests.log")" =~ ^All\ [0-9]+\ tests\ passed\.$ ]] || {
+  printf 'patch tests that did not run and pass (%d of %d):\n' "${#missing[@]}" "${#names[@]}" >&2
+  printf '  %s\n' "${missing[@]}" >&2
   exit 1
 }
+echo "all ${#names[@]} patch tests ran and passed"
