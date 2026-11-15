@@ -11,6 +11,7 @@ import agtermCore
        .enabled(if: ProcessInfo.processInfo.environment["AGTERM_TITLE_NOISE_GTK_TESTS"] == "1"))
 struct NoisyTitleMainLoopGTKTests {
     private static let producerSeconds = 20.0
+    private static let noisyPanes = 4
 
     @Test("main-loop callbacks and screen reads run while titles keep arriving")
     func idleCallbacksRunDuringTitleNoise() throws {
@@ -27,12 +28,11 @@ struct NoisyTitleMainLoopGTKTests {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        let marker = root.appendingPathComponent("noise-started.json")
-        // scripts/omarchy-config-probe.py's OSC 2 flood, batched so the PTY always holds a backlog for libghostty.
+        // scripts/omarchy-config-probe.py's OSC 2 flood, batched so each PTY always holds a backlog for libghostty.
         let producer = root.appendingPathComponent("noise.py")
         try """
         import json, os, pathlib, sys, time
-        marker = pathlib.Path(\(String(reflecting: marker.path)))
+        marker = pathlib.Path(sys.argv[1])
         print('AGTERM_TITLE_NOISE_STARTED', flush=True)
         end = time.monotonic() + \(Self.producerSeconds)
         i = 0
@@ -43,32 +43,40 @@ struct NoisyTitleMainLoopGTKTests {
                 marker.write_text(json.dumps({'pid': os.getpid()}))
         """.write(to: producer, atomically: true, encoding: .utf8)
 
+        // Every pane's reader feeds the one app mailbox the main thread drains.
+        let markers = (0..<Self.noisyPanes).map { root.appendingPathComponent("noise-started-\($0).json") }
         let window = try #require(op(gtk_window_new()))
-        gtk_window_set_default_size(WIN(window), 640, 400)
-        var pane: GhosttySurface? = GhosttySurface(
-            sessionID: UUID(), cwd: root.path,
-            command: "exec python3 " + CommandRestore.shellQuotedLine([producer.path]),
-            reportsPaneState: false)
-        gtk_window_set_child(WIN(window), W(pane!.rootWidget))
+        gtk_window_set_default_size(WIN(window), 960, 480)
+        let row = try #require(OpaquePointer(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)))
+        gtk_box_set_homogeneous(cast(row), 1)
+        gtk_window_set_child(WIN(window), W(row))
+        var panes: [GhosttySurface] = markers.map { marker in
+            GhosttySurface(
+                sessionID: UUID(), cwd: root.path,
+                command: "exec python3 " + CommandRestore.shellQuotedLine([producer.path, marker.path]),
+                reportsPaneState: false)
+        }
+        for pane in panes { gtk_box_append(cast(row), W(pane.rootWidget)) }
         defer {
-            pane?.teardown()
+            for pane in panes { pane.teardown() }
             gtk_window_destroy(WIN(window))
-            pane = nil
+            panes = []
             _ = pumpGLib(timeout: 1)
         }
         gtk_window_present(WIN(window))
 
-        var noisePID: Int32?
+        var noisePIDs: [Int32] = []
         let started = pumpGLib(timeout: 15) {
-            guard pane!.surface != nil, let data = try? Data(contentsOf: marker),
-                  let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let pid = value["pid"] as? Int else { return false }
-            noisePID = Int32(pid)
-            return true
+            noisePIDs = markers.compactMap { marker in
+                guard let data = try? Data(contentsOf: marker),
+                      let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let pid = value["pid"] as? Int else { return nil }
+                return Int32(pid)
+            }
+            return noisePIDs.count == markers.count && panes.allSatisfy { $0.surface != nil }
         }
-        try #require(started, "the producer never wrote its first batch; surface created: \(pane!.surface != nil)")
-        let pid = try #require(noisePID)
-        let noisy = try #require(pane)
+        try #require(started, "producers that wrote a batch: \(noisePIDs.count) of \(markers.count)")
+        let noisy = panes[0]
 
         for attempt in 1...5 {
             let ran = TestSlot<Double>()
@@ -85,7 +93,7 @@ struct NoisyTitleMainLoopGTKTests {
             print("title-noise attempt \(attempt): idle callback latency \(latency) s")
             #expect(latency < 1, "attempt \(attempt): idle callback waited \(latency) s behind the title drain")
             #expect(screen.value?.contains("AGTERM_TITLE_NOISE_STARTED") == true, "attempt \(attempt): screen read missed output")
-            #expect(Self.isRunning(pid), "attempt \(attempt): the producer ended before the callback ran")
+            #expect(noisePIDs.allSatisfy(Self.isRunning), "attempt \(attempt): a producer ended before the callback ran")
         }
     }
 

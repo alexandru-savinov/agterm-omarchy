@@ -88,6 +88,10 @@ paths:
   waits on itself.
   Feeding OSC into surfaces did that through `color_change` and froze the app with many sessions.
   `PendingHealth` in `ghostty-embedded-opengl.patch` owns the non-blocking `renderer_health` contract.
+- Producers refill that mailbox while a tick drains it, so `ghostty-bounded-app-tick.patch` caps each tick at
+  one capacity and re-arms through `wakeup`.
+  Without it a program writing titles held one tick, and every `runOnMain` control reply behind it, for as
+  long as it wrote (#320).
 - Linux is the reverse of this section's first bullet.
   `linux/ghostty-resources.env` pins the same `683d8db`, and `ghostty-embedded-opengl.patch` declares
   `must_draw_from_app_thread` for OpenGL, so the render thread only posts `redraw_surface` and that
