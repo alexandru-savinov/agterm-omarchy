@@ -245,9 +245,7 @@ final class GhosttyApp: @unchecked Sendable {
                     return true
                 }
                 let traced = String(cString: ptr)
-                if traced.hasPrefix("agterm-remote;") || traced.hasPrefix("zmx-role;") {
-                    Trace357.log("SET_TITLE \(w.trace357) title=\(traced)")
-                }
+                Trace357.log("SET_TITLE \(w.trace357) title=\(traced.debugDescription)")
                 w.applyTitle(traced)
                 return true
             case GHOSTTY_ACTION_PWD:

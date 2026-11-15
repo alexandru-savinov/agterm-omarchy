@@ -3410,6 +3410,11 @@ def verify_remote_presentation(env, cycles=0):
                 except Exception as error:  # noqa: BLE001
                     print(f"TRACE357 CYCLE {cycle} FAILED: {type(error).__name__}: {str(error)[:3000]}", flush=True)
                     outcomes.append((cycle, "fail"))
+                    for pane in ("left", "right"):
+                        with contextlib.suppress(Exception):
+                            text = raw_control_json(viewer_env, {"cmd": "session.text", "target": cycle_viewer,
+                                                                 "args": {"pane": pane, "all": True}})
+                            print(f"TRACE357 CYCLE {cycle} TEXT {pane} " + json.dumps(text.get("result", text))[-3000:], flush=True)
                 finally:
                     for child in stress:
                         child.kill()
