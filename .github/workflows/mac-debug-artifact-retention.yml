@@ -366,7 +366,7 @@ jobs:
               return origin[0], stores
 
 
-          def dependency_rejection(root, relative, identity, member, info):
+          def dependency_rejection(root, relative, identity, member, info, observation_error=None):
               # One bounded JSON line in the existing verification log; never read member contents.
               def kind(mode):
                   for predicate, label in ((stat.S_ISDIR, 'directory'), (stat.S_ISREG, 'file'),
@@ -379,10 +379,12 @@ jobs:
 
               record = {'event': 'dependency-working-tree-rejection', 'checkout': relative,
                         'identity': identity, 'member': member[:256], 'member_truncated': len(member) > 256,
-                        'lstat_kind': kind(info.st_mode)}
+                        'lstat_kind': kind(info.st_mode) if info is not None else 'unavailable'}
+              if observation_error is not None:
+                  record['observation_error'] = observation_error[:64]
               descriptor = None
               try:
-                  if stat.S_ISDIR(info.st_mode):
+                  if info is not None and stat.S_ISDIR(info.st_mode):
                       record.update(children=[], children_complete=False)
                       path = Path(relative) / member
                       if path.is_absolute() or '..' in path.parts or len(path.parts) > 128:
@@ -433,6 +435,78 @@ jobs:
                   pass  # An unavailable log writer must not replace the original rejection below.
 
 
+          def dependency_empty_xcode_layout(root, relative, identity, info):
+              # Only the measured .swiftpm/xcode directory shape; never infer emptiness from st_size.
+              member = '.swiftpm'; observed_info = info; descriptors = []; links = []
+              footprint = None; observation_error = None
+              fingerprint = lambda value: (value.st_dev, value.st_ino, value.st_mode,
+                                           value.st_mtime_ns, value.st_ctime_ns)
+              try:
+                  path = Path(relative) / member
+                  require(not path.is_absolute() and '..' not in path.parts and len(path.parts) <= 128,
+                          'uncontrolled empty-layout path')
+                  flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+                  descriptor = os.open(root, flags); descriptors.append(descriptor)
+                  for part in path.parts:
+                      parent = descriptor
+                      descriptor = os.open(part, flags, dir_fd=parent); descriptors.append(descriptor)
+                      links.append((parent, part, descriptor))
+                  metadata = os.fstat(descriptor)
+                  require(fingerprint(metadata) == fingerprint(info), 'metadata directory changed')
+                  with os.scandir(descriptor) as children:
+                      child = next(children, None)
+                      require(child is not None, 'xcode metadata directory missing')
+                      member = '.swiftpm/' + child.name; observed_info = None
+                      observed_info = child.stat(follow_symlinks=False)
+                      require(child.name == 'xcode' and stat.S_ISDIR(observed_info.st_mode),
+                              'unexpected metadata child')
+                      xcode_info = observed_info
+                      extra = next(children, None)
+                      if extra is not None:
+                          member = '.swiftpm/' + extra.name; observed_info = None
+                          observed_info = extra.stat(follow_symlinks=False)
+                          require(False, 'extra metadata child')
+                  member = '.swiftpm/xcode'; observed_info = xcode_info
+                  xcode = os.open('xcode', flags, dir_fd=descriptor); descriptors.append(xcode)
+                  links.append((descriptor, 'xcode', xcode))
+                  require(fingerprint(os.fstat(xcode)) == fingerprint(xcode_info), 'xcode directory changed')
+                  with os.scandir(xcode) as children:
+                      extra = next(children, None)
+                      if extra is not None:
+                          member += '/' + extra.name; observed_info = None
+                          observed_info = extra.stat(follow_symlinks=False)
+                          require(False, 'xcode metadata directory is not empty')
+                  require(fingerprint(os.fstat(xcode)) == fingerprint(xcode_info), 'xcode directory changed')
+                  member = '.swiftpm'; observed_info = metadata
+                  require(fingerprint(os.fstat(descriptor)) == fingerprint(metadata), 'metadata directory changed')
+                  for parent, part, opened in links:
+                      member = '.swiftpm/xcode' if opened == xcode else '.swiftpm'
+                      observed_info = None
+                      current = os.stat(part, dir_fd=parent, follow_symlinks=False)
+                      observed_info = current if opened in (descriptor, xcode) else metadata
+                      held = os.fstat(opened)
+                      require(stat.S_ISDIR(current.st_mode)
+                              and (current.st_dev, current.st_ino) == (held.st_dev, held.st_ino),
+                              'metadata ancestor changed')
+                  footprint = [
+                      {'member': '.swiftpm', 'kind': 'directory', 'mode': stat.S_IMODE(metadata.st_mode),
+                       'entries': ['xcode'], 'children_complete': True},
+                      {'member': '.swiftpm/xcode', 'kind': 'directory', 'mode': stat.S_IMODE(xcode_info.st_mode),
+                       'entries': [], 'children_complete': True}]
+              except (OSError, RuntimeError, ValueError) as error:
+                  observation_error = type(error).__name__
+              finally:
+                  for descriptor in reversed(descriptors):
+                      try:
+                          os.close(descriptor)
+                      except OSError as error:
+                          footprint = None; observation_error = type(error).__name__
+              if footprint is None:
+                  dependency_rejection(root, relative, identity, member, observed_info, observation_error)
+                  require(False, 'unknown dependency working-tree directory')
+              return footprint
+
+
           def dependency_checkout(root, base, identity, pin):
               relative = base + '/checkouts/' + CHECKOUT_NAMES[identity]
               checkout = dependency_path(root, relative)
@@ -477,7 +551,7 @@ jobs:
                   index[name] = (mode, blob)
               require(tree and index == tree, 'dependency index changed')
               directories = {parent.as_posix() for name in tree for parent in Path(name).parents if parent != Path('.')}
-              actual = set(); total = members = 0; records = {}
+              actual = set(); total = members = 0; records = {}; metadata_info = None
               for directory, dirs, files in os.walk(checkout, followlinks=False):
                   if Path(directory) == checkout:
                       dirs[:] = [name for name in dirs if name != '.git']
@@ -486,6 +560,14 @@ jobs:
                       require(members <= MAX_DEPENDENCY_MEMBERS, 'dependency working-tree member cap exceeded')
                       member = path.relative_to(checkout).as_posix()
                       if stat.S_ISDIR(info.st_mode):
+                          if (member == '.swiftpm' and member not in directories
+                                  and base == DEPENDENCY_ROOTS[1] and identity == 'swift-argument-parser'):
+                              members += 1  # Count both metadata directories inside the existing member cap.
+                              require(members <= MAX_DEPENDENCY_MEMBERS, 'dependency working-tree member cap exceeded')
+                              dependency_empty_xcode_layout(root, relative, identity, info)
+                              metadata_info = info
+                              dirs.remove(name)  # The descriptor check proved the complete two-directory subtree.
+                              continue
                           if member not in directories:
                               dependency_rejection(root, relative, identity, member, info)
                           require(member in directories, 'unknown dependency working-tree directory')
@@ -514,9 +596,10 @@ jobs:
                       require(observed == blob, 'dependency tracked bytes changed: ' + identity)
                       records[member] = {'mode': mode, 'git_blob': blob, 'sha256': hashlib.sha256(raw).hexdigest()}
               require(actual == set(tree), 'dependency tracked member missing')
+              metadata = dependency_empty_xcode_layout(root, relative, identity, metadata_info) if metadata_info else []
               return {'identity': identity, 'pin': pin, 'checkout': relative, 'mirror': mirror_relative,
                       'revision': revision, 'tracked_members': records, 'tracked_bytes': total,
-                      'index_and_working_tree_match': True}
+                      'index_and_working_tree_match': True, 'empty_xcode_metadata': metadata}
 
 
           def dependency_workspace(root, base, expected):
