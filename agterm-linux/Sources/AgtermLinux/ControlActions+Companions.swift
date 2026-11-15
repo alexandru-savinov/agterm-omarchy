@@ -30,7 +30,7 @@ extension AppController {
         case .failure(let response): return response
         case .success(let id):
             guard let source = options.page else { return err("a page companion needs --html or --url") }
-            if options.persistent, let failure = LinuxBrowserStore.shared.failure() {
+            if let failure = LinuxBrowserStore.shared.failure(persistent: options.persistent) {
                 return err("session.companion.page: \(failure)")
             }
             let overlay = HtmlOverlay(source: source, navigation: options.navigation, javascript: options.javascript,

@@ -6,7 +6,7 @@ import agtermCore
 /// One live WebKit view and its GTK chrome. The model owns the slot; the registry owns this view.
 @MainActor
 final class LinuxHtmlOverlayPage {
-    private static let transferGuard = """
+    static let transferGuard = """
         (() => {
           const blocked = data => {
             if (!data) return false;
@@ -31,11 +31,6 @@ final class LinuxHtmlOverlayPage {
           }
         })();
         """
-
-    struct Resource {
-        let path: String
-        let mime: String
-    }
 
     let id: UUID
     let root: OpaquePointer
@@ -90,7 +85,12 @@ final class LinuxHtmlOverlayPage {
         title = OpaquePointer(gtk_label_new(nil))
         pageTitle = OpaquePointer(gtk_label_new(nil))
         errorLabel = OpaquePointer(gtk_label_new(nil))
-        Self.transferGuard.withCString { source in
+        #if DEBUG
+        let guardSource = LinuxHtmlPasteTrace.guardSource(Self.transferGuard, world: "agterm-transfer-guard", manager: manager)
+        #else
+        let guardSource = Self.transferGuard
+        #endif
+        guardSource.withCString { source in
             let script = "agterm-transfer-guard".withCString { world in
                 webkit_user_script_new_for_world(source, WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
                                                  WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START, world, nil, nil)
@@ -212,32 +212,9 @@ final class LinuxHtmlOverlayPage {
         return nil
     }
 
-    func resource(for uriPath: String) -> Resource? {
+    func resource(for uriPath: String) -> LinuxHtmlFileGrant.Resource? {
         guard case .file(_, let grantRoot?) = overlay.source else { return nil }
-        let root = URL(fileURLWithPath: grantRoot).standardizedFileURL.resolvingSymlinksInPath()
-        let path = root.appendingPathComponent(String(uriPath.drop(while: { $0 == "/" })))
-            .standardizedFileURL.resolvingSymlinksInPath()
-        guard path.pathComponents.starts(with: root.pathComponents),
-              path.pathComponents.count > root.pathComponents.count else { return nil }
-        let attributes = try? FileManager.default.attributesOfItem(atPath: path.path)
-        guard attributes?[.type] as? FileAttributeType == .typeRegular,
-              FileManager.default.isReadableFile(atPath: path.path) else { return nil }
-        let mime: String = switch path.pathExtension.lowercased() {
-        case "html", "htm": "text/html"
-        case "css": "text/css"
-        case "js", "mjs": "text/javascript"
-        case "json": "application/json"
-        case "svg": "image/svg+xml"
-        case "png": "image/png"
-        case "jpg", "jpeg": "image/jpeg"
-        case "gif": "image/gif"
-        case "webp": "image/webp"
-        case "woff": "font/woff"
-        case "woff2": "font/woff2"
-        case "txt": "text/plain"
-        default: "application/octet-stream"
-        }
-        return Resource(path: path.path, mime: mime)
+        return LinuxHtmlFileGrant.resource(for: uriPath, grantRoot: grantRoot)
     }
 
     private var pageURL: URL {
@@ -457,6 +434,12 @@ final class LinuxHtmlOverlayPage {
             connect(webView, signal, unsafeBitCast(onHtmlProperty as @convention(c)
                 (OpaquePointer?, OpaquePointer?, gpointer?) -> Void, to: GCallback.self), data)
         }
+        #if DEBUG
+        if LinuxHtmlPasteTrace.enabled {
+            connect(manager, "script-message-received::\(LinuxHtmlPasteTrace.handler)",
+                    unsafeBitCast(onHtmlPasteTraceMessage, to: GCallback.self), data)
+        }
+        #endif
         connect(webView, "permission-request", unsafeBitCast(onHtmlPermission as @convention(c)
             (OpaquePointer?, OpaquePointer?, gpointer?) -> gboolean, to: GCallback.self), data)
         connect(webView, "run-file-chooser", unsafeBitCast(onHtmlFileChooser as @convention(c)
@@ -497,24 +480,15 @@ final class LinuxHtmlOverlayPage {
             webkit_policy_decision_ignore(cast(decision))
             return 1
         }
-        let target: HtmlNavigationTarget = type == 1 ? .newWindow
-            : webkit_navigation_action_get_frame_name(action) == nil ? .mainFrame : .subframe
-        let clicked = webkit_navigation_action_get_navigation_type(action).rawValue == 0
-        let url: URL
-        if rawURL.scheme == "agterm-file", case .file(_, let grantRoot?) = overlay.source,
-           rawURL.host?.lowercased() == id.uuidString.lowercased() {
-            url = URL(fileURLWithPath: grantRoot).appendingPathComponent(String(rawURL.path.dropFirst()))
-        } else {
-            url = rawURL
-        }
-        let verdict = HtmlNavigationPolicy.decide(
-            HtmlNavigationAction(url: url, target: target, userActivated: clicked), overlay: overlay)
-        if verdict == .allow {
+        let outcome = LinuxHtmlNavigation.decide(
+            rawURL, newWindow: type == 1, linkClicked: webkit_navigation_action_get_navigation_type(action).rawValue == 0,
+            page: overlay, alreadyFailed: loadFailed)
+        if outcome.decision == .allow {
             webkit_policy_decision_use(cast(decision))
         } else {
             webkit_policy_decision_ignore(cast(decision))
-            if verdict == .openExternal { askToOpen(url) }
-            if target == .mainFrame, !clicked, !loadFailed { fail("navigation blocked: \(url.absoluteString)") }
+            if outcome.decision == .openExternal { askToOpen(outcome.url) }
+            if outcome.failsPage { fail("navigation blocked: \(outcome.url.absoluteString)") }
         }
         return 1
     }
@@ -587,6 +561,9 @@ final class LinuxHtmlOverlayPage {
             let modifiers = UInt32(gdk_event_get_modifier_state(event).rawValue)
             let paste = (key == UInt32(GDK_KEY_v) && modifiers & UInt32(GDK_CONTROL_MASK.rawValue) != 0)
                 || (key == UInt32(GDK_KEY_Insert) && modifiers & UInt32(GDK_SHIFT_MASK.rawValue) != 0)
+            #if DEBUG
+            if paste, LinuxHtmlPasteTrace.enabled { LinuxHtmlPasteTrace.key(event, insert: key == UInt32(GDK_KEY_Insert)) }
+            #endif
             if paste && clipboardHasFileTransfer { return 1 }
         }
         if type == GDK_BUTTON_PRESS || type == GDK_KEY_PRESS {
