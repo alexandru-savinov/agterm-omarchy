@@ -37,16 +37,19 @@ struct LinuxRemoteHeldExitRouter {
 
     func linkLost(_ notice: RemoteLinkNotice, from surface: any TerminalSurface, forSession id: UUID,
                   heldAttachment: LinuxHeldLeadAttachment) -> Bool {
+        let tracePane = paneIdentity(surface, forSession: id)
+        Trace357.log("linkLost \((surface as? GhosttySurface)?.trace357 ?? "?") slotPane=\(Trace357.short(tracePane)) notice=\(Trace357.short(notice.nonce)) live=\(Trace357.short(tracePane.flatMap { ZmxLeadBook.shared.states[$0]?.attachment.nonce })) held=\(Trace357.short(heldAttachment.state?.attachment.nonce)) host=\(store.session(withID: id)?.remoteHost != nil)")
         guard let pane = paneIdentity(surface, forSession: id),
               let session = store.session(withID: id), let host = session.remoteHost,
               let attachment = ZmxLeadBook.shared.states[pane] ?? heldAttachment.state,
-              notice.nonce == attachment.attachment.nonce else { return false }
+              notice.nonce == attachment.attachment.nonce else { Trace357.log("linkLost rejected"); return false }
         let cover = attachment.role != nil || attachment.reattaching
         heldAttachment.consume()
         ZmxLeadBook.shared.forget(pane: pane)
         store.remotePaneHeld(pane, forSession: id)
         paneHeld(surface, forSession: id)
         RemoteReconnectBook.shared.wait(pane: pane, session: id, host: host, cover: cover, now: Date())
+        Trace357.log("linkLost accepted pane=\(Trace357.short(pane)) waiting=\(RemoteReconnectBook.shared.waiting(pane: pane))")
         return true
     }
 
@@ -68,6 +71,7 @@ struct LinuxRemoteHeldExitRouter {
             return
         }
         store.remotePaneHeld(local, forSession: id)
+        Trace357.log("paneHeld pane=\(Trace357.short(local)) canClose=\(store.canCloseRemovedRemotePane(local, forSession: id))")
         // a removal frame that arrived first could not close a replica still running its ssh
         closeRemovedPane(local, id)
         reconcile(false)

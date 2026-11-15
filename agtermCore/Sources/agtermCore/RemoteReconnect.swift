@@ -128,6 +128,7 @@ public final class RemoteReconnectBook {
     }
 
     public func cancel(pane: UUID) {
+        if entries[pane] != nil { Trace357.log("book cancel pane=\(Trace357.short(pane))") }
         entries[pane] = nil
         resumed[pane] = nil
     }

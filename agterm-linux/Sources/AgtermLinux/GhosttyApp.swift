@@ -240,21 +240,33 @@ final class GhosttyApp: @unchecked Sendable {
                 Self.wrapper(fromTarget: target)?.queueRender()
                 return true
             case GHOSTTY_ACTION_SET_TITLE:
-                guard let w = Self.wrapper(fromTarget: target), let ptr = action.action.set_title.title else { return true }
-                w.applyTitle(String(cString: ptr))
+                guard let w = Self.wrapper(fromTarget: target), let ptr = action.action.set_title.title else {
+                    Trace357.log("SET_TITLE dropped: no wrapper")
+                    return true
+                }
+                let traced = String(cString: ptr)
+                if traced.hasPrefix("agterm-remote;") || traced.hasPrefix("zmx-role;") {
+                    Trace357.log("SET_TITLE \(w.trace357) title=\(traced)")
+                }
+                w.applyTitle(traced)
                 return true
             case GHOSTTY_ACTION_PWD:
                 guard let w = Self.wrapper(fromTarget: target), let ptr = action.action.pwd.pwd else { return true }
                 w.applyPwd(String(cString: ptr))
                 return true
             case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
-                guard let w = Self.wrapper(fromTarget: target) else { return false }
+                guard let w = Self.wrapper(fromTarget: target) else {
+                    Trace357.log("CHILD_EXITED dropped: no wrapper")
+                    return false
+                }
+                Trace357.log("CHILD_EXITED \(w.trace357) exit=\(action.action.child_exited.exit_code) ms=\(action.action.child_exited.timetime_ms) closes=\(w.shouldCloseOnChildExitAction)")
                 let retained = w.surface.flatMap { RetainedGhosttySurface(ghostty_surface_userdata($0)) }
                 guard w.shouldCloseOnChildExitAction else {
                     w.handleHeldProcessExit()
                     // the held hook reaches the store, which may close and free this surface: never inside the callback
                     guard let retained else { return false }
                     runOnMain { MainActor.assumeIsolated {
+                        Trace357.log("held-hop \(retained.surface.trace357) hook=\(retained.surface.onExitHeld != nil)")
                         retained.surface.onExitHeld?()
                         retained.release()
                     } }
