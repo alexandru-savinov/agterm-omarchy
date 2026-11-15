@@ -6,7 +6,7 @@ import agtermCore
 /// One live WebKit view and its GTK chrome. The model owns the slot; the registry owns this view.
 @MainActor
 final class LinuxHtmlOverlayPage {
-    private static let transferGuard = """
+    static let transferGuard = """
         (() => {
           const blocked = data => {
             if (!data) return false;
@@ -90,7 +90,12 @@ final class LinuxHtmlOverlayPage {
         title = OpaquePointer(gtk_label_new(nil))
         pageTitle = OpaquePointer(gtk_label_new(nil))
         errorLabel = OpaquePointer(gtk_label_new(nil))
-        Self.transferGuard.withCString { source in
+        #if DEBUG
+        let guardSource = LinuxHtmlPasteTrace.guardSource(Self.transferGuard, world: "agterm-transfer-guard", manager: manager)
+        #else
+        let guardSource = Self.transferGuard
+        #endif
+        guardSource.withCString { source in
             let script = "agterm-transfer-guard".withCString { world in
                 webkit_user_script_new_for_world(source, WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
                                                  WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START, world, nil, nil)
@@ -457,6 +462,12 @@ final class LinuxHtmlOverlayPage {
             connect(webView, signal, unsafeBitCast(onHtmlProperty as @convention(c)
                 (OpaquePointer?, OpaquePointer?, gpointer?) -> Void, to: GCallback.self), data)
         }
+        #if DEBUG
+        if LinuxHtmlPasteTrace.enabled {
+            connect(manager, "script-message-received::\(LinuxHtmlPasteTrace.handler)",
+                    unsafeBitCast(onHtmlPasteTraceMessage, to: GCallback.self), data)
+        }
+        #endif
         connect(webView, "permission-request", unsafeBitCast(onHtmlPermission as @convention(c)
             (OpaquePointer?, OpaquePointer?, gpointer?) -> gboolean, to: GCallback.self), data)
         connect(webView, "run-file-chooser", unsafeBitCast(onHtmlFileChooser as @convention(c)
@@ -587,6 +598,9 @@ final class LinuxHtmlOverlayPage {
             let modifiers = UInt32(gdk_event_get_modifier_state(event).rawValue)
             let paste = (key == UInt32(GDK_KEY_v) && modifiers & UInt32(GDK_CONTROL_MASK.rawValue) != 0)
                 || (key == UInt32(GDK_KEY_Insert) && modifiers & UInt32(GDK_SHIFT_MASK.rawValue) != 0)
+            #if DEBUG
+            if paste, LinuxHtmlPasteTrace.enabled { LinuxHtmlPasteTrace.key(event, insert: key == UInt32(GDK_KEY_Insert)) }
+            #endif
             if paste && clipboardHasFileTransfer { return 1 }
         }
         if type == GDK_BUTTON_PRESS || type == GDK_KEY_PRESS {
