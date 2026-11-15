@@ -366,6 +366,73 @@ jobs:
               return origin[0], stores
 
 
+          def dependency_rejection(root, relative, identity, member, info):
+              # One bounded JSON line in the existing verification log; never read member contents.
+              def kind(mode):
+                  for predicate, label in ((stat.S_ISDIR, 'directory'), (stat.S_ISREG, 'file'),
+                                           (stat.S_ISLNK, 'symlink'), (stat.S_ISFIFO, 'fifo'),
+                                           (stat.S_ISSOCK, 'socket'), (stat.S_ISCHR, 'character'),
+                                           (stat.S_ISBLK, 'block')):
+                      if predicate(mode):
+                          return label
+                  return 'other'
+
+              record = {'event': 'dependency-working-tree-rejection', 'checkout': relative,
+                        'identity': identity, 'member': member[:256], 'member_truncated': len(member) > 256,
+                        'lstat_kind': kind(info.st_mode)}
+              descriptor = None
+              try:
+                  if stat.S_ISDIR(info.st_mode):
+                      record.update(children=[], children_complete=False)
+                      path = Path(relative) / member
+                      if path.is_absolute() or '..' in path.parts or len(path.parts) > 128:
+                          raise ValueError('uncontrolled diagnostic directory')
+                      flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+                      descriptor = os.open(root, flags)
+                      for part in path.parts:
+                          parent = descriptor
+                          descriptor = os.open(part, flags, dir_fd=parent)
+                          os.close(parent)
+                      observed = os.fstat(descriptor)
+                      if (observed.st_dev, observed.st_ino) != (info.st_dev, info.st_ino):
+                          raise RuntimeError('diagnostic directory changed')
+                      with os.scandir(descriptor) as children:
+                          for _ in range(8):
+                              try:
+                                  child = next(children)
+                              except StopIteration:
+                                  record['children_complete'] = True
+                                  break
+                              child_info = child.stat(follow_symlinks=False)
+                              record['children'].append({'name': child.name, 'kind': kind(child_info.st_mode),
+                                                         'size': child_info.st_size})
+              except Exception as error:
+                  record['observation_error'] = type(error).__name__[:64]
+              finally:
+                  if descriptor is not None:
+                      try:
+                          os.close(descriptor)
+                      except OSError as error:
+                          record.setdefault('observation_error', type(error).__name__[:64])
+              while True:
+                  encoded = json.dumps(record, ensure_ascii=True, sort_keys=True, separators=(',', ':'))
+                  if len(encoded) < 4096:
+                      break
+                  if record.get('children'):
+                      record['children'].pop()
+                      record['children_complete'] = False
+                  elif record['member']:
+                      record['member'] = record['member'][:len(record['member']) // 2]
+                      record['member_truncated'] = True
+                  else:
+                      encoded = '{"event":"dependency-working-tree-rejection","observation_error":"OutputLimit"}'
+                      break
+              try:
+                  print(encoded, flush=True)
+              except OSError:
+                  pass  # An unavailable log writer must not replace the original rejection below.
+
+
           def dependency_checkout(root, base, identity, pin):
               relative = base + '/checkouts/' + CHECKOUT_NAMES[identity]
               checkout = dependency_path(root, relative)
@@ -419,9 +486,13 @@ jobs:
                       require(members <= MAX_DEPENDENCY_MEMBERS, 'dependency working-tree member cap exceeded')
                       member = path.relative_to(checkout).as_posix()
                       if stat.S_ISDIR(info.st_mode):
+                          if member not in directories:
+                              dependency_rejection(root, relative, identity, member, info)
                           require(member in directories, 'unknown dependency working-tree directory')
                           continue
                       actual.add(member)
+                      if member not in tree:
+                          dependency_rejection(root, relative, identity, member, info)
                       require(len(actual) <= MAX_DEPENDENCY_MEMBERS and member in tree, 'unknown dependency working-tree member')
                       mode, blob = tree[member]
                       dependency_path(root, relative + '/' + member, leaf_link=mode == '120000')
