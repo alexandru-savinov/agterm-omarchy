@@ -856,7 +856,11 @@ jobs:
                       require(measured_flags == 0x2, 'unexpected source Debug main flags: ' + hex(measured_flags))
                   elif relative in REQUIRED[1:4]:
                       require(measured_flags & 0x10000, 'hardened runtime missing: ' + relative)
-                  raw = run(['/usr/bin/codesign', '-d', '--entitlements', '-', code])
+                  raw = run(['/usr/bin/codesign', '-d', '--entitlements', '-', '--xml', code])
+                  require(len(raw) <= 64 * 1024, 'entitlement stdout cap exceeded: ' + relative)
+                  print(json.dumps({'event': 'codesign-entitlements-stdout', 'image': relative,
+                                    'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest(),
+                                    'hex': raw.hex()}, sort_keys=True), flush=True)
                   actual = plistlib.loads(raw) if raw.strip() else {}
                   entitlement_policy(actual, expected if main else {}, main)
                   native[relative] = {'architecture': arch, 'sha256': digest(path),
