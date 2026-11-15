@@ -163,15 +163,11 @@ struct StreamHandshakeTests {
         }
         try #require(bound == 0)
         try #require(listen(listener, 1) == 0)
-        var directoryURL = Bundle.main.bundleURL
-        var executable: URL?
-        for _ in 0..<6 {
-            let candidate = directoryURL.appendingPathComponent("agtermctl")
-            if FileManager.default.isExecutableFile(atPath: candidate.path) { executable = candidate; break }
-            directoryURL.deleteLastPathComponent()
-        }
+        let executable = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent(".build/debug/agtermctl")
+        try #require(FileManager.default.isExecutableFile(atPath: executable.path), "swift test must build the agtermctl executable")
         let process = Process()
-        process.executableURL = try #require(executable)
+        process.executableURL = executable
         process.arguments = (overlay ? ["session", "overlay", "run-job", "fixture"] : ["zmx", "present", "fixture"])
             + ["--socket", path]
         process.standardInput = FileHandle.nullDevice
@@ -236,6 +232,20 @@ struct StreamHandshakeTests {
         #endif
         let client = pair[0]
         let peer = pair[1]
+        defer { close(client); close(peer) }
+        #if canImport(Darwin)
+        // A nonempty write sets Darwin's FWASWRITTEN history flag. Establish that
+        // baseline before the body captures flags, without leaving any protocol bytes.
+        var sentinel: UInt8 = 0xA5
+        try #require(write(client, &sentinel, 1) == 1, "fixture priming must write one byte")
+        var ready = pollfd(fd: peer, events: Int16(POLLIN), revents: 0)
+        try #require(poll(&ready, 1, 0) == 1 && ready.revents == Int16(POLLIN), "fixture priming byte must be readable")
+        var drained: UInt8 = 0
+        try #require(read(peer, &drained, 1) == 1, "fixture priming must drain one byte")
+        try #require(drained == sentinel, "fixture priming must drain the exact byte written")
+        ready.revents = 0
+        try #require(poll(&ready, 1, 0) == 0, "fixture stream must be empty before the protocol starts")
+        #endif
         let served = DispatchSemaphore(value: 0)
         let cancel = DispatchSemaphore(value: 0)
         let watched = DispatchSemaphore(value: 0)
@@ -253,8 +263,6 @@ struct StreamHandshakeTests {
             cancel.signal()
             watched.wait()
             served.wait()
-            close(client)
-            close(peer)
         }
         try body(client)
     }
