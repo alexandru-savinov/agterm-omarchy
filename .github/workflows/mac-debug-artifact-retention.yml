@@ -633,13 +633,17 @@ jobs:
                           'unexpected signing identity: ' + relative)
                   flags = re.search(r'(?m)^CodeDirectory .*\bflags=0x([0-9a-fA-F]+)\(', description)
                   require(flags is not None, 'missing code-signing flags')
-                  if relative in REQUIRED[:4]:
-                      require(int(flags.group(1), 16) & 0x10000, 'hardened runtime missing: ' + relative)
+                  measured_flags = int(flags.group(1), 16)
+                  if main:
+                      # The final source Debug ad-hoc command predicts 0x2; the actual flags must match exactly.
+                      require(measured_flags == 0x2, 'unexpected source Debug main flags: ' + hex(measured_flags))
+                  elif relative in REQUIRED[1:4]:
+                      require(measured_flags & 0x10000, 'hardened runtime missing: ' + relative)
                   raw = run(['/usr/bin/codesign', '-d', '--entitlements', '-', code])
                   actual = plistlib.loads(raw) if raw.strip() else {}
                   entitlement_policy(actual, expected if main else {}, main)
                   native[relative] = {'architecture': arch, 'sha256': digest(path),
-                                      'entitlements': actual, 'codesign': description}
+                                      'entitlements': actual, 'codesign': description, 'code_directory_flags': measured_flags}
               require(set(REQUIRED) <= set(native), 'missing main/helper/Debug dylib Mach-O')
               require((app / 'Contents/Resources/zmx/BUILD').read_bytes() == (root / '.zmx-build-stamp').read_bytes(),
                       'bundled zmx stamp differs')
