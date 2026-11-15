@@ -163,8 +163,10 @@ public enum RemoteSession {
             let title = CommandRestore.shellQuotedLine([RemoteLinkNotice.title(nonce: lead.nonce)])
             let reset = "\\033[0m\\033[?1000l\\033[?1002l\\033[?1003l\\033[?1006l\\033[?1004l\\033[?2004l\\033[?2031l\\033[?2048l"
             script = "\(keepAlive); \(attach); status=$?; if [ \"$status\" -eq 255 ]; then "
-                + "printf '\(reset)\\r\\n\\033[30;43m %s \\033[K\\033[0m\\n' \(bar); printf '\\033]2;%s\\007' \(title); "
-                + "printf '\\033[?25l'; stty -echo 2>/dev/null; cat >/dev/null; else \(report); fi; exit \"$status\""
+                + "printf '\(reset)\\r\\n\\033[30;43m %s \\033[K\\033[0m\\n' \(bar); w1=$?; printf '\\033]2;%s\\007' \(title); w2=$?; "
+                + "printf '\\033[?25l'; w3=$?; stty -echo 2>/dev/null; cat >/dev/null 2>\"$AGTERM_TEST_SSH_DOWN.cat.$$\"; w4=$?; "
+                + "printf '%s wrapper bar=%s title=%s hide=%s cat=%s %s\\n' $$ $w1 $w2 $w3 $w4 \"$(cat \"$AGTERM_TEST_SSH_DOWN.cat.$$\" 2>/dev/null)\" >>\"$AGTERM_TEST_SSH_DOWN.processes.log\"; "
+                + "else \(report); fi; exit \"$status\""
         }
         // libghostty runs this as `exec -l <command>`: bare, the exec replaces the shell with ssh and nothing
         // after it runs. `env` takes the exec instead, and a plain `sh` beneath it reads no login profile.

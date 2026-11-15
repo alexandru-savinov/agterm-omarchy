@@ -3417,6 +3417,10 @@ def verify_remote_presentation(env, cycles=0):
                     if viewer_process is not None:
                         stop(viewer_process)
                     reap_viewer_children()
+                    with contextlib.suppress(OSError):
+                        wrapper_lines = [line for line in open(ssh_down + ".processes.log", encoding="utf-8", errors="replace")
+                                         if " wrapper " in line]
+                        print(f"TRACE357 CYCLE {cycle} WRAPPERS " + json.dumps(wrapper_lines), flush=True)
                     with contextlib.suppress(FileNotFoundError):
                         os.remove(ssh_down + ".processes.log")
             viewer_process = None
