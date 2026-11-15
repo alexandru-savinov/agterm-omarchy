@@ -27,7 +27,7 @@ def session(failures=1, reason="ssh: connect to host: Connection refused", recov
 
 
 class ReconnectTests(unittest.TestCase):
-    def exercise(self, waiting, recovered=None):
+    def exercise(self, waiting, recovered=None, wrapper=None):
         with tempfile.TemporaryDirectory() as directory:
             down = str(Path(directory) / "ssh-down")
             Path(down + ".processes.log").write_text("101 term-child-status=143 exit=255\n")
@@ -56,7 +56,9 @@ class ReconnectTests(unittest.TestCase):
             with patch.dict(sys.modules, {"atspi_smoke": types.SimpleNamespace(wait_for=wait_for)}), \
                     patch.object(helper.os, "listdir", return_value=["101", "102"]), \
                     patch.object(helper.os, "kill") as kill, \
-                    patch.object(helper, "process_status", side_effect=lambda pid: {"pid": int(pid), "state": "S"}), \
+                    patch.object(helper, "process_status", side_effect=lambda pid: (
+                        wrapper or {"pid": int(pid), "state": "S"}) if int(pid) >= 1000
+                        else {"pid": int(pid), "state": "S", "ppid": 1000 + int(pid)}), \
                     patch("builtins.open", side_effect=fixture_open), contextlib.redirect_stdout(output):
                 try:
                     helper.verify_pane_reconnect(lambda: next(values), "/fixture/ssh", down, "/fixture/origin")
@@ -91,6 +93,12 @@ class ReconnectTests(unittest.TestCase):
         value["surfaces"][1].pop("reconnect")
         error, _, _ = self.exercise(value)
         self.assertIsNotNone(error)
+
+    def test_an_exited_wrapper_fails_before_recovery(self):
+        for wrapper in ({"pid": 1101, "unavailable": True}, {"pid": 1101, "state": "Z"}):
+            error, _, calls = self.exercise(session(), wrapper=wrapper)
+            self.assertIn("did not hold", str(error))
+            self.assertEqual(calls, [25])
 
     def test_recovery_failure_is_reported(self):
         error, output, calls = self.exercise(session(), recovered=session())

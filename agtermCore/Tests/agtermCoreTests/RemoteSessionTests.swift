@@ -419,6 +419,43 @@ struct RemoteSessionTests {
         #expect(run.process.terminationStatus == 255)
     }
 
+    /// zmx sets O_NONBLOCK on the pane's shared open file description and restores it only on a clean exit,
+    /// so a client killed with the link leaves it set (#357).
+    @Test func aLostConnectionHoldsOnATerminalAKilledClientLeftNonblocking() async throws {
+        let fake = try FakeRemote()
+        defer { fake.cleanUp() }
+        try fake.installSSH(exitCode: 255)
+        let command = try RemoteSession.attachPaneCommand(host: "buildbox", endpoint: endpoint, daemon: daemon,
+                                                          session: "build", pane: .left,
+                                                          lead: ZmxLeadAttachment(nonce: "n1", claim: true))
+        let terminal = try PseudoTerminal()
+        defer { terminal.closeMaster() }
+        try #require(fcntl(terminal.slave, F_SETFL, fcntl(terminal.slave, F_GETFL) | O_NONBLOCK) == 0)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = fake.root.path + ":" + (environment["PATH"] ?? "/usr/bin:/bin")
+        process.environment = environment
+        let handle = FileHandle(fileDescriptor: terminal.slave, closeOnDealloc: false)
+        process.standardInput = handle
+        process.standardOutput = handle
+        process.standardError = handle
+        let (exited, exit) = AsyncStream<Void>.makeStream()
+        process.terminationHandler = { _ in exit.finish() }
+        try process.run()
+        terminal.closeSlave()
+        try await Task.sleep(for: .milliseconds(500))
+
+        #expect(process.isRunning, "the pane holds until the app replaces it")
+        terminal.closeMaster()
+        let deadline = Date().addingTimeInterval(5)
+        while process.isRunning, Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+        if process.isRunning { process.terminate() }
+        for await _ in exited {}
+        #expect(Date() < deadline, "the hold ends with the app's pty")
+    }
+
     @Test(arguments: [0, 1, 23] as [Int32])
     func anyOtherExitKeepsTodaysLineAndStatus(_ code: Int32) throws {
         let fake = try FakeRemote()
@@ -644,5 +681,30 @@ private struct FakeRemote {
         let url = root.appendingPathComponent(name)
         try ("#!/bin/sh\n" + script + "\n").write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+    }
+}
+
+/// A pty pair whose slave a test hands to a child as its terminal.
+private final class PseudoTerminal {
+    private(set) var master: Int32
+    private(set) var slave: Int32
+
+    init() throws {
+        master = posix_openpt(O_RDWR | O_NOCTTY)
+        try #require(master >= 0 && grantpt(master) == 0 && unlockpt(master) == 0)
+        let name = try #require(ptsname(master).map { String(cString: $0) })
+        slave = open(name, O_RDWR | O_NOCTTY)
+        try #require(slave >= 0)
+    }
+
+    func closeSlave() {
+        if slave >= 0 { close(slave) }
+        slave = -1
+    }
+
+    func closeMaster() {
+        closeSlave()
+        if master >= 0 { close(master) }
+        master = -1
     }
 }
