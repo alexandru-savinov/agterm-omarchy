@@ -244,6 +244,285 @@ jobs:
                       'originHash': actual['originHash'], 'pins': actual['pins']}
 
 
+          # The pinned local package resolves both Darwin dependencies for Xcode and its CLI builds.
+          DEPENDENCY_ROOTS = ('agtermCore/.build', 'build/DerivedData/SourcePackages')
+          CHECKOUT_NAMES = {'swift-argument-parser': 'swift-argument-parser', 'tomldecoder': 'TOMLDecoder'}
+          RESOLVER_PATHS = ('agtermCore/Package.resolved',
+                            'agterm.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved')
+          MAX_DEPENDENCY_MEMBERS = 20000
+          MAX_DEPENDENCY_BYTES = 256 * 1024 * 1024
+
+
+          def dependency_path(root, name, optional=False, leaf_link=False):
+              relative = Path(name)
+              require(not relative.is_absolute() and relative.parts and '..' not in relative.parts,
+                      'uncontrolled dependency path')
+              path = root
+              for index, part in enumerate(relative.parts):
+                  path = path / part
+                  try:
+                      info = path.lstat()
+                  except FileNotFoundError:
+                      require(optional, 'dependency path absent: ' + name)
+                      return None
+                  final = index == len(relative.parts) - 1
+                  require(not stat.S_ISLNK(info.st_mode) or (final and leaf_link),
+                          'dependency path contains a symlink: ' + name)
+                  require(final or stat.S_ISDIR(info.st_mode), 'dependency ancestor is not a directory')
+              return path
+
+
+          def dependency_bytes(path, limit):
+              info = path.lstat()
+              require(stat.S_ISREG(info.st_mode) and info.st_size <= limit, 'dependency file type/size rejected')
+              with path.open('rb') as file:
+                  raw = file.read(limit + 1)
+              require(len(raw) == info.st_size and len(raw) <= limit, 'dependency file size changed')
+              return raw
+
+
+          def dependency_observations(root, logs):
+              # Fixed paths and immediate children only: never walk a home, global cache, build products or configs.
+              directories = ['build/DerivedData']
+              metadata = list(RESOLVER_PATHS)
+              for base in DEPENDENCY_ROOTS:
+                  directories.extend((base, base + '/checkouts', base + '/repositories'))
+                  metadata.extend((base + '/workspace-state.json', base + '/Package.resolved'))
+              records = {}
+              for name in directories + metadata:
+                  try:
+                      path = dependency_path(root, name, optional=True)
+                      if path is None:
+                          records[name] = {'kind': 'absent'}
+                          continue
+                      info = path.lstat()
+                      if stat.S_ISDIR(info.st_mode):
+                          entries = []
+                          with os.scandir(path) as children:
+                              for child in children:
+                                  require(len(entries) < 128, 'dependency diagnostic child cap exceeded')
+                                  require(len(child.name) <= 255, 'dependency diagnostic name cap exceeded')
+                                  mode = child.stat(follow_symlinks=False).st_mode
+                                  kind = ('symlink' if stat.S_ISLNK(mode) else 'directory' if stat.S_ISDIR(mode)
+                                          else 'file' if stat.S_ISREG(mode) else 'unsupported')
+                                  entries.append({'name': child.name, 'kind': kind})
+                          records[name] = {'kind': 'directory', 'entries': sorted(entries, key=lambda row: row['name'])}
+                      else:
+                          raw = dependency_bytes(path, 1024 * 1024)
+                          records[name] = {'kind': 'file', 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
+                  except (OSError, RuntimeError):
+                      records[name] = {'kind': 'blocked-or-over-bound'}
+              (logs / 'dependency-layout.json').write_text(json.dumps(records, sort_keys=True, indent=2) + '\n')
+              require(all(row['kind'] != 'blocked-or-over-bound' for row in records.values()),
+                      'dependency layout diagnostics encountered an unsafe path or bound')
+              return records
+
+
+          def dependency_git(arguments, gitdir=None, checkout=None):
+              # No inherited Git configuration/environment, network transport, lazy fetch, hooks or fsmonitor.
+              env = {'PATH': '/usr/bin:/bin', 'GIT_CONFIG_NOSYSTEM': '1',
+                     'GIT_CONFIG_SYSTEM': '/dev/null', 'GIT_CONFIG_GLOBAL': '/dev/null',
+                     'GIT_TERMINAL_PROMPT': '0', 'GIT_OPTIONAL_LOCKS': '0',
+                     'GIT_NO_REPLACE_OBJECTS': '1', 'GIT_NO_LAZY_FETCH': '1'}
+              command = ['/usr/bin/git', '-c', 'protocol.allow=never', '-c', 'core.hooksPath=/dev/null',
+                         '-c', 'core.fsmonitor=false']
+              if gitdir is not None:
+                  command.append('--git-dir=' + str(gitdir))
+              if checkout is not None:
+                  command.append('--work-tree=' + str(checkout))
+              result = subprocess.run(command + list(map(str, arguments)), env=env,
+                                      capture_output=True, timeout=20, check=False)
+              # Do not print configuration values, credentials, or arbitrary Git diagnostics.
+              require(result.returncode == 0 and len(result.stdout) <= 8 * 1024 * 1024,
+                      'dependency Git identity command failed or exceeded its output bound')
+              return result.stdout
+
+
+          def dependency_git_storage(root, gitdir):
+              dependency_path(root, gitdir.relative_to(root).as_posix())
+              require(gitdir.is_dir(), 'dependency Git metadata is not a directory')
+              count = total = 0
+              for directory, dirs, files in os.walk(gitdir, followlinks=False):
+                  for name in dirs + files:
+                      path = Path(directory) / name
+                      info = path.lstat(); count += 1
+                      require(not stat.S_ISLNK(info.st_mode), 'dependency Git metadata link rejected')
+                      require(stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode), 'unsupported Git metadata object')
+                      total += info.st_size if stat.S_ISREG(info.st_mode) else 0
+                      require(count <= MAX_DEPENDENCY_MEMBERS and total <= 512 * 1024 * 1024,
+                              'dependency Git metadata cap exceeded')
+              for name in ('commondir', 'config.worktree', 'info/grafts', 'refs/replace',
+                           'objects/info/http-alternates', 'index.lock'):
+                  require(not (gitdir / name).exists(), 'unproved Git metadata layout')
+              config = dependency_bytes(gitdir / 'config', 128 * 1024)
+              require(re.search(rb'(?im)^\s*\[\s*(?:include|includeif|extensions)\b', config) is None,
+                      'external or extended Git configuration rejected')
+              origin = dependency_git(['config', '--file', gitdir / 'config', '--no-includes',
+                                       '--get-all', 'remote.origin.url']).decode().splitlines()
+              require(len(origin) == 1, 'dependency origin is not singular')
+              alternate = gitdir / 'objects/info/alternates'
+              stores = dependency_bytes(alternate, 4096).decode().splitlines() if alternate.exists() else []
+              require(len(stores) <= 1, 'unproved alternate object-store chain')
+              return origin[0], stores
+
+
+          def dependency_checkout(root, base, identity, pin):
+              relative = base + '/checkouts/' + CHECKOUT_NAMES[identity]
+              checkout = dependency_path(root, relative)
+              require(checkout.is_dir(), 'dependency checkout is not a directory')
+              gitdir = dependency_path(root, relative + '/.git')
+              origin, stores = dependency_git_storage(root, gitdir)
+              mirror_relative = None
+              if origin == pin['location']:
+                  require(not stores, 'direct checkout has an unproved shared store')
+              else:
+                  mirror = Path(origin)
+                  require(mirror.is_absolute() and mirror.parent == root / base / 'repositories'
+                          and re.fullmatch(r'[A-Za-z0-9_.-]{1,128}', mirror.name), 'dependency origin is outside its build root')
+                  mirror_relative = mirror.relative_to(root).as_posix()
+                  dependency_path(root, mirror_relative)
+                  mirror_origin, mirror_stores = dependency_git_storage(root, mirror)
+                  require(mirror_origin == pin['location'] and not mirror_stores, 'dependency source location/store changed')
+                  require(not stores or stores == [str(mirror / 'objects')], 'dependency alternate store escaped its mirror')
+                  require(dependency_git(['rev-parse', '--is-bare-repository'], mirror).strip() == b'true',
+                          'dependency mirror is not bare')
+              require(dependency_git(['rev-parse', '--is-bare-repository'], gitdir, checkout).strip() == b'false',
+                      'dependency checkout is bare')
+              revision = dependency_git(['rev-parse', '--verify', 'HEAD'], gitdir, checkout).decode().strip()
+              require(revision == pin['state']['revision'], 'dependency revision changed: ' + identity)
+              raw_tree = dependency_git(['ls-tree', '-rz', '--full-tree', 'HEAD'], gitdir, checkout)
+              tree = {}
+              for entry in raw_tree.split(b'\0'):
+                  if not entry:
+                      continue
+                  metadata, raw_name = entry.split(b'\t', 1)
+                  mode, kind, blob = metadata.decode().split(); name = raw_name.decode()
+                  require(kind == 'blob' and mode in ('100644', '100755', '120000'), 'unsupported dependency tree object')
+                  require(name not in tree and len(tree) < MAX_DEPENDENCY_MEMBERS, 'dependency tree roster rejected')
+                  tree[name] = (mode, blob)
+              index = {}
+              for entry in dependency_git(['ls-files', '-s', '-z'], gitdir, checkout).split(b'\0'):
+                  if not entry:
+                      continue
+                  metadata, raw_name = entry.split(b'\t', 1)
+                  mode, blob, stage = metadata.decode().split(); name = raw_name.decode()
+                  require(stage == '0' and name not in index, 'dependency index has unresolved/duplicate entries')
+                  index[name] = (mode, blob)
+              require(tree and index == tree, 'dependency index changed')
+              directories = {parent.as_posix() for name in tree for parent in Path(name).parents if parent != Path('.')}
+              actual = set(); total = members = 0; records = {}
+              for directory, dirs, files in os.walk(checkout, followlinks=False):
+                  if Path(directory) == checkout:
+                      dirs[:] = [name for name in dirs if name != '.git']
+                  for name in dirs + files:
+                      path = Path(directory) / name; info = path.lstat(); members += 1
+                      require(members <= MAX_DEPENDENCY_MEMBERS, 'dependency working-tree member cap exceeded')
+                      member = path.relative_to(checkout).as_posix()
+                      if stat.S_ISDIR(info.st_mode):
+                          require(member in directories, 'unknown dependency working-tree directory')
+                          continue
+                      actual.add(member)
+                      require(len(actual) <= MAX_DEPENDENCY_MEMBERS and member in tree, 'unknown dependency working-tree member')
+                      mode, blob = tree[member]
+                      dependency_path(root, relative + '/' + member, leaf_link=mode == '120000')
+                      if mode == '120000':
+                          require(path.is_symlink(), 'dependency link changed type')
+                          target = os.readlink(path)
+                          require(not Path(target).is_absolute(), 'absolute dependency source link')
+                          destination = Path(os.path.normpath(str(path.parent / target)))
+                          require(destination.is_relative_to(checkout), 'escaping dependency source link')
+                          dependency_path(root, destination.relative_to(root).as_posix())
+                          raw = os.fsencode(target)
+                      else:
+                          require(stat.S_ISREG(info.st_mode) and bool(info.st_mode & 0o111) == (mode == '100755'),
+                                  'dependency tracked mode/type changed')
+                          raw = dependency_bytes(path, 32 * 1024 * 1024)
+                      total += len(raw)
+                      require(total <= MAX_DEPENDENCY_BYTES, 'dependency byte cap exceeded')
+                      observed = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+                      require(observed == blob, 'dependency tracked bytes changed: ' + identity)
+                      records[member] = {'mode': mode, 'git_blob': blob, 'sha256': hashlib.sha256(raw).hexdigest()}
+              require(actual == set(tree), 'dependency tracked member missing')
+              return {'identity': identity, 'pin': pin, 'checkout': relative, 'mirror': mirror_relative,
+                      'revision': revision, 'tracked_members': records, 'tracked_bytes': total,
+                      'index_and_working_tree_match': True}
+
+
+          def dependency_workspace(root, base, expected):
+              path = dependency_path(root, base + '/workspace-state.json', optional=True)
+              if path is None:
+                  return {'present': False}
+              raw = dependency_bytes(path, 1024 * 1024); value = json.loads(raw)
+              require(type(value) is dict and set(value) == {'version', 'object'}
+                      and type(value['version']) is int and value['version'] in (6, 7), 'unproved workspace-state schema')
+              obj = value['object']; keys = {'dependencies', 'artifacts'} | ({'prebuilts'} if value['version'] == 7 else set())
+              require(type(obj) is dict and set(obj) == keys and obj['artifacts'] == []
+                      and obj.get('prebuilts', []) == [] and type(obj['dependencies']) is list,
+                      'unexpected workspace artifact/dependency layout')
+              seen = set(); local_package = False
+              for dependency in obj['dependencies']:
+                  require(type(dependency) is dict and {'packageRef', 'state', 'subpath'} <= set(dependency)
+                          and set(dependency) <= {'packageRef', 'state', 'subpath', 'basedOn'}
+                          and dependency.get('basedOn') is None, 'edited or unknown workspace dependency')
+                  reference, state = dependency['packageRef'], dependency['state']
+                  require(type(reference) is dict and {'identity', 'kind', 'location'} <= set(reference)
+                          and set(reference) <= {'identity', 'kind', 'location', 'name'}, 'unknown workspace package reference')
+                  identity = reference['identity']
+                  if identity == 'agtermcore':
+                      # Xcode may record the one local package explicitly; its bytes were checked against PRODUCT.
+                      local = str(root / 'agtermCore')
+                      require(base == DEPENDENCY_ROOTS[1] and not local_package
+                              and reference['kind'] == 'fileSystem' and reference['location'] == local
+                              and dependency['subpath'] == 'agtermCore'
+                              and state == {'name': 'fileSystem', 'path': local}, 'unproved local workspace package')
+                      require(dependency_path(root, 'agtermCore').is_dir(), 'local package path changed')
+                      local_package = True
+                      continue
+                  require(identity in ACTIVE_PINS and identity not in seen, 'unknown or duplicate workspace dependency')
+                  pin = expected[identity]; seen.add(identity)
+                  require(reference['kind'] == pin['kind'] and reference['location'] == pin['location']
+                          and dependency['subpath'] == CHECKOUT_NAMES[identity], 'workspace dependency source/path changed')
+                  require(type(state) is dict and set(state) == {'name', 'checkoutState'}
+                          and state['name'] == 'sourceControlCheckout', 'unproved workspace checkout state')
+                  checkout = state['checkoutState']
+                  require(type(checkout) is dict and {'revision', 'version'} <= set(checkout)
+                          and set(checkout) <= {'revision', 'version', 'branch'} and checkout.get('branch') is None
+                          and checkout['revision'] == pin['state']['revision'] and checkout['version'] == pin['state']['version'],
+                          'workspace dependency revision/version changed')
+              require(seen == ACTIVE_PINS, 'workspace dependency missing')
+              return {'present': True, 'version': value['version'], 'identities': sorted(seen),
+                      'pinned_local_agtermcore': local_package,
+                      'sha256': hashlib.sha256(raw).hexdigest()}
+
+
+          def dependency_policy(root, logs, original):
+              dependency_observations(root, logs)  # Written before every strict dependency predicate.
+              expected = {pin['identity']: pin for pin in original['pins']}
+              resolutions = {}
+              for name in RESOLVER_PATHS + tuple(base + '/Package.resolved' for base in DEPENDENCY_ROOTS):
+                  path = dependency_path(root, name, optional=True)
+                  if path is None:
+                      require(name != RESOLVER_PATHS[0], 'required core resolver record absent')
+                      resolutions[name] = {'present': False}
+                      continue
+                  raw = dependency_bytes(path, 1024 * 1024)
+                  record = pin_policy(original, json.loads(raw), app=name != RESOLVER_PATHS[0] and not name.startswith('agtermCore/'))
+                  record.update(present=True, sha256=hashlib.sha256(raw).hexdigest()); resolutions[name] = record
+              bindings = {}
+              for base in DEPENDENCY_ROOTS:
+                  checkouts = dependency_path(root, base + '/checkouts')
+                  require(checkouts.is_dir() and {path.name for path in checkouts.iterdir()} == set(CHECKOUT_NAMES.values()),
+                          'unknown or missing dependency checkout roster: ' + base)
+                  bindings[base] = {'workspace': dependency_workspace(root, base, expected),
+                                    'checkouts': [dependency_checkout(root, base, identity, expected[identity])
+                                                  for identity in sorted(ACTIVE_PINS)]}
+              result = {'layout': 'b76-local-package-two-build-roots/1', 'resolution': resolutions, 'bindings': bindings,
+                        'absent_resolvers': [name for name, record in resolutions.items() if not record['present']],
+                        'diagnostics': 'dependency-layout.json'}
+              (logs / 'dependency-bindings.json').write_text(json.dumps(result, sort_keys=True, indent=2) + '\n')
+              return result
+
+
           def entitlement_policy(actual, expected, main):
               require(type(actual) is dict, 'entitlements are not a dictionary')
               checked = dict(actual)
@@ -315,18 +594,11 @@ jobs:
                                    'sha256': hashlib.sha256(raw).hexdigest()}
               require(len(tracked) == 2144, 'unexpected pinned source roster')
               (logs / 'tracked-source-blobs.json').write_text(json.dumps(tracked, sort_keys=True, indent=2) + '\n')
-              resolutions = {}
-              for name in ('agtermCore/Package.resolved',
-                           'agterm.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'):
-                  path = root / name
-                  require(path.is_file() and not path.is_symlink(), 'required resolver record absent: ' + name)
-                  actual = json.loads(path.read_bytes())
-                  record = pin_policy(original, actual, app=name.startswith('agterm.xcodeproj/'))
-                  record['sha256'] = digest(path); resolutions[name] = record
+              dependencies = dependency_policy(root, logs, original)
               (logs / 'tracked-source.diff').write_bytes(run(['/usr/bin/git', 'diff', 'HEAD', '--']))
               return {'product_commit': PRODUCT, 'tree': run(['/usr/bin/git', 'rev-parse', 'HEAD^{tree}']).decode().strip(),
                       'tracked_changes': changed, 'original_lock_sha256': hashlib.sha256(original_raw).hexdigest(),
-                      'resolution': resolutions}
+                      'resolution': dependencies['resolution'], 'dependencies': dependencies}
 
 
           def verify(app, root):
