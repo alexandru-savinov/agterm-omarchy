@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(Glibc)
+import Glibc
+#endif
 import Testing
 @testable import agtermCore
 
@@ -405,6 +408,7 @@ struct RemoteSessionTests {
 
         // the fake gives the wrapper a pipe, so stty fails silently there: the command text is what pins it
         #expect(command.contains("stty -echo 2>/dev/null; cat >/dev/null"))
+        #expect(command.contains("then lost <\"$t\" >\"$t\"; else lost; fi"))
         let run = try fake.startShell(command)
         try await Task.sleep(for: .milliseconds(300))
         #expect(run.process.isRunning, "the pane holds until the app replaces it")
@@ -417,6 +421,50 @@ struct RemoteSessionTests {
             + "\u{1B}[30;43m Connection to buildbox lost · reconnecting… · any key retries now \u{1B}[K\u{1B}[0m\n"
             + "\u{1B}]2;agterm-remote;n1:lost\u{07}\u{1B}[?25l", "echo goes off with the cursor, so no lock glyph")
         #expect(run.process.terminationStatus == 255)
+    }
+
+    /// zmx sets O_NONBLOCK on the pane's shared open file description and restores it only on a clean exit,
+    /// so a client killed with the link leaves it set (#357).
+    @Test func aLostConnectionHoldsOnATerminalAKilledClientLeftNonblocking() async throws {
+        let fake = try FakeRemote()
+        defer { fake.cleanUp() }
+        try fake.installSSH(exitCode: 255)
+        let pty = try PseudoTerminal()
+        defer { pty.closeControlling() }
+        try #require(fcntl(pty.terminal, F_SETFL, fcntl(pty.terminal, F_GETFL) | O_NONBLOCK) == 0)
+        let run = try pty.start(try lostLinkCommand(), path: fake.root.path)
+        try await Task.sleep(for: .milliseconds(500))
+
+        #expect(run.process.isRunning, "the pane holds until the app replaces it")
+        #expect(try await pty.closeAndWait(run), "the hold ends with the app's pty")
+    }
+
+    @Test func aLostConnectionStillReportsWhenItsTerminalCannotTakeOutputYet() async throws {
+        let fake = try FakeRemote()
+        defer { fake.cleanUp() }
+        try fake.installSSH(exitCode: 255)
+        let pty = try PseudoTerminal()
+        defer { pty.closeControlling() }
+        var settings = termios()
+        try #require(tcgetattr(pty.terminal, &settings) == 0)
+        settings.c_iflag |= tcflag_t(IXON)
+        try #require(tcsetattr(pty.terminal, TCSANOW, &settings) == 0)
+        try #require(fcntl(pty.terminal, F_SETFL, fcntl(pty.terminal, F_GETFL) | O_NONBLOCK) == 0)
+        try #require(pty.send(0x13))
+        let run = try pty.start(try lostLinkCommand(), path: fake.root.path)
+        try await Task.sleep(for: .milliseconds(500))
+        pty.send(0x11)
+        let text = try await pty.read(until: "agterm-remote;n1:lost", seconds: 5)
+
+        #expect(text.contains("\u{1B}]2;agterm-remote;n1:lost\u{07}"), "the stopped terminal must not drop the notice")
+        #expect(run.process.isRunning)
+        #expect(try await pty.closeAndWait(run))
+    }
+
+    private func lostLinkCommand() throws -> String {
+        try RemoteSession.attachPaneCommand(host: "buildbox", endpoint: endpoint, daemon: daemon,
+                                            session: "build", pane: .left,
+                                            lead: ZmxLeadAttachment(nonce: "n1", claim: true))
     }
 
     @Test(arguments: [0, 1, 23] as [Int32])
@@ -644,5 +692,100 @@ private struct FakeRemote {
         let url = root.appendingPathComponent(name)
         try ("#!/bin/sh\n" + script + "\n").write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+    }
+}
+
+private func readDescriptor(_ descriptor: Int32, _ buffer: UnsafeMutableRawPointer, _ count: Int) -> Int {
+    #if canImport(Glibc)
+    Glibc.read(descriptor, buffer, count)
+    #else
+    Darwin.read(descriptor, buffer, count)
+    #endif
+}
+
+/// A pty pair: the test keeps the controlling side and hands the terminal side to a child.
+private final class PseudoTerminal {
+    private(set) var controlling: Int32
+    private(set) var terminal: Int32
+
+    init() throws {
+        #if canImport(Glibc)
+        // Glibc's module hides the XSI pty calls behind feature macros; the symbols are there.
+        let library = dlopen(nil, RTLD_NOW)
+        func call<T>(_ name: String, as _: T.Type) throws -> T {
+            unsafeBitCast(try #require(dlsym(library, name)), to: T.self)
+        }
+        let openPTY = try call("posix_openpt", as: (@convention(c) (Int32) -> Int32).self)
+        let grant = try call("grantpt", as: (@convention(c) (Int32) -> Int32).self)
+        let unlock = try call("unlockpt", as: (@convention(c) (Int32) -> Int32).self)
+        let nameOf = try call("ptsname", as: (@convention(c) (Int32) -> UnsafeMutablePointer<CChar>?).self)
+        #else
+        let (openPTY, grant, unlock, nameOf) = (posix_openpt, grantpt, unlockpt, ptsname)
+        #endif
+        controlling = openPTY(O_RDWR | O_NOCTTY)
+        try #require(controlling >= 0 && grant(controlling) == 0 && unlock(controlling) == 0)
+        let name = try #require(nameOf(controlling).map { String(cString: $0) })
+        terminal = open(name, O_RDWR | O_NOCTTY | O_CLOEXEC)
+        try #require(terminal >= 0)
+        // a child another test spawns meanwhile must not inherit either side and keep the terminal open
+        try #require(fcntl(controlling, F_SETFD, FD_CLOEXEC) == 0)
+    }
+
+    /// Runs `command` with the terminal side as its stdio, then closes this process's copy of it.
+    func start(_ command: String, path: String) throws -> (process: Process, exited: AsyncStream<Void>) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = path + ":" + (environment["PATH"] ?? "/usr/bin:/bin")
+        process.environment = environment
+        let handle = FileHandle(fileDescriptor: terminal, closeOnDealloc: false)
+        process.standardInput = handle
+        process.standardOutput = handle
+        process.standardError = handle
+        let (exited, exit) = AsyncStream<Void>.makeStream()
+        process.terminationHandler = { _ in exit.finish() }
+        try process.run()
+        close(terminal)
+        terminal = -1
+        return (process, exited)
+    }
+
+    /// False once no child holds the terminal side open.
+    @discardableResult
+    func send(_ byte: UInt8) -> Bool {
+        var byte = byte
+        defer { usleep(50_000) }
+        return write(controlling, &byte, 1) == 1
+    }
+
+    func read(until marker: String, seconds: Double) async throws -> String {
+        try #require(fcntl(controlling, F_SETFL, fcntl(controlling, F_GETFL) | O_NONBLOCK) == 0)
+        var output = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        let deadline = Date().addingTimeInterval(seconds)
+        while !String(decoding: output, as: UTF8.self).contains(marker), Date() < deadline {
+            let count = readDescriptor(controlling, &buffer, buffer.count)
+            if count > 0 { output.append(contentsOf: buffer[0..<count]) } else { try await Task.sleep(for: .milliseconds(20)) }
+        }
+        return String(decoding: output, as: UTF8.self)
+    }
+
+    /// Hangs the terminal up and reports whether the child then ended by itself.
+    func closeAndWait(_ run: (process: Process, exited: AsyncStream<Void>)) async throws -> Bool {
+        closeControlling()
+        let deadline = Date().addingTimeInterval(5)
+        while run.process.isRunning, Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+        let ended = !run.process.isRunning
+        if !ended { run.process.terminate() }
+        for await _ in run.exited {}
+        return ended
+    }
+
+    func closeControlling() {
+        if terminal >= 0 { close(terminal) }
+        terminal = -1
+        if controlling >= 0 { close(controlling) }
+        controlling = -1
     }
 }

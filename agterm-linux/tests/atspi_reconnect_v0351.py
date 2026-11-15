@@ -95,6 +95,10 @@ def verify_pane_reconnect(viewer_session, ssh, ssh_down, origin_state):
         raise
     assert {row["kind"]: row["paneID"] for row in viewer_session()["surfaces"]
             if row["kind"] in panes} == panes, "link loss changed pane identity"
+    # The wrapper above each killed ssh holds its pane for the reattach; an exit there races the link notice.
+    wrappers = [process_status(row["ppid"]) for row in diagnostics.signalled]
+    assert all(not row.get("unavailable") and row["state"] != "Z" for row in wrappers), (
+        f"an SSH-255 pane wrapper did not hold: {wrappers}")
     os.remove(ssh_down)
 
     def reattached():

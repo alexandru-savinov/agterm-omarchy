@@ -1857,9 +1857,11 @@ side, and reads `lastAppliedIsDark` when bare. Refuse it outside XCUITest; provi
   status — can be read under the last remote screen. The wrapper runs as `/usr/bin/env /bin/sh -c`, since
   libghostty's `exec -l` would otherwise replace the shell with ssh and drop it. On ssh's own 255 it instead
   resets the reporting modes the remote left on, shows a reconnecting bar naming the host, reports `RemoteLinkNotice` (`OSC 2;agterm-remote;<lead nonce>:lost`, intercepted beside
-  `zmx-role;`) and waits on `cat`, which ends with the app's pty. The pane then never reaches `onExitHeld`;
-  `PaneLead.linkLost` believes only the current attachment's nonce and runs the same `remotePaneStopped`
-  cleanup. A failed probe's stderr is kept as the entry's `reason`, last non-empty line, sanitized and
+  `zmx-role;`) and waits on `cat`, which ends with the app's pty. That whole branch runs on its terminal
+  reopened by name: a zmx client killed with the link leaves O_NONBLOCK on the inherited descriptor, where
+  the notice could fail EAGAIN unseen and `cat` ended the hold at once (#357).
+  The pane then never reaches `onExitHeld`; `PaneLead.linkLost` believes only the current attachment's nonce
+  and runs the same `remotePaneStopped` cleanup. A failed probe's stderr is kept as the entry's `reason`, last non-empty line, sanitized and
   capped, replaced by every failure and nil when ssh said nothing; it is never classified, since an
   offline host and a refused login both exit 255 and the retry must not give up on either. The pane's
   child is `cat` with echo off, so nothing can be printed into it: `RemoteReconnectNote` inside
