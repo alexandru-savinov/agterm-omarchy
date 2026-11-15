@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -195,8 +196,10 @@ class WorkflowGuardTests(unittest.TestCase):
 
     def test_the_workflow_triggers_cover_drafts_and_edits(self):
         text = (ROOT / ".github/workflows/pr-fields.yml").read_text()
-        for event in ("opened", "edited", "synchronize", "reopened", "ready_for_review", "converted_to_draft"):
-            self.assertIn(event, text)
+        match = re.search(r"^    types: \[(.*)\]\s*$", text, re.MULTILINE)
+        self.assertIsNotNone(match)
+        self.assertEqual({item.strip() for item in match.group(1).split(",")},
+                         {"opened", "edited", "synchronize", "reopened", "ready_for_review", "converted_to_draft"})
 
 
 if __name__ == "__main__":
