@@ -8,7 +8,11 @@ extension AppController {
         guard let session = store.session(withID: surface.sessionID),
               session.surface === surface || session.splitSurface === surface,
               let pane = UUID(uuidString: surface.paneToken),
-              let role = ZmxLeadBook.shared.apply(notice, pane: pane) else { return }
+              let role = ZmxLeadBook.shared.apply(notice, pane: pane) else {
+            Trace357.log("lead-report ignored \(surface.trace357) notice=\(Trace357.short(notice.nonce)):\(notice.role.rawValue):\(notice.generation) live=\(Trace357.short(UUID(uuidString: surface.paneToken).flatMap { ZmxLeadBook.shared.states[$0]?.attachment.nonce }))")
+            return
+        }
+        Trace357.log("lead-report applied \(surface.trace357) role=\(role.rawValue) waiting=\(RemoteReconnectBook.shared.waiting(pane: pane))")
         guard !RemoteReconnectBook.shared.waiting(pane: pane) else { return }
         RemoteRespawnBook.shared.acknowledged(pane: pane)
         surface.syncLeadCover()
@@ -96,6 +100,7 @@ extension AppController {
                                          role: role == .right ? .split : .main, fontSize: session.fontSize,
                                          backedByZmx: old.backedByZmx)
         installPaneExitHandler(replacement, sessionID: session.id)
+        Trace357.log("replacePane old=\(old.trace357) new=\(ObjectIdentifier(replacement).hashValue) nonce=\(Trace357.short(lead.nonce)) claim=\(lead.claim) cover=\(cover) wait=\(wait)")
         if session.remoteHost != nil { RemoteRespawnBook.shared.attachStarted(pane: identity, session: session.id) }
         if cover { ZmxLeadBook.shared.begin(lead, pane: identity, reattaching: true) }
         replacement.syncLeadCover()

@@ -3302,13 +3302,21 @@ def verify_remote_presentation(env):
             '  exec 3<&0\n'
             '  /bin/sh -c "$remote" <&3 3<&- & child=$!\n'
             '  trap \'record "term child=$child"; kill "$child" 2>/dev/null; '
-            'wait "$child" 2>/dev/null; record "term-child-status=$? exit=255"; exit 255\' TERM\n'
+            'wait "$child" 2>/dev/null; record "term-child-status=$? exit=255"; '
+            'record "stdin-flags=$(python3 -I "$0.flags" 2>&1)"; '
+            'exit 255\' TERM\n'
             '  record "attach child=$child"\n'
             '  wait "$child"; status=$?; record "child-status=$status exit=$status"; exit "$status";;\n'
             'esac\n'
             'exec /bin/sh -c "$remote"\n'
         )
     os.chmod(ssh, 0o755)
+    with open(ssh + ".flags", "w", encoding="utf-8") as destination:
+        destination.write("import fcntl, os, termios\n"
+                          "flags = fcntl.fcntl(0, fcntl.F_GETFL)\n"
+                          "lflag = termios.tcgetattr(0)[3]\n"
+                          "print(('nonblock' if flags & os.O_NONBLOCK else 'block')"
+                          " + (' canon' if lflag & termios.ICANON else ' raw'))\n")
     os.symlink(CTL, os.path.join(fake_bin, "agtermctl"))
     origin_env = dict(
         env, AGTERM_STATE_DIR=origin_state,
@@ -7899,7 +7907,28 @@ def main():
         elif scenario == "custom-command-failures":
             verify_custom_command_failures(env)
         elif scenario == "remote-presentation":
-            verify_remote_presentation(env)
+            # DIAGNOSTIC ONLY (#357): repeat with alternating CPU load; never merged.
+            results = []
+            for iteration in range(12):
+                stress = []
+                if iteration % 2:
+                    stress = [subprocess.Popen(["sh", "-c", "while :; do :; done"]) for _ in range(os.cpu_count() or 2)]
+                iteration_env = dict(env, AGTERM_STATE_DIR=os.path.join(env["AGTERM_STATE_DIR"], f"iter{iteration}"))
+                os.makedirs(iteration_env["AGTERM_STATE_DIR"])
+                print(f"TRACE357 ITERATION {iteration} stress={bool(stress)}", flush=True)
+                sys.stderr.flush()
+                try:
+                    verify_remote_presentation(iteration_env)
+                    results.append((iteration, "pass"))
+                except Exception as error:  # noqa: BLE001
+                    print(f"TRACE357 ITERATION {iteration} FAILED: {type(error).__name__}: {str(error)[:4000]}", flush=True)
+                    results.append((iteration, "fail"))
+                finally:
+                    for child in stress:
+                        child.kill()
+                        child.wait()
+            print("TRACE357 RESULTS " + json.dumps(results), flush=True)
+            assert all(result == "pass" for _, result in results), results
         elif scenario == "control-hooks":
             verify_control_hooks(env)
         elif scenario == "surface-lifetimes":

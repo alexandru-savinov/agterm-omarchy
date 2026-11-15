@@ -799,10 +799,18 @@ final class GhosttySurface: PaneRoleMutableSurface {
         exit?()
     }
 
+    var trace357: String {
+        let session = controller?.store.session(withID: sessionID)
+        let slot = session.map { $0.surface === self ? "primary" : $0.splitSurface === self ? "split" : "none" } ?? "nosession"
+        return "surface=\(ObjectIdentifier(self).hashValue) pane=\(Trace357.short(paneToken)) role=\(isSplitPane ? "split" : "main") slot=\(slot) wait=\(waitAfterCommand) ctl=\(controller != nil)"
+    }
+
     func handleHeldProcessExit() {
         guard waitAfterCommand else { return }
         // The final link-loss title can follow the child-exit callback from the separate PTY reader.
-        heldLeadAttachment.retain(controller?.remoteHeldExits.attachmentEnded(self, forSession: sessionID))
+        let traceEnded = controller?.remoteHeldExits.attachmentEnded(self, forSession: sessionID)
+        Trace357.log("held-exit \(trace357) ended=\(Trace357.short(traceEnded?.attachment.nonce)) retainedBefore=\(Trace357.short(heldLeadAttachment.state?.attachment.nonce))")
+        heldLeadAttachment.retain(traceEnded)
         syncLeadCover()
         controller?.store.leadRoleChanged()
     }
@@ -852,6 +860,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     // MARK: - TerminalSurface
 
     func teardown() {
+        Trace357.log("teardown \(trace357) preserves=\(preservesReconnectOnTeardown) waiting=\(RemoteReconnectBook.shared.waiting(pane: UUID(uuidString: paneToken)))")
         if !preservesReconnectOnTeardown, let pane = UUID(uuidString: paneToken) { RemoteReconnectBook.shared.cancel(pane: pane) }
         onExit = nil
         onExitHeld = nil

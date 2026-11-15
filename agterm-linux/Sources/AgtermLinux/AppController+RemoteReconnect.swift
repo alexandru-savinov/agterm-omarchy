@@ -41,6 +41,7 @@ extension AppController {
                   let session = owner.store.session(withID: entry.session) ?? owner.store.pendingCloseSession(withID: entry.session),
                   session.paneRole(forIdentity: pane) != nil,
                   let argv = try? RemoteSession.probeCommand(host: entry.host) else {
+                Trace357.log("tick cancel pane=\(Trace357.short(pane))")
                 book.cancel(pane: pane)
                 continue
             }
@@ -53,7 +54,11 @@ extension AppController {
                               let held = self.store.session(withID: entry.session) ?? self.store.pendingCloseSession(withID: entry.session),
                               (held.paneIdentity == pane ? held.surface : held.splitSurface) === expected,
                               let entry = book.finished(pane: pane, ok: result.status == 0,
-                                                                  stderr: result.stderr, now: Date()) else { return }
+                                                                  stderr: result.stderr, now: Date()) else {
+                            Trace357.log("probe done pane=\(Trace357.short(pane)) status=\(result.status) waiting=\(book.waiting(pane: pane))")
+                            return
+                        }
+                        Trace357.log("probe ok pane=\(Trace357.short(pane)) reattaching")
                         guard let session = self.store.session(withID: entry.session),
                               let surface = (session.paneIdentity == pane ? session.surface : session.splitSurface) as? GhosttySurface,
                               self.reattachPane(surface, claim: false, cover: entry.cover) else {

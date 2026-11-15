@@ -152,6 +152,7 @@ public final class ZmxLeadBook {
 
     /// Starts over for `pane`: reports of its previous attachment no longer match and are dropped.
     public func begin(_ attachment: ZmxLeadAttachment, pane: UUID, reattaching: Bool = false) {
+        Trace357.log("lead begin pane=\(Trace357.short(pane)) nonce=\(Trace357.short(attachment.nonce)) reattaching=\(reattaching)")
         states[pane] = ZmxLeadState(attachment: attachment, reattaching: reattaching)
         attachments &+= 1
     }
@@ -169,7 +170,10 @@ public final class ZmxLeadBook {
 
     public func reattaching(pane: UUID?) -> Bool { pane.flatMap { states[$0]?.reattaching } ?? false }
 
-    public func forget(pane: UUID) { states[pane] = nil }
+    public func forget(pane: UUID) {
+        if let state = states[pane] { Trace357.log("lead forget pane=\(Trace357.short(pane)) nonce=\(Trace357.short(state.attachment.nonce))") }
+        states[pane] = nil
+    }
 }
 
 extension Session {
