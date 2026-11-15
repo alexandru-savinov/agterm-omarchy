@@ -73,7 +73,7 @@ class GrandfatherTests(unittest.TestCase):
 class WorkflowGuardTests(unittest.TestCase):
     """The step must pass when the base commit has no checker (the PR that adds it), and run it when it does."""
 
-    
+    @staticmethod
     def step_script():
         text = (Path(__file__).resolve().parents[2] / ".github/workflows/pr-fields.yml").read_text()
         block = text.split("run: |\n", 1)[1]
