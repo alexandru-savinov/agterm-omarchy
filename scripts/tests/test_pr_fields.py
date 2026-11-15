@@ -70,5 +70,40 @@ class GrandfatherTests(unittest.TestCase):
         self.assertIsNone(pr_fields.head_date({}, fetch=boom))
 
 
+class WorkflowGuardTests(unittest.TestCase):
+    """The step must pass when the base commit has no checker (the PR that adds it), and run it when it does."""
+
+    
+    def step_script():
+        text = (Path(__file__).resolve().parents[2] / ".github/workflows/pr-fields.yml").read_text()
+        block = text.split("run: |\n", 1)[1]
+        return "\n".join(line[10:] for line in block.split("\n") if line.startswith("          "))
+
+    def run_step(self, with_checker):
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            (root / "bin").mkdir()
+            (root / "bin/python3").write_text("#!/bin/sh\necho ran-checker \"$@\"\nexit 7\n")
+            (root / "bin/python3").chmod(0o755)
+            if with_checker:
+                (root / "scripts/github").mkdir(parents=True)
+                (root / "scripts/github/pr_fields.py").write_text("")
+            return subprocess.run(["bash", "-e", "-c", self.step_script()], cwd=root, capture_output=True, text=True,
+                                  env={"PATH": f"{root / 'bin'}:/usr/bin:/bin"})
+
+    def test_missing_checker_is_a_notice_and_success(self):
+        result = self.run_step(with_checker=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("::notice", result.stdout)
+        self.assertNotIn("ran-checker", result.stdout)
+
+    def test_present_checker_runs_and_its_failure_is_not_swallowed(self):
+        result = self.run_step(with_checker=True)
+        self.assertEqual(result.returncode, 7)
+        self.assertIn("ran-checker scripts/github/pr_fields.py", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

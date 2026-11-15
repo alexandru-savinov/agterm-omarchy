@@ -25,4 +25,10 @@ jobs:
       - name: Check Task, Agent, Reviewed head and Review fields
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python3 scripts/github/pr_fields.py
+        run: |
+          # The pull request that introduces the checker has no checker on its base commit yet.
+          if [ ! -f scripts/github/pr_fields.py ]; then
+            echo "::notice title=PR fields::the base commit has no checker yet; nothing to check"
+            exit 0
+          fi
+          python3 scripts/github/pr_fields.py
