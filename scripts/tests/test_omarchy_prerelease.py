@@ -5,8 +5,10 @@ import copy
 import hashlib
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tarfile
@@ -19,6 +21,9 @@ SPEC = importlib.util.spec_from_file_location("promotion", Path(__file__).resolv
 promotion = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(promotion)
 SHA = "a" * 40
+REPO = Path(__file__).resolve().parents[2]
+PROMOTION_WORKFLOW = REPO / ".github/workflows/prerelease-omarchy.yml"
+CI_WORKFLOW = REPO / ".github/workflows/ci.yml"
 
 
 def payload(arch="aarch64", sha=SHA, extra=None):
@@ -268,6 +273,215 @@ class PromotionTests(unittest.TestCase):
                     promotion.download_artifact(dict(artifact, **{key: value}), "aarch64", SHA)
             with self.assertRaises(ValueError):
                 promotion.download_artifact(artifact, "x86_64", SHA)
+
+
+def workflow_jobs(text):
+    """Split a workflow into its top-level jobs by their two-space-indented keys."""
+    body = text[text.index("\njobs:\n"):]
+    parts = re.split(r"^  ([a-z][a-z0-9-]*):\n", body, flags=re.M)
+    return dict(zip(parts[1::2], parts[2::2]))
+
+
+def zipped(arch, sha=SHA):
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w") as archive:
+        archive.writestr(f"agterm-omarchy-{arch}.tar.gz", payload(arch, sha))
+    return output.getvalue()
+
+
+class FakeGitHub:
+    """Answers the read-only API calls a promotion makes; any write or unknown path fails the test."""
+
+    def __init__(self, run_id=7, sha=SHA, branch="main", existing=()):
+        self.run_id, self.sha, self.existing = run_id, sha, set(existing)
+        self.calls = []
+        self.zips = {arch: zipped(arch, sha) for arch in promotion.ARCHITECTURES}
+        steps = [{"name": name, "conclusion": "success"} for name in promotion.REQUIRED_GTK_STEPS]
+        names = list(promotion.REQUIRED_JOBS) + [name.format(arch=arch) for arch in promotion.ARCHITECTURES
+                                                 for name in promotion.REQUIRED_ARCH_JOBS]
+        self.jobs = [{"name": name, "conclusion": "success", "steps": steps} for name in names]
+        self.run = {"id": run_id, "repository": {"full_name": promotion.REPOSITORY},
+                    "head_repository": {"full_name": promotion.REPOSITORY}, "path": promotion.WORKFLOW,
+                    "workflow_id": 42, "name": "Omarchy CI", "status": "completed", "conclusion": "success",
+                    "event": "push", "head_branch": branch, "head_sha": sha, "run_attempt": 1,
+                    "html_url": f"https://github.com/{promotion.REPOSITORY}/actions/runs/{run_id}",
+                    "run_started_at": "2026-11-01T00:00:00Z", "created_at": "2026-11-01T00:00:00Z"}
+        self.artifacts = [{"id": 100 + index, "name": f"agterm-omarchy-{arch}-{sha}", "expired": False,
+                           "workflow_run": {"id": run_id, "head_sha": sha}, "created_at": "2026-11-01T00:10:00Z",
+                           "digest": "sha256:" + hashlib.sha256(self.zips[arch]).hexdigest()}
+                          for index, arch in enumerate(promotion.ARCHITECTURES)]
+
+    def answer(self, path):
+        base = f"repos/{promotion.REPOSITORY}/"
+        if not path.startswith(base):
+            raise AssertionError(f"Unexpected API call {path}")
+        path = path[len(base):]
+        if path == "actions/workflows/ci.yml":
+            return {"id": 42}
+        if path.startswith("git/ref/heads/"):
+            return {"object": {"sha": self.sha}}
+        if path == f"actions/runs/{self.run_id}":
+            return self.run
+        if path.startswith(f"actions/runs/{self.run_id}/attempts/1/jobs"):
+            return [{"jobs": self.jobs}]
+        if path.startswith(f"actions/runs/{self.run_id}/artifacts"):
+            return [{"artifacts": self.artifacts}]
+        for index, arch in enumerate(promotion.ARCHITECTURES):
+            if path == f"actions/artifacts/{100 + index}/zip":
+                return self.zips[arch]
+        raise AssertionError(f"Unexpected API call {path}")
+
+    def check_output(self, command):
+        self.calls.append(command)
+        if command[:2] != ["gh", "api"] or any(flag in command for flag in ("--method", "-X", "-f", "-F")):
+            raise AssertionError(f"Promotion attempted a write: {command}")
+        result = self.answer(command[2])
+        if isinstance(result, bytes):
+            return result
+        return json.dumps(result).encode()
+
+    def run_command(self, command, **kwargs):
+        self.calls.append(command)
+        path = command[2].split(f"repos/{promotion.REPOSITORY}/", 1)[1]
+        found = any(path.endswith(tag) for tag in self.existing)
+        return subprocess.CompletedProcess(command, 0 if found else 1, "", "" if found else "gh: Not Found (HTTP 404)")
+
+    def patches(self):
+        return (patch.object(promotion.subprocess, "check_output", side_effect=self.check_output),
+                patch.object(promotion.subprocess, "run", side_effect=self.run_command))
+
+
+class DryRunTests(unittest.TestCase):
+    def prepare(self, github, output, env=None):
+        first, second = github.patches()
+        argv = ["prepare", str(github.run_id), github.sha, str(output)]
+        environ = {key: value for key, value in os.environ.items() if key != "GITHUB_OUTPUT"} | (env or {})
+        with first, second, patch("sys.argv", argv), patch.dict(os.environ, environ, clear=True):
+            promotion.main()
+
+    def test_dry_run_executes_every_check_and_writes_only_local_files(self):
+        github = FakeGitHub()
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "promotion"
+            outputs = Path(temp) / "github-output"
+            self.prepare(github, output, {"GITHUB_OUTPUT": str(outputs)})
+            tag = f"omarchy-dev-{SHA[:12]}-run7"
+            self.assertEqual(outputs.read_text(), f"tag={tag}\nsha={SHA}\n")
+            self.assertEqual(sorted(path.name for path in output.iterdir()),
+                             ["SHA256SUMS", "agterm-omarchy-aarch64.tar.gz", "agterm-omarchy-x86_64.tar.gz",
+                              "promotion.json", "release-notes.md"])
+            check = subprocess.run(["shasum", "-a", "256", "-c", "SHA256SUMS"] if shutil.which("shasum")
+                                   else ["sha256sum", "--check", "SHA256SUMS"], cwd=output, capture_output=True)
+            self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+            notes = (output / "release-notes.md").read_text()
+            self.assertIn(tag, notes)
+            self.assertIn(github.run["html_url"], notes)
+            self.assertIn(f"/commit/{SHA}", notes)
+            evidence = json.loads((output / "promotion.json").read_text())
+            self.assertEqual(evidence["source_commit"], SHA)
+            self.assertEqual([item["filename"] for item in evidence["artifacts"]],
+                             [f"agterm-omarchy-{arch}.tar.gz" for arch in promotion.ARCHITECTURES])
+        paths = [call[2] for call in github.calls]
+        for expected in ("actions/workflows/ci.yml", "/jobs", "/artifacts", "/zip", f"git/ref/tags/{tag}",
+                         f"releases/tags/{tag}"):
+            self.assertTrue(any(expected in path for path in paths), f"{expected} was not checked")
+
+    def test_dry_run_fails_where_publication_would_on_an_existing_tag_or_release(self):
+        tag = f"omarchy-dev-{SHA[:12]}-run7"
+        for existing in (f"git/ref/tags/{tag}", f"releases/tags/{tag}"):
+            with self.subTest(existing=existing), tempfile.TemporaryDirectory() as temp:
+                output = Path(temp) / "promotion"
+                with self.assertRaisesRegex(ValueError, "already exists"):
+                    self.prepare(FakeGitHub(existing=[existing]), output)
+                self.assertFalse(output.exists())
+
+    def test_absent_never_treats_other_failures_as_missing(self):
+        for code, stderr, expected in ((0, "", False), (1, "gh: Not Found (HTTP 404)", True)):
+            result = subprocess.CompletedProcess([], code, "", stderr)
+            with patch.object(promotion.subprocess, "run", return_value=result):
+                self.assertIs(promotion.absent("git/ref/tags/x"), expected)
+        result = subprocess.CompletedProcess([], 1, "", "gh: Bad credentials (HTTP 401)")
+        with patch.object(promotion.subprocess, "run", return_value=result), self.assertRaises(ValueError):
+            promotion.absent("git/ref/tags/x")
+
+    def test_promotion_tag_grammar(self):
+        self.assertEqual(promotion.promotion_tag(SHA, 41532553668), f"omarchy-dev-{SHA[:12]}-run41532553668")
+        for sha, run_id in (("A" * 40, 1), ("g" * 40, 1), ("a" * 11, 1), (SHA, 0), (SHA, -1)):
+            with self.subTest(sha=sha, run_id=run_id), self.assertRaises(ValueError):
+                promotion.promotion_tag(sha, run_id)
+
+    def test_discover_picks_the_newest_trusted_run_with_both_artifacts(self):
+        github = FakeGitHub()
+        newer_pr = dict(github.run, id=9, event="pull_request", created_at="2026-11-03T00:00:00Z")
+        newer_without_artifacts = dict(github.run, id=8, created_at="2026-11-02T00:00:00Z")
+        runs = [newer_pr, newer_without_artifacts, github.run]
+
+        def answer(path):
+            if "/actions/workflows/ci.yml/runs?" in path:
+                return [{"workflow_runs": runs if "branch=main&" in path else []}]
+            if path.endswith("actions/runs/8/artifacts?per_page=100"):
+                return [{"artifacts": [dict(github.artifacts[0], expired=True), github.artifacts[1]]}]
+            return github.answer(path)
+
+        with patch.object(promotion, "api", side_effect=lambda path, pages=False: answer(
+                f"repos/{promotion.REPOSITORY}/{path}")):
+            self.assertEqual(promotion.discover()["id"], 7)
+            runs[:] = [newer_pr]
+            self.assertIsNone(promotion.discover())
+
+
+class WorkflowTests(unittest.TestCase):
+    def setUp(self):
+        self.text = PROMOTION_WORKFLOW.read_text()
+        self.jobs = workflow_jobs(self.text)
+
+    def test_dispatch_defaults_to_a_dry_run(self):
+        inputs = self.text[self.text.index("      dry_run:\n"):self.text.index("\npermissions:")]
+        self.assertIn("type: boolean", inputs)
+        self.assertIn("default: true", inputs)
+
+    def test_only_an_explicit_non_dry_dispatch_from_main_can_publish(self):
+        self.assertEqual(set(self.jobs), {"test", "prepare", "publish"})
+        self.assertIn("    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' "
+                      "&& inputs.dry_run == false\n", self.jobs["publish"])
+        for name in ("test", "prepare"):
+            job = self.jobs[name]
+            for privileged in ("id-token: write", "contents: write", "attestations: write", "actions/attest",
+                               "gh release", "git/refs", "--method"):
+                with self.subTest(job=name, privileged=privileged):
+                    self.assertNotIn(privileged, job)
+
+    def test_publication_verifies_attestations_before_creating_the_tag(self):
+        job = self.jobs["publish"]
+        verify = job.index("gh attestation verify")
+        self.assertLess(job.rindex("actions/attest@"), verify)
+        self.assertLess(verify, job.index('gh api --method POST "repos/$GH_REPO/git/refs"'))
+        self.assertIn("--signer-workflow \"$GH_REPO/.github/workflows/prerelease-omarchy.yml\"", job)
+        self.assertIn("--source-ref refs/heads/main", job)
+        self.assertIn("--prerelease --latest=false", job)
+
+    def test_dry_run_runs_the_same_validation_and_checksum_steps(self):
+        job = self.jobs["prepare"]
+        self.assertIn("if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'", job)
+        self.assertIn('python3 scripts/prepare-omarchy-prerelease.py --discover', job)
+        self.assertIn('python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA"', job)
+        self.assertIn("sha256sum --check SHA256SUMS", job)
+        self.assertIn("release-notes.md", job)
+
+    def test_required_gates_exist_in_ci(self):
+        ci = CI_WORKFLOW.read_text()
+        self.assertIn("name: Omarchy CI\n", ci)
+        jobs = workflow_jobs(ci)
+        names = {job: re.search(r"^    name: (.+)$", body, re.M).group(1) for job, body in jobs.items()}
+        build = next(body for job, body in jobs.items() if names[job] == "GTK build and tests (${{ matrix.arch }})")
+        for arch in promotion.ARCHITECTURES:
+            self.assertIn(f"arch: {arch}", build)
+        for name in promotion.REQUIRED_JOBS + promotion.REQUIRED_ARCH_JOBS:
+            with self.subTest(job=name):
+                self.assertIn(name.format(arch="${{ matrix.arch }}"), names.values())
+        for step in promotion.REQUIRED_GTK_STEPS:
+            with self.subTest(step=step):
+                self.assertEqual(build.count(f"      - name: {step}\n"), 1)
 
 
 if __name__ == "__main__":

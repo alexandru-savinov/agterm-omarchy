@@ -4,14 +4,22 @@
 It does not rebuild, modify the archives, change CI/UI gates, or publish on pull requests.
 The inherited `release-linux.yml` remains separate and unchanged.
 
-After reviewing and merging the promotion workflow, a maintainer dispatches it from `main` with:
+A maintainer dispatches it from `main`. Dispatch is a dry run unless `dry_run=false` is passed:
 
 ```bash
 gh workflow run prerelease-omarchy.yml --repo alexandru-savinov/agterm-omarchy --ref main \
-  -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA
+  -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA            # dry run
+gh workflow run prerelease-omarchy.yml --repo alexandru-savinov/agterm-omarchy --ref main \
+  -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA -f dry_run=false  # publishes
 ```
 
-Dispatch performs publication, so review the exact source run and commit before executing this command.
+A dry run executes every check the publishing run does: source run and gates, tag grammar and absence of
+that tag or release, artifact download and digests, archive and ELF checks, checksums and release notes.
+It stops before any attestation, tag or release, and its summary shows the tag and notes it would publish.
+Pull requests touching the promotion or `ci.yml` dry-run the newest promotable source the same way;
+with no promotable source they warn that nothing was checked.
+`python3 scripts/prepare-omarchy-prerelease.py --discover` prints that source locally.
+Publication needs `dry_run=false`, so review the exact source run and commit before passing it.
 The source must be a successful `Omarchy CI` run of `.github/workflows/ci.yml` in this repository,
 triggered by push or manual dispatch on the current `main` or `omarchy` branch head.
 PR runs are rejected because their tested merge commit can differ from the reported head commit.
@@ -35,6 +43,7 @@ The release includes both architecture tarballs, `SHA256SUMS`, and `promotion.js
 GitHub's supported `actions/attest@v4` creates signed provenance for the promotion workflow and a separate signed promotion predicate.
 The default provenance identifies the promotion workflow revision, not the original compiler invocation.
 The additional predicate binds the unchanged archives to the verified build run and source SHA.
+Both attestations must pass `gh attestation verify` with the published flags before the tag is created.
 This is promotion provenance, not a retroactive attestation from the original compilation job.
 Verify the archive with `gh attestation verify ARCHIVE --repo alexandru-savinov/agterm-omarchy --signer-workflow alexandru-savinov/agterm-omarchy/.github/workflows/prerelease-omarchy.yml --source-ref refs/heads/main`.
 Inspect the custom predicate using `--predicate-type https://github.com/alexandru-savinov/agterm-omarchy/attestations/promotion/v1`.
