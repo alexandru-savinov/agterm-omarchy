@@ -429,7 +429,7 @@ jobs:
                       break
               try:
                   print(encoded, flush=True)
-              except OSError:
+              except (OSError, ValueError):
                   pass  # An unavailable log writer must not replace the original rejection below.
 
 
