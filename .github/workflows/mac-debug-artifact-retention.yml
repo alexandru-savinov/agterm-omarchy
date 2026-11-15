@@ -1,4 +1,4 @@
-name: Temporary b76 Debug Mac artifact (DO NOT MERGE)
+name: Temporary 5cf Debug Mac artifact (DO NOT MERGE)
 
 # Root may add this only AFTER the existing run on this ref is terminal/audited.
 # Workflow code is this later commit; product checkout remains the immutable SHA.
@@ -19,7 +19,7 @@ defaults:
     shell: bash
 
 env:
-  PRODUCT_COMMIT: b76d2b3b166729db6e3ac78fcc627fb83be32685
+  PRODUCT_COMMIT: 5cf067a153efe798a0cfe9952658f98bf64e8179
   WORKFLOW_SHA: ${{ github.workflow_sha }}
   WORKFLOW_REF: ${{ github.workflow_ref }}
   EVENT_SHA: ${{ github.sha }}
@@ -47,7 +47,7 @@ jobs:
       - name: Check out immutable product
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: b76d2b3b166729db6e3ac78fcc627fb83be32685
+          ref: 5cf067a153efe798a0cfe9952658f98bf64e8179
           persist-credentials: false
           fetch-depth: 1
 
@@ -182,7 +182,7 @@ jobs:
           import stat
           import subprocess
 
-          PRODUCT = 'b76d2b3b166729db6e3ac78fcc627fb83be32685'
+          PRODUCT = '5cf067a153efe798a0cfe9952658f98bf64e8179'
           ACTIVE_PINS = {'swift-argument-parser', 'tomldecoder'}
           EXCEPTIONS = {'com.apple.security.cs.disable-library-validation',
                         'com.apple.security.cs.allow-jit',
@@ -670,7 +670,7 @@ jobs:
                   bindings[base] = {'workspace': dependency_workspace(root, base, expected),
                                     'checkouts': [dependency_checkout(root, base, identity, expected[identity])
                                                   for identity in sorted(ACTIVE_PINS)]}
-              result = {'layout': 'b76-local-package-two-build-roots/1', 'resolution': resolutions, 'bindings': bindings,
+              result = {'layout': '5cf-local-package-two-build-roots/1', 'resolution': resolutions, 'bindings': bindings,
                         'absent_resolvers': [name for name, record in resolutions.items() if not record['present']],
                         'diagnostics': 'dependency-layout.json'}
               (logs / 'dependency-bindings.json').write_text(json.dumps(result, sort_keys=True, indent=2) + '\n')
@@ -746,7 +746,7 @@ jobs:
                       require(observed_blob == expected_blob, 'tracked source blob changed: ' + name)
                   tracked[name] = {'git_blob': expected_blob, 'observed_blob': observed_blob,
                                    'sha256': hashlib.sha256(raw).hexdigest()}
-              require(len(tracked) == 2144, 'unexpected pinned source roster')
+              require(len(tracked) == 2149, 'unexpected pinned source roster')
               (logs / 'tracked-source-blobs.json').write_text(json.dumps(tracked, sort_keys=True, indent=2) + '\n')
               dependencies = dependency_policy(root, logs, original)
               (logs / 'tracked-source.diff').write_bytes(run(['/usr/bin/git', 'diff', 'HEAD', '--']))
@@ -872,7 +872,7 @@ jobs:
         timeout-minutes: 5
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: mac-debug-b76d2b3b166729db6e3ac78fcc627fb83be32685-${{ github.run_id }}-${{ github.run_attempt }}
+          name: mac-debug-5cf067a153efe798a0cfe9952658f98bf64e8179-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/agterm-mac-debug-retention/payload
           if-no-files-found: error
           retention-days: 7
