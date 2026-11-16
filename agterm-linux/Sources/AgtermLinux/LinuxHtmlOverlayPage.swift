@@ -212,9 +212,12 @@ final class LinuxHtmlOverlayPage {
         return nil
     }
 
-    func resource(for uriPath: String) -> LinuxHtmlFileGrant.Resource? {
-        guard case .file(_, let grantRoot?) = overlay.source else { return nil }
-        return LinuxHtmlFileGrant.resource(for: uriPath, grantRoot: grantRoot)
+    /// A granted resource's MIME type and a descriptor the caller owns, opened once beneath the grant root.
+    func openResource(for uriPath: String) -> (descriptor: Int32, mime: String)? {
+        guard case .file(_, let grantRoot?) = overlay.source,
+              let resource = LinuxHtmlFileGrant.resource(for: uriPath, grantRoot: grantRoot),
+              let descriptor = LinuxHtmlFileGrant.openDescriptor(resource, grantRoot: grantRoot) else { return nil }
+        return (descriptor, resource.mime)
     }
 
     private var pageURL: URL {
