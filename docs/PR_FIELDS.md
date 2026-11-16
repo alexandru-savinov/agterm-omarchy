@@ -11,7 +11,7 @@ Review: https://github.com/<owner>/<repo>/...
 
 They must be the **first non-blank lines of the body**. A line belongs to the block only if it is exactly a field name, a colon, one space and a value. The block ends at the first blank line or the first line that does not fit that shape (including a field with no space after the colon), and everything after it is ignored. A trailing tab or a doubled space after the colon stays in the block and is reported as an invalid value. This is deliberate: the checker never tries to guess what Markdown would hide or render (code fences, HTML comments, HTML blocks), so there is nothing to forge there.
 
-The `PR fields` workflow fails a pull request when a field is missing, repeated or malformed, or when `Reviewed head` differs from the pull request's current head. Push after a review and the check fails until the review is redone and the field updated. It runs when a PR is opened, edited, pushed to, reopened, marked ready for review or converted back to draft.
+The `PR fields` workflow reports a problem when a field is missing, repeated or malformed, or when `Reviewed head` differs from the pull request's current head. Until the cutoff described below is set (issue #423) it only warns and the check stays green, so a green `PR fields` says nothing about whether a review is current. Once the cutoff is set, a push after a review makes the check fail until the review is redone and the field updated. It runs when a PR is opened, edited, pushed to, reopened, marked ready for review or converted back to draft.
 
 ## What the check is not
 
