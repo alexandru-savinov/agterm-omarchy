@@ -14,7 +14,7 @@ from contextlib import redirect_stderr
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_zmx_prefill import cleanup_all, close_client, production_plan, reap, running
+from test_zmx_prefill import cleanup_all, close_client, production_plan, reap, running, started_at
 
 
 def pty_child(code):
@@ -69,6 +69,25 @@ class CloseClientTests(unittest.TestCase):
         close_client(pid, fd)
         with self.assertRaises(ChildProcessError):
             os.waitpid(pid, os.WNOHANG)
+
+    def test_a_pid_with_another_start_time_is_not_the_same_process(self):
+        pid, fd = pty_child("import time; time.sleep(60)")
+        started = started_at(pid)
+        reused = running(pid, "Thu Jan  1 00:00:00 1970")
+        same = running(pid, started)
+        close_client(pid, fd)
+        self.assertIsNotNone(started)
+        self.assertTrue(same)
+        self.assertFalse(reused)
+
+    def test_a_zombie_has_no_start_time(self):
+        pid, fd = pty_child("pass")
+        deadline = time.monotonic() + 5
+        while started_at(pid) is not None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        gone = started_at(pid)
+        close_client(pid, fd)
+        self.assertIsNone(gone)
 
     def test_non_child_pid_is_never_signalled_and_its_descriptor_still_closes(self):
         sentinel = UnrelatedSentinel()

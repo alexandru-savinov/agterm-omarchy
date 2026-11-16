@@ -67,21 +67,30 @@ def kill_daemon(zmx, name, env, seconds=REAP_SECONDS):
         return None
 
     pid = listed()
+    started = started_at(pid) if pid is not None and pid > 0 else None
     # zmx kill exits 0 for an absent session as well, so the listing decides the outcome.
     result = subprocess.run([zmx, "kill", name, "--force"], env=env, capture_output=True, timeout=seconds)
     if result.returncode != 0:
         raise AssertionError(f"zmx kill {name} failed: {result!r}")
     deadline = time.monotonic() + seconds
-    while listed() is not None or (pid is not None and pid > 0 and running(pid)):
+    while listed() is not None or (started is not None and running(pid, started)):
         if time.monotonic() >= deadline:
             raise TimeoutError(f"zmx daemon {name} (pid {pid}) still present {seconds}s after kill")
         time.sleep(0.05)
 
 
-def running(pid):
-    """A daemon is not this process's child, so read its state instead of signalling it; a zombie has exited."""
-    state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, timeout=5)
-    return bool(state.stdout.strip()) and not state.stdout.strip().startswith("Z")
+def started_at(pid):
+    """The pid's start time as ps prints it, or None once it has exited; a zombie has exited."""
+    state = subprocess.run(["ps", "-o", "stat=", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True,
+                           timeout=5)
+    fields = state.stdout.split(None, 1)
+    return None if len(fields) < 2 or fields[0].startswith("Z") else fields[1].strip()
+
+
+def running(pid, started=None):
+    """Read a non-child's state instead of signalling it; a reused pid has another start time."""
+    now = started_at(pid)
+    return now is not None and (started is None or now == started)
 
 
 def read_until(fd, needle, seconds):
