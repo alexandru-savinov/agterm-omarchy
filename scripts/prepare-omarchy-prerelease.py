@@ -52,8 +52,37 @@ def promotion_tag(sha, run_id):
     return tag
 
 
+def published(tag):
+    return not (absent(f"git/ref/tags/{tag}") and absent(f"releases/tags/{tag}"))
+
+
+def run_jobs(run):
+    pages = api(f"actions/runs/{run['id']}/attempts/{run['run_attempt']}/jobs?per_page=100", pages=True)
+    return [job for page in pages for job in page["jobs"]]
+
+
+def run_artifacts(run):
+    return [artifact for page in api(f"actions/runs/{run['id']}/artifacts?per_page=100", pages=True)
+            for artifact in page["artifacts"]]
+
+
+def select_artifacts(artifacts, run, sha):
+    """The one artifact per architecture this run attempt uploaded, or ValueError."""
+    selected = {}
+    for arch in ARCHITECTURES:
+        matches = [item for item in artifacts if item["name"] == f"agterm-omarchy-{arch}-{sha}"]
+        require(len(matches) == 1, f"Missing unique {arch} artifact")
+        artifact = matches[0]
+        require(artifact["workflow_run"]["id"] == run["id"], "Artifact run mismatch")
+        require(not artifact["expired"], "Expired artifact")
+        require(datetime.fromisoformat(artifact["created_at"].replace("Z", "+00:00")) >=
+                datetime.fromisoformat(run["run_started_at"].replace("Z", "+00:00")), "Artifact predates this run attempt")
+        selected[arch] = artifact
+    return selected
+
+
 def discover():
-    """Newest successful trusted CI run at a current trusted branch head that still has both artifacts."""
+    """Newest run at a current trusted branch head that main() would accept for an unpublished tag."""
     workflow = api("actions/workflows/ci.yml")
     candidates = []
     for branch in BRANCHES:
@@ -63,11 +92,12 @@ def discover():
         for run in (run for page in pages for run in page["workflow_runs"]):
             try:
                 validate_run(run, workflow, head, head)
+                validate_jobs(run_jobs(run))
+                select_artifacts(run_artifacts(run), run, head)
             except ValueError:
                 continue
-            names = {item["name"] for page in api(f"actions/runs/{run['id']}/artifacts?per_page=100", pages=True)
-                     for item in page["artifacts"] if not item["expired"]}
-            if all(f"agterm-omarchy-{arch}-{head}" in names for arch in ARCHITECTURES):
+            # Outside the try: a failed lookup is an error, not a published tag.
+            if not published(promotion_tag(head, run["id"])):
                 candidates.append(run)
     return max(candidates, key=lambda run: run["created_at"], default=None)
 
@@ -215,24 +245,16 @@ def main():
     require(run["head_branch"] in BRANCHES, "Untrusted source branch")
     branch = api(f"git/ref/heads/{run['head_branch']}")
     validate_run(run, api("actions/workflows/ci.yml"), args.sha, branch["object"]["sha"])
-    jobs = api(f"actions/runs/{args.run_id}/attempts/{run['run_attempt']}/jobs?per_page=100", pages=True)
-    validate_jobs([job for page in jobs for job in page["jobs"]])
-    pages = api(f"actions/runs/{args.run_id}/artifacts?per_page=100", pages=True)
-    artifacts = [artifact for page in pages for artifact in page["artifacts"]]
+    validate_jobs(run_jobs(run))
+    artifacts = select_artifacts(run_artifacts(run), run, args.sha)
     # A dry run must fail where publication would: tag creation refuses an existing ref.
-    require(absent(f"git/ref/tags/{tag}") and absent(f"releases/tags/{tag}"), f"Tag or release {tag} already exists")
+    require(not published(tag), f"Tag or release {tag} already exists")
     args.output.mkdir(parents=True, exist_ok=False)
     evidence = {"repository": REPOSITORY, "source_commit": args.sha, "source_branch": run["head_branch"],
                 "source_run": run["html_url"], "source_run_attempt": run["run_attempt"],
                 "source_workflow": WORKFLOW, "artifacts": []}
     checksums = []
-    for arch in ARCHITECTURES:
-        matches = [item for item in artifacts if item["name"] == f"agterm-omarchy-{arch}-{args.sha}"]
-        require(len(matches) == 1, f"Missing unique {arch} artifact")
-        artifact = matches[0]
-        require(artifact["workflow_run"]["id"] == args.run_id, "Artifact run mismatch")
-        require(datetime.fromisoformat(artifact["created_at"].replace("Z", "+00:00")) >=
-                datetime.fromisoformat(run["run_started_at"].replace("Z", "+00:00")), "Artifact predates this run attempt")
+    for arch, artifact in artifacts.items():
         name, data = download_artifact(artifact, arch, args.sha)
         (args.output / name).write_bytes(data)
         digest = hashlib.sha256(data).hexdigest()

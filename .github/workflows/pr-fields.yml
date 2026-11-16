@@ -1,0 +1,34 @@
+name: PR fields
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review, converted_to_draft]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-fields-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fields:
+    name: PR fields
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # The checker script is taken from the base commit. The workflow file itself comes from the pull
+      # request, so a PR can still change this job: a green "PR fields" is advisory, never proof that a
+      # review is current (see docs/PR_FIELDS.md).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Check Task, Agent, Reviewed head and Review fields
+        run: |
+          # The pull request that introduces the checker has no checker on its base commit yet.
+          if [ ! -f scripts/github/pr_fields.py ]; then
+            echo "::notice title=PR fields::the base commit has no checker yet; nothing to check"
+            exit 0
+          fi
+          python3 scripts/github/pr_fields.py

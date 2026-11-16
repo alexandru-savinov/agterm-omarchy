@@ -1,3 +1,12 @@
+Task: #
+Agent:
+Reviewed head:
+Review:
+
+<!-- Machine fields: keep these four lines first in the body, one per line, with a space after each colon. Task: the issue number. Agent: your name.
+Reviewed head: the full 40-character sha the review covered; update it after every push.
+Review: link to the review comment. Advisory check by the "PR fields" workflow on non-draft pull requests; see docs/PR_FIELDS.md. -->
+
 ## Problem and resulting behavior
 
 Describe the concrete problem and what changes for the user.
