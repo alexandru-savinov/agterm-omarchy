@@ -62,15 +62,21 @@ enum LinuxHtmlFileGrant {
         case components
     }
 
+    static let beneathResolutionAvailable = probedResolution() == .beneath
+
     /// Seccomp filters older than `openat2` answer EPERM rather than ENOSYS.
-    static let beneathResolutionAvailable: Bool = {
-        let fd = agterm_openat2_beneath(AT_FDCWD, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
-        if fd >= 0 { close(fd) }
-        return fd >= 0 || (errno != ENOSYS && errno != EPERM)
-    }()
+    static func probedResolution(_ probe: () -> (descriptor: Int32, error: Int32) = {
+        let fd = agterm_openat2_beneath(AT_FDCWD, ".", agterm_o_path() | O_DIRECTORY | O_CLOEXEC)
+        return (fd, errno)
+    }) -> Resolution {
+        let result = probe()
+        if result.descriptor >= 0 { close(result.descriptor) }
+        return result.descriptor < 0 && (result.error == ENOSYS || result.error == EPERM) ? .components : .beneath
+    }
 
     /// A descriptor the caller owns for `resource` when it is still the regular file `resource` checked, or nil.
     /// `O_NONBLOCK` keeps a FIFO swapped in after the check from blocking the open on the GTK main thread.
+    /// Directories are opened `O_PATH`, so like a lookup by name they need search permission, not read.
     static func openDescriptor(_ resource: Resource, grantRoot: String,
                                resolution: Resolution = beneathResolutionAvailable ? .beneath : .components) -> Int32? {
         let root = resolved(grantRoot)
@@ -78,7 +84,7 @@ enum LinuxHtmlFileGrant {
         guard file.starts(with: root.pathComponents), file.count > root.pathComponents.count else { return nil }
         let components = Array(file.dropFirst(root.pathComponents.count))
         guard !components.contains(where: { $0 == "." || $0 == ".." }) else { return nil }
-        let rootFD = open(root.path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        let rootFD = open(root.path, agterm_o_path() | O_DIRECTORY | O_CLOEXEC)
         guard rootFD >= 0 else { return nil }
         defer { close(rootFD) }
         let flags = O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_NOCTTY | O_CLOEXEC
@@ -98,7 +104,7 @@ enum LinuxHtmlFileGrant {
     private static func openComponents(_ components: [String], from rootFD: Int32, flags: Int32) -> Int32 {
         var parent = rootFD
         for name in components.dropLast() {
-            let next = openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            let next = openat(parent, name, agterm_o_path() | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
             if parent != rootFD { close(parent) }
             guard next >= 0 else { return -1 }
             parent = next

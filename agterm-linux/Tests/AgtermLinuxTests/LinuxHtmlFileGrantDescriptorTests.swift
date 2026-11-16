@@ -141,4 +141,45 @@ struct LinuxHtmlFileGrantDescriptorTests {
         }
         #expect(contents(LinuxHtmlFileGrant.openDescriptor(resource, grantRoot: tree.root)) == nil)
     }
+
+    @Test(.enabled(if: getuid() != 0, "root reads every directory"), arguments: resolutions)
+    func directoriesThatAllowOnlySearchStillServe(_ resolution: LinuxHtmlFileGrant.Resolution) throws {
+        let tree = try SwapTree()
+        let directories = ["", "/assets", "/assets/css"].map { tree.root + $0 }
+        for directory in directories { #expect(chmod(directory, 0o311) == 0) }
+        defer {
+            for directory in directories { _ = chmod(directory, 0o755) }
+            withExtendedLifetime(tree) {}
+        }
+        let listing = open(tree.root, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        let listingError = errno
+        if listing >= 0 { close(listing) }
+        #expect(listing < 0 && listingError == EACCES)
+        let nested = try tree.checked("/assets/css/site.css")
+        #expect(contents(tree.open(nested, resolution)) == "inside assets/css/site.css")
+        let linked = try tree.checked("/assets/css/site.css", grant: "\(tree.base)/root-link")
+        #expect(contents(tree.open(linked, resolution, grant: "\(tree.base)/root-link")) == "inside assets/css/site.css")
+    }
+
+    @Test(arguments: [ENOSYS, EPERM])
+    func aProbeWithoutOpenat2FallsBackToComponents(_ error: Int32) throws {
+        let resolution = LinuxHtmlFileGrant.probedResolution { (-1, error) }
+        #expect(resolution == .components)
+        let tree = try SwapTree()
+        let nested = try tree.checked("/assets/css/site.css")
+        #expect(contents(tree.open(nested, resolution)) == "inside assets/css/site.css")
+        let resource = try tree.checked("/index.html")
+        try tree.swap("index.html") {
+            try FileManager.default.createSymbolicLink(atPath: $0, withDestinationPath: "\(tree.outside)/index.html")
+        }
+        #expect(contents(tree.open(resource, resolution)) == nil)
+    }
+
+    @Test func aProbeThatOpensOrFailsOtherwiseKeepsBeneath() throws {
+        #expect(LinuxHtmlFileGrant.probedResolution { (-1, EACCES) } == .beneath)
+        let probed = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        try #require(probed >= 0)
+        #expect(LinuxHtmlFileGrant.probedResolution { (probed, 0) } == .beneath)
+        #expect(fcntl(probed, F_GETFD) == -1)
+    }
 }
