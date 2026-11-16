@@ -64,6 +64,9 @@ session drag are out of scope.
 - Appearing windows claim IDs from a FIFO queue: seed launch first, pop with `claimNextWindowID`, enqueue
   new windows, and dismiss SwiftUI-restored strays. `reopenWindows` opens remaining IDs once behind
   `hasReopened`.
+- Launch ignores AppKit saved state (`AppKitSavedState`, registered first in `agtermApp.init`). Windows opt out
+  of restoration, so after an unclean exit that state restores zero windows and SwiftUI opens no launch
+  window: no scene task, no control socket (#431). `docs/repro/mac-relaunch-431/run.sh` reproduces it.
 - Do not use `.restorationBehavior`; it requires macOS 15, the floor is 14, and `SceneBuilder` rejects
   availability conditionals without an `AnyScene` eraser. Deduplicate by ID on both systems.
 - `TitleProbeView` persists the frame under the window UUID in `UserDefaults` on close and restores it

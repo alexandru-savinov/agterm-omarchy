@@ -89,6 +89,8 @@ struct agtermApp: App {
     }
 
     init() {
+        // before NSApplicationMain, which decides whether to restore while it finishes launching
+        AppKitSavedState.ignore()
         #if DEBUG
         // in the environment, ahead of every reader of the variable and of every child that inherits it
         if let adopted = DebugStateDirectory.adopted(environment: ProcessInfo.processInfo.environment,
