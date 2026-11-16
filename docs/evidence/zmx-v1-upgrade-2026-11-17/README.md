@@ -16,6 +16,7 @@ and lists the daemons.
 | prerelease aarch64 | `38b004cdf02234a1fc804ab8a06cbd06e1a15ee0773d77b884154126b2488b41` |
 | PR #441 at `1cefbfb5` (zmx v1, no fix) | `44d974b5c70898ba485bde681bab7b5495093e13691570763d4794b2023a27e6` |
 | PR #441 at `668156a3` (with the fix) | `7fcad5da9c87717e075a08774d9e468a78c5d56ba17075ccc97af5b68941acc9` |
+| PR #441 at `b812a6ec` (fix, shortened toast) | `0c2921b8ca1a85e090252f0e3e15b22ebda8701ca2bf42d8877063d2d2b6c781` |
 
 ## Before the fix: a blank pane that takes no input
 
@@ -28,16 +29,18 @@ The cause is the IPC header: v1 cannot frame anything the old daemon sends, and 
 
 ## After the fix: the session is reset and works
 
+Same result on both fixed payloads; the last run (`b812a6ec`) is the one pictured.
+
 - zmx v1 lists the old daemon as `err=IncompatibleProtocol` (zmx patch 0007).
 - Before any pane spawned, the app found the old daemon (pid with no controlling terminal, `tty_nr=0`), ended it
   with SIGTERM, and logged `Live reset at launch: 1 pane(s) on an incompatible zmx; ended 1 daemon(s), 0 still running`.
   The old daemon's own log shows a clean shutdown and its shell got SIGHUP.
 - The pane restored on a new daemon: typing executed (new shell pid) and read back.
 - `tree` and `zmx list` read back `liveReset.last` = panes confirmed 1, killed 1; sessions affected 1, reset 1.
-- The first window showed a toast ([after-fix-reset-toast.png](after-fix-reset-toast.png)). That run carried
-  the first wording, which the 910 px window truncated. The notice was then shortened to
-  `Restarted 1 live session left by an older agterm`, which the unit test pins.
-- The window mapped 1.2 s after spawn and the control socket answered at 3.0 s.
+- The first window showed `Restarted 1 live session left by an older agterm` as a toast
+  ([after-fix-reset-toast.png](after-fix-reset-toast.png)). The first wording, on `668156a3`, was cut off on
+  this 910 px window; this one fits.
+- The window mapped about 1.25 s after spawn, and the control socket answered by about 3.1 s.
 
 What is lost: whatever ran inside the old Live session. Its daemon could not be reattached by any v1 client,
 so ending it is the only way to give the pane back; in Re-run commands mode the captured command is pre-filled
