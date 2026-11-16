@@ -1,7 +1,29 @@
-diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
+diff --git zmx-orig/src/client.zig zmx/src/client.zig
+index 54d67fb..006f999 100644
+--- zmx-orig/src/client.zig
++++ zmx/src/client.zig
+@@ -176,9 +176,14 @@ pub fn attach(alloc: Allocator, io: Io, name: []const u8, opts: AttachOptions) !
+ 
+     defer {
+         if (stdin_is_tty) {
+-            _ = cross.tcsetattr(lib_posix.STDIN_FILENO, cross.TCSAFLUSH, &orig_termios);
++            // TCSAFLUSH would also wait for output to drain, which a terminal that stopped reading never
++            // does. Restore at once, then discard unread input as it would; flushing second also clears
++            // the PENDIN a BSD kernel sets when canonical mode returns.
++            _ = cross.tcsetattr(lib_posix.STDIN_FILENO, cross.TCSANOW, &orig_termios);
++            _ = cross.tcflush(lib_posix.STDIN_FILENO, cross.TCIFLUSH);
+         }
+-        _ = lib_posix.write(lib_posix.STDOUT_FILENO, exit_seq) catch {};
++        // bounded: a terminal that stopped reading must not hold an exiting client
++        loop.writeBounded(exit_seq, 500);
+     }
+ 
+     if (stdin_is_tty) {
+diff --git zmx-orig/src/loop.zig zmx/src/loop.zig
+index 6e4c8a6..2045696 100644
 --- zmx-orig/src/loop.zig
 +++ zmx/src/loop.zig
-@@ -111,6 +111,13 @@
+@@ -116,6 +116,13 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
          _ = try lib_posix.poll(poll_fds.items, poll_timeout);
          if (relay) |*r| try r.expire(gpa, &stdout_buf, role.nowMs());
  
@@ -13,9 +35,9 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +        }
 +
          if (poll_fds.items[2].revents & lib_posix.POLL.IN != 0) {
-             signal.drainSignalPipe();
+             try signal.drainSignalPipe();
              const next_size = ipc.getTerminalSize(lib_posix.STDOUT_FILENO);
-@@ -148,6 +155,7 @@
+@@ -158,6 +165,7 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
              const n = read_buf.read(client_sock_fd) catch |err| {
                  if (err == error.WouldBlock) continue;
                  if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
@@ -23,7 +45,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                      return ClientResult{ .kind = .detach, .session_name = null };
                  }
                  std.log.err("daemon read err={s}", .{@errorName(err)});
-@@ -155,7 +163,7 @@
+@@ -165,7 +173,7 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
              };
              if (n == 0) {
                  std.log.info("server closed connection", .{});
@@ -32,7 +54,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                  return ClientResult{ .kind = .detach, .session_name = null };
              }
  
-@@ -205,6 +213,7 @@
+@@ -220,6 +228,7 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
                      if (err == error.WouldBlock) break :blk 0;
                      if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
                          std.log.info("connection reset or broken pipe", .{});
@@ -40,7 +62,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                          return ClientResult{ .kind = .detach, .session_name = null };
                      }
                      return err;
-@@ -224,14 +233,94 @@
+@@ -239,14 +248,94 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
                  try stdout_buf.replaceRange(gpa, 0, n, &[_]u8{});
              }
          }
@@ -138,16 +160,3 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
  fn initTerminal(gpa: std.mem.Allocator, io: std.Io, size: ipc.Resize, cfg: *const Cfg) !ghostty_vt.Terminal {
      return ghostty_vt.Terminal.init(io, gpa, .{
          .cols = size.cols,
-diff -ruN zmx-orig/src/main.zig zmx/src/main.zig
---- zmx-orig/src/main.zig
-+++ zmx/src/main.zig
-@@ -1649,7 +1649,8 @@
-             _ = cross.c.tcsetattr(lib_posix.STDIN_FILENO, cross.c.TCSAFLUSH, &orig_termios);
-         }
-         // Reset terminal modes on detach
--        _ = lib_posix.write(lib_posix.STDOUT_FILENO, exit_seq) catch {};
-+        // bounded: a terminal that stopped reading must not hold an exiting client
-+        loop.writeBounded(exit_seq, 500);
-     }
- 
-     if (stdin_is_tty) {

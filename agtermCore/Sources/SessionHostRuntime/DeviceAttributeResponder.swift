@@ -1,4 +1,4 @@
-// DA1/DA2 replies match zmx src/util.zig at ZMX_REV 8bab1f0173b07e79835ea372d749af3dbf0d0842.
+// DA1/DA2 replies match zmx src/util.zig at ZMX_REV 232f1a218e8e4b7a580087c3834ac5dd038254dc.
 struct DeviceAttributeResponder {
     private static let primaryReply = Array("\u{1B}[?62;22c".utf8)
     private static let secondaryReply = Array("\u{1B}[>1;10;0c".utf8)

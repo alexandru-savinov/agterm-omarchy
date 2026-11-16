@@ -560,46 +560,46 @@
     {
       "component": "zmx-ghostty",
       "repository": "ghostty-org/ghostty",
-      "revision": "8af6897c0afc63037a8a3efee4162a380e3a4572",
+      "revision": "53e55147bbbb0157672dac0228aa7744e881f1fa",
       "source_path": "LICENSE",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/8af6897c0afc63037a8a3efee4162a380e3a4572/LICENSE",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/53e55147bbbb0157672dac0228aa7744e881f1fa/LICENSE",
       "file": "zmx-ghostty/LICENSE",
       "sha256": "386211873e5b7a02f663ae4d7adf96285999f91608f8f9f31fecfd0f4095e6f1"
     },
     {
       "component": "zmx-ghostty",
       "repository": "ghostty-org/ghostty",
-      "revision": "8af6897c0afc63037a8a3efee4162a380e3a4572",
+      "revision": "53e55147bbbb0157672dac0228aa7744e881f1fa",
       "source_path": "build.zig.zon",
-      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/8af6897c0afc63037a8a3efee4162a380e3a4572/build.zig.zon",
+      "url": "https://raw.githubusercontent.com/ghostty-org/ghostty/53e55147bbbb0157672dac0228aa7744e881f1fa/build.zig.zon",
       "file": "zmx-ghostty/build.zig.zon",
-      "sha256": "bb13e580925ad82d4e3db7391cd48b58fb034a022c57c1e8e66519bf679a501d"
+      "sha256": "92aea5525c62d63a20b4041faf1af92c337f700e65b7cbedcf518c3b8b52c566"
     },
     {
       "component": "zig-runtime",
-      "archive": "zig-0.16.0",
-      "source_path": "zig-0.16.0/LICENSE",
+      "archive": "zig-0.17.0",
+      "source_path": "zig-0.17.0/LICENSE",
       "file": "zig-runtime/LICENSE",
       "sha256": "5c537d6853e005298a285d508cff9ac7192cea23576c840d485b2b586a7ff177"
     },
     {
       "component": "zig-libcxx",
-      "archive": "zig-0.16.0",
-      "source_path": "zig-0.16.0/lib/libcxx/LICENSE.TXT",
+      "archive": "zig-0.17.0",
+      "source_path": "zig-0.17.0/lib/libcxx/LICENSE.TXT",
       "file": "zig-libcxx/LICENSE.TXT",
       "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
     },
     {
       "component": "zig-libcxxabi",
-      "archive": "zig-0.16.0",
-      "source_path": "zig-0.16.0/lib/libcxxabi/LICENSE.TXT",
+      "archive": "zig-0.17.0",
+      "source_path": "zig-0.17.0/lib/libcxxabi/LICENSE.TXT",
       "file": "zig-libcxxabi/LICENSE.TXT",
       "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
     },
     {
       "component": "zig-libunwind",
-      "archive": "zig-0.16.0",
-      "source_path": "zig-0.16.0/lib/libunwind/LICENSE.TXT",
+      "archive": "zig-0.17.0",
+      "source_path": "zig-0.17.0/lib/libunwind/LICENSE.TXT",
       "file": "zig-libunwind/LICENSE.TXT",
       "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d"
     },
@@ -767,7 +767,7 @@
       "sha256": "8538467a6f1f67b9d7fb7f95da492796ac1f02046121aa4138c07026e85c5fb2"
     }
   ],
-  "inventory_sha256": "e08cc6285f21542084655aa9d856e73201a4989317eaeeed7f74a128c90edc04",
+  "inventory_sha256": "90692c7e88218c3acdf17be5a4337282d8903a72d8bfebaa77b3c21575c0511f",
   "ghostty_patch_inputs": {
     "linux/patches/ghostty-bounded-app-tick.patch": "20b33f136f8d897e0350133655ca11b6700887d8bea3179eabbc5dc9b630ea82",
     "linux/patches/ghostty-clipboard-request-kind.patch": "4468c6b761ba8a82a4da47ec731845d6792456e1da4b80f948051ea5f7f9c0f6",

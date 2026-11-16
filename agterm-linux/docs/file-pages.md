@@ -55,7 +55,7 @@ Remote text pages are static: log following and control-driven search are refuse
 
 ## Renderer boundary
 
-Ghostty v1.4.0 uses Zig 0.17.0; the bundled zmx pin independently uses Zig 0.16.0.
+Ghostty v1.4.0 and the bundled zmx pin both use Zig 0.17.0, pinned independently.
 The Linux embedded adapter keeps OpenGL creation, drawing, viewport ownership, and destruction on GTK's thread.
 Render-thread work requests a host draw and never calls through GTK's thread-local OpenGL table.
 Hidden panes retain GPU resources, preserving the Linux bridge's existing context-lifetime contract.

@@ -37,10 +37,10 @@ class VendorCacheStampTests(unittest.TestCase):
         (self.vendor / 'SOURCE_STAMP').write_text(self.expected_stamp())
         self.bin = self.work / 'bin'
         self.bin.mkdir()
-        for name, body in {'zig': 'echo 0.16.0', 'zig17': 'echo 0.17.0', 'mise': 'exit 1', 'uname': 'echo x86_64',
+        for name, body in {'zig': 'echo 0.17.0', 'zig17': 'echo 0.17.0', 'mise': 'exit 1', 'uname': 'echo x86_64',
                            'git': 'echo stamp-fixture-rebuild >&2; exit 97'}.items():
             self.stub(self.bin / name, body)
-        # Ghostty 1.4 builds with Zig 0.17 (GHOSTTY_ZIG); zmx keeps Zig 0.16.
+        # Ghostty 1.4 builds with Zig 0.17 (GHOSTTY_ZIG), as zmx v1 does.
         self.env = dict(os.environ, PATH=f'{self.bin}:{os.environ["PATH"]}', TMPDIR=str(self.work),
                         GHOSTTY_ZIG=str(self.bin / 'zig17'))
 

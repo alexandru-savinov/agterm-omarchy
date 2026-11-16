@@ -2,15 +2,19 @@
 
 `scripts/setup.sh` applies every `*.patch` here, in name order, to a fresh checkout of `ZMX_REV` before
 building, and every `ghostty/*.patch` to a private checkout of the ghostty revision that `ZMX_REV` pins
-in its `build.zig.zon`. The digest of both sets is part of `.zmx-build-stamp`, so editing one rebuilds
-zmx. A daemon already running keeps the zmx it was started by.
+in its `build.zig.zon`. That second set is empty at the current pin, and the scripts accept an empty or
+missing `ghostty/`. The digest of both sets is part of `.zmx-build-stamp`, so editing one rebuilds
+zmx. A daemon already running keeps the zmx it was started by, and zmx v1 clients cannot talk to daemons
+from before v1 (upstream froze a new IPC header), so a pin bump across v1 leaves earlier Live daemons
+unreachable until they are reset.
 
-Each patch is a plain `diff -ruN` against a pristine copy of the tree it patches, made so `git apply`
-takes it with `-p1`: the zmx patches against `ZMX_REV`, the `ghostty/` ones against the ghostty revision
-in that `ZMX_REV`'s `build.zig.zon`. To change one, check out both trees side by side as `zmx` and
+Each patch is a diff `git apply` takes with `-p1`, against the tree the patches before it left: the zmx
+patches on `ZMX_REV`, the `ghostty/` ones on the ghostty revision in that `ZMX_REV`'s `build.zig.zon`. To change one, check out both trees side by side as `zmx` and
 `zmx-ghostty`, apply the ghostty patches to `zmx-ghostty` and then the zmx patches to `zmx`, since `0002`
 makes zmx build against `../zmx-ghostty`. Edit, run `zig build test` in `zmx`, then regenerate the file
-against the pristine copy of its own tree. Moving `ZMX_REV` means re-applying them by hand where they no
+with `git diff --src-prefix=zmx-orig/ --dst-prefix=zmx/` from the tree the previous patch left.
+`scripts/test-zmx-patches-linux.sh` runs upstream's own gates over the result: `zig fmt --check`,
+`zig build test` and its bats suite. Moving `ZMX_REV` means re-applying them by hand where they no
 longer apply, and re-running `check.py`.
 
 - `0001-explicit-leadership.patch` lets a terminal own which client leads a session. A client attached
@@ -18,8 +22,9 @@ longer apply, and re-running `check.py`.
   reports its role as a title under a reserved prefix that carries the token. `zmx screen` reads the
   daemon's own terminal, which always has the leader's layout, and `zmx type` queues input with an
   acknowledgement and without taking the lead. A session switch is ignored while the leader is managed.
-  A client that does not set the variable behaves as upstream does. `.claude/rules/control-api.md` owns
-  how agterm uses it.
+  A client that does not set the variable behaves as upstream does. Its IPC tags are 200-203, clear of
+  upstream's next free numbers, and a daemon without them answers `Unsupported`.
+  `.claude/rules/control-api.md` owns how agterm uses it.
 
 - `0002-private-ghostty-dependency.patch` points zmx's ghostty dependency at `../zmx-ghostty`, the
   private checkout `setup.sh` patches, in place of the zig package cache. Its context names the pinned
@@ -42,11 +47,14 @@ longer apply, and re-running `check.py`.
   not yet written to a busy terminal, and output still unread behind the hangup. On every disconnect path
   it now runs one loop that reads the socket and writes stdout, both nonblocking, bounded by an absolute
   two-second deadline and 1 MiB from the socket. The terminal reset an exiting client sends is a bounded
-  write too. A Live command's final line under its hold prompt depended on that race.
+  write too, and the terminal settings are restored without TCSAFLUSH's wait for output to drain, so a
+  client ended by SIGTERM on a terminal that stopped reading still exits. A Live command's final line under
+  its hold prompt depended on that race.
 - `0006-nonblocking-stdout.patch` keeps the attach client responsive to its daemon while the terminal is
   stalled (#409). Upstream writes session output to a blocking stdout, so a terminal that stopped reading
   held the client in `write` while the daemon was still connected, and it never saw the hangup. stdout is
-  now nonblocking for the whole client loop, with its original flags restored on exit. Output is written
+  now nonblocking for the whole client loop, with its original flags restored on exit, including the exit
+  upstream's SIGTERM/HUP/INT handlers start; the flags change only after those handlers are installed. Output is written
   only when poll reports room. A closed reader (POLLHUP/ERR/NVAL) ends the client with its write error
   instead of spinning. While 1 MiB is pending, the client stops reading further messages, so the
   backpressure reaches the daemon. That is a high-water mark, not a memory bound: zmx has no IPC message
@@ -54,10 +62,6 @@ longer apply, and re-running `check.py`.
   returns within a generous 10 s of the hangup, nominally 2 s, so starved CI cannot flake it, and does
   not block forever) and a closed reader (it returns promptly); both run under a
   watchdog.
-- `ghostty/0001-formatter-unstyled-blanks.patch` fixes the snapshot a re-attach replays. The formatter
-  wrote cells a program skipped with a cursor move as spaces under the previous cell's style, so a gap
-  after a colored run came back painted; a skipped cell now closes the style first. Spaces the program
-  wrote keep their style. Not agterm's `GHOSTTY_REV`: this is the ghostty zmx links, nothing else.
-
 `check.py <zmx>` drives managed clients on ptys of different sizes against one daemon in a throwaway
-`ZMX_DIR`, prints one line per rule, and exits nonzero when any of them is broken.
+`ZMX_DIR`, prints one line per rule, and exits nonzero when any of them is broken. Linux CI runs it
+against the vendored zmx, beside `scripts/tests/test_zmx_tty_restore.py`.

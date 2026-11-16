@@ -31,8 +31,13 @@ fetch_pinned_commit() {
   }
   rm -rf "${directory:?}/.git"
 }
-ZMX_PATCH_DIGEST="$(cat "$ROOT/scripts/zmx-patches"/*.patch "$ROOT/scripts/zmx-patches/ghostty"/*.patch | sha256sum | cut -c1-16)"
-ZMX_STAMP="$ZMX_REV $ZIG_TARGET $ZMX_PATCH_DIGEST"
+# The ghostty/ set patches the Ghostty commit zmx pins and may be empty.
+shopt -s nullglob
+ZMX_PATCHES=("$ROOT/scripts/zmx-patches"/*.patch)
+ZMX_GHOSTTY_PATCHES=("$ROOT/scripts/zmx-patches/ghostty"/*.patch)
+shopt -u nullglob
+ZMX_PATCH_DIGEST="$(cat "${ZMX_PATCHES[@]}" ${ZMX_GHOSTTY_PATCHES[@]+"${ZMX_GHOSTTY_PATCHES[@]}"} | sha256sum | cut -c1-16)"
+ZMX_STAMP="$ZMX_REV $ZIG_TARGET zig-$ZMX_ZIG_VERSION $ZMX_PATCH_DIGEST"
 
 cache_is_complete() {
   local reason
@@ -59,19 +64,19 @@ fi
 for command in git curl tar sha256sum tic infocmp file python3; do
   command -v "$command" >/dev/null || { echo "$command is required to vendor Linux runtimes" >&2; exit 1; }
 done
-ZIG=""
+# zmx keeps its own compiler pin (ZMX_ZIG_VERSION); it is the same release Ghostty uses today.
+ZIG="${ZMX_ZIG:-${GHOSTTY_ZIG:-}}"
 if $need_zmx; then
-  if command -v mise >/dev/null; then
-    ZIG="$(mise where zig@0.16.0 2>/dev/null || true)/bin/zig"
+  if [[ ! -x "$ZIG" ]] && command -v mise >/dev/null; then
+    ZIG="$(mise where "zig@$ZMX_ZIG_VERSION" 2>/dev/null || true)/bin/zig"
   fi
-  if [[ ! -x "$ZIG" ]]; then
-    ZIG="$(command -v zig || true)"
-  fi
-  [[ -x "$ZIG" ]] || { echo "zig 0.16.0 is required to build Linux runtimes" >&2; exit 1; }
-  [[ "$($ZIG version)" == "0.16.0" ]] || { echo "setup-linux.sh requires zig 0.16.0" >&2; exit 1; }
+  [[ -x "$ZIG" ]] || ZIG="$(command -v zig || true)"
+  [[ -x "$ZIG" && "$($ZIG version)" == "$ZMX_ZIG_VERSION" ]] || {
+    echo "zig $ZMX_ZIG_VERSION is required for zmx (set ZMX_ZIG)" >&2; exit 1;
+  }
 fi
 
-# Ghostty 1.4 uses Zig 0.17; zmx retains its independent 0.16 pin.
+# Ghostty 1.4 uses Zig 0.17.
 GHOSTTY_ZIG="${GHOSTTY_ZIG:-}"
 if $need_ghostty; then
   if [[ ! -x "$GHOSTTY_ZIG" ]] && command -v mise >/dev/null; then
@@ -159,10 +164,10 @@ if $need_zmx; then
   }
   ZMX_GHOSTTY="$BUILD_DIR/zmx-ghostty"
   fetch_pinned_commit "$GHOSTTY_REPO" "$ZMX_GHOSTTY_PIN" "$ZMX_GHOSTTY"
-  for ghostty_patch in "$ROOT/scripts/zmx-patches/ghostty"/*.patch; do
+  for ghostty_patch in ${ZMX_GHOSTTY_PATCHES[@]+"${ZMX_GHOSTTY_PATCHES[@]}"}; do
     git -C "$ZMX_GHOSTTY" apply --whitespace=nowarn "$ghostty_patch"
   done
-  for zmx_patch in "$ROOT/scripts/zmx-patches"/*.patch; do
+  for zmx_patch in "${ZMX_PATCHES[@]}"; do
     echo "applying $(basename "$zmx_patch")..."
     git -C "$ZMX_BUILD" apply --whitespace=nowarn "$zmx_patch"
   done

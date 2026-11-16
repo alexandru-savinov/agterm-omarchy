@@ -47,7 +47,7 @@ class NativeSBOMTests(unittest.TestCase):
         self.assertEqual(self.document, original)
         self.assertEqual(result['packages'][0], original['packages'][0])
         packages = {entry['name']: entry for entry in result['packages']}
-        self.assertEqual(packages['zmx']['versionInfo'], '8bab1f0173b07e79835ea372d749af3dbf0d0842')
+        self.assertEqual(packages['zmx']['versionInfo'], '232f1a218e8e4b7a580087c3834ac5dd038254dc')
         self.assertEqual(packages['lib/libghostty.so']['checksums'][0]['checksumValue'],
                          sbom.notices.digest(b'disposable library fixture'))
         self.assertIn('not build attestation', packages['lib/libghostty.so']['comment'])

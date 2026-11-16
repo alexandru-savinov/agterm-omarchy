@@ -29,7 +29,7 @@ does not touch; zmx replay uses VT. So a zmx upgrade onto a ghostty at or past t
 after the Live replay checks pass.
 
 Moving `GHOSTTY_REV` does not move zmx's ghostty, which `setup.sh` fetches from zmx's own pin. The tag needs
-`minimum_zig_version` 0.17.0, so zmx onto it rides `move-zmx-to-zig-0-17-to-drop-float-h-shim.md`.
+`minimum_zig_version` 0.17.0; zmx moved there with its v1 pin, which dropped that patch.
 
 **The Swift cost.** Between the pin and the tag, ghostty.h gained `#pragma clang assume_nonnull` plus
 `GHOSTTY_NULLABLE` / `GHOSTTY_NULL_UNSPECIFIED` markings. Pointers imported as implicitly unwrapped become

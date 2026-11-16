@@ -129,8 +129,10 @@ def main():
         pids.append(p3)
         replay = drain(f3, 2.0)
         red = b"\x1b[48;5;1m"
+        # a cursor move paints nothing on the cleared screen a replay starts from; blanks must close the style
+        gap = re.compile(re.escape(red) + rb"ab(?:\x1b\[2C|\x1b\[0m  \x1b\[0m" + re.escape(red) + rb")c\x1b\[0m")
         ok &= check("a replayed gap the program skipped is unstyled and the run resumes after it",
-                    red + b"ab\x1b[0m  \x1b[0m" + red + b"c\x1b[0m" in replay, repr(replay[-300:]))
+                    gap.search(replay) is not None, repr(replay[-300:]))
         ok &= check("replayed spaces the program wrote keep their style",
                     red + b"ab  c\x1b[0m" in replay, repr(replay[-300:]))
 

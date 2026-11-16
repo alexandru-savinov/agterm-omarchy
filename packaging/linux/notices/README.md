@@ -16,8 +16,8 @@ Both documents are shipped beside these notices at `share/licenses/agterm/`.
 | Vendored code and generated headers | simdutf 9.0.0 (including its BSD attribution), stb image/resize notices, GLAD 2.0.8 license collection and Khronos header notice |
 | Embedded font fallbacks | JetBrains Mono 2.304 variable upright/italic, Nerd Fonts Symbols Only 3.4.0, Noto Color Emoji and Noto Emoji text; source-tree font attribution/OFL and nine pinned glyph-source notice/README files retained |
 | `share/ghostty/themes` | Exact 819-file catalog, collection LICENSE, CREDITS and the README credits section from iTerm2-Color-Schemes `86a776d947b6f0c95d35005cb67f3cea435362fc`; individual licenses remain unresolved below |
-| `bin/zmx` | Its separate Ghostty VT revision `8af6897c0afc63037a8a3efee4162a380e3a4572`, uucode, Highway and simdutf; the existing zmx LICENSE remains retained separately |
-| Zig-generated runtime/C++ support | Retained Zig 0.16.0 MIT and libc++/libc++abi/libunwind texts for the independent zmx toolchain; Ghostty 1.4 uses Zig 0.17.0, whose notices require separate review |
+| `bin/zmx` | Its separate Ghostty VT revision `53e55147bbbb0157672dac0228aa7744e881f1fa`, uucode, Highway and simdutf; the existing zmx LICENSE remains retained separately |
+| Zig-generated runtime/C++ support | Retained Zig 0.17.0 MIT and libc++/libc++abi/libunwind texts; zmx and Ghostty 1.4 both build with that release |
 | Swift core, concurrency, observation, synchronization, Glibc and builtin float | Swift 6.3.2 LICENSE with Runtime Library Exception |
 | Swift RegexParser / StringProcessing | swift-experimental-string-processing at its `swift-6.3.2-RELEASE` commit |
 | Foundation Essentials / Internationalization | swift-foundation LICENSE and full NOTICE |
@@ -70,7 +70,7 @@ The retained dependency license texts are unchanged.
 Zig package hashes are copied from the pinned manifests; they were not independently recomputed for this refresh because no Zig executable was available.
 The earlier profile independently checked its old archives with Zig 0.16; that evidence does not attest these new archives.
 The retained pinned Ghostty manifests bind each dependency name, URL and Zig hash, and the helper rejects disagreement.
-The Zig source archive SHA256 matches the official 0.16.0 download index.
+The Zig source archive SHA256 matches the official 0.17.0 download index; its four retained texts are byte-identical to 0.16.0's.
 An `excerpt` records zero-based byte offsets, with exclusive end, and the full original source SHA256; the retained excerpt bytes are unedited.
 These excerpts preserve notices embedded in compiled headers and the theme README credits without copying unrelated implementation or installation instructions.
 

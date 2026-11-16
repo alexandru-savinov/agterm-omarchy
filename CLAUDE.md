@@ -87,7 +87,7 @@ C-boundary concurrency before changing the bridge.
 - Upstream macOS uses Xcodegen and Xcode 26. Linux CI and releases use the workflow-pinned Swift and
   SwiftLint versions through `mise`; repository scripts remain the source of truth.
 - Swift 6 `agtermCore` uses complete concurrency checking and has no Xcode/libghostty dependency.
-- `scripts/setup.sh` builds pinned libghostty with Homebrew `zig@0.17`, zmx with `zig@0.16`, and Xcode's
+- `scripts/setup.sh` builds pinned libghostty and zmx with Homebrew `zig@0.17`, and Xcode's
   Metal Toolchain.
   It is idempotent after artifacts exist. zmx is the plain upstream pin plus `scripts/zmx-patches/`,
   whose README says what each patch is for and how to regenerate one.

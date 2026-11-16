@@ -34,7 +34,7 @@ Use `scripts/setup-omarchy.sh --with-ui-tests` during setup if you plan to run t
 It adds Xvfb, xauth, Openbox, xdotool, Python GObject/AT-SPI and `grim`.
 Python and ImageMagick (`magick`) are in the base dependency list; the Hyprland test desktop must supply `hyprctl`.
 
-Setup installs Swift 6.3.2 from the official Ubuntu 24.04 toolchain through mise and ensures Zig 0.16.0
+Setup installs Swift 6.3.2 from the official Ubuntu 24.04 toolchain through mise and ensures Zig 0.17.0
 is available, then builds pinned libghostty and zmx with `scripts/setup-linux.sh`.
 If Zig reports a dependency TLS handshake failure or an HTTP connection reset, the build helper retries
 that archive with curl's certificate verification; Zig still hashes it and the original manifest still

@@ -55,6 +55,7 @@ printf '%s\\n' "$ZMX_DIR" >> "$TEST_HELPER_MARKER"
         pin = next(line.split('"')[1] for line in (self.repo / 'linux/zmx.env').read_text().splitlines()
                    if line.startswith('ZMX_REV='))
         self.zmx_pin, self.patch_digest = pin, digest
+        self.zig_version = self.pin('ZMX_ZIG_VERSION')
         self.set_policy()
 
     @staticmethod
@@ -63,10 +64,10 @@ printf '%s\\n' "$ZMX_DIR" >> "$TEST_HELPER_MARKER"
         path.chmod(0o755)
 
     def set_policy(self, target=None, cpu='baseline'):
-        # The revision stamp names the zmx commit, the host's explicit Zig target, and the patch digest;
+        # The revision stamp names the zmx commit, the host's explicit Zig target, the compiler and the patch digest;
         # BUILD_POLICY separately records the target and CPU the cache was built with.
         host_target = f'{self.env["TEST_HOST"]}-linux-gnu.2.39'
-        (self.vendor / 'REVISION').write_text(f'{self.zmx_pin} {host_target} {self.patch_digest}\n')
+        (self.vendor / 'REVISION').write_text(f'{self.zmx_pin} {host_target} zig-{self.zig_version} {self.patch_digest}\n')
         target = target or host_target
         (self.vendor / 'BUILD_POLICY').write_text(f'target={target} cpu={cpu}\n')
 
@@ -119,7 +120,7 @@ printf '%s\\n' "$ZMX_DIR" >> "$TEST_HELPER_MARKER"
         self.ghostty_marker.write_bytes(b'unchanged Ghostty')
         self.write_script(self.repo / 'scripts/verify-linux-vendor-cache.sh',
                           '[[ "$(cat "$1/retained-library")" == "unchanged Ghostty" ]]\n')
-        self.write_script(self.bin / 'zig', '[[ "$1" == version ]]\nprintf "0.16.0\\n"\n')
+        self.write_script(self.bin / 'zig', '[[ "$1" == version ]]\nprintf "%s\\n" "$TEST_ZIG_VERSION"\n')
         # A fake remote: each repository serves the requested commit unless a test makes it serve another.
         self.git_log = self.work / 'git-commands'
         self.write_script(self.bin / 'git', '''printf '%s\\n' "$*" >> "$TEST_GIT_LOG"
@@ -154,7 +155,11 @@ set -euo pipefail
 ''' + self.helper + '''HELPER
 chmod 0755 zig-out/bin/zmx
 ''')
-        self.env.update(TEST_GIT_LOG=str(self.git_log), TEST_ZMX_DECLARES=self.pin('ZMX_GHOSTTY_PIN'))
+        self.env.update(TEST_GIT_LOG=str(self.git_log), TEST_ZMX_DECLARES=self.pin('ZMX_GHOSTTY_PIN'),
+                        TEST_ZIG_VERSION=self.zig_version)
+        # the PATH stub stands for every compiler: an inherited override would bypass it
+        for name in ('ZMX_ZIG', 'GHOSTTY_ZIG'):
+            self.env.pop(name, None)
 
     def pin(self, key):
         return next(line.split('"')[1] for line in (self.repo / 'linux/zmx.env').read_text().splitlines()

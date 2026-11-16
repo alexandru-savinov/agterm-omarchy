@@ -1,7 +1,7 @@
 {
   "schema": "agterm-linux-notice-inventory/1",
   "ghostty_revision": "83fb95624b0439ee660c2679b43b38c8b63769cd",
-  "zmx_ghostty_revision": "8af6897c0afc63037a8a3efee4162a380e3a4572",
+  "zmx_ghostty_revision": "53e55147bbbb0157672dac0228aa7744e881f1fa",
   "archives": {
     "libxev": {
       "url": "https://deps.files.ghostty.org/libxev-819ffa180ca20e31c7eded74e2e1aceb1eab557f.tar.gz",
@@ -150,16 +150,16 @@
       "manifest": "ghostty-inputs/pkg-libxml2-build.zig.zon",
       "dependency": "libxml2"
     },
-    "zig-0.16.0": {
-      "url": "https://ziglang.org/download/0.16.0/zig-0.16.0.tar.xz",
-      "sha256": "43186959edc87d5c7a1be7b7d2a25efffd22ce5807c7af99067f86f99641bfdf",
+    "zig-0.17.0": {
+      "url": "https://ziglang.org/download/0.17.0/zig-0.17.0.tar.xz",
+      "sha256": "b6c7f1728f043700d6529bac980800792f824256a9d2f1839b3d62beed0b8abd",
       "checksum_source": "https://ziglang.org/download/index.json",
-      "version": "0.16.0"
+      "version": "0.17.0"
     },
     "zmx_uucode": {
-      "url": "https://deps.files.ghostty.org/uucode-2826a37a4562284fdacd8fa029d49509cc9bffcd.tar.gz",
-      "sha256": "7e76fc7fab1e7ac728c52b35bbb3e5b8c639841abfc7fe1a4bcb13050594bc9e",
-      "zig_hash": "uucode-0.2.0-ZZjBPlK5VADj7fdoq7G8LIHzD5o6FSkcBXXrRWr4jnrA",
+      "url": "https://deps.files.ghostty.org/uucode-1fb73433bba5d93366c57f23ff2e9d7939746500.tar.gz",
+      "sha256": "9e574f5b72c07f426eb31e2604860f22ba0fc5f9ccb44ef44e3212a5e9001828",
+      "zig_hash": "uucode-0.2.0-ZZjBPm6FVgBcY-79AHV8ckQj86z0JwOyVyj89VeZrEiv",
       "manifest": "zmx-ghostty/build.zig.zon",
       "dependency": "uucode"
     }
@@ -421,25 +421,25 @@
       "notices": [
         "zig-runtime/LICENSE"
       ],
-      "association": "Retained Zig 0.16.0 toolchain notice; not evidence for Ghostty 1.4's Zig 0.17.0 toolchain"
+      "association": "Retained Zig 0.17.0 toolchain notice, the compiler for both bin/zmx and libghostty.so"
     },
     "zig-libcxx": {
       "notices": [
         "zig-libcxx/LICENSE.TXT"
       ],
-      "association": "Retained Zig 0.16.0 toolchain notice; not evidence for Ghostty 1.4's Zig 0.17.0 toolchain"
+      "association": "Retained Zig 0.17.0 toolchain notice, the compiler for both bin/zmx and libghostty.so"
     },
     "zig-libcxxabi": {
       "notices": [
         "zig-libcxxabi/LICENSE.TXT"
       ],
-      "association": "Retained Zig 0.16.0 toolchain notice; not evidence for Ghostty 1.4's Zig 0.17.0 toolchain"
+      "association": "Retained Zig 0.17.0 toolchain notice, the compiler for both bin/zmx and libghostty.so"
     },
     "zig-libunwind": {
       "notices": [
         "zig-libunwind/LICENSE.TXT"
       ],
-      "association": "Retained Zig 0.16.0 toolchain notice; not evidence for Ghostty 1.4's Zig 0.17.0 toolchain"
+      "association": "Retained Zig 0.17.0 toolchain notice, the compiler for both bin/zmx and libghostty.so"
     },
     "glad": {
       "notices": [
@@ -592,9 +592,9 @@
     },
     {
       "repository": "neurosnap/zmx",
-      "revision": "8bab1f0173b07e79835ea372d749af3dbf0d0842",
+      "revision": "232f1a218e8e4b7a580087c3834ac5dd038254dc",
       "path": "build.zig.zon",
-      "sha256": "a3b2528465f9ef84dba7c6ff5106128ec2bb5c7bc04ef14bb47edea02de3c8de"
+      "sha256": "d8888d73cda358ec0ef608dce75c884392bc51f6b47a9c761ee601f004561f96"
     }
   ],
   "themes": {
@@ -4704,8 +4704,7 @@
     "A library filename/component mapping does not attest arbitrary externally supplied toolchain bytes.",
     "Optional copied libraries outside the reviewed 16-name runtime profile require a notice profile update.",
     "Zig-generated runtime and remaining source-embedded attribution require review before blanket distribution clearance; this collection is bounded.",
-    "Nerd Fonts preserves glyph-source licenses supplied at v3.4.0; logo/trademark terms and any glyph sources without separate retained notices remain a distribution review item.",
-    "Ghostty 1.4 uses Zig 0.17.0; the retained Zig 0.16.0 notices cover the independent zmx toolchain only, pending a separate 0.17.0 toolchain notice review."
+    "Nerd Fonts preserves glyph-source licenses supplied at v3.4.0; logo/trademark terms and any glyph sources without separate retained notices remain a distribution review item."
   ],
   "executables": {
     "bin/zmx": [
