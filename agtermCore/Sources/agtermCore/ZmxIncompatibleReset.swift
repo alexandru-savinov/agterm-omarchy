@@ -70,16 +70,12 @@ public enum ZmxIncompatibleReset {
                                  survivors: survivors, inventoryFailed: false)
     }
 
-    /// The notice the first window shows; nil when nothing was reset.
+    /// The toast the first window shows; nil when nothing was reset. Short enough for a toast on a narrow
+    /// window, which truncates rather than wraps.
     public static func notice(outcome: LiveReset.Outcome) -> String? {
         let affected = outcome.sessions.affected
         guard affected > 0 else { return nil }
-        let noun = affected == 1 ? "live session was" : "live sessions were"
-        var text = "\(affected) \(noun) started by an earlier agterm whose session backend this version "
-            + "cannot reattach to, so they were reset and start fresh."
-        if outcome.sessions.unconfirmed > 0 {
-            text += " Some earlier processes may still be running."
-        }
-        return text
+        let text = "Restarted \(affected) live \(affected == 1 ? "session" : "sessions") left by an older agterm"
+        return outcome.sessions.unconfirmed > 0 ? text + "; some old processes may still run" : text
     }
 }

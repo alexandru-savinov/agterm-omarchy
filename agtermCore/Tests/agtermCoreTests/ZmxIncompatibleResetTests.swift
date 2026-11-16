@@ -74,9 +74,11 @@ struct ZmxIncompatibleResetTests {
         #expect(outcome.panes == LiveReset.PaneCounts(confirmed: 3, killed: 1, gone: 1, skipped: 0))
         #expect(outcome.unconfirmed == [Self.paneB])
         #expect(outcome.sessions == LiveReset.SessionCounts(affected: 2, reset: 1, partial: 1, unconfirmed: 1))
-        let notice = try #require(ZmxIncompatibleReset.notice(outcome: outcome))
-        #expect(notice.hasPrefix("2 live sessions were started by an earlier agterm"))
-        #expect(notice.hasSuffix("Some earlier processes may still be running."))
+        #expect(ZmxIncompatibleReset.notice(outcome: outcome)
+            == "Restarted 2 live sessions left by an older agterm; some old processes may still run")
+        let one = ZmxIncompatibleReset.outcome(candidates: [candidates[0]], daemonPIDs: [Self.name(Self.paneA): 21],
+                                               survivors: [])
+        #expect(ZmxIncompatibleReset.notice(outcome: one) == "Restarted 1 live session left by an older agterm")
     }
 
     @Test func nothingToResetShowsNoNotice() {
