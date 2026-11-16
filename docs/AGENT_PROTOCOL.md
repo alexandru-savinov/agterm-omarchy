@@ -112,29 +112,29 @@ Keep it short:
 
 - The hub carries join comments and one **index comment**, edited in place, that links the queue artifact, this protocol, and the open task issues by state.
 - Task check-ins, evidence and handoffs go on the task issue.
-- Nothing on the hub is locked or deleted. Existing check-ins stay where they are and are still read by the queue, which loads only comments created or edited within its 14-day window (`COMMENT_WINDOW_DAYS`); an older `blocked` claim there reads as no claim.
+- Nothing on the hub is locked or deleted. Existing check-ins stay where they are and are still read by the queue, which loads only comments created or edited within its 14-day window (`COMMENT_WINDOW_DAYS`); a claim of any state older than that reads as no claim.
 - To find the work, read the index comment first, then the task issue.
 
 ## Merging, as the repository is configured
 
-Settings as of 2026-11-15 (the owner's word; agents do not change them):
+Settings read from the repository API on 2026-11-15; the owner set them and agents do not change them:
 
 - **Branches are deleted when their pull request merges** (`delete_branch_on_merge`). Do not reuse a merged branch name for new work.
 - **Auto-merge is allowed** (`allow_auto_merge`).
 - **Four status checks are required on `main`** (ruleset "Required CI on main", see below). `CI` is the aggregate job of the `Omarchy CI` workflow. The rule is not strict: a branch behind `main` is not forced to update.
 - Merge, squash and rebase are all allowed; merge with `--merge` unless the owner says otherwise.
 
-The merge command, used only after the review at the current head has no finding of MEDIUM or higher (see the decision precedence below):
+The merge command, used only after the review at the current head has no finding of MEDIUM or higher (see the decision precedence above):
 
 ```text
 gh pr merge <number> --auto --merge --match-head-commit <head sha>
 ```
 
-`--match-head-commit` is checked when the merge or the auto-merge is requested, not when auto-merge later fires. A push to the branch after arming can therefore still land unreviewed. After any push to a pull request with auto-merge armed, run `gh pr merge <number> --disable-auto`, review the new head, and arm again. Auto-merge waits for the four required checks; it does not wait for the review, so request it only after the review, and merge by hand when you cannot guarantee that nobody with write access will push in between.
+`--match-head-commit` is checked when the merge or the auto-merge is requested, not when auto-merge later fires. A push to the branch after arming can therefore still land unreviewed. Before you push to a pull request with auto-merge armed, run `gh pr merge <number> --disable-auto` first; after the push, review the new head, then arm again. Auto-merge waits for the four required checks; it does not wait for the review, so request it only after the review, and merge by hand when you cannot guarantee that nobody with write access will push in between.
 
-**Required checks.** The ruleset "Required CI on main" requires four status checks: `CI`, "Secret scan (full history)", "Vulnerability and misconfig scan" and "Dependency review". A pull request cannot merge, auto-merge included, until all four succeed. CodeQL and the path-filtered checks (for example actionlint, zizmor, Semgrep and OSV) are not required, so before arming `--auto` check those yourself: arm only when every expected workflow on that head has reported and none is failing; if one is pending or failing, disarm with `gh pr merge <number> --disable-auto` and re-arm once it is green. If one of the four required checks never reports on a pull request, tell the lead at once. Edit this paragraph when the ruleset changes.
+**Required checks.** The ruleset "Required CI on main" requires four status checks: `CI`, "Secret scan (full history)", "Vulnerability and misconfig scan" and "Dependency review". A pull request cannot merge, auto-merge included, until all four succeed (a skipped job counts as success, but a skip is not evidence the check ran: find out why it skipped before arming). CodeQL and the path-filtered checks (for example actionlint, zizmor, Semgrep and OSV) are not required, so before arming `--auto` check those yourself: arm only when every expected workflow on that head has reported and none is failing; if one is pending or failing, disarm with `gh pr merge <number> --disable-auto` and re-arm once it is green. If one of the four required checks never reports on a pull request, tell the lead at once. Edit this paragraph when the ruleset changes.
 
-How the rule matches checks: the ruleset has no bypass actors, but it matches by job name and pins only the GitHub Actions app, not a workflow, and a skipped required check counts as passing. A job named `CI` added by a pull request would therefore satisfy the rule, so read any change to workflow files as a change to what "required" means.
+How the rule matches checks: the ruleset has no bypass actors, but it matches by job name and pins only the GitHub Actions app, not a workflow, and a skipped required check counts as passing. A job named `CI` added by a pull request could therefore satisfy the rule, so read any change to workflow files as a change to what "required" means.
 
 ## State and agent labels
 
