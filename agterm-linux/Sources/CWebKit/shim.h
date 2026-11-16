@@ -1,6 +1,7 @@
 #include <webkit/webkit.h>
 #include <gio/gio.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdint.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -75,6 +76,17 @@ static inline int agterm_openat2_beneath(int dirfd, const char *path, int flags)
 #else
     errno = ENOSYS;
     return -1;
+#endif
+}
+
+// O_PATH opens a directory for lookups with search permission alone. glibc's <fcntl.h> names it only under
+// _GNU_SOURCE, which a header cannot define after its includes, but always defines its own __O_PATH.
+static inline int agterm_o_path(void)
+{
+#ifdef O_PATH
+    return O_PATH;
+#else
+    return __O_PATH;
 #endif
 }
 
