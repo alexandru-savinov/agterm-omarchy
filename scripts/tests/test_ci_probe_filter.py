@@ -36,9 +36,9 @@ class ProbeRoutingTests(unittest.TestCase):
         self.assertNotRegex(scripts, re.compile(r'^    if:', re.M))
         self.assertIn("unittest discover -s scripts/tests -p 'test_*.py'", scripts)
         self.assertIn("if: needs.changes.outputs.swift == 'true'", self.job('lint-linux'))
-        for job in ('test-linux', 'build-linux'):
+        for job in ('test-linux', 'build-linux', 'ghostty-patch-tests'):
             self.assertIn("if: needs.changes.outputs.product == 'true'", self.job(job))
-        self.assertEqual(self.text.count('if: needs.changes.outputs.product'), 2)
+        self.assertEqual(self.text.count('if: needs.changes.outputs.product'), 3)
         gate = self.job('ci')
         self.assertIn('!cancelled()', gate)
         code = re.search("python3 - <<'PYTHON'\n(.*?)^          PYTHON", gate, re.M | re.S).group(1)
