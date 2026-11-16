@@ -141,10 +141,8 @@ final class LinuxHtmlOverlayRegistry {
         if target.scheme == HtmlSource.replicaScheme {
             return page.fetchReplica(target.path, request: request)
         }
-        guard let resource = page.resource(for: target.path) else { return agterm_uri_scheme_deny(request) }
-        resource.path.withCString { path in
-            resource.mime.withCString { mime in agterm_uri_scheme_finish_file(request, path, mime) }
-        }
+        guard let opened = page.openResource(for: target.path) else { return agterm_uri_scheme_deny(request) }
+        opened.mime.withCString { mime in agterm_uri_scheme_finish_descriptor(request, opened.descriptor, mime) }
     }
 }
 
