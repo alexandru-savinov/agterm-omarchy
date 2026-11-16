@@ -25,7 +25,7 @@ env:
   SWIFTLINT_VERSION: "0.65.0"
   SWIFTLINT_SHA256: "79306a34e5c7cc55a220cd108cbb861dcad5f10138dcdf261e2624ae8b0a486b"
   LINUX_SOURCEKIT_LIB_PATH: "/usr/lib/libsourcekitdInProc.so"
-  ZIG_SHA256: "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00"
+  ZIG_SHA256: "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026"
 
 jobs:
   scripts:
@@ -63,6 +63,7 @@ jobs:
             scripts/test-linux-resources.sh
             scripts/test-omarchy.sh
             scripts/test-zig-build-linux.sh
+            scripts/test-zmx-patches-linux.sh
             scripts/verify-linux-packages.sh
             scripts/verify-linux-zmx-cache.sh
             scripts/zig-build-linux.sh
@@ -330,6 +331,10 @@ jobs:
           # Restore pre-fill: a line typed without a newline into a new daemon's shell waits for Enter.
           command -v zsh
           python3 -I -m unittest discover -s scripts/tests -p 'test_zmx_prefill.py' -v
+          # A client ended by SIGTERM/HUP/INT hands back its shared terminal; SIGKILL still needs #429's reopen.
+          python3 -I -m unittest discover -s scripts/tests -p 'test_zmx_tty_restore.py' -v
+          # Explicit leadership, screen/type and managed exit, driven through real ptys.
+          python3 -I scripts/zmx-patches/check.py "$AGTERM_IDENTITY_TEST_ZMX"
       - name: swift test (agterm-linux)
         working-directory: agterm-linux
         run: swift test
@@ -462,7 +467,7 @@ jobs:
           BUILD_ARCH: ${{ matrix.arch }}
           RESULT: ${{ job.status }}
         run: |
-          printf '### Linux %s\nResult: %s\n\nSwift 6.3.2; Zig 0.16.0. GTK tests use Xvfb.\n' "$BUILD_ARCH" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
+          printf '### Linux %s\nResult: %s\n\nSwift 6.3.2; Zig 0.17.0. GTK tests use Xvfb.\n' "$BUILD_ARCH" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
           echo 'Native Hyprland/Wayland validation remains a separate Omarchy VM check.' >> "$GITHUB_STEP_SUMMARY"
 
   ghostty-patch-tests:
@@ -480,11 +485,26 @@ jobs:
       - name: Zig tests added by the Linux libghostty patches
         run: scripts/test-ghostty-patches-linux.sh
 
+  zmx-patch-tests:
+    name: zmx patch tests
+    # The patched zmx under upstream's own gates; the GTK jobs only run the ReleaseSafe binary.
+    needs: changes
+    if: needs.changes.outputs.product == 'true'
+    runs-on: ubuntu-24.04
+    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: zig fmt, zig build test and bats over the patched zmx
+        run: scripts/test-zmx-patches-linux.sh
+
   ci:
     name: CI
     # Superseded runs must not hold the concurrency slot while this job waits for a runner.
     if: ${{ !cancelled() }}
-    needs: [scripts, changes, test-linux, lint-linux, build-linux, ghostty-patch-tests, cookbook]
+    needs: [scripts, changes, test-linux, lint-linux, build-linux, ghostty-patch-tests, zmx-patch-tests, cookbook]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
