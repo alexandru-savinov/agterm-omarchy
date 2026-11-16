@@ -8,7 +8,7 @@
 //   2. `NSQuitAlwaysKeepsWindows = false` in Info.plist;
 //   3. every window sets `isRestorable = false` (agterm's WindowAccessor does exactly this).
 //
-// Environment: REPRO_MARKER=<file> appends one line per milestone; REPRO_FIX=1 applies the proposed fix;
+// Environment: REPRO_MARKER=<file> appends one line per milestone; REPRO_FIX=1 applies agterm's fix;
 // REPRO_KEEP_RESTORABLE=1 drops ingredient 3. SIGUSR1 asks for a clean NSApp.terminate.
 import AppKit
 import SwiftUI
@@ -19,8 +19,8 @@ struct Relaunch431Repro: App {
 
     init() {
         if ProcessInfo.processInfo.environment["REPRO_FIX"] == "1" {
-            // the proposed fix, at the same point agtermApp.init() would run it: before NSApplicationMain
-            UserDefaults.standard.register(defaults: ["ApplePersistenceIgnoreState": true])
+            // agterm's own fix (agterm/AppKitSavedState.swift, compiled in), where agtermApp.init() calls it
+            AppKitSavedState.ignore()
         }
     }
 

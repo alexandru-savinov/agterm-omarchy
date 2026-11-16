@@ -1,5 +1,6 @@
 #!/bin/bash
-# Reproduces #431 with a 70-line SwiftUI app and checks the proposed fix. macOS 14+, Xcode command line tools.
+# Reproduces #431 with a 70-line SwiftUI app and checks agterm's fix, compiled in from
+# agterm/AppKitSavedState.swift. macOS 14+, Xcode command line tools.
 #
 #   docs/repro/mac-relaunch-431/run.sh <empty work dir>
 #
@@ -21,7 +22,7 @@ dwell=${REPRO_DWELL:-20}
 
 mkdir -p "$app/Contents/MacOS"
 cp "$here/Info.plist" "$app/Contents/Info.plist"
-swiftc -parse-as-library -O "$here/Repro.swift" -o "$bin"
+swiftc -parse-as-library -O "$here/Repro.swift" "$here/../../../agterm/AppKitSavedState.swift" -o "$bin"
 codesign -s - -f "$app" >/dev/null 2>&1
 
 pid=""
