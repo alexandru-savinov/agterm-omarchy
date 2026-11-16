@@ -40,7 +40,7 @@ def reap(pid, seconds):
 
 def close_client(pid, fd, seconds=REAP_SECONDS):
     """Close an attach client's pty master, then SIGKILL and reap that child within a deadline."""
-    # Darwin keeps a killed zmx client exiting until its master is read or closed, so close it first (#422).
+    # Darwin keeps a killed zmx client exiting while output it wrote is unread on the master (#422).
     try:
         os.close(fd)
     finally:
@@ -199,7 +199,9 @@ class RealZmxCleanupControlTests(unittest.TestCase):
         self.addCleanup(self.finish_client, pid, fd)
         os.write(fd, LINE + b"\n")
         self.assertIn(RAN, read_until(fd, RAN, 10))
-        # An owned holder keeps the master open unread, so closing our copy cannot release the client.
+        os.write(fd, b"print -r -- UNREAD\n")
+        self.assertTrue(select.select([fd], [], [], 5)[0], "no output left pending on the master")
+        # An owned holder keeps the master open and that output unread, so closing our copy cannot release it.
         holder = subprocess.Popen([sys.executable, "-I", "-c", "import sys; sys.stdin.read()"],
                                   stdin=subprocess.PIPE, pass_fds=(fd,))
         self.addCleanup(holder.wait, REAP_SECONDS)
