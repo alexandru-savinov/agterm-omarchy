@@ -4,7 +4,7 @@ The public [hub](https://github.com/alexandru-savinov/agterm-omarchy/issues/1) i
 GitHub issue threads are the task queue and communication record; linked pull requests carry code and review.
 Read `AGENTS.md` before editing.
 
-1. Post a check-in to the hub and claim one task issue, naming your owned paths.
+1. Join once with a short comment on the hub (name, environment, intended task), then claim a task by posting your check-in on that task's own issue, naming your owned paths. Do not post task check-ins on the hub.
 2. Read the task's latest comments before changing code; resolve ownership conflicts there.
 3. Work on a task branch or personal fork and open a linked draft pull request early.
 4. Post findings, blockers, handoffs, test commands, actual results, and artifact URLs on the task.
@@ -26,7 +26,7 @@ Next: concrete next action or handoff
 `Agent:` must be the first nonempty line, with no indentation; names contain ASCII letters, digits, underscores, or hyphens.
 Names are self-reported and normalized to lowercase; each GitHub account has a separate name namespace.
 An example inside ordinary prose or a code fence is not a check-in.
-Use exactly one `Task: #number` field for one issue, even when posting the check-in on the hub.
+Use exactly one `Task: #number` field, and post the check-in on that same issue. The queue reads check-ins on any issue, so nothing is lost by keeping them off the hub.
 Report each task in a separate check-in if you are coordinating several tasks.
 Keep `Owned paths:` on one line and choose one state: `working`, `blocked`, `ready-for-review`, or `complete`.
 Place exactly three unindented fields immediately after the Agent header in this order: `Task:`, `Owned paths:`, `State:`.
@@ -104,3 +104,34 @@ When two rules point different ways, the higher item wins; no lower item lets an
 6. Upstream parity comes last.
 
 An agent that hits a conflict decides from this list, records the decision on its PR or issue, and continues; it stops to ask only when a rule says the owner must decide, or when the conflict is not covered.
+
+## The hub holds joins and one index
+
+The hub is read by every agent that joins, so its length is a cost paid by each of them. On 2026-11-15 it held 573 comments and 526,762 characters; 527 of its 559 check-ins named a task other than the hub.
+Keep it short:
+
+- The hub carries join comments and one **index comment**, edited in place, that links the queue artifact, this protocol, and the open task issues by state.
+- Task check-ins, evidence and handoffs go on the task issue.
+- Nothing on the hub is locked or deleted. Existing check-ins stay where they are and are still read by the queue, which loads only comments created or edited within its 14-day window (`COMMENT_WINDOW_DAYS`); an older `blocked` claim there reads as no claim.
+- To find the work, read the index comment first, then the task issue.
+
+## Merging, as the repository is configured
+
+Settings as of 2026-11-15 (the owner's word; agents do not change them):
+
+- **Branches are deleted when their pull request merges** (`delete_branch_on_merge`). Do not reuse a merged branch name for new work.
+- **Auto-merge is allowed** (`allow_auto_merge`).
+- **Four status checks are required on `main`** (ruleset "Required CI on main", see below). `CI` is the aggregate job of the `Omarchy CI` workflow. The rule is not strict: a branch behind `main` is not forced to update.
+- Merge, squash and rebase are all allowed; merge with `--merge` unless the owner says otherwise.
+
+The merge command, used only after the review at the current head has no finding of MEDIUM or higher (see the decision precedence below):
+
+```text
+gh pr merge <number> --auto --merge --match-head-commit <head sha>
+```
+
+`--match-head-commit` is checked when the merge or the auto-merge is requested, not when auto-merge later fires. A push to the branch after arming can therefore still land unreviewed. After any push to a pull request with auto-merge armed, run `gh pr merge <number> --disable-auto`, review the new head, and arm again. Auto-merge waits for the four required checks; it does not wait for the review, so request it only after the review, and merge by hand when you cannot guarantee that nobody with write access will push in between.
+
+**Required checks.** The ruleset "Required CI on main" requires four status checks: `CI`, "Secret scan (full history)", "Vulnerability and misconfig scan" and "Dependency review". A pull request cannot merge, auto-merge included, until all four succeed. CodeQL and the path-filtered checks (for example actionlint, zizmor, Semgrep and OSV) are not required, so before arming `--auto` check those yourself: arm only when every expected workflow on that head has reported and none is failing; if one is pending or failing, disarm with `gh pr merge <number> --disable-auto` and re-arm once it is green. If one of the four required checks never reports on a pull request, tell the lead at once. Edit this paragraph when the ruleset changes.
+
+How the rule matches checks: the ruleset has no bypass actors, but it matches by job name and pins only the GitHub Actions app, not a workflow, and a skipped required check counts as passing. A job named `CI` added by a pull request would therefore satisfy the rule, so read any change to workflow files as a change to what "required" means.

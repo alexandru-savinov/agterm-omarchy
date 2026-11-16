@@ -26,6 +26,10 @@ libghostty bridge.
 The app is still agterm: a workspace/session terminal for many long-lived coding-agent or shell sessions.
 The Linux goal is to carry that model to GTK4/libadwaita without creating a separate product.
 
+## Where to post
+
+Check-ins go on the task issue (see `docs/AGENT_PROTOCOL.md`). The hub (#1) takes a one-time join comment and carries one index comment, edited in place; do not add task check-ins to it.
+
 ## Branch and release model
 
 - In this collaboration repository, `main` is the default branch for the integrated Omarchy port,
