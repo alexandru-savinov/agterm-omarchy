@@ -24,50 +24,82 @@ public enum ZmxIncompatibleReset {
         }
     }
 
-    /// One process as the daemon search sees it.
+    /// A unix socket as `/proc/net/unix` lists it: the path is the one it was bound to.
+    public struct SocketView: Equatable, Sendable {
+        public let inode: UInt64
+        public let path: String
+        public let listening: Bool
+
+        public init(inode: UInt64, path: String, listening: Bool) {
+            self.inode = inode
+            self.path = path
+            self.listening = listening
+        }
+    }
+
+    /// A process as the daemon search sees it: its arguments and the socket inodes its descriptors hold.
     public struct ProcessView: Equatable, Sendable {
         public let pid: Int32
         public let arguments: [String]
-        public let environment: [String]
-        /// The controlling terminal; zero for none.
-        public let terminal: Int64
+        public let sockets: Set<UInt64>
 
-        public init(pid: Int32, arguments: [String], environment: [String], terminal: Int64) {
+        public init(pid: Int32, arguments: [String], sockets: Set<UInt64>) {
             self.pid = pid
             self.arguments = arguments
-            self.environment = environment
-            self.terminal = terminal
+            self.sockets = sockets
         }
     }
 
-    /// The daemon serving `daemon` in `socketDirectory`: a zmx process started for that session name with
-    /// that `ZMX_DIR` and no controlling terminal. A client of the same session runs on a terminal, which is
-    /// what tells it apart; more than one match finds nothing rather than guessing.
-    public static func daemonPID(daemon: String, socketDirectory: String, processes: [ProcessView]) -> Int32? {
-        let directory = "ZMX_DIR=" + socketDirectory
-        let matches = processes.filter { process in
-            guard process.terminal == 0, process.arguments.count >= 3,
-                  (process.arguments[0] as NSString).lastPathComponent == "zmx",
-                  ["attach", "a", "run", "r"].contains(process.arguments[1]),
-                  process.arguments[2] == daemon else { return false }
-            return process.environment.contains(directory)
+    /// The daemon serving `daemon`: the one process holding a listening socket bound in `socketDirectory`.
+    /// A client holds only a connected, unbound socket. zmx binds either the session name itself or, when it
+    /// publishes atomically (patch 0003), `.s/<pid>` before linking the name; that path names no session,
+    /// so there the holder must also have been started for this one. Anything but one holder finds nothing.
+    public static func daemonPID(daemon: String, socketDirectory: String, sockets: [SocketView],
+                                 processes: [ProcessView]) -> Int32? {
+        let named = socketDirectory + "/" + daemon
+        let staged = socketDirectory + "/.s/"
+        var inodes: [UInt64: Bool] = [:]
+        for socket in sockets where socket.listening {
+            if socket.path == named {
+                inodes[socket.inode] = true
+            } else if socket.path.hasPrefix(staged) {
+                inodes[socket.inode] = false
+            }
         }
-        return matches.count == 1 ? matches[0].pid : nil
+        let holders = processes.filter { process in
+            process.sockets.contains { inode in
+                guard let byName = inodes[inode] else { return false }
+                return byName || startedFor(daemon, arguments: process.arguments)
+            }
+        }
+        return Set(holders.map(\.pid)).count == 1 ? holders[0].pid : nil
     }
 
-    /// `daemonPIDs` holds the process found per daemon name; a candidate without one had nothing left
-    /// to end and counts as gone. `survivors` are the pids still running after the app ended them.
-    public static func outcome(candidates: [Candidate], daemonPIDs: [String: Int32],
-                               survivors: Set<Int32>) -> LiveReset.Outcome {
+    private static func startedFor(_ daemon: String, arguments: [String]) -> Bool {
+        arguments.count >= 3 && (arguments[0] as NSString).lastPathComponent == "zmx"
+            && ["attach", "a", "run", "r"].contains(arguments[1]) && arguments[2] == daemon
+    }
+
+    /// `daemonPIDs` holds the process found per daemon name and `survivors` the ones still running after
+    /// the app ended them. `stillIncompatible` is the listing taken afterwards: a daemon it still names was
+    /// not ended, whatever happened to the process found for it, so its pane is unconfirmed, never gone.
+    public static func outcome(candidates: [Candidate], daemonPIDs: [String: Int32], survivors: Set<Int32>,
+                               stillIncompatible: Set<String>) -> LiveReset.Outcome {
         var dispositions: [LiveReset.Target: LiveReset.Disposition] = [:]
+        var unconfirmed = survivors
         for candidate in candidates {
             let pid = daemonPIDs[candidate.daemon]
             let target = LiveReset.Target(paneIdentity: candidate.paneIdentity, sessionID: candidate.sessionID,
                                           daemon: candidate.daemon, leaderPID: pid ?? 0, reason: .outdated)
-            dispositions[target] = pid == nil ? .gone : .kill
+            if stillIncompatible.contains(candidate.daemon) {
+                dispositions[target] = .kill
+                unconfirmed.insert(target.leaderPID)
+            } else {
+                dispositions[target] = pid == nil ? .gone : .kill
+            }
         }
         return LiveReset.outcome(narrowed: LiveReset.Narrowed(dispositions: dispositions, inventoryFailed: false),
-                                 survivors: survivors, inventoryFailed: false)
+                                 survivors: unconfirmed, inventoryFailed: false)
     }
 
     /// The toast the first window shows; nil when nothing was reset. Short enough for a toast on a narrow
@@ -75,7 +107,10 @@ public enum ZmxIncompatibleReset {
     public static func notice(outcome: LiveReset.Outcome) -> String? {
         let affected = outcome.sessions.affected
         guard affected > 0 else { return nil }
-        let text = "Restarted \(affected) live \(affected == 1 ? "session" : "sessions") left by an older agterm"
-        return outcome.sessions.unconfirmed > 0 ? text + "; some old processes may still run" : text
+        let reset = outcome.sessions.reset
+        if reset == affected {
+            return "Restarted \(affected) live \(affected == 1 ? "session" : "sessions") left by an older agterm"
+        }
+        return "Restarted \(reset) of \(affected) live sessions left by an older agterm; the others still run"
     }
 }

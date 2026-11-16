@@ -18,9 +18,8 @@ struct ZmxIncompatibleResetTests {
 
     private static func name(_ pane: UUID) -> String { ZmxSupport.daemonName(for: pane) }
 
-    private static func process(_ pid: Int32, _ arguments: [String], directory: String = directory,
-                                terminal: Int64 = 0) -> ZmxIncompatibleReset.ProcessView {
-        .init(pid: pid, arguments: arguments, environment: ["HOME=/h", "ZMX_DIR=" + directory], terminal: terminal)
+    private static func zmx(_ pid: Int32, _ daemon: String, holding sockets: Set<UInt64>) -> ZmxIncompatibleReset.ProcessView {
+        .init(pid: pid, arguments: ["/opt/agterm/bin/zmx", "attach", daemon], sockets: sockets)
     }
 
     @Test func parserKeepsTheErrorZmxPrinted() throws {
@@ -45,44 +44,87 @@ struct ZmxIncompatibleResetTests {
         ])
     }
 
-    @Test func theDaemonIsTheTerminalLessProcessForThatNameAndDirectory() {
+    @Test func theDaemonIsTheProcessHoldingTheListeningSocket() {
         let daemon = Self.name(Self.paneA)
-        let processes = [
-            Self.process(10, ["/opt/agterm/bin/zmx", "attach", daemon], terminal: 34816),
-            Self.process(11, ["/opt/agterm/bin/zmx", "attach", daemon]),
-            Self.process(12, ["/opt/agterm/bin/zmx", "attach", daemon], directory: "/run/user/1000/other"),
-            Self.process(13, ["/opt/agterm/bin/zmx", "attach", Self.name(Self.paneB)]),
-            Self.process(14, ["/usr/bin/zsh", "attach", daemon]),
+        let other = Self.name(Self.paneB)
+        let sockets: [ZmxIncompatibleReset.SocketView] = [
+            .init(inode: 11, path: Self.directory + "/.s/4100", listening: true),
+            .init(inode: 12, path: Self.directory + "/.s/4200", listening: true),
+            .init(inode: 13, path: Self.directory + "/" + daemon, listening: false),
+            .init(inode: 14, path: "/run/user/1000/agterm-zmx-ffffffffffffffff/.s/4300", listening: true),
         ]
-        #expect(ZmxIncompatibleReset.daemonPID(daemon: daemon, socketDirectory: Self.directory,
-                                               processes: processes) == 11)
-        #expect(ZmxIncompatibleReset.daemonPID(daemon: daemon, socketDirectory: Self.directory,
-                                               processes: processes + [Self.process(15, ["zmx", "a", daemon])]) == nil)
-        #expect(ZmxIncompatibleReset.daemonPID(daemon: daemon, socketDirectory: Self.directory, processes: []) == nil)
+        // clients of the same session hold connected sockets and carry the same arguments
+        let processes = [
+            Self.zmx(41, daemon, holding: [11]),
+            Self.zmx(42, other, holding: [12]),
+            Self.zmx(43, daemon, holding: [13, 99]),
+            Self.zmx(44, daemon, holding: []),
+            Self.zmx(45, daemon, holding: [14]),
+        ]
+        #expect(ZmxIncompatibleReset.daemonPID(daemon: daemon, socketDirectory: Self.directory, sockets: sockets,
+                                               processes: processes) == 41)
+        #expect(ZmxIncompatibleReset.daemonPID(daemon: other, socketDirectory: Self.directory, sockets: sockets,
+                                               processes: processes) == 42)
     }
 
-    @Test func outcomeCountsEndedGoneAndSurvivingDaemonsPerSession() throws {
+    @Test func aSocketBoundUnderTheSessionNameNeedsNoArguments() {
+        let daemon = Self.name(Self.paneA)
+        let sockets = [ZmxIncompatibleReset.SocketView(inode: 21, path: Self.directory + "/" + daemon, listening: true)]
+        let holder = ZmxIncompatibleReset.ProcessView(pid: 51, arguments: ["zmx"], sockets: [21])
+        #expect(ZmxIncompatibleReset.daemonPID(daemon: daemon, socketDirectory: Self.directory, sockets: sockets,
+                                               processes: [holder]) == 51)
+    }
+
+    @Test func twoHoldersOrNoneFindNothing() {
+        let daemon = Self.name(Self.paneA)
+        let sockets = [
+            ZmxIncompatibleReset.SocketView(inode: 31, path: Self.directory + "/.s/1", listening: true),
+            ZmxIncompatibleReset.SocketView(inode: 32, path: Self.directory + "/.s/2", listening: true),
+        ]
+        #expect(ZmxIncompatibleReset.daemonPID(daemon: daemon, socketDirectory: Self.directory, sockets: sockets,
+                                               processes: [Self.zmx(61, daemon, holding: [31]),
+                                                           Self.zmx(62, daemon, holding: [32])]) == nil)
+        #expect(ZmxIncompatibleReset.daemonPID(daemon: daemon, socketDirectory: Self.directory, sockets: sockets,
+                                               processes: []) == nil)
+    }
+
+    @Test func aDaemonStillListedAfterTheResetIsUnconfirmedEvenWithoutAProcess() throws {
         let candidates: [ZmxIncompatibleReset.Candidate] = [
             .init(paneIdentity: Self.paneA, sessionID: Self.sessionA, daemon: Self.name(Self.paneA)),
             .init(paneIdentity: Self.paneASplit, sessionID: Self.sessionA, daemon: Self.name(Self.paneASplit)),
             .init(paneIdentity: Self.paneB, sessionID: Self.sessionB, daemon: Self.name(Self.paneB)),
         ]
+        // paneA ended; paneASplit's process was never found and its daemon is still listed; paneB is gone
         let outcome = ZmxIncompatibleReset.outcome(
-            candidates: candidates,
-            daemonPIDs: [Self.name(Self.paneA): 21, Self.name(Self.paneB): 22],
-            survivors: [22])
+            candidates: candidates, daemonPIDs: [Self.name(Self.paneA): 21], survivors: [],
+            stillIncompatible: [Self.name(Self.paneASplit)])
         #expect(outcome.panes == LiveReset.PaneCounts(confirmed: 3, killed: 1, gone: 1, skipped: 0))
-        #expect(outcome.unconfirmed == [Self.paneB])
+        #expect(outcome.unconfirmed == [Self.paneASplit])
         #expect(outcome.sessions == LiveReset.SessionCounts(affected: 2, reset: 1, partial: 1, unconfirmed: 1))
         #expect(ZmxIncompatibleReset.notice(outcome: outcome)
-            == "Restarted 2 live sessions left by an older agterm; some old processes may still run")
-        let one = ZmxIncompatibleReset.outcome(candidates: [candidates[0]], daemonPIDs: [Self.name(Self.paneA): 21],
-                                               survivors: [])
-        #expect(ZmxIncompatibleReset.notice(outcome: one) == "Restarted 1 live session left by an older agterm")
+            == "Restarted 1 of 2 live sessions left by an older agterm; the others still run")
+    }
+
+    @Test func aSurvivingProcessIsUnconfirmed() {
+        let candidate = ZmxIncompatibleReset.Candidate(paneIdentity: Self.paneB, sessionID: Self.sessionB,
+                                                       daemon: Self.name(Self.paneB))
+        let outcome = ZmxIncompatibleReset.outcome(candidates: [candidate], daemonPIDs: [Self.name(Self.paneB): 22],
+                                                   survivors: [22], stillIncompatible: [])
+        #expect(outcome.unconfirmed == [Self.paneB])
+        #expect(outcome.sessions.reset == 0)
+    }
+
+    @Test func aCleanResetNamesEverySession() {
+        let candidate = ZmxIncompatibleReset.Candidate(paneIdentity: Self.paneA, sessionID: Self.sessionA,
+                                                       daemon: Self.name(Self.paneA))
+        let outcome = ZmxIncompatibleReset.outcome(candidates: [candidate], daemonPIDs: [Self.name(Self.paneA): 21],
+                                                   survivors: [], stillIncompatible: [])
+        #expect(outcome.sessions == LiveReset.SessionCounts(affected: 1, reset: 1, partial: 0, unconfirmed: 0))
+        #expect(ZmxIncompatibleReset.notice(outcome: outcome) == "Restarted 1 live session left by an older agterm")
     }
 
     @Test func nothingToResetShowsNoNotice() {
-        let outcome = ZmxIncompatibleReset.outcome(candidates: [], daemonPIDs: [:], survivors: [])
+        let outcome = ZmxIncompatibleReset.outcome(candidates: [], daemonPIDs: [:], survivors: [], stillIncompatible: [])
         #expect(ZmxIncompatibleReset.notice(outcome: outcome) == nil)
     }
 }

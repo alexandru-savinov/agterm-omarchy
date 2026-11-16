@@ -9,68 +9,101 @@ enum LinuxIncompatibleDaemons {
     static let termGrace: TimeInterval = 1.5
     static let killGrace: TimeInterval = 1.0
 
+    /// A daemon found for the reset, with the start time that tells it apart from a later process
+    /// reusing its pid: every signal re-reads it first.
+    private struct Found {
+        let pid: Int32
+        let started: Int64
+    }
+
     @MainActor
     static func reset(client: LinuxZmxClient, library: WindowLibrary) -> LiveReset.Outcome? {
         guard let records = client.listSessions() else { return nil }
         let candidates = ZmxIncompatibleReset.candidates(claims: library.paneClaims(), records: records)
         guard !candidates.isEmpty else { return nil }
-        let processes = processTable()
-        var pids: [String: Int32] = [:]
+        let sockets = unixSockets()
+        let processes = zmxProcesses()
+        var found: [String: Found] = [:]
         for candidate in candidates {
-            pids[candidate.daemon] = ZmxIncompatibleReset.daemonPID(
-                daemon: candidate.daemon, socketDirectory: client.socketDirectory, processes: processes)
+            guard let pid = ZmxIncompatibleReset.daemonPID(daemon: candidate.daemon,
+                                                           socketDirectory: client.socketDirectory,
+                                                           sockets: sockets, processes: processes),
+                  let started = startTime(of: pid) else { continue }
+            found[candidate.daemon] = Found(pid: pid, started: started)
         }
-        let ended = Set(pids.values)
-        for pid in ended { _ = Glibc.kill(pid, SIGTERM) }
-        var survivors = waitForExit(ended, within: termGrace)
-        if !survivors.isEmpty {
-            for pid in survivors { _ = Glibc.kill(pid, SIGKILL) }
-            survivors = waitForExit(survivors, within: killGrace)
+        let daemons = Array(Dictionary(found.values.map { ($0.pid, $0) }, uniquingKeysWith: { first, _ in first }).values)
+        daemons.forEach { send(SIGTERM, to: $0) }
+        var alive = waitForExit(daemons, within: termGrace)
+        if !alive.isEmpty {
+            alive.forEach { send(SIGKILL, to: $0) }
+            alive = waitForExit(alive, within: killGrace)
         }
-        // A daemon ended by SIGKILL leaves its socket; listing removes a socket that refuses connections.
-        _ = client.listSessions()
-        let outcome = ZmxIncompatibleReset.outcome(candidates: candidates, daemonPIDs: pids, survivors: survivors)
+        // A daemon ended by SIGKILL leaves its socket, which this listing removes once it refuses connections.
+        // Whatever it still reports as incompatible was not ended, whether or not its process was found.
+        let still = Set((client.listSessions() ?? records).filter(\.incompatible).map(\.name))
+        let outcome = ZmxIncompatibleReset.outcome(candidates: candidates, daemonPIDs: found.mapValues(\.pid),
+                                                   survivors: Set(alive.map(\.pid)), stillIncompatible: still)
         FileHandle.standardError.write(Data(("agterm: Live reset at launch: \(candidates.count) pane(s) on an "
-            + "incompatible zmx; ended \(ended.count - survivors.count) daemon(s), \(survivors.count) still running\n").utf8))
+            + "incompatible zmx; ended \(daemons.count - alive.count) of \(daemons.count) daemon(s) found, "
+            + "\(outcome.unconfirmed.count) pane(s) not reset\n").utf8))
         return outcome
     }
 
-    private static func waitForExit(_ pids: Set<Int32>, within seconds: TimeInterval) -> Set<Int32> {
+    private static func send(_ signal: Int32, to daemon: Found) {
+        guard startTime(of: daemon.pid) == daemon.started else { return }
+        _ = Glibc.kill(daemon.pid, signal)
+    }
+
+    private static func waitForExit(_ daemons: [Found], within seconds: TimeInterval) -> [Found] {
         let deadline = Date().addingTimeInterval(seconds)
-        var alive = pids.filter(isRunning)
+        var alive = daemons.filter { startTime(of: $0.pid) == $0.started }
         while !alive.isEmpty, Date() < deadline {
             usleep(50_000)
-            alive = alive.filter(isRunning)
+            alive = alive.filter { startTime(of: $0.pid) == $0.started }
         }
         return alive
     }
 
-    /// A zombie has ended: it no longer holds the socket or the terminal.
-    private static func isRunning(_ pid: Int32) -> Bool {
+    /// Start time in clock ticks, nil once the process is gone or a zombie: a zombie no longer holds the
+    /// socket or the terminal.
+    private static func startTime(of pid: Int32) -> Int64? {
         guard let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8),
-              let close = stat.lastIndex(of: ")") else { return false }
-        let state = stat[stat.index(after: close)...].split(whereSeparator: \.isWhitespace).first
-        return state != "Z" && state != "X"
+              let close = stat.lastIndex(of: ")") else { return nil }
+        let fields = stat[stat.index(after: close)...].split(whereSeparator: \.isWhitespace)
+        guard fields.count > 19, fields[0] != "Z", fields[0] != "X" else { return nil }
+        return Int64(fields[19])
     }
 
-    static func processTable() -> [ZmxIncompatibleReset.ProcessView] {
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: "/proc") else { return [] }
-        return names.compactMap { name in
-            guard let pid = Int32(name),
-                  let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8),
-                  let close = stat.lastIndex(of: ")"),
-                  let arguments = nulSeparated("/proc/\(pid)/cmdline"), !arguments.isEmpty,
-                  let environment = nulSeparated("/proc/\(pid)/environ") else { return nil }
-            // after the comm: state ppid pgrp session tty_nr
-            let fields = stat[stat.index(after: close)...].split(whereSeparator: \.isWhitespace)
-            guard fields.count > 4, let terminal = Int64(fields[4]) else { return nil }
-            return ZmxIncompatibleReset.ProcessView(pid: pid, arguments: arguments, environment: environment,
-                                                    terminal: terminal)
+    /// `/proc/net/unix`: `Num RefCount Protocol Flags Type St Inode Path`; flag 0x10000 is a listening socket.
+    static func unixSockets() -> [ZmxIncompatibleReset.SocketView] {
+        guard let table = try? String(contentsOfFile: "/proc/net/unix", encoding: .utf8) else { return [] }
+        return table.split(separator: "\n").dropFirst().compactMap { line in
+            let fields = line.split(separator: " ", omittingEmptySubsequences: true)
+            guard fields.count >= 8, let flags = UInt32(fields[3], radix: 16), let inode = UInt64(fields[6]) else {
+                return nil
+            }
+            return ZmxIncompatibleReset.SocketView(inode: inode, path: fields[7...].joined(separator: " "),
+                                                   listening: flags & 0x10000 != 0)
         }
     }
 
-    private static func nulSeparated(_ path: String) -> [String]? {
-        guard let data = FileManager.default.contents(atPath: path) else { return nil }
-        return data.split(separator: 0).map { String(decoding: $0, as: UTF8.self) }
+    /// The zmx processes, with the socket inodes their descriptors hold.
+    static func zmxProcesses() -> [ZmxIncompatibleReset.ProcessView] {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: "/proc") else { return [] }
+        return names.compactMap { name in
+            guard let pid = Int32(name),
+                  let data = FileManager.default.contents(atPath: "/proc/\(pid)/cmdline") else { return nil }
+            let arguments = data.split(separator: 0).map { String(decoding: $0, as: UTF8.self) }
+            guard let first = arguments.first, (first as NSString).lastPathComponent == "zmx",
+                  let descriptors = try? FileManager.default.contentsOfDirectory(atPath: "/proc/\(pid)/fd") else {
+                return nil
+            }
+            let sockets = Set(descriptors.compactMap { descriptor -> UInt64? in
+                guard let target = try? FileManager.default.destinationOfSymbolicLink(atPath: "/proc/\(pid)/fd/\(descriptor)"),
+                      target.hasPrefix("socket:["), target.hasSuffix("]") else { return nil }
+                return UInt64(target.dropFirst("socket:[".count).dropLast())
+            })
+            return ZmxIncompatibleReset.ProcessView(pid: pid, arguments: arguments, sockets: sockets)
+        }
     }
 }

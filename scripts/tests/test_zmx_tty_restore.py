@@ -95,6 +95,9 @@ class RealZmxTtyRestoreTests(unittest.TestCase):
                 self.kill_daemon()
 
     def test_a_terminated_client_restores_a_terminal_that_stopped_reading(self):
+        """Guards the TCSAFLUSH wait 0005 removed, which only a BSD pty shows: there it never returns while
+        output is unread. Linux reports no pending pty output, so on the Linux CI runners this case passes
+        either way. On macOS it hung before the change, as pristine upstream main still does."""
         status, slave, before = self.end_with(signal.SIGTERM, terminal_reads=False)
         self.assertEqual(status, -signal.SIGTERM)
         self.assertFalse(self.nonblocking(slave), "O_NONBLOCK left on the shared terminal")

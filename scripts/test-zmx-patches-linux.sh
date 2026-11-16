@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run upstream zmx's own gates (zig fmt, zig build test, bats) over the pinned zmx with scripts/zmx-patches.
+# Run upstream zmx's own gates (zig fmt, zig build test, bats) over the pinned zmx with scripts/zmx-patches,
+# and check that the macOS app's separate pin still takes scripts/zmx-patches-macos.
 set -euo pipefail
 
 ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
@@ -46,3 +47,13 @@ ZIG="$ZIG" "$ROOT/scripts/zig-build-linux.sh" test --summary all
 ZIG="$ZIG" "$ROOT/scripts/zig-build-linux.sh"
 # The suite builds zmx itself when this binary is missing; detached stdin keeps `zmx run` from waiting on it.
 ZMX="$WORK/zmx/zig-out/bin/zmx" "$WORK/bats/bin/bats" --jobs 1 test/*.bats < /dev/null
+
+# The macOS app stays on its own pin and patch set (scripts/setup.sh); they must still apply to it.
+MAC_ZMX_REV="$(sed -nE 's/^ZMX_REV="([0-9a-f]{40})".*/\1/p' "$ROOT/scripts/setup.sh")"
+[[ -n "$MAC_ZMX_REV" && "$MAC_ZMX_REV" != "$ZMX_REV" ]] || { echo "scripts/setup.sh names no separate zmx pin" >&2; exit 1; }
+fetch "$ZMX_REPO" "$MAC_ZMX_REV" "$WORK/mac/zmx"
+MAC_GHOSTTY_REV="$(sed -n 's|.*ghostty-org/ghostty#\([0-9a-f]\{40\}\)".*|\1|p' "$WORK/mac/zmx/build.zig.zon")"
+fetch "$GHOSTTY_REPO" "$MAC_GHOSTTY_REV" "$WORK/mac/zmx-ghostty"
+for patch in "$ROOT/scripts/zmx-patches-macos/ghostty"/*.patch; do git -C "$WORK/mac/zmx-ghostty" apply "$patch"; done
+for patch in "$ROOT/scripts/zmx-patches-macos"/*.patch; do git -C "$WORK/mac/zmx" apply "$patch"; done
+echo "macOS zmx patch set applies to $MAC_ZMX_REV"

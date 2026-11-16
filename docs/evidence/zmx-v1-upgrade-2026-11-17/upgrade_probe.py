@@ -151,6 +151,7 @@ try:
     capture("1-old-before-upgrade")
     app.terminate(); app.wait(timeout=20)
     note("old: SIGTERM quit", returncode=app.returncode, daemons=daemon_pids(),
+         listening=[line for line in Path("/proc/net/unix").read_text().splitlines() if SOCKDIR in line],
          old_zmx_list=zmx(str(OLD_ZMX), "list"))
 
     BIN, CTL = stage(new_tar)
