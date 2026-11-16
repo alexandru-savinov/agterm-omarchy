@@ -35,13 +35,40 @@ jobs:
         run: python3 scripts/github/test_queue.py
       - name: Test wave planning
         run: python3 scripts/github/test_waves.py
+      - name: Test claim labels
+        run: python3 scripts/github/test_labels.py
       - name: Read tasks and named check-ins
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/github/queue.py
+      - name: Plan claim labels (dry run)
+        run: python3 scripts/github/labels.py
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: agent-queue-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/agent-queue
           if-no-files-found: error
           retention-days: 30
+
+  labels:
+    name: Claim labels
+    needs: snapshot
+    # Pull requests only dry-run the plan in the snapshot job; they never write labels.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: agent-queue-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/agent-queue
+      - name: Mirror the latest verified check-in into state and agent labels
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/github/labels.py --apply

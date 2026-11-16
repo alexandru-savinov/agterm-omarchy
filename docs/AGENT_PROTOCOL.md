@@ -135,3 +135,13 @@ gh pr merge <number> --auto --merge --match-head-commit <head sha>
 **Required checks.** The ruleset "Required CI on main" requires four status checks: `CI`, "Secret scan (full history)", "Vulnerability and misconfig scan" and "Dependency review". A pull request cannot merge, auto-merge included, until all four succeed. CodeQL and the path-filtered checks (for example actionlint, zizmor, Semgrep and OSV) are not required, so before arming `--auto` check those yourself: arm only when every expected workflow on that head has reported and none is failing; if one is pending or failing, disarm with `gh pr merge <number> --disable-auto` and re-arm once it is green. If one of the four required checks never reports on a pull request, tell the lead at once. Edit this paragraph when the ruleset changes.
 
 How the rule matches checks: the ruleset has no bypass actors, but it matches by job name and pins only the GitHub Actions app, not a workflow, and a skipped required check counts as passing. A job named `CI` added by a pull request would therefore satisfy the rule, so read any change to workflow files as a change to what "required" means.
+
+## State and agent labels
+
+The queue workflow mirrors each task's latest verified check-in into labels, so `gh issue list --label state:blocked` answers "what is blocked?" in one call.
+
+- `state:working`, `state:blocked`, `state:ready-for-review` or `state:complete`: the state of the newest verified check-in on the issue.
+- `agent:<name>`: one per verified check-in that is neither `complete` nor a stale `working` claim.
+- Only check-ins from collaborators count, exactly as in the queue; names that are not 1 to 44 ASCII letters, digits, underscores or hyphens get no label.
+- When no verified check-in is visible (the queue only loads recent comments), the labels are left as they are.
+- The labels are a view of the snapshot. They never grant ownership; the check-in comment stays the record. Do not set them by hand: the next queue run overwrites `state:*` and `agent:*`.
