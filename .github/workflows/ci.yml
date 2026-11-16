@@ -333,6 +333,8 @@ jobs:
           python3 -I -m unittest discover -s scripts/tests -p 'test_zmx_prefill.py' -v
           # A client ended by SIGTERM/HUP/INT hands back its shared terminal; SIGKILL still needs #429's reopen.
           python3 -I -m unittest discover -s scripts/tests -p 'test_zmx_tty_restore.py' -v
+          # A daemon from another zmx protocol is named in list and refused by attach, never attached blind.
+          python3 -I -m unittest discover -s scripts/tests -p 'test_zmx_incompatible_daemon.py' -v
           # Explicit leadership, screen/type and managed exit, driven through real ptys.
           python3 -I scripts/zmx-patches/check.py "$AGTERM_IDENTITY_TEST_ZMX"
       - name: swift test (agterm-linux)

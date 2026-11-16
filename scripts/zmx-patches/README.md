@@ -62,6 +62,13 @@ longer apply, and re-running `check.py`.
   returns within a generous 10 s of the hangup, nominally 2 s, so starved CI cannot flake it, and does
   not block forever) and a closed reader (it returns promptly); both run under a
   watchdog.
+- `0007-incompatible-daemon.patch` names a daemon from another zmx release instead of attaching to it
+  blind. v1 put a protocol byte in the message header, so a pre-v1 daemon's frames carry another value
+  there, and its own parser reads a v1 `Init` as an unfinished frame and never answers. A header with
+  another `protocol_version` marks the peer foreign: `zmx list` prints `err=IncompatibleProtocol` and keeps
+  the socket, `attach` probes first and exits 1 with that reason, and a client loop that meets one ends.
+  agterm's Linux launch resets those daemons (`.claude/rules/control-api.md`, Live sessions reset).
+
 `check.py <zmx>` drives managed clients on ptys of different sizes against one daemon in a throwaway
 `ZMX_DIR`, prints one line per rule, and exits nonzero when any of them is broken. Linux CI runs it
 against the vendored zmx, beside `scripts/tests/test_zmx_tty_restore.py`.

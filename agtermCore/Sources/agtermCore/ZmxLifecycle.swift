@@ -6,17 +6,24 @@ public struct ZmxSessionRecord: Equatable, Sendable {
     public let leaderPID: Int32?
     /// createdAt is when the daemon started, in whole seconds; nil when zmx reported none.
     public let createdAt: Date?
+    /// The `err=` zmx printed for a daemon it could not read; nil for a readable one.
+    public let error: String?
 
-    public init(name: String, clients: Int?) {
-        self.init(name: name, clients: clients, leaderPID: nil)
+    public init(name: String, clients: Int?, error: String? = nil) {
+        self.init(name: name, clients: clients, leaderPID: nil, error: error)
     }
 
-    public init(name: String, clients: Int?, leaderPID: Int32?, createdAt: Date? = nil) {
+    public init(name: String, clients: Int?, leaderPID: Int32?, createdAt: Date? = nil, error: String? = nil) {
         self.name = name
         self.clients = clients
         self.leaderPID = leaderPID
         self.createdAt = createdAt
+        self.error = error
     }
+
+    /// The daemon answers in another zmx IPC protocol (a pre-v1 zmx, after an update): no client of this
+    /// zmx can attach to it, list it, or kill it through its socket.
+    public var incompatible: Bool { error == "IncompatibleProtocol" }
 }
 
 public enum ZmxListParser {
@@ -35,7 +42,7 @@ public enum ZmxListParser {
             var clients: Int?
             var leaderPID: Int32?
             var createdAt: Date?
-            var hasError = false
+            var error: String?
             for field in line.split(separator: "\t", omittingEmptySubsequences: false) {
                 if field.hasPrefix("name=") {
                     name = String(field.dropFirst("name=".count))
@@ -53,12 +60,13 @@ public enum ZmxListParser {
                         createdAt = Date(timeIntervalSince1970: TimeInterval(value))
                     }
                 } else if field.hasPrefix("err=") {
-                    hasError = true
+                    error = String(field.dropFirst("err=".count))
                 }
             }
             guard let name, !name.isEmpty else { throw ParseError.missingName }
-            guard clients != nil || hasError else { throw ParseError.missingClients(name) }
-            return ZmxSessionRecord(name: name, clients: clients, leaderPID: leaderPID, createdAt: createdAt)
+            guard clients != nil || error != nil else { throw ParseError.missingClients(name) }
+            return ZmxSessionRecord(name: name, clients: clients, leaderPID: leaderPID, createdAt: createdAt,
+                                    error: error)
         }
     }
 }

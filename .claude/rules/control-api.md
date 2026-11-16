@@ -1709,6 +1709,15 @@ side, and reads `lastAppliedIsDark` when bare. Refuse it outside XCUITest; provi
   pending and no launch consumed a marker. Each `zmx list` row carries `outdated: true` for a daemon created
   before the cutoff, omitted otherwise. XCUITest exemption: the command quits the app, so its
   coverage is hosted and package tests plus the isolated acceptance run, like `restore.mode`.
+- Linux has no reset dialog or marker; it resets at launch only the daemons the bundled zmx cannot talk to.
+  zmx v1 changed the IPC header, so a daemon a pre-v1 zmx started lists as `err=IncompatibleProtocol`
+  (`scripts/zmx-patches/0007`), and attaching to one showed a blank pane that took no input.
+  `LinuxIncompatibleDaemons.reset` runs after the claim walk and before any pane spawns: for each claimed
+  incompatible daemon it finds the terminal-less zmx process for that name and `ZMX_DIR`
+  (`ZmxIncompatibleReset.daemonPID`), sends SIGTERM, then SIGKILL after 1.5 s, and lists again so a
+  refused socket is removed. The pane then restores as one whose daemon is missing. A busy daemon
+  (`err=Timeout`) is never selected. The outcome is `liveReset.last` on the tree and the `zmx list` header,
+  and the first window shows `ZmxIncompatibleReset.notice` as a toast.
 
 ## Remote sessions
 
