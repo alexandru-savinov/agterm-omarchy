@@ -105,6 +105,28 @@ struct ZmxIncompatibleResetTests {
             == "Restarted 1 of 2 live sessions left by an older agterm; the others still run")
     }
 
+    @Test func onlyAnUnconfirmedPaneRunsTheHeldMessageInsteadOfAttaching() throws {
+        let candidates: [ZmxIncompatibleReset.Candidate] = [
+            .init(paneIdentity: Self.paneA, sessionID: Self.sessionA, daemon: Self.name(Self.paneA)),
+            .init(paneIdentity: Self.paneB, sessionID: Self.sessionB, daemon: Self.name(Self.paneB)),
+        ]
+        let outcome = ZmxIncompatibleReset.outcome(candidates: candidates, daemonPIDs: [Self.name(Self.paneA): 21],
+                                                   survivors: [], stillIncompatible: [Self.name(Self.paneB)])
+        let held = try #require(ZmxIncompatibleReset.unconfirmedPaneCommand(daemon: Self.name(Self.paneB), outcome: outcome))
+        let shell = Process()
+        shell.executableURL = URL(fileURLWithPath: "/bin/sh")
+        shell.arguments = ["-c", held]
+        let output = Pipe()
+        shell.standardOutput = output
+        try shell.run()
+        shell.waitUntilExit()
+        #expect(shell.terminationStatus == 1)
+        #expect(String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            == ZmxIncompatibleReset.unconfirmedPaneMessage + "\n")
+        #expect(ZmxIncompatibleReset.unconfirmedPaneCommand(daemon: Self.name(Self.paneA), outcome: outcome) == nil)
+        #expect(ZmxIncompatibleReset.unconfirmedPaneCommand(daemon: Self.name(Self.paneB), outcome: nil) == nil)
+    }
+
     @Test func aSurvivingProcessIsUnconfirmed() {
         let candidate = ZmxIncompatibleReset.Candidate(paneIdentity: Self.paneB, sessionID: Self.sessionB,
                                                        daemon: Self.name(Self.paneB))

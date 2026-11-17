@@ -128,6 +128,10 @@ extension AppController {
                             policy: LinuxLaunchSeedPolicy) -> LinuxLaunchSeed {
         switch disposition {
         case .wrapped(let configuration):
+            if let held = ZmxIncompatibleReset.unconfirmedPaneCommand(daemon: configuration.daemonName,
+                                                                      outcome: gLaunchLiveReset) {
+                return LinuxLaunchSeed(command: held, initialInput: nil, waitAfterCommand: true)
+            }
             return LinuxRestoreSeed.wrappedSeed(
                 configuration, replay: session.takePendingForegroundCommand(pane: pane),
                 durable: durableCommand(session: session, pane: pane), denylist: policy.denylist,

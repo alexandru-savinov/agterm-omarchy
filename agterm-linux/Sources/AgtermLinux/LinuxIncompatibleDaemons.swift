@@ -67,7 +67,7 @@ enum LinuxIncompatibleDaemons {
     /// Start time in clock ticks, nil once the process is gone or a zombie: a zombie no longer holds the
     /// socket or the terminal.
     private static func startTime(of pid: Int32) -> Int64? {
-        guard let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8),
+        guard let stat = procText("/proc/\(pid)/stat"),
               let close = stat.lastIndex(of: ")") else { return nil }
         let fields = stat[stat.index(after: close)...].split(whereSeparator: \.isWhitespace)
         guard fields.count > 19, fields[0] != "Z", fields[0] != "X" else { return nil }
@@ -76,7 +76,7 @@ enum LinuxIncompatibleDaemons {
 
     /// `/proc/net/unix`: `Num RefCount Protocol Flags Type St Inode Path`; flag 0x10000 is a listening socket.
     static func unixSockets() -> [ZmxIncompatibleReset.SocketView] {
-        guard let table = try? String(contentsOfFile: "/proc/net/unix", encoding: .utf8) else { return [] }
+        guard let table = procText("/proc/net/unix") else { return [] }
         return table.split(separator: "\n").dropFirst().compactMap { line in
             let fields = line.split(separator: " ", omittingEmptySubsequences: true)
             guard fields.count >= 8, let flags = UInt32(fields[3], radix: 16), let inode = UInt64(fields[6]) else {
@@ -87,12 +87,34 @@ enum LinuxIncompatibleDaemons {
         }
     }
 
+    /// A procfs file read to its end. Its size reads as zero, and Foundation's whole-file readers stop after
+    /// one page there: measured on the Omarchy VM, `/proc/net/unix` came back without the daemon's line.
+    static func procData(_ path: String) -> Data? {
+        let descriptor = open(path, O_RDONLY | O_CLOEXEC)
+        guard descriptor >= 0 else { return nil }
+        defer { close(descriptor) }
+        var data = Data()
+        var chunk = [UInt8](repeating: 0, count: 65536)
+        while true {
+            let count = read(descriptor, &chunk, chunk.count)
+            if count == 0 { return data }
+            if count < 0 {
+                if errno == EINTR { continue }
+                return nil
+            }
+            data.append(contentsOf: chunk[0..<count])
+        }
+    }
+
+    static func procText(_ path: String) -> String? {
+        procData(path).map { String(decoding: $0, as: UTF8.self) }
+    }
+
     /// The zmx processes, with the socket inodes their descriptors hold.
     static func zmxProcesses() -> [ZmxIncompatibleReset.ProcessView] {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: "/proc") else { return [] }
         return names.compactMap { name in
-            guard let pid = Int32(name),
-                  let data = FileManager.default.contents(atPath: "/proc/\(pid)/cmdline") else { return nil }
+            guard let pid = Int32(name), let data = procData("/proc/\(pid)/cmdline") else { return nil }
             let arguments = data.split(separator: 0).map { String(decoding: $0, as: UTF8.self) }
             guard let first = arguments.first, (first as NSString).lastPathComponent == "zmx",
                   let descriptors = try? FileManager.default.contentsOfDirectory(atPath: "/proc/\(pid)/fd") else {

@@ -1718,7 +1718,10 @@ side, and reads `lastAppliedIsDark` when bare. Refuse it outside XCUITest; provi
   after 1.5 s, re-reading the process start time before each signal so a reused pid is never hit, and lists
   again. That listing removes a refused socket and is the verdict: a daemon it still reports as incompatible
   was not ended, whether or not its process was found, and its pane counts as unconfirmed. The pane of an
-  ended daemon restores as one whose daemon is missing; an unconfirmed one shows zmx's refusal. A busy
+  ended daemon restores as one whose daemon is missing; an unconfirmed one runs
+  `ZmxIncompatibleReset.unconfirmedPaneCommand` held instead of attaching, so its session stays and says why
+  (an attach would exit on zmx's refusal and close it). Procfs files are read to EOF with `read(2)`:
+  Foundation's whole-file readers stop after one page of a zero-size file, which hid the daemon. A busy
   daemon (`err=Timeout`) is never selected. The outcome is `liveReset.last` on the tree and the `zmx list`
   header, and the first window shows `ZmxIncompatibleReset.notice` as a toast.
   The macOS app keeps zmx v0.8.1 (`scripts/setup.sh`, `scripts/zmx-patches-macos`) until its launch has

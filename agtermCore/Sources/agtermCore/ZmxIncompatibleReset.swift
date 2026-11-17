@@ -102,6 +102,18 @@ public enum ZmxIncompatibleReset {
                                  survivors: unconfirmed, inventoryFailed: false)
     }
 
+    /// What an unconfirmed pane runs instead of attaching: zmx would refuse the old daemon and the pane, its
+    /// shell gone, would close and take its session with it. A held message keeps the session and says why.
+    public static func unconfirmedPaneCommand(daemon: String, outcome: LiveReset.Outcome?) -> String? {
+        guard let outcome, outcome.unconfirmed.contains(where: { ZmxSupport.daemonName(for: $0) == daemon }) else {
+            return nil
+        }
+        return CommandRestore.shellQuotedLine(["printf", "%s\\n", unconfirmedPaneMessage]) + "; exit 1"
+    }
+
+    public static let unconfirmedPaneMessage = "agterm: this live session was started by an older agterm, "
+        + "which this version cannot reattach to, and it could not be stopped; its programs may still be running."
+
     /// The toast the first window shows; nil when nothing was reset. Short enough for a toast on a narrow
     /// window, which truncates rather than wraps.
     public static func notice(outcome: LiveReset.Outcome) -> String? {
