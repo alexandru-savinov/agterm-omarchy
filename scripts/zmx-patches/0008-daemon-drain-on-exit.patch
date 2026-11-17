@@ -1,5 +1,5 @@
 diff --git zmx-orig/src/loop.zig zmx/src/loop.zig
-index cdf8c91..9092982 100644
+index cdf8c91..5499fd3 100644
 --- zmx-orig/src/loop.zig
 +++ zmx/src/loop.zig
 @@ -365,6 +365,17 @@ fn initTerminal(gpa: std.mem.Allocator, io: std.Io, size: ipc.Resize, cfg: *cons
@@ -105,7 +105,7 @@ index cdf8c91..9092982 100644
      pub fn closeClient(self: *Daemon, gpa: std.mem.Allocator, client: *Client, i: usize, shutdown_on_last: bool) bool {
          const fd = client.socket_fd;
          // leader is disconnected, remove ref and let another client claim leader on input
-@@ -2268,3 +2308,438 @@ test "client returns promptly when stdout reader closes with daemon connected" {
+@@ -2268,3 +2308,444 @@ test "client returns promptly when stdout reader closes with daemon connected" {
      try std.testing.expectEqual(input_flags, try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0));
      try std.testing.expectEqual(output_flags, try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0));
  }
@@ -532,9 +532,15 @@ index cdf8c91..9092982 100644
 +    sleepMs(500);
 +    try std.testing.expect(!EndingSession.done(&s.daemon_done_ms));
 +
++    // the drained leader still waits for the teardown: no client hangs up while the socket file exists
++    try std.testing.expectEqual(@as(i64, 0), lead.eof_ms.load(.acquire));
++
 +    var follow: FrameReader = .{ .alloc = alloc, .fd = s.sock, .frames = try ipc.SocketBuffer.init(alloc) };
 +    defer follow.deinit();
-+    follow.run();
++    // on its own thread under the watchdog, so a daemon that never closes the follower fails the test
++    const follow_thread = try std.Thread.spawn(.{}, FrameReader.run, .{&follow});
++    EndingSession.waitFor(&follow.eof_ms);
++    follow_thread.join();
 +    EndingSession.waitFor(&s.daemon_done_ms);
 +
 +    const expected = try std.mem.concat(alloc, u8, &.{ EndingSession.start_mark, payload, EndingSession.final_mark });
