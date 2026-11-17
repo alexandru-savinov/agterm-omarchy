@@ -6,6 +6,7 @@
 # Mounts: /repo (read-only checkout), /release (verified archive + SHA256SUMS + promotion.json), /out.
 set -euo pipefail
 PHASE="${1:-root}"
+SELF="$(readlink -f "$0")"
 USER_NAME=omarchy
 PREFIX_NAME=agt-prefix
 ARCHIVE=agterm-omarchy-x86_64.tar.gz
@@ -42,7 +43,7 @@ root_phase() {
   status=0
   runuser -u "$USER_NAME" -- env -i PATH=/usr/local/bin:/usr/bin HOME="/home/$USER_NAME" USER="$USER_NAME" \
     LOGNAME="$USER_NAME" SHELL=/bin/bash LANG=C.UTF-8 XDG_RUNTIME_DIR=/run/user/1000 PROBE_RUNS="$PROBE_RUNS" \
-    dbus-run-session -- bash /repo/scripts/ci-omarchy-x86-native.sh session || status=$?
+    dbus-run-session -- bash "$SELF" session || status=$?
   # Copying "evidence/." would also copy its 0700 mode and owner onto /out itself.
   cp -a "/home/$USER_NAME/evidence/." /out/
   chown -R "$owner" /out
@@ -195,12 +196,15 @@ PY
 
   local status=0
   /repo/scripts/install-linux.sh --prefix "$PREFIX" --uninstall --purge-state > "$EVIDENCE/uninstall.log" 2>&1 || status=$?
-  local left
-  left="$( { find "$PREFIX" -mindepth 1 2>/dev/null || true; } | wc -l)"
-  local stray
-  stray="$( { pgrep -u "$USER" -a -f 'agterm|zmx' || true; } | grep -vc 'ci-omarchy-x86-native' || true)"
+  { find "$PREFIX" -mindepth 1 -printf '%y %P\n' 2>/dev/null || true; } > "$EVIDENCE/uninstall-left.txt"
+  { pgrep -u "$USER" -a -f 'agterm|zmx' || true; } | { grep -v 'omarchy-x86-native' || true; } > "$EVIDENCE/uninstall-stray.txt"
+  local left stray
+  left="$(wc -l < "$EVIDENCE/uninstall-left.txt")"
+  stray="$(wc -l < "$EVIDENCE/uninstall-stray.txt")"
   record uninstall "$([[ $status == 0 && $left == 0 && $stray == 0 ]] && echo PASS || echo FAIL) exit=$status files_left=$left stray_processes=$stray"
 
+  cp "$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/hyprland.log" "$EVIDENCE/hyprland-runtime.log" 2>/dev/null || true
+  grep -iE 'GL_RENDERER|GL_VENDOR|EGL|llvmpipe|renderer' "$EVIDENCE/hyprland-runtime.log" | head -n 20 >> "$EVIDENCE/hyprland-info.txt" || true
   kill "$HYPRLAND_PID" 2>/dev/null || true
   wait "$HYPRLAND_PID" 2>/dev/null || true
   cat "$EVIDENCE/gates.tsv"
