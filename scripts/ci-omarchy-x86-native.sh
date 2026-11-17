@@ -160,14 +160,14 @@ session_phase() {
   app_sha="$(sha256sum "$PREFIX/lib/agterm/bin/agterm-linux.bin" | cut -d' ' -f1)"
   record app_sha256 "$app_sha"
   record renderer "$(cat "$PREFIX/lib/agterm/share/agterm/RENDERER")"
-  for file in scripts/test-omarchy.sh scripts/omarchy-config-probe.py agterm-linux/Tests/login_shell_zsh_fixture.c; do
+  for file in scripts/test-omarchy.sh scripts/omarchy-config-probe.py agterm-linux/tests/login_shell_zsh_fixture.c; do
     record "sha256:$file" "$(sha256sum "/repo/$file" | cut -d' ' -f1)"
   done
   record harness_blob "$(git -C /repo rev-parse HEAD:scripts/test-omarchy.sh)"
 
   harness_gate ordinary none 7
 
-  cc -shared -fPIC -o "$HOME/fixture.so" /repo/agterm-linux/Tests/login_shell_zsh_fixture.c -ldl
+  cc -shared -fPIC -o "$HOME/fixture.so" /repo/agterm-linux/tests/login_shell_zsh_fixture.c -ldl
   record login_shell "$(getent passwd "$USER" | cut -d: -f7)"
   harness_gate live live 9 LD_PRELOAD="$HOME/fixture.so"
 
