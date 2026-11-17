@@ -86,8 +86,9 @@ longer apply, and re-running `check.py`.
   before, unless more than 1 MiB is pending; then it can take up to about 4.5 seconds. Zig tests run a
   real daemon loop and client loop over a socket pair with 8 KiB buffers: the last output reaches a
   terminal that was full at the exit and then resumes; the daemon and then the client end on their
-  deadlines when it never resumes; and a draining session answers no late attach, input or command,
-  while a kill ends it at once. Tests set the deadline themselves (long where they do
+  deadlines when it never resumes; a draining session answers no late attach, input or command, while a
+  kill ends it at once; and a managed follower that is behind at the exit gets its last output and no
+  role change while its leader, already sent everything, waits for the teardown. Tests set the deadline themselves (long where they do
   not measure it), so a starved runner cannot miss it; the build outside tests always uses two seconds.
   This is the daemon half of the bounded drain asked for in umputun/agterm#998, on the Linux pin only; the
   macOS pin keeps its own patch set (#449).
