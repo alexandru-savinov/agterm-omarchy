@@ -77,10 +77,10 @@ jobs:
         if: always()
         run: |
           {
-            printf '### x86_64 Omarchy gates\nRelease: `%s`\n\n```\n' "$RELEASE_TAG"
+            printf '### x86_64 Omarchy gates\nRelease: %s\n\n<pre>\n' "$RELEASE_TAG"
             cat "$RUNNER_TEMP/out/gates.tsv" 2>/dev/null || echo 'no gate results'
             cat "$RUNNER_TEMP/out/probe-timings.tsv" 2>/dev/null || true
-            printf '```\n'
+            printf '</pre>\n'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload evidence
         if: always()

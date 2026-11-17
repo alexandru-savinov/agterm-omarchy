@@ -31,6 +31,7 @@ root_phase() {
   done
   pacman -S --noconfirm --needed "${available[@]}" "${RUNTIME_PACKAGES[@]}"
   pacman -Q > /out/packages.txt
+  echo "omarchy package list: basecamp/omarchy@$OMARCHY_REF install/omarchy-base.packages" > /out/omarchy-ref.txt
   useradd --create-home --uid 1000 --shell /bin/bash "$USER_NAME"
   # The container's own /dev nodes; the host's permissions are unchanged.
   chown "$USER_NAME" /dev/dri/card* /dev/dri/renderD* 2>/dev/null || true
