@@ -30,8 +30,25 @@ as soon as the last replica fd closes, with what the child wrote before closing 
 that wrote and exited before the gather thread woke lost that output; a Live `--wait` pane lost its final
 line under the exit hold. On a hangup the gather stage now reads and publishes what is queued until
 `read()` returns 0, `EAGAIN`, `EIO` or another error, bounded by 4 MiB (`hangup_drain_max`), then exits.
-On macOS, where the comment above the `n == 0` case says `read()` returns 0 once the child is gone, the
-drain costs one more `read()`. The Linux-only Zig tests drain a real pty whose replica closed with output
-queued (all of it must arrive), one with nothing queued, and `/dev/zero`, which never runs dry (the drain
-must stop at its cap); `scripts/test-ghostty-patches-linux.sh` runs them. Remove the patch when
+On macOS the patch is harmless but recovers nothing: Darwin discards what is queued when the replica
+closes (`revents` IN|HUP with `read()` returning 0), so the drain costs one `read()`; #449 tracks the
+macOS side. The Linux-only Zig tests poll a real pty whose replica closed with output queued and feed
+those revents to the gather stage's decision after its poll (`hungUp`), which must end the stage with
+all of the output delivered; the same with nothing queued; and the drain on `/dev/zero`, which never runs
+dry, so it must stop at its cap. `scripts/test-ghostty-patches-linux.sh` runs them. Remove the patch when
 `GHOSTTY_REV` reads a hung-up pty to the end.
+
+`0003` orders the exit message after the child's last output (#447). The process watcher can report the
+exit while what the child wrote just before it is still queued in the pty or in the gather/parse ring, and
+the surface writes `Process exited. Press any key to close the terminal.` into the terminal on the
+`child_exited` notice, so under load the final line landed after the message (in 140 of 512 CPU-load
+runs of the #447 trace with `0002` alone). The parse stage, now `ReadThread.parseMainPosix`, sets
+`Exec.read_done` once the gather stage is done and the ring is empty; `processExitCommon` records the exit
+and `ExitHold` sends the notice once `read_done` is set, re-checking on a 2 ms `xev.Timer` so the IO
+thread never blocks, or after `ExitHold.max_ms` (1 s) when the read thread never finishes, as it does
+not while a background process keeps the pty open; then the notice goes as before. Windows sends it at
+once. The Linux-only Zig tests run the real gather and parse stages on a pty whose replica closed with
+output queued, with parsing held until the exit is reported, and assert on a real terminal that the
+exit message follows the output and was released by the read thread, not the bound; two more cover the
+at-once path and the bound. Do not use `FIONREAD` as a drained signal: it does not count the tty flip
+buffer. Remove the patch when `GHOSTTY_REV` orders the exit notice after the final output.

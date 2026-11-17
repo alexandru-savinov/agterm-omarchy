@@ -59,8 +59,16 @@ def verify_live_wait_output(env, state):
             file.write("exit\n")
         wait_for(lambda: "Press any key" in text(), "Live command did not reach its exit hold")
         held = text()
+        # a final line parsed after the exit prompt arrives late: wait for it briefly, so the order check
+        # below sees it rather than reporting it lost (#447)
+        late_by = time.monotonic() + 1.0
+        while "WAIT-FINAL-MARK" not in held and time.monotonic() < late_by:
+            time.sleep(0.05)
+            held = text()
         missing = [mark for mark in ("WAIT-START-MARK", "WAIT-FINAL-MARK") if mark not in held]
         assert not missing, f"held output lost {missing}: {held!r}"
+        assert held.index("WAIT-FINAL-MARK") < held.index("Process exited"), \
+            f"the exit prompt came before the final output: {held!r}"
         visible = text({})
         assert "WAIT-FINAL-MARK" in visible, "final output was cleared from the held screen: " + visible
         assert row() is not None, "the held session closed instead of retaining its output"
