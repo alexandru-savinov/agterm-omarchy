@@ -24,6 +24,8 @@ RUNTIME_PACKAGES=(gtk4 libadwaita webkitgtk-6.0 libepoxy mesa libglvnd zsh pytho
   desktop-file-utils procps-ng file)
 
 root_phase() {
+  local owner
+  owner="$(stat -c %u:%g /out)"
   pacman -Syu --noconfirm
   local available=() package
   for package in "${OMARCHY_PACKAGES[@]}"; do
@@ -41,8 +43,10 @@ root_phase() {
   runuser -u "$USER_NAME" -- env -i PATH=/usr/local/bin:/usr/bin HOME="/home/$USER_NAME" USER="$USER_NAME" \
     LOGNAME="$USER_NAME" SHELL=/bin/bash LANG=C.UTF-8 XDG_RUNTIME_DIR=/run/user/1000 PROBE_RUNS="$PROBE_RUNS" \
     dbus-run-session -- bash /repo/scripts/ci-omarchy-x86-native.sh session || status=$?
+  # Copying "evidence/." would also copy its 0700 mode and owner onto /out itself.
   cp -a "/home/$USER_NAME/evidence/." /out/
-  chown -R "$(stat -c %u:%g /out)" /out
+  chown -R "$owner" /out
+  chmod -R u+rwX,go+rX /out
   exit "$status"
 }
 
