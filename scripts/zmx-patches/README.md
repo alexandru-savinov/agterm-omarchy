@@ -73,12 +73,17 @@ longer apply, and re-running `check.py`.
   then shutdown freed every client's queued `write_buf`, so the final output for a client that was behind
   was dropped before `0005` could read it. On the shell's EOF the daemon now stops polling the PTY and keeps
   serving its clients until none has output queued, bounded by one two-second deadline shared by all of
-  them. While it drains it takes a detach, a kill and Info and ignores every other message, so no new
-  attach, input or command reaches a session that has ended; a kill and SIGTERM still end it at once, and
-  a detach is unchanged. Each client connected at the exit is closed as soon as it has been sent
-  everything, so a client that keeps reading sees no delay even while a stalled one holds the drain. The
-  client's own `0005` drain starts at the daemon's hangup, so a terminal that never reads again now holds
-  its client for up to about four seconds instead of two. Zig tests run a real daemon loop and client loop
+  them. From the pass after the one that read the EOF, it takes a detach, a kill and Info and ignores
+  every other message, so no new attach, input or command reaches a session that has ended; a kill and
+  SIGTERM still end it at once, and a detach is unchanged. An attach made during the drain therefore does
+  not create a new session: it shows a blank screen until the daemon ends, at most two seconds, and exits
+  0. Only a second client of the same session or a remote reconnect can attach in that window. Each
+  client connected at the exit is closed as soon as it has been sent everything while another is still
+  behind, so a client that keeps reading sees no delay even while a stalled one holds the drain; when
+  nobody is behind, the teardown closes them after the socket file is gone, as before. A client whose terminal never reads
+  again absorbs up to 1 MiB while the daemon drains (`0006`), and the `0005` drain and the 500 ms exit
+  write follow the hangup. Exit takes about 2.5 seconds, as before, unless more than 1 MiB is pending; then
+  it can take up to about 4.5 seconds. Zig tests run a real daemon loop and client loop
   over a socket pair with 8 KiB buffers: the last output reaches a terminal that was full at the exit and
   then resumes; the daemon and then the client end on their deadlines when it never resumes; a draining
   session answers no late attach, input or command, while a kill ends it at once; and a reading client is

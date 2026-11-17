@@ -1,5 +1,5 @@
 diff --git zmx-orig/src/loop.zig zmx/src/loop.zig
-index cdf8c91..b7edeb5 100644
+index cdf8c91..7cbbce5 100644
 --- zmx-orig/src/loop.zig
 +++ zmx/src/loop.zig
 @@ -365,6 +365,17 @@ fn initTerminal(gpa: std.mem.Allocator, io: std.Io, size: ipc.Resize, cfg: *cons
@@ -20,7 +20,7 @@ index cdf8c91..b7edeb5 100644
  /// dameonLoop is what the daemon runs to send and receive ipc commands from its corresponding
  /// clients.  It uses poll() as its non-blocking mechanism.
  fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_fd: lib_posix.socket_t, pty_fd: i32) !void {
-@@ -389,7 +400,28 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -389,7 +400,30 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
  
      var had_terminal_client = daemon.hasTerminalClient();
  
@@ -30,18 +30,20 @@ index cdf8c91..b7edeb5 100644
 +
      daemon_loop: while (daemon.running) {
 +        if (drain_deadline) |deadline| {
-+            // a client connected when the shell exited leaves once it has been sent everything, so a stalled
-+            // one holds only itself; one that connected since is served until it leaves
++            if (!daemon.hasUnsentOutput()) break :daemon_loop;
++            if (role.nowMs() >= deadline) {
++                std.log.info("exit drain deadline passed with output unsent", .{});
++                break :daemon_loop;
++            }
++            // the drain goes on for a client still behind, so one connected when the shell exited that has
++            // been sent everything leaves now, and a stalled one holds only itself; one that connected since
++            // is served until it leaves. When nobody is behind, the clients are closed by the teardown, after
++            // the socket file is gone, as upstream does.
 +            var c: usize = daemon.clients.items.len;
 +            while (c > 0) {
 +                c -= 1;
 +                const client = daemon.clients.items[c];
 +                if (client.session_ended and client.write_buf.items.len == 0) _ = daemon.closeClient(gpa, client, c, false);
-+            }
-+            if (!daemon.hasUnsentOutput()) break :daemon_loop;
-+            if (role.nowMs() >= deadline) {
-+                std.log.info("exit drain deadline passed with output unsent", .{});
-+                break :daemon_loop;
 +            }
 +        }
 +        const draining = drain_deadline != null;
@@ -49,7 +51,7 @@ index cdf8c91..b7edeb5 100644
          // If the program asked for focus reports (DECSET 1004), send focus-out
          // when the last attached client leaves and focus-in when one returns,
          // as a terminal would when its window loses/gains focus.
-@@ -411,8 +443,9 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -411,8 +445,9 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
          if (daemon.pty_write_buf.items.len > 0) {
              pty_events |= lib_posix.POLL.OUT;
          }
@@ -60,7 +62,7 @@ index cdf8c91..b7edeb5 100644
              .events = pty_events,
              .revents = 0,
          });
-@@ -431,7 +464,11 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -431,7 +466,11 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
              });
          }
  
@@ -73,7 +75,7 @@ index cdf8c91..b7edeb5 100644
  
          if (poll_fds.items[2].revents & lib_posix.POLL.IN != 0) {
              signal.drainSignalPipe() catch {};
-@@ -487,10 +524,9 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -487,10 +526,9 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
                  if (n == 0) {
                      // EOF: Shell exited
                      std.log.info("shell exited pty_fd={d}", .{pty_fd});
@@ -87,7 +89,7 @@ index cdf8c91..b7edeb5 100644
                  } else {
                      // Feed PTY output to terminal emulator for state tracking
                      vt_stream.nextSlice(buf[0..n]);
-@@ -608,6 +644,11 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -608,6 +646,11 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
                  }
  
                  while (client.read_buf.next()) |msg| {
@@ -99,7 +101,7 @@ index cdf8c91..b7edeb5 100644
                      switch (msg.header.tag) {
                          .Input => try daemon.handleInput(gpa, client, msg.payload),
                          .Send => daemon.handleSend(gpa, msg.payload),
-@@ -709,6 +750,8 @@ pub const Client = struct {
+@@ -709,6 +752,8 @@ pub const Client = struct {
      read_buf: ipc.SocketBuffer,
      write_buf: std.ArrayList(u8),
      env_str: ?[]u8 = null,
@@ -108,7 +110,7 @@ index cdf8c91..b7edeb5 100644
  
      pub fn deinit(self: *Client, gpa: std.mem.Allocator) void {
          lib_posix.close(self.socket_fd);
-@@ -823,6 +866,14 @@ pub const Daemon = struct {
+@@ -823,6 +868,14 @@ pub const Daemon = struct {
          return false;
      }
  
@@ -123,7 +125,7 @@ index cdf8c91..b7edeb5 100644
      pub fn closeClient(self: *Daemon, gpa: std.mem.Allocator, client: *Client, i: usize, shutdown_on_last: bool) bool {
          const fd = client.socket_fd;
          // leader is disconnected, remove ref and let another client claim leader on input
-@@ -2268,3 +2319,378 @@ test "client returns promptly when stdout reader closes with daemon connected" {
+@@ -2268,3 +2321,378 @@ test "client returns promptly when stdout reader closes with daemon connected" {
      try std.testing.expectEqual(input_flags, try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0));
      try std.testing.expectEqual(output_flags, try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0));
  }
