@@ -177,9 +177,14 @@ struct LinuxHtmlFileGrantDescriptorTests {
 
     @Test func aProbeThatOpensOrFailsOtherwiseKeepsBeneath() throws {
         #expect(LinuxHtmlFileGrant.probedResolution { (-1, EACCES) } == .beneath)
-        let probed = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
-        try #require(probed >= 0)
-        #expect(LinuxHtmlFileGrant.probedResolution { (probed, 0) } == .beneath)
-        #expect(fcntl(probed, F_GETFD) == -1)
+        // A parallel test can reuse a closed fd number, but nothing reopens this socket once the probe closes it.
+        var pair: [Int32] = [-1, -1]
+        try #require(socketpair(AF_UNIX, Int32(SOCK_STREAM.rawValue) | Int32(SOCK_CLOEXEC.rawValue), 0, &pair) == 0)
+        defer { close(pair[1]) }
+        #expect(LinuxHtmlFileGrant.probedResolution { (pair[0], 0) } == .beneath)
+        var byte: UInt8 = 0
+        let sent = Glibc.send(pair[1], &byte, 1, Int32(MSG_NOSIGNAL))
+        let sendError = errno
+        #expect(sent == -1 && sendError == EPIPE)
     }
 }
