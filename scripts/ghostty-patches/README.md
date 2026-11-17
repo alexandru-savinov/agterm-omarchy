@@ -23,3 +23,15 @@ Apply the patch to a `GHOSTTY_REV` checkout before editing. Run `zig fmt --check
 and `zig build test -Dtest-filter=teardown -Demit-macos-app=false` there. Regenerate the patch with
 `git diff -- src/App.zig src/Surface.zig` and verify `git apply --check` against a second pristine
 checkout. Do not change queue capacity or move `ghostty_surface_free` off the app thread.
+
+`0002` keeps a child's last output when its pty hangs up (#447). `ReadThread.gatherMainPosix` returned as
+soon as its poll reported `POLLHUP` on the pty master, without reading. A Linux master reports `POLLHUP`
+as soon as the last replica fd closes, with what the child wrote before closing still queued, so a child
+that wrote and exited before the gather thread woke lost that output; a Live `--wait` pane lost its final
+line under the exit hold. On a hangup the gather stage now reads and publishes what is queued until
+`read()` returns 0, `EAGAIN`, `EIO` or another error, bounded by 4 MiB (`hangup_drain_max`), then exits.
+On macOS, where the comment above the `n == 0` case says `read()` returns 0 once the child is gone, the
+drain costs one more `read()`. The Linux-only Zig tests drain a real pty whose replica closed with output
+queued (all of it must arrive), one with nothing queued, and `/dev/zero`, which never runs dry (the drain
+must stop at its cap); `scripts/test-ghostty-patches-linux.sh` runs them. Remove the patch when
+`GHOSTTY_REV` reads a hung-up pty to the end.

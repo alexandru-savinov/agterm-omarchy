@@ -775,6 +775,7 @@
     "linux/patches/ghostty-embedded-opengl.patch": "c495d6f3743082bffcad0cc9a543052e78014e26e6c2c4e49124fd1d3cd4866d",
     "linux/patches/ghostty-lib-resources.patch": "ec86e84173b0e1b712c1506eb074ef6ef8e25d0efbf6ce40f467bd39944a33ee",
     "linux/patches/ghostty-surface-env-unset.patch": "16e113ed16828b6a7ca1896e09e19f90ce1ecc12cd9fc076af8a7c389090ffe7",
-    "scripts/ghostty-patches/0001-drain-mailbox-during-surface-teardown.patch": "442ce0b6524568e2ce442b34eb5d60c58db4657e32c1471392875c99e12c4a5d"
+    "scripts/ghostty-patches/0001-drain-mailbox-during-surface-teardown.patch": "442ce0b6524568e2ce442b34eb5d60c58db4657e32c1471392875c99e12c4a5d",
+    "scripts/ghostty-patches/0002-drain-pty-on-hangup.patch": "95cfbf7c4cfa5a27053f20dd6d8a6ccecfd44109325c171bc2730d0d6cdcf654"
   }
 }
