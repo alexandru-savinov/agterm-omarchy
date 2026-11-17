@@ -777,6 +777,6 @@
     "linux/patches/ghostty-surface-env-unset.patch": "16e113ed16828b6a7ca1896e09e19f90ce1ecc12cd9fc076af8a7c389090ffe7",
     "scripts/ghostty-patches/0001-drain-mailbox-during-surface-teardown.patch": "442ce0b6524568e2ce442b34eb5d60c58db4657e32c1471392875c99e12c4a5d",
     "scripts/ghostty-patches/0002-drain-pty-on-hangup.patch": "a0e176b006c8945d8c37bbb23ecdf18d6b156ddfe81766eee218910fdb2dca54",
-    "scripts/ghostty-patches/0003-exit-message-after-final-output.patch": "6e1b28d1d9e743c39fcb45dc7b1fe3fbf75ae26bdd540e9542f5667f2a003138"
+    "scripts/ghostty-patches/0003-exit-message-after-final-output.patch": "908be2f85ea7f04aba4f446605dda65452a965d7ead06b6f4951ae2d7b69a6d1"
   }
 }

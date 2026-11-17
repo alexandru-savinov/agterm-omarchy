@@ -46,8 +46,9 @@ runs of the #447 trace with `0002` alone). The parse stage, now `ReadThread.pars
 `Exec.read_done` once the gather stage is done and the ring is empty; `processExitCommon` records the exit
 and `ExitHold` sends the notice once `read_done` is set, re-checking on a 2 ms `xev.Timer` so the IO
 thread never blocks, or after `ExitHold.max_ms` (1 s) when the read thread never finishes, as it does
-not while a background process keeps the pty open; then the notice goes as before. Windows sends it at
-once. The Linux-only Zig tests run the real gather and parse stages on a pty whose replica closed with
+not while a background process keeps the pty open; then the notice goes as before and a warning is
+logged. `threadMainPosix` also sets `read_done` when it returns, so an early return releases the hold
+at once. Windows sends it at once. The Linux-only Zig tests run the real gather and parse stages on a pty whose replica closed with
 output queued, with parsing held until the exit is reported, and assert on a real terminal that the
 exit message follows the output and was released by the read thread, not the bound; two more cover the
 at-once path and the bound. Do not use `FIONREAD` as a drained signal: it does not count the tty flip

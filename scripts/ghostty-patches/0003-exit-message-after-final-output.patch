@@ -1,5 +1,5 @@
 diff --git a/src/termio/Exec.zig b/src/termio/Exec.zig
-index dcf2040..e3c4a3a 100644
+index 7a92a26..1fa2a3e 100644
 --- a/src/termio/Exec.zig
 +++ b/src/termio/Exec.zig
 @@ -44,6 +44,10 @@ const FlatpakHostCommand = if (!build_config.flatpak) struct {
@@ -112,9 +112,9 @@ index dcf2040..e3c4a3a 100644
 +        userdata: *Userdata,
 +        comptime deliver: fn (*Userdata) void,
 +    ) void {
-+        if (self.read_done.load(.acquire) or
-+            self.start.untilNow(global.io(), .awake).toMilliseconds() >= max_ms)
-+        {
++        const done = self.read_done.load(.acquire);
++        if (done or self.start.untilNow(global.io(), .awake).toMilliseconds() >= max_ms) {
++            if (!done) log.warn("exit hold bound reached, notice delivered before read thread finished", .{});
 +            deliver(userdata);
 +            return;
 +        }
@@ -163,7 +163,7 @@ index dcf2040..e3c4a3a 100644
      }
  };
 
-@@ -1409,7 +1506,12 @@ pub const ReadThread = struct {
+@@ -1409,9 +1506,17 @@ pub const ReadThread = struct {
          bufs: [buffer_count][buffer_capacity]u8 = undefined,
      };
 
@@ -176,8 +176,13 @@ index dcf2040..e3c4a3a 100644
 +    ) void {
          // Always close our end of the pipe when we exit.
          defer _ = posix.system.close(quit);
++        // An early return never reaches the parse stage, which sets this
++        // when it is done; set it here too so the exit notice goes at once.
++        defer read_done.store(true, .release);
 
-@@ -1475,15 +1577,30 @@ pub const ReadThread = struct {
+         // Right now, on Darwin, `std.Thread.setName` can only name the current
+         // thread, and we have no way to get the current thread from within it,
+@@ -1475,15 +1580,30 @@ pub const ReadThread = struct {
              gather_thread.setName(global.io(), "io-gather") catch {};
          }
 
@@ -210,7 +215,7 @@ index dcf2040..e3c4a3a 100644
                      pipeline.batch_ready.waitUncancelable(global.io(), &pipeline.mutex);
                  }
                  const slot = pipeline.tail;
-@@ -1828,9 +1945,15 @@ pub const ReadThread = struct {
+@@ -1834,9 +1954,15 @@ pub const ReadThread = struct {
          return true;
      }
 
@@ -227,7 +232,7 @@ index dcf2040..e3c4a3a 100644
 
          // Setup our crash metadata
          crash.sentry.thread_state = .{
-@@ -2516,3 +2639,130 @@ test "a hangup drain stops at its cap when the fd never runs dry" {
+@@ -2541,3 +2667,132 @@ test "a hangup drain stops at its cap when the fd never runs dry" {
      try std.testing.expect(result.drained < ReadThread.hangup_drain_max + ReadThread.buffer_capacity);
      try std.testing.expectEqual(result.drained, result.got.items.len);
  }
@@ -339,6 +344,8 @@ index dcf2040..e3c4a3a 100644
 +}
 +
 +test "the exit message goes after the bound when the read thread never finishes" {
++    // the hold warns when the bound releases it; that is the expected outcome here
++    std.testing.log_level = .err;
 +    // a process that inherited the pty keeps it open after the child exits
 +    const read_done: std.atomic.Value(bool) = .init(false);
 +    var loop = try xev.Loop.init(.{});
