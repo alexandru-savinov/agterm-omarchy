@@ -44,8 +44,16 @@ for ((attempt = 0; attempt < 8; attempt++)); do
     curl --fail --location --proto '=https' --proto-redir '=https' \
       --show-error --silent --retry 3 --connect-timeout 20 --max-time 300 \
       --output "$archive" "$url"
-    # Zig computes the content hash; the unchanged manifest selects only the expected cache entry.
-    "$ZIG" fetch "$archive"
+    # Zig 0.17.0's `zig fetch <archive>` caches an archive with the top-level directory its printed hash omits,
+    # so the build rejects that entry as a hash mismatch. Fetch the unpacked tree instead, without a sole
+    # top-level directory, as Zig's unpacker drops it. Zig computes the content hash; the unchanged manifest
+    # selects only the expected cache entry.
+    package="$(mktemp -d "$WORK/package.XXXXXX")"
+    tar -xf "$archive" -C "$package" --no-same-owner
+    top=()
+    while IFS= read -r -d '' entry; do top+=("$entry"); done < <(find "$package" -mindepth 1 -maxdepth 1 -print0)
+    if [[ ${#top[@]} -eq 1 && -d "${top[0]}" && ! -L "${top[0]}" ]]; then package="${top[0]}"; fi
+    "$ZIG" fetch "$package"
   done
 done
 echo "too many Zig dependency transport failures" >&2
