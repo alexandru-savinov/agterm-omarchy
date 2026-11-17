@@ -1,0 +1,102 @@
+name: x86_64 Omarchy native gates
+
+# Runs the native Omarchy acceptance gates (#437) on x86_64 hardware: an Arch container with Omarchy's
+# official-repository desktop packages and Hyprland 0.5x on the host's vkms KMS device with Mesa software
+# rendering. It installs a published prerelease's x86_64 archive, never a build from the checked-out ref.
+# This is Arch plus Omarchy's packages on a cloud runner, not an Omarchy ISO install on a physical machine.
+# Not a required check. The pull_request trigger runs only when this workflow or its script changes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Prerelease tag whose agterm-omarchy-x86_64.tar.gz is tested
+        required: true
+        type: string
+        default: omarchy-dev-b1356f0ad7ae-run43761095738
+  pull_request:
+    paths:
+      - .github/workflows/omarchy-x86-native.yml
+      - .github/omarchy-x86-native/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omarchy-x86-native-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  gates:
+    name: x86_64 Omarchy gates (Arch container, vkms)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || 'omarchy-dev-b1356f0ad7ae-run43761095738' }}
+      ARCH_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Lint the gate script
+        run: |
+          bash -n .github/omarchy-x86-native/gates.sh
+          shellcheck -x -P SCRIPTDIR .github/omarchy-x86-native/gates.sh
+      - name: Load vkms
+        run: |
+          uname -m -r
+          [[ "$(uname -m)" == x86_64 ]]
+          if ! sudo modprobe vkms; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+            sudo modprobe vkms
+          fi
+          mkdir -p "$RUNNER_TEMP/out"
+          {
+            uname -srm
+            grep -m1 'model name' /proc/cpuinfo
+            nproc
+            ls -l /dev/dri
+            for card in /sys/class/drm/card[0-9]; do echo "$card -> $(readlink -f "$card/device")"; done
+          } | tee "$RUNNER_TEMP/out/host.txt"
+      - name: Download and verify the release archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^omarchy-dev-[0-9a-f]{12}-run[0-9]+$ ]] || { echo "unexpected tag: $RELEASE_TAG"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/release" "$RUNNER_TEMP/out"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/release" \
+            --pattern agterm-omarchy-x86_64.tar.gz --pattern SHA256SUMS --pattern promotion.json
+          cd "$RUNNER_TEMP/release"
+          sha256sum --check --strict --ignore-missing SHA256SUMS
+          jq -r '.source_commit, .source_run, (.artifacts[] | select(.filename == "agterm-omarchy-x86_64.tar.gz") | "\(.id) \(.sha256)")' promotion.json
+      - name: Run the gates
+        # WebKitGTK sandboxes its helpers with bwrap, which needs unprivileged user namespaces and a mountable
+        # /proc, as on a native Arch host. Ubuntu's AppArmor userns restriction and Docker's seccomp profile and
+        # masked /proc paths forbid them, so the test container lifts those; the WebKit sandbox stays enabled.
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          docker run --rm --device /dev/dri -v /run/udev:/run/udev:ro \
+            --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
+            -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/release:/release:ro" -v "$RUNNER_TEMP/out:/out" \
+            "$ARCH_IMAGE" bash /repo/.github/omarchy-x86-native/gates.sh
+      - name: Summary
+        if: always()
+        run: |
+          {
+            printf '### x86_64 Omarchy gates\nRelease: %s\n\n<pre>\n' "$RELEASE_TAG"
+            cat "$RUNNER_TEMP/out/gates.tsv" 2>/dev/null || echo 'no gate results'
+            cat "$RUNNER_TEMP/out/probe-timings.tsv" 2>/dev/null || true
+            printf '</pre>\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: omarchy-x86-native-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/out
+          retention-days: 30

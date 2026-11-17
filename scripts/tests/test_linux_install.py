@@ -170,7 +170,8 @@ DESKTOP
 
     def test_uninstall_leaves_the_prefix_empty(self):
         self.install('--no-build')
-        for cache in ('share/icons/hicolor/icon-theme.cache', 'share/applications/mimeinfo.cache'):
+        for cache in ('share/icons/hicolor/icon-theme.cache', 'share/applications/mimeinfo.cache',
+                      'share/applications/intent.cache'):
             (self.prefix / cache).write_text('cache')
         self.assertIn('share/agterm/INSTALLED_FILES', [str(path.relative_to(self.prefix / 'lib/agterm'))
                                                       for path in (self.prefix / 'lib/agterm').rglob('*')])
@@ -276,6 +277,13 @@ DESKTOP
         self.assertEqual(self.files(), ['bin', 'lib', 'share', 'share/applications', 'share/icons',
                                         'share/icons/hicolor'])
 
+    def test_uninstall_removes_every_desktop_database_cache(self):
+        self.use_cache_tools()
+        self.install('--no-build')
+        self.assertTrue((self.prefix / 'share/applications/intent.cache').is_file(), 'install refreshes')
+        self.install('--uninstall')
+        self.assertEqual(self.files(), [])
+
     def test_uninstall_refreshes_caches_that_still_index_other_entries(self):
         self.use_cache_tools()
         self.install('--no-build')
@@ -283,10 +291,12 @@ DESKTOP
         other.write_text('[Desktop Entry]\n')
         icon = self.prefix / 'share/icons/hicolor/scalable/actions/other-symbolic.svg'
         icon.write_text('icon')
-        for cache in ('share/applications/mimeinfo.cache', 'share/icons/hicolor/icon-theme.cache'):
+        for cache in ('share/applications/mimeinfo.cache', 'share/applications/intent.cache',
+                      'share/icons/hicolor/icon-theme.cache'):
             (self.prefix / cache).write_text('stale')
         self.install('--uninstall')
         self.assertEqual((self.prefix / 'share/applications/mimeinfo.cache').read_text(), 'regenerated\n')
+        self.assertEqual((self.prefix / 'share/applications/intent.cache').read_text(), 'regenerated\n')
         self.assertEqual((self.prefix / 'share/icons/hicolor/icon-theme.cache').read_text(), 'regenerated\n')
         self.assertTrue(other.is_file() and icon.is_file())
 
@@ -294,11 +304,13 @@ DESKTOP
         # Stand-ins for desktop-file-utils and GTK, so these tests behave the same with or without them.
         tools = self.work / 'cache-tools'
         tools.mkdir()
-        for name, cache in (('update-desktop-database', 'mimeinfo.cache'),
-                            ('gtk-update-icon-cache', 'icon-theme.cache')):
+        # update-desktop-database 0.29 writes intent.cache beside mimeinfo.cache.
+        for name, caches in (('update-desktop-database', ('mimeinfo.cache', 'intent.cache')),
+                             ('gtk-update-icon-cache', ('icon-theme.cache',))):
             tool = tools / name
             tool.write_text(f'#!{sys.executable}\nimport pathlib, sys\n'
-                            f'pathlib.Path(sys.argv[-1], {cache!r}).write_text("regenerated\\n")\n')
+                            f'for cache in {caches!r}:\n'
+                            f'    pathlib.Path(sys.argv[-1], cache).write_text("regenerated\\n")\n')
             tool.chmod(0o755)
         self.env['PATH'] = f'{tools}:{self.env["PATH"]}'
 

@@ -64,7 +64,8 @@ manifest_name = 'share/agterm/INSTALLED_FILES'
 dirs_name = 'share/agterm/INSTALLED_DIRS'
 launchers = ('bin/agterm-linux', 'bin/agtermctl')
 desktop_entry = 'share/applications/io.github.melonamin.agterm.desktop'
-caches = ('share/icons/hicolor/icon-theme.cache', 'share/applications/mimeinfo.cache')
+# Every file the refresh tools write: update-desktop-database 0.29 added intent.cache beside mimeinfo.cache.
+caches = {'share/icons/hicolor': ('icon-theme.cache',), 'share/applications': ('mimeinfo.cache', 'intent.cache')}
 
 def derived(root):
     files = [*launchers, desktop_entry]
@@ -199,12 +200,14 @@ def uninstall():
     names = recorded(payload)
     created = created_dirs(payload)
     remove(names)
-    for cache in caches:
-        directory = (prefix / cache).parent
-        if (prefix / cache).is_file() and not any(
-                path.is_file() and path != prefix / cache for path in directory.rglob('*')):
-            (prefix / cache).unlink()
-            names.append(cache)
+    for directory, generated in caches.items():
+        owned = {prefix / directory / name for name in generated}
+        present = [path for path in owned if path.is_file()]
+        # Caches go only once nothing else is left for them to index.
+        if present and all(path in owned for path in (prefix / directory).rglob('*') if path.is_file()):
+            for path in present:
+                path.unlink()
+                names.append(path.relative_to(prefix).as_posix())
     if payload.is_symlink():
         payload.unlink()
     else:
