@@ -77,17 +77,17 @@ longer apply, and re-running `check.py`.
   every other message, so no new attach, input or command reaches a session that has ended; a kill and
   SIGTERM still end it at once, and a detach is unchanged. An attach made during the drain therefore does
   not create a new session: it shows a blank screen until the daemon ends, at most two seconds, and exits
-  0. Only a second client of the same session or a remote reconnect can attach in that window. Each
-  client connected at the exit is closed as soon as it has been sent everything while another is still
-  behind, so a client that keeps reading sees no delay even while a stalled one holds the drain; when
-  nobody is behind, the teardown closes them after the socket file is gone, as before. A client whose terminal never reads
-  again absorbs up to 1 MiB while the daemon drains (`0006`), and the `0005` drain and the 500 ms exit
-  write follow the hangup. Exit takes about 2.5 seconds, as before, unless more than 1 MiB is pending; then
-  it can take up to about 4.5 seconds. Zig tests run a real daemon loop and client loop
-  over a socket pair with 8 KiB buffers: the last output reaches a terminal that was full at the exit and
-  then resumes; the daemon and then the client end on their deadlines when it never resumes; a draining
-  session answers no late attach, input or command, while a kill ends it at once; and a reading client is
-  let go while a stalled one still holds the daemon. Tests set the deadline themselves (long where they do
+  0. Only a second client of the same session or a remote reconnect can attach in that window. Every
+  client is closed by the teardown, after the socket file is gone, as upstream does, so a pane's own
+  respawn or restart never reaches the dying session. The cost is that a client that keeps reading waits
+  for its hangup until a stalled peer of the same session is served or the deadline passes, at most two
+  seconds. A client whose terminal never reads again absorbs up to 1 MiB while the daemon drains (`0006`),
+  and the `0005` drain and the 500 ms exit write follow the hangup. Exit takes about 2.5 seconds, as
+  before, unless more than 1 MiB is pending; then it can take up to about 4.5 seconds. Zig tests run a
+  real daemon loop and client loop over a socket pair with 8 KiB buffers: the last output reaches a
+  terminal that was full at the exit and then resumes; the daemon and then the client end on their
+  deadlines when it never resumes; and a draining session answers no late attach, input or command,
+  while a kill ends it at once. Tests set the deadline themselves (long where they do
   not measure it), so a starved runner cannot miss it; the build outside tests always uses two seconds.
   This is the daemon half of the bounded drain asked for in umputun/agterm#998, on the Linux pin only; the
   macOS pin keeps its own patch set (#449).

@@ -1,5 +1,5 @@
 diff --git zmx-orig/src/loop.zig zmx/src/loop.zig
-index cdf8c91..7cbbce5 100644
+index cdf8c91..cb8b07e 100644
 --- zmx-orig/src/loop.zig
 +++ zmx/src/loop.zig
 @@ -365,6 +365,17 @@ fn initTerminal(gpa: std.mem.Allocator, io: std.Io, size: ipc.Resize, cfg: *cons
@@ -20,7 +20,7 @@ index cdf8c91..7cbbce5 100644
  /// dameonLoop is what the daemon runs to send and receive ipc commands from its corresponding
  /// clients.  It uses poll() as its non-blocking mechanism.
  fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_fd: lib_posix.socket_t, pty_fd: i32) !void {
-@@ -389,7 +400,30 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -389,7 +400,20 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
  
      var had_terminal_client = daemon.hasTerminalClient();
  
@@ -35,23 +35,13 @@ index cdf8c91..7cbbce5 100644
 +                std.log.info("exit drain deadline passed with output unsent", .{});
 +                break :daemon_loop;
 +            }
-+            // the drain goes on for a client still behind, so one connected when the shell exited that has
-+            // been sent everything leaves now, and a stalled one holds only itself; one that connected since
-+            // is served until it leaves. When nobody is behind, the clients are closed by the teardown, after
-+            // the socket file is gone, as upstream does.
-+            var c: usize = daemon.clients.items.len;
-+            while (c > 0) {
-+                c -= 1;
-+                const client = daemon.clients.items[c];
-+                if (client.session_ended and client.write_buf.items.len == 0) _ = daemon.closeClient(gpa, client, c, false);
-+            }
 +        }
 +        const draining = drain_deadline != null;
 +
          // If the program asked for focus reports (DECSET 1004), send focus-out
          // when the last attached client leaves and focus-in when one returns,
          // as a terminal would when its window loses/gains focus.
-@@ -411,8 +445,9 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -411,8 +435,9 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
          if (daemon.pty_write_buf.items.len > 0) {
              pty_events |= lib_posix.POLL.OUT;
          }
@@ -62,7 +52,7 @@ index cdf8c91..7cbbce5 100644
              .events = pty_events,
              .revents = 0,
          });
-@@ -431,7 +466,11 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -431,7 +456,11 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
              });
          }
  
@@ -75,7 +65,7 @@ index cdf8c91..7cbbce5 100644
  
          if (poll_fds.items[2].revents & lib_posix.POLL.IN != 0) {
              signal.drainSignalPipe() catch {};
-@@ -487,10 +526,9 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -487,10 +516,8 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
                  if (n == 0) {
                      // EOF: Shell exited
                      std.log.info("shell exited pty_fd={d}", .{pty_fd});
@@ -85,11 +75,10 @@ index cdf8c91..7cbbce5 100644
 -                    daemon.running = false;
 +                    // what clients have not been sent yet is delivered, bounded, before shutdown frees it
 +                    drain_deadline = role.nowMs() + exitDrainMs();
-+                    for (daemon.clients.items) |c| c.session_ended = true;
                  } else {
                      // Feed PTY output to terminal emulator for state tracking
                      vt_stream.nextSlice(buf[0..n]);
-@@ -608,6 +646,11 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -608,6 +635,11 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
                  }
  
                  while (client.read_buf.next()) |msg| {
@@ -101,16 +90,7 @@ index cdf8c91..7cbbce5 100644
                      switch (msg.header.tag) {
                          .Input => try daemon.handleInput(gpa, client, msg.payload),
                          .Send => daemon.handleSend(gpa, msg.payload),
-@@ -709,6 +752,8 @@ pub const Client = struct {
-     read_buf: ipc.SocketBuffer,
-     write_buf: std.ArrayList(u8),
-     env_str: ?[]u8 = null,
-+    /// connected when the shell exited: the daemon closes it once it has been sent everything
-+    session_ended: bool = false,
- 
-     pub fn deinit(self: *Client, gpa: std.mem.Allocator) void {
-         lib_posix.close(self.socket_fd);
-@@ -823,6 +868,14 @@ pub const Daemon = struct {
+@@ -823,6 +855,14 @@ pub const Daemon = struct {
          return false;
      }
  
@@ -125,7 +105,7 @@ index cdf8c91..7cbbce5 100644
      pub fn closeClient(self: *Daemon, gpa: std.mem.Allocator, client: *Client, i: usize, shutdown_on_last: bool) bool {
          const fd = client.socket_fd;
          // leader is disconnected, remove ref and let another client claim leader on input
-@@ -2268,3 +2321,378 @@ test "client returns promptly when stdout reader closes with daemon connected" {
+@@ -2268,3 +2308,328 @@ test "client returns promptly when stdout reader closes with daemon connected" {
      try std.testing.expectEqual(input_flags, try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0));
      try std.testing.expectEqual(output_flags, try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0));
  }
@@ -170,8 +150,6 @@ index cdf8c91..7cbbce5 100644
 +    /// [0] what the terminal reads, [1] the client's stdin and stdout
 +    term_pty: [2]i32,
 +    sock: i32,
-+    /// a second client the test reads itself, or -1
-+    reader: i32 = -1,
 +    saved_signals: SavedClientSignals,
 +    saved_sigpipe: lib_posix.Sigaction = undefined,
 +    /// the self-pipe daemonLoop opened, which a client loop replaces in `signal.sig_pipe`
@@ -186,7 +164,6 @@ index cdf8c91..7cbbce5 100644
 +    const Options = struct {
 +        /// the daemon's drain deadline; long where a test does not measure it, so a starved runner meets it
 +        drain_ms: i64,
-+        with_reader: bool = false,
 +    };
 +
 +    fn start(self: *EndingSession, alloc: std.mem.Allocator, opts: Options) !void {
@@ -217,14 +194,6 @@ index cdf8c91..7cbbce5 100644
 +        _ = try lib_posix.fcntl(pair[0], lib_posix.F.SETFL, lib_posix.O_NONBLOCK);
 +        try self.daemon.clients.append(alloc, try testClient(alloc, pair[0], false));
 +        self.sock = pair[1];
-+        if (opts.with_reader) {
-+            var second: [2]i32 = undefined;
-+            if (std.c.socketpair(lib_posix.AF.UNIX, lib_posix.SOCK.STREAM, 0, &second) != 0) return error.NoSocketPair;
-+            for (second) |fd| setBuffers(fd);
-+            _ = try lib_posix.fcntl(second[0], lib_posix.F.SETFL, lib_posix.O_NONBLOCK);
-+            try self.daemon.clients.append(alloc, try testClient(alloc, second[0], false));
-+            self.reader = second[1];
-+        }
 +        test_exit_drain_ms = opts.drain_ms;
 +        self.daemon_thread = try std.Thread.spawn(.{}, runDaemon, .{self});
 +        errdefer self.kill();
@@ -348,7 +317,6 @@ index cdf8c91..7cbbce5 100644
 +        const attached = self.client_thread != null;
 +        self.kill();
 +        if (!attached and self.sock >= 0) lib_posix.close(self.sock);
-+        if (self.reader >= 0) lib_posix.close(self.reader);
 +        test_exit_drain_ms = EXIT_DRAIN_MS;
 +        // a client loop closed its own self-pipe; the daemon's is closed here
 +        for (self.daemon_pipe) |fd| {
@@ -465,42 +433,4 @@ index cdf8c91..7cbbce5 100644
 +    const sent = role.nowMs();
 +    EndingSession.waitFor(&s.daemon_done_ms);
 +    try std.testing.expect(s.daemon_done_ms.load(.acquire) - sent < @divTrunc(test_exit_drain_ms, 2));
-+}
-+
-+test "a client sent everything leaves a draining session while a stalled one holds it" {
-+    const alloc = std.testing.allocator;
-+    var s: EndingSession = undefined;
-+    try s.start(alloc, .{ .drain_ms = 20_000, .with_reader = true });
-+    defer s.deinit();
-+    const payload = try testPayload(alloc);
-+    defer alloc.free(payload);
-+
-+    // the reader keeps reading from before the exit; the session socket is never read
-+    var got: std.ArrayList(u8) = .empty;
-+    defer got.deinit(alloc);
-+    var frames = try ipc.SocketBuffer.init(alloc);
-+    defer frames.deinit();
-+    const Reader = struct {
-+        fn run(fd: i32, buffer: *ipc.SocketBuffer, out: *std.ArrayList(u8), a: std.mem.Allocator, eof_ms: *std.atomic.Value(i64)) void {
-+            while (true) {
-+                const n = buffer.read(fd) catch 0;
-+                if (n == 0) break;
-+                while (buffer.next()) |msg| {
-+                    if (msg.header.tag == .Output) out.appendSlice(a, msg.payload) catch @panic("out of memory");
-+                }
-+            }
-+            eof_ms.store(role.nowMs(), .release);
-+        }
-+    };
-+    var eof_ms = std.atomic.Value(i64).init(0);
-+    const reader = try std.Thread.spawn(.{}, Reader.run, .{ s.reader, &frames, &got, alloc, &eof_ms });
-+    defer reader.join();
-+
-+    const began = role.nowMs();
-+    try s.shellPrintsAndExits(payload);
-+    EndingSession.waitFor(&eof_ms);
-+    // let go well before the deadline, while the stalled client still holds the daemon
-+    try std.testing.expect(!EndingSession.done(&s.daemon_done_ms));
-+    try tookWithin("reader", eof_ms.load(.acquire) - began, test_exit_drain_ms, 0, @divTrunc(test_exit_drain_ms, 2));
-+    try std.testing.expect(std.mem.endsWith(u8, got.items, EndingSession.final_mark));
 +}
