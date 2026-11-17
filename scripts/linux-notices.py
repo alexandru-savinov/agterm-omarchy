@@ -89,8 +89,8 @@ def verify_inventory(inventory, paths):
                        + re.escape(archive['url']) + r'"[^{}]*?\.hash\s*=\s*"' + re.escape(archive['zig_hash']) + r'"')
             require(re.search(pattern, lock), 'archive does not match pinned dependency manifest')
         else:
-            require(archive['version'] == '0.16.0' and archive['url'] ==
-                    'https://ziglang.org/download/0.16.0/zig-0.16.0.tar.xz', 'unsupported compiler source archive')
+            require(archive['version'] == '0.17.0' and archive['url'] ==
+                    'https://ziglang.org/download/0.17.0/zig-0.17.0.tar.xz', 'unsupported compiler source archive')
     for component in inventory['components'].values():
         require(component['notices'] and set(component['notices']) <= paths, 'component is missing retained notices')
     for name, components in inventory['bundled_libraries'].items():

@@ -1,4 +1,5 @@
 scripts/zmx-patches/*.patch whitespace=-blank-at-eol
+scripts/zmx-patches-macos/*.patch whitespace=-blank-at-eol
 # Unified-diff blank context lines require one space; preserve inert proposal bytes.
 docs/evidence/**/*.patch whitespace=-blank-at-eol
 # Preserve the exact upstream license bytes recorded in the notice provenance manifest.

@@ -267,7 +267,7 @@ class NoticeTests(unittest.TestCase):
         for name in ['verify-linux-architecture.sh', 'verify-linux-resources.sh', 'verify-linux-zmx-cache.sh']:
             path = self.repo / 'scripts' / name; path.write_text('#!/bin/sh\nexit 0\n'); path.chmod(0o755)
         executable = self.root / 'bin'; executable.mkdir()
-        for name, content in {'zig': 'echo 0.16.0', 'ghostty-zig': 'echo 0.17.0',
+        for name, content in {'zig': 'echo 0.17.0', 'ghostty-zig': 'echo 0.17.0',
                               'mise': 'exit 1', 'uname': 'echo aarch64',
                               'file': 'exit 98', 'git': 'echo notice-fixture-rebuild >&2; exit 97'}.items():
             path = executable / name; path.write_text('#!/bin/sh\n' + content + '\n'); path.chmod(0o755)

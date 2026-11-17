@@ -323,7 +323,7 @@ Requirements:
 - SVG image loading at runtime for toolbar and sidebar icons (`librsvg2-common` on Ubuntu/Debian).
 - WebP image loading at runtime for image and Markdown pages (`webp-pixbuf-loader`).
 - zsh, required by the shared `agtermCore` tests.
-- Zig 0.17.0 for Ghostty and Zig 0.16.0 for zmx (install both with mise; set `GHOSTTY_ZIG` when not using mise).
+- Zig 0.17.0 for Ghostty and zmx (install it with mise; set `GHOSTTY_ZIG` when not using mise).
 
 ```bash
 scripts/setup-linux.sh

@@ -10,7 +10,7 @@ for argument in "$@"; do
     --with-ui-tests) ui_tests=true ;;
     -h|--help)
       echo "usage: scripts/setup-omarchy.sh [--skip-packages] [--with-ui-tests]"
-      echo "Installs Arch packages (full system upgrade), Swift 6.3.2 and Zig 0.16.0; builds Linux runtimes."
+      echo "Installs Arch packages (full system upgrade), Swift 6.3.2 and Zig 0.17.0; builds Linux runtimes."
       exit 0 ;;
     *) echo "unknown argument: $argument" >&2; exit 2 ;;
   esac
@@ -68,9 +68,8 @@ done
 export LD_LIBRARY_PATH="$compat${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 # Older mise releases otherwise request a nonexistent arch/archarm Swift archive.
 MISE_SWIFT_PLATFORM=ubuntu24.04 mise install swift@6.3.2
-if [[ "$(zig version 2>/dev/null || true)" != 0.16.0 ]]; then
-  mise install zig@0.16.0
-fi
+# setup-linux.sh finds Ghostty's and zmx's compiler through mise, so install it there.
+mise where zig@0.17.0 >/dev/null 2>&1 || mise install zig@0.17.0
 mise exec swift@6.3.2 -- swift --version
 "$ROOT/scripts/setup-linux.sh"
 echo "Ready: run scripts/install-linux.sh to build and install agterm for your user."

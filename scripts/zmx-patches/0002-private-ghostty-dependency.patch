@@ -1,25 +1,27 @@
-diff -ruN zmx-orig/build.zig zmx/build.zig
---- zmx-orig/build.zig	2026-10-03 02:39:00.879857512 -0500
-+++ zmx/build.zig	2026-10-03 02:39:00.882123054 -0500
-@@ -20,7 +20,7 @@
+diff --git zmx-orig/build.zig zmx/build.zig
+index d4e8e95..9483503 100644
+--- zmx-orig/build.zig
++++ zmx/build.zig
+@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) void {
  
      const options = b.addOptions();
      options.addOption([]const u8, "version", version);
 -    const ghostty_ver = build_zig_zon.dependencies.ghostty.hash;
-+    const ghostty_ver = "ghostty-1.3.2-dev-5UdBC4FtYAV-PdFOt-gceWieTHLri0H4ztHtd6Tr4dGj+agterm";
++    const ghostty_ver = "ghostty-1.4.1-dev-5UdBC-9XmgVchRr0CfxYzSRUiww0EdU1WAR3WwtMsqql+agterm";
      options.addOption([]const u8, "ghostty_version", ghostty_ver);
+     options.addOption(bool, "has_daemon", enable_daemon);
  
-     const exe_mod = b.createModule(.{
-diff -ruN zmx-orig/build.zig.zon zmx/build.zig.zon
---- zmx-orig/build.zig.zon	2026-10-03 02:47:56.508894151 -0500
-+++ zmx/build.zig.zon	2026-10-03 02:47:56.511145527 -0500
+diff --git zmx-orig/build.zig.zon zmx/build.zig.zon
+index 3e5f0be..784e971 100644
+--- zmx-orig/build.zig.zon
++++ zmx/build.zig.zon
 @@ -5,8 +5,7 @@
-     .minimum_zig_version = "0.16.0",
+     .minimum_zig_version = "0.17.0",
      .dependencies = .{
          .ghostty = .{
--            .url = "git+https://github.com/ghostty-org/ghostty#8af6897c0afc63037a8a3efee4162a380e3a4572",
--            .hash = "ghostty-1.3.2-dev-5UdBC4FtYAV-PdFOt-gceWieTHLri0H4ztHtd6Tr4dGj",
+-            .url = "git+https://github.com/ghostty-org/ghostty#53e55147bbbb0157672dac0228aa7744e881f1fa",
+-            .hash = "ghostty-1.4.1-dev-5UdBC-9XmgVchRr0CfxYzSRUiww0EdU1WAR3WwtMsqql",
 +            .path = "../zmx-ghostty",
          },
-     },
-     .paths = .{
+         .translate_c = .{
+             .url = "git+https://codeberg.org/ziglang/translate-c?ref=zig-0.17.x#cfac21f3199b2b02ce3fd7db652aa456421fe4ab",

@@ -1,7 +1,8 @@
-diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
+diff --git zmx-orig/src/loop.zig zmx/src/loop.zig
+index 2045696..4aafd46 100644
 --- zmx-orig/src/loop.zig
 +++ zmx/src/loop.zig
-@@ -17,6 +17,14 @@
+@@ -18,6 +18,14 @@ const ghostty_vt = terminal.ghostty_vt;
  /// clientLoop sends ipc commands to its corresponding daemon.  It uses poll() as its non-blocking
  /// mechanism. It will send stdin to the daemon and receive stdout from the daemon.
  pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
@@ -15,12 +16,13 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +fn clientLoopWithFds(client_sock_fd: i32, env_str: []const u8, stdin_fd: i32, stdout_fd: i32) !ClientResult {
      std.log.info("client loop fd={d}", .{client_sock_fd});
      const gpa: std.mem.Allocator = blk: {
-         if (builtin.mode == .Debug) {
-@@ -30,6 +38,15 @@
-     };
-     defer lib_posix.close(client_sock_fd);
+         if (builtin.mode == .debug) {
+@@ -38,6 +46,16 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
+     signal.installWakeHandler(@backingInt(lib_posix.SIG.HUP));
+     signal.installWakeHandler(@backingInt(lib_posix.SIG.INT));
  
-+    // Capture both before changing either: stdin and stdout may share a tty's
++    // After the handlers, so a SIGTERM/HUP/INT that lands once either is set unwinds through the
++    // restores below. Capture both before changing either: stdin and stdout may share a tty's
 +    // open file description, also shared with the parent shell.
 +    const stdin_orig_flags = try lib_posix.fcntl(stdin_fd, lib_posix.F.GETFL, 0);
 +    const stdout_orig_flags = try lib_posix.fcntl(stdout_fd, lib_posix.F.GETFL, 0);
@@ -29,19 +31,19 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +    _ = try lib_posix.fcntl(stdout_fd, lib_posix.F.SETFL, stdout_orig_flags | lib_posix.O_NONBLOCK);
 +    defer _ = lib_posix.fcntl(stdout_fd, lib_posix.F.SETFL, stdout_orig_flags) catch {};
 +
-     try signal.openSignalPipe();
-     signal.installWakeHandler(@intFromEnum(lib_posix.SIG.WINCH));
- 
-@@ -54,7 +71,7 @@
+     // Make socket non-blocking to avoid blocking on writes
+     var sock_flags = try lib_posix.fcntl(client_sock_fd, lib_posix.F.GETFL, 0);
+     sock_flags |= lib_posix.O_NONBLOCK;
+@@ -59,7 +77,7 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
      }
  
      // Send init message with terminal size (buffered)
 -    const size = ipc.getTerminalSize(lib_posix.STDOUT_FILENO);
 +    const size = ipc.getTerminalSize(stdout_fd);
-     try ipc.appendSizeMessage(gpa, &sock_write_buf, .Init, size);
+     try ipc.appendMessage(gpa, &sock_write_buf, .Init, std.mem.asBytes(&size));
  
      var poll_fds = try std.ArrayList(lib_posix.pollfd).initCapacity(gpa, 4);
-@@ -66,15 +83,6 @@
+@@ -71,15 +89,6 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
      var stdout_buf = try std.ArrayList(u8).initCapacity(gpa, 4096);
      defer stdout_buf.deinit(gpa);
  
@@ -57,7 +59,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      const detach_key_disabled = util.isDetachKeyDisabled();
  
      while (true) {
-@@ -86,8 +94,10 @@
+@@ -91,8 +100,10 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
              .revents = 0,
          });
  
@@ -70,7 +72,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
          if (sock_write_buf.items.len > 0) {
              sock_events |= lib_posix.POLL.OUT;
          }
-@@ -101,7 +111,7 @@
+@@ -106,7 +117,7 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
  
          if (stdout_buf.items.len > 0) {
              try poll_fds.append(gpa, .{
@@ -79,7 +81,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                  .events = lib_posix.POLL.OUT,
                  .revents = 0,
              });
-@@ -114,13 +124,13 @@
+@@ -119,13 +130,13 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
          // The daemon is gone: what it queued is read and written by finishSession alone, bounded.
          if (poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
              std.log.info("poll hup|err|nval", .{});
@@ -89,13 +91,13 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
          }
  
          if (poll_fds.items[2].revents & lib_posix.POLL.IN != 0) {
-             signal.drainSignalPipe();
+             try signal.drainSignalPipe();
 -            const next_size = ipc.getTerminalSize(lib_posix.STDOUT_FILENO);
 +            const next_size = ipc.getTerminalSize(stdout_fd);
-             try ipc.appendSizeMessage(gpa, &sock_write_buf, .Resize, next_size);
-         }
- 
-@@ -155,7 +165,7 @@
+             try ipc.appendMessage(
+                 gpa,
+                 &sock_write_buf,
+@@ -165,7 +176,7 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
              const n = read_buf.read(client_sock_fd) catch |err| {
                  if (err == error.WouldBlock) continue;
                  if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
@@ -104,7 +106,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                      return ClientResult{ .kind = .detach, .session_name = null };
                  }
                  std.log.err("daemon read err={s}", .{@errorName(err)});
-@@ -163,7 +173,7 @@
+@@ -173,7 +184,7 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
              };
              if (n == 0) {
                  std.log.info("server closed connection", .{});
@@ -113,16 +115,16 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                  return ClientResult{ .kind = .detach, .session_name = null };
              }
  
-@@ -185,7 +195,7 @@
+@@ -195,7 +206,7 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
                      .Resize => {
                          // daemon is asking for the client's window size usually in response
                          // to this client being set as leader.
 -                        const next_size = ipc.getTerminalSize(lib_posix.STDOUT_FILENO);
 +                        const next_size = ipc.getTerminalSize(stdout_fd);
-                         try ipc.appendSizeMessage(gpa, &sock_write_buf, .Resize, next_size);
-                     },
-                     .Switch => {
-@@ -213,7 +223,7 @@
+                         try ipc.appendMessage(
+                             gpa,
+                             &sock_write_buf,
+@@ -228,7 +239,7 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
                      if (err == error.WouldBlock) break :blk 0;
                      if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
                          std.log.info("connection reset or broken pipe", .{});
@@ -131,7 +133,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                          return ClientResult{ .kind = .detach, .session_name = null };
                      }
                      return err;
-@@ -224,11 +234,17 @@
+@@ -239,11 +250,17 @@ pub fn clientLoop(client_sock_fd: i32, env_str: []const u8) !ClientResult {
              }
          }
  
@@ -152,7 +154,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
              if (n > 0) {
                  try stdout_buf.replaceRange(gpa, 0, n, &[_]u8{});
              }
-@@ -247,12 +263,12 @@
+@@ -262,12 +279,12 @@ const DRAIN_MAX_BYTES: usize = 1 << 20;
  fn finishSession(
      gpa: std.mem.Allocator,
      sock: i32,
@@ -166,7 +168,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      const flags = lib_posix.fcntl(fd, lib_posix.F.GETFL, 0) catch return;
      _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags | lib_posix.O_NONBLOCK) catch return;
      defer _ = lib_posix.fcntl(fd, lib_posix.F.SETFL, flags) catch {};
-@@ -2002,3 +2018,165 @@
+@@ -2056,3 +2073,167 @@ test "handleEnvGet returns leader client's environment variables including unset
      const pay3 = client_req.write_buf.items[@sizeOf(ipc.Header)..];
      try std.testing.expectEqualStrings("DISPLAY=:99\n", pay3);
  }
@@ -179,7 +181,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +    const input_flags = try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0);
 +    const initial_output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
 +    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, initial_output_flags | lib_posix.O_NONBLOCK);
-+    const fill = [_]u8{'x'} ** 4096;
++    const fill: [4096]u8 = @splat('x');
 +    while (true) {
 +        _ = lib_posix.write(output[1], &fill) catch |err| {
 +            if (err == error.WouldBlock) break;
@@ -199,16 +201,8 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +    var peer_owns_socket = false;
 +    defer if (!peer_owns_socket) lib_posix.close(sockets[1]);
 +
-+    const saved_pipe = signal.sig_pipe;
-+    var saved_winch: lib_posix.Sigaction = undefined;
-+    lib_posix.sigaction(lib_posix.SIG.WINCH, null, &saved_winch);
-+    defer {
-+        lib_posix.sigaction(lib_posix.SIG.WINCH, &saved_winch, null);
-+        if (signal.sig_pipe[0] != saved_pipe[0]) {
-+            for (signal.sig_pipe) |fd| lib_posix.close(fd);
-+            signal.sig_pipe = saved_pipe;
-+        }
-+    }
++    var saved_signals = SavedClientSignals.save();
++    defer saved_signals.restore();
 +
 +    var hangup_ms = std.atomic.Value(i64).init(0);
 +    const DaemonPeer = struct {
@@ -245,6 +239,24 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +    try std.testing.expectEqual(output_flags, try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0));
 +}
 +
++/// The handlers and self-pipe a client loop installs, restored when a test's client returns.
++const SavedClientSignals = struct {
++    const signals = [_]lib_posix.SIG{ lib_posix.SIG.WINCH, lib_posix.SIG.TERM, lib_posix.SIG.HUP, lib_posix.SIG.INT };
++    pipe: [2]lib_posix.fd_t,
++    actions: [signals.len]lib_posix.Sigaction = undefined,
++
++    fn save() SavedClientSignals {
++        var saved: SavedClientSignals = .{ .pipe = signal.sig_pipe };
++        for (signals, &saved.actions) |sig, *action| lib_posix.sigaction(sig, null, action);
++        return saved;
++    }
++
++    fn restore(self: *const SavedClientSignals) void {
++        for (signals, &self.actions) |sig, *action| lib_posix.sigaction(sig, action, null);
++        signal.sig_pipe = self.pipe;
++    }
++};
++
 +// Panic on timeout: unwinding a test with a stuck worker would close its fds
 +// and invalidate its stack state, while joining it would hang the test runner.
 +const TestClient = struct {
@@ -280,7 +292,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +    const input_flags = try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0);
 +    const initial_output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
 +    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, initial_output_flags | lib_posix.O_NONBLOCK);
-+    const fill = [_]u8{'x'} ** 4096;
++    const fill: [4096]u8 = @splat('x');
 +    while (true) {
 +        _ = lib_posix.write(output[1], &fill) catch |err| {
 +            if (err == error.WouldBlock) break;
@@ -309,20 +321,12 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
 +    defer lib_posix.close(sockets[1]);
 +    try ipc.send(sockets[1], .Output, "queued output\r\n");
 +
-+    const saved_pipe = signal.sig_pipe;
-+    var saved_winch: lib_posix.Sigaction = undefined;
-+    lib_posix.sigaction(lib_posix.SIG.WINCH, null, &saved_winch);
++    var saved_signals = SavedClientSignals.save();
++    defer saved_signals.restore();
 +    var saved_sigpipe: lib_posix.Sigaction = undefined;
 +    lib_posix.sigaction(lib_posix.SIG.PIPE, null, &saved_sigpipe);
 +    signal.ignoreSigpipe();
-+    defer {
-+        lib_posix.sigaction(lib_posix.SIG.PIPE, &saved_sigpipe, null);
-+        lib_posix.sigaction(lib_posix.SIG.WINCH, &saved_winch, null);
-+        if (signal.sig_pipe[0] != saved_pipe[0]) {
-+            for (signal.sig_pipe) |fd| lib_posix.close(fd);
-+            signal.sig_pipe = saved_pipe;
-+        }
-+    }
++    defer lib_posix.sigaction(lib_posix.SIG.PIPE, &saved_sigpipe, null);
 +
 +    var client = TestClient{};
 +    const start = role.nowMs();

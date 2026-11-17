@@ -243,6 +243,10 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
         case .session(let id, let window): gLibrary.store(for: window)?.session(withID: id)?.askPending
         }
     }
+    // Before any pane spawns: a daemon from a pre-v1 zmx would otherwise leave its pane blank and deaf.
+    if restoreDecision.requested == .live, let zmxClient {
+        gLaunchLiveReset = LinuxIncompatibleDaemons.reset(client: zmxClient, library: gLibrary)
+    }
     let spawnPlan = gLibrary.launchSpawnPlan()
     gSpawnRegistry.pacer.arm(order: spawnPlan.order, burst: spawnPlan.burst)
     ensureStarterFiles()
@@ -284,6 +288,10 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
     let ids = gLibrary.openIDs()
     let toOpen = ids.isEmpty ? [gLibrary.windows.first?.id].compactMap { $0 } : ids
     for id in toOpen { openWindow(id) }
+    if let notice = gLaunchLiveReset.flatMap(ZmxIncompatibleReset.notice(outcome:)),
+       let controller = toOpen.first.flatMap({ gWindows[$0] }) {
+        controller.showToast(notice)
+    }
     if let controller = gWindows.values.first {
         _ = controller.reloadConfigForAppearanceChange(appearanceSide)
     }

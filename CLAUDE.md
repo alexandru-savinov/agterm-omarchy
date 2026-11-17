@@ -89,8 +89,9 @@ C-boundary concurrency before changing the bridge.
 - Swift 6 `agtermCore` uses complete concurrency checking and has no Xcode/libghostty dependency.
 - `scripts/setup.sh` builds pinned libghostty with Homebrew `zig@0.17`, zmx with `zig@0.16`, and Xcode's
   Metal Toolchain.
-  It is idempotent after artifacts exist. zmx is the plain upstream pin plus `scripts/zmx-patches/`,
-  whose README says what each patch is for and how to regenerate one.
+  It is idempotent after artifacts exist. zmx is the plain upstream pin plus `scripts/zmx-patches-macos/`,
+  which keeps macOS on zmx v0.8.1 while Linux runs v1 with `scripts/zmx-patches/`; their READMEs say
+  what each patch is for and how to regenerate one.
 - Commands:
   - `scripts/run.sh`: setup, generate, Debug build, launch.
   - `scripts/build.sh`: setup, generate, Release build.
@@ -143,7 +144,7 @@ C-boundary concurrency before changing the bridge.
 - Symlink an artifact set only while the main checkout's matching stamp equals what the worktree's
   `setup.sh` would write for that set: `GHOSTTY_REV` and the digest of
   `scripts/ghostty-patches/*.patch` for ghostty, and `ZMX_REV`, `ZMX_TARGET` and the
-  digest of `scripts/zmx-patches/*.patch` and `scripts/zmx-patches/ghostty/*.patch` for zmx, so a target
+  digest of `scripts/zmx-patches-macos/*.patch` and its `ghostty/*.patch` for zmx, so a target
   or a patch change invalidates a set whose revision still matches. When either differs, remove that
   set's artifact and stamp links before setup runs and let it build locally. `setup.sh` writes stamps
   through symlinks while replacing linked artifacts with local files and directories, so a linked build

@@ -84,7 +84,7 @@ jobs:
           path: |
             agterm/Resources/zmx
             .zmx-build-stamp
-          key: macos-weekly-macos26-${{ runner.arch }}-zmx-${{ steps.revisions.outputs.zmx }}-${{ steps.revisions.outputs.target }}-${{ hashFiles('scripts/setup.sh', 'scripts/zmx-patches/**/*.patch') }}
+          key: macos-weekly-macos26-${{ runner.arch }}-zmx-${{ steps.revisions.outputs.zmx }}-${{ steps.revisions.outputs.target }}-${{ hashFiles('scripts/setup.sh', 'scripts/zmx-patches-macos/**/*.patch') }}
       - name: Stage upstream runtime dependencies
         id: prepare
         run: |

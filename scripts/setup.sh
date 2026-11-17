@@ -18,6 +18,9 @@ CDPATH='' cd -- "$(dirname "$0")/.."
 GHOSTTY_REPO="https://github.com/ghostty-org/ghostty"
 GHOSTTY_REV="83fb95624b0439ee660c2679b43b38c8b63769cd"  # v1.4.0, 2026-10-27
 ZMX_REPO="https://github.com/neurosnap/zmx"
+# The macOS app stays on zmx v0.8.1 while Linux (linux/zmx.env) runs v1: v1 clients cannot reach v0.8.1
+# daemons, and only Linux resets those at launch (LinuxIncompatibleDaemons). Move this pin, and drop
+# scripts/zmx-patches-macos for scripts/zmx-patches, when the Mac launch path gets that reset.
 ZMX_REV="8bab1f0173b07e79835ea372d749af3dbf0d0842"  # v0.8.1, 2026-09-05; SessionHostRuntime/DeviceAttributeResponder.swift copies its DA replies
 # zig defaults to the builder's OS version and CPU; ship the app's arm64/macOS 14 baseline.
 ZMX_TARGET="aarch64-macos.14.0"
@@ -34,9 +37,9 @@ GHOSTTY_PATCH_DIGEST="$(cat "$GHOSTTY_PATCH_DIR"/*.patch | shasum -a 256 | cut -
 GHOSTTY_STAMP="$GHOSTTY_REV $GHOSTTY_PATCH_DIGEST"
 ZMX_STAGE_DIR="agterm/Resources/zmx"
 ZMX_STAMP_FILE=".zmx-build-stamp"
-# applied in name order over the plain pin; scripts/zmx-patches/README.md says what each one is for.
+# applied in name order over the plain pin; scripts/zmx-patches-macos/README.md says what each one is for.
 # The stamp carries their digest, so editing a patch rebuilds zmx exactly as a ZMX_REV change does.
-ZMX_PATCH_DIR="scripts/zmx-patches"
+ZMX_PATCH_DIR="scripts/zmx-patches-macos"
 # patches for the ghostty revision zmx itself pins, applied to a private copy of it
 ZMX_GHOSTTY_PATCH_DIR="$ZMX_PATCH_DIR/ghostty"
 ZMX_PATCH_DIGEST="$(cat "$ZMX_PATCH_DIR"/*.patch "$ZMX_GHOSTTY_PATCH_DIR"/*.patch | shasum -a 256 | cut -c1-16)"

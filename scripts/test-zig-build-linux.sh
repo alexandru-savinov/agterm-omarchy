@@ -8,6 +8,12 @@ export TEST_ZIG_WORK="$WORK"
 cat > "$WORK/bin/zig" <<'ZIG'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "$1" == fetch && "$2" == git+https://* ]]; then
+  echo "$2" >> "$TEST_ZIG_WORK/git-fetches"
+  [[ "$(wc -l < "$TEST_ZIG_WORK/git-fetches")" -gt "${TEST_ZIG_GIT_FAILURES:-0}" ]] || exit 1
+  echo computed-hash
+  exit 0
+fi
 if [[ "$1" == fetch ]]; then
   [[ -s "$2" ]]
   touch "$TEST_ZIG_WORK/fetched"
@@ -96,9 +102,25 @@ mkdir "$WORK/custom-temp"
 TMPDIR="$WORK/custom-temp" run_case tls 0
 [[ "$(cat "$WORK/archive-path")" == "$WORK/custom-temp/"* ]]
 [[ -z "$(ls -A "$WORK/custom-temp")" ]]
+# git+https dependencies are prefetched with retries before the build, which still runs once.
+mkdir "$WORK/git-project"
+printf '.{\n    .translate_c = .{\n        .url = "git+https://codeberg.org/ziglang/translate-c?ref=zig-0.17.x#cfac21f",\n    },\n}\n' \
+  > "$WORK/git-project/build.zig.zon"
+git_case() {
+  rm -f "$WORK/git-fetches"
+  local actual=0
+  (cd "$WORK/git-project" && TEST_ZIG_CASE=success TEST_ZIG_GIT_FAILURES="$1" ZIG_FETCH_RETRY_SECONDS=0 \
+    "$ROOT/scripts/zig-build-linux.sh" -Doptimize=ReleaseFast) > "$WORK/result" 2>&1 || actual=$?
+  [[ "$actual" == "$2" ]] || { cat "$WORK/result" >&2; echo "git prefetch after $1 failures: expected $2, got $actual" >&2; exit 1; }
+  [[ "$(wc -l < "$WORK/git-fetches")" -eq "$3" ]]
+}
+git_case 0 0 1
+git_case 2 0 3
+git_case 4 1 4
+grep -qx 'git+https://codeberg.org/ziglang/translate-c?ref=zig-0.17.x#cfac21f' "$WORK/git-fetches"
 if [[ "$(uname -s)" == Linux ]]; then
   unset TMPDIR
   run_case tls 0
   [[ "$(cat "$WORK/archive-path")" == /var/tmp/agterm-zig-fetch.* ]]
 fi
-echo 'Zig transport fallback passes: TLS/reset routing, compiler-error rejection, multiple dependencies, retry bounds, and temporary-directory policy.'
+echo 'Zig transport fallback passes: TLS/reset routing, compiler-error rejection, multiple dependencies, retry bounds, git+https prefetch, and temporary-directory policy.'

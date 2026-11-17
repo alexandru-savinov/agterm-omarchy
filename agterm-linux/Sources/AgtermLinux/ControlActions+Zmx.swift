@@ -57,7 +57,8 @@ extension AppController {
         switch request.cmd {
         case .zmxList:
             return .done(ControlResponse(ok: true, result: ControlResult(zmx: ControlZmxInventory(
-                restore: restoreStatus(), result: zmxJoin(observed), endpoint: client.endpoint
+                restore: restoreStatus(), result: zmxJoin(observed), endpoint: client.endpoint,
+                liveReset: gLaunchLiveReset.map { ControlLiveResetReadback(pending: nil, last: $0) }
             ))))
         case .zmxPrune:
             return pruneZmxDaemons(observed: observed, client: client)

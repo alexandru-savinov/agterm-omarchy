@@ -100,9 +100,7 @@ cp "$ROOT/scripts/setup-linux.sh" "$ROOT/scripts/verify-linux-architecture.sh" \
   "$SETUP_ROOT/scripts/"
 mkdir -p "$SETUP_ROOT/packaging/linux"
 cp -R "$ROOT/packaging/linux/notices" "$SETUP_ROOT/packaging/linux/"
-mkdir -p "$SETUP_ROOT/scripts/zmx-patches/ghostty"
-cp "$ROOT/scripts/zmx-patches/"*.patch "$SETUP_ROOT/scripts/zmx-patches/"
-cp "$ROOT/scripts/zmx-patches/ghostty/"*.patch "$SETUP_ROOT/scripts/zmx-patches/ghostty/"
+cp -R "$ROOT/scripts/zmx-patches" "$SETUP_ROOT/scripts/"
 cp "$ROOT/linux/arch.sh" "$ROOT/linux/ghostty-resources.env" "$ROOT/linux/zmx.env" "$SETUP_ROOT/linux/"
 cp "$ROOT/linux/ghostty-build.sh" "$SETUP_ROOT/linux/"
 mkdir -p "$SETUP_ROOT/scripts/ghostty-patches" "$SETUP_ROOT/linux/patches"
@@ -124,10 +122,15 @@ printf 'test license\n' > "$SETUP_ROOT/agterm-linux/vendor/zmx/LICENSE"
 source "$ROOT/linux/zmx.env"
 # shellcheck source=../linux/arch.sh
 source "$ROOT/linux/arch.sh"
-ZMX_PATCH_DIGEST="$(cat "$ROOT/scripts/zmx-patches"/*.patch "$ROOT/scripts/zmx-patches/ghostty"/*.patch | sha256sum | cut -c1-16)"
-# The zmx cache names its commit, explicit Zig target and patch digest (REVISION) and the target and
+# The ghostty/ set patches the Ghostty commit zmx pins and may be empty.
+shopt -s nullglob
+ZMX_PATCHES=("$ROOT/scripts/zmx-patches"/*.patch)
+ZMX_GHOSTTY_PATCHES=("$ROOT/scripts/zmx-patches/ghostty"/*.patch)
+shopt -u nullglob
+ZMX_PATCH_DIGEST="$(cat "${ZMX_PATCHES[@]}" ${ZMX_GHOSTTY_PATCHES[@]+"${ZMX_GHOSTTY_PATCHES[@]}"} | sha256sum | cut -c1-16)"
+# The zmx cache names its commit, explicit Zig target, compiler and patch digest (REVISION) and the target and
 # CPU it was built for (BUILD_POLICY); both must match this host, on either CI architecture.
-printf '%s %s %s\n' "$ZMX_REV" "$ZIG_TARGET" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
+printf '%s %s zig-%s %s\n' "$ZMX_REV" "$ZIG_TARGET" "$ZMX_ZIG_VERSION" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
 printf 'target=%s cpu=%s\n' "$ZIG_TARGET" "$ZMX_CPU" > "$SETUP_ROOT/agterm-linux/vendor/zmx/BUILD_POLICY"
 AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" \
   "$SETUP_ROOT/scripts/verify-linux-zmx-cache.sh" "$SETUP_ROOT/agterm-linux/vendor/zmx" >/dev/null
@@ -142,7 +145,7 @@ if AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" \
   echo "zmx cache without an explicit target unexpectedly passed verification" >&2
   exit 1
 fi
-printf '%s %s %s\n' "$ZMX_REV" "$ZIG_TARGET" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
+printf '%s %s zig-%s %s\n' "$ZMX_REV" "$ZIG_TARGET" "$ZMX_ZIG_VERSION" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
 cat > "$WORK/git" <<'EOF'
 #!/usr/bin/env bash
 echo "agterm cache test reached the libghostty rebuild path" >&2

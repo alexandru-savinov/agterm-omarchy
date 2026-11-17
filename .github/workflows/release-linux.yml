@@ -24,7 +24,7 @@ env:
   SWIFTLINT_VERSION: "0.65.0"
   SWIFTLINT_SHA256: "79306a34e5c7cc55a220cd108cbb861dcad5f10138dcdf261e2624ae8b0a486b"
   LINUX_SOURCEKIT_LIB_PATH: "/usr/lib/libsourcekitdInProc.so"
-  ZIG_SHA256: "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00"
+  ZIG_SHA256: "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026"
   NFPM_VERSION: "2.47.0"
   NFPM_SHA256: "0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783"
 
@@ -120,10 +120,10 @@ jobs:
           swift --version
           swiftlint --version
           curl -fsSLo /tmp/zig.tar.xz \
-            https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz
+            https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz
           echo "${ZIG_SHA256}  /tmp/zig.tar.xz" | sha256sum --check
           tar -xJf /tmp/zig.tar.xz -C /opt
-          echo "/opt/zig-x86_64-linux-0.16.0" >> "$GITHUB_PATH"
+          echo "/opt/zig-x86_64-linux-0.17.0" >> "$GITHUB_PATH"
 
       - name: Install Linux packaging tools
         run: |

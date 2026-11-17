@@ -15,7 +15,7 @@ struct ZmxLifecycleTests {
         #expect(try ZmxListParser.parse(output) == [
             ZmxSessionRecord(name: "agterm-a", clients: 0, leaderPID: 10, createdAt: Date(timeIntervalSince1970: 1)),
             ZmxSessionRecord(name: "agterm-b", clients: 2, leaderPID: 11, createdAt: Date(timeIntervalSince1970: 1)),
-            ZmxSessionRecord(name: "agterm-busy", clients: nil),
+            ZmxSessionRecord(name: "agterm-busy", clients: nil, error: "Timeout"),
         ])
     }
 

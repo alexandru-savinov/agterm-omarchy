@@ -100,3 +100,5 @@ enum LinuxZmxLaunch {
 @MainActor var gRestoreLaunchDecision = RestoreMode.none.launchDecision(liveUnavailableReason: nil)
 @MainActor var gZmxClient: LinuxZmxClient?
 @MainActor var gZmxRunningNames: Set<String>?
+/// What this launch's reset of daemons on an incompatible zmx did; read back as `liveReset.last`.
+@MainActor var gLaunchLiveReset: LiveReset.Outcome?

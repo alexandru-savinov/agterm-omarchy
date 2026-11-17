@@ -1709,6 +1709,23 @@ side, and reads `lastAppliedIsDark` when bare. Refuse it outside XCUITest; provi
   pending and no launch consumed a marker. Each `zmx list` row carries `outdated: true` for a daemon created
   before the cutoff, omitted otherwise. XCUITest exemption: the command quits the app, so its
   coverage is hosted and package tests plus the isolated acceptance run, like `restore.mode`.
+- Linux has no reset dialog or marker; it resets at launch only the daemons the bundled zmx cannot talk to.
+  zmx v1 changed the IPC header, so a daemon a pre-v1 zmx started lists as `err=IncompatibleProtocol`
+  (`scripts/zmx-patches/0007`), and attaching to one showed a blank pane that took no input.
+  `LinuxIncompatibleDaemons.reset` runs after the claim walk and before any pane spawns. For each claimed
+  incompatible daemon it finds the one zmx process holding a listening socket bound in the socket directory
+  (`/proc/net/unix` against `/proc/*/fd`; `ZmxIncompatibleReset.daemonPID`), sends SIGTERM, then SIGKILL
+  after 1.5 s, re-reading the process start time before each signal so a reused pid is never hit, and lists
+  again. That listing removes a refused socket and is the verdict: a daemon it still reports as incompatible
+  was not ended, whether or not its process was found, and its pane counts as unconfirmed. The pane of an
+  ended daemon restores as one whose daemon is missing; an unconfirmed one runs
+  `ZmxIncompatibleReset.unconfirmedPaneCommand` held instead of attaching, so its session stays and says why
+  (an attach would exit on zmx's refusal and close it). Procfs files are read to EOF with `read(2)`:
+  Foundation's whole-file readers stop after one page of a zero-size file, which hid the daemon. A busy
+  daemon (`err=Timeout`) is never selected. The outcome is `liveReset.last` on the tree and the `zmx list`
+  header, and the first window shows `ZmxIncompatibleReset.notice` as a toast.
+  The macOS app keeps zmx v0.8.1 (`scripts/setup.sh`, `scripts/zmx-patches-macos`) until its launch has
+  this reset; `scripts/tests/test_zmx_pin_split.py` holds the two pins apart.
 
 ## Remote sessions
 

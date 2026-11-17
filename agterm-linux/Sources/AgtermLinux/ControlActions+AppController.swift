@@ -99,6 +99,7 @@ extension AppController: ControlActions {
                 case .auto: return "auto"
                 }
             }, app: LinuxAppMetadata.identity,
+            liveReset: gLaunchLiveReset.map { ControlLiveResetReadback(pending: nil, last: $0) },
             flaggedLayout: linuxSettingsStore().load().effectiveFlaggedViewLayout,
             htmlZoom: linuxSettingsStore().load().effectiveHtmlOverlayZoom,
             linkOpenMode: linuxSettingsStore().load().effectiveLinkOpenMode,
