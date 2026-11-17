@@ -34,6 +34,8 @@ class ZmxPinSplitTests(unittest.TestCase):
         linux = {p.name for p in (ROOT / "scripts/zmx-patches").glob("*.patch")}
         self.assertIn("0007-incompatible-daemon.patch", linux)
         self.assertNotIn("0007-incompatible-daemon.patch", mac)
+        self.assertIn("0008-daemon-drain-on-exit.patch", linux)
+        self.assertNotIn("0008-daemon-drain-on-exit.patch", mac)
         self.assertTrue((ROOT / "scripts/zmx-patches-macos/ghostty/0001-formatter-unstyled-blanks.patch").is_file())
 
     def test_macos_cache_key_follows_the_macos_patch_set(self):

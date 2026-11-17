@@ -68,6 +68,29 @@ longer apply, and re-running `check.py`.
   another `protocol_version` marks the peer foreign: `zmx list` prints `err=IncompatibleProtocol` and keeps
   the socket, `attach` probes first and exits 1 with that reason, and a client loop that meets one ends.
   agterm's Linux launch resets those daemons (`.claude/rules/control-api.md`, Live sessions reset).
+- `0008-daemon-drain-on-exit.patch` keeps a session's last output in the daemon when its shell exits
+  (#447). Upstream's last pass wrote to each client once, and only to one whose socket polled writable,
+  then shutdown freed every client's queued `write_buf`, so the final output for a client that was behind
+  was dropped before `0005` could read it. On the shell's EOF the daemon now stops polling the PTY and keeps
+  serving its clients until none has output queued, bounded by one two-second deadline shared by all of
+  them. From the pass after the one that read the EOF, it takes a detach, a kill and Info and ignores
+  every other message, so no new attach, input or command reaches a session that has ended; a kill and
+  SIGTERM still end it at once, and a detach is unchanged. An attach made during the drain therefore does
+  not create a new session: it shows a blank screen until the daemon ends, at most two seconds, and exits
+  0. Only a second client of the same session or a remote reconnect can attach in that window. Every
+  client is closed by the teardown, after the socket file is gone, as upstream does, so a pane's own
+  respawn or restart never reaches the dying session. The cost is that a client that keeps reading waits
+  for its hangup until a stalled peer of the same session is served or the deadline passes, at most two
+  seconds. A client whose terminal never reads again absorbs up to 1 MiB while the daemon drains (`0006`),
+  and the `0005` drain and the 500 ms exit write follow the hangup. Exit takes about 2.5 seconds, as
+  before, unless more than 1 MiB is pending; then it can take up to about 4.5 seconds. Zig tests run a
+  real daemon loop and client loop over a socket pair with 8 KiB buffers: the last output reaches a
+  terminal that was full at the exit and then resumes; the daemon and then the client end on their
+  deadlines when it never resumes; and a draining session answers no late attach, input or command,
+  while a kill ends it at once. Tests set the deadline themselves (long where they do
+  not measure it), so a starved runner cannot miss it; the build outside tests always uses two seconds.
+  This is the daemon half of the bounded drain asked for in umputun/agterm#998, on the Linux pin only; the
+  macOS pin keeps its own patch set (#449).
 
 `check.py <zmx>` drives managed clients on ptys of different sizes against one daemon in a throwaway
 `ZMX_DIR`, prints one line per rule, and exits nonzero when any of them is broken. Linux CI runs it
