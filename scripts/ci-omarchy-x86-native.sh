@@ -49,7 +49,8 @@ root_phase() {
 drm_card() {
   local card
   for card in /sys/class/drm/card[0-9]; do
-    if [[ "$(basename "$(readlink -f "$card/device/driver")")" == vkms ]]; then
+    # vkms registers a bare platform device named vkms, with no driver link.
+    if [[ "$(basename "$(readlink -f "$card/device")")" == vkms ]]; then
       echo "/dev/dri/$(basename "$card")"
       return
     fi
