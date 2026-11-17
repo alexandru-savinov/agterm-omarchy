@@ -5,14 +5,19 @@ Use one serially owned Linux-filesystem checkout and cache to avoid repeated col
 Do not reuse Swift 6.4 build products with this Swift 6.3.2 environment.
 
 The existing build image is based on the official Swift 6.3.2 Ubuntu 24.04 image and already includes
-GTK, Zig and the main test tools. Its [publication and original attestation recovery](../packaging/linux/github-feature-evidence.md#package-original-attestation-and-oidc)
-record source `67f744ba7e60525e92a7a0a635b26eb4aab965b6`. Pull the immutable digest below, not a mutable tag.
+GTK, fish, Zig 0.16.0 for zmx and Zig 0.17.0 for Ghostty.
+The pinned rebuild was [published from source `02a98df0`](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/43311977944)
+and [verified separately](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/43313138626).
+The [original image's attestation recovery](../packaging/linux/github-feature-evidence.md#package-original-attestation-and-oidc)
+records the older source `67f744ba7e60525e92a7a0a635b26eb4aab965b6`, not this rebuild.
+Pull the immutable digest below, not a mutable tag.
 The procedure verifies content identity; it does not perform a fresh signature verification.
 
 Requirements: Linux user/mount/PID namespaces, Bash, Git, Python 3.11+, skopeo, umoci and bubblewrap.
 The initial setup used skopeo 1.24.1, umoci 0.6.0 and bubblewrap 0.11.2 without a container daemon.
 Use an ephemeral tool environment rather than changing host services or global policy.
-Allow about 10 GiB before builds: the measured download is 1,707,132,576 bytes; retained original and
+Allow additional room for the rebuilt image and builds; the original image measurements below are historical.
+For that image, the measured download is 1,707,132,576 bytes; retained original and
 converted OCI stores used 1.6 GiB each and the unpacked bundle 5.2 GiB. Build caches need additional space.
 
 ## Pull and unpack once
@@ -87,6 +92,7 @@ exec bwrap --die-with-parent --new-session --unshare-user --uid 1000 --gid 1000 
   --bind "$root/tmp" /tmp --ro-bind /etc/resolv.conf /etc/resolv.conf \
   --proc /proc --dev /dev --clearenv \
   --setenv PATH /opt/zig-x86_64-linux-0.16.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  --setenv GHOSTTY_ZIG /opt/zig-x86_64-linux-0.17.0/zig \
   --setenv HOME /home/ubuntu --setenv USER ubuntu --setenv LOGNAME ubuntu \
   --setenv SHELL /bin/bash --setenv LANG C.UTF-8 \
   --setenv XDG_CONFIG_HOME /home/ubuntu/.config --setenv XDG_CACHE_HOME /home/ubuntu/.cache \
@@ -100,6 +106,8 @@ chmod 755 "$VALIDATION_ROOT/run"
 Only the checkout, temporary directory and isolated home are writable. No host home, credentials,
 Nix library paths or compiler caches are mounted. The pinned image contains the non-root `ubuntu`
 account at UID/GID 1000, with `/home/ubuntu` and `/bin/bash`; these match the launcher environment.
+Because `--clearenv` discards the image environment, the launcher explicitly restores `GHOSTTY_ZIG`.
+The default `zig` on PATH remains 0.16.0 for zmx; Ghostty uses the separate 0.17.0 binary.
 
 ## Probe before compiling
 
@@ -113,17 +121,20 @@ test -w "$HOME"
 git rev-parse HEAD
 swift --version
 zig version
+"$GHOSTTY_ZIG" version
 swiftlint version
 pkg-config --modversion gtk4 libadwaita-1 webkitgtk-6.0 epoxy
-for tool in sh bash dirname git rg zsh file python3 Xvfb dbus-run-session shellcheck; do command -v "$tool"; done
-if command -v fish; then fish --version; else echo "fish absent: fish checks not validated"; fi
+for tool in sh bash dirname git rg zsh fish file python3 Xvfb dbus-run-session shellcheck; do command -v "$tool"; done
+fish --version
 python3 -c "import os,pwd,socket; p=pwd.getpwuid(os.getuid()); assert p.pw_name==os.environ[\"USER\"]; assert p.pw_dir==os.environ[\"HOME\"]; assert p.pw_shell==os.environ[\"SHELL\"]; a,b=socket.socketpair(); a.close(); b.close()"
 '
 ```
 
-The initial probes observed Swift 6.3.2, Zig 0.16.0, SwiftLint 0.65.0, GTK 4.14.5, libadwaita 1.5.0,
+The original-image probes observed Swift 6.3.2, Zig 0.16.0, SwiftLint 0.65.0, GTK 4.14.5, libadwaita 1.5.0,
 WebKitGTK 2.52.6 and epoxy 1.5.10, with standard `/usr/bin` tools and working socket pairs. Fish was
-absent. Record any separately supplied fish version; do not count a skipped test as coverage.
+absent in that original image.
+The current pinned image includes fish; run the probes above to record its actual versions rather than
+reusing historical results. Do not count a skipped test as coverage.
 The first local CLI build used a writable disposable root and unmapped UID 1001. The corrected launcher
 above passed read-only-root, writable-home, passwd/HOME/SHELL consistency and socket probes; do not
 retroactively describe that earlier build as using the corrected isolation or account identity.
@@ -137,9 +148,11 @@ and regenerating it. Preserve SwiftPM dependencies and the checkout rather than 
 Do not switch its commit while another process is compiling or testing. Full GTK/vendor builds are a
 separate cost and are not implied by a CLI build. Keep local results separate from hosted and native evidence.
 
-## Optional cached fish supplement
+## Historical optional cached fish supplement
 
-The image has no fish. A separately verified Nix fish 4.0.8 can exercise the quoting regression without
+The original image had no fish; the current pinned image includes it and does not need this supplement.
+Retain the following procedure only for reproducing the separately recorded fish 4.0.8 evidence.
+A separately verified Nix fish 4.0.8 can exercise the quoting regression without
 changing the image or primary launcher. This is supplemental Nix fish, **not Ubuntu apt fish or a pure-image
 test**. The five paths below are the observed ELF runtime, including the libgcc symlink target; they are
 enough for the tested `fish --no-config` command, not a claim about all interactive fish features.
