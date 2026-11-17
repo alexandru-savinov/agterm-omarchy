@@ -188,9 +188,11 @@ chmod +x "$WORK/real-bin/zig"
 real=0
 (cd "$WORK/real" && TEST_REAL_ZIG="$REAL_ZIG" ZIG="$WORK/real-bin/zig" ZIG_GLOBAL_CACHE_DIR="$WORK/real-cache" \
   ZIG_LOCAL_CACHE_DIR="$WORK/real/.zig-cache" "$ROOT/scripts/zig-build-linux.sh") > "$WORK/result" 2>&1 || real=$?
-[[ $real -eq 0 && -e "$WORK/real-reset" ]] \
-  && grep -qx 'N-V-__8AAD8AAAARyqkdJydtuyQa7SsnpmSgi4gE551nbr9S' "$WORK/result" \
-  && grep -qx 'fixture dependency resolved' "$WORK/result" || {
-  cat "$WORK/result" >&2; echo "real Zig fallback: exit $real, or the cached package missed the manifest hash" >&2; exit 1;
-}
+if [[ $real -ne 0 || ! -e "$WORK/real-reset" ]] \
+  || ! grep -qx 'N-V-__8AAD8AAAARyqkdJydtuyQa7SsnpmSgi4gE551nbr9S' "$WORK/result" \
+  || ! grep -qx 'fixture dependency resolved' "$WORK/result"; then
+  cat "$WORK/result" >&2
+  echo "real Zig fallback: exit $real, or the cached package missed the manifest hash" >&2
+  exit 1
+fi
 echo 'Zig transport fallback passes: TLS/reset routing, compiler-error rejection, multiple dependencies, retry bounds, git+https prefetch, temporary-directory policy, and a real archive that the build accepts by its manifest hash.'
