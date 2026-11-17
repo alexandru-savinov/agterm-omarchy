@@ -75,13 +75,17 @@ longer apply, and re-running `check.py`.
   serving its clients until none has output queued, bounded by one two-second deadline shared by all of
   them. While it drains it takes a detach, a kill and Info and ignores every other message, so no new
   attach, input or command reaches a session that has ended; a kill and SIGTERM still end it at once, and
-  a detach is unchanged. A client that keeps reading sees no delay. The client's own `0005` drain starts at
-  the daemon's hangup, so a terminal that never reads again now holds its client for up to about four
-  seconds instead of two. Zig tests run a real daemon loop and client loop over a socket pair with 8 KiB
-  buffers: the last output reaches a terminal that was full at the exit and then resumes; the daemon and
-  then the client end on their deadlines when it never resumes; and a draining session answers no late
-  attach, input or command, while a kill ends it at once. This is the daemon half of the bounded drain
-  asked for in umputun/agterm#998, on the Linux pin only; the macOS pin keeps its own patch set.
+  a detach is unchanged. Each client connected at the exit is closed as soon as it has been sent
+  everything, so a client that keeps reading sees no delay even while a stalled one holds the drain. The
+  client's own `0005` drain starts at the daemon's hangup, so a terminal that never reads again now holds
+  its client for up to about four seconds instead of two. Zig tests run a real daemon loop and client loop
+  over a socket pair with 8 KiB buffers: the last output reaches a terminal that was full at the exit and
+  then resumes; the daemon and then the client end on their deadlines when it never resumes; a draining
+  session answers no late attach, input or command, while a kill ends it at once; and a reading client is
+  let go while a stalled one still holds the daemon. Tests set the deadline themselves (long where they do
+  not measure it), so a starved runner cannot miss it; the build outside tests always uses two seconds.
+  This is the daemon half of the bounded drain asked for in umputun/agterm#998, on the Linux pin only; the
+  macOS pin keeps its own patch set (#449).
 
 `check.py <zmx>` drives managed clients on ptys of different sizes against one daemon in a throwaway
 `ZMX_DIR`, prints one line per rule, and exits nonzero when any of them is broken. Linux CI runs it
