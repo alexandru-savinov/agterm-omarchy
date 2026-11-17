@@ -68,6 +68,20 @@ longer apply, and re-running `check.py`.
   another `protocol_version` marks the peer foreign: `zmx list` prints `err=IncompatibleProtocol` and keeps
   the socket, `attach` probes first and exits 1 with that reason, and a client loop that meets one ends.
   agterm's Linux launch resets those daemons (`.claude/rules/control-api.md`, Live sessions reset).
+- `0008-daemon-drain-on-exit.patch` keeps a session's last output in the daemon when its shell exits
+  (#447). Upstream's last pass wrote to each client once, and only to one whose socket polled writable,
+  then shutdown freed every client's queued `write_buf`, so the final output for a client that was behind
+  was dropped before `0005` could read it. On the shell's EOF the daemon now stops polling the PTY and keeps
+  serving its clients until none has output queued, bounded by one two-second deadline shared by all of
+  them. While it drains it takes a detach, a kill and Info and ignores every other message, so no new
+  attach, input or command reaches a session that has ended; a kill and SIGTERM still end it at once, and
+  a detach is unchanged. A client that keeps reading sees no delay. The client's own `0005` drain starts at
+  the daemon's hangup, so a terminal that never reads again now holds its client for up to about four
+  seconds instead of two. Zig tests run a real daemon loop and client loop over a socket pair with 8 KiB
+  buffers: the last output reaches a terminal that was full at the exit and then resumes; the daemon and
+  then the client end on their deadlines when it never resumes; and a draining session answers no late
+  attach, input or command, while a kill ends it at once. This is the daemon half of the bounded drain
+  asked for in umputun/agterm#998, on the Linux pin only; the macOS pin keeps its own patch set.
 
 `check.py <zmx>` drives managed clients on ptys of different sizes against one daemon in a throwaway
 `ZMX_DIR`, prints one line per rule, and exits nonzero when any of them is broken. Linux CI runs it
