@@ -4,7 +4,7 @@ index df57e0f..dcf2040 100644
 +++ b/src/termio/Exec.zig
 @@ -1724,14 +1724,67 @@ pub const ReadThread = struct {
              }
- 
+
              // If our pty fd is closed, then we're also done with our
 -            // read thread.
 +            // read thread, once the output the child wrote before it
@@ -20,7 +20,7 @@ index df57e0f..dcf2040 100644
              }
          }
      }
- 
+
 +    /// The most a hangup drain reads. A pty queue holds far less, so
 +    /// only a peer that keeps refilling the pty reaches it, and then
 +    /// the read thread still exits.
