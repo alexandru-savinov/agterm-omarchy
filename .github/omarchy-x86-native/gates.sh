@@ -22,7 +22,7 @@ OMARCHY_PACKAGES=(hyprland hyprland-guiutils hypridle hyprlock hyprpicker hyprsu
   fontconfig polkit-gnome xdg-terminal-exec bash-completion python-gobject jq libsecret)
 # The archive's runtime: GTK/WebKitGTK, Mesa software GL, zsh for the Live fixture, a compiler for it.
 RUNTIME_PACKAGES=(gtk4 libadwaita webkitgtk-6.0 libepoxy mesa libglvnd zsh python dbus git gcc
-  desktop-file-utils procps-ng file)
+  desktop-file-utils procps-ng file mesa-utils)
 
 root_phase() {
   local owner
@@ -109,6 +109,8 @@ LUA
     sleep 0.5
   done
   { hyprctl version; hyprctl monitors; } > "$EVIDENCE/hyprland-info.txt"
+  # vkms has no GPU, so GBM/EGL on it is Mesa's software rasterizer; record what Mesa reports.
+  eglinfo -B > "$EVIDENCE/eglinfo.txt" 2>&1 || true
   grep -iE "GL_RENDERER|renderer|llvmpipe|softpipe" "$EVIDENCE/hyprland.log" | head -n 20 >> "$EVIDENCE/hyprland-info.txt" || true
 }
 

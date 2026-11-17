@@ -55,8 +55,14 @@ jobs:
             sudo apt-get install -y "linux-modules-extra-$(uname -r)"
             sudo modprobe vkms
           fi
-          ls -l /dev/dri
-          grep -m1 'model name' /proc/cpuinfo
+          mkdir -p "$RUNNER_TEMP/out"
+          {
+            uname -srm
+            grep -m1 'model name' /proc/cpuinfo
+            nproc
+            ls -l /dev/dri
+            for card in /sys/class/drm/card[0-9]; do echo "$card -> $(readlink -f "$card/device")"; done
+          } | tee "$RUNNER_TEMP/out/host.txt"
       - name: Download and verify the release archive
         env:
           GH_TOKEN: ${{ github.token }}
