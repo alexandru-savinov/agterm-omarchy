@@ -108,8 +108,11 @@ def validate_release(source, release, arch, sha, version):
         if new_data is not None:
             files[new.name] = new_data
     for name in EXECUTABLES:
-        image = runpath.Elf(files[STAGE + name])
-        require(image.search_paths() == {"RUNPATH": RUNPATH}, f"{name} RUNPATH is not {RUNPATH}")
+        try:
+            paths = runpath.Elf(files[STAGE + name]).search_paths()
+        except ValueError as error:
+            paths = error
+        require(paths == {"RUNPATH": RUNPATH}, f"{name} RUNPATH is not {RUNPATH}: {paths}")
     for name, content in files.items():
         if name.startswith((STAGE + "bin/", STAGE + "lib/")) and runpath.is_elf(content):
             paths = runpath.Elf(content).search_paths()

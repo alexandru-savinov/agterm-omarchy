@@ -26,8 +26,16 @@ def is_elf(data):
 
 class Elf:
     def __init__(self, data):
-        require(is_elf(data) and data[4] == 2 and data[5] == 1, "not a 64-bit little-endian ELF file")
+        require(is_elf(data) and len(data) >= 64 and data[4] == 2 and data[5] == 1,
+                "not a 64-bit little-endian ELF file")
         self.data = data
+        try:
+            self.parse()
+        except struct.error as error:
+            raise ValueError(f"malformed ELF file: {error}") from error
+
+    def parse(self):
+        data = self.data
         phoff, shoff = struct.unpack_from("<QQ", data, 0x20)
         phentsize, phnum, shentsize, shnum = struct.unpack_from("<HHHH", data, 0x36)
         self.loads, dynamic = [], None
