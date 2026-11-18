@@ -3,6 +3,8 @@ name: Relaunch A/B for umputun/agterm Discussion 1037
 # Helper only, never merged: builds umputun master with and without the ApplePersistenceIgnoreState registration,
 # runs .github/relaunch-ab-1037/ab.sh (same stale AppKit state on both arms, open -n -g and direct exec, cold
 # agterm://session link and cold folder open), and runs the CONTRIBUTING gates at the PR head.
+# It takes the file name of the fork's macos-weekly.yml only because workflow_dispatch needs a name registered on
+# the default branch; on this branch it is dispatch-only and the fork's main is untouched.
 on:
   workflow_dispatch:
     inputs:
