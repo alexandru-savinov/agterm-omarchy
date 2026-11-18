@@ -1,8 +1,7 @@
 #!/bin/bash
-# omarchy-pkgs' own recipe checks (#465), run as root in a throwaway Arch
-# container on a checkout that already carries the recipe; check-shadowed
-# runs as the unprivileged user named by SHADOW_USER, as upstream's CI does.
-# Usage: repo-checks.sh OMARCHY_PKGS_DIR OWNERS_LINE_FILE OUTDIR
+# omarchy-pkgs' own recipe checks (#465), run as an unprivileged user in a
+# throwaway Arch container on a writable checkout that already carries the
+# recipe. Usage: repo-checks.sh OMARCHY_PKGS_DIR OWNERS_LINE_FILE OUTDIR
 set -euo pipefail
 pkgs=$1 owners_line=$2 out=$3
 package=agterm-omarchy-bin
@@ -19,9 +18,9 @@ run() {
 cd "$pkgs"
 run pinned-sources tests/pinned-sources.sh
 run pkgname-unique tests/pkgname-unique.sh
-run check-shadowed runuser -u "$SHADOW_USER" -- bin/check-shadowed "$package"
+run check-shadowed bin/check-shadowed "$package"
 
-bin/release-owners "$package" >"$out/release-owners.txt" 2>&1
+bin/release-owners "$package" >"$out/release-owners.txt" 2>&1 || true
 generated=$(git diff --unified=0 release/owners.json | sed -n 's/^+ {/ {/p')
 if [[ "$generated" == "$(cat "$owners_line")" ]]; then
   record PASS release-owners "generated line matches packaging/omarchy-pkgs/owners.json.line"
