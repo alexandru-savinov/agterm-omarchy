@@ -256,9 +256,11 @@ if [[ $real -ne 0 || ! -e "$WORK/real-reset" ]] \
   echo "real Zig fallback: exit $real, or the cached package missed the manifest hash" >&2
   exit 1
 fi
-# Real Zig also has to consume the package through a git+https manifest unchanged. In system mode
-# network fetching is disabled: a modified archive must fail because only its different hash is cached.
-# Compiler caches can be shared, but each case gets a separate package directory.
+# Real Zig also has to consume the package through a git+https manifest unchanged. Positive cases use
+# ordinary builds, which expand the global fetch cache. For the negative case, expand only the altered
+# package under its actual computed hash into an isolated --system directory; network fetching and
+# previously cached good packages then cannot mask the mismatch. Require this fixture eagerly because
+# Zig 0.17.0 can panic while configuring a missing lazy dependency in --system mode.
 mkdir -p "$WORK/tampered/fixture-1.0"
 cp -R "$WORK/fixture/fixture-1.0/." "$WORK/tampered/fixture-1.0/"
 printf 'modified fixture\n' > "$WORK/tampered/fixture-1.0/README"
@@ -270,6 +272,14 @@ if [[ "$1" == fetch && "$2" == git+https://* ]]; then
   echo 'error: unable to discover remote git server capabilities: NoAddressReturned' >&2
   exit 1
 fi
+if [[ "$1" == fetch && "$TEST_REAL_MODE" == tampered ]]; then
+  hash="$("$TEST_REAL_ZIG" "$@")"
+  printf '%s\n' "$hash"
+  printf '%s\n' "$hash" > "$PWD/actual-hash"
+  mkdir -p "$PWD/offline-pkg/$hash"
+  tar -xzf "$ZIG_GLOBAL_CACHE_DIR/p/$hash.tar.gz" -C "$PWD/offline-pkg/$hash" --no-same-owner
+  exit 0
+fi
 if [[ "$1" == build && "$TEST_REAL_MODE" == transitive && ! -e "$PWD/injected" ]]; then
   touch "$PWD/injected"
   echo 'zig-pkg/parent/build.zig.zon:12:20: error: unable to discover remote git server capabilities: NetworkUnreachable'
@@ -279,34 +289,44 @@ fi
 exec "$TEST_REAL_ZIG" "$@"
 ZIG
 for mode in direct transitive tampered; do
+  # Zig 0.17 stores fetched package archives in global-cache/p. Clear only this disposable package
+  # cache, preserving expensive compiler caches; an earlier correct fixture must not mask a bad fetch.
+  rm -rf -- "$WORK/real-cache/p"
+  [[ ! -e "$WORK/real-cache/p" ]]
   project="$WORK/real-$mode"
   mkdir "$project"
   cp "$WORK/real/build.zig" "$project/build.zig"
   if [[ "$mode" == transitive ]]; then
-    cp "$WORK/real/build.zig.zon" "$project/build.zig.zon"
+    sed 's/\.lazy = true/.lazy = false/' "$WORK/real/build.zig.zon" > "$project/build.zig.zon"
   else
-    sed 's|https://deps.example.invalid/fixture-1.0.tar.gz|git+https://codeberg.org/ziglang/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b|' \
+    sed -e 's/\.lazy = true/.lazy = false/' \
+      -e 's|https://deps.example.invalid/fixture-1.0.tar.gz|git+https://codeberg.org/ziglang/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b|' \
       "$WORK/real/build.zig.zon" > "$project/build.zig.zon"
   fi
   cp "$project/build.zig.zon" "$project/expected.zon"
   archive="$WORK/fixture-1.0.tar.gz"
   [[ "$mode" != tampered ]] || archive="$WORK/tampered.tar.gz"
+  build_args=()
+  [[ "$mode" != tampered ]] || build_args=(--system "$project/offline-pkg")
   real=0
   (cd "$project" && TEST_REAL_MODE="$mode" TEST_ZIG_ARCHIVE="$archive" TEST_REAL_ZIG="$REAL_ZIG" \
     ZIG="$WORK/real-bin/zig" ZIG_GLOBAL_CACHE_DIR="$WORK/real-cache" ZIG_LOCAL_CACHE_DIR="$project/.zig-cache" \
-    "$ROOT/scripts/zig-build-linux.sh" --system "$project/zig-pkg") > "$WORK/result" 2>&1 || real=$?
+    "$ROOT/scripts/zig-build-linux.sh" "${build_args[@]}") > "$WORK/result" 2>&1 || real=$?
   cmp "$project/build.zig.zon" "$project/expected.zon"
   if [[ "$mode" == tampered ]]; then
-    if [[ $real -eq 0 ]] || ! grep -q 'remote package fetching disabled due to --system mode' "$WORK/result"; then
+    if [[ $real -eq 0 ]] || ! grep -q 'error: package not found at.*N-V-__8AAD8AAAARyqkdJydtuyQa7SsnpmSgi4gE551nbr9S' "$WORK/result"; then
       cat "$WORK/result" >&2
       echo 'altered archive unexpectedly satisfied the manifest hash' >&2
       exit 1
     fi
-    [[ ! -e "$project/zig-pkg/N-V-__8AAD8AAAARyqkdJydtuyQa7SsnpmSgi4gE551nbr9S" ]]
+    [[ "$(cat "$project/actual-hash")" != N-V-__8AAD8AAAARyqkdJydtuyQa7SsnpmSgi4gE551nbr9S ]]
+    [[ ! -e "$project/offline-pkg/N-V-__8AAD8AAAARyqkdJydtuyQa7SsnpmSgi4gE551nbr9S" ]]
   elif [[ $real -ne 0 ]] || ! grep -qx 'fixture dependency resolved' "$WORK/result"; then
     cat "$WORK/result" >&2
     echo "real Zig $mode fallback failed with exit $real" >&2
     exit 1
+  else
+    [[ -f "$WORK/real-cache/p/N-V-__8AAD8AAAARyqkdJydtuyQa7SsnpmSgi4gE551nbr9S.tar.gz" ]]
   fi
 done
 echo 'Zig transport fallback passes: TLS/reset and pinned Codeberg routing, compiler-error rejection, multiple dependencies, retry bounds, temporary-directory policy, real direct/transitive package resolution, and rejection of altered archive content against the unchanged manifest hash.'
