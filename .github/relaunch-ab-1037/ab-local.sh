@@ -343,7 +343,8 @@ if lsappinfo list 2> /dev/null | grep -q 'agterm.debug'; then
     echo "another com.umputun.agterm.debug instance is running; it shares the saved-state domain" >&2
     exit 1
 fi
-if ioreg -n Root -d1 | grep -q '"CGSSessionScreenIsLocked"=Yes'; then
+session=$(ioreg -n Root -d1) # captured first: grep -q closing the pipe early fails the pipeline under pipefail
+if [[ $session == *'"CGSSessionScreenIsLocked"=Yes'* ]]; then
     WINFIELD=2
     log "screen locked: a window counts from any layer-0 window of the pid, on-screen or not"
 else
@@ -380,39 +381,32 @@ for arm in master patched; do
     codesign --verify --deep --strict "$ROOT/arms/$arm/agterm.app" 2>&1 | head -3 | tee -a "$OUT/ab.log"
 done
 
-# ---- clear whatever state an earlier Debug run left, so the A/B meets only the state the seed makes ----
-stage master
-new_sd
-launch open-g
-observe "$WAIT"
-log "pre-clean launch on the pre-existing state: alive=$ALIVE window_at=$WIN_AT socket_at=$SOCK_AT"
-if [ "$WIN_AT" = - ]; then
-    "${SCRUB[@]}" open -g "$FIXED"
-    observe 30
-    log "after a reopen event to the stuck process: window_at=$WIN_AT socket_at=$SOCK_AT"
-fi
-[ "$SOCK_AT" != - ] && clean_quit
-kill_all
-saved_state "after the pre-clean quit"
-log "saved-state files after the pre-clean quit: $STATE_FILES"
+# ---- clear whatever state an earlier Debug run left (backed up above, put back by restore) ----
+for f in "$SS"/*; do [ -f "$f" ] && rm -f "$f"; done
+saved_state "after clearing the pre-existing state"
 [ "$STATE_FILES" -eq 0 ] || {
-    log "FAIL the pre-clean quit left saved state, so the A/B would not start from state the seed made"
+    log "FAIL could not clear the pre-existing saved state"
     exit 1
 }
+stage master
 
 # ---- seed ----
 new_sd
 touch "$ROOT/seed-start"
 sleep 1
-launch open-g
+launch "${SEED_MODE:-open-g}"
 observe 60
 log "seed launch: alive=$ALIVE window_at=$WIN_AT socket_at=$SOCK_AT"
 if [ "$WIN_AT" = - ] || [ "$SOCK_AT" = - ]; then
     log "FAIL the seed launch did not show a window and a socket"
     exit 1
 fi
-sleep 25
-saved_state "seed after 25 s, before SIGKILL"
+for _ in $(seq 1 "${SEED_DWELL:-25}"); do
+    sleep 1
+    saved_state "seed dwell"
+    [ "$STATE_FILES" -gt 0 ] && [ -z "${SEED_WRITTEN:-}" ] && SEED_WRITTEN=$(($(date +%s) - $(stat -f %m "$ROOT/seed-start"))) && log "seed: AppKit wrote saved state ${SEED_WRITTEN}s after launch"
+done
+saved_state "seed after the dwell, before SIGKILL"
 kill_all
 sleep 2
 saved_state "after the seed SIGKILL"

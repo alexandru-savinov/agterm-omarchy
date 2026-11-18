@@ -15,7 +15,7 @@ OUT=$2
 WINCTL=${WINCTL:?WINCTL must name the compiled winctl}
 TRIALS=${TRIALS:-3}
 WAIT=${WAIT:-30}
-ROOT=/tmp/ab1037
+ROOT=/private/tmp/ab1037 # what an open-launched process reports, so the pgrep patterns match
 FIXED=$ROOT/app/agterm.app
 OLD=$ROOT/old
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
@@ -29,7 +29,7 @@ sdn=0
 
 log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$OUT/ab.log"; }
 ctl() { perl -e 'alarm shift; exec @ARGV' 10 "$FIXED/Contents/MacOS/agtermctl" "$@"; }
-app_pids() { pgrep -f "^$FIXED/Contents/MacOS/agterm( |\$)"; }
+app_pids() { pgrep -f "$FIXED/Contents/MacOS/agterm( |\$)"; }
 
 kill_all() {
     pkill -KILL -f "$FIXED/Contents/" 2>/dev/null
@@ -269,6 +269,10 @@ kill_all
 sleep 2
 saved_state "after seed SIGKILL"
 log "saved-state files after the seed kill: $STATE_FILES"
+if [ "$STATE_FILES" -eq 0 ]; then
+    log "FAIL the seed left no saved state, so there is nothing stale to relaunch on"
+    exit 1
+fi
 
 for t in $(seq 1 "$TRIALS"); do for m in open-g exec; do trial "$m" "r$t"; done; done
 stage patched
