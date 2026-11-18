@@ -772,7 +772,7 @@ agtermctl dashboard "$a" "$b" "$c" --auto-size   # view-only grid; a split sessi
 agtermctl dashboard --mru --auto-size            # ...or fill it from the window's most-recently-used sessions (no ids)
 agtermctl font inc                               # increase the session's (main pane's) font size
 agtermctl font dec --pane right                   # shrink just the split pane's font (--pane left|right|scratch)
-agtermctl theme set --light "Builtin Light" --dark Dracula  # set the light/dark theme slots (--dark none turns following off)
+agtermctl theme set --light "Catppuccin Latte" --dark "Catppuccin Mocha"  # set the light/dark theme slots (--dark none turns following off)
 ```
 
 `session type` types the text as real keystrokes, and every newline is a real Return press — so a trailing newline submits the command, and a multi-line payload runs line by line (a multi-line shell construct like a `for` loop is entered across the shell's continuation prompts and runs as one command). Note the `$'…\n'` quoting: a literal `\n` inside plain single quotes reaches the CLI as two characters, not a newline; use `$'…\n'` or pipe a real newline via `--stdin`. Typing goes to the session's left (main) pane by default; `--pane right` types into the split pane instead (an error when the session has no split), and `--pane scratch` reaches the session's scratch terminal even while it is hidden. `session text` takes the same `--pane`, so an agent can read a hidden scratch's output (e.g. a deploy you ran there) without leaving it open. `font inc|dec|reset` also takes `--pane left|right|scratch`, so you can resize just the split pane's font (an error when there is no split); only the main pane's size is remembered across a restart.

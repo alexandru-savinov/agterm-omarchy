@@ -33,7 +33,7 @@ for artifact in "$TAR" "$DEB" "$RPM" "$CHECKSUMS"; do
   [[ -f "$artifact" ]] || { echo "missing release artifact: $artifact" >&2; exit 1; }
 done
 
-for command in dpkg-deb rpm rpm2cpio cpio desktop-file-validate file ldd; do
+for command in dpkg-deb rpm rpm2cpio cpio desktop-file-validate file ldd infocmp python3; do
   command -v "$command" >/dev/null || { echo "$command is required to verify Linux packages" >&2; exit 1; }
 done
 
@@ -73,7 +73,11 @@ verify_payload() {
   test -r "$payload/bin/agterm-linux_AgtermLinux.resources/hud/hud.sh"
   test -s "$payload/bin/agterm-linux_AgtermLinux.resources/live-prefill/.zshenv"
   test -f "$payload/lib/libghostty.so"
-  "$ROOT/scripts/verify-linux-resources.sh" "$payload/share"
+  # The full catalog is checked in the vendor cache; a payload carries only the licensed themes.
+  test -s "$payload/share/ghostty/shell-integration/bash/ghostty.bash"
+  test -s "$payload/share/ghostty/shell-integration/zsh/ghostty-integration"
+  infocmp -A "$payload/share/terminfo" xterm-ghostty >/dev/null
+  python3 "$ROOT/scripts/linux-notices.py" verify-staged-themes "$payload"
   test -x "$payload/share/agterm/agent-status/agterm-agent-status.sh"
   test -x "$payload/share/agterm/agent-status/agterm-codex-status.sh"
   verify_pi_extension "$payload/share/agterm/agent-status/pi/agterm-status.ts"

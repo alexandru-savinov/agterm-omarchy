@@ -19,6 +19,9 @@ import agtermCore
 
 @MainActor
 extension AppController {
+    /// Seeded light slot when following starts; it must be a theme the package ships (THEMES.md).
+    static let defaultLightTheme = "Tomorrow"
+
     @discardableResult
     func applySettings(
         _ settings: AppSettings,
@@ -270,7 +273,7 @@ extension AppController {
         var settings = linuxSettingsStore().load()
         if enabled {
             let current = settings.theme
-            settings.theme = current ?? "Builtin Light"
+            settings.theme = current ?? Self.defaultLightTheme
             settings.darkTheme = settings.darkTheme ?? current ?? AppSettings.defaultTheme
             settings.followSystemAppearance = true
         } else {

@@ -259,8 +259,91 @@ class NoticeTests(unittest.TestCase):
         self.assertIn('swift', inventory['bundled_libraries']['libswiftCore.so'])
         self.assertEqual(len(inventory['bundled_libraries']), 16)
         self.assertEqual(len(inventory['themes']['files']), 819)
-        self.assertTrue(all(theme['attribution'] == 'unresolved-individual-author-license'
-                            for theme in inventory['themes']['files']))
+        self.assertEqual({theme['attribution'] for theme in inventory['themes']['files']}, {'resolved', 'dropped'})
+        guide = (self.destination / 'share/licenses/agterm/THEMES.md').read_text()
+        self.assertIn('## Dropped (', guide)
+
+    def stage_with_catalog(self):
+        """Stage beside a full 819-file catalog copied like stage-linux.sh copies the vendor resources."""
+        inventory = json.loads((self.notices / 'inventory.json').read_text())
+        themes = self.destination / 'share/ghostty/themes'
+        themes.mkdir(parents=True)
+        for theme in inventory['themes']['files']:
+            # The inventory pins each file's hash; fixtures carry those bytes for shipped themes only.
+            (themes / theme['file']).write_bytes(self.theme_bytes.get(theme['file'], b'dropped fixture'))
+        (themes / '.agterm-resource-manifest').write_text('manifest')
+        return inventory, themes
+
+    def pin_shipped_fixture_bytes(self):
+        self.theme_bytes = {}
+        def change(value):
+            for theme in value['themes']['files']:
+                if theme['attribution'] == 'resolved':
+                    data = f'background = {len(self.theme_bytes):06x}\n'.encode()
+                    self.theme_bytes[theme['file']] = data
+                    theme['sha256'] = hashlib.sha256(data).hexdigest()
+        self.update_inventory(change)
+        (self.notices / 'themes.md').write_text(self.command('themes').stdout)
+
+    def test_staging_ships_exactly_the_resolved_themes_and_lists_both(self):
+        self.pin_shipped_fixture_bytes()
+        inventory, themes = self.stage_with_catalog()
+        self.command('stage', self.destination)
+        shipped = {theme['file'] for theme in inventory['themes']['files'] if theme['attribution'] == 'resolved'}
+        self.assertTrue(shipped)
+        self.assertEqual({path.name for path in themes.iterdir()}, shipped | {'.agterm-resource-manifest'})
+        payload = json.loads((self.destination / 'share/licenses/agterm/payload.json').read_text())
+        self.assertEqual(payload['themes'], {'shipped': len(shipped), 'dropped': 819 - len(shipped)})
+        for theme in inventory['themes']['files']:
+            if theme['attribution'] == 'resolved':
+                self.assertTrue((self.destination / 'share/licenses/agterm' / theme['license']['notice']).is_file())
+        self.command('verify-staged-themes', self.destination)
+        first = sorted(shipped)[0]
+        (themes / first).write_text('tampered\n')
+        self.assertIn(f'staged theme {first} differs', self.command('verify-staged-themes', self.destination,
+                                                                    success=False).stderr)
+        (themes / first).unlink()
+        self.assertIn('staged themes differ', self.command('verify-staged-themes', self.destination,
+                                                           success=False).stderr)
+
+    def test_staging_refuses_a_changed_shipped_theme(self):
+        self.pin_shipped_fixture_bytes()
+        inventory, themes = self.stage_with_catalog()
+        first = next(theme['file'] for theme in inventory['themes']['files'] if theme['attribution'] == 'resolved')
+        (themes / first).write_text('not the pinned bytes\n')
+        self.assertIn('differs from the pinned catalog', self.command('stage', self.destination, success=False).stderr)
+
+    def test_a_shipped_theme_needs_a_pinned_retained_license(self):
+        for change in (lambda theme: theme['license'].update(notice='theme-missing/LICENSE'),
+                       lambda theme: theme['license'].update(spdx='GPL-3.0-only'),
+                       lambda theme: theme['license'].update(revision='main'),
+                       lambda theme: theme.pop('license')):
+            with self.subTest(change=change):
+                def apply(value):
+                    change(next(theme for theme in value['themes']['files'] if theme['attribution'] == 'resolved'))
+                self.update_inventory(apply)
+                self.command('verify-profile', success=False)
+                shutil.copytree(ROOT / 'packaging/linux/notices', self.notices, dirs_exist_ok=True)
+
+    def test_a_dropped_theme_needs_a_reason_and_the_list_must_be_current(self):
+        def apply(value):
+            theme = next(theme for theme in value['themes']['files'] if theme['attribution'] == 'dropped')
+            theme['reason'] = ''
+        self.update_inventory(apply)
+        self.assertIn('dropped with a reason', self.command('verify-profile', success=False).stderr)
+        shutil.copytree(ROOT / 'packaging/linux/notices', self.notices, dirs_exist_ok=True)
+        (self.notices / 'themes.md').write_text('stale\n')
+        self.assertIn('themes.md does not match', self.command('verify-profile', success=False).stderr)
+
+    def test_theme_names_the_linux_app_seeds_are_shipped(self):
+        import re
+        source = (ROOT / 'agterm-linux/Sources/AgtermLinux/LinuxSettingsController.swift').read_text()
+        seeded = re.search(r'static let defaultLightTheme = "([^"]+)"', source)[1]
+        inventory = json.loads((ROOT / 'packaging/linux/notices/inventory.json').read_text())
+        shipped = {theme['file'] for theme in inventory['themes']['files'] if theme['attribution'] == 'resolved'}
+        self.assertIn(seeded, shipped)
+        linux = ''.join(path.read_text() for path in (ROOT / 'agterm-linux/Sources').rglob('*.swift'))
+        self.assertNotIn('"Builtin Light"', linux)
 
     def setup_fixture(self):
         # Architecture/resource behavior is covered separately; these fixtures isolate notice-driven cache reuse.

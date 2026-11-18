@@ -9,6 +9,8 @@ import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTICES = ROOT / 'packaging/linux/notices'
+THEME_LICENSES = {'MIT', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', 'Apache-2.0', 'Unlicense', 'CC0-1.0', '0BSD',
+                  'Zlib', 'MPL-2.0', 'CC-BY-3.0', 'CC-BY-4.0', 'WTFPL'}
 
 
 def require(condition, message):
@@ -71,6 +73,8 @@ def profile():
         require(f'{variable}="{inventory["archives"]["iterm2_themes"][field]}"' in theme_pin,
                 'stale theme notice archive identity')
     verify_inventory(inventory, paths)
+    require(read_regular(NOTICES / 'themes.md').decode() == render_themes(inventory),
+            'themes.md does not match the theme inventory; regenerate it with `linux-notices.py themes`')
     return manifest, data
 
 
@@ -105,7 +109,49 @@ def verify_inventory(inventory, paths):
         require(Path(theme['file']).name == theme['file'] and theme['file'] not in names
                 and re.fullmatch(r'[0-9a-f]{64}', theme['sha256']), 'invalid theme inventory')
         names.add(theme['file'])
+        if theme['attribution'] == 'resolved':
+            license = theme['license']
+            require(license['spdx'] in THEME_LICENSES and license['notice'] in paths
+                    and re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', license['repository'])
+                    and re.fullmatch(r'[0-9a-f]{40}', license['revision']),
+                    f'theme {theme["file"]} lacks a pinned redistributable license')
+        else:
+            require(theme['attribution'] == 'dropped' and theme.get('reason'),
+                    f'theme {theme["file"]} is neither resolved nor dropped with a reason')
     require(len(names) == 819, 'incomplete pinned theme inventory')
+
+
+def shipped_themes(inventory):
+    return {theme['file']: theme['sha256'] for theme in inventory['themes']['files']
+            if theme['attribution'] == 'resolved'}
+
+
+def render_themes(inventory):
+    files = sorted(inventory['themes']['files'], key=lambda theme: theme['file'].lower())
+    shipped = [theme for theme in files if theme['attribution'] == 'resolved']
+    dropped = [theme for theme in files if theme['attribution'] != 'resolved']
+    lines = ['# Bundled Ghostty themes', '',
+             'Generated from `inventory.json` by `scripts/linux-notices.py themes`; do not edit by hand.',
+             f'The pinned catalog has {len(files)} themes. The payload ships the {len(shipped)} whose author license '
+             'is pinned below and drops the other ' + str(len(dropped)) + '.', '',
+             f'## Shipped ({len(shipped)})', '', '| Theme | License | Source | Notice |', '| --- | --- | --- | --- |']
+    lines += [f'| {theme["file"]} | {theme["license"]["spdx"]} | '
+              f'`{theme["license"]["repository"]}@{theme["license"]["revision"][:12]}` | `{theme["license"]["notice"]}` |'
+              for theme in shipped]
+    lines += ['', f'## Dropped ({len(dropped)})', '', '| Theme | Reason |', '| --- | --- |']
+    lines += [f'| {theme["file"]} | {theme["reason"]} |' for theme in dropped]
+    return '\n'.join(lines) + '\n'
+
+
+def verify_staged_themes(destination, inventory):
+    """The staged catalog is exactly the shipped themes, byte for byte, beside the resource manifest."""
+    directory = destination / 'share/ghostty/themes'
+    expected = shipped_themes(inventory)
+    present = {path.name for path in directory.iterdir() if path.name != '.agterm-resource-manifest'}
+    require(present == set(expected), f'staged themes differ from the shipped list: '
+            f'unexpected {sorted(present - set(expected))[:5]}, missing {sorted(set(expected) - present)[:5]}')
+    for name, sha256 in expected.items():
+        require(digest(read_regular(directory / name)) == sha256, f'staged theme {name} differs from the pinned catalog')
 
 
 def ghostty_record(manifest):
@@ -151,6 +197,12 @@ def stage(destination, manifest, manifest_bytes):
     inventory = json.loads(inventory_bytes)
     target = destination / 'share/licenses/agterm'
     require(not target.exists(), 'staged notice destination already exists')
+    themes = destination / 'share/ghostty/themes'
+    dropped = [theme['file'] for theme in inventory['themes']['files'] if theme['attribution'] != 'resolved']
+    if themes.is_dir():
+        for name in dropped:
+            (themes / name).unlink(missing_ok=True)
+        verify_staged_themes(destination, inventory)
     libraries = []
     for library in sorted((destination / 'lib').iterdir()):
         require(library.is_file() and not library.is_symlink(), 'unexpected staged library entry')
@@ -162,6 +214,7 @@ def stage(destination, manifest, manifest_bytes):
         shutil.copyfile(NOTICES / entry['file'], output)
         output.chmod(0o644)
     for name, content in [('LICENSE', license_bytes), ('ZMX-LICENSE', zmx), ('README.md', guide),
+                          ('THEMES.md', render_themes(inventory).encode()),
                           ('sources.json', manifest_bytes), ('inventory.json', inventory_bytes)]:
         (target / name).write_bytes(content)
         (target / name).chmod(0o644)
@@ -172,20 +225,25 @@ def stage(destination, manifest, manifest_bytes):
                                           for item in libraries},
                unresolved_libraries=[item['file'] for item in libraries
                                      if item['file'] not in inventory['bundled_libraries']],
+               themes=dict(shipped=len(shipped_themes(inventory)), dropped=len(dropped)),
                coverage='Pinned component notices; not a complete transitive dependency or toolchain attestation.'))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    for name in ('verify-ghostty', 'stage'):
+    for name in ('verify-ghostty', 'stage', 'verify-staged-themes'):
         commands.add_parser(name).add_argument('directory', type=Path)
     cache = commands.add_parser('cache-ghostty')
     cache.add_argument('directory', type=Path)
     cache.add_argument('source', type=Path)
     commands.add_parser('verify-profile')
+    commands.add_parser('themes', help='print themes.md for the current inventory')
     args = parser.parse_args()
     try:
+        if args.command == 'themes':
+            print(render_themes(json.loads(read_regular(NOTICES / 'inventory.json'))), end='')
+            return
         manifest, data = profile()
         if args.command == 'cache-ghostty':
             cache_ghostty(args.directory, args.source, manifest)
@@ -193,6 +251,8 @@ def main():
             verify_ghostty(args.directory, manifest)
         elif args.command == 'stage':
             stage(args.directory, manifest, data)
+        elif args.command == 'verify-staged-themes':
+            verify_staged_themes(args.directory, json.loads(read_regular(NOTICES / 'inventory.json')))
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(1, f'Linux notices: {error}\n')
 

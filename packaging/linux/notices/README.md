@@ -4,6 +4,7 @@ This collection retains pinned upstream notices for the Linux payload's Ghostty,
 It records source identities and coverage limits; it is not blanket legal or release clearance.
 `sources.json` lists every retained file and SHA256.
 `inventory.json` maps source archives, component notices, the 16 reviewed runtime filenames and the 819 theme files.
+`themes.md`, generated from it, lists each shipped theme with its license and each dropped theme with its reason.
 Both documents are shipped beside these notices at `share/licenses/agterm/`.
 
 ## Component inventory
@@ -15,7 +16,7 @@ Both documents are shipped beside these notices at `share/licenses/agterm/`.
 | Ghostty C/C++ inputs | FreeType 2.13.2, Fontconfig 2.18.3, HarfBuzz 11.0.0, libpng 1.6.43, zlib 1.3.1, libxml2 2.11.5, Oniguruma 6.9.9, glslang 14.2.0, SPIRV-Cross, Highway, Wuffs, Dear ImGui 1.92.5 and Dear Bindings 0.17 |
 | Vendored code and generated headers | simdutf 9.0.0 (including its BSD attribution), stb image/resize notices, GLAD 2.0.8 license collection and Khronos header notice |
 | Embedded font fallbacks | JetBrains Mono 2.304 variable upright/italic, Nerd Fonts Symbols Only 3.4.0, Noto Color Emoji and Noto Emoji text; source-tree font attribution/OFL and nine pinned glyph-source notice/README files retained |
-| `share/ghostty/themes` | Exact 819-file catalog, collection LICENSE, CREDITS and the README credits section from iTerm2-Color-Schemes `86a776d947b6f0c95d35005cb67f3cea435362fc`; individual licenses remain unresolved below |
+| `share/ghostty/themes` | The themes of the 819-file iTerm2-Color-Schemes `86a776d947b6f0c95d35005cb67f3cea435362fc` catalog whose author license is pinned in a `theme-*` directory, plus the collection LICENSE, CREDITS and README credits section; see `themes.md` |
 | `bin/zmx` | Its separate Ghostty VT revision `53e55147bbbb0157672dac0228aa7744e881f1fa`, uucode, Highway and simdutf; the existing zmx LICENSE remains retained separately |
 | Zig-generated runtime/C++ support | Retained Zig 0.17.0 MIT and libc++/libc++abi/libunwind texts; zmx and Ghostty 1.4 both build with that release |
 | Swift core, concurrency, observation, synchronization, Glibc and builtin float | Swift 6.3.2 LICENSE with Runtime Library Exception |
@@ -86,16 +87,21 @@ An optional compatibility library such as ncurses has an empty association and i
 A filename mapping is not a source attestation or permission to substitute an arbitrary Swift version.
 Review a different toolchain before distributing its payload.
 
-## Remaining distribution decisions
+## Themes
 
 All 819 theme files were read from the pinned theme archive and have individual hashes in the inventory.
 The archive SHA256 is `ab2513e316372c45c9f86e3e511aebdbfa6c39fa03c210096b19152fe288505b`, matching `linux/ghostty-resources.env`.
-The verifier requires exactly 819 files because the new catalog replaces the previous 602-file archive.
-Collection notices were fetched at `86a776d947b6f0c95d35005cb67f3cea435362fc`; only `CREDITS.md` changed in content.
-The collection license explicitly reserves each theme's copyright/license to its own author.
-The retained credits identify upstream authors and links, but those links are not immutable per-theme license proofs.
-Every theme remains marked `unresolved-individual-author-license`; this update does not silently declare the collection cleared under MIT.
-A publication decision must reconcile those individual terms or explicitly change the shipped catalog in a separate reviewed source change.
+The collection license reserves each theme's copyright and license to its author, so the collection MIT license clears none of them.
+A theme ships only with an author license pinned to a repository commit, with the license text retained under `theme-<owner>-<repo>/`.
+Each such theme records its basis when that is not the credited repository itself:
+`org-official-repo` (the credited organisation's own port), `origin-license` (a mechanical port of a licensed origin palette) or
+`author-own-repo` (the credited author's own repository of that palette).
+Every other theme is marked `dropped` with its reason, and staging deletes it from the payload copy; the vendor cache keeps the full catalog.
+Staging then requires the payload catalog to equal the shipped list byte for byte, and `payload.json` records both counts.
+Dropped reasons include credits that link only a profile or gist, repositories without a license file, copyleft licenses,
+ports of iTerm2 and Terminal.app built-ins, and the collection maintainer's own themes, which carry no separate license.
+The Apache-2.0 theebest NOTICE is retained beside its license.
+Licenses were read on 2026-11-18 (`docs/evidence/theme-licenses-2026-11-18/`); a new theme archive needs the reconciliation repeated.
 
 This is bounded notice retention, not exhaustive certification of every source-embedded attribution or of Zig-generated runtime code.
 The component map also does not prove the build origin of externally supplied Swift/runtime bytes.
