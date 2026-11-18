@@ -101,7 +101,7 @@ Staging then requires the payload catalog to equal the shipped list byte for byt
 Dropped reasons include credits that link only a profile or gist, repositories without a license file, copyleft licenses,
 ports of iTerm2 and Terminal.app built-ins, and the collection maintainer's own themes, which carry no separate license.
 The Apache-2.0 theebest NOTICE is retained beside its license.
-Licenses were read on 2026-11-18; a new theme archive needs the reconciliation repeated.
+Licenses were read on 2026-11-18 (`docs/evidence/theme-licenses-2026-11-18/`); a new theme archive needs the reconciliation repeated.
 
 This is bounded notice retention, not exhaustive certification of every source-embedded attribution or of Zig-generated runtime code.
 The component map also does not prove the build origin of externally supplied Swift/runtime bytes.

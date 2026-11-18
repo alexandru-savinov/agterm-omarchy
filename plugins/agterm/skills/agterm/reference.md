@@ -2205,7 +2205,7 @@ the light/dark pair and both sides are marked.
   clears BOTH (an unnamed side can't be part of a pair).
 - `theme set --dark <name>` sets the dark theme — the terminal then tracks the macOS Light/Dark
   appearance, applying the matching side automatically as the OS switches (the light side seeds from
-  the current theme, else `Builtin Light`). `--light <name>` is an alias for the positional name.
+  the current theme, else `Builtin Light`, or `Tomorrow` on Linux). `--light <name>` is an alias for the positional name.
 - `theme set --dark none` clears the dark theme — tracking stops, the light theme stays as the single
   theme.
 The response always echoes the full state (`result.theme`/`sync`/`light`/`dark`). An unknown name
