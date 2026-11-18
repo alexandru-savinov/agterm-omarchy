@@ -272,22 +272,22 @@ for seed in ${SEED_MODES:-open-fg exec open-g+resize}; do
         ctl window resize "$id" --width 900 --height 600 --socket "$SD/agterm.sock" > /dev/null 2>&1
         ctl window move "$id" --x 120 --y 120 --socket "$SD/agterm.sock" > /dev/null 2>&1
     fi
+    # restorecount.plist comes and goes at launch; the record that restores is windows.plist with data.data
     written=
-    for i in $(seq 1 "${SEED_DWELL:-45}"); do
+    for i in $(seq 1 "${SEED_DWELL:-40}"); do
         sleep 1
         saved_state "seed $seed dwell ${i}s"
-        if [ "$STATE_FILES" -gt 0 ] && [ -z "$written" ]; then
+        if [ -z "$written" ] && grep -q 'windows.plist$' <(tail -n "$((STATE_FILES + 1))" "$OUT/savedstate.log"); then
             written=$i
-            log "seed $seed: saved state appeared ${i}s after the window"
+            log "seed $seed: windows.plist written ${i}s after the window"
         fi
-        [ -n "$written" ] && [ $((i - written)) -ge 5 ] && break
     done
     kill -KILL "$PID"
     kill_all
     sleep 2
     saved_state "after seed $seed SIGKILL"
     log "saved-state files after the seed $seed SIGKILL: $STATE_FILES"
-    if [ "$STATE_FILES" -gt 0 ]; then
+    if grep -q 'windows.plist$' <(tail -n "$((STATE_FILES + 1))" "$OUT/savedstate.log"); then
         seeded=$seed
         break
     fi
