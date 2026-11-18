@@ -497,6 +497,10 @@ class ReleaseGitHub(FakeGitHub):
 
     def __init__(self, releases=(), tag=None, ahead=True, **kwargs):
         super().__init__(**kwargs)
+        for job in self.jobs:
+            if job["name"].startswith("GTK build"):
+                job["steps"] = job["steps"] + [{"name": name, "conclusion": "success"}
+                                               for name in promotion.RELEASE_GTK_STEPS]
         self.zips = {arch: release_zip(arch, self.sha) for arch in promotion.ARCHITECTURES}
         for artifact, arch in zip(self.artifacts, promotion.ARCHITECTURES):
             artifact["digest"] = "sha256:" + hashlib.sha256(self.zips[arch]).hexdigest()
@@ -611,6 +615,16 @@ class ReleaseDryRunTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, error):
                     self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.1")
                 self.assertFalse((Path(temp) / "promotion" / "SHA256SUMS").exists())
+
+    def test_a_release_needs_the_native_release_rehearsal_on_both_arches(self):
+        for arch in promotion.ARCHITECTURES:
+            github = ReleaseGitHub()
+            gtk = next(job for job in github.jobs if job["name"] == f"GTK build and tests ({arch})")
+            gtk["steps"] = [step for step in gtk["steps"] if step["name"] != "Rehearse versioned release archive"]
+            with self.subTest(arch=arch), tempfile.TemporaryDirectory() as temp:
+                with self.assertRaisesRegex(ValueError, "Rehearse versioned release archive"):
+                    self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.1")
+                self.prepare(github, Path(temp) / "dev")
 
     def test_rejects_invalid_versions_before_any_api_call(self):
         for version in ("0.41.1", "0.41.1.0", "0.41.1.1rc1", "0.41.2.1"):
@@ -759,7 +773,7 @@ class WorkflowTests(unittest.TestCase):
         for name in promotion.REQUIRED_JOBS + promotion.REQUIRED_ARCH_JOBS:
             with self.subTest(job=name):
                 self.assertIn(name.format(arch="${{ matrix.arch }}"), names.values())
-        for step in promotion.REQUIRED_GTK_STEPS:
+        for step in promotion.REQUIRED_GTK_STEPS + promotion.RELEASE_GTK_STEPS:
             with self.subTest(step=step):
                 self.assertEqual(build.count(f"      - name: {step}\n"), 1)
 

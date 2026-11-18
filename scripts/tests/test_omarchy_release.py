@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Versioned release assets: VERSION stamp, root ownership, RUNPATH, naming and the omarchy-pkgs watch."""
 
+import hashlib
 import importlib.util
 import io
 import json
@@ -36,13 +37,21 @@ def elf(arch, search="$ORIGIN/../lib"):
     return bytes(data)
 
 
+SHIPPED_THEME = b"background = 1a1b26\n"
+INVENTORY = json.dumps({"themes": {"files": [
+    {"file": "TokyoNight", "sha256": hashlib.sha256(SHIPPED_THEME).hexdigest(), "attribution": "resolved"},
+    {"file": "Dracula", "sha256": "0" * 64, "attribution": "dropped", "reason": "No license file"}]}}).encode()
+
+
 def archive(arch="x86_64", sha=SHA, version=b"dev\n", uid=1001, override=None):
     files = {"share/agterm/COMMIT": sha.encode() + b"\n", "share/agterm/VERSION": version,
              "bin/agterm-linux": b"#!/bin/sh\n", "bin/agtermctl": b"#!/bin/sh\n",
              "bin/agterm-linux.bin": elf(arch), "bin/agtermctl.bin": elf(arch), "bin/zmx": elf(arch, "$ORIGIN"),
              "lib/libswiftCore.so": elf(arch, "$ORIGIN"),
              "share/licenses/agterm/LICENSE": (REPO / "LICENSE").read_bytes(),
-             "share/licenses/agterm/payload.json": b'{"unresolved_libraries": []}\n'}
+             "share/licenses/agterm/payload.json": b'{"unresolved_libraries": []}\n',
+             "share/licenses/agterm/inventory.json": INVENTORY, "share/ghostty/themes/TokyoNight": SHIPPED_THEME,
+             "share/ghostty/themes/.agterm-resource-manifest": b"manifest\n"}
     files.update(override or {})
     output = io.BytesIO()
     with tarfile.open(fileobj=output, mode="w:gz", format=tarfile.GNU_FORMAT) as target:
@@ -113,6 +122,15 @@ class ReleaseAssetTests(unittest.TestCase):
         for override, message in (({"share/licenses/agterm/LICENSE": None}, "LICENSE"),
                                   ({"share/licenses/agterm/payload.json": b'{"unresolved_libraries": ["libx.so"]}'},
                                    "without reviewed notices")):
+            with self.subTest(message=message):
+                source = archive(override=override)
+                with self.assertRaisesRegex(ValueError, message):
+                    release.validate_release(source, release.stamp(source, "0.41.1.1"), "x86_64", SHA, "0.41.1.1")
+
+    def test_rejects_themes_without_a_resolved_author_license(self):
+        for override, message in (({"share/ghostty/themes/Dracula": b"background = 282a36\n"}, "without a resolved"),
+                                  ({"share/ghostty/themes/TokyoNight": b"background = 000000\n"}, "differ from their"),
+                                  ({"share/licenses/agterm/inventory.json": None}, "no licensed theme inventory")):
             with self.subTest(message=message):
                 source = archive(override=override)
                 with self.assertRaisesRegex(ValueError, message):

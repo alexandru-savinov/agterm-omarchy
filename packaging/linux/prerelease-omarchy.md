@@ -74,13 +74,17 @@ gh workflow run prerelease-omarchy.yml --repo alexandru-savinov/agterm-omarchy -
 ```
 
 A tag push publishes; it uses the newest successful main push/dispatch CI run at the tagged commit.
+Push the tag only after that run is green: a run that finds no source fails, and a later dispatch refuses the
+existing tag, so recover by re-running the failed workflow run on the tag once CI has passed.
 The source commit must be on main, which may have moved past it, and its CI artifacts must be unexpired (14 days).
 Every development-prerelease check applies, and then `scripts/omarchy-release.py` writes
 `agterm-omarchy-<version>-<arch>.tar.gz` for both architectures: the tested archive with only
 `share/agterm/VERSION` changed, numeric root ownership and a timestamp-free gzip header.
 It rejects the archive unless both executables have RUNPATH `$ORIGIN/../lib`, no bundled ELF has an absolute
-search path, `share/licenses/agterm/` carries the repository `LICENSE`, and `payload.json` lists no
-unresolved library; `promotion.json` records the tested and released digest of each archive.
+search path, `share/licenses/agterm/` carries the repository `LICENSE`, `payload.json` lists no unresolved
+library, and every shipped theme is resolved, byte for byte, in the archive's own notice inventory;
+`promotion.json` records the tested and released digest of each archive.
+The source run must also have passed both arches' "Rehearse versioned release archive" step.
 CI rehearses this on both architectures under serial 0 and checks the result natively with tar, readelf and ldd
 (`release-rehearsal-<arch>-<sha>` artifacts).
 The release is created as a non-prerelease; it is marked latest only when no published `omarchy-v` release

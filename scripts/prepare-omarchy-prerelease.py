@@ -23,6 +23,8 @@ REQUIRED_JOBS = ("Installer and scripts", "SwiftLint (Linux)", "CI")
 REQUIRED_ARCH_JOBS = ("Core tests ({arch})", "GTK build and tests ({arch})")
 REQUIRED_GTK_STEPS = ("swift test (agterm-linux)", "swift build Release/WMO (agterm-linux)",
                       "Validate staged Linux payload", "GTK AT-SPI smoke tests", "Upload tested runtime payload")
+# A versioned release also needs the native tar/readelf/ldd check its notes describe.
+RELEASE_GTK_STEPS = ("Rehearse versioned release archive", "Upload release rehearsal evidence")
 
 
 def require(condition, message):
@@ -114,7 +116,7 @@ def validate_run(run, workflow, sha, branch_sha):
     require(run["head_sha"] == sha == branch_sha, "Source is not the requested current branch head")
 
 
-def validate_jobs(jobs):
+def validate_jobs(jobs, release=False):
     required = set(REQUIRED_JOBS)
     for arch in ARCHITECTURES:
         required.update(name.format(arch=arch) for name in REQUIRED_ARCH_JOBS)
@@ -122,7 +124,7 @@ def validate_jobs(jobs):
         matches = [job for job in jobs if job["name"] == name]
         require(len(matches) == 1 and matches[0]["conclusion"] == "success", f"Missing successful {name}")
         if name.startswith("GTK build"):
-            for step in REQUIRED_GTK_STEPS:
+            for step in REQUIRED_GTK_STEPS + (RELEASE_GTK_STEPS if release else ()):
                 steps = [item for item in matches[0]["steps"] if item["name"] == step]
                 require(len(steps) == 1 and steps[0]["conclusion"] == "success", f"Missing successful {step}")
 
@@ -287,7 +289,7 @@ def discover_commit(sha):
     for run in (run for page in pages for run in page["workflow_runs"]):
         try:
             validate_run(run, workflow, sha, sha)
-            validate_jobs(run_jobs(run))
+            validate_jobs(run_jobs(run), release=True)
             select_artifacts(run_artifacts(run), run, sha)
         except ValueError:
             continue
@@ -335,7 +337,7 @@ def main():
         require(run["head_branch"] in BRANCHES, "Untrusted source branch")
         branch_sha = api(f"git/ref/heads/{run['head_branch']}")["object"]["sha"]
     validate_run(run, api("actions/workflows/ci.yml"), args.sha, branch_sha)
-    validate_jobs(run_jobs(run))
+    validate_jobs(run_jobs(run), release=bool(release))
     artifacts = select_artifacts(run_artifacts(run), run, args.sha)
     # A dry run must fail where publication would: tag creation refuses an existing ref.
     if args.tagged:

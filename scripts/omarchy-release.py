@@ -25,6 +25,7 @@ STAGE = "agterm-stage/"
 VERSION_MEMBER = STAGE + "share/agterm/VERSION"
 EXECUTABLES = ("bin/agterm-linux.bin", "bin/agtermctl.bin")
 NOTICES = STAGE + "share/licenses/agterm/"
+THEMES = STAGE + "share/ghostty/themes/"
 
 
 def load(name, filename):
@@ -121,9 +122,24 @@ def validate_release(source, release, arch, sha, version):
     require(files.get(NOTICES + "LICENSE", b"").startswith(b"MIT License"), "Missing repository LICENSE notice")
     require(json.loads(files.get(NOTICES + "payload.json", b"{}")).get("unresolved_libraries") == [],
             "Bundled libraries without reviewed notices")
+    validate_themes(files)
     return {"asset": asset_name(version, arch), "version": version, "arch": arch, "source_commit": sha,
             "tested_archive_sha256": digest(source), "release_archive_sha256": digest(release),
             "members": len(after), "changed_members": [VERSION_MEMBER], "owner": "0:0", "runpath": RUNPATH}
+
+
+def validate_themes(files):
+    """Every shipped theme is one the archive's own notice inventory resolves to a pinned author license."""
+    inventory = json.loads(files.get(NOTICES + "inventory.json", b"{}"))
+    licensed = {theme["file"]: theme["sha256"] for theme in inventory.get("themes", {}).get("files", [])
+                if theme.get("attribution") == "resolved"}
+    shipped = {name[len(THEMES):]: content for name, content in files.items()
+               if name.startswith(THEMES) and name != THEMES + ".agterm-resource-manifest"}
+    require(licensed and shipped, "Archive has no licensed theme inventory")
+    unlicensed = sorted(set(shipped) - set(licensed))
+    require(not unlicensed, f"Archive ships themes without a resolved author license: {unlicensed[:5]}")
+    changed = sorted(name for name, content in shipped.items() if digest(content) != licensed[name])
+    require(not changed, f"Archive themes differ from their licensed bytes: {changed[:5]}")
 
 
 def release(source, arch, sha, version, output):
