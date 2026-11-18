@@ -23,7 +23,7 @@ WINCTL=$3
 TRIALS=${TRIALS:-3}
 WAIT=${WAIT:-30}
 BID=com.umputun.agterm.debug
-ROOT=/tmp/ab37
+ROOT=/private/tmp/ab37 # what an open-launched process reports, so the pgrep patterns match
 FIXED=$ROOT/app/agterm.app
 OLD=$ROOT/old
 BACKUP=$ROOT/backup
@@ -31,7 +31,7 @@ LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchSe
 mkdir -p "$ROOT/app" "$ROOT/arms" "$OLD" "$BACKUP" "$OUT/trials"
 RESULTS=$OUT/results.tsv
 SMOKE=$OUT/smoke.tsv
-printf 'arm\tmode\ttrial\talive\twindow_at_s\tsocket_at_s\tverdict\n' > "$RESULTS"
+printf 'arm\tmode\ttrial\talive\twindow_at_s\tsocket_at_s\tverdict\twindows_onscreen_all\n' > "$RESULTS"
 printf 'check\tresult\tdetail\n' > "$SMOKE"
 staged=0
 sdn=0
@@ -45,7 +45,7 @@ CLEAN_PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -v 'agterm.*\.app/' | past
 SCRUB+=(PATH="$CLEAN_PATH")
 
 ctl() { perl -e 'alarm shift; exec @ARGV' 10 "$FIXED/Contents/MacOS/agtermctl" "$@"; }
-app_pids() { pgrep -f "^$FIXED/Contents/MacOS/agterm( |\$)"; }
+app_pids() { pgrep -f "$FIXED/Contents/MacOS/agterm( |\$)"; }
 
 saved_state_dir() {
     local c m
@@ -139,7 +139,7 @@ observe() {
             break
         fi
         if [ "$WIN_AT" = - ]; then
-            w=$("$WINCTL" "$PID" | cut -d' ' -f1)
+            w=$("$WINCTL" "$PID" | cut -d' ' -f"$WINFIELD")
             [ "${w:-0}" -gt 0 ] && WIN_AT=$now
         fi
         if [ "$SOCK_AT" = - ] && ctl version --socket "$SOCK" > /dev/null 2>&1; then SOCK_AT=$now; fi
@@ -159,6 +159,7 @@ trial() {
     new_sd
     saved_state "before $ARM $mode $tag"
     launch "$mode"
+    env_check "$mode"
     observe "$WAIT"
     file=$OUT/trials/$ARM-$mode-$tag
     if [ "$ALIVE" = yes ]; then
@@ -173,9 +174,22 @@ trial() {
     else
         verdict=other
     fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$ARM" "$mode" "$tag" "$ALIVE" "$WIN_AT" "$SOCK_AT" "$verdict" >> "$RESULTS"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$ARM" "$mode" "$tag" "$ALIVE" "$WIN_AT" "$SOCK_AT" "$verdict" "$(tr ' ' / < "$file.winctl" 2> /dev/null)" >> "$RESULTS"
     log "$ARM $mode $tag: alive=$ALIVE window_at=$WIN_AT socket_at=$SOCK_AT -> $verdict (saved-state files before: $STATE_FILES)"
     kill_all
+}
+
+# Fails the run if the launched process inherited anything from the live terminal beyond the two variables set.
+env_check() {
+    local leaked
+    [ -n "$PID" ] || return 0
+    leaked=$(ps eww -p "$PID" -o command= | tr ' ' '\n' | grep -E '^(AGTERM_|GHOSTTY_|CLAUDE|CODEX|ZMX|__CFBundleIdentifier=)' |
+        grep -vE "^(AGTERM_STATE_DIR=$SD|AGTERM_CONTROL_SOCKET=$SOCK)\$")
+    if [ -n "$leaked" ]; then
+        log "FAIL $1 launch inherited: $(echo "$leaked" | cut -d= -f1 | paste -sd' ' -)"
+        exit 1
+    fi
+    echo "$1 pid $PID: clean" >> "$OUT/env-check.log"
 }
 
 # Quits the running instance the way a user's last-window close does, which discards AppKit's saved state.
@@ -296,6 +310,7 @@ smoke() {
 restore() {
     local f
     kill_all
+    lsappinfo list 2> /dev/null | grep -q 'agterm.debug' && log "WARN a com.umputun.agterm.debug instance is registered at restore time"
     for f in "$FIXED" "$OLD"/*-agterm.app; do [ -e "$f" ] && "$LSREGISTER" -u "$f" 2> /dev/null; done
     for f in "$SS"/*; do [ -f "$f" ] && [ ! -e "$BACKUP/savedState/${f##*/}" ] && rm -f "$f"; done
     ditto "$BACKUP/savedState" "$SS"
@@ -320,6 +335,21 @@ restore() {
 }
 
 # ---- preparation ----
+if [ -e "$BACKUP/prefs.plist" ]; then
+    echo "$BACKUP already holds a backup from an earlier run; restore or move it first" >&2
+    exit 1
+fi
+if lsappinfo list 2> /dev/null | grep -q 'agterm.debug'; then
+    echo "another com.umputun.agterm.debug instance is running; it shares the saved-state domain" >&2
+    exit 1
+fi
+if ioreg -n Root -d1 | grep -q '"CGSSessionScreenIsLocked"=Yes'; then
+    WINFIELD=2
+    log "screen locked: a window counts from any layer-0 window of the pid, on-screen or not"
+else
+    WINFIELD=1
+    log "screen unlocked: a window counts only when on screen"
+fi
 SS=$(saved_state_dir)
 [ -n "$SS" ] && [ -d "$SS" ] || {
     echo "no saved-state directory mapped for $BID" >&2
@@ -365,9 +395,15 @@ fi
 kill_all
 saved_state "after the pre-clean quit"
 log "saved-state files after the pre-clean quit: $STATE_FILES"
+[ "$STATE_FILES" -eq 0 ] || {
+    log "FAIL the pre-clean quit left saved state, so the A/B would not start from state the seed made"
+    exit 1
+}
 
 # ---- seed ----
 new_sd
+touch "$ROOT/seed-start"
+sleep 1
 launch open-g
 observe 60
 log "seed launch: alive=$ALIVE window_at=$WIN_AT socket_at=$SOCK_AT"
@@ -381,8 +417,9 @@ kill_all
 sleep 2
 saved_state "after the seed SIGKILL"
 log "saved-state files after the seed SIGKILL: $STATE_FILES"
-[ "$STATE_FILES" -gt 0 ] || {
-    log "FAIL no saved state after the seed SIGKILL"
+older=$(find "$SS" -type f ! -newer "$ROOT/seed-start" | wc -l | tr -d ' ')
+[ "$STATE_FILES" -gt 0 ] && [ "$older" -eq 0 ] || {
+    log "FAIL saved state after the seed SIGKILL: $STATE_FILES file(s), $older not written by the seed"
     exit 1
 }
 
