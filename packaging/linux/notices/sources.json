@@ -893,6 +893,15 @@
       "sha256": "9d6646760f242c7797b148512f0cdaf71ecb6ba6fa9be2a0ca2dc09aec1aed7c"
     },
     {
+      "component": "theme-daltonmenezes-aura-theme",
+      "repository": "daltonmenezes/aura-theme",
+      "revision": "20924aa0a43975420edd0e0b2f919e07a3eff9c9",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/daltonmenezes/aura-theme/20924aa0a43975420edd0e0b2f919e07a3eff9c9/LICENSE",
+      "file": "theme-daltonmenezes-aura-theme/LICENSE",
+      "sha256": "b5c478ca2824e1a9544810d7644e2901a5d2b9ace72104dc5bdfdc2a5312d9b9"
+    },
+    {
       "component": "theme-davidleininger-cobaltnext-vscode",
       "repository": "davidleininger/cobaltnext-vscode",
       "revision": "bfd077cfe67911687c249d58f1c1e7af36959cc0",
@@ -938,6 +947,15 @@
       "sha256": "0855f81bd8af0b0ab73436f731bd826d620d4036a6362b54545c7e4511ca3f9d"
     },
     {
+      "component": "theme-dylanaraps-ryuuko",
+      "repository": "dylanaraps/ryuuko",
+      "revision": "34bd83cc90d01b3b694cae19be5b5a00a345b251",
+      "source_path": "LICENSE.md",
+      "url": "https://raw.githubusercontent.com/dylanaraps/ryuuko/34bd83cc90d01b3b694cae19be5b5a00a345b251/LICENSE.md",
+      "file": "theme-dylanaraps-ryuuko/LICENSE.md",
+      "sha256": "cffa7361f5d5b64eaf58f456d763ac4e1094d94d886aca73407bd1a524eb986f"
+    },
+    {
       "component": "theme-edeneast-nightfox.nvim",
       "repository": "EdenEast/nightfox.nvim",
       "revision": "4dacd3f0185a2227bdf3b6c0975a8f0bf87cac9a",
@@ -945,6 +963,15 @@
       "url": "https://raw.githubusercontent.com/EdenEast/nightfox.nvim/4dacd3f0185a2227bdf3b6c0975a8f0bf87cac9a/LICENSE",
       "file": "theme-edeneast-nightfox.nvim/LICENSE",
       "sha256": "280a27a527db4e93e03d525a1226ee66ca96a2cbaedb3517eccfba40ac0d7a9f"
+    },
+    {
+      "component": "theme-eliverlara-andromeda",
+      "repository": "EliverLara/Andromeda",
+      "revision": "d1abb48c69493000aa0133a32d594eb25e523d4f",
+      "source_path": "LICENSE.md",
+      "url": "https://raw.githubusercontent.com/EliverLara/Andromeda/d1abb48c69493000aa0133a32d594eb25e523d4f/LICENSE.md",
+      "file": "theme-eliverlara-andromeda/LICENSE.md",
+      "sha256": "2f7886f1a05cefc2c26f5e49de1a39fa4466413c1ccb06fc80960e73f5ed4b89"
     },
     {
       "component": "theme-felipefdl-warm-burnout",
@@ -1010,6 +1037,15 @@
       "sha256": "024422361856b7d147f2f397fe83d97e7775b415c3e0a0a05b5c3d0cb9dc8d0f"
     },
     {
+      "component": "theme-hedinne-popping-and-locking-vscode",
+      "repository": "hedinne/popping-and-locking-vscode",
+      "revision": "18c7632206c0ee944b4a6d33847d84ab37c0c779",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/hedinne/popping-and-locking-vscode/18c7632206c0ee944b4a6d33847d84ab37c0c779/LICENSE",
+      "file": "theme-hedinne-popping-and-locking-vscode/LICENSE",
+      "sha256": "6e19a315e03f36020f37dedcb1dd93b4eba6ebfd94ccdd13ec55b940776fb55e"
+    },
+    {
       "component": "theme-howar31-monokai-sublimetext",
       "repository": "howar31/monokai-sublimetext",
       "revision": "1b50c50b30fd0136f209723e81f7f83fda6d8432",
@@ -1055,6 +1091,24 @@
       "sha256": "a159d267d094ad7296335dc6b1d195b7f7db9d8b19c086d5fbd3de9daaf6ad0e"
     },
     {
+      "component": "theme-jan-warchol-selenized",
+      "repository": "jan-warchol/selenized",
+      "revision": "9a753d5c575c48e29eeb2be745d9571b4cec42b3",
+      "source_path": "LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/jan-warchol/selenized/9a753d5c575c48e29eeb2be745d9571b4cec42b3/LICENSE.txt",
+      "file": "theme-jan-warchol-selenized/LICENSE.txt",
+      "sha256": "5e6a14d9542f4b61e1f50928420fac7b757460f55f170e7145d52e1056997e39"
+    },
+    {
+      "component": "theme-jdhmtl-cga-theme",
+      "repository": "jdhmtl/cga-theme",
+      "revision": "8ba6ff45e96f2d82a2ff62bb8beea7e6879ef078",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/jdhmtl/cga-theme/8ba6ff45e96f2d82a2ff62bb8beea7e6879ef078/LICENSE",
+      "file": "theme-jdhmtl-cga-theme/LICENSE",
+      "sha256": "72f6e2f6ceca8d78f904dda74d0247b392cf93a5f5e0f930518ff1e4f9cbfebc"
+    },
+    {
       "component": "theme-jglovier-galaxy-theme-iterm",
       "repository": "jglovier/galaxy-theme-iterm",
       "revision": "354a696ea60f6ca41b150b565af9148a71eb501d",
@@ -1091,6 +1145,15 @@
       "sha256": "3021ce83c5fcbab4b97c5b8d3b1dac0206bdaf220fdd7cbfdbf36c94bafd0179"
     },
     {
+      "component": "theme-kepano-flexoki",
+      "repository": "kepano/flexoki",
+      "revision": "8d723bac4a9ac46adfdf99d42155286977aac72a",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/kepano/flexoki/8d723bac4a9ac46adfdf99d42155286977aac72a/LICENSE",
+      "file": "theme-kepano-flexoki/LICENSE",
+      "sha256": "b0aeda2f9ebf5e09c6bfbf9323813ebeaedeabcc8cb441323c9f47aef9b05ba3"
+    },
+    {
       "component": "theme-kinoute-hivacruz-itermcolors",
       "repository": "kinoute/hivacruz-itermcolors",
       "revision": "12dac937c0548a7fce0351485028f3ade21da465",
@@ -1098,6 +1161,15 @@
       "url": "https://raw.githubusercontent.com/kinoute/hivacruz-itermcolors/12dac937c0548a7fce0351485028f3ade21da465/LICENSE",
       "file": "theme-kinoute-hivacruz-itermcolors/LICENSE",
       "sha256": "f96ae08724694b0fdf7ca56fd9d7cc1a518d8803a309e46b88de0d7564ba286f"
+    },
+    {
+      "component": "theme-leobeosab-tearout.nvim",
+      "repository": "leobeosab/tearout.nvim",
+      "revision": "f6211dece57291e1f58131528df88806111e2b4c",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/leobeosab/tearout.nvim/f6211dece57291e1f58131528df88806111e2b4c/LICENSE",
+      "file": "theme-leobeosab-tearout.nvim/LICENSE",
+      "sha256": "108e985fb8572940adf074d1ad09a9f3080758105433d84952dd3c9fa14d3193"
     },
     {
       "component": "theme-liviuschera-noctis",
@@ -1118,6 +1190,15 @@
       "sha256": "b44187efb98a5f3ad9f9dd922317bc56b9a60c705b4fb84525cb0a2f4e0391ab"
     },
     {
+      "component": "theme-lmarkmann-patina-theme",
+      "repository": "lmarkmann/patina-theme",
+      "revision": "19c06c8e4211116166a65753e53f947d31c7fc87",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/lmarkmann/patina-theme/19c06c8e4211116166a65753e53f947d31c7fc87/LICENSE",
+      "file": "theme-lmarkmann-patina-theme/LICENSE",
+      "sha256": "348d0c8033c113064c92b1635e23c908128c6b59ef7b523e716fba229db858a4"
+    },
+    {
       "component": "theme-lunacookies-vim-colors-xcode",
       "repository": "lunacookies/vim-colors-xcode",
       "revision": "2329a3ed092b4f72e9361a94567a5431e36e7d9c",
@@ -1134,6 +1215,15 @@
       "url": "https://raw.githubusercontent.com/Maksim-Burtsev/shokunin-theme/b2999ffc564d24d376d6dadd4133cf84bd7a9dd6/LICENSE",
       "file": "theme-maksim-burtsev-shokunin-theme/LICENSE",
       "sha256": "a04c8f096ae0cfb18b6c6dbadbb8bdc9b7a7f0575ed39f5cd012bbd5fe0dab57"
+    },
+    {
+      "component": "theme-martinseeler-iterm2-material-design",
+      "repository": "MartinSeeler/iterm2-material-design",
+      "revision": "2b5256774842f607081c431889da4bb3e7ce658b",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/MartinSeeler/iterm2-material-design/2b5256774842f607081c431889da4bb3e7ce658b/LICENSE",
+      "file": "theme-martinseeler-iterm2-material-design/LICENSE",
+      "sha256": "49a2aa83baae3cec11a41d688f4fd2d68149b3af8379d052b610f54fe697b469"
     },
     {
       "component": "theme-mathiasbynens-dotfiles",
@@ -1163,6 +1253,15 @@
       "sha256": "78b24cee4054502f879db8084ea617397e8a19063281871dc56a6c2f2e911760"
     },
     {
+      "component": "theme-nordtheme-iterm2",
+      "repository": "nordtheme/iterm2",
+      "revision": "233a2462e04e07a9676386a52dad0c2ff6666d72",
+      "source_path": "license",
+      "url": "https://raw.githubusercontent.com/nordtheme/iterm2/233a2462e04e07a9676386a52dad0c2ff6666d72/license",
+      "file": "theme-nordtheme-iterm2/license",
+      "sha256": "25ac8188d670bd2ad2ce2f4f55ab88573010ee9f7a4502543cb1eea1e2274f8a"
+    },
+    {
       "component": "theme-notgabriels-sys-claude-code-50-dark-themes",
       "repository": "notgabriels-sys/claude-code-50-dark-themes",
       "revision": "999558105bf61ded64aa0b91a3a1cbc297dbdb45",
@@ -1170,6 +1269,24 @@
       "url": "https://raw.githubusercontent.com/notgabriels-sys/claude-code-50-dark-themes/999558105bf61ded64aa0b91a3a1cbc297dbdb45/LICENSE",
       "file": "theme-notgabriels-sys-claude-code-50-dark-themes/LICENSE",
       "sha256": "04b06f952fd083ae87510201c9acf1c5e3a476b04d5df055fa7c8d91910a370e"
+    },
+    {
+      "component": "theme-nyoom-engineering-oxocarbon-iterm2",
+      "repository": "nyoom-engineering/oxocarbon-iterm2",
+      "revision": "bb1463e94f5daff6f717d302c0eb4983248cc82d",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/nyoom-engineering/oxocarbon-iterm2/bb1463e94f5daff6f717d302c0eb4983248cc82d/LICENSE",
+      "file": "theme-nyoom-engineering-oxocarbon-iterm2/LICENSE",
+      "sha256": "814096d2c34cc216c624738a49356f32b7237733b4f7edb0685f4e50ef5074ba"
+    },
+    {
+      "component": "theme-oberstkrueger-midnight-in-mojave-iterm",
+      "repository": "OberstKrueger/midnight-in-mojave-iterm",
+      "revision": "81482555ecf155f56fe68814a2e1a09a282f7bae",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/OberstKrueger/midnight-in-mojave-iterm/81482555ecf155f56fe68814a2e1a09a282f7bae/LICENSE",
+      "file": "theme-oberstkrueger-midnight-in-mojave-iterm/LICENSE",
+      "sha256": "58a593fe1baa37ba197ca8c00281b9dab2cf5f649e9757c089328138c84aa300"
     },
     {
       "component": "theme-pamburus-one-double",
@@ -1181,6 +1298,15 @@
       "sha256": "79d36bf3990585043449e3891edfaf2102dd5a22a8757defd0bc775709479431"
     },
     {
+      "component": "theme-patrickserrano-pyrokai",
+      "repository": "patrickserrano/pyrokai",
+      "revision": "739f196af1d0cc25d476d2804cf0d069116c1ef4",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/patrickserrano/pyrokai/739f196af1d0cc25d476d2804cf0d069116c1ef4/LICENSE",
+      "file": "theme-patrickserrano-pyrokai/LICENSE",
+      "sha256": "9bb128e9ecee08a6d9f38756c0fd75cd74a0e00af11d069409aefd899741dcd6"
+    },
+    {
       "component": "theme-primer-github-vscode-theme",
       "repository": "primer/github-vscode-theme",
       "revision": "cd78e5e4e7bcf132a6f428ae0f32264bb1b729cf",
@@ -1190,6 +1316,33 @@
       "sha256": "e2c871bb6effe9f6ec8d94d6596db33c4bfe4dd94969a6a9a2fb0473ebe6442e"
     },
     {
+      "component": "theme-pustur-calamity-vscode",
+      "repository": "Pustur/calamity-vscode",
+      "revision": "137e271c27884b4dab20a8ec3021312ea49b0e29",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/Pustur/calamity-vscode/137e271c27884b4dab20a8ec3021312ea49b0e29/LICENSE",
+      "file": "theme-pustur-calamity-vscode/LICENSE",
+      "sha256": "9459305ae1ee4d58b9e63cdf41719473808afcd8e40aac7bbe70a8b867ec75f3"
+    },
+    {
+      "component": "theme-pustur-rapture-vscode",
+      "repository": "Pustur/rapture-vscode",
+      "revision": "ed423cc6238758db0ef8e7a00568cd2889183cae",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/Pustur/rapture-vscode/ed423cc6238758db0ef8e7a00568cd2889183cae/LICENSE",
+      "file": "theme-pustur-rapture-vscode/LICENSE",
+      "sha256": "a32ddd50bfd1831b446ad69a6fe93273d543b5218bd34ba86c768104cd48c122"
+    },
+    {
+      "component": "theme-rahulpatel-oceanic-material-iterm",
+      "repository": "rahulpatel/oceanic-material-iterm",
+      "revision": "982e358d953f1db5045b588466253459ae8e7297",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/rahulpatel/oceanic-material-iterm/982e358d953f1db5045b588466253459ae8e7297/LICENSE",
+      "file": "theme-rahulpatel-oceanic-material-iterm/LICENSE",
+      "sha256": "02f67f9645892e51a0780a706a1b5e4ed04890a7a261c0ce471e72fab08bc5c4"
+    },
+    {
       "component": "theme-ramojus-mellifluous.nvim",
       "repository": "ramojus/mellifluous.nvim",
       "revision": "ec0575bdb63594c5e7fba6eb9607b009aa1fb74e",
@@ -1197,6 +1350,33 @@
       "url": "https://raw.githubusercontent.com/ramojus/mellifluous.nvim/ec0575bdb63594c5e7fba6eb9607b009aa1fb74e/LICENSE",
       "file": "theme-ramojus-mellifluous.nvim/LICENSE",
       "sha256": "aa03481142a88d7b6e463f8444e43d032a44daf784bcb94a9fdfd0ef261373cf"
+    },
+    {
+      "component": "theme-raunofreiberg-vesper",
+      "repository": "raunofreiberg/vesper",
+      "revision": "9043f3849b776949445f0cd4990365959cca35a3",
+      "source_path": "LICENSE.md",
+      "url": "https://raw.githubusercontent.com/raunofreiberg/vesper/9043f3849b776949445f0cd4990365959cca35a3/LICENSE.md",
+      "file": "theme-raunofreiberg-vesper/LICENSE.md",
+      "sha256": "c44ea9c10305dd82182e64c1431b678871562150a1439ccdb9484728dd536099"
+    },
+    {
+      "component": "theme-razielanarki-vscode-galizur-theme",
+      "repository": "razielanarki/vscode-galizur-theme",
+      "revision": "dfd817a55203c1dc7c0dfb3ef146f0e35b9cdef6",
+      "source_path": "LICENSE.md",
+      "url": "https://raw.githubusercontent.com/razielanarki/vscode-galizur-theme/dfd817a55203c1dc7c0dfb3ef146f0e35b9cdef6/LICENSE.md",
+      "file": "theme-razielanarki-vscode-galizur-theme/LICENSE.md",
+      "sha256": "dcabb4d887bdf1b889a7f6ea6826201ade5a7c5f57c2b21214279b81f2a25646"
+    },
+    {
+      "component": "theme-rebelot-kanagawa.nvim",
+      "repository": "rebelot/kanagawa.nvim",
+      "revision": "bb85e4bfc8d89b0e62c8fa53ccdd13d12e2f77b3",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/rebelot/kanagawa.nvim/bb85e4bfc8d89b0e62c8fa53ccdd13d12e2f77b3/LICENSE",
+      "file": "theme-rebelot-kanagawa.nvim/LICENSE",
+      "sha256": "dfce81e2e5bf5b5b1b440269abc551ddf96a673be9fdf64f082d5802787a4b04"
     },
     {
       "component": "theme-rmehri01-onenord.nvim",
@@ -1217,6 +1397,15 @@
       "sha256": "4f58ea71ef4a8d224c4abc85143cee79325708ea18c6c3684c14901e337129d5"
     },
     {
+      "component": "theme-rod-iterm2-whimsy",
+      "repository": "rod/iterm2-whimsy",
+      "revision": "c73fcbeb0e366feb8bcb5abed4b2ada349891dd7",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/rod/iterm2-whimsy/c73fcbeb0e366feb8bcb5abed4b2ada349891dd7/LICENSE",
+      "file": "theme-rod-iterm2-whimsy/LICENSE",
+      "sha256": "3a82a38c114ecaae4bdb3e674ea0ae8d71b6d92bdecf2fb7cdc1dd23f0fb42fa"
+    },
+    {
       "component": "theme-rose-pine-iterm",
       "repository": "rose-pine/iterm",
       "revision": "4801702ac30645f1adf99234d7c8e838320c647c",
@@ -1224,6 +1413,15 @@
       "url": "https://raw.githubusercontent.com/rose-pine/iterm/4801702ac30645f1adf99234d7c8e838320c647c/LICENSE",
       "file": "theme-rose-pine-iterm/LICENSE",
       "sha256": "b2ec9e48689252be5807d35d80689bbc40481c54d1f228c94dde8ffad1bdc824"
+    },
+    {
+      "component": "theme-sainnhe-gruvbox-material-tilix",
+      "repository": "sainnhe/gruvbox-material-tilix",
+      "revision": "5b3505752a7cde8723fbd023575917e9e7ef04aa",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/sainnhe/gruvbox-material-tilix/5b3505752a7cde8723fbd023575917e9e7ef04aa/LICENSE",
+      "file": "theme-sainnhe-gruvbox-material-tilix/LICENSE",
+      "sha256": "9c5940be37a85db6645f5db65db313011131b732358b5d1a0fc1400bc20f38ef"
     },
     {
       "component": "theme-sainnhe-sonokai",
@@ -1244,6 +1442,24 @@
       "sha256": "34056ab5e132b6ad0b512aa4a2c4f7481c24e3821cbe6863e22585af6fd8b69d"
     },
     {
+      "component": "theme-savq-melange-nvim",
+      "repository": "savq/melange-nvim",
+      "revision": "ce42f6b629beeaa00591ba73a77d3eeac4cf28ce",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/savq/melange-nvim/ce42f6b629beeaa00591ba73a77d3eeac4cf28ce/LICENSE",
+      "file": "theme-savq-melange-nvim/LICENSE",
+      "sha256": "4df621ea2945e50eacc21c6d54f6ac6910a5784c70b8bdb2dfa1f3915fb5d4c9"
+    },
+    {
+      "component": "theme-scozu-karasu",
+      "repository": "scozu/karasu",
+      "revision": "681fe54e4cc09a28dcb30781b80dd9933736c16c",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/scozu/karasu/681fe54e4cc09a28dcb30781b80dd9933736c16c/LICENSE",
+      "file": "theme-scozu-karasu/LICENSE",
+      "sha256": "e3d41356bdcf0c6b083be80295e52618667562c91e94dc1873e81cbc69a33346"
+    },
+    {
       "component": "theme-sdras-night-owl-vscode-theme",
       "repository": "sdras/night-owl-vscode-theme",
       "revision": "cc291eba7976b20d7c66bde6883c27b902196b07",
@@ -1253,6 +1469,15 @@
       "sha256": "7167d2a386e197ad4bf85f9bc60653ddce195bfc1243733dc92975e77dc94968"
     },
     {
+      "component": "theme-sebastianszturo-firewatch-syntax",
+      "repository": "SebastianSzturo/firewatch-syntax",
+      "revision": "e5e6665eb20613efe74445e8f5cf612271298020",
+      "source_path": "LICENSE.md",
+      "url": "https://raw.githubusercontent.com/SebastianSzturo/firewatch-syntax/e5e6665eb20613efe74445e8f5cf612271298020/LICENSE.md",
+      "file": "theme-sebastianszturo-firewatch-syntax/LICENSE.md",
+      "sha256": "e1bd6bab503e4d7990504df1e646f6e7465a9096648304335e4c0b55c88f1f54"
+    },
+    {
       "component": "theme-simurai-duotone-dark-syntax",
       "repository": "simurai/duotone-dark-syntax",
       "revision": "d0ce468711a82a60b177bfcfc963426e78c9b388",
@@ -1260,6 +1485,15 @@
       "url": "https://raw.githubusercontent.com/simurai/duotone-dark-syntax/d0ce468711a82a60b177bfcfc963426e78c9b388/LICENSE",
       "file": "theme-simurai-duotone-dark-syntax/LICENSE",
       "sha256": "af2262255793e44a157659a555ae27edca5cf79b28814495078b77caafaea50f"
+    },
+    {
+      "component": "theme-sonph-onehalf",
+      "repository": "sonph/onehalf",
+      "revision": "75eb2e97acd74660779fed8380989ee7891eec56",
+      "source_path": "LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/sonph/onehalf/75eb2e97acd74660779fed8380989ee7891eec56/LICENSE.txt",
+      "file": "theme-sonph-onehalf/LICENSE.txt",
+      "sha256": "bb4a23db094e79ed8ffd9a38fbc6ff45cbdf9a1f4182fc7ff2667793a012c9a1"
     },
     {
       "component": "theme-srcery-colors-srcery-terminal",
@@ -1280,6 +1514,15 @@
       "sha256": "a0594d1c22881a2df548236316c48ef1ae6ff9c34c3158526a7b465bc7e0218f"
     },
     {
+      "component": "theme-sublee-sublette",
+      "repository": "sublee/sublette",
+      "revision": "f3e84e83b29c37a05ba8365bd3cfb2812e6df9f3",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/sublee/sublette/f3e84e83b29c37a05ba8365bd3cfb2812e6df9f3/LICENSE",
+      "file": "theme-sublee-sublette/LICENSE",
+      "sha256": "ef0947521b247263dbb191005e0ed1661896fb640ac68524d4ebf1f05e250e47"
+    },
+    {
       "component": "theme-sudhanchitgopkar-gilded-forest",
       "repository": "sudhanchitgopkar/Gilded-Forest",
       "revision": "e09db3a93bc789ee21b4825922ac8843bec7aef6",
@@ -1296,6 +1539,15 @@
       "url": "https://raw.githubusercontent.com/thdxg/eyesclosed/0dd53259e0042557c88bbb444de8d80b947fe85a/LICENSE",
       "file": "theme-thdxg-eyesclosed/LICENSE",
       "sha256": "69b7c439642b95da91a768392052071b2aea7ee07c677658d0365a67e9190d03"
+    },
+    {
+      "component": "theme-thomaspaulmann-kolorit",
+      "repository": "thomaspaulmann/Kolorit",
+      "revision": "d71fb74a58ebddca87a682837f378a1296114e4b",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/thomaspaulmann/Kolorit/d71fb74a58ebddca87a682837f378a1296114e4b/LICENSE",
+      "file": "theme-thomaspaulmann-kolorit/LICENSE",
+      "sha256": "df16236c69d281f2933a6733eeb5aa738d58bf1e5c1fb033d65db1a6d3676b19"
     },
     {
       "component": "theme-thorstenrhau-token",
@@ -1352,6 +1604,15 @@
       "sha256": "8751712fa6dd2b18d27c46d6b4344f91556f73eb80376e6169348d6f88d40784"
     },
     {
+      "component": "theme-vimiomori-bluedolphin",
+      "repository": "vimiomori/BlueDolphin",
+      "revision": "285b4235a81a2c679cad1f9706b01e1d2a694815",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/vimiomori/BlueDolphin/285b4235a81a2c679cad1f9706b01e1d2a694815/LICENSE",
+      "file": "theme-vimiomori-bluedolphin/LICENSE",
+      "sha256": "f40eaccd38c03d3d812584c499e89c8e335a09e2b972e2509013906792a2b30e"
+    },
+    {
       "component": "theme-vukkt-iglass",
       "repository": "vukkt/iglass",
       "revision": "d3e67bb4bee445783740da7324d787d6a2b55ee4",
@@ -1379,6 +1640,24 @@
       "sha256": "bec681e24bba3fe0d7016e6a5fd791d5e7249e0e2555581012bb1ff87b27d2f8"
     },
     {
+      "component": "theme-webhooked-kanso.nvim",
+      "repository": "webhooked/kanso.nvim",
+      "revision": "1afbbb449aa0254823dbe1932e3cbb51886ff9fe",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/webhooked/kanso.nvim/1afbbb449aa0254823dbe1932e3cbb51886ff9fe/LICENSE",
+      "file": "theme-webhooked-kanso.nvim/LICENSE",
+      "sha256": "ccff964b06222ef0335659ad63d954f586bcab9011488b8c4ee363d40e0a99b3"
+    },
+    {
+      "component": "theme-xero-miasma.nvim",
+      "repository": "xero/miasma.nvim",
+      "revision": "627f2e1cac91de0d1d4dd7472b506a30f41b2b7d",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/xero/miasma.nvim/627f2e1cac91de0d1d4dd7472b506a30f41b2b7d/LICENSE",
+      "file": "theme-xero-miasma.nvim/LICENSE",
+      "sha256": "6a1ee543e5282cd9061881edf462e6fdab181f328da71fc2c9a6950a80e94d01"
+    },
+    {
       "component": "theme-zacesshq-themes",
       "repository": "zacesshq/themes",
       "revision": "f874461c72be2cfe3fcd340d68e5a1f9ec3f03f8",
@@ -1404,9 +1683,27 @@
       "url": "https://raw.githubusercontent.com/zenbones-theme/zenbones.nvim/8304d8df9b823ff11e103afa62f38c39f534abe6/LICENSE",
       "file": "theme-zenbones-theme-zenbones.nvim/LICENSE",
       "sha256": "b6da6bf42bdadbc049acc8b32dfee99564e06650886a88a17a9e6f4ea1e96a97"
+    },
+    {
+      "component": "theme-zerebos-lit-cell",
+      "repository": "zerebos/lit-cell",
+      "revision": "ea9b9b32dd23b35a1f2556592d29e6a2d8e5125b",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/zerebos/lit-cell/ea9b9b32dd23b35a1f2556592d29e6a2d8e5125b/LICENSE",
+      "file": "theme-zerebos-lit-cell/LICENSE",
+      "sha256": "e1dbdb9df727e001fad3548af914a63efb1091adb8a4788e756d7455192f3d84"
+    },
+    {
+      "component": "theme-zootedb0t-citruszest.nvim",
+      "repository": "zootedb0t/citruszest.nvim",
+      "revision": "c8c0017d1b2efa4b891af28995bae8d58c87528a",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/zootedb0t/citruszest.nvim/c8c0017d1b2efa4b891af28995bae8d58c87528a/LICENSE",
+      "file": "theme-zootedb0t-citruszest.nvim/LICENSE",
+      "sha256": "3def1a59166207852de0898a03b6546bc360ba14e238a9d830f3930dcf7f9a98"
     }
   ],
-  "inventory_sha256": "f47a4647c9fab022276f4af76ed275c25740ff9d52dae90082c2618385e34ded",
+  "inventory_sha256": "6260980fbaeb7fa9003c1f22e29a65c7de1d917aa6a7683790f67c8b6b94feb2",
   "ghostty_patch_inputs": {
     "linux/patches/ghostty-bounded-app-tick.patch": "20b33f136f8d897e0350133655ca11b6700887d8bea3179eabbc5dc9b630ea82",
     "linux/patches/ghostty-clipboard-request-kind.patch": "4468c6b761ba8a82a4da47ec731845d6792456e1da4b80f948051ea5f7f9c0f6",

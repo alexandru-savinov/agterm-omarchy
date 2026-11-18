@@ -477,12 +477,15 @@
         "theme-cocopon-iceberg.vim/LICENSE.txt",
         "theme-cosmictoast-starlight/UNLICENSE",
         "theme-craftzdog-solarized-osaka.nvim/LICENSE",
+        "theme-daltonmenezes-aura-theme/LICENSE",
         "theme-davidleininger-cobaltnext-vscode/LICENSE",
         "theme-dimitrisnl-nord-wave/LICENSE",
         "theme-dofuuz-dimidium/LICENSE",
         "theme-doomemacs-themes/LICENSE",
         "theme-drcmda-poimandres-theme/LICENSE",
+        "theme-dylanaraps-ryuuko/LICENSE.md",
         "theme-edeneast-nightfox.nvim/LICENSE",
+        "theme-eliverlara-andromeda/LICENSE.md",
         "theme-felipefdl-warm-burnout/LICENSE",
         "theme-folke-tokyonight.nvim/LICENSE",
         "theme-gdsrosa-subliminal-itermcolors/LICENSE",
@@ -490,50 +493,80 @@
         "theme-google-vim-colorscheme-primary/LICENSE",
         "theme-greylocklabs-themes/LICENSE",
         "theme-hallski-spacedust-theme/LICENSE",
+        "theme-hedinne-popping-and-locking-vscode/LICENSE",
         "theme-howar31-monokai-sublimetext/LICENSE",
         "theme-hukl-smyck-color-scheme/LICENSE",
         "theme-hyperb1iss-silkcircuit/LICENSE",
         "theme-icewind-everforest.iterm2/LICENSE",
         "theme-imcarvalho-neonpurple/License.md",
+        "theme-jan-warchol-selenized/LICENSE.txt",
+        "theme-jdhmtl-cga-theme/LICENSE",
         "theme-jglovier-galaxy-theme-iterm/LICENSE.txt",
         "theme-jolaleye-horizon-theme-vscode/LICENSE",
         "theme-josefaidt-rouge-theme/LICENSE",
         "theme-kaicataldo-material.vim/LICENSE",
+        "theme-kepano-flexoki/LICENSE",
         "theme-kinoute-hivacruz-itermcolors/LICENSE",
+        "theme-leobeosab-tearout.nvim/LICENSE",
         "theme-liviuschera-noctis/LICENSE.md",
         "theme-livlign-posh-palette/LICENSE",
+        "theme-lmarkmann-patina-theme/LICENSE",
         "theme-lunacookies-vim-colors-xcode/LICENSE",
         "theme-maksim-burtsev-shokunin-theme/LICENSE",
+        "theme-martinseeler-iterm2-material-design/LICENSE",
         "theme-mathiasbynens-dotfiles/LICENSE-MIT.txt",
         "theme-mattjoyce-trapped-in-amber/LICENSE",
         "theme-metalelf0-base16-black-metal-scheme/MIT-LICENSE",
+        "theme-nordtheme-iterm2/license",
         "theme-notgabriels-sys-claude-code-50-dark-themes/LICENSE",
+        "theme-nyoom-engineering-oxocarbon-iterm2/LICENSE",
+        "theme-oberstkrueger-midnight-in-mojave-iterm/LICENSE",
         "theme-pamburus-one-double/LICENSE",
+        "theme-patrickserrano-pyrokai/LICENSE",
         "theme-primer-github-vscode-theme/LICENSE",
+        "theme-pustur-calamity-vscode/LICENSE",
+        "theme-pustur-rapture-vscode/LICENSE",
+        "theme-rahulpatel-oceanic-material-iterm/LICENSE",
         "theme-ramojus-mellifluous.nvim/LICENSE",
+        "theme-raunofreiberg-vesper/LICENSE.md",
+        "theme-razielanarki-vscode-galizur-theme/LICENSE.md",
+        "theme-rebelot-kanagawa.nvim/LICENSE",
         "theme-rmehri01-onenord.nvim/LICENSE",
         "theme-robb0wen-synthwave-vscode/LICENSE",
+        "theme-rod-iterm2-whimsy/LICENSE",
         "theme-rose-pine-iterm/LICENSE",
+        "theme-sainnhe-gruvbox-material-tilix/LICENSE",
         "theme-sainnhe-sonokai/LICENSE",
         "theme-sapegin-squirrelsong/License.md",
+        "theme-savq-melange-nvim/LICENSE",
+        "theme-scozu-karasu/LICENSE",
         "theme-sdras-night-owl-vscode-theme/LICENSE.md",
+        "theme-sebastianszturo-firewatch-syntax/LICENSE.md",
         "theme-simurai-duotone-dark-syntax/LICENSE",
+        "theme-sonph-onehalf/LICENSE.txt",
         "theme-srcery-colors-srcery-terminal/LICENSE",
         "theme-stoeffel-material-iterm/LICENSE",
+        "theme-sublee-sublette/LICENSE",
         "theme-sudhanchitgopkar-gilded-forest/LICENSE",
         "theme-thdxg-eyesclosed/LICENSE",
+        "theme-thomaspaulmann-kolorit/LICENSE",
         "theme-thorstenrhau-token/LICENSE",
         "theme-tonsky-sublime-scheme-alabaster/LICENSE.txt",
         "theme-triumphinteractive-theebest-themes/LICENSE",
         "theme-triumphinteractive-theebest-themes/NOTICE",
         "theme-vercel-hyper/LICENSE",
         "theme-vic-rebecca-theme/LICENSE",
+        "theme-vimiomori-bluedolphin/LICENSE",
         "theme-vukkt-iglass/LICENSE",
         "theme-vyomjain6904-charcoal-theme/LICENSE",
         "theme-w0zro-datum/LICENSE",
+        "theme-webhooked-kanso.nvim/LICENSE",
+        "theme-xero-miasma.nvim/LICENSE",
         "theme-zacesshq-themes/LICENSE",
         "theme-zanehu-ai-ghostty-claude-theme/LICENSE",
-        "theme-zenbones-theme-zenbones.nvim/LICENSE"
+        "theme-zenbones-theme-zenbones.nvim/LICENSE",
+        "theme-zerebos-lit-cell/LICENSE",
+        "theme-zootedb0t-citruszest.nvim/LICENSE"
       ],
       "association": "share/ghostty/themes: author license of each shipped theme; THEMES.md maps theme to notice"
     }
@@ -682,13 +715,13 @@
         "file": "0x96f",
         "sha256": "3cfe46ebb3cb0ad5a3a80bbb47d1d2a157f6df911d4a9c82aed7a813a1b490d3",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) filipjanevski"
       },
       {
         "file": "12-bit Rainbow",
         "sha256": "cd83815f36863cb8110c7ec9cd2a8a4c16f741400460da9c7eece44903934c20",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) xxxserxxx [adapter of a PD palette]"
       },
       {
         "file": "13th Floor",
@@ -700,13 +733,13 @@
         "file": "3024 Day",
         "sha256": "4b5028fa20fd371686f04eaffed455d81d9a515e46babef8fd3fae479927435a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: author 0x3024's repos have no licensed palette repository (3024-builder is a NOASSERTION builder, archived)"
       },
       {
         "file": "3024 Night",
         "sha256": "1a0259601bddc144073b35c71dfeae7a6c0010dc9faa9f1e3a00e4d628d97951",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: author 0x3024's repos have no licensed palette repository (3024-builder is a NOASSERTION builder, archived)"
       },
       {
         "file": "5150 Mode",
@@ -718,13 +751,13 @@
         "file": "Aardvark Blue",
         "sha256": "bb7db5f10de88e09045e8a9af65b4ce2fb9761cee59486988082732ae8161f43",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) joshka"
       },
       {
         "file": "Aardvark Ink",
         "sha256": "ba3ee1723891e40fd25b0a8b65a2dc29c0cc9f5065bfee5a925970d3b4b8c339",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) joshka"
       },
       {
         "file": "Abandoned",
@@ -736,7 +769,7 @@
         "file": "Abernathy",
         "sha256": "e439319f48602480472dc3d822aa86a71027a5b2c08d246c6774f0377d5435f4",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Acid Lime",
@@ -771,13 +804,13 @@
         "file": "Adwaita",
         "sha256": "d89c93ad5f157f00ccba14b6044e5ed1cf00b904ff37f79f8dde3e544071e8ec",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: adapted from the GNOME Adwaita palette, whose origin is not linked"
       },
       {
         "file": "Adwaita Dark",
         "sha256": "76c7568d58e44b2532704e7a62a8b00ff87a38980f1281b7fe2dde00e125ec86",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: adapted from the GNOME Adwaita palette, whose origin is not linked"
       },
       {
         "file": "After Hours",
@@ -859,38 +892,44 @@
       {
         "file": "Andromeda",
         "sha256": "1914663f60ed7f35dfcc06e5fe3d014d0c4ab9c7d684c2a80dd4b1f0551dcb64",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-eliverlara-andromeda/LICENSE.md",
+          "repository": "EliverLara/Andromeda",
+          "revision": "d1abb48c69493000aa0133a32d594eb25e523d4f",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Apple Classic",
         "sha256": "45a0f73190f9c481533c5fd9e854042c01ed3c3671b20e46e65f519c0f11c14c",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credited account CodeMonkeyBrian no longer exists"
       },
       {
         "file": "Apple System Colors",
         "sha256": "c710555bb6428c1f8a02ed0b69d4ea6bcdd83ae6db7ea9d9a5ec46237e4a4c30",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) jeremybahadirli"
       },
       {
         "file": "Apple System Colors Light",
         "sha256": "c5008917633a6be1ad8cd0173dde9b7615045eb4900e29e27673ff53e711e2ce",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: derived light variant of the collection's Apple System Colors theme"
       },
       {
         "file": "Arcoiris",
         "sha256": "f225386d6ea85de4fcf9df91162036f3fc123f52ad348d139c5bfcd4d12d7b4a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) indyandie"
       },
       {
         "file": "Ardoise",
         "sha256": "57832e34d7959909416418690b3ff7083ba3bca4955b3101a14530e3208c2388",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) JeffreyCA"
       },
       {
         "file": "Argonaut",
@@ -914,7 +953,7 @@
         "file": "Atelier Sulphurpool",
         "sha256": "1d6103c8847bb12aaffef62d61ea7d99ae3afaf4c98caab673d14d04db26b66e",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: author's own iTerm2 port atelierbram/iTerm2_Atelier-Schemes has no licence file (the collection file most plausibly derives from it); not substituting a sibling repo"
       },
       {
         "file": "Atlas Ragnarok",
@@ -937,13 +976,13 @@
         "file": "Atom One Dark",
         "sha256": "46f57abfbe93bf63de492ed1167f08a79004c60818204cb77eb82ac691b1fb95",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) zasdaym"
       },
       {
         "file": "Atom One Light",
         "sha256": "63f401d91d46db27ac840c61d488b4c3a332bc5225ecf77b1e11ac19d503698a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: iamstarkov's one-light-syntax is a fork and hyperterm-one-light has no licence file"
       },
       {
         "file": "Aubade",
@@ -959,8 +998,14 @@
       {
         "file": "Aura",
         "sha256": "7d086a3076aac8e66fa3be51e5d6fd1f8c3634b0c62c9ec27700fb49d27ffa50",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-daltonmenezes-aura-theme/LICENSE",
+          "repository": "daltonmenezes/aura-theme",
+          "revision": "20924aa0a43975420edd0e0b2f919e07a3eff9c9",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Aura Dark",
@@ -990,13 +1035,13 @@
         "file": "Ayu",
         "sha256": "e25221f4dd236557c72954ab25be41dc5ce29efa36171eb0e85c2a77b8bcc346",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) alebcay"
       },
       {
         "file": "Ayu Light",
         "sha256": "b405867eb65535367c6d44168c8386c4cc92a392adf5b42b6300af00075f4001",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) alebcay"
       },
       {
         "file": "Ayu Mirage",
@@ -1020,7 +1065,7 @@
         "file": "Banana Blueberry",
         "sha256": "a8d19cace05cc66571f5c29e0c458bfd488bea0f95e7db9acd2ace1461624ed8",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) ReagentX"
       },
       {
         "file": "Barrel Cactus",
@@ -1032,19 +1077,19 @@
         "file": "Batman",
         "sha256": "aa621446c05c13841121dad6389b96769f942df949e853c82d730d698dd8b238",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) pyrophos"
       },
       {
         "file": "Belafonte Day",
         "sha256": "21e36a7300bc7bb79a21f496265f6c6d1810dfa6bd770740702adb9aa266a6ea",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: idleberg's Paraiso-iTerm2, C64-iTerm2 and other ports have no licence file"
       },
       {
         "file": "Belafonte Night",
         "sha256": "df714d9643ad8280999bc52a91f942e49806d20e758b2bdecf80106fa001f210",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: idleberg's Paraiso-iTerm2, C64-iTerm2 and other ports have no licence file"
       },
       {
         "file": "Belfry",
@@ -1218,19 +1263,25 @@
         "file": "Blue Berry Pie",
         "sha256": "0ed980e3e556ef6cbe24790c043eefd0283e72eda47a7b45ec31c362e1d41171",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) fitz123 [co-creator]"
       },
       {
         "file": "Blue Dolphin",
         "sha256": "baeaf55a03552e0b4abdcbbc42a08950584b615bb48debf3bd9b4857bfb71f12",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-vimiomori-bluedolphin/LICENSE",
+          "repository": "vimiomori/BlueDolphin",
+          "revision": "285b4235a81a2c679cad1f9706b01e1d2a694815",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Blue Matrix",
         "sha256": "3d92f03394952306b2d8a2c1fae0df4a5747d1373c849b71d2058329a274ddd0",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) ReagentX"
       },
       {
         "file": "Blueprint",
@@ -1266,13 +1317,13 @@
         "file": "Box",
         "sha256": "2e6afc7bd0328ce559fb2f442c168f45a3aef3ad8eb9845487415330eb39747e",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) D3vil0p3r"
       },
       {
         "file": "Breadog",
         "sha256": "bfc9dad729fd777d49423e4266720fec6476f8bae5cc9515cf7f723caf620560",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Breeze",
@@ -1284,7 +1335,7 @@
         "file": "Bright Lights",
         "sha256": "106ab0711c1b8e3f13d91262f1d1296a55dd04149d0ecede69c4af1a6cc07057",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) tw15egan"
       },
       {
         "file": "Broadcast",
@@ -1332,13 +1383,19 @@
         "file": "C64",
         "sha256": "9bd0fc3f5fd17da556edf8dd2f50226549cc240739e7ba9ca2f093e817636b70",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: idleberg's Paraiso-iTerm2, C64-iTerm2 and other ports have no licence file"
       },
       {
         "file": "CGA",
         "sha256": "e423918a941c0f8cf7a3b42d41515e57e1dc46390ceba7c56f0c3d7a98416493",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-jdhmtl-cga-theme/LICENSE",
+          "repository": "jdhmtl/cga-theme",
+          "revision": "8ba6ff45e96f2d82a2ff62bb8beea7e6879ef078",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "CLRS",
@@ -1372,8 +1429,14 @@
       {
         "file": "Calamity",
         "sha256": "6b49453ec75d8f8cafbde1e0e37eb5589b6559d8142fc8f0aa19b6012004e78c",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-pustur-calamity-vscode/LICENSE",
+          "repository": "Pustur/calamity-vscode",
+          "revision": "137e271c27884b4dab20a8ec3021312ea49b0e29",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Caliche",
@@ -1502,7 +1565,7 @@
         "file": "Catthode",
         "sha256": "0126a9db01c69344bc6e98cfc911938ca1af5b7c50c39affeac10a1b331fb006",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: catthode org has only catthode.github.io, which has no licence file"
       },
       {
         "file": "Chalk",
@@ -1543,7 +1606,7 @@
         "file": "Chester",
         "sha256": "99e123d11e9477c04cb8507509fe37479b8795e57324496054be3348f1789e1d",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credited account spectralkh no longer exists"
       },
       {
         "file": "Cholla",
@@ -1571,8 +1634,14 @@
       {
         "file": "Citruszest",
         "sha256": "19f80ebdf74bd6a187279779e90e2883e7c551b3f67f08537a04c416bb3d598a",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-zootedb0t-citruszest.nvim/LICENSE",
+          "repository": "zootedb0t/citruszest.nvim",
+          "revision": "c8c0017d1b2efa4b891af28995bae8d58c87528a",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Claude",
@@ -1684,7 +1753,7 @@
         "file": "Coffee Theme",
         "sha256": "75208bfff1ee9c748ca895246ab7292dc85d1968893a24721d39c5d0e9513871",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) cbitterfield"
       },
       {
         "file": "Cold Storage",
@@ -1738,25 +1807,25 @@
         "file": "Cursor Dark",
         "sha256": "c6fefeb2c9716722fa6816855ae280e5062f5cfcb5bc2a5b24b7a0d80ee0c4ce",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Cursor Light",
         "sha256": "b85232967070388f85ccc3114b745d1217f6659c861b260fa85f0dbd2307def1",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Cutie Pro",
         "sha256": "3c0cfcba2146afb81f48ff6d0c61901b699cfb7654772c8da2e74d45885d9d3d",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credited account jezzy-ultra no longer exists"
       },
       {
         "file": "Cyberdyne",
         "sha256": "3320ddaf9cc68387d7da46cd8094d87edea907af534074c5e7d57ea41387bf60",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) ReagentX"
       },
       {
         "file": "Cyberpunk",
@@ -1780,13 +1849,13 @@
         "file": "Dark 2026",
         "sha256": "740d51e3215281ebc952068b5b87e0b1f8e31f42029fdb682d676300a70f4cdf",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Dark Modern",
         "sha256": "033d4d5ecb2ce12d187e5a1853f529aacddf2dd8c87b2e84b91f6ba38db3b8e4",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: port of the VS Code default theme, whose origin is not linked"
       },
       {
         "file": "Dark Pastel",
@@ -1862,7 +1931,7 @@
         "file": "Deep",
         "sha256": "890f82f78d5853f78bdef4245e88fd7ebc2520671ad4129ce2caeae0ad1800b9",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) adoyle-h"
       },
       {
         "file": "Deep Current",
@@ -1916,7 +1985,7 @@
         "file": "Detuned",
         "sha256": "8021a7489714a75795cee4c8490a21d0dedcbab1831e341688b8f64bbe438470",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) akx"
       },
       {
         "file": "Diary of a Lunatic",
@@ -1945,7 +2014,7 @@
         "file": "Django",
         "sha256": "b83d95488abfc5e2dbcc726fb39cea4894118726e8538bbad80db2028763f553",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Django Reborn Again",
@@ -1957,13 +2026,13 @@
         "file": "Django Smooth",
         "sha256": "653900b7229bce89814ea004a0625fe9702c0a3afb36d8884e91e93cfa57e2d7",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Dogxi Misty",
         "sha256": "0af30989f881a7ea4e449c12574a3565cb33005074c29d64427739e1f33926e2",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: dogxii's only theme repo (Dogxi-Theme-Zed) has no Misty variant"
       },
       {
         "file": "Doom One",
@@ -1993,7 +2062,7 @@
         "file": "Dot Gov",
         "sha256": "8c60d8112e8373afe96a694f00a3cbe2bc02912af54f4c6676a4c42804eb4c76",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Dracula",
@@ -2005,7 +2074,7 @@
         "file": "Dracula+",
         "sha256": "39d8456b2dfece2861d728a3d89fe655c03ccbbafe7775a247e82ab7030512d1",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit says only \"added by\" jos3s; no creator is named"
       },
       {
         "file": "Dracula+ High Contrast",
@@ -2063,7 +2132,7 @@
         "file": "ENCOM",
         "sha256": "102a1deb0ecc868f6438910f7a9664fc2a7781621089529dce1a25f1d383a1ac",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "EVH FrankenTone",
@@ -2116,19 +2185,19 @@
         "file": "Electron Highlighter",
         "sha256": "e9d6acbed5e15c8426ccd6b85692ab99aa335dab81e679d66f2fb0143a03efc7",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: mikemcbride's hyperterm-electron-highlighter is a fork with no licence file"
       },
       {
         "file": "Electron Highlighter Day",
         "sha256": "4eea195f1055ac58db76ce1a41dee02066937314ae29c8de887007d7b3d1b0f7",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: mikemcbride's hyperterm-electron-highlighter is a fork with no licence file"
       },
       {
         "file": "Elegant",
         "sha256": "cf2bbd8a37aa6e1dd09e80d415c035845eeb4fd91e76e10751fda1619bdd5ecf",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) lukgri"
       },
       {
         "file": "Elemental",
@@ -2140,7 +2209,7 @@
         "file": "Elementary",
         "sha256": "31abb0d69b37388f9758ac40868836cbe7f853188ecc0441a120960a4fcab1f0",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: elementary/terminal is LGPL-3.0 (copyleft)"
       },
       {
         "file": "Embark",
@@ -2170,7 +2239,7 @@
         "file": "Embers Dark",
         "sha256": "c7dde0b0ae10a93b855ca1760d9e01a6fa9d93c4d18200fe12a0212335ba0f7c",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) plyght [website peril.lol links github.com/plyght]"
       },
       {
         "file": "Emerald Synth",
@@ -2200,7 +2269,7 @@
         "file": "Everblush",
         "sha256": "c7902df2bcdb4e0c1ea51ddf69f73c6d6e74f570f0cc4245f68877f802c8452a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credited account Mangeshrex no longer exists"
       },
       {
         "file": "Everforest Dark Hard",
@@ -2284,7 +2353,7 @@
         "file": "Fairyfloss",
         "sha256": "81519fbc129e6d9adb712566458957d9ad1ddb5e005c27f2b086f4f8bd968e68",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: sailorhg/fairyfloss has no licence file"
       },
       {
         "file": "Farmhouse Dark",
@@ -2302,25 +2371,31 @@
         "file": "Fideloper",
         "sha256": "ce62266e7aca45bd60f6062f74b815131e91f2213abaf6ba8162e097830e57bd",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Firefly Traditional",
         "sha256": "c8c2e276965827bfc98f14e727c73c1c5e3935e37d96df242967c034c50af874",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) stlee42"
       },
       {
         "file": "Firefox Dev",
         "sha256": "a7be7c1360d2a10f264d3044c647fb3ddefe9eed1e66c197da62223fe8158de9",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) Or3stis"
       },
       {
         "file": "Firewatch",
         "sha256": "6f5aaa75a96f0d6e1f63e3c0bfeb81aee0d0769654243a759146314655dac1df",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-sebastianszturo-firewatch-syntax/LICENSE.md",
+          "repository": "SebastianSzturo/firewatch-syntax",
+          "revision": "e5e6665eb20613efe74445e8f5cf612271298020",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Fish Tank",
@@ -2338,25 +2413,37 @@
         "file": "Flatland",
         "sha256": "7a25ac24f34b80957296088f9fb88e05b25cd688379091200c9e87b1a8679a03",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Flexoki Dark",
         "sha256": "3233c16df109cf6b311064b54e27ee015487ea29875c0342e0494ad0bec616f4",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-kepano-flexoki/LICENSE",
+          "repository": "kepano/flexoki",
+          "revision": "8d723bac4a9ac46adfdf99d42155286977aac72a",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Flexoki Light",
         "sha256": "7c18396cf68a437357259f963a2b848c06ccac5fe52d15d6730f86caeed48c2a",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-kepano-flexoki/LICENSE",
+          "repository": "kepano/flexoki",
+          "revision": "8d723bac4a9ac46adfdf99d42155286977aac72a",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Floraverse",
         "sha256": "4114e05473829198a0e6eadd7851abf90917307ea0b150ae8e6a5d8244cba679",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Forest Blue",
@@ -2385,7 +2472,7 @@
         "file": "Framer",
         "sha256": "6eb781a0c2b1b034ef4c930b86f4ff1963c88577f0141764150fe1075fcec327",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Front End Delight",
@@ -2430,8 +2517,14 @@
       {
         "file": "Galizur",
         "sha256": "c984a263502707faf9d745637a5a47a6e9a068a611050953921973f1e96c9a4c",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-razielanarki-vscode-galizur-theme/LICENSE.md",
+          "repository": "razielanarki/vscode-galizur-theme",
+          "revision": "dfd817a55203c1dc7c0dfb3ef146f0e35b9cdef6",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Ghost Circuit",
@@ -2465,13 +2558,13 @@
         "file": "GitHub",
         "sha256": "5d1ff9d502c049c64145d844961a3045144a31ec23961cf89466b18b3d10c588",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "GitHub Dark",
         "sha256": "b9eadd8b80da2a3a99ed70c7adc89cb7d722c771d72726c5d2f6877d14e6184a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: alDuncanson/github-dark is GPL-3.0 (copyleft)"
       },
       {
         "file": "GitHub Dark Colorblind",
@@ -2603,13 +2696,13 @@
         "file": "Gleam",
         "sha256": "c7f8260b30e0b093ebdc921438233ca36c9399a592b9da99924d0cf7b6eb0eb3",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository by aslilac or lpil identifiable as the Gleam colour palette"
       },
       {
         "file": "Gleam Classic",
         "sha256": "175dfe705ed84e52c545225db298d8c71199264c7090c72067564e7d23fe8f8c",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository by aslilac or lpil identifiable as the Gleam colour palette"
       },
       {
         "file": "Golden Mischief",
@@ -2691,7 +2784,7 @@
         "file": "Grey Green",
         "sha256": "852d562525036da3619b2c828e61ae57033b565c6bea91e9959227ee271b0e46",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) yg66"
       },
       {
         "file": "Grok Day",
@@ -2709,37 +2802,43 @@
         "file": "Gruber Darker",
         "sha256": "498518d4e8b5dfbc116e089c9d3569dc3b5e3e9906b385fad3745205b72c1c4a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Gruvbox Dark",
         "sha256": "2f9ea0d3bc429e78f6cdb19cb1104f522bf187664f14922f3001ed7c0af54595",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: morhetz/gruvbox has no licence file"
       },
       {
         "file": "Gruvbox Dark Hard",
         "sha256": "a1acf6ba9fd44db538040218930224e2771dc11926a7380b991250407bdea34f",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: morhetz/gruvbox has no licence file"
       },
       {
         "file": "Gruvbox Light",
         "sha256": "79bcb924ea79bfb563b729ee57184e729deb7648175bae97a09aedde7bfb5a80",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: morhetz/gruvbox has no licence file"
       },
       {
         "file": "Gruvbox Light Hard",
         "sha256": "4a667281f4a355fddfb9bf6d64c607f05885278e34fb38bba9207ce7bf1f233a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: morhetz/gruvbox has no licence file"
       },
       {
         "file": "Gruvbox Material",
         "sha256": "ccd994bccf038d0f57a829733f1f57d98ee92c3054b82b589b6034fa3f4b7358",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-sainnhe-gruvbox-material-tilix/LICENSE",
+          "repository": "sainnhe/gruvbox-material-tilix",
+          "revision": "5b3505752a7cde8723fbd023575917e9e7ef04aa",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Gruvbox Material Dark",
@@ -2775,19 +2874,19 @@
         "file": "HaX0R Blue",
         "sha256": "8d294ef0c00377978b088bfed8fc4aaeb9043c7108054913d37543fc1628f0ec",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) pratikmullick"
       },
       {
         "file": "HaX0R Gr33N",
         "sha256": "ae6a7e5032d4e85c03056ceb29335afd427e0c7a37977d60af9e99a4f2824f45",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) pratikmullick"
       },
       {
         "file": "HaX0R R3D",
         "sha256": "f2c4765ade57bbd7836240068f214ef0a2734589c97a66669fe26e8af6403851",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) pratikmullick"
       },
       {
         "file": "Hacktober",
@@ -2823,19 +2922,19 @@
         "file": "Havn Daggry",
         "sha256": "06131936beea80d87be85bcb7c36c396a3f2014906a948a25d7673161640e504",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Havn Skumring",
         "sha256": "efb81c49a2b680e5da6a5f56169538a2c28074f323ebc27f16a31bebddb0fbb6",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Heeler",
         "sha256": "63c4fee491a35f9f264b3cc602b879c183d8a6339844b1c8c54b00301596fc6b",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) tacolegs2004"
       },
       {
         "file": "Hellfire",
@@ -2865,7 +2964,7 @@
         "file": "Hipster Green",
         "sha256": "cfdcfee61344638dea028add1b3d0de15b34a38401650644b1dcb2a29830b74b",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) Unkulunkulu"
       },
       {
         "file": "Hivacruz",
@@ -2978,13 +3077,13 @@
         "file": "IBM 5153 CGA",
         "sha256": "6e59cd9c8a6ba7c4c5013ac80567e12da546ee28196315cdf133393978ed428b",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "IBM 5153 CGA (Black)",
         "sha256": "3bc414424d415b45442f17ddb6a8e6e8dbe6b035c5d8186b97210a86ce839652",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "IC Green PPL",
@@ -3008,13 +3107,13 @@
         "file": "IRIX Console",
         "sha256": "e0704f9108b6d43543e95ca9f08e662111beafab5e38bf3c3897e6ad0d602426",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) Skeeve"
       },
       {
         "file": "IRIX Terminal",
         "sha256": "a690a2f0df84a2dde7927695b15f88d46b6d6d994c7785e8c4acdd7fb9de5ccd",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) Skeeve"
       },
       {
         "file": "Iceberg Dark",
@@ -3056,19 +3155,19 @@
         "file": "Idle Toes",
         "sha256": "a00a84ce3902461b2a16c90eedff05d1570a81c98fb293db2302f6e09aad44fe",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Isocon Dark",
         "sha256": "946267a0366dea407f1de345cfbf7b76f7a6201dc6244af80238440bf4648cd0",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: erietz/isocon.nvim has no licence file"
       },
       {
         "file": "Isocon Light",
         "sha256": "b10f306f502fd15df40b95d38b8f2f0b4d59bad43ed623287c11d96f736e202f",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: erietz/isocon.nvim has no licence file"
       },
       {
         "file": "Jack O' Lantern",
@@ -3080,7 +3179,7 @@
         "file": "Jackie Brown",
         "sha256": "79cd3d20f7e02d7c7935d73486ef4d705a2b707f765e0a731ae2cc170626a2c3",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) Unkulunkulu"
       },
       {
         "file": "Japanesque",
@@ -3098,13 +3197,13 @@
         "file": "JetBrains Darcula",
         "sha256": "898e5f16e1b3e0c783819d23b59d41379c26994b98932fa2ee597b2af9466bfa",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) vitstr"
       },
       {
         "file": "JetBrains Islands Dark",
         "sha256": "04765f88467eb50cff1cdb2adf5bc5e9ddaa31a89748442e19badacec2241a0d",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) bbeny123"
       },
       {
         "file": "JetCalm Light",
@@ -3116,7 +3215,7 @@
         "file": "Jubi",
         "sha256": "1959a2e5a605d3e3a3f0f1b268cee9a79435f6adfa097d9a4a3f0cfad3133a06",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) jutretel"
       },
       {
         "file": "Jump Start",
@@ -3133,20 +3232,38 @@
       {
         "file": "Kanagawa Dragon",
         "sha256": "917b0296454c5e800f3cbdcb2feb245e720878418753daba7bd62346130ab1b5",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-rebelot-kanagawa.nvim/LICENSE",
+          "repository": "rebelot/kanagawa.nvim",
+          "revision": "bb85e4bfc8d89b0e62c8fa53ccdd13d12e2f77b3",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Kanagawa Lotus",
         "sha256": "0b811d030d6d5771c07528d54d737b20fb36b342c9e64196b8e6d645fc869f18",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-rebelot-kanagawa.nvim/LICENSE",
+          "repository": "rebelot/kanagawa.nvim",
+          "revision": "bb85e4bfc8d89b0e62c8fa53ccdd13d12e2f77b3",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Kanagawa Wave",
         "sha256": "eca86ffb7a43cce33c74fdbeab8514d57f2cd1dbaef87ff727a72f8883e88305",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-rebelot-kanagawa.nvim/LICENSE",
+          "repository": "rebelot/kanagawa.nvim",
+          "revision": "bb85e4bfc8d89b0e62c8fa53ccdd13d12e2f77b3",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Kanagawabones",
@@ -3162,38 +3279,74 @@
       {
         "file": "Kanso Ink",
         "sha256": "668de27fa5791053cf25cbda2c16eb4cc39ae2605a7b525b1f8f89503d9b0952",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-webhooked-kanso.nvim/LICENSE",
+          "repository": "webhooked/kanso.nvim",
+          "revision": "1afbbb449aa0254823dbe1932e3cbb51886ff9fe",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Kanso Mist",
         "sha256": "7ae28827a3abc9e11c4d7a84269261c91cefa697e0e778fe5c7149c689332de3",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-webhooked-kanso.nvim/LICENSE",
+          "repository": "webhooked/kanso.nvim",
+          "revision": "1afbbb449aa0254823dbe1932e3cbb51886ff9fe",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Kanso Pearl",
         "sha256": "097b2a4aeb246c8ebb1cf2ca968e98279df49636a939138d15c0697ff244f549",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-webhooked-kanso.nvim/LICENSE",
+          "repository": "webhooked/kanso.nvim",
+          "revision": "1afbbb449aa0254823dbe1932e3cbb51886ff9fe",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Kanso Zen",
         "sha256": "7fa6321d3a2b4d3a678679760b955c44d800542a8784bf3eea2cd41dd9329ed1",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-webhooked-kanso.nvim/LICENSE",
+          "repository": "webhooked/kanso.nvim",
+          "revision": "1afbbb449aa0254823dbe1932e3cbb51886ff9fe",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Karasu Night",
         "sha256": "ed768b678395b382a93e79ffd456106f6718a310109eba8c46c6d8970d1a573b",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-scozu-karasu/LICENSE",
+          "repository": "scozu/karasu",
+          "revision": "681fe54e4cc09a28dcb30781b80dd9933736c16c",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Karasu Snow",
         "sha256": "2d3b2bca0ddb8a2147e09d569099744e9366f6d25b62c8a46d73335ff3604a38",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-scozu-karasu/LICENSE",
+          "repository": "scozu/karasu",
+          "revision": "681fe54e4cc09a28dcb30781b80dd9933736c16c",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Karma Dark",
@@ -3276,8 +3429,14 @@
       {
         "file": "Kolorit",
         "sha256": "f5c80a3508a22d7aacb2c8520af4d0163980c957891116555bdf5589ccb67490",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-thomaspaulmann-kolorit/LICENSE",
+          "repository": "thomaspaulmann/Kolorit",
+          "revision": "d71fb74a58ebddca87a682837f378a1296114e4b",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Konsolas",
@@ -3301,13 +3460,13 @@
         "file": "Lab Fox",
         "sha256": "346a207c5347140faff727819f5794f0f0fc0b4624e3cf4957757f3c7a46cdb7",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) theatlasroom"
       },
       {
         "file": "Laser",
         "sha256": "d4724bed3bfc0ba6985db22ce1324f5215138415f2d16a126743dbe517dd2887",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) ReagentX"
       },
       {
         "file": "Last Broadcast",
@@ -3331,7 +3490,7 @@
         "file": "Lemon Graphite",
         "sha256": "e8c1de4d9770df16a3f5d3ac9745f6881c57c5ef1fa4448743836882cbdc3cb3",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) ZioFester90"
       },
       {
         "file": "Letterpress",
@@ -3348,13 +3507,13 @@
         "file": "Light 2026",
         "sha256": "1236fe0ae989809fb53276ae21faeacb4db52e2a3c3ce7e2b62fc6a990746a26",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Light Owl",
         "sha256": "53090e04107174ee58e227d6c83e5999b131686dc31cd9829746cb9cfd649537",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) zasdaym"
       },
       {
         "file": "Liquid Carbon",
@@ -3371,44 +3530,56 @@
       {
         "file": "Lit Cell",
         "sha256": "17c2d518d12b3b48dc9a80bbcffe62dea11631b04fba81867f5730a2cdc2d845",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-zerebos-lit-cell/LICENSE",
+          "repository": "zerebos/lit-cell",
+          "revision": "ea9b9b32dd23b35a1f2556592d29e6a2d8e5125b",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Lit Cell Light",
         "sha256": "52598e5ef32e5c186e258830a3407495dfc5970a612952feb96e7300a54eb910",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-zerebos-lit-cell/LICENSE",
+          "repository": "zerebos/lit-cell",
+          "revision": "ea9b9b32dd23b35a1f2556592d29e6a2d8e5125b",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "London Bonfire Night",
         "sha256": "5dba924d6af107930b6f8e21b7f042befcb94dd7c0dafb872611d7767a7339c9",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) scottmatthews7"
       },
       {
         "file": "London Columbia Road",
         "sha256": "11def307fb5f32a3e0a7a04b92ab5caa756efb0e29c93cfed4fed44ef0c598ea",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) scottmatthews7"
       },
       {
         "file": "London Embankment Dusk",
         "sha256": "066b0e6c7377143ddd1857b224c893384a7baab0edbd60ac1e87f03b0a9bc97a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) scottmatthews7"
       },
       {
         "file": "London Soho Night",
         "sha256": "723078f9fed5a39ef86895c459f4ce15ff88e551f6270196590a0f592a3e0f6c",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) scottmatthews7"
       },
       {
         "file": "Lovelace",
         "sha256": "db91d0ded5a398885e24cecdb98bff35f0496805c8bbeb9537513a8eee4c7bed",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) elenapan [origin dotfile author]"
       },
       {
         "file": "Lunar Dust",
@@ -3438,7 +3609,7 @@
         "file": "Mariana",
         "sha256": "78c5ac7bc8467dd9ff6e03fb1fbebd7261480497b381a0a75f8ecbe50b2ea7cb",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Matcha Zen",
@@ -3477,13 +3648,19 @@
         "file": "Material Darker",
         "sha256": "3b50c57b1fd519105e927b2f2134383b37288b9af1ccb1ff5fa5b2d1f67a78a1",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit says only \"added by\" jos3s; no creator is named"
       },
       {
         "file": "Material Design Colors",
         "sha256": "00593149e6ab843f325de7aba1c5604868b316f828983c57fb1a34eedd14d2ef",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-martinseeler-iterm2-material-design/LICENSE",
+          "repository": "MartinSeeler/iterm2-material-design",
+          "revision": "2b5256774842f607081c431889da4bb3e7ce658b",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Material Ocean",
@@ -3511,7 +3688,7 @@
         "file": "Matrix",
         "sha256": "debc68d8ec65a5eae97be7be5afd06a0c757b6597d42288c8266f0868ae6f23d",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) i3d"
       },
       {
         "file": "Matte Black",
@@ -3528,14 +3705,26 @@
       {
         "file": "Melange Dark",
         "sha256": "b7dad7b7bd6c7aa1205f6a9724caeabf71c4b9c96e38272a324ed42faa126549",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-savq-melange-nvim/LICENSE",
+          "repository": "savq/melange-nvim",
+          "revision": "ce42f6b629beeaa00591ba73a77d3eeac4cf28ce",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Melange Light",
         "sha256": "19b9577ff0cb18ca434d9ec3e41ae19848c5951ccf17bd8d88e226497a731dbd",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-savq-melange-nvim/LICENSE",
+          "repository": "savq/melange-nvim",
+          "revision": "ce42f6b629beeaa00591ba73a77d3eeac4cf28ce",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Mellifluous",
@@ -3553,7 +3742,7 @@
         "file": "Mellow",
         "sha256": "9fafb20df6d119b40cf31a1a001ad16d6ccef0c8da941ed6e9e31b7b3b8e1fb0",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) kvrohit"
       },
       {
         "file": "Mesa Blue",
@@ -3587,8 +3776,14 @@
       {
         "file": "Miasma",
         "sha256": "90c98fa97f08031ade8b51db47d6217975dd853f737fb6aafb9b8b25e08eb6eb",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "CC0-1.0",
+          "notice": "theme-xero-miasma.nvim/LICENSE",
+          "repository": "xero/miasma.nvim",
+          "revision": "627f2e1cac91de0d1d4dd7472b506a30f41b2b7d",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Midnight Arcade",
@@ -3604,8 +3799,14 @@
       {
         "file": "Midnight In Mojave",
         "sha256": "c0b725274944f93c0d027d7df3d5752f32066cbd1e54f6d0623f3c8334cca4e9",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-oberstkrueger-midnight-in-mojave-iterm/LICENSE",
+          "repository": "OberstKrueger/midnight-in-mojave-iterm",
+          "revision": "81482555ecf155f56fe68814a2e1a09a282f7bae",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Midnight Rambler",
@@ -3701,49 +3902,49 @@
         "file": "Monokai Classic",
         "sha256": "78cf0958f5e57750eedfd68ef44d3f8655c42035d3732741dc6b59593ebcc6a9",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: monokai-pro/monokai-pro (named by monokai.pro) has no licence file"
       },
       {
         "file": "Monokai Pro",
         "sha256": "6de9423387955a0721486a91ade315568e50ccd735d64ce04256283dae3b92f0",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: monokai-pro/monokai-pro (named by monokai.pro) has no licence file"
       },
       {
         "file": "Monokai Pro Light",
         "sha256": "9eefcb6a323edbf537c67d5f3caad94fce8ae490c9f04d4e8b1d8d916d40f278",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: monokai-pro/monokai-pro (named by monokai.pro) has no licence file"
       },
       {
         "file": "Monokai Pro Light Sun",
         "sha256": "0fc4972f1d3e593ac3da23355516ff6fb6e49a7cf5275d67c9d6151ac3334d26",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: monokai-pro/monokai-pro (named by monokai.pro) has no licence file"
       },
       {
         "file": "Monokai Pro Machine",
         "sha256": "f245f0ce95bf792abe92c232c565a9b4303c81d1247ac11b2a4b23f269af57ea",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: monokai-pro/monokai-pro (named by monokai.pro) has no licence file"
       },
       {
         "file": "Monokai Pro Octagon",
         "sha256": "be8402ae10bd825e1fc7202912287e56238f5954be35eee6e0d370bdb156403c",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: monokai-pro/monokai-pro (named by monokai.pro) has no licence file"
       },
       {
         "file": "Monokai Pro Ristretto",
         "sha256": "91d159e78bc7ff9de5d44a63e9f22faa5fc66b69d26a591e9e41e9ab69c5c8fa",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: monokai-pro/monokai-pro (named by monokai.pro) has no licence file"
       },
       {
         "file": "Monokai Pro Spectrum",
         "sha256": "43a19e6121654e1d72640e1d2d4c84a3e02eb92acc49bce5f39c95c6f20ac1d6",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: monokai-pro/monokai-pro (named by monokai.pro) has no licence file"
       },
       {
         "file": "Monokai Remastered",
@@ -3778,13 +3979,13 @@
         "file": "Monospace Dark",
         "sha256": "5dc974bdac4c0197c743c8f5d37d5643865c886bb8a2d5fe94ab22cc22171795",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: port of Google Project IDX theme, whose origin is not linked"
       },
       {
         "file": "Monospace Light",
         "sha256": "27e4b8e8958ae0cc2f1683329771867aafb6ef28502ec9f319892b785b0e0998",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: port of Google Project IDX theme, whose origin is not linked"
       },
       {
         "file": "Monsoon Mesa",
@@ -3813,7 +4014,7 @@
         "file": "Moonwalk",
         "sha256": "505d75343665b765a2eaa542d76a86adecaa14cabba7a7f00e2af151ad57ba48",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: theJian/nvim-moonwalk has no licence file"
       },
       {
         "file": "Motel Vacancy",
@@ -3916,19 +4117,19 @@
         "file": "Night Lion V1",
         "sha256": "9ddc02329258fd8e299821b879baa6bd52267d8739d222cf1e63f9871f5fe2e6",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Night Lion V2",
         "sha256": "7a2dc8788e74f4f8bac382fb596de099a16696399a0f5586505ac670a1a32013",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Night Owl",
         "sha256": "84af7c33504aa76970d1208422c2b5b4e09bc075a63ddc76ebc64e4cf2eaea2a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) zasdaym"
       },
       {
         "file": "Night Owlish Light",
@@ -4119,13 +4320,19 @@
         "file": "Nocturnal Winter",
         "sha256": "5c235a28f6f305eaa1296b11a2e86d274ab0e66d039b7d8f216ec1fa5b4f366a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) Shriram-Balaji"
       },
       {
         "file": "Nord",
         "sha256": "2e6664c01db6a651eb0d19123cff6f744997e3e3b7b0c2b6b8f7177138be50a4",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-nordtheme-iterm2/license",
+          "repository": "nordtheme/iterm2",
+          "revision": "233a2462e04e07a9676386a52dad0c2ff6666d72",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Nord Light",
@@ -4178,19 +4385,19 @@
         "file": "Nvim Dark",
         "sha256": "76d3be83ec6594f66ea05495cd2c5fbc191c121321edf223105e28c7d038fdd7",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit says only \"added by\" slavamak; no creator is named"
       },
       {
         "file": "Nvim Light",
         "sha256": "0c78ed81920b27d873ba13e7ae6127bb45b62e0b652d68219cfadd9f8dfc6ef0",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit says only \"added by\" slavamak; no creator is named"
       },
       {
         "file": "Obsidian",
         "sha256": "6691a6424073d507fce6f4a56e54cb1b2b62e7bb981d28a6eb1547f04a75c69a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Obsurdian",
@@ -4207,8 +4414,14 @@
       {
         "file": "Oceanic Material",
         "sha256": "59e00b1b9170b983137649adbcc3a23f7f4925b54871dec3107ba2369e583266",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-rahulpatel-oceanic-material-iterm/LICENSE",
+          "repository": "rahulpatel/oceanic-material-iterm",
+          "revision": "982e358d953f1db5045b588466253459ae8e7297",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Oceanic Next",
@@ -4264,14 +4477,26 @@
       {
         "file": "One Half Dark",
         "sha256": "e2296672f089d8476186b234bc8c46f4810d397df02951f0259eea241476db93",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-sonph-onehalf/LICENSE.txt",
+          "repository": "sonph/onehalf",
+          "revision": "75eb2e97acd74660779fed8380989ee7891eec56",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "One Half Light",
         "sha256": "40e330a892c8f27b18c52fbcf7872358169eed21535044b72c22471201687257",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-sonph-onehalf/LICENSE.txt",
+          "repository": "sonph/onehalf",
+          "revision": "75eb2e97acd74660779fed8380989ee7891eec56",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Onenord",
@@ -4339,13 +4564,19 @@
         "file": "Oxide",
         "sha256": "e8c740e65fe75d730fffb1f75095e4da788b524803f0022f12a9fdaa9a953a45",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) jakmaz"
       },
       {
         "file": "Oxocarbon",
         "sha256": "66b4639853e5b6fc825cc0d28847a142539858999fbe9c728d85f04096662898",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-nyoom-engineering-oxocarbon-iterm2/LICENSE",
+          "repository": "nyoom-engineering/oxocarbon-iterm2",
+          "revision": "bb1463e94f5daff6f717d302c0eb4983248cc82d",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Ozz's Blizzard",
@@ -4363,7 +4594,7 @@
         "file": "Pale Night Hc",
         "sha256": "2f363a25f30cda9a545ca81959296b419b1dfe264e1fcf10bf287b0f677da7c5",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository of equinusocio's named for Palenight"
       },
       {
         "file": "Pandora",
@@ -4381,7 +4612,7 @@
         "file": "Paraiso Dark",
         "sha256": "a3b7f26e78041272b01e3dd6ebc00595dd77dcd777ab6d32eb9cf20c2d686f33",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: idleberg's Paraiso-iTerm2, C64-iTerm2 and other ports have no licence file"
       },
       {
         "file": "Paranoid Circuit",
@@ -4409,38 +4640,74 @@
       {
         "file": "Patina Dark",
         "sha256": "7b753f50f752792e4055ae870e3efee9351ac710f1c4c5fd4c7160424bfb7339",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-lmarkmann-patina-theme/LICENSE",
+          "repository": "lmarkmann/patina-theme",
+          "revision": "19c06c8e4211116166a65753e53f947d31c7fc87",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Patina Dark Soft",
         "sha256": "9ef5b601216c43741aebdb61c24895c2d68c8e058b067c43c8baafa806073b4e",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-lmarkmann-patina-theme/LICENSE",
+          "repository": "lmarkmann/patina-theme",
+          "revision": "19c06c8e4211116166a65753e53f947d31c7fc87",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Patina Lichen",
         "sha256": "4746f33dd85c62782af9996620c289d4cea5b2cfaed94475f826760fa5deaf9b",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-lmarkmann-patina-theme/LICENSE",
+          "repository": "lmarkmann/patina-theme",
+          "revision": "19c06c8e4211116166a65753e53f947d31c7fc87",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Patina Light",
         "sha256": "1719d3d92c64c4e7372950685a32c5e446df0c0a77eefe47654cf486c5042ea8",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-lmarkmann-patina-theme/LICENSE",
+          "repository": "lmarkmann/patina-theme",
+          "revision": "19c06c8e4211116166a65753e53f947d31c7fc87",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Patina Moss",
         "sha256": "3ecfeed8cef6e53b28d1a3ee8393adb11192db31b79f5ce8589507133c11ddaf",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-lmarkmann-patina-theme/LICENSE",
+          "repository": "lmarkmann/patina-theme",
+          "revision": "19c06c8e4211116166a65753e53f947d31c7fc87",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Patina Stellar",
         "sha256": "12a07bdd0b5f268f285023c48a2d04ad1abfe1c6cf33698f58a90a385d1da6f9",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-lmarkmann-patina-theme/LICENSE",
+          "repository": "lmarkmann/patina-theme",
+          "revision": "19c06c8e4211116166a65753e53f947d31c7fc87",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Paul Millr",
@@ -4476,7 +4743,7 @@
         "file": "Phala Green Dark",
         "sha256": "aacfae6d56315d5acbbcd2013afe86da9caeda02e1b4174844cc711a741c4ca1",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) h4x3rotab"
       },
       {
         "file": "Pharaoh's Voltage",
@@ -4488,7 +4755,7 @@
         "file": "Piatto Light",
         "sha256": "c429c7690837aa7cb2c6dfa7997854a91f5a7db1fd1ae2cf282a4bf7083d6489",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) kovv"
       },
       {
         "file": "Pierre Dark",
@@ -4559,8 +4826,14 @@
       {
         "file": "Popping And Locking",
         "sha256": "2bc75fd8ec67d4bf9f84d8304b5f6968b357cf0fc3c41c0aab9e73c27b7fc38f",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-hedinne-popping-and-locking-vscode/LICENSE",
+          "repository": "hedinne/popping-and-locking-vscode",
+          "revision": "18c7632206c0ee944b4a6d33847d84ab37c0c779",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Porcelain",
@@ -4683,25 +4956,37 @@
         "file": "Purple Rain",
         "sha256": "b91b806ddff3c694b319e53eaf293ee714d945bcff8f7fbde4c531421a5cd19f",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credited account msorre2 no longer exists"
       },
       {
         "file": "Purplepeter",
         "sha256": "860bb3219055d1b200675e45246244ef59f13e6cb19e24509ebfbb4169b53080",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) dechamp"
       },
       {
         "file": "Pyrokai",
         "sha256": "9666ffb229d0a2f7edebdceca4cb05bbe02c98ec1156b8e3d89bbbea032fb009",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-patrickserrano-pyrokai/LICENSE",
+          "repository": "patrickserrano/pyrokai",
+          "revision": "739f196af1d0cc25d476d2804cf0d069116c1ef4",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Pyrokai Light",
         "sha256": "55ec766c573003fb8de0e1f279be5ab59860ef9dc82ddf399e63521ce8258d5d",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-patrickserrano-pyrokai/LICENSE",
+          "repository": "patrickserrano/pyrokai",
+          "revision": "739f196af1d0cc25d476d2804cf0d069116c1ef4",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "RadicalReborn",
@@ -4717,20 +5002,26 @@
       {
         "file": "Rapture",
         "sha256": "33944cf1c39e753a74376f62a8abb211b056a159cf4c6cbda90c2a3b43ee5c35",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-pustur-rapture-vscode/LICENSE",
+          "repository": "Pustur/rapture-vscode",
+          "revision": "ed423cc6238758db0ef8e7a00568cd2889183cae",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Raycast Dark",
         "sha256": "9363c17b7c2668c3ee7ec7422c0b4ec140aced6e5ec51e498ea271cd55893692",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no Raycast palette repository by the credited authors"
       },
       {
         "file": "Raycast Light",
         "sha256": "48ebaa81d8f6d6b2314a8364e9d3a3c325e09a9a77d1fb5109a843b1f243deca",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no Raycast palette repository by the credited authors"
       },
       {
         "file": "Rebecca",
@@ -4783,13 +5074,13 @@
         "file": "Retro",
         "sha256": "8baee6972d7c51ae4f5d11203d7d64f62d45a9dd92523a798bb014cbba8cdbd8",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) roblatour"
       },
       {
         "file": "Retro Legends",
         "sha256": "5bb79b813110b7d59ac9dc555d11ed2c6f1c9e9fc7c97e255c8d3ddaa8e88a3e",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: veteranbv/RetroLegends has no licence file"
       },
       {
         "file": "Rhoads Concord",
@@ -4902,14 +5193,20 @@
       {
         "file": "Ryuuko",
         "sha256": "b912f8c90eb11a8b3e0c2b8cdced71dc390da0ed7b46586535477923a42be012",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-dylanaraps-ryuuko/LICENSE.md",
+          "repository": "dylanaraps/ryuuko",
+          "revision": "34bd83cc90d01b3b694cae19be5b5a00a345b251",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "SLOMP",
         "sha256": "7a6d5e35e3dd54106c0fa8d9f06c48b8abeafc5ef210899ee8866e99d7e9bd01",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Safety Glass",
@@ -4969,7 +5266,7 @@
         "file": "Scarlet Protocol",
         "sha256": "4a7ee62b78acc68c621c181265548f835daf925a53406c2ba1292e1303c3fb58",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) ReagentX"
       },
       {
         "file": "Sea Shells",
@@ -5094,14 +5391,26 @@
       {
         "file": "Selenized Dark",
         "sha256": "fee3774e8c192dd4f5982268d6c31c5ebfc6553f74cf3903556cda0f7292978f",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-jan-warchol-selenized/LICENSE.txt",
+          "repository": "jan-warchol/selenized",
+          "revision": "9a753d5c575c48e29eeb2be745d9571b4cec42b3",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Selenized Light",
         "sha256": "bacd8641a7b0bfc99a4e63138f10cc0e6714a020ed43de22bb582565989394de",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-jan-warchol-selenized/LICENSE.txt",
+          "repository": "jan-warchol/selenized",
+          "revision": "9a753d5c575c48e29eeb2be745d9571b4cec42b3",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Seoulbones Dark",
@@ -5285,7 +5594,7 @@
         "file": "Slate",
         "sha256": "d58a7fea15041bc1ae59bd515cb43e8c4a008dc66ecd5f316cbcd35d34912b52",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) deneshshan"
       },
       {
         "file": "Sleepy Hollow",
@@ -5338,7 +5647,7 @@
         "file": "Solarized Darcula",
         "sha256": "401b5e105133d15fcd1e3d89d716f34c2668f1248b9228744427e101661709bc",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Solarized Dark Higher Contrast",
@@ -5403,7 +5712,7 @@
         "file": "Spacegray Bright",
         "sha256": "e6d42d9982067c7fd132598ff586613072087238091d1b6f897c82e2861ab789",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) nicksay"
       },
       {
         "file": "Spacegray Eighties",
@@ -5421,7 +5730,7 @@
         "file": "Spiderman",
         "sha256": "8f4f1083c65770288aaa61dfc4fc221e82a56576feaf81be1c76df3d3c601a2a",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) pyrophos"
       },
       {
         "file": "Spring",
@@ -5451,7 +5760,7 @@
         "file": "Squintless",
         "sha256": "ea786742cb3ab62930040d9da6647018567ebf581e4b0802ccfaf1e394b74554",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credited account sameerzahir97-cloud no longer exists"
       },
       {
         "file": "Squirrelsong Dark",
@@ -5508,8 +5817,14 @@
       {
         "file": "Sublette",
         "sha256": "aad36f487875077583054070cd496494083f09db63a14ee3717ab52c8cebdb98",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-sublee-sublette/LICENSE",
+          "repository": "sublee/sublette",
+          "revision": "f3e84e83b29c37a05ba8365bd3cfb2812e6df9f3",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Subliminal",
@@ -5562,7 +5877,7 @@
         "file": "Sunset Drive",
         "sha256": "1d45fc00f9b044a6db67d7d50177d6046838449ff3807598802d1bfadfa9bb1f",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: author's own terminal port tahayvr/omarchy-sunset-drive-theme has no licence file; not substituting a sibling repo"
       },
       {
         "file": "Sunset Strip",
@@ -5580,7 +5895,7 @@
         "file": "Symfonic",
         "sha256": "20f8754c7bd412c45d968ffde28b8667cadff335ae044a73583566c8a77e970f",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Syncopation",
@@ -5592,7 +5907,7 @@
         "file": "Synthwave",
         "sha256": "b5dbf13363e3b9a5f05f36909b96de568c59a49cfcdb59dc870f5f4bcf7cd9ff",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) brettstil"
       },
       {
         "file": "Synthwave Alpha",
@@ -5616,31 +5931,37 @@
         "file": "Tailwind Dark",
         "sha256": "cb73b7ebd99d6902206b4a1acbe9c82e7e8230838332ac077c3a3d55c4e426a9",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) bhajneet"
       },
       {
         "file": "Tailwind Light",
         "sha256": "e414a28d94e5fca8882c34bb7b43adf1d6c76caa316adcc00460056f8aa3da86",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) bhajneet"
       },
       {
         "file": "Tango Adapted",
         "sha256": "ebb49b529c44d2aa675fc8a911805b15ea14a83a66f728954354fb2aab5dbe8f",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: based on iTerm2 Tango Light (iTerm2 is GPL)"
       },
       {
         "file": "Tango Half Adapted",
         "sha256": "d79215d917f7fec6bb61c690d268eb28e1b19bd094bcb7e6649f46bec2948f8e",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: based on iTerm2 Tango Light (iTerm2 is GPL)"
       },
       {
         "file": "Tearout",
         "sha256": "12024938546c3dd50a81d0841f793a0b72abab323b75a0b6c696a153f716256c",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-leobeosab-tearout.nvim/LICENSE",
+          "repository": "leobeosab/tearout.nvim",
+          "revision": "f6211dece57291e1f58131528df88806111e2b4c",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Teerb",
@@ -5698,7 +6019,7 @@
         "file": "The Hulk",
         "sha256": "caed1f4adc36780d3671face228e52739c2f7320ce102d9cd327dbcd2b96f836",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) pyrophos"
       },
       {
         "file": "Thermal Receipt",
@@ -5716,13 +6037,13 @@
         "file": "Tinacious Design Dark",
         "sha256": "c40fce783cd735472e752c2402f8e25e68ed1feedf0b646576ed2da39a5bd4a9",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: author's own iTerm port tinacious/iterm-tinacious-design-theme has no licence file; not substituting a sibling repo"
       },
       {
         "file": "Tinacious Design Light",
         "sha256": "a0bb35122b348755bc01a3b9c4c9eb5621a7577435c03a904160aa046f187e82",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: author's own iTerm port tinacious/iterm-tinacious-design-theme has no licence file; not substituting a sibling repo"
       },
       {
         "file": "Token Dark",
@@ -5849,7 +6170,7 @@
         "file": "Tomorrow Night Burns",
         "sha256": "54a665be6f04e00e75fc0b32c94c910d473805efd318e7293bb586df81989832",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) ashwinv11"
       },
       {
         "file": "Tomorrow Night Eighties",
@@ -5913,13 +6234,13 @@
         "file": "Ubuntu",
         "sha256": "2d169dae785b0ed7b5125b4997b31c11f6c893a767e456ddf61b7b65a699470d",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Ultra Dark",
         "sha256": "0897982433927d02f838f55aa65ab3423db8b069a85c0f42b2b355efc2f562c6",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) Kasper-Liu"
       },
       {
         "file": "Ultra Violent",
@@ -5943,13 +6264,13 @@
         "file": "Under The Sea",
         "sha256": "fc8da6ab5213f0ccfa5f30ebc7905728248ea13dc218e0efc79c7572e66f05a2",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) peterpme"
       },
       {
         "file": "Unikitty",
         "sha256": "712a6c7888c685c5a3ebc4516fbb2736fd04dc9672accc84896b0420b9896d35",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) jakebathman"
       },
       {
         "file": "Urple",
@@ -5967,7 +6288,7 @@
         "file": "Vague",
         "sha256": "03547480f3c02cda4d69b5567f10987e44690b0e33538bb2f5f08a11f76b030f",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: vague2k has no repository for the Vague palette under the credited account"
       },
       {
         "file": "Vaporwave Sunset",
@@ -6017,8 +6338,14 @@
       {
         "file": "Vesper",
         "sha256": "65dba977d18e3af6fd68d6d3ffb8cab41db7f747a03af48120ce282827ca4bbd",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-raunofreiberg-vesper/LICENSE.md",
+          "repository": "raunofreiberg/vesper",
+          "revision": "9043f3849b776949445f0cd4990365959cca35a3",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "Vibrant Ink",
@@ -6053,7 +6380,7 @@
         "file": "Violite",
         "sha256": "bfbdc5da8ea0da3854fdd021d8d4d4521e5554baa7b704de9d6a436d405d2138",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: no repository named for this palette under the credited account(s) 4c696e6b"
       },
       {
         "file": "Warm Burnout Dark",
@@ -6081,7 +6408,7 @@
         "file": "Warm Neon",
         "sha256": "54382e32a93e480e9b12a473b26276bf23937619c6e60ee717c0ec679384e666",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Wez",
@@ -6092,8 +6419,14 @@
       {
         "file": "Whimsy",
         "sha256": "6bc40db266763213212783f0cdb81d7679026adc987fba706d2106d4cad6d6d5",
-        "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "attribution": "resolved",
+        "license": {
+          "spdx": "MIT",
+          "notice": "theme-rod-iterm2-whimsy/LICENSE",
+          "repository": "rod/iterm2-whimsy",
+          "revision": "c73fcbeb0e366feb8bcb5abed4b2ada349891dd7",
+          "basis": "author-own-repo"
+        }
       },
       {
         "file": "White Sands",
@@ -6368,7 +6701,7 @@
         "file": "Zenburn",
         "sha256": "e643bafed0380bc4582cfa94237c193ceb65449d0b9fd3aa1ee526b4d8b62ce4",
         "attribution": "dropped",
-        "reason": "Credit links only a user/org profile or website, no source repository (rule 5)"
+        "reason": "Credit links only a user/org profile or website, no source repository (rule 5) | pass 3: kept DROP: credit names no GitHub account and no website that names a GitHub org"
       },
       {
         "file": "Zenburned",
