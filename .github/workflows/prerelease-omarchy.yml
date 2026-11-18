@@ -1,12 +1,20 @@
 name: Omarchy prerelease promotion
 
+# One promotion path for two products: a development prerelease (no version) and a versioned
+# non-prerelease omarchy-vX.Y.Z.N release that omarchy-pkgs' upstream-watch can follow.
 on:
+  # Pushing an omarchy-v tag publishes that release; dry-run it first with a dispatch.
+  push:
+    tags: ["omarchy-v*"]
   pull_request:
     branches: [main]
     paths:
       - .github/workflows/prerelease-omarchy.yml
       - scripts/prepare-omarchy-prerelease.py
       - scripts/tests/test_omarchy_prerelease.py
+      - scripts/omarchy-release.py
+      - scripts/linux-runpath.py
+      - scripts/tests/test_omarchy_release.py
       - packaging/linux/prerelease-omarchy.md
       # The validator requires ci.yml job and step names.
       - .github/workflows/ci.yml
@@ -25,6 +33,11 @@ on:
         required: false
         type: boolean
         default: true
+      version:
+        description: Release version X.Y.Z.N (upstream base plus serial) for a versioned omarchy-v release; empty for a development prerelease
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -47,12 +60,13 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 scripts/tests/test_omarchy_prerelease.py
+      - run: python3 scripts/tests/test_omarchy_release.py
       - run: git diff --check
 
   prepare:
     name: Verify existing CI artifacts
     # Pull requests dry-run the newest promotable source; nothing in this job can publish.
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/omarchy-v'))
     needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -62,10 +76,26 @@ jobs:
     outputs:
       tag: ${{ steps.prepare.outputs.tag }}
       sha: ${{ steps.prepare.outputs.sha }}
+      version: ${{ steps.prepare.outputs.version }}
+      latest: ${{ steps.prepare.outputs.latest }}
+      tagged: ${{ steps.mode.outputs.tagged }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Resolve release mode
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          # The script validates the version against the upstream base and the omarchy-pkgs watch pattern.
+          if [[ "$EVENT" == push ]]; then
+            printf 'version=%s\ntagged=true\n' "${REF_NAME#omarchy-v}" >> "$GITHUB_OUTPUT"
+          else
+            printf 'version=%s\ntagged=false\n' "$INPUT_VERSION" >> "$GITHUB_OUTPUT"
+          fi
       - name: Select source run
         id: source
         env:
@@ -76,6 +106,9 @@ jobs:
         run: |
           if [[ "$EVENT" == workflow_dispatch ]]; then
             printf 'run=%s\nsha=%s\n' "$SOURCE_RUN" "$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT" == push ]]; then
+            # The tag names the commit; its newest green main CI run supplies the tested archives.
+            python3 scripts/prepare-omarchy-prerelease.py --discover --commit "$GITHUB_SHA"
           else
             python3 scripts/prepare-omarchy-prerelease.py --discover
           fi
@@ -86,13 +119,35 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SOURCE_RUN: ${{ steps.source.outputs.run }}
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
-        run: python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA" "$RUNNER_TEMP/promotion"
+          VERSION: ${{ steps.mode.outputs.version }}
+          TAGGED: ${{ steps.mode.outputs.tagged }}
+        run: |
+          mode=()
+          [[ -z "$VERSION" ]] || mode=(--release "$VERSION")
+          [[ "$TAGGED" != true ]] || mode+=(--tagged)
+          python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA" "$RUNNER_TEMP/promotion" "${mode[@]}"
+      # A pull request also dry-runs the versioned path, for the next unpublished version, on the same source.
+      - name: Dry-run the next versioned release on the same source
+        if: github.event_name == 'pull_request' && steps.source.outputs.run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ steps.source.outputs.run }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          version="$(python3 scripts/prepare-omarchy-prerelease.py --next-version)"
+          python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA" "$RUNNER_TEMP/release" --release "$version"
+          (cd "$RUNNER_TEMP/release" && sha256sum --check SHA256SUMS)
+          {
+            printf '### Versioned dry run passed: omarchy-v%s\n\nNo tag, attestation or release was created.\n\n' "$version"
+            printf '```\n'; cat "$RUNNER_TEMP/release/SHA256SUMS"; printf '```\n\n'
+            cat "$RUNNER_TEMP/release/release-notes.md"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Verify transfer checksums
         if: steps.prepare.outcome == 'success'
         working-directory: ${{ runner.temp }}/promotion
         run: sha256sum --check SHA256SUMS
       - name: Report dry run
-        if: github.event_name == 'pull_request' || inputs.dry_run != false
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.dry_run != false)
         env:
           SOURCE_RUN: ${{ steps.source.outputs.run }}
           TAG: ${{ steps.prepare.outputs.tag }}
@@ -108,7 +163,7 @@ jobs:
             cat "$RUNNER_TEMP/promotion/release-notes.md"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload dry-run evidence
-        if: steps.prepare.outcome == 'success' && (github.event_name == 'pull_request' || inputs.dry_run != false)
+        if: steps.prepare.outcome == 'success' && (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.dry_run != false))
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dry-run-promotion-${{ github.run_id }}-${{ github.run_attempt }}
@@ -116,10 +171,13 @@ jobs:
             ${{ runner.temp }}/promotion/SHA256SUMS
             ${{ runner.temp }}/promotion/promotion.json
             ${{ runner.temp }}/promotion/release-notes.md
+            ${{ runner.temp }}/release/SHA256SUMS
+            ${{ runner.temp }}/release/promotion.json
+            ${{ runner.temp }}/release/release-notes.md
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false
+        if: (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) || github.event_name == 'push'
         with:
           name: verified-prerelease-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/promotion/*
@@ -127,9 +185,9 @@ jobs:
           retention-days: 14
 
   publish:
-    name: Attest and publish development prerelease
-    # Explicit event check: on pull_request inputs.dry_run is null, which compares equal to false.
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.dry_run == false
+    name: Attest and publish
+    # Explicit event checks: on pull_request and push inputs.dry_run is null, which compares equal to false.
+    if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.dry_run == false) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/omarchy-v'))
     needs: prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -170,11 +228,12 @@ jobs:
             for predicate in https://slsa.dev/provenance/v1 "https://github.com/$GH_REPO/attestations/promotion/v1"; do
               gh attestation verify "$archive" --repo "$GH_REPO" \
                 --signer-workflow "$GH_REPO/.github/workflows/prerelease-omarchy.yml" \
-                --source-ref refs/heads/main --source-digest "$GITHUB_SHA" \
+                --source-ref "$GITHUB_REF" --source-digest "$GITHUB_SHA" \
                 --deny-self-hosted-runners --predicate-type "$predicate" > /dev/null
             done
           done
       - name: Create new tag and prerelease without replacing anything
+        if: needs.prepare.outputs.version == ''
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -189,3 +248,25 @@ jobs:
             --notes-file dist/release-notes.md \
             dist/*.tar.gz dist/SHA256SUMS dist/promotion.json
           printf 'Published prerelease: https://github.com/%s/releases/tag/%s\n' "$GH_REPO" "$TAG" >> "$GITHUB_STEP_SUMMARY"
+      - name: Create the versioned release without replacing anything
+        if: needs.prepare.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          LATEST: ${{ needs.prepare.outputs.latest }}
+          TAGGED: ${{ needs.prepare.outputs.tagged }}
+        run: |
+          # A dispatch creates the tag; a tag push already did, and prepare checked it names SOURCE_SHA.
+          if [[ "$TAGGED" != true ]]; then
+            gh api --method POST "repos/$GH_REPO/git/refs" \
+              -f "ref=refs/tags/$TAG" -f "sha=$SOURCE_SHA"
+          fi
+          # Not a prerelease: omarchy-pkgs' upstream-watch skips those. Latest only when no higher version exists.
+          gh release create "$TAG" --repo "$GH_REPO" --verify-tag \
+            --latest="$LATEST" --title "agterm Omarchy $VERSION" \
+            --notes-file dist/release-notes.md \
+            dist/*.tar.gz dist/SHA256SUMS dist/promotion.json
+          printf 'Published release: https://github.com/%s/releases/tag/%s\n' "$GH_REPO" "$TAG" >> "$GITHUB_STEP_SUMMARY"
