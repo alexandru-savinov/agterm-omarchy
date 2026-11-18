@@ -242,6 +242,7 @@ def main():
     require(args.run_id > 0, "Invalid run ID")
     tag = promotion_tag(args.sha, args.run_id)
     run = api(f"actions/runs/{args.run_id}")
+    require(run["id"] == args.run_id, "Requested run ID mismatch")
     require(run["head_branch"] in BRANCHES, "Untrusted source branch")
     branch = api(f"git/ref/heads/{run['head_branch']}")
     validate_run(run, api("actions/workflows/ci.yml"), args.sha, branch["object"]["sha"])
@@ -263,6 +264,7 @@ def main():
                                       "transport_digest": artifact["digest"], "filename": name, "sha256": digest})
     # Recheck the mutable run before allowing a privileged publishing job to consume these results.
     current = api(f"actions/runs/{args.run_id}")
+    require(current["id"] == args.run_id, "Requested run ID mismatch")
     require(current["run_attempt"] == run["run_attempt"] and current["status"] == "completed"
             and current["conclusion"] == "success", "Run changed while downloading")
     (args.output / "promotion.json").write_text(json.dumps(evidence, indent=2) + "\n")
