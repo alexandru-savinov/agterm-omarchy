@@ -1,0 +1,208 @@
+name: Relaunch A/B for umputun/agterm Discussion 1037
+
+# Helper only, never merged: builds umputun master with and without the ApplePersistenceIgnoreState registration,
+# runs .github/relaunch-ab-1037/ab.sh (same stale AppKit state on both arms, open -n -g and direct exec, cold
+# agterm://session link and cold folder open), and runs the CONTRIBUTING gates at the PR head.
+on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: umputun/agterm master commit (the A arm)
+        required: true
+      head_sha:
+        description: PR head, the base plus the registration commit (the B arm)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  ab:
+    runs-on: macos-26
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    env:
+      BASE_SHA: ${{ inputs.base_sha }}
+      HEAD_SHA: ${{ inputs.head_sha }}
+    steps:
+      - name: Keep the helper scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: helper
+          persist-credentials: false
+      - name: Check out umputun/agterm master
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: umputun/agterm
+          ref: ${{ inputs.base_sha }}
+          path: src
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch the patch and record identities
+        working-directory: src
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          git fetch --no-tags https://github.com/alexandru-savinov/agterm-omarchy.git "$HEAD_SHA"
+          {
+            echo "umputun master now: $(git ls-remote https://github.com/umputun/agterm.git refs/heads/master)"
+            echo "A (base): $(git rev-parse "$BASE_SHA")"
+            echo "B (head): $(git rev-parse "$HEAD_SHA"), parent $(git rev-parse "$HEAD_SHA^")"
+            git diff --stat "$BASE_SHA" "$HEAD_SHA"
+            git diff "$BASE_SHA" "$HEAD_SHA"
+            sw_vers; uname -m; xcodebuild -version
+          } | tee "$RUNNER_TEMP/out/identity.log"
+          test "$(git rev-parse "$HEAD_SHA^")" = "$(git rev-parse "$BASE_SHA")"
+      - name: Read pinned helper revisions
+        id: revisions
+        working-directory: src
+        run: |
+          echo "ghostty=$(sed -nE 's/^GHOSTTY_REV="([^"]+)".*/\1/p' scripts/setup.sh)" >> "$GITHUB_OUTPUT"
+          echo "zmx=$(sed -nE 's/^ZMX_REV="([^"]+)".*/\1/p' scripts/setup.sh)" >> "$GITHUB_OUTPUT"
+          echo "zmx_target=$(sed -nE 's/^ZMX_TARGET="([^"]+)".*/\1/p' scripts/setup.sh)" >> "$GITHUB_OUTPUT"
+      - name: Cache libghostty
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            src/GhosttyKit.xcframework
+            src/agterm/Resources/ghostty
+            src/agterm/Resources/terminfo
+            src/.ghostty-build-stamp
+          key: ab1037-ghosttykit-${{ steps.revisions.outputs.ghostty }}-${{ hashFiles('src/scripts/ghostty-patches/*.patch') }}
+      - name: Cache zmx
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            src/agterm/Resources/zmx
+            src/.zmx-build-stamp
+          key: ab1037-zmx-${{ steps.revisions.outputs.zmx }}-${{ steps.revisions.outputs.zmx_target }}-${{ hashFiles('src/scripts/zmx-patches/**/*.patch') }}
+      - name: Install prerequisites
+        run: brew install xcodegen
+      - name: Stage libghostty and zmx
+        working-directory: src
+        run: scripts/setup.sh 2>&1 | tee "$RUNNER_TEMP/out/setup.log"
+      - name: Build both arms (Debug, make build)
+        working-directory: src
+        run: |
+          for arm in master patched; do
+            sha=$BASE_SHA; [ "$arm" = patched ] && sha=$HEAD_SHA
+            git checkout --quiet --detach "$sha"
+            make build 2>&1 | tee "$RUNNER_TEMP/out/build-$arm.log" | tail -5
+            test "${PIPESTATUS[0]}" -eq 0
+            mkdir -p "$RUNNER_TEMP/arms/$arm"
+            ditto build/DerivedData/Build/Products/Debug/agterm.app "$RUNNER_TEMP/arms/$arm/agterm.app"
+            echo "$arm $(git rev-parse HEAD): $(grep -a -c ApplePersistenceIgnoreState "$RUNNER_TEMP/arms/$arm/agterm.app/Contents/MacOS/agterm.debug.dylib") match(es)" | tee -a "$RUNNER_TEMP/out/identity.log"
+          done
+      - name: Compile the window counter
+        run: swiftc -O helper/.github/relaunch-ab-1037/winctl.swift -o "$RUNNER_TEMP/winctl"
+      - name: A/B and smoke checks
+        env:
+          WINCTL: ${{ runner.temp }}/winctl
+        run: helper/.github/relaunch-ab-1037/ab.sh "$RUNNER_TEMP/arms" "$RUNNER_TEMP/out"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## A/B (A = $BASE_SHA, B = $HEAD_SHA)"
+            echo
+            if [ -f "$RUNNER_TEMP/out/results.tsv" ]; then
+              awk -F'\t' 'NR == 1 { print "| " $1 " | " $2 " | " $3 " | " $4 " | " $5 " | " $6 " | " $7 " |"; print "|---|---|---|---|---|---|---|"; next } { print "| " $1 " | " $2 " | " $3 " | " $4 " | " $5 " | " $6 " | " $7 " |" }' "$RUNNER_TEMP/out/results.tsv"
+            fi
+            echo
+            echo "## Smoke checks (B)"
+            echo
+            if [ -f "$RUNNER_TEMP/out/smoke.tsv" ]; then
+              awk -F'\t' 'NR == 1 { print "| " $1 " | " $2 " | " $3 " |"; print "|---|---|---|"; next } { print "| " $1 " | " $2 " | " $3 " |" }' "$RUNNER_TEMP/out/smoke.tsv"
+            fi
+            echo
+            echo '```'
+            tail -n 40 "$RUNNER_TEMP/out/ab.log" 2>/dev/null
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ab1037-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/out
+          retention-days: 30
+          if-no-files-found: warn
+
+  gates:
+    runs-on: macos-26
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.head_sha }}
+          persist-credentials: false
+      - name: Record identity
+        run: |
+          mkdir -p validation-logs
+          { git rev-parse HEAD; sw_vers; uname -m; xcodebuild -version; swift --version; } | tee validation-logs/identity.log
+      - name: Install Node for plugin tests
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Install prerequisites
+        run: |
+          brew install xcodegen swiftlint fish
+          sudo dscl . -create "/Users/$(id -un)" UserShell /bin/zsh
+          { xcodegen --version; swiftlint version; fish --version; node --version; } | tee validation-logs/prerequisites.log
+      - name: Read pinned helper revisions
+        id: revisions
+        run: |
+          echo "ghostty=$(sed -nE 's/^GHOSTTY_REV="([^"]+)".*/\1/p' scripts/setup.sh)" >> "$GITHUB_OUTPUT"
+          echo "zmx=$(sed -nE 's/^ZMX_REV="([^"]+)".*/\1/p' scripts/setup.sh)" >> "$GITHUB_OUTPUT"
+          echo "zmx_target=$(sed -nE 's/^ZMX_TARGET="([^"]+)".*/\1/p' scripts/setup.sh)" >> "$GITHUB_OUTPUT"
+      - name: Cache libghostty
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            GhosttyKit.xcframework
+            agterm/Resources/ghostty
+            agterm/Resources/terminfo
+            .ghostty-build-stamp
+          key: ab1037-gates-ghosttykit-${{ steps.revisions.outputs.ghostty }}-${{ hashFiles('scripts/ghostty-patches/*.patch') }}
+      - name: Cache zmx
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            agterm/Resources/zmx
+            .zmx-build-stamp
+          key: ab1037-gates-zmx-${{ steps.revisions.outputs.zmx }}-${{ steps.revisions.outputs.zmx_target }}-${{ hashFiles('scripts/zmx-patches/**/*.patch') }}
+      - name: Stage libghostty and zmx
+        id: prepare
+        run: scripts/setup.sh 2>&1 | tee validation-logs/setup.log
+      # every gate runs even when another fails; none is suppressed
+      - name: make build
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: make build 2>&1 | tee validation-logs/make-build.log
+      - name: make test
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        env:
+          AGTERM_REQUIRE_FISH: '1'
+        run: make test 2>&1 | tee validation-logs/make-test.log
+      - name: make test-app
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        env:
+          TEST_RUNNER_AGTERM_REQUIRE_FISH: '1'
+        run: make test-app 2>&1 | tee validation-logs/make-test-app.log
+      - name: make lint
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: make lint 2>&1 | tee validation-logs/make-lint.log
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: gates1037-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            validation-logs
+            build/DerivedData/Logs/Test
+          retention-days: 30
+          if-no-files-found: warn
