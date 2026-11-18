@@ -1,0 +1,367 @@
+diff --git a/src/termio/Exec.zig b/src/termio/Exec.zig
+index 7a92a26..1fa2a3e 100644
+--- a/src/termio/Exec.zig
++++ b/src/termio/Exec.zig
+@@ -44,6 +44,10 @@ const FlatpakHostCommand = if (!build_config.flatpak) struct {
+ /// The subprocess state for our exec backend.
+ subprocess: Subprocess,
+
++/// Set by the read thread once it has parsed everything it will ever
++/// read from the pty. The child_exited notice waits on it; see ExitHold.
++read_done: std.atomic.Value(bool) = .init(false),
++
+ /// Initialize the exec state. This will NOT start it, this only sets
+ /// up the internal state necessary to start it later.
+ pub fn init(
+@@ -136,11 +140,15 @@ pub fn threadEnter(
+     var termios_timer = try xev.Timer.init();
+     errdefer termios_timer.deinit();
+
++    // The timer that holds the child_exited notice; see ExitHold.
++    var exit_timer = try xev.Timer.init();
++    errdefer exit_timer.deinit();
++
+     // Start our read thread
+     const read_thread = try std.Thread.spawn(
+         .{},
+         if (builtin.target.os.tag == .windows) ReadThread.threadMainWindows else ReadThread.threadMainPosix,
+-        .{ pty_fds.read, io, pipe[0] },
++        .{ pty_fds.read, io, pipe[0], &self.read_done },
+     );
+     read_thread.setName(global.io(), "io-reader") catch {};
+
+@@ -153,6 +161,7 @@ pub fn threadEnter(
+         .read_thread_pipe = pipe[1],
+         .read_thread_fd = pty_fds.read,
+         .termios_timer = termios_timer,
++        .exit_hold = .{ .read_done = &self.read_done, .timer = exit_timer },
+     } };
+
+     // Start our process watcher. If we have an xev.Process use it.
+@@ -283,16 +292,99 @@ fn processExitCommon(td: *termio.Termio.ThreadData, exit_code: u32) void {
+     );
+     log.debug("child process exited status={} runtime={}ms", .{ exit_code, runtime_ms });
+
+-    // We always notify the surface immediately that the child has
+-    // exited and some metadata about the exit.
++    // We notify the surface that the child has exited and some metadata
++    // about the exit. The surface prints its exit message into the
++    // terminal on this notice, so the notice waits until the read
++    // thread has parsed what the child wrote before it exited; see
++    // ExitHold. The read thread exits on its own on Windows only on
++    // the quit signal, so there the notice goes at once.
++    execdata.exit_info = .{
++        .exit_code = exit_code,
++        .runtime_ms = runtime_ms,
++    };
++    if (comptime builtin.target.os.tag == .windows) return pushChildExited(td);
++    execdata.exit_hold.wait(td.loop, termio.Termio.ThreadData, td, pushChildExited);
++}
++
++fn pushChildExited(td: *termio.Termio.ThreadData) void {
+     _ = td.surface_mailbox.push(.{
+-        .child_exited = .{
+-            .exit_code = exit_code,
+-            .runtime_ms = runtime_ms,
+-        },
++        .child_exited = td.backend.exec.exit_info,
+     }, .{ .forever = {} });
+ }
+
++/// Holds the child_exited notice until the read thread has parsed the
++/// child's last output (agterm-omarchy #447). The process watcher can
++/// report the exit while what the child wrote just before it is still
++/// queued in the pty or in the read pipeline, and the surface prints
++/// "Process exited" on the notice, so without the hold that output
++/// landed after the message. A process that inherited the pty can keep
++/// it open after the child exits, so the read thread never finishes;
++/// then the notice goes after max_ms, as it would have without the
++/// hold. This never blocks the IO thread: it re-checks on a timer.
++const ExitHold = struct {
++    /// Set by the read thread once it has parsed everything it will
++    /// ever read.
++    read_done: *const std.atomic.Value(bool),
++
++    timer: xev.Timer,
++    c: xev.Completion = .{},
++    start: std.Io.Timestamp = undefined,
++
++    /// The longest the notice waits for the read thread.
++    const max_ms = 1000;
++
++    /// How often a held notice re-checks the read thread.
++    const poll_ms = 2;
++
++    /// Calls deliver(userdata) on the loop's thread once the read
++    /// thread is done or max_ms have passed, at once if it already is.
++    fn wait(
++        self: *ExitHold,
++        loop: *xev.Loop,
++        comptime Userdata: type,
++        userdata: *Userdata,
++        comptime deliver: fn (*Userdata) void,
++    ) void {
++        self.start = .now(global.io(), .awake);
++        self.check(loop, Userdata, userdata, deliver);
++    }
++
++    fn check(
++        self: *ExitHold,
++        loop: *xev.Loop,
++        comptime Userdata: type,
++        userdata: *Userdata,
++        comptime deliver: fn (*Userdata) void,
++    ) void {
++        const done = self.read_done.load(.acquire);
++        if (done or self.start.untilNow(global.io(), .awake).toMilliseconds() >= max_ms) {
++            if (!done) log.warn("exit hold bound reached, notice delivered before read thread finished", .{});
++            deliver(userdata);
++            return;
++        }
++
++        self.timer.run(loop, &self.c, poll_ms, Userdata, userdata, struct {
++            fn callback(
++                ud: ?*Userdata,
++                l: *xev.Loop,
++                c: *xev.Completion,
++                r: xev.Timer.RunError!void,
++            ) xev.CallbackAction {
++                // The notice must not be lost, so a failed timer
++                // delivers it at once.
++                _ = r catch |err| {
++                    log.warn("exit hold timer failed err={}", .{err});
++                    deliver(ud.?);
++                    return .disarm;
++                };
++                const hold: *ExitHold = @alignCast(@fieldParentPtr("c", c));
++                hold.check(l, Userdata, ud.?, deliver);
++                return .disarm;
++            }
++        }.callback);
++    }
++};
++
+ fn processExit(
+     td_: ?*termio.Termio.ThreadData,
+     _: *xev.Loop,
+@@ -546,6 +638,10 @@ pub const ThreadData = struct {
+     /// to prevent unnecessary locking of expensive mutexes.
+     termios_mode: ptypkg.Mode = .{},
+
++    /// The child_exited notice, held until the read thread is done.
++    exit_info: apprt.surface.Message.ChildExited = undefined,
++    exit_hold: ExitHold,
++
+     pub fn deinit(self: *ThreadData, alloc: Allocator) void {
+         _ = posix.system.close(self.read_thread_pipe);
+
+@@ -562,6 +658,7 @@ pub const ThreadData = struct {
+
+         // Stop our termios timer
+         self.termios_timer.deinit();
++        self.exit_hold.timer.deinit();
+     }
+ };
+
+@@ -1409,9 +1506,17 @@ pub const ReadThread = struct {
+         bufs: [buffer_count][buffer_capacity]u8 = undefined,
+     };
+
+-    fn threadMainPosix(fd: posix.fd_t, io: *termio.Termio, quit: posix.fd_t) void {
++    fn threadMainPosix(
++        fd: posix.fd_t,
++        io: *termio.Termio,
++        quit: posix.fd_t,
++        read_done: *std.atomic.Value(bool),
++    ) void {
+         // Always close our end of the pipe when we exit.
+         defer _ = posix.system.close(quit);
++        // An early return never reaches the parse stage, which sets this
++        // when it is done; set it here too so the exit notice goes at once.
++        defer read_done.store(true, .release);
+
+         // Right now, on Darwin, `std.Thread.setName` can only name the current
+         // thread, and we have no way to get the current thread from within it,
+@@ -1475,15 +1580,30 @@ pub const ReadThread = struct {
+             gather_thread.setName(global.io(), "io-gather") catch {};
+         }
+
++        parseMainPosix(io, &pipeline, read_done);
++    }
++
++    /// The parse stage, run on the read thread. `io` is the Termio, or
++    /// in tests a stand-in with the same processOutput and
++    /// renderer_state.yieldToDemand.
++    fn parseMainPosix(
++        io: anytype,
++        pipeline: *Pipeline,
++        read_done: *std.atomic.Value(bool),
++    ) void {
+         // This thread is the parse stage. We consume batches in ring
+         // order until the gather stage reports the stream is over and
+-        // the ring is drained.
++        // the ring is drained. Then nothing more reaches the terminal,
++        // which the child_exited notice waits for (see ExitHold).
+         while (true) {
+             const batch: []const u8 = batch: {
+                 pipeline.mutex.lockUncancelable(global.io());
+                 defer pipeline.mutex.unlock(global.io());
+                 while (pipeline.count == 0) {
+-                    if (pipeline.done) return;
++                    if (pipeline.done) {
++                        read_done.store(true, .release);
++                        return;
++                    }
+                     pipeline.batch_ready.waitUncancelable(global.io(), &pipeline.mutex);
+                 }
+                 const slot = pipeline.tail;
+@@ -1834,9 +1954,15 @@ pub const ReadThread = struct {
+         return true;
+     }
+
+-    fn threadMainWindows(fd: posix.fd_t, io: *termio.Termio, quit: posix.fd_t) void {
++    fn threadMainWindows(
++        fd: posix.fd_t,
++        io: *termio.Termio,
++        quit: posix.fd_t,
++        read_done: *std.atomic.Value(bool),
++    ) void {
+         // Always close our end of the pipe when we exit.
+         defer _ = posix.system.close(quit);
++        defer read_done.store(true, .release);
+
+         // Setup our crash metadata
+         crash.sentry.thread_state = .{
+@@ -2541,3 +2667,132 @@ test "a hangup drain stops at its cap when the fd never runs dry" {
+     try std.testing.expect(result.drained < ReadThread.hangup_drain_max + ReadThread.buffer_capacity);
+     try std.testing.expectEqual(result.drained, result.got.items.len);
+ }
++
++/// Stands in for the Termio in the parse stage: parses into a real terminal, under the mutex the exit
++/// message takes too, but only once `go` is set, so a test can hold output unparsed as a loaded host does.
++const TestParseSink = struct {
++    mutex: std.Io.Mutex = .init,
++    terminal: *terminal.Terminal,
++    stream: *terminal.TerminalStream,
++    go: std.atomic.Value(bool) = .init(false),
++    renderer_state: struct {
++        fn yieldToDemand(_: @This(), _: std.Io) void {}
++    } = .{},
++
++    fn processOutput(self: *TestParseSink, buf: []const u8) void {
++        while (!self.go.load(.acquire)) std.Thread.yield() catch {};
++        self.mutex.lockUncancelable(global.io());
++        defer self.mutex.unlock(global.io());
++        self.stream.nextSlice(buf);
++    }
++};
++
++/// Writes the exit message as Surface.childExited does when the child_exited notice arrives.
++const TestExitNotice = struct {
++    sink: *TestParseSink,
++    read_done: *const std.atomic.Value(bool),
++    count: usize = 0,
++    /// Whether the read thread was done when the notice arrived, so not released by the bound.
++    saw_read_done: bool = false,
++
++    fn deliver(self: *TestExitNotice) void {
++        self.count += 1;
++        self.saw_read_done = self.read_done.load(.acquire);
++        self.sink.mutex.lockUncancelable(global.io());
++        defer self.sink.mutex.unlock(global.io());
++        const t = self.sink.terminal;
++        t.carriageReturn();
++        t.linefeed() catch @panic("linefeed failed");
++        t.printString("Process exited. Press any key to close the terminal.") catch @panic("print failed");
++    }
++};
++
++// regression (agterm-omarchy #447): the process watcher reported the exit while the child's last output
++// was still unparsed, and the surface printed its exit message on that notice, ahead of the output
++test "the exit message waits until the last output of the child is parsed" {
++    if (comptime builtin.os.tag != .linux) return error.SkipZigTest;
++    const alloc = std.testing.allocator;
++    var t: terminal.Terminal = try .init(global.io(), alloc, .{ .cols = 80, .rows = 4 });
++    defer t.deinit(alloc);
++    var stream = t.vtStream();
++    defer stream.deinit();
++    var sink: TestParseSink = .{ .terminal = &t, .stream = &stream };
++
++    // the last output of the child, queued in a pty whose replica has closed
++    const final = "FINAL-OUTPUT";
++    const pty = try Pty.open(.{ .ws_row = 24, .ws_col = 80, .ws_xpixel = 0, .ws_ypixel = 0 });
++    defer _ = posix.system.close(pty.master);
++    try std.testing.expectEqual(@as(isize, final.len), posix.system.write(pty.slave, final, final.len));
++    _ = posix.system.close(pty.slave);
++    try std.testing.expect(ReadThread.setNonblock(pty.master));
++
++    // the read thread's two stages, the parse stage held until the exit is reported
++    const quit = try internal_os.pipe();
++    defer _ = posix.system.close(quit[0]);
++    defer _ = posix.system.close(quit[1]);
++    const pipeline = try alloc.create(ReadThread.Pipeline);
++    defer alloc.destroy(pipeline);
++    pipeline.* = .{};
++    var read_done: std.atomic.Value(bool) = .init(false);
++    const gather = try std.Thread.spawn(.{}, ReadThread.gatherMainPosix, .{ pty.master, quit[0], pipeline });
++    const parse = try std.Thread.spawn(.{}, ReadThread.parseMainPosix, .{ &sink, pipeline, &read_done });
++
++    // the child exits with its output unparsed; the notice goes through the hold, as processExit sends it
++    var loop = try xev.Loop.init(.{});
++    defer loop.deinit();
++    var hold: ExitHold = .{ .read_done = &read_done, .timer = try xev.Timer.init() };
++    defer hold.timer.deinit();
++    var notice: TestExitNotice = .{ .sink = &sink, .read_done = &read_done };
++    hold.wait(&loop, TestExitNotice, &notice, TestExitNotice.deliver);
++    sink.go.store(true, .release);
++    try loop.run(.until_done);
++    gather.join();
++    parse.join();
++
++    try std.testing.expectEqual(@as(usize, 1), notice.count);
++    const screen = try t.plainString(alloc);
++    defer alloc.free(screen);
++    const at_final = std.mem.indexOf(u8, screen, final) orelse return error.TestFinalOutputMissing;
++    const at_exit = std.mem.indexOf(u8, screen, "Process exited.") orelse return error.TestExitMessageMissing;
++    try std.testing.expect(at_final < at_exit);
++    try std.testing.expect(notice.saw_read_done);
++}
++
++test "the exit message goes at once when the read thread is already done" {
++    var read_done: std.atomic.Value(bool) = .init(true);
++    var loop = try xev.Loop.init(.{});
++    defer loop.deinit();
++    var hold: ExitHold = .{ .read_done = &read_done, .timer = try xev.Timer.init() };
++    defer hold.timer.deinit();
++    var notice: struct {
++        count: usize = 0,
++        fn deliver(self: *@This()) void {
++            self.count += 1;
++        }
++    } = .{};
++    hold.wait(&loop, @TypeOf(notice), &notice, @TypeOf(notice).deliver);
++    try std.testing.expectEqual(@as(usize, 1), notice.count);
++}
++
++test "the exit message goes after the bound when the read thread never finishes" {
++    // the hold warns when the bound releases it; that is the expected outcome here
++    std.testing.log_level = .err;
++    // a process that inherited the pty keeps it open after the child exits
++    const read_done: std.atomic.Value(bool) = .init(false);
++    var loop = try xev.Loop.init(.{});
++    defer loop.deinit();
++    var hold: ExitHold = .{ .read_done = &read_done, .timer = try xev.Timer.init() };
++    defer hold.timer.deinit();
++    var notice: struct {
++        count: usize = 0,
++        fn deliver(self: *@This()) void {
++            self.count += 1;
++        }
++    } = .{};
++    const start: std.Io.Timestamp = .now(global.io(), .awake);
++    hold.wait(&loop, @TypeOf(notice), &notice, @TypeOf(notice).deliver);
++    try std.testing.expectEqual(@as(usize, 0), notice.count);
++    try loop.run(.until_done);
++    try std.testing.expectEqual(@as(usize, 1), notice.count);
++    try std.testing.expect(start.untilNow(global.io(), .awake).toMilliseconds() >= ExitHold.max_ms);
++}

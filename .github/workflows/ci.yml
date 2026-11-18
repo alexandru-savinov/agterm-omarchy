@@ -473,12 +473,23 @@ jobs:
           echo 'Native Hyprland/Wayland validation remains a separate Omarchy VM check.' >> "$GITHUB_STEP_SUMMARY"
 
   ghostty-patch-tests:
-    name: libghostty patch Zig tests
-    # The patches' own Zig tests; the GTK jobs only link the ReleaseFast library they produce.
+    name: libghostty patch Zig tests (${{ matrix.arch }})
+    # The patches' own Zig tests; the GTK jobs only link the ReleaseFast library they produce. Both arches,
+    # as the GTK build: the pty hangup and exit-ordering races of #447 showed on aarch64.
     needs: changes
     if: needs.changes.outputs.product == 'true'
-    runs-on: ubuntu-24.04
-    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:74b7758f3d862a23e2d343c721aa47bfd33fbbf2bc17fde62091aeb329927c4e
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

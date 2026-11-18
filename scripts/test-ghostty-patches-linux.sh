@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the Zig tests the Linux patch chain adds to libghostty's src/App.zig, against the pinned source.
+# Run the Zig tests the Linux patch chain adds to any libghostty Zig source, against the pinned source.
 set -euo pipefail
 
 ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
@@ -24,20 +24,33 @@ git -C "$SOURCE" fetch -q --depth 1 origin "$GHOSTTY_REV"
 git -C "$SOURCE" -c advice.detachedHead=false checkout -q FETCH_HEAD
 [[ "$(git -C "$SOURCE" rev-parse HEAD)" == "$GHOSTTY_REV" ]]
 
-# Only applied patches contribute tests, so a patch dropped from the chain drops its tests too.
+# Only applied patches contribute tests, so a patch dropped from the chain drops its tests too. Every
+# patched Zig file counts, whatever prefix its diff uses (b/, w/), not only src/App.zig (#435), except
+# src/apprt/embedded.zig: the -Dapp-runtime=none test build does not compile it, so its tests cannot run
+# here and would only fail the check (#435 keeps that open).
 names=()
+# src/App.zig and every Zig file the patches under scripts/ghostty-patches touch must stay zig-fmt clean;
+# the linux/patches adapters predate the check and one of them is not (src/apprt/embedded.zig).
+formatted=(src/App.zig)
 for ghostty_patch in "${GHOSTTY_PATCHES[@]}"; do
   git -C "$SOURCE" apply "$ghostty_patch"
-  while IFS= read -r name; do names+=("$name"); done < <(
-    awk '/^\+\+\+ / { file = $2 } file == "b/src/App.zig" && /^\+test "/ {
-      sub(/^\+test "/, ""); sub(/" \{$/, ""); print }' "$ghostty_patch"
+  if [[ "$ghostty_patch" == "$ROOT/scripts/ghostty-patches/"* ]]; then
+    while IFS= read -r file; do formatted+=("$file"); done < <(
+      awk '/^\+\+\+ / { file = $2; sub(/^[^\/]*\//, "", file); if (file ~ /\.zig$/) print file }' "$ghostty_patch"
+    )
+  fi
+  while IFS=$'\t' read -r file name; do names+=("$name"); done < <(
+    awk '/^\+\+\+ / { file = $2; sub(/^[^\/]*\//, "", file) }
+      file ~ /^src\/.*\.zig$/ && file != "src/apprt/embedded.zig" && /^\+test "/ {
+        name = $0; sub(/^\+test "/, "", name); sub(/" \{$/, "", name); print file "\t" name }' "$ghostty_patch"
   )
 done
-[[ ${#names[@]} -gt 0 ]] || { echo "no src/App.zig tests in the patch chain" >&2; exit 1; }
+[[ ${#names[@]} -gt 0 ]] || { echo "no Zig tests in the patch chain" >&2; exit 1; }
 filters=()
 for name in "${names[@]}"; do filters+=("-Dtest-filter=$name"); done
 
-"$GHOSTTY_ZIG" fmt --check "$SOURCE/src/App.zig"
+mapfile -t formatted < <(printf '%s\n' "${formatted[@]}" | sort -u)
+"$GHOSTTY_ZIG" fmt --check "${formatted[@]/#/$SOURCE/}"
 (
   cd "$SOURCE"
   export ZIG_GLOBAL_CACHE_DIR="$WORK/zig-global-cache"
@@ -53,7 +66,7 @@ status=0
 cat "$WORK/tests.log"
 missing=()
 for name in "${names[@]}"; do
-  [[ "$(grep -cF -- " App.test.$name...OK" "$WORK/tests.log")" == 1 ]] || missing+=("$name")
+  [[ "$(grep -cF -- ".test.$name...OK" "$WORK/tests.log")" == 1 ]] || missing+=("$name")
 done
 [[ $status -eq 0 && ${#missing[@]} -eq 0 && "$(tail -n 1 "$WORK/tests.log")" =~ ^All\ [0-9]+\ tests\ passed\.$ ]] || {
   printf 'patch tests that did not run and pass (%d of %d):\n' "${#missing[@]}" "${#names[@]}" >&2

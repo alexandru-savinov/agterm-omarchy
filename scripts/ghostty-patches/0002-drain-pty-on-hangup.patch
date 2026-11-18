@@ -1,0 +1,209 @@
+diff --git a/src/termio/Exec.zig b/src/termio/Exec.zig
+index df57e0f..7a92a26 100644
+--- a/src/termio/Exec.zig
++++ b/src/termio/Exec.zig
+@@ -1724,12 +1724,71 @@ pub const ReadThread = struct {
+             }
+
+             // If our pty fd is closed, then we're also done with our
+-            // read thread.
+-            if (pollfds[0].revents & posix.POLL.HUP != 0) {
+-                log.info("pty fd closed, read thread exiting", .{});
+-                return;
++            // read thread, once the output the child wrote before it
++            // closed has been read. A Linux master reports POLLHUP as
++            // soon as the last replica fd closes, with that output
++            // still queued behind it, so returning on the hangup alone
++            // dropped the child's last lines.
++            if (hungUp(fd, pollfds[0].revents, pipeline)) return;
++        }
++    }
++
++    /// What the gather stage does with its outer poll's pty revents: on a
++    /// hangup it reads what is still queued (drainAfterHangup) and says
++    /// the stage is done.
++    fn hungUp(fd: posix.fd_t, revents: i16, pipeline: *Pipeline) bool {
++        if (revents & posix.POLL.HUP == 0) return false;
++        const drained = drainAfterHangup(fd, pipeline);
++        log.info("pty fd closed, read thread exiting drained={}", .{drained});
++        return true;
++    }
++
++    /// The most a hangup drain reads. A pty queue holds far less, so
++    /// only a peer that keeps refilling the pty reaches it, and then
++    /// the read thread still exits.
++    const hangup_drain_max = 4 * 1024 * 1024;
++
++    /// Reads what is still queued in a pty whose replica side has
++    /// closed and publishes it to the parse stage like any batch,
++    /// until read() reports the queue empty (0 or EAGAIN), the pty
++    /// gone (EIO or any other error), or hangup_drain_max bytes were
++    /// read. Returns how many bytes it published.
++    fn drainAfterHangup(fd: posix.fd_t, pipeline: *Pipeline) usize {
++        var drained: usize = 0;
++        while (drained < hangup_drain_max) {
++            const buf: *[buffer_capacity]u8 = buf: {
++                pipeline.mutex.lockUncancelable(global.io());
++                defer pipeline.mutex.unlock(global.io());
++                while (pipeline.count == buffer_count) {
++                    pipeline.slot_free.waitUncancelable(global.io(), &pipeline.mutex);
++                }
++                break :buf &pipeline.bufs[pipeline.head];
++            };
++            var total: usize = 0;
++            var queued = true;
++            while (total < buffer_capacity) {
++                const n = posix.read(fd, buf[total..]) catch {
++                    queued = false;
++                    break;
++                };
++                if (n == 0) {
++                    queued = false;
++                    break;
++                }
++                total += n;
+             }
++            if (total > 0) {
++                pipeline.mutex.lockUncancelable(global.io());
++                pipeline.lens[pipeline.head] = total;
++                pipeline.head = (pipeline.head + 1) % buffer_count;
++                pipeline.count += 1;
++                pipeline.mutex.unlock(global.io());
++                pipeline.batch_ready.signal(global.io());
++            }
++            drained += total;
++            if (!queued) break;
+         }
++        return drained;
+     }
+
+     /// Clears the bridging flag armed before a bridge poll, closing
+@@ -2357,3 +2416,128 @@ test "init frees the env when it fails" {
+         try testing.expectEqual(failing.allocated_bytes, failing.freed_bytes);
+     }
+ }
++
++/// Takes what a read pipeline publishes, as the parse stage does, on its own thread.
++const TestPipelineReader = struct {
++    pipeline: *ReadThread.Pipeline,
++    got: std.ArrayList(u8) = .empty,
++
++    fn run(self: *TestPipelineReader) void {
++        const pipeline = self.pipeline;
++        while (true) {
++            const batch: []const u8 = batch: {
++                pipeline.mutex.lockUncancelable(global.io());
++                defer pipeline.mutex.unlock(global.io());
++                while (pipeline.count == 0) {
++                    if (pipeline.done) return;
++                    pipeline.batch_ready.waitUncancelable(global.io(), &pipeline.mutex);
++                }
++                break :batch pipeline.bufs[pipeline.tail][0..pipeline.lens[pipeline.tail]];
++            };
++            self.got.appendSlice(std.testing.allocator, batch) catch @panic("out of memory");
++            pipeline.mutex.lockUncancelable(global.io());
++            pipeline.tail = (pipeline.tail + 1) % ReadThread.buffer_count;
++            pipeline.count -= 1;
++            pipeline.mutex.unlock(global.io());
++            pipeline.slot_free.signal(global.io());
++        }
++    }
++
++    /// Tells the reader the stream is over, as the gather stage does when it exits.
++    fn finish(self: *TestPipelineReader) void {
++        self.pipeline.mutex.lockUncancelable(global.io());
++        self.pipeline.done = true;
++        self.pipeline.mutex.unlock(global.io());
++        self.pipeline.batch_ready.signal(global.io());
++    }
++};
++
++/// Runs `step` on `fd` through a pipeline read by a TestPipelineReader; returns what it read.
++fn testGather(fd: posix.fd_t, comptime step: fn (posix.fd_t, *ReadThread.Pipeline) usize) !struct { drained: usize, got: std.ArrayList(u8) } {
++    const pipeline = try std.testing.allocator.create(ReadThread.Pipeline);
++    defer std.testing.allocator.destroy(pipeline);
++    pipeline.* = .{};
++    var reader: TestPipelineReader = .{ .pipeline = pipeline };
++    const thread = try std.Thread.spawn(.{}, TestPipelineReader.run, .{&reader});
++    const drained = step(fd, pipeline);
++    reader.finish();
++    thread.join();
++    return .{ .drained = drained, .got = reader.got };
++}
++
++/// The gather stage's decision after its outer poll, on the revents a test polled from a real pty; the
++/// step reports 1 when the stage is done, as on a hangup, else 0.
++const TestHangup = struct {
++    var revents: i16 = 0;
++
++    fn poll(fd: posix.fd_t) !void {
++        var pfd = [_]posix.pollfd{.{ .fd = fd, .events = posix.POLL.IN, .revents = 0 }};
++        _ = try posix.poll(&pfd, 0);
++        revents = pfd[0].revents;
++    }
++
++    fn step(fd: posix.fd_t, pipeline: *ReadThread.Pipeline) usize {
++        return if (ReadThread.hungUp(fd, revents, pipeline)) 1 else 0;
++    }
++};
++
++// regression (agterm-omarchy #447): the read thread returned on POLLHUP without reading, and a Linux
++// master reports POLLHUP as soon as the replica closes, so a child's last output was dropped
++test "a pty whose replica closed with output queued delivers all of that output on the hangup" {
++    if (comptime builtin.os.tag != .linux) return error.SkipZigTest;
++    const pty = try Pty.open(.{ .ws_row = 24, .ws_col = 80, .ws_xpixel = 0, .ws_ypixel = 0 });
++    defer _ = posix.system.close(pty.master);
++
++    // fill the replica until the pty holds no more, with bytes the line discipline passes through
++    var payload: std.ArrayList(u8) = .empty;
++    defer payload.deinit(std.testing.allocator);
++    try std.testing.expect(ReadThread.setNonblock(pty.slave));
++    var chunk: [997]u8 = undefined;
++    for (&chunk, 0..) |*b, i| b.* = 'a' + @as(u8, @intCast(i % 26));
++    while (true) {
++        const rc = posix.system.write(pty.slave, &chunk, chunk.len);
++        if (posix.errno(rc) != .SUCCESS) break;
++        const n: usize = @intCast(rc);
++        try payload.appendSlice(std.testing.allocator, chunk[0..n]);
++    }
++    _ = posix.system.close(pty.slave);
++    try std.testing.expect(payload.items.len > 0);
++
++    // the state the read thread's poll returns in: output queued and the replica gone
++    try TestHangup.poll(pty.master);
++    try std.testing.expect(TestHangup.revents & posix.POLL.IN != 0);
++    try std.testing.expect(TestHangup.revents & posix.POLL.HUP != 0);
++
++    // the gather stage's decision on those revents ends it, with all of the output delivered
++    try std.testing.expect(ReadThread.setNonblock(pty.master));
++    var result = try testGather(pty.master, TestHangup.step);
++    defer result.got.deinit(std.testing.allocator);
++    try std.testing.expectEqual(@as(usize, 1), result.drained);
++    try std.testing.expectEqualSlices(u8, payload.items, result.got.items);
++}
++
++test "a hangup drain with nothing queued returns at once" {
++    if (comptime builtin.os.tag != .linux) return error.SkipZigTest;
++    const pty = try Pty.open(.{ .ws_row = 24, .ws_col = 80, .ws_xpixel = 0, .ws_ypixel = 0 });
++    defer _ = posix.system.close(pty.master);
++    _ = posix.system.close(pty.slave);
++    try TestHangup.poll(pty.master);
++    try std.testing.expect(TestHangup.revents & posix.POLL.HUP != 0);
++    try std.testing.expect(ReadThread.setNonblock(pty.master));
++    var result = try testGather(pty.master, TestHangup.step);
++    defer result.got.deinit(std.testing.allocator);
++    try std.testing.expectEqual(@as(usize, 1), result.drained);
++    try std.testing.expectEqual(@as(usize, 0), result.got.items.len);
++}
++
++test "a hangup drain stops at its cap when the fd never runs dry" {
++    if (comptime builtin.os.tag != .linux) return error.SkipZigTest;
++    // /dev/zero always has more to read, as a peer that keeps refilling the pty would
++    const fd = try posix.openatZ(posix.AT.FDCWD, "/dev/zero", .{ .NONBLOCK = true, .CLOEXEC = true }, 0);
++    defer _ = posix.system.close(fd);
++    var result = try testGather(fd, ReadThread.drainAfterHangup);
++    defer result.got.deinit(std.testing.allocator);
++    try std.testing.expect(result.drained >= ReadThread.hangup_drain_max);
++    try std.testing.expect(result.drained < ReadThread.hangup_drain_max + ReadThread.buffer_capacity);
++    try std.testing.expectEqual(result.drained, result.got.items.len);
++}
