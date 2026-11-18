@@ -2,8 +2,8 @@ name: Relaunch A/B arms for umputun/agterm Discussion 1037
 
 # Helper only, never merged. Builds umputun master (A) and the PR head (B, A plus the ApplePersistenceIgnoreState
 # registration) as Debug apps with `make build` and uploads both, so the A/B and the cold link and folder checks run
-# on a Mac with exactly these bundles (.github/relaunch-ab-1037/ab-local.sh). The CONTRIBUTING gates ran at B in
-# run 44369680677. The file takes the fork's macos-weekly.yml name only because workflow_dispatch needs a name
+# on a Mac with exactly these bundles (.github/relaunch-ab-1037/ab-local.sh), then runs the CONTRIBUTING gates at B in
+# the same job, since hosted macOS arm64 capacity rarely gives a second job a runner. The file takes the fork's macos-weekly.yml name only because workflow_dispatch needs a name
 # registered on the default branch; on this branch it is dispatch-only and the fork's main is untouched.
 on:
   workflow_dispatch:
@@ -21,7 +21,7 @@ permissions:
 jobs:
   arms:
     runs-on: macos-26
-    timeout-minutes: 120
+    timeout-minutes: 180
     defaults:
       run:
         shell: bash
@@ -71,8 +71,15 @@ jobs:
             agterm/Resources/zmx
             .zmx-build-stamp
           key: ab1037-gates-zmx-${{ steps.revisions.outputs.zmx }}-${{ steps.revisions.outputs.zmx_target }}-${{ hashFiles('scripts/zmx-patches/**/*.patch') }}
+      - name: Install Node for plugin tests
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
       - name: Install prerequisites
-        run: brew install xcodegen
+        run: |
+          brew install xcodegen swiftlint fish
+          sudo dscl . -create "/Users/$(id -un)" UserShell /bin/zsh
+          { xcodegen --version; swiftlint version; fish --version; node --version; } | tee "$RUNNER_TEMP/out/prerequisites.log"
       - name: Stage libghostty and zmx
         run: scripts/setup.sh 2>&1 | tee "$RUNNER_TEMP/out/setup.log"
       - name: Build both arms (Debug, make build)
@@ -101,11 +108,29 @@ jobs:
           name: ab1037-arms-${{ github.run_id }}
           path: ${{ runner.temp }}/arms
           retention-days: 30
-      - name: Upload build logs
+      # B is checked out and built by `make build` above; every gate runs even when another fails
+      - name: make test (B)
+        if: ${{ !cancelled() }}
+        env:
+          AGTERM_REQUIRE_FISH: '1'
+        run: |
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          make test 2>&1 | tee "$RUNNER_TEMP/out/make-test.log"
+      - name: make test-app (B)
+        if: ${{ !cancelled() }}
+        env:
+          TEST_RUNNER_AGTERM_REQUIRE_FISH: '1'
+        run: make test-app 2>&1 | tee "$RUNNER_TEMP/out/make-test-app.log"
+      - name: make lint (B)
+        if: ${{ !cancelled() }}
+        run: make lint 2>&1 | tee "$RUNNER_TEMP/out/make-lint.log"
+      - name: Upload build and gate logs
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ab1037-build-logs-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/out
+          path: |
+            ${{ runner.temp }}/out
+            build/DerivedData/Logs/Test
           retention-days: 30
           if-no-files-found: warn
