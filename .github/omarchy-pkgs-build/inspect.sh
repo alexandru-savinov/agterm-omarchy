@@ -29,7 +29,7 @@ ceiling=GLIBC_2.38
 max_glibc=GLIBC_2.0
 : >"$out/elf.tsv"
 while IFS= read -r -d '' f; do
-  [[ "$(head -c4 "$f")" == $'\x7fELF' ]] || continue
+  [[ "$(head -c4 "$f" | od -An -tx1 | tr -d ' ')" == 7f454c46 ]] || continue
   runpath=$(readelf -d "$f" | sed -n 's/.*(RUNPATH).*\[\(.*\)\]/\1/p')
   glibc=$(readelf -V --wide "$f" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
   printf '%s\t%s\t%s\n' "${f#/usr/lib/agterm/}" "${glibc:-none}" "${runpath:-none}" >>"$out/elf.tsv"
@@ -70,17 +70,20 @@ if ldd_out=$(LD_LIBRARY_PATH=/usr/lib/agterm/lib ldd -r /usr/lib/agterm/bin/agte
 else
   record FAIL ldd "$(grep -E 'not found|undefined symbol' <<<"$ldd_out" | sort -u | head -5 | tr '\n' ' ')"
 fi
-if version=$(/usr/bin/agtermctl --version 2>&1); then
-  record PASS cli "/usr/bin/agtermctl --version: $version"
+if help=$(/usr/bin/agtermctl --help 2>&1); then
+  record PASS cli "/usr/bin/agtermctl --help: $(head -1 <<<"$help")"
 else
-  record FAIL cli "/usr/bin/agtermctl --version: $version"
+  record FAIL cli "/usr/bin/agtermctl --help: $(head -1 <<<"$help")"
 fi
 
 desktop=/usr/share/applications/io.github.melonamin.agterm.desktop
-if desktop-file-validate "$desktop" >"$out/desktop-file-validate.txt" 2>&1 && [[ ! -s "$out/desktop-file-validate.txt" ]]; then
-  record PASS desktop-file-validate "$desktop"
-else
+if ! desktop-file-validate "$desktop" >"$out/desktop-file-validate.txt" 2>&1; then
   record FAIL desktop-file-validate "$(tr '\n' ' ' <"$out/desktop-file-validate.txt")"
+elif [[ -s "$out/desktop-file-validate.txt" ]]; then
+  # Valid, with hints; the desktop file comes from the release archive (#462).
+  printf 'WARN\tdesktop-file-validate\t%s\n' "$(tr '\n' ' ' <"$out/desktop-file-validate.txt")" | tee -a "$results"
+else
+  record PASS desktop-file-validate "$desktop"
 fi
 
 namcap "$pkg" >"$out/namcap-package.txt" 2>&1 || true
