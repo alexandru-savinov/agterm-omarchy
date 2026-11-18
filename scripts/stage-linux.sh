@@ -63,6 +63,7 @@ install -m755 "$BIN" "$DEST/bin/agterm-linux.bin"
 install -m755 "$CTL" "$DEST/bin/agtermctl.bin"
 install -m755 "$APP/vendor/zmx/zmx" "$DEST/bin/zmx"
 # The linker records the toolchain and build-tree library paths; the payload resolves from its own lib/.
+# shellcheck disable=SC2016 # $ORIGIN is the literal dynamic-loader token.
 python3 "$ROOT/scripts/linux-runpath.py" set '$ORIGIN/../lib' "$DEST/bin/agterm-linux.bin" "$DEST/bin/agtermctl.bin"
 cp -R "$APP_RESOURCES" "$DEST/bin/"
 
