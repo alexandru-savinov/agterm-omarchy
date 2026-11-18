@@ -62,6 +62,8 @@ mkdir -p "$DEST/bin" "$DEST/lib" "$DEST/share/applications" "$DEST/share/pixmaps
 install -m755 "$BIN" "$DEST/bin/agterm-linux.bin"
 install -m755 "$CTL" "$DEST/bin/agtermctl.bin"
 install -m755 "$APP/vendor/zmx/zmx" "$DEST/bin/zmx"
+# The linker records the toolchain and build-tree library paths; the payload resolves from its own lib/.
+python3 "$ROOT/scripts/linux-runpath.py" set '$ORIGIN/../lib' "$DEST/bin/agterm-linux.bin" "$DEST/bin/agtermctl.bin"
 cp -R "$APP_RESOURCES" "$DEST/bin/"
 
 # Bundle the non-system libraries that make the Swift app portable. GTK, libadwaita, and glibc remain
@@ -95,8 +97,6 @@ printf '%s\n' "$COMMIT" > "$DEST/share/agterm/COMMIT"
 
 DESKTOP="$ROOT/packaging/linux/io.github.melonamin.agterm.desktop"
 install -m644 "$DESKTOP" "$DEST/share/applications/io.github.melonamin.agterm.desktop"
-# Keep the historical root copy consumed by the local Flatpak manifest and convenient for tar users.
-install -m644 "$DESKTOP" "$DEST/io.github.melonamin.agterm.desktop"
 
 ICON_SRC="$(find "$ROOT/agterm/AppIcon.icon/Assets" -maxdepth 1 -type f -name '*.png' -print -quit)"
 if [[ -n "$ICON_SRC" ]]; then
@@ -149,5 +149,7 @@ export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec "$HERE/bin/agtermctl.bin" "$@"
 LAUNCH
 chmod 0755 "$DEST/bin/agtermctl"
+
+python3 "$ROOT/scripts/linux-runpath.py" check "$DEST"/bin/* "$DEST"/lib/*
 
 echo "→ staged agterm-linux payload at $DEST"

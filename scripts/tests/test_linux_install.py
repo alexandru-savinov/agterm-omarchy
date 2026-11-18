@@ -450,6 +450,11 @@ class PayloadStageTests(unittest.TestCase):
             script = self.repo / 'scripts' / name
             script.write_text('#!/bin/sh\nexit 0\n')
             script.chmod(0o755)
+        # Fixture binaries are text probes; test_linux_runpath.py covers the ELF rewrite itself.
+        self.runpath_calls = self.work / 'runpath-calls.json'
+        (self.repo / 'scripts/linux-runpath.py').write_text(
+            'import json, sys\nwith open(%r, "a") as log:\n    log.write(json.dumps(sys.argv[1:]) + "\\n")\n'
+            % str(self.runpath_calls))
         for directory in ('agterm-linux/.build/release/agterm-linux_AgtermLinux.resources/live-prefill',
                           'agterm-linux/.build/release/agterm-linux_AgtermLinux.resources/hud',
                           'agterm-linux/vendor/ghostty/share/ghostty',
@@ -508,6 +513,23 @@ class PayloadStageTests(unittest.TestCase):
         self.assertTrue((notices / 'icu-76.1/LICENSE').is_file())
         provenance = json.loads((notices / 'payload.json').read_text())
         self.assertEqual(provenance['bundled_libraries'][0]['file'], 'libncurses.so.6')
+
+    def test_rewrites_executable_runpath_and_checks_every_staged_elf(self):
+        result = self.stage()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = [json.loads(line) for line in self.runpath_calls.read_text().splitlines()]
+        self.assertEqual(calls[0], ['set', '$ORIGIN/../lib', str(self.destination / 'bin/agterm-linux.bin'),
+                                    str(self.destination / 'bin/agtermctl.bin')])
+        self.assertEqual(calls[1][0], 'check')
+        self.assertTrue({str(self.destination / 'bin/zmx'), str(self.destination / 'lib/libncurses.so.6'),
+                         str(self.destination / 'bin/agterm-linux.bin')} <= set(calls[1][1:]))
+        self.assertEqual(len(calls), 2)
+
+    def test_desktop_entry_is_staged_once_under_share_applications(self):
+        result = self.stage()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual([path.relative_to(self.destination) for path in self.destination.rglob('*.desktop')],
+                         [Path('share/applications/io.github.melonamin.agterm.desktop')])
 
     def git(self, directory, *args):
         env = dict(self.env, GIT_AUTHOR_NAME='fixture', GIT_AUTHOR_EMAIL='fixture@invalid',

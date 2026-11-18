@@ -65,6 +65,7 @@ jobs:
             scripts/test-zig-build-linux.sh
             scripts/test-zmx-patches-linux.sh
             scripts/verify-linux-packages.sh
+            scripts/verify-omarchy-release-archive.sh
             scripts/verify-linux-zmx-cache.sh
             scripts/zig-build-linux.sh
             linux/swift-env.sh
@@ -455,7 +456,10 @@ jobs:
       - name: Archive complete runtime payload
         env:
           BUILD_ARCH: ${{ matrix.arch }}
-        run: tar -czf "$RUNNER_TEMP/agterm-omarchy-${BUILD_ARCH}.tar.gz" -C "$RUNNER_TEMP" agterm-stage
+        # Numeric root ownership: the container's builder uid means nothing on an installing host.
+        run: |
+          tar --owner=0 --group=0 --numeric-owner -czf "$RUNNER_TEMP/agterm-omarchy-${BUILD_ARCH}.tar.gz" \
+            -C "$RUNNER_TEMP" agterm-stage
       - name: Upload tested runtime payload
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -463,6 +467,26 @@ jobs:
           path: ${{ runner.temp }}/agterm-omarchy-${{ matrix.arch }}.tar.gz
           if-no-files-found: error
           retention-days: 14
+      # The versioned release path on the archive just uploaded, under the never-published serial 0.
+      - name: Rehearse versioned release archive
+        env:
+          BUILD_ARCH: ${{ matrix.arch }}
+        run: |
+          version="${UPSTREAM_BASE_TAG#v}.0"
+          rehearsal="$RUNNER_TEMP/release-rehearsal"
+          python3 scripts/omarchy-release.py "$RUNNER_TEMP/agterm-omarchy-${BUILD_ARCH}.tar.gz" \
+            --arch "$BUILD_ARCH" --sha "$(git rev-parse HEAD)" --output "$rehearsal"
+          asset="agterm-omarchy-${version}-${BUILD_ARCH}.tar.gz"
+          scripts/verify-omarchy-release-archive.sh "$rehearsal/$asset" "$version" | tee "$rehearsal/$asset.native.txt"
+          (cd "$rehearsal" && sha256sum "$asset" > "$asset.sha256")
+          cat "$rehearsal/$asset.sha256" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload release rehearsal evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: release-rehearsal-${{ matrix.arch }}-${{ github.sha }}
+          path: ${{ runner.temp }}/release-rehearsal
+          if-no-files-found: error
+          retention-days: 7
       - name: Build summary
         if: always()
         env:
