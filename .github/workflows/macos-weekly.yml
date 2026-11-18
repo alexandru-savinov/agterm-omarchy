@@ -14,12 +14,74 @@ on:
       head_sha:
         description: PR head, the base plus the registration commit (B)
         required: true
+      arms_run:
+        description: when set, skip building and gates; run the hosted A/B on that run's uploaded arms
+        required: false
+        default: ''
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
+  ab-only:
+    if: ${{ inputs.arms_run != '' }}
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      BASE_SHA: ${{ inputs.base_sha }}
+      HEAD_SHA: ${{ inputs.head_sha }}
+    steps:
+      - name: Fetch the helper scripts
+        run: |
+          mkdir -p "$RUNNER_TEMP/helper" "$RUNNER_TEMP/out" && cd "$RUNNER_TEMP/helper"
+          for f in ab.sh winctl.swift; do
+            curl -fsSL "https://raw.githubusercontent.com/alexandru-savinov/agterm-omarchy/$GITHUB_SHA/.github/relaunch-ab-1037/$f" -o "$f"
+          done
+          sw_vers | tee "$RUNNER_TEMP/out/identity.log"
+      - name: Download the arms
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ab1037-arms-${{ inputs.arms_run }}
+          run-id: ${{ inputs.arms_run }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/arms
+      - name: Hosted A/B and smoke checks
+        run: |
+          cat "$RUNNER_TEMP/arms/hashes.txt" | tee -a "$RUNNER_TEMP/out/identity.log"
+          for arm in master patched; do
+            grep -q "zip $(shasum -a 256 "$RUNNER_TEMP/arms/agterm-$arm.zip" | cut -d' ' -f1)" "$RUNNER_TEMP/arms/hashes.txt"
+            mkdir -p "$RUNNER_TEMP/abarms/$arm"
+            ditto -x -k "$RUNNER_TEMP/arms/agterm-$arm.zip" "$RUNNER_TEMP/abarms/$arm"
+          done
+          swiftc -O "$RUNNER_TEMP/helper/winctl.swift" -o "$RUNNER_TEMP/winctl"
+          WINCTL="$RUNNER_TEMP/winctl" bash "$RUNNER_TEMP/helper/ab.sh" "$RUNNER_TEMP/abarms" "$RUNNER_TEMP/out/ab"
+      - name: A/B summary
+        if: always()
+        run: |
+          {
+            echo "## Hosted A/B on the arms of run ${{ inputs.arms_run }} (A = $BASE_SHA, B = $HEAD_SHA)"
+            for t in results smoke; do
+              f="$RUNNER_TEMP/out/ab/$t.tsv"
+              [ -f "$f" ] || continue
+              echo
+              awk -F'\t' '{ line = "|"; for (i = 1; i <= NF; i++) line = line " " $i " |"; print line } NR == 1 { line = "|"; for (i = 1; i <= NF; i++) line = line "---|"; print line }' "$f"
+            done
+            echo; echo '```'; tail -n 60 "$RUNNER_TEMP/out/ab/ab.log" 2>/dev/null; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ab1037-hosted-ab-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/out
+          retention-days: 30
+
   arms:
+    if: ${{ inputs.arms_run == '' }}
     runs-on: macos-26
     timeout-minutes: 180
     defaults:

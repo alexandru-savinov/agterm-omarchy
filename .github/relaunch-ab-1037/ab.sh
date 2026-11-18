@@ -61,7 +61,7 @@ saved_state() {
     local label=$1 n=0 f
     {
         echo "== $label ($(date -u +%H:%M:%S))"
-        for d in "$HOME/Library/Daemon Containers" "$HOME/Library/Saved Application State" "$HOME/Library/Containers"; do
+        for d in "$HOME/Library/Daemon Containers" "$HOME/Library/Saved Application State"; do
             [ -d "$d" ] || continue
             while IFS= read -r f; do
                 n=$((n + 1))
@@ -253,26 +253,50 @@ touch "$ROOT/start"
 log "user default ApplePersistenceIgnoreState: app=$(defaults read com.umputun.agterm.debug ApplePersistenceIgnoreState 2>&1) global=$(defaults read -g ApplePersistenceIgnoreState 2>&1)"
 
 stage master
-new_sd
-saved_state "before seed"
-launch open-g
-observe 60
-log "seed launch: alive=$ALIVE window_at=$WIN_AT socket_at=$SOCK_AT"
-if [ "$WIN_AT" = - ] || [ "$SOCK_AT" = - ]; then
-    log "FAIL the seed launch never showed a window and a socket, so there is no clean starting point"
+# AppKit writes the app-global record on its own schedule, so the seed tries each launch style in turn and keeps the
+# first that leaves saved state; "+resize" also moves and resizes the window over the control socket meanwhile.
+seeded=no
+for seed in ${SEED_MODES:-open-fg exec open-g+resize}; do
+    new_sd
+    saved_state "before seed $seed"
+    launch "${seed%+resize}"
+    observe 60
+    log "seed $seed: alive=$ALIVE window_at=$WIN_AT socket_at=$SOCK_AT"
+    if [ "$WIN_AT" = - ] || [ "$SOCK_AT" = - ]; then
+        log "seed $seed did not show a window and a socket"
+        kill_all
+        continue
+    fi
+    if [ "$seed" != "${seed%+resize}" ]; then
+        id=$(ctl window list --json --socket "$SD/agterm.sock" | jq -r '.result.windows[0].id')
+        ctl window resize "$id" --width 900 --height 600 --socket "$SD/agterm.sock" > /dev/null 2>&1
+        ctl window move "$id" --x 120 --y 120 --socket "$SD/agterm.sock" > /dev/null 2>&1
+    fi
+    written=
+    for i in $(seq 1 "${SEED_DWELL:-45}"); do
+        sleep 1
+        saved_state "seed $seed dwell ${i}s"
+        if [ "$STATE_FILES" -gt 0 ] && [ -z "$written" ]; then
+            written=$i
+            log "seed $seed: saved state appeared ${i}s after the window"
+        fi
+        [ -n "$written" ] && [ $((i - written)) -ge 5 ] && break
+    done
+    kill -KILL "$PID"
+    kill_all
+    sleep 2
+    saved_state "after seed $seed SIGKILL"
+    log "saved-state files after the seed $seed SIGKILL: $STATE_FILES"
+    if [ "$STATE_FILES" -gt 0 ]; then
+        seeded=$seed
+        break
+    fi
+done
+if [ "$seeded" = no ]; then
+    log "FAIL no seed style left saved state, so there is nothing stale to relaunch on"
     exit 1
 fi
-sleep 25
-saved_state "seed after 25 s, before SIGKILL"
-kill -KILL "$PID"
-kill_all
-sleep 2
-saved_state "after seed SIGKILL"
-log "saved-state files after the seed kill: $STATE_FILES"
-if [ "$STATE_FILES" -eq 0 ]; then
-    log "FAIL the seed left no saved state, so there is nothing stale to relaunch on"
-    exit 1
-fi
+log "stale state made by the master seed ($seeded), SIGKILLed"
 
 for t in $(seq 1 "$TRIALS"); do for m in open-g exec; do trial "$m" "r$t"; done; done
 stage patched
