@@ -31,7 +31,10 @@ cat > "$WORK/bin/zig" <<'ZIG'
 set -euo pipefail
 if [[ "$1" == fetch && "$2" == git+https://* ]]; then
   echo "$2" >> "$TEST_ZIG_WORK/git-fetches"
-  [[ "$(wc -l < "$TEST_ZIG_WORK/git-fetches")" -gt "${TEST_ZIG_GIT_FAILURES:-0}" ]] || exit 1
+  if [[ "$(wc -l < "$TEST_ZIG_WORK/git-fetches")" -le "${TEST_ZIG_GIT_FAILURES:-0}" ]]; then
+    [[ -z "${TEST_ZIG_GIT_DIAGNOSTIC:-}" ]] || echo "$TEST_ZIG_GIT_DIAGNOSTIC" >&2
+    exit 1
+  fi
   echo computed-hash
   exit 0
 fi
@@ -49,6 +52,23 @@ case "$TEST_ZIG_CASE" in
     echo '    .url = "https://example.test/package.tar.gz",'
     exit 23 ;;
   success) exit 0 ;;
+  unrelated-git)
+    echo 'build.zig:27:20: error: expected type, found error.NoAddressReturned'
+    echo '    .url = "git+https://codeberg.org/ziglang/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b",'
+    exit 23 ;;
+  git*)
+    if [[ -e "$TEST_ZIG_WORK/fetched" ]]; then
+      case "$TEST_ZIG_CASE" in
+        git-hash) echo 'error: hash mismatch'; exit 19 ;;
+        git-repeat) ;;
+        *) exit 0 ;;
+      esac
+    fi
+    echo "zig-pkg/translate_c/build.zig.zon:12:20: error: unable to discover remote git server capabilities: ${TEST_ZIG_GIT_ERROR:-NoAddressReturned}"
+    if [[ "$TEST_ZIG_CASE" != git-missing-url ]]; then
+      echo "    .url = \"${TEST_ZIG_GIT_URL:-git+https://codeberg.org/ziglang/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b}\","
+    fi
+    exit 17 ;;
   tls|multi|reset)
     [[ ! -e "$TEST_ZIG_WORK/fetched" ]] || exit 0 ;;
 esac
@@ -74,6 +94,7 @@ cat > "$WORK/bin/curl" <<'CURL'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$TEST_ZIG_WORK/curl-args"
+[[ "${TEST_ZIG_CURL_FAILURE:-0}" == 0 ]] || exit 22
 while [[ "$1" != --output ]]; do
   [[ "$1" != --insecure && "$1" != -k ]]
   shift
@@ -122,6 +143,32 @@ run_case multi 0
 [[ "$(wc -l < "$WORK/curl-args")" -eq 2 ]]
 run_case repeat 17
 [[ "$(wc -l < "$WORK/curl-args")" -eq 1 ]]
+# Transitive Git dependency diagnostics use the same exact-commit archive fallback.
+run_case git 0
+grep -q 'https://codeberg.org/ziglang/arocc/archive/d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b.tar.gz$' "$WORK/curl-args"
+TEST_ZIG_GIT_ERROR=NetworkUnreachable run_case git 0
+run_case git-missing-url 17
+[[ ! -e "$WORK/curl-args" ]]
+run_case unrelated-git 23
+[[ ! -e "$WORK/curl-args" ]]
+run_case git-repeat 17
+[[ "$(wc -l < "$WORK/curl-args")" -eq 1 ]]
+run_case git-hash 19
+[[ "$(wc -l < "$WORK/curl-args")" -eq 1 ]]
+TEST_ZIG_CURL_FAILURE=1 run_case git 22
+[[ ! -e "$WORK/fetched" ]]
+for url in \
+  'git+https://codeberg.org/ziglang/arocc#d0c8c4d' \
+  'git+https://codeberg.org/ziglang/arocc#main' \
+  'git+https://example.test/ziglang/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b' \
+  'git+https://codeberg.org/other/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b' \
+  'git+https://user@codeberg.org/ziglang/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b' \
+  'git+https://codeberg.org/ziglang/arocc?other=main#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b'; do
+  TEST_ZIG_GIT_URL="$url" run_case git 17
+  [[ ! -e "$WORK/curl-args" ]]
+done
+TEST_ZIG_GIT_ERROR=UnexpectedResponse run_case git 17
+[[ ! -e "$WORK/curl-args" ]]
 mkdir "$WORK/custom-temp"
 TMPDIR="$WORK/custom-temp" run_case tls 0
 [[ "$(cat "$WORK/archive-path")" == "$WORK/custom-temp/"* ]]
@@ -142,6 +189,20 @@ git_case 0 0 1
 git_case 2 0 3
 git_case 4 1 4
 grep -qx 'git+https://codeberg.org/ziglang/translate-c?ref=zig-0.17.x#cfac21f' "$WORK/git-fetches"
+# The direct dependency path uses the full commit, not its mutable ref hint.
+sed 's/#cfac21f"/#cfac21f3199b2b02ce3fd7db652aa456421fe4ab"/' \
+  "$WORK/git-project/build.zig.zon" > "$WORK/git-project/full.zon"
+mv "$WORK/git-project/full.zon" "$WORK/git-project/build.zig.zon"
+rm -f "$WORK/fetched" "$WORK/curl-args"
+TEST_ZIG_GIT_DIAGNOSTIC='error: unable to discover remote git server capabilities: NoAddressReturned' git_case 4 0 1
+grep -q 'https://codeberg.org/ziglang/translate-c/archive/cfac21f3199b2b02ce3fd7db652aa456421fe4ab.tar.gz$' "$WORK/curl-args"
+[[ -e "$WORK/fetched" ]]
+rm -f "$WORK/fetched" "$WORK/curl-args"
+TEST_ZIG_CURL_FAILURE=1 TEST_ZIG_GIT_DIAGNOSTIC='error: unable to discover remote git server capabilities: NoAddressReturned' git_case 4 22 1
+[[ ! -e "$WORK/fetched" ]]
+rm -f "$WORK/curl-args"
+TEST_ZIG_GIT_DIAGNOSTIC='error: hash mismatch' git_case 4 1 4
+[[ ! -e "$WORK/curl-args" ]]
 if [[ "$(uname -s)" == Linux ]]; then
   unset TMPDIR
   run_case tls 0
@@ -195,4 +256,57 @@ if [[ $real -ne 0 || ! -e "$WORK/real-reset" ]] \
   echo "real Zig fallback: exit $real, or the cached package missed the manifest hash" >&2
   exit 1
 fi
-echo 'Zig transport fallback passes: TLS/reset routing, compiler-error rejection, multiple dependencies, retry bounds, git+https prefetch, temporary-directory policy, and a real archive that the build accepts by its manifest hash.'
+# Real Zig also has to consume the package through a git+https manifest unchanged. In system mode
+# network fetching is disabled: a modified archive must fail because only its different hash is cached.
+# Compiler caches can be shared, but each case gets a separate package directory.
+mkdir -p "$WORK/tampered/fixture-1.0"
+cp -R "$WORK/fixture/fixture-1.0/." "$WORK/tampered/fixture-1.0/"
+printf 'modified fixture\n' > "$WORK/tampered/fixture-1.0/README"
+tar -czf "$WORK/tampered.tar.gz" -C "$WORK/tampered" fixture-1.0
+cat > "$WORK/real-bin/zig" <<'ZIG'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == fetch && "$2" == git+https://* ]]; then
+  echo 'error: unable to discover remote git server capabilities: NoAddressReturned' >&2
+  exit 1
+fi
+if [[ "$1" == build && "$TEST_REAL_MODE" == transitive && ! -e "$PWD/injected" ]]; then
+  touch "$PWD/injected"
+  echo 'zig-pkg/parent/build.zig.zon:12:20: error: unable to discover remote git server capabilities: NetworkUnreachable'
+  echo '    .url = "git+https://codeberg.org/ziglang/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b",'
+  exit 1
+fi
+exec "$TEST_REAL_ZIG" "$@"
+ZIG
+for mode in direct transitive tampered; do
+  project="$WORK/real-$mode"
+  mkdir "$project"
+  cp "$WORK/real/build.zig" "$project/build.zig"
+  if [[ "$mode" == transitive ]]; then
+    cp "$WORK/real/build.zig.zon" "$project/build.zig.zon"
+  else
+    sed 's|https://deps.example.invalid/fixture-1.0.tar.gz|git+https://codeberg.org/ziglang/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b|' \
+      "$WORK/real/build.zig.zon" > "$project/build.zig.zon"
+  fi
+  cp "$project/build.zig.zon" "$project/expected.zon"
+  archive="$WORK/fixture-1.0.tar.gz"
+  [[ "$mode" != tampered ]] || archive="$WORK/tampered.tar.gz"
+  real=0
+  (cd "$project" && TEST_REAL_MODE="$mode" TEST_ZIG_ARCHIVE="$archive" TEST_REAL_ZIG="$REAL_ZIG" \
+    ZIG="$WORK/real-bin/zig" ZIG_GLOBAL_CACHE_DIR="$WORK/real-cache" ZIG_LOCAL_CACHE_DIR="$project/.zig-cache" \
+    "$ROOT/scripts/zig-build-linux.sh" --system "$project/zig-pkg") > "$WORK/result" 2>&1 || real=$?
+  cmp "$project/build.zig.zon" "$project/expected.zon"
+  if [[ "$mode" == tampered ]]; then
+    if [[ $real -eq 0 ]] || ! grep -q 'remote package fetching disabled due to --system mode' "$WORK/result"; then
+      cat "$WORK/result" >&2
+      echo 'altered archive unexpectedly satisfied the manifest hash' >&2
+      exit 1
+    fi
+    [[ ! -e "$project/zig-pkg/N-V-__8AAD8AAAARyqkdJydtuyQa7SsnpmSgi4gE551nbr9S" ]]
+  elif [[ $real -ne 0 ]] || ! grep -qx 'fixture dependency resolved' "$WORK/result"; then
+    cat "$WORK/result" >&2
+    echo "real Zig $mode fallback failed with exit $real" >&2
+    exit 1
+  fi
+done
+echo 'Zig transport fallback passes: TLS/reset and pinned Codeberg routing, compiler-error rejection, multiple dependencies, retry bounds, temporary-directory policy, real direct/transitive package resolution, and rejection of altered archive content against the unchanged manifest hash.'
