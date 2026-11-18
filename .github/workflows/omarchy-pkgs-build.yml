@@ -70,6 +70,7 @@ jobs:
           cp -R "packaging/omarchy-pkgs/$PACKAGE" omarchy-pkgs/pkgbuilds/
           mkdir -p "$RUNNER_TEMP/out"
       - name: bin/build
+        id: build
         working-directory: omarchy-pkgs
         env:
           CONTAINER_ENGINE: docker
@@ -96,7 +97,8 @@ jobs:
             bash /scripts/inspect.sh "/pkg/$(basename "$pkg")" /out
       - name: Run the omarchy-pkgs recipe checks
         # check-shadowed compares against Arch's x86_64 repositories; the other checks read recipes only.
-        if: matrix.arch == 'x86_64'
+        # They run even when the package inspection fails, so one run reports both.
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && matrix.arch == 'x86_64' }}
         run: |
           docker run --rm -e SHADOW_USER=builder -v "$PWD/.github/omarchy-pkgs-build:/scripts:ro" \
             -v "$PWD/packaging/omarchy-pkgs/owners.json.line:/owners.json.line:ro" \
