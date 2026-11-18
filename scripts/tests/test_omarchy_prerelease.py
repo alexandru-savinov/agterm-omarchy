@@ -526,7 +526,8 @@ class ReleaseDryRunTests(unittest.TestCase):
     def prepare(self, github, output, *extra, env=None):
         first, second = github.patches()
         argv = ["prepare", str(github.run_id), github.sha, str(output), *extra]
-        environ = {key: value for key, value in os.environ.items() if key != "GITHUB_OUTPUT"} | (env or {})
+        environ = {key: value for key, value in os.environ.items()
+                   if key not in ("GITHUB_OUTPUT", "GITHUB_REF")} | (env or {})
         with first, second, patch("sys.argv", argv), patch.dict(os.environ, environ, clear=True):
             promotion.main()
 
@@ -584,7 +585,10 @@ class ReleaseDryRunTests(unittest.TestCase):
             with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as temp:
                 github = ReleaseGitHub(**kwargs)
                 if error is None:
-                    self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.1", "--tagged")
+                    self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.1", "--tagged",
+                                 env={"GITHUB_REF": "refs/tags/omarchy-v0.41.1.1"})
+                    notes = (Path(temp) / "promotion/release-notes.md").read_text()
+                    self.assertIn("--source-ref refs/tags/omarchy-v0.41.1.1`", notes)
                 else:
                     with self.assertRaisesRegex(ValueError, error):
                         self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.1", "--tagged")
