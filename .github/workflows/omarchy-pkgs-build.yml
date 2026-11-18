@@ -1,0 +1,127 @@
+name: omarchy-pkgs recipe build
+
+# Builds the draft agterm-omarchy-bin recipe (#465/#466) with omacom/omarchy-pkgs' own bin/build, on the
+# runners its CI uses for each architecture, then inspects the package and runs the repository's recipe checks.
+# Nothing is pushed to omarchy-pkgs. Not a required check. The pull_request trigger runs only when the recipe,
+# this workflow or its scripts change, because a dispatch-only workflow cannot run before it reaches main.
+
+on:
+  workflow_dispatch:
+    inputs:
+      omarchy_pkgs_ref:
+        description: omacom/omarchy-pkgs commit to build with
+        required: true
+        type: string
+        default: a929e3acace38b7341e835ccce1d47c2f9598c5b
+  pull_request:
+    paths:
+      - packaging/omarchy-pkgs/**
+      - .github/workflows/omarchy-pkgs-build.yml
+      - .github/omarchy-pkgs-build/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omarchy-pkgs-build-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  OMARCHY_PKGS_REF: ${{ inputs.omarchy_pkgs_ref || 'a929e3acace38b7341e835ccce1d47c2f9598c5b' }}
+  PACKAGE: agterm-omarchy-bin
+  ARCH_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+
+jobs:
+  build:
+    name: bin/build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Lint the scripts
+        run: |
+          for script in .github/omarchy-pkgs-build/*.sh; do
+            bash -n "$script"
+            shellcheck "$script"
+          done
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: omacom/omarchy-pkgs
+          ref: ${{ env.OMARCHY_PKGS_REF }}
+          path: omarchy-pkgs
+          persist-credentials: false
+      - name: Add the recipe
+        run: |
+          [[ ! -e "omarchy-pkgs/pkgbuilds/$PACKAGE" ]] || { echo "omarchy-pkgs already has $PACKAGE"; exit 1; }
+          cp -R "packaging/omarchy-pkgs/$PACKAGE" omarchy-pkgs/pkgbuilds/
+          mkdir -p "$RUNNER_TEMP/out"
+      - name: bin/build
+        working-directory: omarchy-pkgs
+        env:
+          CONTAINER_ENGINE: docker
+        run: |
+          # As build-pr.yml does: use the published builder image for these build inputs when one exists.
+          published="ghcr.io/omacom/omarchy-pkg-builder:$(bin/builder-image key --arch "${{ matrix.arch }}" --mirror edge)"
+          if docker pull --quiet "$published"; then
+            docker tag "$published" "omarchy-pkg-builder:latest-${{ matrix.arch }}-edge"
+            export OMARCHY_SKIP_BUILDER_IMAGE=1
+            echo "builder image: $published" | tee "$RUNNER_TEMP/out/builder-image.txt"
+          else
+            echo "builder image: built locally" | tee "$RUNNER_TEMP/out/builder-image.txt"
+          fi
+          bin/build --mirror edge --arch "${{ matrix.arch }}" --package "$PACKAGE"
+          find build-output -name "$PACKAGE-*.pkg.tar.zst" -exec cp {} "$RUNNER_TEMP/out/" \;
+          (cd "$RUNNER_TEMP/out" && sha256sum ./*.pkg.tar.zst | tee SHA256SUMS)
+      - name: Inspect the package
+        run: |
+          pkg=$(find "$RUNNER_TEMP/out" -maxdepth 1 -name "$PACKAGE-*.pkg.tar.zst")
+          docker run --rm --user 0 -v "$PWD/.github/omarchy-pkgs-build:/scripts:ro" \
+            -v "$PWD/packaging/omarchy-pkgs/$PACKAGE:/pkgbuild:ro" \
+            -v "$pkg:/pkg/$(basename "$pkg"):ro" -v "$RUNNER_TEMP/out:/out" \
+            "omarchy-pkg-builder:latest-${{ matrix.arch }}-edge" \
+            bash /scripts/inspect.sh "/pkg/$(basename "$pkg")" /out
+      - name: Run the omarchy-pkgs recipe checks
+        # check-shadowed compares against Arch's x86_64 repositories; the other checks read recipes only.
+        if: matrix.arch == 'x86_64'
+        run: |
+          docker run --rm -e SHADOW_USER=builder -v "$PWD/.github/omarchy-pkgs-build:/scripts:ro" \
+            -v "$PWD/packaging/omarchy-pkgs/owners.json.line:/owners.json.line:ro" \
+            -v "$PWD/omarchy-pkgs:/src:ro" -v "$RUNNER_TEMP/out:/out" \
+            "$ARCH_IMAGE" bash -lc '
+              set -euo pipefail
+              printf "\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n" >> /etc/pacman.conf
+              pacman -Syu --noconfirm --needed git jq python libarchive pacman-contrib >/dev/null
+              useradd -m builder
+              cp -a /src /work && chown -R builder: /work
+              git config --global --add safe.directory /work
+              runuser -u builder -- git config --global --add safe.directory /work
+              bash /scripts/repo-checks.sh /work /owners.json.line /out'
+      - name: Summary
+        if: always()
+        run: |
+          {
+            printf '### %s %s\nomarchy-pkgs: %s\n\n<pre>\n' "$PACKAGE" "${{ matrix.arch }}" "$OMARCHY_PKGS_REF"
+            cat "$RUNNER_TEMP/out/SHA256SUMS" "$RUNNER_TEMP/out/checks.tsv" "$RUNNER_TEMP/out/repo-checks.tsv" 2>/dev/null || true
+            printf '</pre>\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the package and evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: omarchy-pkgs-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/out
+          retention-days: 30

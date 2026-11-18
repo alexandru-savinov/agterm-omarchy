@@ -1,0 +1,56 @@
+# Maintainer: Alexandru Savinov <https://github.com/alexandru-savinov>
+# agterm is umputun's (https://github.com/umputun/agterm, MIT); the GTK4 Linux
+# port is melonamin's (https://github.com/melonamin/agterm-linux). This
+# repackages the Omarchy fork's CI archives for both architectures.
+pkgname=agterm-omarchy-bin
+# DRAFT: placeholder below the first omarchy-v0.41.1.1 release (#462).
+pkgver=0.41.1.0
+pkgrel=1
+pkgdesc="Native terminal with a workspace and session sidebar, built on libghostty (Omarchy build)"
+arch=(x86_64 aarch64)
+url="https://github.com/alexandru-savinov/agterm-omarchy"
+license=(MIT)
+# The archive's ELF NEEDED entries outside its own lib/, by owning package.
+depends=(bash cairo gdk-pixbuf2 glib2 glibc graphene gtk4 harfbuzz libadwaita
+         libepoxy libgcc libsoup3 libstdc++ pango python vulkan-icd-loader
+         webkitgtk-6.0)
+optdepends=('zsh: Live session restore with zsh'
+            'fish: Live session restore with fish')
+provides=(agterm-linux)
+conflicts=(agterm-linux agterm-linux-bin)
+# The Swift runtime, libghostty and zmx ship as built and tested by CI.
+options=(!strip !debug)
+# DRAFT: the prerelease asset names carry no version. Once omarchy-v releases
+# exist, drop _tag and use the commented lines, which the upstream watch can
+# rewrite from pkgver alone.
+_tag=omarchy-dev-b1356f0ad7ae-run43761095738
+source_x86_64=("agterm-omarchy-$pkgver-x86_64.tar.gz::$url/releases/download/$_tag/agterm-omarchy-x86_64.tar.gz")
+source_aarch64=("agterm-omarchy-$pkgver-aarch64.tar.gz::$url/releases/download/$_tag/agterm-omarchy-aarch64.tar.gz")
+#source_x86_64=("$url/releases/download/omarchy-v$pkgver/agterm-omarchy-$pkgver-x86_64.tar.gz")
+#source_aarch64=("$url/releases/download/omarchy-v$pkgver/agterm-omarchy-$pkgver-aarch64.tar.gz")
+noextract=("agterm-omarchy-$pkgver-$CARCH.tar.gz")
+sha256sums_x86_64=('e59abe924b7d768c1cd35bccc8f464000bd06de994b01e02a53daacce1ded464')
+sha256sums_aarch64=('38b004cdf02234a1fc804ab8a06cbd06e1a15ee0773d77b884154126b2488b41')
+
+package() {
+  local lib="$pkgdir/usr/lib/agterm" share="$pkgdir/usr/lib/agterm/share"
+
+  # The archive records its CI builder's uid.
+  install -d "$lib"
+  bsdtar --no-same-owner --strip-components=1 -xf "agterm-omarchy-$pkgver-$CARCH.tar.gz" -C "$lib"
+
+  # The launchers resolve their own symlink to find lib/ and share/. zmx,
+  # terminfo and the Ghostty resources stay private: ghostty-terminfo ships
+  # xterm-ghostty and the AUR zmx ships /usr/bin/zmx.
+  install -d "$pkgdir/usr/bin"
+  ln -s /usr/lib/agterm/bin/agterm-linux "$pkgdir/usr/bin/agterm-linux"
+  ln -s /usr/lib/agterm/bin/agtermctl "$pkgdir/usr/bin/agtermctl"
+
+  install -Dm644 -t "$pkgdir/usr/share/applications" "$share/applications/io.github.melonamin.agterm.desktop"
+  install -Dm644 -t "$pkgdir/usr/share/pixmaps" "$share/pixmaps/io.github.melonamin.agterm.png"
+  install -d "$pkgdir/usr/share/icons"
+  cp -r --no-preserve=ownership "$share/icons/hicolor" "$pkgdir/usr/share/icons/"
+
+  install -d "$pkgdir/usr/share/licenses"
+  ln -s /usr/lib/agterm/share/licenses/agterm "$pkgdir/usr/share/licenses/$pkgname"
+}
