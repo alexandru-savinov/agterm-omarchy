@@ -9,10 +9,14 @@ launch path can reset the daemons a v1 client cannot reach; `scripts/setup.sh` s
   under one shared two-second daemon deadline.
   A draining daemon accepts only detach, kill and inventory requests, and keeps a drained leader
   connected until teardown unlinks the session socket and closes all clients without role changes.
+  Request dispatch checks the current drain state, including the poll iteration that first sees EOF.
   The patch ports the daemon logic and deterministic busy-client, stalled-terminal, cancellation and
   managed-follower tests from the Linux stack onto this pin's APIs; the existing client implementation
   in 0005-0006 stays unchanged.
   Native `zig build test` exercises the real daemon and client loops through private PTYs and sockets.
+  A test-only gate makes EOF and a queued Run ready in one poll; reverting just the live-state guard
+  must fail its no-acknowledgement assertion.
+  Failure-injection cases also check staged fixture startup cleanup and preserve an unrelated pipe.
   These tests cover the queued-client drain; they do not establish that every final-output loss path
   investigated in #447 is fixed.
 

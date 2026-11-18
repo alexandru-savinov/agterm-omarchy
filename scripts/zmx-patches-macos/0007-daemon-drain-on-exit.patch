@@ -1,7 +1,7 @@
 diff --git a/src/loop.zig b/src/loop.zig
 --- a/src/loop.zig
 +++ b/src/loop.zig
-@@ -346,6 +346,17 @@
+@@ -346,6 +346,19 @@
      });
  }
  
@@ -12,6 +12,8 @@ diff --git a/src/loop.zig b/src/loop.zig
 +/// Tests set their own drain deadline, so a starved runner cannot miss one a test does not measure.
 +var test_exit_drain_ms: i64 = EXIT_DRAIN_MS;
 +
++var test_eof_request_batch: ?*EofRequestBatch = null;
++
 +fn exitDrainMs() i64 {
 +    return if (builtin.is_test) test_exit_drain_ms else EXIT_DRAIN_MS;
 +}
@@ -19,7 +21,7 @@ diff --git a/src/loop.zig b/src/loop.zig
  /// dameonLoop is what the daemon runs to send and receive ipc commands from its corresponding
  /// clients.  It uses poll() as its non-blocking mechanism.
  fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_fd: lib_posix.socket_t, pty_fd: i32) !void {
-@@ -370,7 +381,20 @@
+@@ -370,7 +383,20 @@
  
      var had_terminal_client = daemon.hasTerminalClient();
  
@@ -40,7 +42,7 @@ diff --git a/src/loop.zig b/src/loop.zig
          // If the program asked for focus reports (DECSET 1004), send focus-out
          // when the last attached client leaves and focus-in when one returns,
          // as a terminal would when its window loses/gains focus.
-@@ -392,8 +416,9 @@
+@@ -392,8 +418,9 @@
          if (daemon.pty_write_buf.items.len > 0) {
              pty_events |= lib_posix.POLL.OUT;
          }
@@ -51,7 +53,7 @@ diff --git a/src/loop.zig b/src/loop.zig
              .events = pty_events,
              .revents = 0,
          });
-@@ -412,7 +437,11 @@
+@@ -412,7 +439,15 @@
              });
          }
  
@@ -60,11 +62,15 @@ diff --git a/src/loop.zig b/src/loop.zig
 +            @intCast(std.math.clamp(deadline - role.nowMs(), 0, exitDrainMs()))
 +        else
 +            -1;
++        const prepared_eof_batch: ?*EofRequestBatch = if (builtin.is_test) EofRequestBatch.prepareCurrent() else null;
 +        _ = try lib_posix.poll(poll_fds.items, poll_timeout);
++        if (builtin.is_test) {
++            if (prepared_eof_batch) |batch| batch.record(poll_fds.items);
++        }
  
          if (poll_fds.items[2].revents & lib_posix.POLL.IN != 0) {
              signal.drainSignalPipe();
-@@ -468,10 +497,8 @@
+@@ -468,10 +503,8 @@
                  if (n == 0) {
                      // EOF: Shell exited
                      std.log.info("shell exited pty_fd={d}", .{pty_fd});
@@ -77,19 +83,19 @@ diff --git a/src/loop.zig b/src/loop.zig
                  } else {
                      // Feed PTY output to terminal emulator for state tracking
                      vt_stream.nextSlice(buf[0..n]);
-@@ -589,6 +616,11 @@
+@@ -589,6 +622,11 @@
                  }
  
                  while (client.read_buf.next()) |msg| {
 +                    // the shell is gone: no new attach, input or command, only a detach, a kill or Info
-+                    if (draining) switch (msg.header.tag) {
++                    if (drain_deadline != null) switch (msg.header.tag) {
 +                        .Detach, .DetachAll, .Kill, .Info => {},
 +                        else => continue,
 +                    };
                      switch (msg.header.tag) {
                          .Input => try daemon.handleInput(gpa, client, msg.payload),
                          .Send => daemon.handleSend(gpa, msg.payload),
-@@ -794,6 +826,14 @@
+@@ -794,6 +832,14 @@
          return false;
      }
  
@@ -104,7 +110,7 @@ diff --git a/src/loop.zig b/src/loop.zig
      pub fn closeClient(self: *Daemon, gpa: std.mem.Allocator, client: *Client, i: usize, shutdown_on_last: bool) bool {
          const fd = client.socket_fd;
          // leader is disconnected, remove ref and let another client claim leader on input
-@@ -2093,6 +2133,474 @@
+@@ -2093,6 +2139,608 @@
      try std.testing.expectEqual(output_flags, try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0));
  }
  
@@ -154,6 +160,42 @@ diff --git a/src/loop.zig b/src/loop.zig
 +    return .{ master, slave };
 +}
 +
++const EofRequestBatch = struct {
++    armed: std.atomic.Value(bool) = .init(false),
++    wake_sent: std.atomic.Value(bool) = .init(false),
++    observed: std.atomic.Value(bool) = .init(false),
++    same_poll: std.atomic.Value(bool) = .init(false),
++    socket_fd: i32 = -1,
++    shell_slave: *i32 = undefined,
++
++    fn prepareCurrent() ?*EofRequestBatch {
++        if (test_eof_request_batch) |batch| {
++            if (batch.prepare()) return batch;
++        }
++        return null;
++    }
++
++    fn prepare(self: *EofRequestBatch) bool {
++        if (!self.armed.swap(false, .acq_rel)) return false;
++        const deadline = role.nowMs() + 20_000;
++        while (!self.wake_sent.load(.acquire)) : (sleepOneMs()) {
++            if (role.nowMs() >= deadline) @panic("EOF request gate was not released");
++        }
++        lib_posix.close(self.shell_slave.*);
++        self.shell_slave.* = -1;
++        ipc.send(self.socket_fd, .Run, "printf SAME-EOF-RUN-MARK") catch @panic("EOF Run could not be queued");
++        ipc.send(self.socket_fd, .Info, "") catch @panic("EOF Info could not be queued");
++        return true;
++    }
++
++    fn record(self: *EofRequestBatch, descriptors: []const lib_posix.pollfd) void {
++        const eof_ready = descriptors[1].revents & (lib_posix.POLL.IN | lib_posix.POLL.HUP | lib_posix.POLL.ERR) != 0;
++        const request_ready = descriptors.len > 3 and descriptors[3].revents & lib_posix.POLL.IN != 0;
++        self.same_poll.store(eof_ready and request_ready, .release);
++        self.observed.store(true, .release);
++    }
++};
++
 +/// A real daemonLoop on a thread, with one client the test holds over a socket pair of fixed buffer sizes.
 +/// The test can hand that socket to a real client loop whose terminal is a PTY the test reads, or not.
 +const EndingSession = struct {
@@ -163,73 +205,81 @@ diff --git a/src/loop.zig b/src/loop.zig
 +
 +    alloc: std.mem.Allocator,
 +    tmp: std.testing.TmpDir,
++    tmp_ready: bool = false,
 +    cfg: Cfg,
 +    daemon: Daemon,
-+    server_fd: i32,
++    daemon_ready: bool = false,
++    server_fd: i32 = -1,
 +    /// [0] the daemon's master, [1] the shell's side
-+    shell_pty: [2]i32,
++    shell_pty: [2]i32 = .{ -1, -1 },
 +    /// [0] what the terminal reads, [1] the client's stdin and stdout
-+    term_pty: [2]i32,
++    term_pty: [2]i32 = .{ -1, -1 },
 +    sock: i32,
 +    /// with `managed`: a second client, the managed leader, which the test reads itself; or -1
 +    leader: i32 = -1,
 +    saved_signals: SavedClientSignals,
 +    saved_sigpipe: lib_posix.Sigaction = undefined,
++    saved_eof_request_batch: ?*EofRequestBatch = null,
 +    /// the self-pipe daemonLoop opened, which a client loop replaces in `signal.sig_pipe`
 +    daemon_pipe: [2]lib_posix.fd_t = .{ -1, -1 },
-+    daemon_thread: std.Thread,
++    daemon_thread: ?std.Thread = null,
 +    client_thread: ?std.Thread = null,
 +    daemon_done_ms: std.atomic.Value(i64) = .init(0),
 +    client_done_ms: std.atomic.Value(i64) = .init(0),
 +    client_result: anyerror!ClientResult = error.NotRun,
 +    exit_ms: i64 = 0,
 +
++    const StartupStep = enum { shell_pty, term_pty, client, daemon_spawned };
++
 +    const Options = struct {
 +        /// the daemon's drain deadline; long where a test does not measure it, so a starved runner meets it
 +        drain_ms: i64,
 +        /// the session socket becomes a managed follower, behind a managed leader on `leader`
 +        managed: bool = false,
++        eof_batch: ?*EofRequestBatch = null,
++        fail_at: ?StartupStep = null,
 +    };
 +
 +    fn start(self: *EndingSession, alloc: std.mem.Allocator, opts: Options) !void {
 +        self.* = .{
 +            .alloc = alloc,
-+            .tmp = std.testing.tmpDir(.{}),
++            .tmp = undefined,
 +            .cfg = .{ .socket_dir = "", .log_dir = "" },
 +            .daemon = undefined,
-+            .server_fd = undefined,
-+            .shell_pty = try testPty(24, 80),
-+            .term_pty = try testPty(33, term_cols),
 +            .sock = -1,
 +            .saved_signals = SavedClientSignals.save(),
-+            .daemon_thread = undefined,
++            .saved_eof_request_batch = test_eof_request_batch,
 +        };
 +        lib_posix.sigaction(lib_posix.SIG.PIPE, null, &self.saved_sigpipe);
++        errdefer self.deinit();
++        self.tmp = std.testing.tmpDir(.{});
++        self.tmp_ready = true;
++        self.shell_pty = try testPty(24, 80);
++        if (opts.fail_at == .shell_pty) return error.InjectedStartup;
++        self.term_pty = try testPty(33, term_cols);
++        if (opts.fail_at == .term_pty) return error.InjectedStartup;
 +        signal.ignoreSigpipe(); // as main does: the client writes to a daemon that may be gone
 +        const path = try std.fmt.allocPrint(alloc, ".zig-cache/tmp/{s}/s", .{self.tmp.sub_path});
 +        self.daemon = Daemon.init(std.testing.io, &self.cfg, "drain-test", path);
++        self.daemon_ready = true;
 +        self.server_fd = try socket.createSocket(path);
 +        const flags = try lib_posix.fcntl(self.shell_pty[0], lib_posix.F.GETFL, 0);
 +        _ = try lib_posix.fcntl(self.shell_pty[0], lib_posix.F.SETFL, flags | lib_posix.O_NONBLOCK);
 +        // the session socket is a pair whose sizes the test sets, so no host default decides what the
 +        // daemon keeps; the daemon's end is a client as an accept would make it
-+        var pair: [2]i32 = undefined;
-+        if (std.c.socketpair(lib_posix.AF.UNIX, lib_posix.SOCK.STREAM, 0, &pair) != 0) return error.NoSocketPair;
-+        for (pair) |fd| setBuffers(fd);
-+        _ = try lib_posix.fcntl(pair[0], lib_posix.F.SETFL, lib_posix.O_NONBLOCK);
-+        try self.daemon.clients.append(alloc, try testClient(alloc, pair[0], false));
-+        self.sock = pair[1];
++        self.sock = try self.socketClient();
++        if (opts.fail_at == .client) return error.InjectedStartup;
 +        if (opts.managed) {
-+            var second: [2]i32 = undefined;
-+            if (std.c.socketpair(lib_posix.AF.UNIX, lib_posix.SOCK.STREAM, 0, &second) != 0) return error.NoSocketPair;
-+            for (second) |fd| setBuffers(fd);
-+            _ = try lib_posix.fcntl(second[0], lib_posix.F.SETFL, lib_posix.O_NONBLOCK);
-+            try self.daemon.clients.append(alloc, try testClient(alloc, second[0], false));
-+            self.leader = second[1];
++            self.leader = try self.socketClient();
 +        }
 +        test_exit_drain_ms = opts.drain_ms;
++        test_eof_request_batch = opts.eof_batch;
++        if (opts.eof_batch) |batch| {
++            batch.socket_fd = self.sock;
++            batch.shell_slave = &self.shell_pty[1];
++        }
 +        self.daemon_thread = try std.Thread.spawn(.{}, runDaemon, .{self});
-+        errdefer self.kill();
++        if (opts.fail_at == .daemon_spawned) return error.InjectedStartup;
 +
 +        const size = ipc.Resize{ .rows = 33, .cols = term_cols };
 +        const first = if (opts.managed) self.leader else self.sock;
@@ -275,6 +325,23 @@ diff --git a/src/loop.zig b/src/loop.zig
 +        for ([_]u32{ std.c.SO.SNDBUF, std.c.SO.RCVBUF }) |opt| {
 +            _ = std.c.setsockopt(fd, std.c.SOL.SOCKET, opt, std.mem.asBytes(&size), @sizeOf(c_int));
 +        }
++    }
++
++    fn socketClient(self: *EndingSession) !i32 {
++        var pair: [2]i32 = undefined;
++        if (std.c.socketpair(lib_posix.AF.UNIX, lib_posix.SOCK.STREAM, 0, &pair) != 0) return error.NoSocketPair;
++        errdefer for (pair) |fd| lib_posix.close(fd);
++        for (pair) |fd| setBuffers(fd);
++        _ = try lib_posix.fcntl(pair[0], lib_posix.F.SETFL, lib_posix.O_NONBLOCK);
++        var reading = try ipc.SocketBuffer.init(self.alloc);
++        errdefer reading.deinit();
++        var writing = try std.ArrayList(u8).initCapacity(self.alloc, 65536);
++        errdefer writing.deinit(self.alloc);
++        const client = try self.alloc.create(Client);
++        errdefer self.alloc.destroy(client);
++        client.* = .{ .alloc = self.alloc, .socket_fd = pair[0], .read_buf = reading, .write_buf = writing };
++        try self.daemon.clients.append(self.alloc, client);
++        return pair[1];
 +    }
 +
 +    fn runDaemon(self: *EndingSession) void {
@@ -362,13 +429,16 @@ diff --git a/src/loop.zig b/src/loop.zig
 +    }
 +
 +    fn kill(self: *EndingSession) void {
-+        if (!done(&self.daemon_done_ms)) {
-+            if (socket.sessionConnect(self.daemon.socket_path)) |fd| {
-+                ipc.send(fd, .Kill, "") catch {};
-+                lib_posix.close(fd);
-+            } else |_| {}
++        if (self.daemon_thread) |thread| {
++            if (!done(&self.daemon_done_ms)) {
++                if (socket.sessionConnect(self.daemon.socket_path)) |fd| {
++                    ipc.send(fd, .Kill, "") catch {};
++                    lib_posix.close(fd);
++                } else |_| {}
++            }
++            thread.join();
++            self.daemon_thread = null;
 +        }
-+        self.daemon_thread.join();
 +        if (self.client_thread) |t| t.join();
 +        self.client_thread = null;
 +    }
@@ -377,7 +447,9 @@ diff --git a/src/loop.zig b/src/loop.zig
 +        const attached = self.client_thread != null;
 +        self.kill();
 +        if (!attached and self.sock >= 0) lib_posix.close(self.sock);
++        self.sock = -1;
 +        if (self.leader >= 0) lib_posix.close(self.leader);
++        self.leader = -1;
 +        test_exit_drain_ms = EXIT_DRAIN_MS;
 +        // a client loop closed its own self-pipe; the daemon's is closed here
 +        for (self.daemon_pipe) |fd| {
@@ -386,9 +458,18 @@ diff --git a/src/loop.zig b/src/loop.zig
 +        for (self.shell_pty ++ self.term_pty) |fd| {
 +            if (fd >= 0) lib_posix.close(fd);
 +        }
-+        lib_posix.close(self.server_fd);
-+        self.daemon.deinit(self.alloc);
-+        self.tmp.cleanup();
++        self.shell_pty = .{ -1, -1 };
++        self.term_pty = .{ -1, -1 };
++        if (self.server_fd >= 0) lib_posix.close(self.server_fd);
++        self.server_fd = -1;
++        if (self.daemon_ready) {
++            if (lib_posix.toPosixPath(self.daemon.socket_path)) |path| lib_posix.unlink(&path) else |_| {}
++            self.daemon.shutdown(self.alloc);
++            self.daemon.deinit(self.alloc);
++            self.daemon_ready = false;
++        }
++        if (self.tmp_ready) self.tmp.cleanup();
++        self.tmp_ready = false;
 +        if (signal.sig_pipe[0] != self.daemon_pipe[0] and signal.sig_pipe[0] != self.saved_signals.pipe[0]) {
 +            for (signal.sig_pipe) |fd| {
 +                if (fd >= 0) lib_posix.close(fd);
@@ -396,8 +477,67 @@ diff --git a/src/loop.zig b/src/loop.zig
 +        }
 +        self.saved_signals.restore();
 +        lib_posix.sigaction(lib_posix.SIG.PIPE, &self.saved_sigpipe, null);
++        test_eof_request_batch = self.saved_eof_request_batch;
 +    }
 +};
++
++test "EOF and a queued Run in one poll reject the Run before draining" {
++    const alloc = std.testing.allocator;
++    var batch: EofRequestBatch = .{};
++    var session: EndingSession = undefined;
++    try session.start(alloc, .{ .drain_ms = 20_000, .eof_batch = &batch });
++    defer session.deinit();
++    var frames = try ipc.SocketBuffer.init(alloc);
++    defer frames.deinit();
++
++    batch.armed.store(true, .release);
++    const wake = try socket.sessionConnect(session.daemon.socket_path);
++    defer lib_posix.close(wake);
++    batch.wake_sent.store(true, .release);
++    const deadline = role.nowMs() + 40_000;
++    var acknowledgements: usize = 0;
++    var inventories: usize = 0;
++    while (true) {
++        var ready = [_]lib_posix.pollfd{.{ .fd = session.sock, .events = lib_posix.POLL.IN, .revents = 0 }};
++        _ = try lib_posix.poll(&ready, 100);
++        if (ready[0].revents & (lib_posix.POLL.IN | lib_posix.POLL.HUP) != 0) {
++            if (try frames.read(session.sock) == 0) break;
++            while (frames.next()) |message| switch (message.header.tag) {
++                .Ack => acknowledgements += 1,
++                .Info => inventories += 1,
++                else => {},
++            };
++        }
++        if (role.nowMs() >= deadline) return error.EofBatchTimedOut;
++    }
++    EndingSession.waitFor(&session.daemon_done_ms);
++    try std.testing.expect(batch.observed.load(.acquire));
++    try std.testing.expect(batch.same_poll.load(.acquire));
++    try std.testing.expectEqual(@as(usize, 1), inventories);
++    try std.testing.expectEqual(@as(usize, 0), acknowledgements);
++    try std.testing.expect(!session.daemon.is_task_mode);
++    try std.testing.expectEqual(@as(usize, 0), session.daemon.pty_write_buf.items.len);
++}
++
++test "partial ending-session startup releases its resources and preserves an unrelated pipe" {
++    const unrelated = try lib_posix.pipe2(.{ .CLOEXEC = true });
++    defer for (unrelated) |fd| lib_posix.close(fd);
++    const saved_pipe = signal.sig_pipe;
++    for ([_]EndingSession.StartupStep{ .shell_pty, .term_pty, .client, .daemon_spawned }) |step| {
++        var session: EndingSession = undefined;
++        try std.testing.expectError(error.InjectedStartup, session.start(std.testing.allocator, .{ .drain_ms = EXIT_DRAIN_MS, .managed = true, .fail_at = step }));
++        try std.testing.expect(!session.tmp_ready and !session.daemon_ready);
++        try std.testing.expect(session.daemon_thread == null and session.client_thread == null);
++        try std.testing.expectEqual(@as(i32, -1), session.server_fd);
++        try std.testing.expectEqual(@as(i32, -1), session.sock);
++        try std.testing.expectEqual(@as(i32, -1), session.leader);
++        try std.testing.expectEqualSlices(i32, &saved_pipe, &signal.sig_pipe);
++        try std.testing.expectEqual(@as(usize, 1), try lib_posix.write(unrelated[1], "x"));
++        var byte: [1]u8 = undefined;
++        try std.testing.expectEqual(@as(usize, 1), try lib_posix.read(unrelated[0], &byte));
++        try std.testing.expectEqual(@as(u8, 'x'), byte[0]);
++    }
++}
 +
 +fn sleepMs(ms: u64) void {
 +    const ts = std.c.timespec{ .sec = 0, .nsec = @intCast(ms * std.time.ns_per_ms) };
