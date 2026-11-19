@@ -13,7 +13,7 @@ extension LinuxControlDispatcher {
         case .sessionTint, .workspaceTint:
             return dispatchTint(request)
         case .sessionCompanionNew, .sessionCompanionPage, .sessionCompanionDuplicate, .sessionCompanionPageAttach,
-             .sessionCollapse, .sessionExpand:
+             .sessionCompanionConvert, .sessionCollapse, .sessionExpand:
             return dispatchCompanionCommand(request)
         case .recentList, .recentOpen, .recentClear:
             if request.cmd == .recentOpen {

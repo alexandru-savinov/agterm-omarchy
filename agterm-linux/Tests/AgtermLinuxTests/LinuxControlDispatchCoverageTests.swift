@@ -26,6 +26,12 @@ struct LinuxControlDispatchCoverageTests {
         "zmxReset",
         // Test-only hook that simulates a macOS light/dark flip for XCUITest; no CLI verb, absent from the skill.
         "debugAppearance",
+        // Upstream v0.43.0 commands the GTK frontend has not adopted; the skill's "Linux integration
+        // management" section lists them. Remote windows and agterm-server catalogs are macOS-only.
+        "windowRemoteOpen", "windowRemoteDismiss", "catalogSubscribe", "catalogOp", "sessionRemoteNew",
+        "sessionDetach", "sessionReattach", "workspaceDetach", "workspaceReattach", "updateCheck",
+        "sessionTerminate", "sessionUndo", "sessionCompanionMove", "sessionPage", "zmxKillPane",
+        "sessionOverlayWrap", "sessionOverlayExpand", "sessionOverlayFiles",
     ]
 
     /// The dispatcher's entry switches; every other command switch in the dispatcher files is a family switch,

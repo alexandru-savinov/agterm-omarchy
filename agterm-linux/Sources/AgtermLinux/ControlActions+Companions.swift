@@ -123,15 +123,27 @@ extension AppController {
         }
     }
 
-    /// Convert to Companion from the GUI: the active session moves under a fresh shell opened in its place,
-    /// through the store seam `session.companion.convert` shares; a refusal shows the way a companion one does.
+    /// `session.companion.convert`: the target moves under a fresh shell opened in its place
+    /// (`AppStore.convertToCompanion`); the reply names the target and its new parent.
+    func convertLinuxCompanion(_ target: String?) -> ControlResponse {
+        switch resolveSessionResponse(target) {
+        case .failure(let response): return response
+        case .success(let id):
+            switch store.convertToCompanion(id) {
+            case .failure(let refusal): return err(refusal.message)
+            case .success(let parent):
+                reconcile(focusActive: false)
+                return ControlResponse(ok: true, result: ControlResult(id: id.uuidString, parent: parent.id.uuidString))
+            }
+        }
+    }
+
+    /// Convert to Companion from the GUI, through the control seam; a refusal shows the way a companion one does.
     func convertCompanionFromGUI() {
         guard let id = store.selectedSessionID else { return }
-        switch store.convertToCompanion(id) {
-        case .success:
-            reconcile()
-        case .failure(let refusal):
-            _ = openHud(nil, window: nil, spec: HudSpec(message: refusal.message, hideAfter: 8))
+        let response = convertLinuxCompanion(id.uuidString)
+        if !response.ok, let message = response.error {
+            _ = openHud(nil, window: nil, spec: HudSpec(message: message, hideAfter: 8))
         }
     }
 

@@ -15,6 +15,8 @@ extension LinuxControlDispatcher {
                                                       select: request.args?.noSelect != true)
         case .sessionCompanionPageAttach:
             return actions.attachCompanionPage(request.target, window: request.args?.window)
+        case .sessionCompanionConvert:
+            return actions.convertLinuxCompanion(request.target)
         case .sessionCollapse:
             return actions.setSessionExpansion(request.target, window: request.args?.window, expanded: false)
         case .sessionExpand:
