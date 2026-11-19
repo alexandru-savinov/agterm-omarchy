@@ -8,7 +8,8 @@ name: Omarchy native gates
 #   a release can be gated before it is published. An empty run id takes the newest such run.
 # - release: a published omarchy-dev-* or omarchy-v* release's assets, checked against its SHA256SUMS.
 # This is Arch (or Arch Linux ARM) plus Omarchy's packages on a cloud runner, not an Omarchy ISO install.
-# Not a required check. The pull_request trigger runs only when this workflow or its directory changes.
+# Not a required check. The pull_request trigger runs only when this workflow, its directory or the promotion
+# checks it reuses change.
 # Callers grant contents: read and actions: read. The call fails when any leg fails; `passed` says the same.
 
 on:
@@ -83,6 +84,9 @@ on:
     paths:
       - .github/workflows/omarchy-x86-native.yml
       - .github/omarchy-x86-native/**
+      # ci-artifact.py runs the promotion's checks, and its test runs on the promotion tests' fixture.
+      - scripts/prepare-omarchy-prerelease.py
+      - scripts/tests/test_omarchy_prerelease.py
 
 permissions:
   contents: read
