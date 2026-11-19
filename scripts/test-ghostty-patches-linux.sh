@@ -88,3 +88,70 @@ done
   exit 1
 }
 echo "all ${#names[@]} patch tests ran and passed"
+
+# Temporary hosted verification for #457. Each arm restores the original source.
+if [[ "$(uname -m)" == aarch64 ]]; then
+  (
+    cd "$SOURCE"
+    export ZIG_GLOBAL_CACHE_DIR="$WORK/zig-global-cache"
+    export ZIG_LOCAL_CACHE_DIR="$SOURCE/.zig-cache"
+    export XDG_CACHE_HOME="$WORK/xdg-cache"
+    cp src/termio/Exec.zig "$WORK/Exec.zig"
+    for arm in gather-call exit-call drain-cap exit-bound; do
+      cp "$WORK/Exec.zig" src/termio/Exec.zig
+      python3 - "$arm" <<'PY'
+from pathlib import Path
+import sys
+
+old, new = {
+    "gather-call": (
+        "if (hungUp(fd, pollfds[0].revents, pipeline)) return;",
+        'if (pollfds[0].revents & posix.POLL.HUP != 0) {\n'
+        '    log.info("pty fd closed, read thread exiting", .{});\n'
+        '    return;\n'
+        '}',
+    ),
+    "exit-call": (
+        "execdata.exit_hold.wait(td.loop, termio.Termio.ThreadData, td, pushChildExited);",
+        "pushChildExited(td);",
+    ),
+    "drain-cap": ("while (drained < hangup_drain_max) {", "while (true) {"),
+    "exit-bound": (
+        "if (done or self.start.untilNow(global.io(), .awake).toMilliseconds() >= max_ms) {",
+        "if (done) {",
+    ),
+}[sys.argv[1]]
+path = Path("src/termio/Exec.zig")
+text = path.read_text()
+assert text.count(old) == 1
+path.write_text(text.replace(old, new))
+PY
+      case "$arm" in
+        gather-call)
+          test_name='the gather stage drains output when its outer poll reports hangup'
+          expected='error.TestExpectedEqual'
+          ;;
+        exit-call)
+          test_name='process exit holds the real surface mailbox notice until the reader finishes'
+          expected='error.TestUnexpectedResult'
+          ;;
+        drain-cap)
+          test_name='a hangup drain stops at its cap when the fd never runs dry'
+          expected='test deadline exceeded: hangup drain cap (5 s)'
+          ;;
+        exit-bound)
+          test_name='the exit message goes after the bound when the read thread never finishes'
+          expected='test deadline exceeded: exit hold bound (5 s)'
+          ;;
+      esac
+      if "$GHOSTTY_ZIG" build test -Dapp-runtime=none "-Dtest-filter=termio.Exec.test.$test_name" > "$WORK/$arm.log" 2>&1; then
+        cat "$WORK/$arm.log"
+        echo "Unexpected pass: $arm" >&2
+        exit 1
+      fi
+      cat "$WORK/$arm.log"
+      grep -F -- "$expected" "$WORK/$arm.log"
+      printf 'Verified %s: %s failed with %s\n' "$arm" "$test_name" "$expected"
+    done
+  )
+fi
