@@ -248,11 +248,11 @@ public enum CommandRestore {
         return result
     }
 
-    /// Render an argv into one command line that POSIX shells and fish read alike, quoting each argument with
-    /// `accountShellQuoted` (so spaces, `$`, globs, quotes and backslashes survive intact) and space-joining.
+    /// Render an argv into one POSIX shell command line, single-quoting each argument (so spaces, `$`,
+    /// globs and quotes survive intact) and space-joining.
     /// Quoting is a PARSER escape, so it inverts capture only for what `shouldRestore` accepted.
     public static func shellQuotedLine(_ argv: [String]) -> String {
-        argv.map(accountShellQuoted).joined(separator: " ")
+        argv.map(shellQuote).joined(separator: " ")
     }
 
     /// Quote one word that sh, zsh, tcsh and fish all read alike: an apostrophe or a backslash goes
@@ -267,6 +267,11 @@ public enum CommandRestore {
             }
         }
         return quoted + "'"
+    }
+
+    /// POSIX single-quote one argument: wrap in `'…'`, and render each embedded `'` as `'\''`.
+    private static func shellQuote(_ arg: String) -> String {
+        "'" + arg.replacingOccurrences(of: "'", with: "'\\''", options: .literal) + "'"
     }
 
     /// Parse a macOS `KERN_PROCARGS2` blob into the process's argv. Layout: a host-order `Int32` argc,

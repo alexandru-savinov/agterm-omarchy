@@ -299,10 +299,14 @@ struct CommandRestoreTests {
         #expect(CommandRestore.shellQuotedLine(["echo", "it's"]) == "'echo' 'it'\\''s'")
     }
 
-    @Test func shellQuotedLineKeepsBackslashesOutsideQuotes() {
-        #expect(CommandRestore.shellQuotedLine(["a\\\\b"]) == "'a'\\\\''\\\\'b'")
-        #expect(CommandRestore.shellQuotedLine(["end\\"]) == "'end'\\\\''")
-        #expect(CommandRestore.shellQuotedLine(["", "plain", "日本語"]) == "'' 'plain' '日本語'")
+    @Test func accountShellQuotingKeepsBackslashesOutsideQuotes() {
+        #expect(Self.accountLine(["a\\\\b"]) == "'a'\\\\''\\\\'b'")
+        #expect(Self.accountLine(["end\\"]) == "'end'\\\\''")
+        #expect(Self.accountLine(["", "plain", "日本語"]) == "'' 'plain' '日本語'")
+    }
+
+    private static func accountLine(_ argv: [String]) -> String {
+        argv.map(CommandRestore.accountShellQuoted).joined(separator: " ")
     }
 
     @Test func quotedArgumentsRoundTripThroughPosixShell() throws {
@@ -330,7 +334,7 @@ struct CommandRestoreTests {
                          "$HOME", "$(false)", "`false`", "; false", "*?[abc]", "日本語",
                          "'\u{301}", "\u{600}'", "'\u{200D}", "\\\u{301}"]
         let expected = Data((arguments.joined(separator: "\0") + "\0").utf8)
-        var command = CommandRestore.shellQuotedLine(["printf", "%s\\0"] + arguments)
+        var command = Self.accountLine(["printf", "%s\\0"] + arguments)
         for _ in 0..<3 {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: shell)
@@ -347,7 +351,7 @@ struct CommandRestoreTests {
             process.waitUntilExit()
             #expect(process.terminationStatus == 0)
             #expect(data == expected)
-            command = CommandRestore.shellQuotedLine(["/bin/sh", "-c", command])
+            command = Self.accountLine(["/bin/sh", "-c", command])
         }
     }
 

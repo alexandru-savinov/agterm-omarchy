@@ -18,7 +18,8 @@ enum LinuxRestoreSeed {
     /// not in rerun mode or `CommandRestore.shouldRestore` refuses it (denylisted, control character, invalid UTF-8).
     static func restoreLine(_ argv: [String]?, restoreEnabled: Bool, denylist: Set<String>) -> String? {
         guard restoreEnabled, let argv, CommandRestore.shouldRestore(argv: argv, denylist: denylist) else { return nil }
-        return CommandRestore.shellQuotedLine(argv)
+        // the line lands in the account's login shell, which may be fish, as macOS's LaunchSeed does
+        return argv.map(CommandRestore.accountShellQuoted).joined(separator: " ")
     }
 
     /// The ordinary (non-zmx) seed for a restore plan, with the pinned line's trailing newline removed.
