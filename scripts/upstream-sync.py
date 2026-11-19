@@ -21,6 +21,7 @@ SYNC_LABELS = frozenset({LABEL_CLEAN, LABEL_CONFLICT})
 TAG_NAMESPACE = "refs/upstream-tags"
 UPSTREAM = "umputun/agterm"
 TASK = "#476"
+BASE_PIN_FILES = (".github/workflows/ci.yml", ".github/workflows/release-linux.yml")
 LIST_BUDGET = 28000  # characters per list, so two lists stay below GitHub's 65536-character body limit
 UNMERGED = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
 CONFLICT_KINDS = {"DD": "both deleted", "AU": "added by us", "UD": "deleted by them", "UA": "added by them",
@@ -153,12 +154,14 @@ def pr_text(*, tag, commit, base_sha, head_sha, run_url, conflicts, github_chang
         f"Merges [{UPSTREAM} {tag}]({release}) (`{commit}`) into main (`{base_sha}`).",
         "Opened by `.github/workflows/upstream-sync.yml`. Merge as a plain merge commit after CI on both "
         "arches, a fresh-context review with no HIGH or MEDIUM, and the native gates on the merge result.",
-        "The fields above name the run that built this branch, not a review: the reviewer replaces them.", ""]
+        "The fields above name the run that built this branch, not a review: the reviewer replaces them.", "",
+        f"Before merging, move `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` to `{tag}` / `{commit}` in both "
+        + " and ".join(f"`{path}`" for path in BASE_PIN_FILES) + ".", ""]
     if conflicts:
         body += [f"## Conflicts ({len(conflicts)})", "",
                  "The merge commit records these paths as committed with conflict markers (or the surviving side "
-                 "of a delete conflict). Resolve them on this branch, adapt `agterm-linux`, and move "
-                 "`UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` in `ci.yml`, then mark the PR ready.", "",
+                 "of a delete conflict). Resolve them on this branch, adapt `agterm-linux`, move the base pins "
+                 "above, then mark the PR ready.", "",
                  *listing([f"- `{path}` ({kind})" for path, kind in conflicts]), ""]
     if github_changes:
         body += [f"## Changes under .github/ ({len(github_changes)})", "",
@@ -245,19 +248,26 @@ def main(argv=None):
     plan_cmd.add_argument("--incidents", required=True, type=Path,
                           help=f"gh issue list --state open --label {LABEL_INCIDENT} --json number")
     plan_cmd.add_argument("--tag", default="")
+    pause_cmd = sub.add_parser("pause", help="decide the pause alone, before anything is fetched")
+    pause_cmd.add_argument("--paused", default="")
+    pause_cmd.add_argument("--incidents", required=True, type=Path,
+                           help=f"gh issue list --state open --label {LABEL_INCIDENT} --json number")
     merge_cmd = sub.add_parser("merge")
     for name in ("--base", "--branch", "--tag", "--commit", "--worktree", "--body", "--run-url"):
         merge_cmd.add_argument(name, required=True)
     args = parser.parse_args(argv)
     try:
-        if args.command == "plan":
+        if args.command == "pause":
+            reason = pause_reason(args.paused, json.loads(args.incidents.read_text(encoding="utf-8")))
+            emit({"paused": str(bool(reason)).lower(), "reason": reason})
+        elif args.command == "plan":
             incidents = json.loads(args.incidents.read_text(encoding="utf-8"))
             prs = json.loads(args.open_prs.read_text(encoding="utf-8"))
             branches = {line.split("\t")[1].removeprefix("refs/heads/")
                         for line in args.remote_branches.read_text(encoding="utf-8").splitlines() if "\t" in line}
             base = git("rev-parse", "--verify", args.base + "^{commit}").stdout.strip()
-            emit(decide(paused_value=args.paused, incidents=incidents, prs=prs, tags=fetched_tags(), is_ancestor=ancestor_check(base),
-                        remote_branches=branches, override=args.tag.strip()))
+            emit(decide(paused_value=args.paused, incidents=incidents, prs=prs, tags=fetched_tags(),
+                        is_ancestor=ancestor_check(base), remote_branches=branches, override=args.tag.strip()))
         else:
             base = git("rev-parse", "--verify", args.base + "^{commit}").stdout.strip()
             conflicts, github_changes = build(Path(args.worktree), base, args.branch, args.tag, args.commit)

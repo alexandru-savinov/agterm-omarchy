@@ -17,6 +17,7 @@ FIELDS_SPEC = importlib.util.spec_from_file_location("pr_fields", Path(__file__)
 pr_fields = importlib.util.module_from_spec(FIELDS_SPEC)
 FIELDS_SPEC.loader.exec_module(pr_fields)
 RUN = "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/1"
+WORKFLOW = (Path(__file__).resolve().parents[2] / ".github/workflows/upstream-sync.yml").read_text(encoding="utf-8")
 
 TAGS = {"v0.41.1": "a" * 40, "v0.42.3": "b" * 40, "v0.43.0": "c" * 40, "v0.9.9": "d" * 40}
 
@@ -178,6 +179,13 @@ class TextTests(unittest.TestCase):
                 self.assertEqual(pr_fields.problems(body, "2" * 40), [])
                 self.assertEqual(pr_fields.values(body)["Task"], ["#476"])
 
+    def test_every_body_names_both_base_pin_files_with_the_new_base(self):
+        for conflicts in ((), [("a", "both modified")]):
+            with self.subTest(conflicts=conflicts):
+                body = text(conflicts)[3]
+                self.assertIn("`.github/workflows/ci.yml` and `.github/workflows/release-linux.yml`", body)
+                self.assertIn(f"`v0.43.0` / `{'c' * 40}`", body)
+
     def test_github_changes_force_a_draft_listing_them(self):
         _, label, draft, body = text(github_changes=[".github/workflows/ci.yml"])
         self.assertEqual((label, draft), ("needs-adaptation", True))
@@ -206,6 +214,49 @@ class TextTests(unittest.TestCase):
         body = text([(f"f{n}", "both modified") for n in range(300)])[3]
         self.assertIn("- `f299` (both modified)", body)
         self.assertNotIn(" more", body)
+
+
+class PauseCommandTests(unittest.TestCase):
+    def run_pause(self, paused, incidents):
+        with tempfile.TemporaryDirectory() as tmp:
+            listing_path, output = Path(tmp) / "incidents.json", Path(tmp) / "out"
+            listing_path.write_text(incidents, encoding="utf-8")
+            with mock.patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                code = sync.main(["pause", "--paused", paused, "--incidents", str(listing_path)])
+            return code, output.read_text(encoding="utf-8") if output.exists() else ""
+
+    def test_unpaused(self):
+        self.assertEqual(self.run_pause("", "[]"), (0, "paused=false\nreason=\n"))
+
+    def test_variable_pauses(self):
+        self.assertEqual(self.run_pause("true", "[]"), (0, "paused=true\nreason=SYNC_PAUSED is true\n"))
+
+    def test_open_incident_pauses(self):
+        code, output = self.run_pause("false", '[{"number": 482}]')
+        self.assertEqual(code, 0)
+        self.assertIn("paused=true\n", output)
+        self.assertIn("#482", output)
+
+    def test_unreadable_incident_listing_fails(self):
+        self.assertEqual(self.run_pause("", "not json"), (2, ""))
+
+
+class WorkflowOrderTests(unittest.TestCase):
+    def position(self, text):
+        self.assertEqual(WORKFLOW.count(text), 1, text)
+        return WORKFLOW.index(text)
+
+    def test_pause_is_decided_before_anything_is_fetched_from_umputun(self):
+        self.assertLess(self.position("upstream-sync.py pause "), self.position("https://github.com/umputun/agterm.git"))
+        self.assertEqual(WORKFLOW.count("if: steps.pause.outputs.paused == 'false'"), 3)
+
+    def test_labels_exist_before_the_push_and_the_pat_applies_one(self):
+        self.assertLess(self.position("name: Create the sync labels if missing"),
+                        self.position('git push origin "refs/heads/$BRANCH:refs/heads/$BRANCH"'))
+        create = WORKFLOW[self.position("gh pr create --base main"):]
+        self.assertIn('--label "$LABEL"', create.split("opened=1")[0])
+        self.assertNotIn("labels[]=", WORKFLOW)
 
 
 class GitRepoTests(unittest.TestCase):
