@@ -265,7 +265,6 @@ jobs:
         run: |
           identity="$(jq -ce --arg arch "$ARCH" '.identities[$arch]' <<< "$PLAN")"
           release="$RUNNER_TEMP/release"
-          mkdir -p "$release"
           if [[ "$SOURCE" == ci-run ]]; then
             python3 -I .github/omarchy-x86-native/ci-artifact.py download \
               --run-id "$(jq -r .run_id <<< "$PLAN")" --attempt "$(jq -r .attempt <<< "$PLAN")" --arch "$ARCH" \
@@ -274,6 +273,7 @@ jobs:
             archive="agterm-omarchy-$ARCH.tar.gz"
             cp "$release/source.json" "$RUNNER_TEMP/out/"
           else
+            mkdir "$release"
             archive="$(jq -r .name <<< "$identity")"
             for asset in "$identity" "$(jq -c .release.sums <<< "$PLAN")" "$(jq -c .release.promotion <<< "$PLAN")"; do
               python3 -I .github/omarchy-x86-native/release-assets.py download --asset-id "$(jq -r .id <<< "$asset")" \
