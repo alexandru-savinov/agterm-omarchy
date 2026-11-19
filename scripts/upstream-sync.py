@@ -19,7 +19,8 @@ LABEL_CLEAN, LABEL_CONFLICT = "upstream-sync", "needs-adaptation"
 SYNC_LABELS = frozenset({LABEL_CLEAN, LABEL_CONFLICT})
 TAG_NAMESPACE = "refs/upstream-tags"
 UPSTREAM = "umputun/agterm"
-MAX_LISTED_CONFLICTS = 400  # keeps the body far below GitHub's 65536-character limit
+TASK = "#476"
+LIST_BUDGET = 28000  # characters per list, so two lists stay below GitHub's 65536-character body limit
 UNMERGED = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
 CONFLICT_KINDS = {"DD": "both deleted", "AU": "added by us", "UD": "deleted by them", "UA": "added by them",
                   "DU": "deleted by us", "AA": "both added", "UU": "both modified"}
@@ -39,13 +40,18 @@ def paused(value):
 
 
 def open_sync_prs(prs):
-    """Open PRs that already carry a sync: by label, or by a `sync/umputun-*` head such as a manual catch-up."""
+    """Open PRs that already carry a sync: by label, or by a same-repo `sync/umputun-*` head (a manual catch-up).
+
+    Only maintainers can label, but anyone can name a fork branch, so a fork head never blocks."""
     if not isinstance(prs, list):
         raise SyncError("open PR list is not a JSON list")
     found = []
     for pr in prs:
+        if not isinstance(pr.get("isCrossRepository"), bool):
+            raise SyncError(f"open PR #{pr.get('number')} has no isCrossRepository field")
         labels = {label.get("name") for label in pr.get("labels") or []}
-        if labels & SYNC_LABELS or str(pr.get("headRefName", "")).startswith(BRANCH_PREFIX):
+        same_repo_sync = not pr["isCrossRepository"] and str(pr.get("headRefName", "")).startswith(BRANCH_PREFIX)
+        if labels & SYNC_LABELS or same_repo_sync:
             found.append(pr)
     return found
 
@@ -73,12 +79,14 @@ def select(tags, is_ancestor, override=""):
 
 
 def decide(*, paused_value, prs, tags, is_ancestor, remote_branches, override=""):
-    """The run's decision. Gates in order: pause, one open sync PR, a release to sync, no existing branch."""
+    """The run's decision. Gates in order: pause, one open sync PR, a release to sync, no existing branch.
+
+    `blocked` (a branch with no open PR) fails the run: skipping it green would hide a stuck sync forever."""
+    if paused(paused_value):
+        return {"action": "skip", "tag": "", "commit": "", "branch": "", "selection": "", "reason": "SYNC_PAUSED is true"}
     tag, commit, reason = select(tags, is_ancestor, override)
     plan = {"action": "skip", "tag": tag or "", "commit": commit, "branch": BRANCH_PREFIX + tag if tag else "",
             "selection": reason}
-    if paused(paused_value):
-        return {**plan, "reason": "SYNC_PAUSED is true"}
     blocking = open_sync_prs(prs)
     if blocking:
         numbers = ", ".join(f"#{pr.get('number')}" for pr in blocking)
@@ -86,7 +94,8 @@ def decide(*, paused_value, prs, tags, is_ancestor, remote_branches, override=""
     if not tag:
         return {**plan, "reason": reason}
     if plan["branch"] in remote_branches:
-        return {**plan, "reason": f"branch {plan['branch']} already exists; delete it to retry this tag"}
+        return {**plan, "action": "blocked",
+                "reason": f"branch {plan['branch']} exists with no open sync PR; delete it to retry this tag"}
     return {**plan, "action": "sync", "reason": reason}
 
 
@@ -108,24 +117,41 @@ def conflicts_from_status(porcelain):
     return sorted(out)
 
 
-def pr_text(tag, commit, base_sha, conflicts):
-    """(title, label, draft, body) for the sync PR."""
+def listing(lines):
+    shown, used = [], 0
+    for line in lines:
+        used += len(line) + 1
+        if used > LIST_BUDGET:
+            return shown + [f"- and {len(lines) - len(shown)} more"]
+        shown.append(line)
+    return shown
+
+
+def pr_text(*, tag, commit, base_sha, head_sha, run_url, conflicts, github_changes):
+    """(title, label, draft, body) for the sync PR.
+
+    Any change under .github/ forces the draft: upstream's workflows run on this branch once it is pushed."""
     release = f"https://github.com/{UPSTREAM}/releases/tag/{tag}"
     title = f"Sync umputun/agterm {tag}"
-    head = ["Task: #", "Agent: upstream-sync", "Reviewed head:", "Review:", ""]
-    intro = [f"Merges [{UPSTREAM} {tag}]({release}) (`{commit}`) into main (`{base_sha}`).",
-             "Opened by `.github/workflows/upstream-sync.yml`. Merge as a plain merge commit after CI on both "
-             "arches, a fresh-context review with no HIGH or MEDIUM, and the native gates on the merge result.", ""]
-    if not conflicts:
-        return title, LABEL_CLEAN, False, "\n".join(head + intro + ["The merge applied cleanly.", ""])
-    listed = [f"- `{path}` ({kind})" for path, kind in conflicts[:MAX_LISTED_CONFLICTS]]
-    if len(conflicts) > MAX_LISTED_CONFLICTS:
-        listed.append(f"- and {len(conflicts) - MAX_LISTED_CONFLICTS} more")
-    body = head + intro + [
-        f"## Conflicts ({len(conflicts)})", "",
-        "The merge commit records these paths as committed with conflict markers (or the surviving side of a "
-        "delete conflict). Resolve them on this branch, adapt `agterm-linux`, and move `UPSTREAM_BASE_TAG` / "
-        "`UPSTREAM_BASE_COMMIT` in `ci.yml`, then mark the PR ready.", "", *listed, ""]
+    # The fields describe the run that built the branch; the reviewer replaces both with their own review.
+    fields = [f"Task: {TASK}", "Agent: upstream-sync", f"Reviewed head: {head_sha}", f"Review: {run_url}", ""]
+    body = fields + [
+        f"Merges [{UPSTREAM} {tag}]({release}) (`{commit}`) into main (`{base_sha}`).",
+        "Opened by `.github/workflows/upstream-sync.yml`. Merge as a plain merge commit after CI on both "
+        "arches, a fresh-context review with no HIGH or MEDIUM, and the native gates on the merge result.",
+        "The fields above name the run that built this branch, not a review: the reviewer replaces them.", ""]
+    if conflicts:
+        body += [f"## Conflicts ({len(conflicts)})", "",
+                 "The merge commit records these paths as committed with conflict markers (or the surviving side "
+                 "of a delete conflict). Resolve them on this branch, adapt `agterm-linux`, and move "
+                 "`UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` in `ci.yml`, then mark the PR ready.", "",
+                 *listing([f"- `{path}` ({kind})" for path, kind in conflicts]), ""]
+    if github_changes:
+        body += [f"## Changes under .github/ ({len(github_changes)})", "",
+                 "Review these before marking the PR ready; they already run on this branch.", "",
+                 *listing([f"- `{path}`" for path in github_changes]), ""]
+    if not conflicts and not github_changes:
+        return title, LABEL_CLEAN, False, "\n".join(body + ["The merge applied cleanly.", ""])
     return title, LABEL_CONFLICT, True, "\n".join(body)
 
 
@@ -137,13 +163,14 @@ def git(*args, cwd=None, check=True):
 
 
 def fetched_tags(namespace=TAG_NAMESPACE):
-    """tag -> peeled commit for every ref under the namespace the workflow fetched upstream tags into."""
-    lines = git("for-each-ref", "--format=%(refname)%00%(*objectname)%00%(objectname)", namespace).stdout
-    tags = {}
-    for line in lines.splitlines():
-        ref, peeled, direct = line.split("\0")
-        tags[ref.removeprefix(namespace + "/")] = peeled or direct
-    return tags
+    """tag -> commit for every ref under the namespace the workflow fetched upstream tags into.
+
+    `^{commit}` peels a tag of a tag fully, where for-each-ref's `*objectname` stops one level down."""
+    refs = git("for-each-ref", "--format=%(refname)", namespace).stdout.split()
+    if not refs:
+        return {}
+    commits = git("rev-parse", *(ref + "^{commit}" for ref in refs)).stdout.split()
+    return {ref.removeprefix(namespace + "/"): commit for ref, commit in zip(refs, commits, strict=True)}
 
 
 def ancestor_check(base):
@@ -160,7 +187,9 @@ IDENTITY = ("-c", "user.name=github-actions[bot]",
 
 
 def build(worktree, base, branch, tag, commit):
-    """Create `branch` in a new worktree as base merged with commit; conflicts are committed with markers."""
+    """Create `branch` in a new worktree as base merged with commit; conflicts are committed with markers.
+
+    Returns (conflicts, paths the merge changes under .github/)."""
     git("worktree", "add", "-b", branch, str(worktree), base)
     message = f"Merge {UPSTREAM} {tag} into main"
     merged = git(*IDENTITY, "merge", "--no-ff", "--no-edit", "-m", message, commit, cwd=worktree, check=False)
@@ -175,7 +204,8 @@ def build(worktree, base, branch, tag, commit):
     parents = git("rev-list", "--parents", "-n", "1", "HEAD", cwd=worktree).stdout.split()[1:]
     if parents != [git("rev-parse", base).stdout.strip(), commit]:
         raise SyncError(f"sync commit parents are {parents}, expected base then {commit}")
-    return conflicts
+    github = git("diff", "--name-only", "-z", base, "HEAD", "--", ".github", cwd=worktree).stdout
+    return conflicts, sorted(path for path in github.split("\0") if path)
 
 
 def emit(values):
@@ -199,7 +229,7 @@ def main(argv=None):
     plan_cmd.add_argument("--paused", default="")
     plan_cmd.add_argument("--tag", default="")
     merge_cmd = sub.add_parser("merge")
-    for name in ("--base", "--branch", "--tag", "--commit", "--worktree", "--body"):
+    for name in ("--base", "--branch", "--tag", "--commit", "--worktree", "--body", "--run-url"):
         merge_cmd.add_argument(name, required=True)
     args = parser.parse_args(argv)
     try:
@@ -212,11 +242,14 @@ def main(argv=None):
                         remote_branches=branches, override=args.tag.strip()))
         else:
             base = git("rev-parse", "--verify", args.base + "^{commit}").stdout.strip()
-            conflicts = build(Path(args.worktree), base, args.branch, args.tag, args.commit)
-            title, label, draft, body = pr_text(args.tag, args.commit, base, conflicts)
+            conflicts, github_changes = build(Path(args.worktree), base, args.branch, args.tag, args.commit)
+            head = git("rev-parse", "HEAD", cwd=args.worktree).stdout.strip()
+            title, label, draft, body = pr_text(tag=args.tag, commit=args.commit, base_sha=base, head_sha=head,
+                                                run_url=args.run_url, conflicts=conflicts,
+                                                github_changes=github_changes)
             Path(args.body).write_text(body, encoding="utf-8")
             emit({"title": title, "label": label, "draft": str(draft).lower(), "conflicts": len(conflicts),
-                  "head": git("rev-parse", "HEAD", cwd=args.worktree).stdout.strip()})
+                  "github_changes": len(github_changes), "base": base, "head": head})
     except (SyncError, OSError, ValueError) as error:
         print(f"upstream-sync: {error}", file=sys.stderr)
         return 2

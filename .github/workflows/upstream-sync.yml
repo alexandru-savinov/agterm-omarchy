@@ -1,15 +1,18 @@
 name: Upstream sync
 
 # One sync PR per umputun/agterm release (#476): main merged with the newest vX.Y.Z tag main lacks, on
-# sync/umputun-<tag>. A clean merge opens a PR labelled upstream-sync; a conflicted one commits the markers
-# and opens a draft labelled needs-adaptation. Nothing runs while the repository variable SYNC_PAUSED is
-# true or while any sync PR is open. Gates and selection live in scripts/upstream-sync.py.
+# sync/umputun-<tag>. A clean merge opens a PR labelled upstream-sync; conflicts, or any change under .github/,
+# open a draft labelled needs-adaptation with the markers committed. Nothing runs while the repository variable
+# SYNC_PAUSED is true or while any sync PR is open; a sync branch with no open PR fails the run until it is
+# deleted. Gates and selection live in scripts/upstream-sync.py.
+# Merge sync PRs as merge commits only: a squash leaves the tag outside main's history and it syncs again.
 #
-# Token: the push and the PR use secrets.UPSTREAM_SYNC_TOKEN, never GITHUB_TOKEN. GITHUB_TOKEN cannot
-# push upstream's .github/workflows changes (no `workflows` permission) and cannot open PRs here (Actions
-# PR creation is disabled). The secret is a fine-grained PAT for this repository only, with Contents,
-# Pull requests and Workflows read/write; a GitHub App instead needs a token-minting step added here.
-# Labels use GITHUB_TOKEN, which can create and apply them.
+# Token: the push and the PR use UPSTREAM_SYNC_TOKEN, never GITHUB_TOKEN, which cannot push upstream's
+# .github/workflows changes (no `workflows` permission) and cannot open PRs here (Actions PR creation is
+# disabled). It is a fine-grained PAT for this repository only, with Contents, Pull requests and Workflows
+# read/write. Store it as a secret of the `upstream-sync` environment, whose deployment branch policy allows
+# main only, never as a repository secret: the pushed branch runs upstream-authored workflows, which can read
+# every repository secret. A GitHub App instead needs a token-minting step in the publish job.
 on:
   schedule:
     - cron: '43 6 * * *'
@@ -32,6 +35,7 @@ on:
       - .github/workflows/upstream-sync.yml
       - scripts/upstream-sync.py
       - scripts/tests/test_upstream_sync.py
+      - scripts/github/pr_fields.py
 
 permissions:
   contents: read
@@ -56,7 +60,7 @@ jobs:
       - run: python3 scripts/tests/test_upstream_sync.py -v
 
   sync:
-    name: Plan and open the sync PR
+    name: Plan and build the sync branch
     needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -64,13 +68,16 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      pr: ${{ steps.pr.outputs.number }}
+      action: ${{ steps.plan.outputs.action }}
+      branch: ${{ steps.plan.outputs.branch }}
+      title: ${{ steps.merge.outputs.title }}
       label: ${{ steps.merge.outputs.label }}
+      draft: ${{ steps.merge.outputs.draft }}
+      head: ${{ steps.merge.outputs.head }}
     env:
       DRY_RUN: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
       TAG_OVERRIDE: ${{ inputs.tag }}
       SYNC_PAUSED: ${{ vars.SYNC_PAUSED }}
-      HAVE_SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN != '' }}
       GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -91,18 +98,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         # A failed listing fails the job: without it the one-at-a-time gate cannot be evaluated.
-        run: gh pr list --state open --limit 1000 --json number,headRefName,labels > "$RUNNER_TEMP/prs.json"
+        run: |
+          gh pr list --state open --limit 1000 --json number,headRefName,isCrossRepository,labels \
+            > "$RUNNER_TEMP/prs.json"
       - name: Plan
         id: plan
         run: |
           python3 scripts/upstream-sync.py plan --base refs/remotes/origin/main \
             --open-prs "$RUNNER_TEMP/prs.json" --remote-branches "$RUNNER_TEMP/branches.txt" \
-            --paused "$SYNC_PAUSED" --tag "$TAG_OVERRIDE" | tee "$RUNNER_TEMP/plan.json"
-      - name: Require the sync token for a live sync
-        if: steps.plan.outputs.action == 'sync' && env.DRY_RUN != 'true' && env.HAVE_SYNC_TOKEN != 'true'
-        run: |
-          echo "::error::secrets.UPSTREAM_SYNC_TOKEN is not set; see the token note at the top of upstream-sync.yml" >&2
-          exit 1
+            --paused "$SYNC_PAUSED" --tag "$TAG_OVERRIDE"
       - name: Build the sync branch
         id: merge
         # A dry run builds the merge even when a gate skips, so its log shows what a live run would open.
@@ -111,9 +115,22 @@ jobs:
           TAG: ${{ steps.plan.outputs.tag }}
           COMMIT: ${{ steps.plan.outputs.commit }}
           BRANCH: ${{ steps.plan.outputs.branch }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          mkdir "$RUNNER_TEMP/out"
           python3 scripts/upstream-sync.py merge --base refs/remotes/origin/main --branch "$BRANCH" \
-            --tag "$TAG" --commit "$COMMIT" --worktree "$RUNNER_TEMP/sync" --body "$RUNNER_TEMP/body.md"
+            --tag "$TAG" --commit "$COMMIT" --worktree "$RUNNER_TEMP/sync" --body "$RUNNER_TEMP/out/body.md" \
+            --run-url "$RUN_URL"
+          git -C "$RUNNER_TEMP/sync" bundle create "$RUNNER_TEMP/out/sync.bundle" "refs/heads/$BRANCH" \
+            ^refs/remotes/origin/main
+      - name: Hand the branch to the publish job
+        if: steps.plan.outputs.action == 'sync' && env.DRY_RUN != 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: upstream-sync-branch
+          path: ${{ runner.temp }}/out/
+          retention-days: 1
+          if-no-files-found: error
       - name: Summary
         if: always() && steps.plan.outcome == 'success'
         env:
@@ -121,61 +138,103 @@ jobs:
           REASON: ${{ steps.plan.outputs.reason }}
           TAG: ${{ steps.plan.outputs.tag }}
           CONFLICTS: ${{ steps.merge.outputs.conflicts }}
+          GITHUB_CHANGES: ${{ steps.merge.outputs.github_changes }}
         run: |
           {
             echo "### Upstream sync ($([[ "$DRY_RUN" == true ]] && echo 'dry run' || echo live))"
             echo
             echo "- decision: \`$ACTION\` ($REASON)"
-            # A pushed branch whose PR was never opened skips every later run until someone acts.
-            [[ "$REASON" != *"already exists"* ]] || echo "::warning::$REASON" >&2
-            [[ -z "$TAG" ]] || echo "- tag: \`$TAG\`, conflicted paths: ${CONFLICTS:-not built}"
-            if [[ -f "$RUNNER_TEMP/body.md" ]]; then
+            [[ -z "$TAG" ]] || echo "- tag: \`$TAG\`, conflicted paths: ${CONFLICTS:-not built}, changes under .github/: ${GITHUB_CHANGES:-not built}"
+            if [[ -f "$RUNNER_TEMP/out/body.md" ]]; then
               echo
               echo '<details><summary>PR body</summary>'
               echo
-              cat "$RUNNER_TEMP/body.md"
+              cat "$RUNNER_TEMP/out/body.md"
               echo '</details>'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail on a stranded sync branch
+        if: steps.plan.outputs.action == 'blocked'
+        env:
+          REASON: ${{ steps.plan.outputs.reason }}
+        run: |
+          echo "::error::$REASON" >&2
+          exit 1
+
+  publish:
+    name: Push the branch and open the sync PR
+    needs: sync
+    if: >-
+      needs.sync.outputs.action == 'sync' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: upstream-sync
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    env:
+      GH_REPO: ${{ github.repository }}
+      BRANCH: ${{ needs.sync.outputs.branch }}
+      HEAD_SHA: ${{ needs.sync.outputs.head }}
+    steps:
+      - name: Require the sync token
+        env:
+          HAVE_SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN != '' }}
+        run: |
+          if [[ "$HAVE_SYNC_TOKEN" != true ]]; then
+            echo "::error::the upstream-sync environment has no UPSTREAM_SYNC_TOKEN secret; see the top of upstream-sync.yml" >&2
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: upstream-sync-branch
+          path: ${{ runner.temp }}/in
+      - name: Load the branch exactly as built
+        run: |
+          git fetch --quiet "$RUNNER_TEMP/in/sync.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
+          got="$(git rev-parse "refs/heads/$BRANCH")"
+          [[ "$got" == "$HEAD_SHA" ]] || { echo "::error::bundle holds $got, the sync job built $HEAD_SHA" >&2; exit 1; }
       - name: Push the branch and open the PR
         id: pr
-        if: steps.plan.outputs.action == 'sync' && env.DRY_RUN != 'true'
         env:
           SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
-          BRANCH: ${{ steps.plan.outputs.branch }}
-          TITLE: ${{ steps.merge.outputs.title }}
-          DRAFT: ${{ steps.merge.outputs.draft }}
-          HEAD_SHA: ${{ steps.merge.outputs.head }}
+          TITLE: ${{ needs.sync.outputs.title }}
+          DRAFT: ${{ needs.sync.outputs.draft }}
         run: |
           auth="$(printf 'x-access-token:%s' "$SYNC_TOKEN" | base64 -w0)"
           echo "::add-mask::$auth"
           # Through the environment, so the credential is in no argv and no persisted git config.
           export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
           export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          # A pushed branch without its PR would block every later run, so a failed PR takes the branch back,
+          # and only while it still points at what this run pushed.
+          pushed='' opened=''
+          withdraw() {
+            [[ -n "$pushed" && -z "$opened" ]] || return 0
+            git push --force-with-lease="refs/heads/$BRANCH:$HEAD_SHA" origin ":refs/heads/$BRANCH" \
+              || echo "::error::could not delete $BRANCH after the PR failed; delete it by hand" >&2
+          }
+          trap withdraw EXIT
           # The plan gated on the branch not existing; a plain push never rewrites one created since.
-          git -C "$RUNNER_TEMP/sync" push origin "$HEAD_SHA:refs/heads/$BRANCH"
+          git push origin "refs/heads/$BRANCH:refs/heads/$BRANCH"
+          pushed=1
           draft=()
           [[ "$DRAFT" != true ]] || draft=(--draft)
           url="$(GH_TOKEN="$SYNC_TOKEN" gh pr create --base main --head "$BRANCH" --title "$TITLE" \
-            --body-file "$RUNNER_TEMP/body.md" "${draft[@]}")"
+            --body-file "$RUNNER_TEMP/in/body.md" "${draft[@]}")"
+          opened=1
           echo "number=${url##*/}" >> "$GITHUB_OUTPUT"
           echo "- opened: $url" >> "$GITHUB_STEP_SUMMARY"
-
-  label:
-    name: Label the sync PR
-    needs: sync
-    if: needs.sync.outputs.pr != ''
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      issues: write
-      pull-requests: write
-    steps:
       - name: Create the sync labels if missing and apply one
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          PR: ${{ needs.sync.outputs.pr }}
+          PR: ${{ steps.pr.outputs.number }}
           LABEL: ${{ needs.sync.outputs.label }}
         run: |
           # 422 means the label already exists.
@@ -185,5 +244,5 @@ jobs:
               || grep -q 'already_exists' <<< "$out" || { echo "$out" >&2; return 1; }
           }
           create upstream-sync 0e8a16 'Automated umputun/agterm release sync that merged cleanly'
-          create needs-adaptation d93f0b 'Automated umputun/agterm sync with conflicts to resolve'
+          create needs-adaptation d93f0b 'Automated umputun/agterm sync with conflicts or .github/ changes to resolve'
           gh api "repos/$GH_REPO/issues/$PR/labels" -f "labels[]=$LABEL" > /dev/null
