@@ -21,6 +21,7 @@ codeberg_archive() {
 
 fetch_archive() {
   local original="$1" url="$2" prior archive package
+  local curl_args=(--fail --location --proto '=https' --proto-redir '=https')
   local top=()
   for prior in "${seen_urls[@]}"; do
     [[ "$prior" != "$original" ]] || return 1
@@ -28,7 +29,8 @@ fetch_archive() {
   seen_urls+=("$original")
   archive="$WORK/archive.${#seen_urls[@]}.tar.gz"
   echo "Zig dependency transport failed; fetching with certificate-verified curl: $url" >&2
-  curl --fail --location --proto '=https' --proto-redir '=https' \
+  [[ "$original" != git+https://* ]] || curl_args+=(--max-redirs 0)
+  curl "${curl_args[@]}" \
     --show-error --silent --retry 3 --connect-timeout 20 --max-time 300 \
     --output "$archive" "$url"
   # Zig 0.17.0's `zig fetch <archive>` caches an archive with the top-level directory its printed hash omits,

@@ -146,6 +146,7 @@ run_case repeat 17
 # Transitive Git dependency diagnostics use the same exact-commit archive fallback.
 run_case git 0
 grep -q 'https://codeberg.org/ziglang/arocc/archive/d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b.tar.gz$' "$WORK/curl-args"
+grep -q -- ' --max-redirs 0 ' "$WORK/curl-args" || { echo 'Codeberg archive must reject redirects' >&2; exit 1; }
 TEST_ZIG_GIT_ERROR=NetworkUnreachable run_case git 0
 run_case git-missing-url 17
 [[ ! -e "$WORK/curl-args" ]]
@@ -162,6 +163,8 @@ for url in \
   'git+https://codeberg.org/ziglang/arocc#main' \
   'git+https://example.test/ziglang/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b' \
   'git+https://codeberg.org/other/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b' \
+  'git+https://codeberg.org/ziglang/other-package#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b' \
+  'git+https://example.test/git+https://codeberg.org/ziglang/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b' \
   'git+https://user@codeberg.org/ziglang/arocc#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b' \
   'git+https://codeberg.org/ziglang/arocc?other=main#d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b'; do
   TEST_ZIG_GIT_URL="$url" run_case git 17
@@ -189,8 +192,13 @@ git_case 0 0 1
 git_case 2 0 3
 git_case 4 1 4
 grep -qx 'git+https://codeberg.org/ziglang/translate-c?ref=zig-0.17.x#cfac21f' "$WORK/git-fetches"
+sed 's/#cfac21f"/#main"/' "$WORK/git-project/build.zig.zon" > "$WORK/git-project/unpinned.zon"
+mv "$WORK/git-project/unpinned.zon" "$WORK/git-project/build.zig.zon"
+rm -f "$WORK/curl-args"
+TEST_ZIG_GIT_DIAGNOSTIC='error: unable to discover remote git server capabilities: NoAddressReturned' git_case 4 1 4
+[[ ! -e "$WORK/curl-args" ]]
 # The direct dependency path uses the full commit, not its mutable ref hint.
-sed 's/#cfac21f"/#cfac21f3199b2b02ce3fd7db652aa456421fe4ab"/' \
+sed 's/#main"/#cfac21f3199b2b02ce3fd7db652aa456421fe4ab"/' \
   "$WORK/git-project/build.zig.zon" > "$WORK/git-project/full.zon"
 mv "$WORK/git-project/full.zon" "$WORK/git-project/build.zig.zon"
 rm -f "$WORK/fetched" "$WORK/curl-args"
@@ -319,8 +327,14 @@ for mode in direct transitive tampered; do
       echo 'altered archive unexpectedly satisfied the manifest hash' >&2
       exit 1
     fi
-    [[ "$(cat "$project/actual-hash")" != N-V-__8AAD8AAAARyqkdJydtuyQa7SsnpmSgi4gE551nbr9S ]]
+    actual_hash="$(cat "$project/actual-hash")"
+    [[ "$actual_hash" != N-V-__8AAD8AAAARyqkdJydtuyQa7SsnpmSgi4gE551nbr9S ]]
     [[ ! -e "$project/offline-pkg/N-V-__8AAD8AAAARyqkdJydtuyQa7SsnpmSgi4gE551nbr9S" ]]
+    if [[ "$(ls -A "$WORK/real-cache/p")" != "$actual_hash.tar.gz" ]]; then
+      ls -A "$WORK/real-cache/p" >&2
+      echo "tampered global cache: expected only $actual_hash.tar.gz" >&2
+      exit 1
+    fi
   elif [[ $real -ne 0 ]] || ! grep -qx 'fixture dependency resolved' "$WORK/result"; then
     cat "$WORK/result" >&2
     echo "real Zig $mode fallback failed with exit $real" >&2
