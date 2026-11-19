@@ -634,6 +634,8 @@ class ReleaseDryRunTests(unittest.TestCase):
         first, second = github.patches()
         with first, second:
             self.assertEqual(promotion.next_version(promotion.release_module()), "0.43.0.3")
+            self.assertEqual(promotion.next_version(promotion.release_module(), "0.40.0"), "0.40.0.5")
+            self.assertEqual(promotion.next_version(promotion.release_module(), "0.41.1"), "0.41.1.1")
 
     def test_dispatch_refuses_an_existing_tag_or_release(self):
         for existing in ("git/ref/tags/omarchy-v0.43.0.1", "releases/tags/omarchy-v0.43.0.1"):

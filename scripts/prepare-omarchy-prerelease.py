@@ -266,8 +266,9 @@ def is_latest(version, existing):
     return all(version_key(version) > version_key(other) for other in existing)
 
 
-def next_version(release):
-    base = release.upstream_base()
+def next_version(release, base=None):
+    """The next unpublished serial for BASE, by default this checkout's upstream base."""
+    base = release.upstream_base() if base is None else base
     serials = [int(version.rsplit(".", 1)[1]) for version in released_versions(release)
                if version.startswith(base + ".") and version.count(".") == base.count(".") + 1]
     return f"{base}.{max(serials, default=0) + 1}"
@@ -328,14 +329,18 @@ def main():
     parser.add_argument("--releasable", action="store_true",
                         help="with --discover: the newest main run release mode accepts, at any main commit")
     parser.add_argument("--next-version", action="store_true", help="print the next unpublished release version")
+    parser.add_argument("--base-of", metavar="SHA",
+                        help="with --next-version, use the upstream base commit SHA declares instead of this checkout's")
     parser.add_argument("--release", metavar="VERSION",
                         help="build versioned release assets for tag omarchy-vVERSION instead of a dev prerelease")
     parser.add_argument("run_id", type=int, nargs="?")
     parser.add_argument("sha", nargs="?")
     parser.add_argument("output", type=Path, nargs="?")
     args = parser.parse_args()
+    require(args.base_of is None or args.next_version, "--base-of needs --next-version")
     if args.next_version:
-        version = next_version(release_module())
+        release = release_module()
+        version = next_version(release, source_base(release, args.base_of) if args.base_of else None)
         write_outputs({"version": version})
         print(version)
         return
