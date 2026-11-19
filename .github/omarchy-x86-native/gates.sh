@@ -294,11 +294,12 @@ session_phase() {
   /repo/scripts/install-linux.sh --payload "$stage/agterm-stage" --software-rendering --prefix "$PREFIX" \
     > "$EVIDENCE/install.log" 2>&1
   # Nothing launches unless the installed payload is the archive plus the installer's own files.
-  local compared=0 installed
-  installed="$(readlink -e "$PREFIX/lib/agterm")" && [[ -d "$installed" && ! -L "$installed" ]] || {
+  local compared=0 installed=""
+  installed="$(readlink -e "$PREFIX/lib/agterm")" || installed=""
+  if [[ -z "$installed" || ! -d "$installed" || -L "$installed" ]]; then
     record installed_vs_stage "FAIL no installed payload directory at $PREFIX/lib/agterm"
     return 1
-  }
+  fi
   python3 -I /repo/.github/omarchy-x86-native/compare-install.py "$stage/agterm-stage" "$installed" \
     > "$EVIDENCE/installed-vs-stage.txt" 2>&1 || compared=$?
   if (( compared != 0 )); then
