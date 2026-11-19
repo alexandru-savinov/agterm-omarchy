@@ -30,9 +30,16 @@ git -C "$SOURCE" -c advice.detachedHead=false checkout -q FETCH_HEAD
 # here and would only fail the check (#435 keeps that open).
 names=()
 # src/App.zig and every Zig file the patches under scripts/ghostty-patches touch must stay zig-fmt clean;
-# the linux/patches adapters predate the check and one of them is not (src/apprt/embedded.zig).
+# the linux/patches adapters predate the check and one of them is not (src/apprt/embedded.zig), so the shared
+# set is checked before the adapters apply and again, without that file, after them.
 formatted=(src/App.zig)
+shared_checked=false
 for ghostty_patch in "${GHOSTTY_PATCHES[@]}"; do
+  if ! $shared_checked && [[ "$ghostty_patch" != "$ROOT/scripts/ghostty-patches/"* ]]; then
+    mapfile -t shared < <(printf '%s\n' "${formatted[@]}" | sort -u)
+    "$GHOSTTY_ZIG" fmt --check "${shared[@]/#/$SOURCE/}"
+    shared_checked=true
+  fi
   git -C "$SOURCE" apply "$ghostty_patch"
   if [[ "$ghostty_patch" == "$ROOT/scripts/ghostty-patches/"* ]]; then
     while IFS= read -r file; do formatted+=("$file"); done < <(
@@ -49,7 +56,8 @@ done
 filters=()
 for name in "${names[@]}"; do filters+=("-Dtest-filter=$name"); done
 
-mapfile -t formatted < <(printf '%s\n' "${formatted[@]}" | sort -u)
+$shared_checked || { echo "no linux/patches adapter followed the shared set" >&2; exit 1; }
+mapfile -t formatted < <(printf '%s\n' "${formatted[@]}" | grep -vxF src/apprt/embedded.zig | sort -u)
 "$GHOSTTY_ZIG" fmt --check "${formatted[@]/#/$SOURCE/}"
 (
   cd "$SOURCE"

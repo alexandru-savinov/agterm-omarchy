@@ -1487,8 +1487,7 @@ struct AppStorePaneTests {
 
     @Test func closePaneOverlayTearsDownAndKeepsTheExitCode() {
         let store = makeStore()
-        let ws = store.addWorkspace(name: "work")
-        let session = store.addSession(toWorkspace: ws.id, cwd: "/a")!
+        let session = store.addSession(toWorkspace: store.addWorkspace(name: "work").id, cwd: "/a")!
         store.openPaneOverlay(session.id, pane: .left, command: "revdiff")
         let surface = SpySurface()
         session.leftOverlaySurface = surface

@@ -169,7 +169,7 @@ final class LinuxHtmlOverlayPage {
         theme = newer
         webkit_user_content_manager_remove_all_style_sheets(manager)
         let themed: Bool = switch overlay.source.kind {
-        case .url, .image, .document: false
+        case .url, .image, .document, .unreadable: false
         case .file, .markdown, .text: true
         }
         let look = themed ? "color-scheme: \(newer.dark ? "dark" : "light"); color: \(newer.foreground); " : ""
@@ -247,6 +247,8 @@ final class LinuxHtmlOverlayPage {
         loadFailed = false
         store?.setHtmlLoadState(id, state: .loading, error: nil)
         switch overlay.source {
+        case .unreadable(let reason):
+            fail(reason)
         case .text:
             textPage?.load()
         case .image, .markdown, .document:

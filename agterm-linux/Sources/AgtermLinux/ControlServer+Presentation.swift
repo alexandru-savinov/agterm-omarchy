@@ -122,8 +122,10 @@ extension ControlServer {
             self?.pendingPageClaims[page] = nil
             self?.pageServeStreams.removeValue(forKey: page)?.shutdown()
         }
-        presentationHub.onPresenterLost = { [weak self] id in self?.presenterLost(forSession: id) }
-        presentationHub.onPresenterFrame = { [weak self] id, body in self?.receivePresenterFrame(body, forSession: id) }
+        presentationHub.onOwnerLost = { [weak self] id, owner in self?.ownerLost(forSession: id, owner: owner) }
+        presentationHub.onPresenterFrame = { [weak self] id, sender, body in
+            self?.receivePresenterFrame(body, forSession: id, from: sender)
+        }
         overlayJobs.onFinished = { [weak self] job in
             self?.pendingJobCancels.remove(job.id)
             self?.overlayJobStreams.removeValue(forKey: job.id)?.shutdown()
@@ -167,44 +169,46 @@ extension ControlServer {
     private func presenterRouter(forSession id: UUID) -> LinuxPresenterFrameRouter? {
         guard let controller = gWindows.values.first(where: { $0.store.session(withID: id) != nil }) else { return nil }
         return LinuxPresenterFrameRouter(store: controller.store,
-                                         takeBackAsk: { controller.takeBackRemoteAsk(forSession: $0) },
+                                         takeBackAsk: { controller.takeBackRemoteAsk(forSession: $0, owner: $1) },
                                          reconcile: { controller.reconcile(focusActive: false) })
     }
 
     @MainActor
-    private func presenterLost(forSession id: UUID) {
-        presenterRouter(forSession: id)?.presenterLost(forSession: id)
+    private func ownerLost(forSession id: UUID, owner: Int) {
+        presenterRouter(forSession: id)?.ownerLost(forSession: id, owner: owner)
     }
 
     @MainActor
-    private func receivePresenterFrame(_ body: PresentationFrame.Body, forSession id: UUID) {
-        presenterRouter(forSession: id)?.receive(body, forSession: id)
+    private func receivePresenterFrame(_ body: PresentationFrame.Body, forSession id: UUID, from sender: Int) {
+        presenterRouter(forSession: id)?.receive(body, forSession: id, from: sender)
     }
 }
 
-/// Applies what a session's presenter sent to its store; the host hands back GUI asks and redraws.
+/// Applies what a session's viewers sent to its store; the host hands back GUI asks and redraws.
 @MainActor
 struct LinuxPresenterFrameRouter {
     let store: AppStore
-    let takeBackAsk: (UUID) -> Void
+    let takeBackAsk: (UUID, Int) -> Void
     let reconcile: () -> Void
 
-    func presenterLost(forSession id: UUID) {
-        takeBackAsk(id)
-        store.remoteOverlayPresenterLost(forSession: id)
+    /// Viewer `owner` is gone: its ask comes back here, and its overlays and pages are released.
+    func ownerLost(forSession id: UUID, owner: Int) {
+        takeBackAsk(id, owner)
+        store.remoteOverlayOwnerLost(forSession: id, owner: owner)
         reconcile()
     }
 
-    func receive(_ body: PresentationFrame.Body, forSession id: UUID) {
+    func receive(_ body: PresentationFrame.Body, forSession id: UUID, from sender: Int) {
         switch body {
         case .askResolve(let answer): _ = store.resolveRemoteAsk(answer, forSession: id)
-        // a refused ask is not a lost presenter: its overlay jobs stay with it
+        // a refused ask is not a lost viewer: its overlay jobs stay with it
         case .askRejected(let ref) where store.isPresentingRemotely(ref, forSession: id):
-            takeBackAsk(id)
+            takeBackAsk(id, ref.owner)
             reconcile()
-        case .pageState, .pageRejected, .pageClosed: store.receiveRemotePageFrame(body, forSession: id)
-        case .overlayRejected(let change): store.rejectRemoteOverlay(change.job, forSession: id)
-        case .overlayClosed(let change): store.remoteOverlaySurfaceClosed(change.job, forSession: id)
+        case .pageState, .pageResult, .pageRejected, .pageClosed:
+            store.receiveRemotePageFrame(body, forSession: id, from: sender)
+        case .overlayRejected(let change): store.rejectRemoteOverlay(change.job, forSession: id, from: sender)
+        case .overlayClosed(let change): store.remoteOverlaySurfaceClosed(change.job, forSession: id, from: sender)
         default: break
         }
     }

@@ -122,7 +122,7 @@ extension AppController {
 
     func applyRemoteLayout(_ layout: PresentationLayout, forSession id: UUID) {
         let before = store.session(withID: id)?.paneIdentity
-        let removed = store.applyRemoteLayout(layout, forSession: id)
+        let removed = store.applyRemoteLayout(layout, forSession: id, attach: LinuxRemoteAttachLines.shared)
         if let session = store.session(withID: id), before != session.paneIdentity,
            let primary = session.surface as? GhosttySurface,
            let split = session.splitSurface as? GhosttySurface {

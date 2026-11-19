@@ -1,7 +1,6 @@
 import Foundation
 import Observation
 import Testing
-import Observation
 @testable import agtermCore
 
 @MainActor

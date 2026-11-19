@@ -40,8 +40,14 @@ extension AppController {
                                             dashboardOpen: dashboard.isOpen,
                                             pickerActive: pickController.pending != nil,
                                             activeSessionHasOverlay: !(activeSession?.hideableOverlaySlots(nil).isEmpty ?? true),
-                                            activeSessionIsPage: activeSession?.content == .page)
-        var items: [LinuxPaletteItem] = PaletteCommand.allCases.filter { $0.isVisible(in: paletteContext) }.map { cmd in
+                                            activeSessionIsPage: activeSession?.content == .page,
+                                            activeSessionIsCompanion: activeSession?.parentID != nil,
+                                            activeSessionIsRemote: activeSession?.remoteHost != nil)
+        // remote windows are the macOS app's; agterm-linux hosts none, so their rows never appear
+        let macOSOnly: Set<PaletteCommand> = [.openRemoteWindow, .newRemoteSession, .detachedSessions]
+        var items: [LinuxPaletteItem] = PaletteCommand.allCases.filter {
+            $0.isVisible(in: paletteContext) && !macOSOnly.contains($0)
+        }.map { cmd in
             let row = LinuxPaletteRow.action(cmd, in: paletteContext, chord: cmd.builtinAction.flatMap(resolvedChord(for:)))
             return (row: row, run: run(for: cmd))
         }
@@ -113,6 +119,11 @@ extension AppController {
         case .duplicateCompanion: return { self.newCompanionFromGUI(duplicate: true) }
         case .toggleOverlay: return { _ = self.setSessionOverlayVisibility(nil, window: nil, pane: nil, mode: .toggle) }
         case .attachRemote: return { self.showRemoteAttach() }
+        case .convertCompanion: return { self.convertCompanionFromGUI() }
+        // filtered out of the list by `macOSOnly`; kept so the switch stays exhaustive
+        case .openRemoteWindow: return { self.refuseRemoteWindowAction("Open Remote Window") }
+        case .newRemoteSession: return { self.refuseRemoteWindowAction("New Remote Session") }
+        case .detachedSessions: return { self.refuseRemoteWindowAction("Detached Sessions") }
         case .editFlaggedSessions: return { self.showMembershipEditor(workspaces: false) }
         case .editFocusedWorkspaces: return { self.showMembershipEditor(workspaces: true) }
 

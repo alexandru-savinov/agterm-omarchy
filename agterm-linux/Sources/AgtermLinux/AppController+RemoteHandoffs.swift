@@ -3,8 +3,8 @@ import agtermCore
 
 @MainActor
 extension AppController {
-    func takeBackRemoteAsk(forSession id: UUID) {
-        guard let ask = store.takeBackRemoteAsk(forSession: id) else { return }
+    func takeBackRemoteAsk(forSession id: UUID, owner: Int) {
+        guard let ask = store.takeBackRemoteAsk(forSession: id, owner: owner) else { return }
         guard let session = store.session(withID: id),
               store.selectedSessionID == id, !dashboard.isOpen, terminalZoom.target == nil,
               guiAskWindow == nil, !pickController.modalPending,

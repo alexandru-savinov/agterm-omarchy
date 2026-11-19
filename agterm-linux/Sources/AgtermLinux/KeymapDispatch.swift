@@ -432,6 +432,10 @@ extension AppController {
         case .duplicateCompanion: newCompanionFromGUI(duplicate: true)
         case .toggleOverlay: _ = setSessionOverlayVisibility(nil, window: nil, pane: nil, mode: .toggle)
         case .attachRemote: showRemoteAttach()
+        case .convertCompanion: convertCompanionFromGUI()
+        case .openRemoteWindow: refuseRemoteWindowAction("Open Remote Window")
+        case .newRemoteSession: refuseRemoteWindowAction("New Remote Session")
+        case .detachedSessions: refuseRemoteWindowAction("Detached Sessions")
         case .editFlaggedSessions: showMembershipEditor(workspaces: false)
         case .editFocusedWorkspaces: showMembershipEditor(workspaces: true)
 

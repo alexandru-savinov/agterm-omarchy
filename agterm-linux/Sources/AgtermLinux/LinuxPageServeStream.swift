@@ -76,7 +76,11 @@ final class LinuxPageServeStream {
         case .bridge(let id, _):
             guard bridgeSlots.tryAcquire() else { return refuse(id) }
             runOnMain { MainActor.assumeIsolated { self.receive(frame) } }
-        case .head, .chunk, .end, .failure, .reply:
+        case .logTail(let id, _):
+            // no log tail is served from here; the viewer keeps the text it was sent
+            guard let line = try? PageServeCodec.encode(.failure(id: id, error: "log tails are not served by agterm-linux")),
+                  owner.send(line) else { return failOnMain("more requests than it reads answers to") }
+        case .head, .chunk, .end, .failure, .reply, .logHead, .logUnchanged:
             failOnMain("a frame only this Mac sends")
         }
     }
@@ -86,7 +90,7 @@ final class LinuxPageServeStream {
         switch frame {
         case .resource(let id, let path): serve(id: id, path: path)
         case .bridge(let id, let request): relay(id: id, request: request)
-        case .cancel, .head, .chunk, .end, .failure, .reply: break
+        case .cancel, .head, .chunk, .end, .failure, .reply, .logTail, .logHead, .logUnchanged: break
         }
     }
 

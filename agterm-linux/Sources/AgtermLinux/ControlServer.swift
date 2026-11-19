@@ -588,6 +588,8 @@ final class ControlServer: @unchecked Sendable {
              .sessionOverlayReload, .sessionOverlayNavigate,
              .sessionOverlayCopy, .sessionOverlayText, .sessionOverlaySearch, .sessionOverlayChanges, .sessionOverlayFollow,
              .sessionHudOpen, .sessionHudUpdate, .sessionHudClose,
+             .sessionCompanionConvert, .sessionCompanionMove, .sessionOverlayExpand, .sessionOverlayFiles,
+             .sessionOverlayWrap, .sessionTerminate, .sessionDetach, .sessionReattach, .sessionPage,
              .askOpen,
              .sessionBackground, .sessionResize, .sessionText, .notify,
              .fontInc, .fontDec, .fontReset:
@@ -614,7 +616,9 @@ final class ControlServer: @unchecked Sendable {
              .restoreClear, .restoreCapture, .restoreMode, .recentClear, .version,
              .browserLinks, .recentList, .recentOpen, .sessionOverlayPageServe,
              .browserClear, .zmxScreen, .zmxList, .zmxPrune, .zmxKill, .zmxReset, .zmxTree, .zmxAttach, .zmxPresent,
-             .sessionOverlayJobRun, .msgSend, .msgRead, .msgAck, .zmxAttachGroup, .debugAppearance:
+             .sessionOverlayJobRun, .msgSend, .msgRead, .msgAck, .zmxAttachGroup, .debugAppearance,
+             .sessionRemoteNew, .sessionUndo, .workspaceDetach, .workspaceReattach, .windowRemoteOpen,
+             .windowRemoteDismiss, .zmxKillPane, .catalogSubscribe, .catalogOp, .updateCheck:
             return .controller(gController)
         }
     }

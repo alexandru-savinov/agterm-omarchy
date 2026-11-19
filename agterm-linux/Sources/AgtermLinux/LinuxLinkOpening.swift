@@ -97,7 +97,24 @@ extension GhosttySurface {
             return controller.openSessionOverlay(id.uuidString, window: nil, options: ControlSessionOverlayOpenOptions(
                 command: "", cwd: nil, wait: false, sizePercent: sizePercent, backgroundColor: nil, follow: false,
                 pane: nil, page: .url(url), navigation: true, javascript: true, persistent: true, browse: true, clicked: true)).ok
+        case .selectSession(let target):
+            // a remote pane's link names a session in its origin's namespace, which this frontend does not map
+            if case .remotePane = linkClickOrigin { return true }
+            return followSessionLink(target)
+        case .forwardRemote:
+            // the path names a file on the origin, which only a macOS presenter forwards; never open a local namesake
+            return true
         case .browser, .reveal, .ignore: return false
         }
+    }
+
+    /// followSessionLink selects the session an `agterm://session/` link names, raising its window; a zoom, the
+    /// dashboard or a pending pick in that window refuses, as on macOS, and an unknown id does nothing.
+    private func followSessionLink(_ id: UUID) -> Bool {
+        guard let owner = gWindows.values.first(where: { $0.store.session(withID: id) != nil }),
+              owner.terminalZoom.target == nil, !owner.dashboard.isOpen, owner.pickController.pending == nil else { return true }
+        gtk_window_present(WIN(owner.windowPointer))
+        owner.selectSession(id)
+        return true
     }
 }

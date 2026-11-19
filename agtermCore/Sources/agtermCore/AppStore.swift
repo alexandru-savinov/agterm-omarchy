@@ -146,8 +146,7 @@ public final class AppStore {
 
     @ObservationIgnored var pendingCloseRecords: [UUID: PendingCloseRecord] = [:]
     @ObservationIgnored var pendingCloseOrder: [UUID] = []
-    /// The armed grace finalizer per pending close, held as the `MainTimer` cancel closure it returned:
-    /// calling the stored closure disarms that record's finalization (a no-op once it has fired).
+    /// Each pending close's armed grace finalizer, as the cancel closure `MainTimer` returned for it.
     @ObservationIgnored var pendingCloseCancels: [UUID: @MainActor () -> Void] = [:]
 
     @ObservationIgnored let persistence: PersistenceStore

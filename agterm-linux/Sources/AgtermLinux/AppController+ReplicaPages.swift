@@ -58,6 +58,13 @@ extension AppController {
     }
 
     func applyReplicaPageCommand(_ command: PresentationPageCommand, forSession id: UUID) {
+        // a text page's search, follow, wrap, expand and change or file steps are answered with a result the
+        // macOS presenter computes from its page; the GTK replica does not drive them, so it says so at once
+        if command.action.answersWithResult {
+            remoteClients[id]?.answer(.pageResult(PresentationPageResult(
+                page: command.page, seq: command.seq, ok: false, error: "not supported by agterm-linux")))
+            return
+        }
         guard let slot = store.replicaPage(command.page, forSession: id) else { return }
         let registry = LinuxHtmlOverlayRegistry.shared
         switch command.action {
@@ -68,7 +75,9 @@ extension AppController {
         case .forward: _ = registry.navigate(sessionID: id, pane: slot.pane, step: .forward, store: store)
         case .browser: _ = registry.navigate(sessionID: id, pane: slot.pane, step: .browser, store: store)
         case .resize:
-            store.resizeReplicaPage(command.page, forSession: id, sizePercent: command.sizePercent, points: command.points)
+            store.resizeReplicaPage(command.page, forSession: id, sizePercent: command.sizePercent, points: command.points,
+                                    merge: command.merge == true)
+        case .follow, .search, .wrap, .expand, .changes, .files: return
         }
         if var record = replicaPages[slot.page.id] {
             record.appliedSeq = max(record.appliedSeq, command.seq)

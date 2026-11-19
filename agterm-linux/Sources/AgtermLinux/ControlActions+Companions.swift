@@ -122,4 +122,22 @@ extension AppController {
             _ = openHud(nil, window: nil, spec: HudSpec(message: message, hideAfter: 8))
         }
     }
+
+    /// Convert to Companion from the GUI: the active session moves under a fresh shell opened in its place,
+    /// through the store seam `session.companion.convert` shares; a refusal shows the way a companion one does.
+    func convertCompanionFromGUI() {
+        guard let id = store.selectedSessionID else { return }
+        switch store.convertToCompanion(id) {
+        case .success:
+            reconcile()
+        case .failure(let refusal):
+            _ = openHud(nil, window: nil, spec: HudSpec(message: refusal.message, hideAfter: 8))
+        }
+    }
+
+    /// Remote windows (Open Remote Window…, New Remote Session…, Detached Sessions…) are hosted only by the macOS
+    /// app; a chord bound to one says so rather than doing nothing.
+    func refuseRemoteWindowAction(_ title: String) {
+        _ = openHud(nil, window: nil, spec: HudSpec(message: "\(title) is not available in agterm-linux", hideAfter: 8))
+    }
 }

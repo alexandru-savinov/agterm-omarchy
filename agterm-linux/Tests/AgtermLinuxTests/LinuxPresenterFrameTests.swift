@@ -49,10 +49,15 @@ struct LinuxPresenterFrameTests {
     private var router: LinuxPresenterFrameRouter {
         let store = store
         let host = host
-        return LinuxPresenterFrameRouter(store: store, takeBackAsk: { id in
+        return LinuxPresenterFrameRouter(store: store, takeBackAsk: { id, owner in
             host.takeBacks.append(id)
-            _ = store.takeBackRemoteAsk(forSession: id)
+            _ = store.takeBackRemoteAsk(forSession: id, owner: owner)
         }, reconcile: { host.reconciles += 1 })
+    }
+
+    /// The presenter's owner number, which the hub hands out as its subscriber generation.
+    private var owner: Int {
+        get throws { try #require(hub.presenter(of: session.id)) }
     }
 
     private func presentAsk() throws -> PresentationAskRef {
@@ -79,7 +84,7 @@ struct LinuxPresenterFrameTests {
         let job = try openOverlay()
         let ref = try presentAsk()
 
-        router.receive(.askRejected(ref), forSession: session.id)
+        router.receive(.askRejected(ref), forSession: session.id, from: try owner)
 
         #expect(host.takeBacks == [session.id])
         #expect(host.reconciles == 1)
@@ -96,7 +101,7 @@ struct LinuxPresenterFrameTests {
     func staleAskRejectedIsIgnored() throws {
         let ref = try presentAsk()
 
-        router.receive(.askRejected(PresentationAskRef(id: ref.id, owner: ref.owner + 1)), forSession: session.id)
+        router.receive(.askRejected(PresentationAskRef(id: ref.id, owner: ref.owner + 1)), forSession: session.id, from: try owner)
 
         #expect(host.takeBacks.isEmpty)
         #expect(host.reconciles == 0)
@@ -104,11 +109,11 @@ struct LinuxPresenterFrameTests {
     }
 
     @Test("losing the presenter takes back the ask and cancels the unclaimed job")
-    func presenterLostEndsBoth() throws {
+    func ownerLostEndsBoth() throws {
         let job = try openOverlay()
         _ = try presentAsk()
 
-        router.presenterLost(forSession: session.id)
+        router.ownerLost(forSession: session.id, owner: try owner)
 
         #expect(host.takeBacks == [session.id])
         #expect(host.reconciles == 1)

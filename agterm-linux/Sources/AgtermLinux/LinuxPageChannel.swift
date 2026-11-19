@@ -202,7 +202,8 @@ private final class LinuxPageSpooler: @unchecked Sendable {
             if resource || bridge { deliver(.failure(id, error)) }
         case .reply(let id, let response):
             if expectedBridges.withLock({ $0.remove(id) != nil }) { deliver(.bridge(id, response)) }
-        case .resource, .bridge, .cancel: return false
+        // log tails are never asked for from here, so their answers are a protocol error too
+        case .resource, .bridge, .cancel, .logTail, .logHead, .logUnchanged: return false
         }
         return true
     }
