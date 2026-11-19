@@ -112,6 +112,16 @@ such as window placement and blur.
 
 ## Rendering
 
+On Mesa 26.3.1 with affected GTK builds, the packaged launcher retries GTK's failed
+EGL window-config query for desktop OpenGL. To check whether the system GTK or Mesa
+fix works, start a fresh app process with the compatibility retry disabled:
+
+```bash
+AGTERM_DISABLE_EGL_COMPAT=1 "$HOME/.local/bin/agterm-linux"
+```
+
+Track the removal of this retry in [#485](https://github.com/alexandru-savinov/agterm-omarchy/issues/485).
+
 If a VM reports an OpenGL context error, including `No EGL configuration available`, you can try
 Mesa software rendering for agterm.
 Save work and quit agterm completely through its normal quit flow; quitting can end ordinary shells

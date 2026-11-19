@@ -403,6 +403,7 @@ class DryRunTests(unittest.TestCase):
             self.assertIn(tag, notes)
             self.assertIn(github.run["html_url"], notes)
             self.assertIn(f"/commit/{SHA}", notes)
+            self.assertIn("AGTERM_DISABLE_EGL_COMPAT=1", notes)
             evidence = json.loads((output / "promotion.json").read_text())
             self.assertEqual(evidence["source_commit"], SHA)
             self.assertEqual([item["filename"] for item in evidence["artifacts"]],
@@ -610,6 +611,7 @@ class ReleaseDryRunTests(unittest.TestCase):
             notes = (output / "release-notes.md").read_text()
             self.assertIn("--source-ref refs/heads/main", notes)
             self.assertIn("agterm-omarchy-0.41.1.1-aarch64.tar.gz", notes)
+            self.assertIn("AGTERM_DISABLE_EGL_COMPAT=1", notes)
         paths = [call[2] for call in github.calls]
         for expected in ("git/ref/tags/omarchy-v0.41.1.1", "releases/tags/omarchy-v0.41.1.1", "releases?"):
             self.assertTrue(any(expected in path for path in paths), f"{expected} was not checked")

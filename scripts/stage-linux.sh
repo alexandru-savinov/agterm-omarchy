@@ -67,8 +67,12 @@ install -m755 "$APP/vendor/zmx/zmx" "$DEST/bin/zmx"
 python3 "$ROOT/scripts/linux-runpath.py" set '$ORIGIN/../lib' "$DEST/bin/agterm-linux.bin" "$DEST/bin/agtermctl.bin"
 cp -R "$APP_RESOURCES" "$DEST/bin/"
 # Build the app-only EGL compatibility library on the payload's target architecture.
-"${CC:-cc}" -std=c11 -O2 -fPIC -fvisibility=hidden -Wall -Wextra -Werror -shared \
-  -Wl,-z,defs -o "$DEST/lib/libagterm-egl-compat.so" "$ROOT/linux/egl-compat.c" -lEGL -ldl
+# Compiler and linker flags are whitespace-delimited, as in standard C build tools.
+IFS=$' \t\n' read -r -d '' -a cflags <<< "${CFLAGS:-}" || true
+IFS=$' \t\n' read -r -d '' -a ldflags <<< "${LDFLAGS:-}" || true
+"${CC:-cc}" -std=c11 -O2 "${cflags[@]}" -fPIC -fvisibility=hidden -Wall -Wextra -Werror \
+  -fstack-protector-strong -shared "${ldflags[@]}" -Wl,-z,defs,-z,relro,-z,now \
+  -o "$DEST/lib/libagterm-egl-compat.so" "$ROOT/linux/egl-compat.c"
 
 # Bundle the non-system libraries that make the Swift app portable. GTK, libadwaita, and glibc remain
 # host dependencies in tar/DEB/RPM.
@@ -142,6 +146,7 @@ if [[ -f "$HERE/share/agterm/RENDERER" ]] && [[ "$(cat "$HERE/share/agterm/RENDE
   agterm_set LIBGL_ALWAYS_SOFTWARE 1
 fi
 # $ORIGIN is expanded by the loader after it parses LD_PRELOAD, including in prefixes with spaces.
+# LD_PRELOAD must remain the last assignment before exec.
 # shellcheck disable=SC2016
 if [[ "${AGTERM_DISABLE_EGL_COMPAT:-}" != 1 && -r "$HERE/lib/libagterm-egl-compat.so" ]]; then
   agterm_set LD_PRELOAD '$ORIGIN/../lib/libagterm-egl-compat.so'"${LD_PRELOAD:+:$LD_PRELOAD}"

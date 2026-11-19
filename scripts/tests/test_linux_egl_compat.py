@@ -50,6 +50,39 @@ EPOXY = r"""
 PFNEGLCHOOSECONFIGPROC epoxy_eglChooseConfig = eglChooseConfig;
 """
 
+# A fallback dispatch for the no-libEGL process. It can succeed without loading EGL.
+EPOXY_WITHOUT_EGL = r"""
+#include <EGL/egl.h>
+
+static EGLBoolean fallback(EGLDisplay display, const EGLint *attrs,
+                           EGLConfig *configs, EGLint size, EGLint *count)
+{
+    (void)display; (void)attrs; (void)configs; (void)size;
+    *count = 7;
+    return EGL_TRUE;
+}
+
+PFNEGLCHOOSECONFIGPROC epoxy_eglChooseConfig = fallback;
+"""
+
+NO_EGL_PROBE = r"""
+#define _GNU_SOURCE
+#include <EGL/egl.h>
+#include <assert.h>
+#include <dlfcn.h>
+#include <stddef.h>
+
+extern PFNEGLCHOOSECONFIGPROC epoxy_eglChooseConfig;
+
+int main(void)
+{
+    EGLint count = 0;
+    assert(!dlopen("libEGL.so.1", RTLD_NOLOAD | RTLD_LAZY));
+    assert(epoxy_eglChooseConfig(EGL_NO_DISPLAY, NULL, NULL, 0, &count) && count == 7);
+    assert(!dlopen("libEGL.so.1", RTLD_NOLOAD | RTLD_LAZY));
+}
+"""
+
 GTK = r"""
 #include <EGL/egl.h>
 
@@ -126,19 +159,26 @@ class EGLCompatTests(unittest.TestCase):
             launcher.write_text((ROOT / 'scripts/stage-linux.sh').read_text().split("<<'LAUNCH'\n")[1]
                                 .split('\nLAUNCH\n')[0] + '\n')
             launcher.chmod(0o755)
-            for name, contents in [('driver', DRIVER), ('epoxy', EPOXY), ('gtk', GTK), ('probe', PROBE)]:
+            for name, contents in [('driver', DRIVER), ('epoxy', EPOXY), ('gtk', GTK), ('probe', PROBE),
+                                   ('epoxy-without-egl', EPOXY_WITHOUT_EGL), ('no-egl-probe', NO_EGL_PROBE)]:
                 (stage / f'{name}.c').write_text(contents)
 
             def compile_c(output, source, *args):
+                # The fake epoxy pointer has no self-rewriting resolver. Disabling
+                # sibling calls keeps the synthetic GTK caller on the stack. Both
+                # real behaviors are exercised by the ordinary packaged edge gate.
                 subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-fPIC',
                                 '-fno-optimize-sibling-calls', '-o', str(output), str(source),
                                 f'-L{lib}', f'-Wl,-rpath-link,{lib}', *args], check=True)
 
-            compile_c(lib / 'libEGL.so', stage / 'driver.c', '-shared')
+            compile_c(lib / 'libEGL.so.1', stage / 'driver.c', '-shared', '-Wl,-soname,libEGL.so.1')
+            (lib / 'libEGL.so').symlink_to('libEGL.so.1')
             compile_c(lib / 'libepoxy.so', stage / 'epoxy.c', '-shared', '-lEGL')
             compile_c(lib / 'libgtk-4.so', stage / 'gtk.c', '-shared', '-lepoxy')
             compile_c(lib / 'libagterm-egl-compat.so', ROOT / 'linux/egl-compat.c',
-                      '-shared', '-fvisibility=hidden', '-Wl,-z,defs', '-lEGL', '-ldl')
+                      '-shared', '-fvisibility=hidden', '-Wl,-z,defs')
+            dynamic = subprocess.check_output(['readelf', '-d', str(lib / 'libagterm-egl-compat.so')], text=True)
+            self.assertNotIn('libEGL.so', dynamic)
             compile_c(bin_dir / 'agterm-linux.bin', stage / 'probe.c',
                       '-lgtk-4', '-lEGL', '-lepoxy')
             env = dict(os.environ, AGTERM_DISABLE_EGL_COMPAT='0')
@@ -147,6 +187,12 @@ class EGLCompatTests(unittest.TestCase):
             self.assertEqual(result.stderr.count('compatibility retry matched 1 configs'), 1)
             result = subprocess.run([launcher], env=dict(env, AGTERM_DISABLE_EGL_COMPAT='1'),
                                     check=True, capture_output=True, text=True)
+            self.assertEqual(result.stderr, '')
+
+            # Keep the driver on disk. The shim must never load it just to forward a request.
+            compile_c(lib / 'libepoxy.so', stage / 'epoxy-without-egl.c', '-shared')
+            compile_c(bin_dir / 'agterm-linux.bin', stage / 'no-egl-probe.c', '-lepoxy')
+            result = subprocess.run([launcher], env=env, check=True, capture_output=True, text=True)
             self.assertEqual(result.stderr, '')
 
 

@@ -405,6 +405,13 @@ def main():
     print(f"Validated {tag}")
 
 
+EGL_COMPAT_NOTES = (
+    "For archives that include the Mesa/GTK EGL compatibility retry, set "
+    "`AGTERM_DISABLE_EGL_COMPAT=1` before starting a fresh agterm-linux process to test a system fix. "
+    "Track the retry in [#485](https://github.com/alexandru-savinov/agterm-omarchy/issues/485).\n\n"
+)
+
+
 def development_notes(tag, sha, run, _version):
     return (
         f"Experimental Omarchy development snapshot `{tag}`; not an upstream stable release.\n\n"
@@ -416,6 +423,7 @@ def development_notes(tag, sha, run, _version):
         "Archives are unchanged CI artifacts, retain embedded version `dev`, and unpack into `agterm-stage/`. "
         "GTK4, libadwaita, WebKitGTK 6 and platform system libraries are required. "
         "Launch `agterm-stage/bin/agterm-linux`. No installer or desktop changes run automatically.\n\n"
+        f"{EGL_COMPAT_NOTES}"
         "`SHA256SUMS` covers both archives and `promotion.json`. GitHub build provenance describes "
         "the promotion workflow, not a recompilation; the additional signed promotion predicate records "
         "the validated original build run, source SHA and immutable artifact identities.\n\n"
@@ -437,6 +445,7 @@ def release_notes(tag, sha, run, version):
         f"`share/agterm/VERSION` set to `{version}` and numeric root ownership; `promotion.json` records "
         "both digests. Archives unpack into `agterm-stage/`; licenses are under `share/licenses/agterm/`. "
         "GTK4, libadwaita, WebKitGTK 6 and platform system libraries are required.\n\n"
+        f"{EGL_COMPAT_NOTES}"
         "`SHA256SUMS` covers both archives and `promotion.json`. GitHub build provenance describes "
         "the promotion workflow; the additional signed promotion predicate records the validated build run, "
         "source SHA and artifact identities.\n\n"
