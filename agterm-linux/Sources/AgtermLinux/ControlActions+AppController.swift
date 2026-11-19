@@ -662,7 +662,7 @@ extension AppController: ControlActions {
             settings.followSystemAppearance = nil
             if lightSlot != nil { settings.theme = lightSlot }
         } else if let dark {
-            settings.theme = lightSlot ?? settings.theme ?? "Builtin Light"
+            settings.theme = lightSlot ?? settings.theme ?? AppController.defaultLightTheme
             settings.darkTheme = dark
             settings.followSystemAppearance = true
         } else {
