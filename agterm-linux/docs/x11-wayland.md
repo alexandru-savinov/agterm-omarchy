@@ -70,4 +70,6 @@ Set `AGTERM_DISABLE_EGL_COMPAT=1` on launch to test a system fix.
 
 Removal note (2026-11-19). Remove the compatibility library and launcher integration
 once the supported Omarchy channels pass the native Wayland gates with the retry
-disabled. Track the results in [#485](https://github.com/alexandru-savinov/agterm-omarchy/issues/485).
+disabled. Track the gate results in [#485](https://github.com/alexandru-savinov/agterm-omarchy/issues/485)
+and the upstream fixes in [GNOME/gtk#8566](https://gitlab.gnome.org/GNOME/gtk/-/work_items/8566)
+and [Mesa #16934](https://gitlab.freedesktop.org/mesa/mesa/-/issues/16934).
