@@ -20,8 +20,19 @@ jobs:
       source: ci-run
       arch: x86_64
 
+  # Edge serves Mesa 26.3.1, so this call fails: it shows what a caller reads from a failed call.
+  gates-edge:
+    uses: ./.github/workflows/omarchy-x86-native.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      source: ci-run
+      arch: x86_64
+      channel: edge
+
   report:
-    needs: gates
+    needs: [gates, gates-edge]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -31,6 +42,11 @@ jobs:
           PASSED: ${{ needs.gates.outputs.passed }}
           SOURCE_COMMIT: ${{ needs.gates.outputs.source_commit }}
           RESULTS: ${{ needs.gates.outputs.results }}
+          EDGE_RESULT: ${{ needs.gates-edge.result }}
+          EDGE_PASSED: ${{ needs.gates-edge.outputs.passed }}
+          EDGE_RESULTS: ${{ needs.gates-edge.outputs.results }}
         run: |
           printf 'result=%s passed=%s source_commit=%s\n' "$RESULT" "$PASSED" "$SOURCE_COMMIT"
+          printf 'edge result=%s passed=%s\n' "$EDGE_RESULT" "$EDGE_PASSED"
+          jq -c '.x86_64 | {mesa, egl_gtk_configs, ordinary}' <<< "$EDGE_RESULTS" || true
           jq '.x86_64 | {archive, payload_commit, egl_gtk_configs, ordinary, live, probe, uninstall}' <<< "$RESULTS"
