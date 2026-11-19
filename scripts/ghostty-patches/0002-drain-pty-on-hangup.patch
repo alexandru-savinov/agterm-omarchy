@@ -26,7 +26,7 @@ index df57e0f..354e8e3 100644
              internal_os.macos.pthread_setname_np(&"io-gather".*);
              setQosClass();
 @@ -1712,7 +1717,7 @@ pub const ReadThread = struct {
- 
+
              // Wait for data. The idle fd is sliced off: the parse
              // stage only writes to it while we're bridging.
 -            _ = posix.poll(pollfds[0..2], -1) catch |err| {
@@ -36,7 +36,7 @@ index df57e0f..354e8e3 100644
              };
 @@ -1724,12 +1729,71 @@ pub const ReadThread = struct {
              }
- 
+
              // If our pty fd is closed, then we're also done with our
 -            // read thread.
 -            if (pollfds[0].revents & posix.POLL.HUP != 0) {
@@ -108,7 +108,7 @@ index df57e0f..354e8e3 100644
          }
 +        return drained;
      }
- 
+
      /// Clears the bridging flag armed before a bridge poll, closing
 @@ -2357,3 +2421,189 @@ test "init frees the env when it fails" {
          try testing.expectEqual(failing.allocated_bytes, failing.freed_bytes);

@@ -4,7 +4,7 @@ index 0483d82..6759819 100644
 +++ b/src/apprt/none.zig
 @@ -6,6 +6,8 @@ const apprt = @import("../apprt.zig");
  pub const resourcesDir = internal_os.resourcesDir;
- 
+
  pub const App = struct {
 +    pub fn wakeup(_: *const App) void {}
 +
@@ -18,7 +18,7 @@ index 354e8e3..c25f6d8 100644
 @@ -44,6 +44,10 @@ const FlatpakHostCommand = if (!build_config.flatpak) struct {
  /// The subprocess state for our exec backend.
  subprocess: Subprocess,
- 
+
 +/// Set by the read thread once it has parsed everything it will ever
 +/// read from the pty. The child_exited notice waits on it; see ExitHold.
 +read_done: std.atomic.Value(bool) = .init(false),
@@ -29,7 +29,7 @@ index 354e8e3..c25f6d8 100644
 @@ -136,11 +140,15 @@ pub fn threadEnter(
      var termios_timer = try xev.Timer.init();
      errdefer termios_timer.deinit();
- 
+
 +    // The timer that holds the child_exited notice; see ExitHold.
 +    var exit_timer = try xev.Timer.init();
 +    errdefer exit_timer.deinit();
@@ -42,19 +42,19 @@ index 354e8e3..c25f6d8 100644
 +        .{ pty_fds.read, io, pipe[0], &self.read_done },
      );
      read_thread.setName(global.io(), "io-reader") catch {};
- 
+
 @@ -153,6 +161,7 @@ pub fn threadEnter(
          .read_thread_pipe = pipe[1],
          .read_thread_fd = pty_fds.read,
          .termios_timer = termios_timer,
 +        .exit_hold = .{ .read_done = &self.read_done, .timer = exit_timer },
      } };
- 
+
      // Start our process watcher. If we have an xev.Process use it.
 @@ -283,16 +292,99 @@ fn processExitCommon(td: *termio.Termio.ThreadData, exit_code: u32) void {
      );
      log.debug("child process exited status={} runtime={}ms", .{ exit_code, runtime_ms });
- 
+
 -    // We always notify the surface immediately that the child has
 -    // exited and some metadata about the exit.
 +    // We notify the surface that the child has exited and some metadata
@@ -80,7 +80,7 @@ index 354e8e3..c25f6d8 100644
 +        .child_exited = td.backend.exec.exit_info,
      }, .{ .forever = {} });
  }
- 
+
 +/// Holds the child_exited notice until the read thread has parsed the
 +/// child's last output (agterm-omarchy #447). The process watcher can
 +/// report the exit while what the child wrote just before it is still
@@ -160,26 +160,26 @@ index 354e8e3..c25f6d8 100644
 @@ -546,6 +638,10 @@ pub const ThreadData = struct {
      /// to prevent unnecessary locking of expensive mutexes.
      termios_mode: ptypkg.Mode = .{},
- 
+
 +    /// The child_exited notice, held until the read thread is done.
 +    exit_info: apprt.surface.Message.ChildExited = undefined,
 +    exit_hold: ExitHold,
 +
      pub fn deinit(self: *ThreadData, alloc: Allocator) void {
          _ = posix.system.close(self.read_thread_pipe);
- 
+
 @@ -562,6 +658,7 @@ pub const ThreadData = struct {
- 
+
          // Stop our termios timer
          self.termios_timer.deinit();
 +        self.exit_hold.timer.deinit();
      }
  };
- 
+
 @@ -1409,9 +1506,17 @@ pub const ReadThread = struct {
          bufs: [buffer_count][buffer_capacity]u8 = undefined,
      };
- 
+
 -    fn threadMainPosix(fd: posix.fd_t, io: *termio.Termio, quit: posix.fd_t) void {
 +    fn threadMainPosix(
 +        fd: posix.fd_t,
@@ -192,13 +192,13 @@ index 354e8e3..c25f6d8 100644
 +        // An early return never reaches the parse stage, which sets this
 +        // when it is done; set it here too so the exit notice goes at once.
 +        defer read_done.store(true, .release);
- 
+
          // Right now, on Darwin, `std.Thread.setName` can only name the current
          // thread, and we have no way to get the current thread from within it,
 @@ -1475,15 +1580,30 @@ pub const ReadThread = struct {
              gather_thread.setName(global.io(), "io-gather") catch {};
          }
- 
+
 +        parseMainPosix(io, &pipeline, read_done);
 +    }
 +
@@ -231,7 +231,7 @@ index 354e8e3..c25f6d8 100644
 @@ -1839,9 +1959,15 @@ pub const ReadThread = struct {
          return true;
      }
- 
+
 -    fn threadMainWindows(fd: posix.fd_t, io: *termio.Termio, quit: posix.fd_t) void {
 +    fn threadMainWindows(
 +        fd: posix.fd_t,
@@ -242,7 +242,7 @@ index 354e8e3..c25f6d8 100644
          // Always close our end of the pipe when we exit.
          defer _ = posix.system.close(quit);
 +        defer read_done.store(true, .release);
- 
+
          // Setup our crash metadata
          crash.sentry.thread_state = .{
 @@ -2607,3 +2733,189 @@ test "a hangup drain stops at its cap when the fd never runs dry" {
