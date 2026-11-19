@@ -436,13 +436,65 @@ class DryRunTests(unittest.TestCase):
 
     def test_discover_picks_the_newest_trusted_run_with_both_artifacts(self):
         github = FakeGitHub()
-        expired = [dict(github.artifacts[0], expired=True, workflow_run={"id": 8, "head_sha": SHA}),
-                   dict(github.artifacts[1], workflow_run={"id": 8, "head_sha": SHA})]
-        github.add_run(8, "2026-11-02T00:00:00Z", artifacts=expired)
+        github.add_run(8, "2026-11-02T00:00:00Z")
         github.add_run(9, "2026-11-03T00:00:00Z", event="pull_request")
-        self.assertEqual(self.discover(github)["id"], 7)
+        self.assertEqual(self.discover(github)["id"], 8)
         github.listed[:] = [github.runs[9][0]]
         self.assertIsNone(self.discover(github))
+
+    def test_discover_skips_expired_artifacts_but_accepts_the_same_fresh_run(self):
+        for index, arch in enumerate(promotion.ARCHITECTURES):
+            with self.subTest(arch=arch):
+                github = FakeGitHub()
+                # add_run gives both artifacts this attempt's timestamp, so expiry is
+                # the only failing gate (not the separate stale-attempt check).
+                github.add_run(8, "2026-11-02T00:00:00Z")
+                artifact = github.runs[8][2][index]
+                artifact["expired"] = True
+                self.assertEqual(self.discover(github)["id"], 7)
+                with tempfile.TemporaryDirectory() as temp:
+                    output = Path(temp) / "promotion"
+                    with self.assertRaisesRegex(ValueError, "Expired artifact"):
+                        self.prepare(FakeGitHubFor(github, 8), output)
+                    self.assertFalse(output.exists())
+                artifact["expired"] = False
+                self.assertEqual(self.discover(github)["id"], 8)
+                with tempfile.TemporaryDirectory() as temp:
+                    self.prepare(FakeGitHubFor(github, 8), Path(temp) / "promotion")
+
+    def test_prepare_rejects_a_different_run_id_before_following_its_metadata(self):
+        github = FakeGitHub()
+        github.run["id"] = 8
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "promotion"
+            with self.assertRaisesRegex(ValueError, "Requested run ID mismatch"):
+                self.prepare(github, output)
+            self.assertFalse(output.exists())
+        self.assertEqual(github.calls, [["gh", "api", f"repos/{promotion.REPOSITORY}/actions/runs/7"]])
+
+    def test_prepare_rechecks_requested_run_id_after_downloading(self):
+        github = FakeGitHub()
+        answer = github.answer
+        calls = 0
+
+        def changed_run(path):
+            nonlocal calls
+            result = answer(path)
+            if path == f"repos/{promotion.REPOSITORY}/actions/runs/7":
+                calls += 1
+                if calls == 2:
+                    return dict(result, id=8)
+            return result
+
+        with patch.object(github, "answer", side_effect=changed_run), tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "promotion"
+            outputs = Path(temp) / "github-output"
+            with self.assertRaisesRegex(ValueError, "Requested run ID mismatch"):
+                self.prepare(github, output, {"GITHUB_OUTPUT": str(outputs)})
+            self.assertEqual(calls, 2)
+            self.assertFalse((output / "promotion.json").exists())
+            self.assertFalse((output / "SHA256SUMS").exists())
+            self.assertFalse(outputs.exists())
 
     def test_discover_skips_a_run_whose_tag_or_release_exists(self):
         for kind in ("git/ref/tags", "releases/tags"):
