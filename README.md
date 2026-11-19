@@ -75,6 +75,8 @@ session context, split orientation and pane swapping, three restore modes, zmx s
 attach, and Ctrl/Shift multi-session selection with batch move, close, flag, status, and drag/drop actions.
 It also includes native session and window asks, hooks and event subscriptions, pane-aware HUDs with
 Markdown, per-pane backgrounds, cross-window attention, and managed zmx pane leadership.
+The shared core and `agtermctl` track upstream v0.43.0; the GTK frontend adds Convert to Companion and session
+links from it, while upstream's remote windows (agterm-server) stay macOS-only and their commands answer unsupported.
 HTML files and URLs can occupy full, floating, or split-pane overlays through `agtermctl`.
 Linux renders them with WebKitGTK 6.0, including source identity, navigation, theme variables,
 load status in `tree`, and a file-manager action corresponding to macOS Show in Finder.
