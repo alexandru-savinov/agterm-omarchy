@@ -23,6 +23,8 @@ REQUIRED_JOBS = ("Installer and scripts", "SwiftLint (Linux)", "CI")
 REQUIRED_ARCH_JOBS = ("Core tests ({arch})", "GTK build and tests ({arch})")
 REQUIRED_GTK_STEPS = ("swift test (agterm-linux)", "swift build Release/WMO (agterm-linux)",
                       "Validate staged Linux payload", "GTK AT-SPI smoke tests", "Upload tested runtime payload")
+# A versioned release also needs the native tar/readelf/ldd check its notes describe.
+RELEASE_GTK_STEPS = ("Rehearse versioned release archive", "Upload release rehearsal evidence")
 
 
 def require(condition, message):
@@ -114,7 +116,7 @@ def validate_run(run, workflow, sha, branch_sha):
     require(run["head_sha"] == sha == branch_sha, "Source is not the requested current branch head")
 
 
-def validate_jobs(jobs):
+def validate_jobs(jobs, release=False):
     required = set(REQUIRED_JOBS)
     for arch in ARCHITECTURES:
         required.update(name.format(arch=arch) for name in REQUIRED_ARCH_JOBS)
@@ -122,7 +124,7 @@ def validate_jobs(jobs):
         matches = [job for job in jobs if job["name"] == name]
         require(len(matches) == 1 and matches[0]["conclusion"] == "success", f"Missing successful {name}")
         if name.startswith("GTK build"):
-            for step in REQUIRED_GTK_STEPS:
+            for step in REQUIRED_GTK_STEPS + (RELEASE_GTK_STEPS if release else ()):
                 steps = [item for item in matches[0]["steps"] if item["name"] == step]
                 require(len(steps) == 1 and steps[0]["conclusion"] == "success", f"Missing successful {step}")
 
@@ -221,47 +223,173 @@ def download_artifact(artifact, arch, sha):
     return filename, payload
 
 
+def release_module():
+    """omarchy-release.py, loaded on demand: it imports this module itself."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("omarchy_release", Path(__file__).resolve().parent / "omarchy-release.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def on_main(sha):
+    """True when SHA is the current main head or one of its ancestors."""
+    head = api("git/ref/heads/main")["object"]["sha"]
+    return sha == head or api(f"compare/{sha}...{head}")["status"] == "ahead"
+
+
+def source_base(release, sha):
+    """The upstream base the source commit itself declares, not this checkout's."""
+    import base64
+    content = api(f"contents/{WORKFLOW}?ref={sha}")
+    require(content.get("encoding") == "base64", "Unreadable source ci.yml")
+    return release.upstream_base(base64.b64decode(content["content"]).decode())
+
+
+def released_versions(release):
+    """Versions of every published non-prerelease release whose whole tag matches the omarchy-pkgs watch."""
+    versions = []
+    for page in api("releases?per_page=100", pages=True):
+        for item in page:
+            match = release.WATCH_TAG.fullmatch(item["tag_name"])
+            if match and not item["draft"] and not item["prerelease"]:
+                versions.append(match["version"])
+    return versions
+
+
+def version_key(version):
+    return tuple(int(part) for part in version.split("."))
+
+
+def is_latest(version, existing):
+    """GitHub's latest marker follows the highest version, so a backport never takes it."""
+    return all(version_key(version) > version_key(other) for other in existing)
+
+
+def next_version(release):
+    base = release.upstream_base()
+    serials = [int(version.rsplit(".", 1)[1]) for version in released_versions(release)
+               if version.startswith(base + ".") and version.count(".") == base.count(".") + 1]
+    return f"{base}.{max(serials, default=0) + 1}"
+
+
+def write_outputs(values):
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+            output.write("".join(f"{key}={value}\n" for key, value in values.items()))
+
+
+def discover_commit(sha):
+    """Newest successful main CI run at SHA, which must be on main, for a versioned release of that commit."""
+    require(re.fullmatch(r"[0-9a-f]{40}", sha) and on_main(sha), f"{sha} is not a commit on main")
+    workflow = api("actions/workflows/ci.yml")
+    pages = api(f"actions/workflows/ci.yml/runs?branch=main&head_sha={sha}&status=success&per_page=100", pages=True)
+    candidates = []
+    for run in (run for page in pages for run in page["workflow_runs"]):
+        if run["head_branch"] != "main":
+            continue
+        try:
+            validate_run(run, workflow, sha, sha)
+            validate_jobs(run_jobs(run), release=True)
+            select_artifacts(run_artifacts(run), run, sha)
+        except ValueError:
+            continue
+        candidates.append(run)
+    return max(candidates, key=lambda run: run["created_at"], default=None)
+
+
+def discover_releasable(limit=20):
+    """Newest successful main CI run, at any main commit, that release mode accepts.
+
+    A PR dry run uses it so an unfinished CI run at the main head falls back to the last releasable commit
+    instead of checking nothing."""
+    workflow = api("actions/workflows/ci.yml")
+    runs = api(f"actions/workflows/ci.yml/runs?branch=main&status=success&per_page={limit}")["workflow_runs"]
+    for run in sorted(runs, key=lambda run: run["created_at"], reverse=True):
+        sha = run["head_sha"]
+        if run["head_branch"] != "main" or not re.fullmatch(r"[0-9a-f]{40}", sha):
+            continue
+        try:
+            validate_run(run, workflow, sha, sha)
+            validate_jobs(run_jobs(run), release=True)
+            select_artifacts(run_artifacts(run), run, sha)
+        except ValueError:
+            continue
+        if on_main(sha):
+            return run
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--discover", action="store_true",
                         help="print the newest promotable source run and SHA instead of validating one")
+    parser.add_argument("--commit", help="with --discover: the newest promotable run at this main commit instead")
+    parser.add_argument("--releasable", action="store_true",
+                        help="with --discover: the newest main run release mode accepts, at any main commit")
+    parser.add_argument("--next-version", action="store_true", help="print the next unpublished release version")
+    parser.add_argument("--release", metavar="VERSION",
+                        help="build versioned release assets for tag omarchy-vVERSION instead of a dev prerelease")
     parser.add_argument("run_id", type=int, nargs="?")
     parser.add_argument("sha", nargs="?")
     parser.add_argument("output", type=Path, nargs="?")
     args = parser.parse_args()
+    if args.next_version:
+        version = next_version(release_module())
+        write_outputs({"version": version})
+        print(version)
+        return
     if args.discover:
         require(args.run_id is None, "--discover takes no arguments")
-        run = discover()
-        found = f"run={run['id']}\nsha={run['head_sha']}\n" if run else ""
-        if os.environ.get("GITHUB_OUTPUT"):
-            with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-                output.write(found or "run=\n")
+        require(not (args.commit and args.releasable), "--commit and --releasable are exclusive")
+        run = discover_commit(args.commit) if args.commit else discover_releasable() if args.releasable else discover()
+        write_outputs({"run": run["id"], "sha": run["head_sha"]} if run else {"run": ""})
         print(f"{run['id']} {run['head_sha']}" if run else "No promotable source run")
         return
     require(None not in (args.run_id, args.sha, args.output), "Expected RUN_ID SHA OUTPUT")
     require(args.run_id > 0, "Invalid run ID")
-    tag = promotion_tag(args.sha, args.run_id)
+    release = release_module() if args.release else None
+    if release:
+        release.check_version(args.release)
+    else:
+        tag = promotion_tag(args.sha, args.run_id)
     run = api(f"actions/runs/{args.run_id}")
     require(run["id"] == args.run_id, "Requested run ID mismatch")
-    require(run["head_branch"] in BRANCHES, "Untrusted source branch")
-    branch = api(f"git/ref/heads/{run['head_branch']}")
-    validate_run(run, api("actions/workflows/ci.yml"), args.sha, branch["object"]["sha"])
-    validate_jobs(run_jobs(run))
+    if release:
+        # A release names its commit explicitly, so main may have moved on; it must still contain it.
+        require(run["head_branch"] == "main", "Releases are cut only from main CI runs")
+        require(on_main(args.sha), f"{args.sha} is not a commit on main")
+        branch_sha = args.sha
+    else:
+        require(run["head_branch"] in BRANCHES, "Untrusted source branch")
+        branch_sha = api(f"git/ref/heads/{run['head_branch']}")["object"]["sha"]
+    validate_run(run, api("actions/workflows/ci.yml"), args.sha, branch_sha)
+    validate_jobs(run_jobs(run), release=bool(release))
+    if release:
+        tag = release.release_tag(args.release, source_base(release, args.sha))
     artifacts = select_artifacts(run_artifacts(run), run, args.sha)
     # A dry run must fail where publication would: tag creation refuses an existing ref.
     require(not published(tag), f"Tag or release {tag} already exists")
+    latest = is_latest(args.release, released_versions(release)) if release else False
     args.output.mkdir(parents=True, exist_ok=False)
     evidence = {"repository": REPOSITORY, "source_commit": args.sha, "source_branch": run["head_branch"],
                 "source_run": run["html_url"], "source_run_attempt": run["run_attempt"],
                 "source_workflow": WORKFLOW, "artifacts": []}
+    if release:
+        evidence.update(tag=tag, version=args.release, latest=latest, releases=[])
     checksums = []
     for arch, artifact in artifacts.items():
         name, data = download_artifact(artifact, arch, args.sha)
-        (args.output / name).write_bytes(data)
         digest = hashlib.sha256(data).hexdigest()
-        checksums.append(f"{digest}  {name}\n")
         evidence["artifacts"].append({"id": artifact["id"], "name": artifact["name"],
                                       "transport_digest": artifact["digest"], "filename": name, "sha256": digest})
+        if release:
+            asset = release.release(data, arch, args.sha, args.release, args.output)
+            evidence["releases"].append(asset)
+            name, digest = asset["asset"], asset["release_archive_sha256"]
+        else:
+            (args.output / name).write_bytes(data)
+        checksums.append(f"{digest}  {name}\n")
     # Recheck the mutable run before allowing a privileged publishing job to consume these results.
     current = api(f"actions/runs/{args.run_id}")
     require(current["id"] == args.run_id, "Requested run ID mismatch")
@@ -270,9 +398,17 @@ def main():
     (args.output / "promotion.json").write_text(json.dumps(evidence, indent=2) + "\n")
     checksums.append(f"{hashlib.sha256((args.output / 'promotion.json').read_bytes()).hexdigest()}  promotion.json\n")
     (args.output / "SHA256SUMS").write_text("".join(checksums))
-    (args.output / "release-notes.md").write_text(
+    notes = release_notes if release else development_notes
+    (args.output / "release-notes.md").write_text(notes(tag, args.sha, run, args.release))
+    write_outputs({"tag": tag, "sha": args.sha} | ({"version": args.release, "latest": str(latest).lower()}
+                                                   if release else {}))
+    print(f"Validated {tag}")
+
+
+def development_notes(tag, sha, run, _version):
+    return (
         f"Experimental Omarchy development snapshot `{tag}`; not an upstream stable release.\n\n"
-        f"Source: https://github.com/{REPOSITORY}/commit/{args.sha}\n\n"
+        f"Source: https://github.com/{REPOSITORY}/commit/{sha}\n\n"
         f"Successful build/test run: {run['html_url']} (attempt {run['run_attempt']}).\n\n"
         "Both native x86_64 and ARM64 hosted CI jobs passed core tests, Linux tests, Release builds, "
         "staged payload validation and GTK AT-SPI smoke gates. These hosted tests use Ubuntu/Xvfb; "
@@ -286,10 +422,26 @@ def main():
         f"Verify: `gh attestation verify agterm-omarchy-aarch64.tar.gz --repo {REPOSITORY} "
         f"--signer-workflow {REPOSITORY}/.github/workflows/prerelease-omarchy.yml "
         "--source-ref refs/heads/main`.\n")
-    if os.environ.get("GITHUB_OUTPUT"):
-        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-            output.write(f"tag={tag}\nsha={args.sha}\n")
-    print(f"Validated {tag}")
+
+
+def release_notes(tag, sha, run, version):
+    return (
+        f"agterm for Omarchy {version}, built from upstream agterm {version.rsplit('.', 1)[0]} plus the Linux port.\n\n"
+        f"Source: https://github.com/{REPOSITORY}/commit/{sha}\n\n"
+        f"Successful build/test run: {run['html_url']} (attempt {run['run_attempt']}).\n\n"
+        "Both native x86_64 and ARM64 hosted CI jobs passed core tests, Linux tests, Release builds, "
+        "staged payload validation, GTK AT-SPI smoke gates and a native check of the release archive "
+        "(root ownership, `$ORIGIN/../lib` RUNPATH, libraries resolved from the archive). "
+        "Hosted tests use Ubuntu/Xvfb; native Omarchy/Wayland acceptance is recorded separately.\n\n"
+        f"Each `agterm-omarchy-{version}-<arch>.tar.gz` is the tested CI archive with only "
+        f"`share/agterm/VERSION` set to `{version}` and numeric root ownership; `promotion.json` records "
+        "both digests. Archives unpack into `agterm-stage/`; licenses are under `share/licenses/agterm/`. "
+        "GTK4, libadwaita, WebKitGTK 6 and platform system libraries are required.\n\n"
+        "`SHA256SUMS` covers both archives and `promotion.json`. GitHub build provenance describes "
+        "the promotion workflow; the additional signed promotion predicate records the validated build run, "
+        "source SHA and artifact identities.\n\n"
+        f"Verify: `gh attestation verify agterm-omarchy-{version}-aarch64.tar.gz --repo {REPOSITORY} "
+        f"--signer-workflow {REPOSITORY}/.github/workflows/prerelease-omarchy.yml --source-ref refs/heads/main`.\n")
 
 
 if __name__ == "__main__":

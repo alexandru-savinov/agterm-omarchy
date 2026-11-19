@@ -1,8 +1,10 @@
-# Omarchy development prereleases
+# Omarchy development prereleases and versioned releases
 
 `prerelease-omarchy.yml` promotes the exact tar archives from a successful Omarchy CI run.
-It does not rebuild, modify the archives, change CI/UI gates, or publish on pull requests.
-The inherited `release-linux.yml` remains separate and unchanged.
+It does not rebuild, change CI/UI gates, or publish on pull requests.
+Without a version it publishes a development prerelease of unchanged archives (below).
+With a version it publishes the versioned release that omarchy-pkgs follows ([Versioned releases](#versioned-releases)).
+The inherited `release-linux.yml` (x86_64 linux-v releases) is retired here: all of its jobs are skipped in this repository.
 
 A maintainer dispatches it from `main`. Dispatch is a dry run unless `dry_run=false` is passed:
 
@@ -55,3 +57,36 @@ Hosted tests run on Ubuntu with Xvfb.
 The generated notes explicitly avoid claiming native Omarchy/Wayland validation of those exact artifacts.
 Native acceptance evidence must separately identify its source and binaries.
 The local ARM64 archive from issue #15 is a different artifact and is not automatically published by this workflow.
+
+## Versioned releases
+
+omarchy-pkgs' `upstream-watch` follows non-prerelease releases whose whole tag matches
+`omarchy-v(?P<version>[0-9]+(?:\.[0-9]+)*)`.
+A version is the `UPSTREAM_BASE_TAG` of `ci.yml` plus a serial, `0.41.1.N` with N ≥ 1 and no leading zeros,
+so pacman's vercmp orders it below upstream `0.41.2`; serial 0 is the CI rehearsal and is never published.
+Dispatch from main is the only publishing path. Dry-run first, then publish the same source:
+
+```bash
+gh workflow run prerelease-omarchy.yml --repo alexandru-savinov/agterm-omarchy --ref main \
+  -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA -f version=0.41.1.1            # dry run
+gh workflow run prerelease-omarchy.yml --repo alexandru-savinov/agterm-omarchy --ref main \
+  -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA -f version=0.41.1.1 -f dry_run=false
+```
+
+The workflow creates the tag itself, only after attestation verification; a hand-pushed `omarchy-v` tag triggers
+nothing, and a later dispatch for that version refuses the existing tag.
+The source must be a successful main push/dispatch CI run, its commit must be on main (main may have moved past it),
+its CI artifacts must be unexpired (14 days), and the version's base must equal that commit's own `UPSTREAM_BASE_TAG`.
+Every development-prerelease check applies, and then `scripts/omarchy-release.py` writes
+`agterm-omarchy-<version>-<arch>.tar.gz` for both architectures: the tested archive with only
+`share/agterm/VERSION` changed, numeric root ownership and a timestamp-free gzip header.
+It rejects the archive unless both executables have RUNPATH `$ORIGIN/../lib`, no bundled ELF has an absolute
+search path, `share/licenses/agterm/` carries the repository `LICENSE`, `payload.json` lists no unresolved
+library, and every shipped theme is resolved, byte for byte, in the archive's own notice inventory;
+`promotion.json` records the tested and released digest of each archive.
+The source run must also have passed both arches' "Rehearse versioned release archive" step.
+CI rehearses this on both architectures under serial 0 and checks the result natively with tar, readelf and ldd
+(`release-rehearsal-<arch>-<sha>` artifacts).
+The release is created as a non-prerelease; it is marked latest only when no published `omarchy-v` release
+has a higher version, so a backport never takes it.
+Attestations are verified with `--source-ref refs/heads/main`, as for development prereleases.

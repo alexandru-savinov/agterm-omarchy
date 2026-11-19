@@ -1,9 +1,8 @@
 name: linux release
 
+# Legacy x86_64 DEB/RPM/tar release of an existing linux-v tag, kept for upstream parity and retired in
+# this fork: every job is skipped here, so prerelease-omarchy.yml is the fork's only publishing path.
 on:
-  push:
-    tags:
-      - "linux-v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -19,8 +18,8 @@ permissions:
   contents: read
 
 env:
-  UPSTREAM_BASE_TAG: "v0.35.1"
-  UPSTREAM_BASE_COMMIT: "ca50a8ee09ba3cc9315ad3d597e1783e64c6f298"
+  UPSTREAM_BASE_TAG: "v0.41.1"
+  UPSTREAM_BASE_COMMIT: "911345a87df1aa32c8617ce0445b0be8975abb49"
   SWIFTLINT_VERSION: "0.65.0"
   SWIFTLINT_SHA256: "79306a34e5c7cc55a220cd108cbb861dcad5f10138dcdf261e2624ae8b0a486b"
   LINUX_SOURCEKIT_LIB_PATH: "/usr/lib/libsourcekitdInProc.so"
@@ -30,6 +29,7 @@ env:
 
 jobs:
   sbom:
+    if: github.repository != 'alexandru-savinov/agterm-omarchy'
     permissions:
       contents: read
     uses: ./.github/workflows/sbom.yml
@@ -39,6 +39,7 @@ jobs:
 
   release-linux:
     name: Build Linux x86_64 release
+    if: github.repository != 'alexandru-savinov/agterm-omarchy'
     needs: sbom
     runs-on: ubuntu-24.04
     timeout-minutes: 60

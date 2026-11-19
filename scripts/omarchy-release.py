@@ -25,6 +25,7 @@ STAGE = "agterm-stage/"
 VERSION_MEMBER = STAGE + "share/agterm/VERSION"
 EXECUTABLES = ("bin/agterm-linux.bin", "bin/agtermctl.bin")
 NOTICES = STAGE + "share/licenses/agterm/"
+THEMES = STAGE + "share/ghostty/themes/"
 
 
 def load(name, filename):
@@ -39,20 +40,27 @@ runpath = load("runpath", "linux-runpath.py")
 require = promotion.require
 
 
-def upstream_base(workflow=CI_WORKFLOW):
-    match = re.search(r'^  UPSTREAM_BASE_TAG: "v([0-9.]+)"$', workflow.read_text(), re.MULTILINE)
+def upstream_base(text=None):
+    """UPSTREAM_BASE_TAG from ci.yml TEXT, by default this checkout's."""
+    text = CI_WORKFLOW.read_text() if text is None else text
+    match = re.search(r'^  UPSTREAM_BASE_TAG: "v([0-9.]+)"$', text, re.MULTILINE)
     require(match and VERSION.fullmatch(match[1]), "ci.yml has no UPSTREAM_BASE_TAG")
     return match[1]
 
 
-def release_tag(version, base, rehearsal=False):
-    """The tag for VERSION, which must be BASE.N; N is 0 only for a rehearsal, which is never published."""
+def check_version(version, rehearsal=False):
+    """The base-independent rules, checkable before any source is read."""
     require(isinstance(version, str) and VERSION.fullmatch(version), f"Invalid release version {version!r}")
-    require(version.startswith(base + ".") and version.count(".") == base.count(".") + 1,
-            f"Release version {version} is not {base}.N for upstream base {base}")
     serial = int(version.rsplit(".", 1)[1])
     require(serial == 0 if rehearsal else serial >= 1,
             "Release serial 0 is reserved for CI rehearsals" if not rehearsal else "A rehearsal uses serial 0")
+
+
+def release_tag(version, base, rehearsal=False):
+    """The tag for VERSION, which must be BASE.N; N is 0 only for a rehearsal, which is never published."""
+    check_version(version, rehearsal)
+    require(version.startswith(base + ".") and version.count(".") == base.count(".") + 1,
+            f"Release version {version} is not {base}.N for upstream base {base}")
     tag = f"omarchy-v{version}"
     match = WATCH_TAG.fullmatch(tag)
     require(match and match["version"] == version, f"{tag} does not match the omarchy-pkgs watch pattern")
@@ -121,9 +129,24 @@ def validate_release(source, release, arch, sha, version):
     require(files.get(NOTICES + "LICENSE", b"").startswith(b"MIT License"), "Missing repository LICENSE notice")
     require(json.loads(files.get(NOTICES + "payload.json", b"{}")).get("unresolved_libraries") == [],
             "Bundled libraries without reviewed notices")
+    validate_themes(files)
     return {"asset": asset_name(version, arch), "version": version, "arch": arch, "source_commit": sha,
             "tested_archive_sha256": digest(source), "release_archive_sha256": digest(release),
             "members": len(after), "changed_members": [VERSION_MEMBER], "owner": "0:0", "runpath": RUNPATH}
+
+
+def validate_themes(files):
+    """Every shipped theme is one the archive's own notice inventory resolves to a pinned author license."""
+    inventory = json.loads(files.get(NOTICES + "inventory.json", b"{}"))
+    licensed = {theme["file"]: theme["sha256"] for theme in inventory.get("themes", {}).get("files", [])
+                if theme.get("attribution") == "resolved"}
+    shipped = {name[len(THEMES):]: content for name, content in files.items()
+               if name.startswith(THEMES) and name != THEMES + ".agterm-resource-manifest"}
+    require(licensed and shipped, "Archive has no licensed theme inventory")
+    unlicensed = sorted(set(shipped) - set(licensed))
+    require(not unlicensed, f"Archive ships themes without a resolved author license: {unlicensed[:5]}")
+    changed = sorted(name for name, content in shipped.items() if digest(content) != licensed[name])
+    require(not changed, f"Archive themes differ from their licensed bytes: {changed[:5]}")
 
 
 def release(source, arch, sha, version, output):
