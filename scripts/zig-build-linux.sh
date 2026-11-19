@@ -21,7 +21,7 @@ codeberg_archive() {
 
 fetch_archive() {
   local original="$1" url="$2" prior archive package
-  local curl_args=(--fail --location --proto '=https' --proto-redir '=https')
+  local curl_args=(--disable --fail --location --proto '=https' --proto-redir '=https')
   local top=()
   for prior in "${seen_urls[@]}"; do
     [[ "$prior" != "$original" ]] || return 1
