@@ -195,6 +195,7 @@ jobs:
             uname -srm
             grep -m1 -E 'model name|CPU part' /proc/cpuinfo || true
             nproc
+            echo "lsm: $(sudo cat /sys/kernel/security/lsm)"
             ls -l /dev/dri
             for card in /sys/class/drm/card[0-9]; do echo "$card -> $(readlink -f "$card/device")"; done
           } | tee "$RUNNER_TEMP/out/host.txt"

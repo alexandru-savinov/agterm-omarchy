@@ -46,6 +46,12 @@ prepare_base() {
   (( ${#boot[@]} == 0 )) || pacman -Rdd --noconfirm "${boot[@]}" > /out/base-removed.txt
   if getent passwd alarm >/dev/null; then userdel --remove alarm; fi
   if getent passwd 1000; then echo "uid 1000 is taken" >&2; return 1; fi
+  # pacman's download sandbox stays on unless its Landlock ruleset is refused, as it is in the Arch Linux
+  # ARM container on ubuntu-24.04-arm; then only the filesystem part is dropped, and signatures still apply.
+  if ! pacman -Sy > /out/pacman-sync.log 2>&1 && grep -q 'Landlock ruleset could not be applied' /out/pacman-sync.log; then
+    sed -i '/^\[options\]/a DisableSandboxFilesystem' /etc/pacman.conf
+    echo "DisableSandboxFilesystem: pacman's Landlock ruleset was refused" > /out/pacman-sandbox.txt
+  fi
 }
 
 root_phase() {
@@ -69,6 +75,7 @@ root_phase() {
   status=0
   runuser -u "$USER_NAME" -- env -i PATH=/usr/local/bin:/usr/bin HOME="/home/$USER_NAME" USER="$USER_NAME" \
     LOGNAME="$USER_NAME" SHELL=/bin/bash LANG=C.UTF-8 XDG_RUNTIME_DIR=/run/user/1000 PROBE_RUNS="$PROBE_RUNS" \
+    GATE_ARCHIVE="$ARCHIVE" \
     dbus-run-session -- bash "$SELF" session || status=$?
   # Copying "evidence/." would also copy its 0700 mode and owner onto /out itself.
   cp -a "/home/$USER_NAME/evidence/." /out/
