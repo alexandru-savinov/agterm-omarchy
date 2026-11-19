@@ -6,10 +6,10 @@ name: Upstream sync
 # true or while any sync PR is open. Gates and selection live in scripts/upstream-sync.py.
 #
 # Token: the push and the PR use secrets.UPSTREAM_SYNC_TOKEN, never GITHUB_TOKEN. GITHUB_TOKEN cannot
-# push upstream's .github/workflows changes (no `workflows` permission), cannot open PRs here (Actions PR
-# creation is disabled), and its PRs would not trigger the required pull_request checks. That secret is a
-# fine-grained PAT or GitHub App token for this repository only, with Contents, Pull requests and
-# Workflows read/write. Labels use GITHUB_TOKEN, which can create and apply them.
+# push upstream's .github/workflows changes (no `workflows` permission) and cannot open PRs here (Actions
+# PR creation is disabled). The secret is a fine-grained PAT for this repository only, with Contents,
+# Pull requests and Workflows read/write; a GitHub App instead needs a token-minting step added here.
+# Labels use GITHUB_TOKEN, which can create and apply them.
 on:
   schedule:
     - cron: '43 6 * * *'
@@ -126,6 +126,8 @@ jobs:
             echo "### Upstream sync ($([[ "$DRY_RUN" == true ]] && echo 'dry run' || echo live))"
             echo
             echo "- decision: \`$ACTION\` ($REASON)"
+            # A pushed branch whose PR was never opened skips every later run until someone acts.
+            [[ "$REASON" != *"already exists"* ]] || echo "::warning::$REASON" >&2
             [[ -z "$TAG" ]] || echo "- tag: \`$TAG\`, conflicted paths: ${CONFLICTS:-not built}"
             if [[ -f "$RUNNER_TEMP/body.md" ]]; then
               echo

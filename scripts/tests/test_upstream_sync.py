@@ -188,6 +188,13 @@ class GitRepoTests(unittest.TestCase):
     def test_fetched_tags_are_peeled_to_commits(self):
         self.assertEqual(sync.fetched_tags(), {"v0.1.0": self.base_tag, "v0.2.0": self.upstream})
 
+    def test_ancestor_check_reads_the_real_history(self):
+        is_ancestor = sync.ancestor_check(self.head())
+        self.assertTrue(is_ancestor(self.base_tag))
+        self.assertFalse(is_ancestor(self.upstream))
+        with self.assertRaises(sync.SyncError):
+            is_ancestor("1" * 40)
+
     def test_plan_command_selects_the_unmerged_release(self):
         prs, branches = self.root / "prs.json", self.root / "branches.txt"
         prs.write_text("[]", encoding="utf-8")
