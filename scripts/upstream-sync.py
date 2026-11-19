@@ -21,6 +21,7 @@ SYNC_LABELS = frozenset({LABEL_CLEAN, LABEL_CONFLICT})
 TAG_NAMESPACE = "refs/upstream-tags"
 UPSTREAM = "umputun/agterm"
 TASK = "#476"
+UNDECIDED = 3  # `pause` exit status: SYNC_PAUSED does not pause, so the incident listing decides
 BASE_PIN_FILES = (".github/workflows/ci.yml", ".github/workflows/release-linux.yml")
 LIST_BUDGET = 28000  # characters per list, so two lists stay below GitHub's 65536-character body limit
 UNMERGED = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
@@ -250,15 +251,18 @@ def main(argv=None):
     plan_cmd.add_argument("--tag", default="")
     pause_cmd = sub.add_parser("pause", help="decide the pause alone, before anything is fetched")
     pause_cmd.add_argument("--paused", default="")
-    pause_cmd.add_argument("--incidents", required=True, type=Path,
-                           help=f"gh issue list --state open --label {LABEL_INCIDENT} --json number")
+    pause_cmd.add_argument("--incidents", type=Path, help=f"gh issue list --state open --label {LABEL_INCIDENT} "
+                           "--json number; without it, exit 3 when SYNC_PAUSED alone does not pause")
     merge_cmd = sub.add_parser("merge")
     for name in ("--base", "--branch", "--tag", "--commit", "--worktree", "--body", "--run-url"):
         merge_cmd.add_argument(name, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "pause":
-            reason = pause_reason(args.paused, json.loads(args.incidents.read_text(encoding="utf-8")))
+            if args.incidents is None and not paused(args.paused):
+                return UNDECIDED
+            incidents = [] if args.incidents is None else json.loads(args.incidents.read_text(encoding="utf-8"))
+            reason = pause_reason(args.paused, incidents)
             emit({"paused": str(bool(reason)).lower(), "reason": reason})
         elif args.command == "plan":
             incidents = json.loads(args.incidents.read_text(encoding="utf-8"))
