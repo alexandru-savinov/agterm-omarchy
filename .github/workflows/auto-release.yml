@@ -64,7 +64,8 @@ jobs:
       passed: 'false'
       source_commit: ''
     steps:
-      - run: echo '::warning::Awaiting #475. No native evidence, so promotion is blocked.'
+      - run: |
+          echo '::warning::Awaiting #475. No native evidence, so promotion is blocked.'
 
   promote:
     needs: [candidate, native_candidate]

@@ -32,7 +32,8 @@ jobs:
       passed: 'false'
       watch_enabled: 'false'
     steps:
-      - run: echo '::warning::Awaiting #475 release mode.'
+      - run: |
+          echo '::warning::Awaiting #475 release mode.'
 
   public_urls:
     needs: native_published
