@@ -1,7 +1,7 @@
 ---
 name: agterm
 description: >
-  Drive agterm on macOS or GTK Linux, via agtermctl. Use in an agterm session:
+  Drive agterm (macOS/Linux) via agtermctl. Use in an agterm session:
   manage and move sessions, companions and workspaces; split panes; toggle scratch; run/hide/show overlays;
   read exit status; show HTML pages, URLs or dev servers in an overlay with saved logins or as a
   page row;
