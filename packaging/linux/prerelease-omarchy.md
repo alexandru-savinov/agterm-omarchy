@@ -15,10 +15,11 @@ gh workflow run prerelease-omarchy.yml --repo alexandru-savinov/agterm-omarchy -
   -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA -f dry_run=false  # publishes
 ```
 
-A dry run executes every check that precedes attestation: source run and gates, tag grammar and absence of
-that tag or release, artifact download and digests, archive and ELF checks, checksums and release notes.
-It stops before any attestation, so it cannot run the attestation verification, nor create a tag or release;
-its summary shows the tag and notes it would publish.
+A dry run executes the preparation checks: source run and gates, tag grammar and absence of that tag or release,
+artifact download and digests, archive and ELF checks, checksums and release notes.
+Its summary shows the tag and notes it would publish.
+It skips the publishing job, including that job's transfer-artifact download/digest check and second checksum verification.
+It therefore does not create or verify attestations, or create a tag or release.
 Pull requests touching the promotion or `ci.yml` dry-run the newest promotable source the same way, skipping
 a run whose tag or release already exists; with no promotable source they warn that nothing was checked.
 `python3 scripts/prepare-omarchy-prerelease.py --discover` prints that source locally.
