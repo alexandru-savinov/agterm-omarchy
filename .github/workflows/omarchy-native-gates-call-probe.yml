@@ -1,0 +1,36 @@
+name: Native gates call probe (temporary, #475)
+
+# Proves the workflow_call interface for #477; removed before this PR leaves draft.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/omarchy-native-gates-call-probe.yml
+      - .github/workflows/omarchy-x86-native.yml
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    uses: ./.github/workflows/omarchy-x86-native.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      source: ci-run
+      arch: x86_64
+
+  report:
+    needs: gates
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULT: ${{ needs.gates.result }}
+          PASSED: ${{ needs.gates.outputs.passed }}
+          SOURCE_COMMIT: ${{ needs.gates.outputs.source_commit }}
+          RESULTS: ${{ needs.gates.outputs.results }}
+        run: |
+          printf 'result=%s passed=%s source_commit=%s\n' "$RESULT" "$PASSED" "$SOURCE_COMMIT"
+          jq '.x86_64 | {archive, payload_commit, egl_gtk_configs, ordinary, live, probe, uninstall}' <<< "$RESULTS"

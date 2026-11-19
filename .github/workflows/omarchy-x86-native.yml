@@ -309,19 +309,19 @@ jobs:
           SOURCE_RESULT: ${{ needs.source.result }}
           GATES_RESULT: ${{ needs.gates.result }}
           LABEL: ${{ needs.source.outputs.label }}
+          MESA_PIN: ${{ inputs.mesa_pin }}
         run: |
+          # One matching artifact is extracted into evidence/ itself, several into a directory each.
           results='{}'
-          for dir in evidence/omarchy-native-gates-*; do
-            [[ -f "$dir/gates.tsv" ]] || continue
-            arch="${dir#evidence/omarchy-native-gates-}"
-            arch="${arch%%-*}"
-            results="$(jq -c --arg arch "$arch" --rawfile tsv "$dir/gates.tsv" '. + {($arch): (
-              [$tsv | split("\n")[] | select(length > 0) | split("\t") | {(.[0]): .[1]}] | add)}' <<< "$results")"
-          done
+          while IFS= read -r -d '' tsv; do
+            results="$(jq -c --rawfile tsv "$tsv" '
+              ([$tsv | split("\n")[] | select(length > 0) | split("\t") | {(.[0]): .[1]}] | add) as $rows
+              | . + {($rows.host_arch // "unknown"): $rows}' <<< "$results")"
+          done < <(find evidence -name gates.tsv -print0 2>/dev/null)
           # Skipped or cancelled legs fail: only success on both jobs passes. A pinned environment is a
           # diagnosis, never a pass.
           passed=false
-          [[ "$SOURCE_RESULT" == success && "$GATES_RESULT" == success ]] && passed=true
+          [[ "$SOURCE_RESULT" == success && "$GATES_RESULT" == success && -z "$MESA_PIN" ]] && passed=true
           if jq -e 'any(.[]; has("environment_pin"))' <<< "$results" > /dev/null; then passed=false; fi
           echo "passed=$passed" >> "$GITHUB_OUTPUT"
           echo "results=$results" >> "$GITHUB_OUTPUT"
