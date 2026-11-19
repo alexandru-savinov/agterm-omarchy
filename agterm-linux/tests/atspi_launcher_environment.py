@@ -43,7 +43,10 @@ def make_debug_payload(root, ghostty_resources):
     bundle = "agterm-linux_AgtermLinux.resources"
     (bin_dir / bundle).symlink_to(binary.parent / bundle, target_is_directory=True)
     (bin_dir / "zmx").symlink_to(Path(ROOT) / "vendor/zmx/zmx")
-    (share / "ghostty").symlink_to(ghostty_resources, target_is_directory=True)
+    resources = Path(ghostty_resources)
+    (share / "ghostty").symlink_to(resources, target_is_directory=True)
+    # Live mode verifies the sibling terminfo before it accepts the Ghostty resources.
+    (share / "terminfo").symlink_to(resources.parent / "terminfo", target_is_directory=True)
     for name, value in (("COMMIT", "launcher-app-commit"), ("VERSION", "270.0"), ("RENDERER", "software")):
         (share / "agterm" / name).write_text(value + "\n")
     subprocess.run(["cc", "-shared", "-fPIC", "-fvisibility=hidden", "-Wl,-z,defs",
@@ -113,6 +116,9 @@ def verify_exact_launcher_environment(env):
                 process, app = launch(local, binary=launcher)
                 window = wait_for(lambda: next((item["id"] for item in window_list(local) if item["open"]), None),
                                   "launcher matrix window missing")
+                if mode == "live":
+                    restore = control_json(local, "restore", "mode", "--json")
+                    assert restore.get("result", {}).get("restore", {}).get("active") == "live", restore
                 created = control_json(local, "session", "new", "--name", "launcher270", "--window", window, "--json")
                 assert created["ok"], created
                 session = created["result"]["id"]
