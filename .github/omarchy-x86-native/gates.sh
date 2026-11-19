@@ -6,6 +6,12 @@
 # bash-login user for everything except package installation.
 # Mounts: /repo (read-only checkout), /release (verified archive + SHA256SUMS), /out.
 # GATE_ARCHIVE names the archive in /release.
+#
+# Threat model: these gates catch defects in archives that main CI built, not malice in them. The bytes'
+# integrity comes from the attestation and resolve-once byte binding checked on the host before this runs.
+# The payload shares a UID with this harness and could rewrite gates.tsv, but a payload able to do that
+# means main is compromised, and main also controls these scripts, so a separate UID would not change who
+# is trusted. A separate UID and a read-only install remain optional hardening.
 set -euo pipefail
 PHASE="${1:-root}"
 SELF="$(readlink -f "$0")"
@@ -288,8 +294,12 @@ session_phase() {
   /repo/scripts/install-linux.sh --payload "$stage/agterm-stage" --software-rendering --prefix "$PREFIX" \
     > "$EVIDENCE/install.log" 2>&1
   # Nothing launches unless the installed payload is the archive plus the installer's own files.
-  local compared=0
-  python3 -I /repo/.github/omarchy-x86-native/compare-install.py "$stage/agterm-stage" "$(readlink -f "$PREFIX/lib/agterm")" \
+  local compared=0 installed
+  installed="$(readlink -e "$PREFIX/lib/agterm")" && [[ -d "$installed" && ! -L "$installed" ]] || {
+    record installed_vs_stage "FAIL no installed payload directory at $PREFIX/lib/agterm"
+    return 1
+  }
+  python3 -I /repo/.github/omarchy-x86-native/compare-install.py "$stage/agterm-stage" "$installed" \
     > "$EVIDENCE/installed-vs-stage.txt" 2>&1 || compared=$?
   if (( compared != 0 )); then
     record installed_vs_stage "FAIL exit=$compared $(wc -l < "$EVIDENCE/installed-vs-stage.txt") differences"
@@ -339,12 +349,9 @@ PY
 
   local status=0
   /repo/scripts/install-linux.sh --prefix "$PREFIX" --uninstall --purge-state > "$EVIDENCE/uninstall.log" 2>&1 || status=$?
-  { find "$PREFIX" -mindepth 1 -printf '%y %P\n' 2>/dev/null || true; } > "$EVIDENCE/uninstall-left.txt"
-  { pgrep -u "$USER" -a -f 'agterm|zmx' || true; } | { grep -v 'omarchy-x86-native' || true; } > "$EVIDENCE/uninstall-stray.txt"
-  local left stray
-  left="$(wc -l < "$EVIDENCE/uninstall-left.txt")"
-  stray="$(wc -l < "$EVIDENCE/uninstall-stray.txt")"
-  record uninstall "$([[ $status == 0 && $left == 0 && $stray == 0 ]] && echo PASS || echo FAIL) exit=$status files_left=$left stray_processes=$stray"
+  # The row is FAIL unless the inspection itself ran; its exit status only adds that FAIL to the log.
+  record uninstall "$(python3 -I /repo/.github/omarchy-x86-native/inspect-uninstall.py --prefix "$PREFIX" --user "$USER" \
+    --uninstall-status "$status" --evidence "$EVIDENCE" || true)"
 
   cp "$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/hyprland.log" "$EVIDENCE/hyprland-runtime.log" 2>/dev/null || true
   grep -iE 'GL_RENDERER|GL_VENDOR|EGL|llvmpipe|renderer' "$EVIDENCE/hyprland-runtime.log" | head -n 20 >> "$EVIDENCE/hyprland-info.txt" || true

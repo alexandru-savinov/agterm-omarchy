@@ -168,6 +168,24 @@ class VerdictTests(unittest.TestCase):
                 self.assertEqual(exit_.exception.code, code)
                 self.assertIn("passed=false\n", Path(output.name).read_text())
 
+    def test_report_only_never_passes_even_with_complete_attested_evidence(self):
+        plan = expected()
+        for arch in ARCHES:
+            self.leg(arch, plan)
+        self.assertTrue(self.decide(plan)["passed"])
+        plan_file = self.evidence / "expected.json"
+        plan_file.write_text(json.dumps(plan))
+        for policy, passed in (("required", "true"), ("report-only", "false")):
+            with self.subTest(policy), tempfile.NamedTemporaryFile("r") as output:
+                argv = ["verdict.py", "--evidence", str(self.evidence), "--expected", str(plan_file), "--run-id", "55",
+                        "--attempt", "1", "--source-result", "success", "--gates-result", "success",
+                        "--attestation", policy]
+                with patch("sys.argv", argv), patch.dict(os.environ, {"GITHUB_OUTPUT": output.name}), \
+                        contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as exit_:
+                    verdict.main()
+                self.assertEqual(exit_.exception.code, 0)
+                self.assertIn(f"passed={passed}\n", Path(output.name).read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

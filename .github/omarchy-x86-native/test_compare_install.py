@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location("compare_install", Path(__file__).resolve().parent / "compare-install.py")
 compare = importlib.util.module_from_spec(SPEC)
@@ -52,6 +53,23 @@ class CompareInstallTests(unittest.TestCase):
                 self.setUp()
                 change()
                 self.assertNotEqual(compare.compare(self.stage, self.installed), [])
+
+
+    def test_an_invalid_root_or_a_traversal_error_raises(self):
+        missing = self.stage.parent / "missing"
+        (self.stage.parent / "file").write_text("x")
+        for stage, installed in ((missing, self.installed), (self.stage, missing),
+                                 (self.stage.parent / "file", self.installed), (self.stage, self.installed / "bin/agterm-linux")):
+            with self.subTest(stage=stage.name, installed=installed.name), self.assertRaises(OSError):
+                compare.compare(stage, installed)
+        for root in (self.stage, self.installed):
+            (root / "share/agterm").chmod(0)
+            self.addCleanup((root / "share/agterm").chmod, 0o755)
+        with self.assertRaises(PermissionError):
+            compare.compare(self.stage, self.installed)
+        with patch.object(compare.os, "walk", side_effect=lambda *args, onerror, **kwargs: onerror(PermissionError("denied")) or iter(())), \
+                self.assertRaises(PermissionError):
+            compare.compare(self.stage, self.installed)
 
 
 if __name__ == "__main__":

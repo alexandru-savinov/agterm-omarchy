@@ -16,9 +16,17 @@ import sys
 INSTALLER_FILES = {"share/agterm/RENDERER", "share/agterm/INSTALLED_FILES", "share/agterm/INSTALLED_DIRS"}
 
 
+def raise_error(error):
+    raise error
+
+
 def entries(root):
+    """Every entry under ROOT; a missing or non-directory root, or any traversal error, raises."""
+    info = os.lstat(root)
+    if not stat.S_ISDIR(info.st_mode):
+        raise NotADirectoryError(f"{root} is not a directory")
     tree = {}
-    for directory, names, files in os.walk(root, followlinks=False):
+    for directory, names, files in os.walk(root, followlinks=False, onerror=raise_error):
         for name in names + files:
             path = Path(directory) / name
             info = os.lstat(path)
@@ -54,7 +62,11 @@ def main():
     parser.add_argument("stage", type=Path)
     parser.add_argument("installed", type=Path)
     args = parser.parse_args()
-    problems = compare(args.stage, args.installed)
+    try:
+        problems = compare(args.stage, args.installed)
+    except OSError as error:
+        print(f"comparison failed: {error}")
+        sys.exit(2)
     print("".join(f"{problem}\n" for problem in problems), end="")
     sys.exit(1 if problems else 0)
 

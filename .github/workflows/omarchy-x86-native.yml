@@ -10,10 +10,10 @@ name: Omarchy native gates
 # Either way the source job resolves the bytes once, and no leg executes an archive before its build or
 # promotion attestation verifies and its embedded commit matches (attestation: required).
 # This is Arch (or Arch Linux ARM) plus Omarchy's packages on a cloud runner, not an Omarchy ISO install.
-# Not a required check. Its pull_request self-test is omarchy-native-gates-self-test.yml, which passes
-# attestation: report-only explicitly; a blank attestation input here means required.
+# Not a required check. Dispatch always requires attestation. Only omarchy-native-gates-self-test.yml, on a
+# pull request, may pass attestation: report-only, and passed is then always false.
 # Callers grant contents: read, actions: read and attestations: read, and gate on `passed`, which
-# verdict.py defines. The call fails whenever `passed` is false, except under attestation: report-only.
+# verdict.py defines. The call fails whenever `passed` is false, except for that self-test.
 
 on:
   workflow_dispatch:
@@ -46,12 +46,6 @@ on:
         type: choice
         options: [stable, rc, edge]
         default: stable
-      attestation:
-        description: "required, or report-only: run unattested archives and report; passed stays false"
-        required: true
-        type: choice
-        options: [required, report-only]
-        default: required
   workflow_call:
     inputs:
       source:
@@ -80,7 +74,7 @@ on:
         type: string
         default: stable
       attestation:
-        description: "required, or report-only (passed stays false)"
+        description: "required; report-only is accepted only from omarchy-native-gates-self-test.yml, and passed is then false"
         required: false
         type: string
         default: required
@@ -161,11 +155,18 @@ jobs:
           ARCH: ${{ inputs.arch || 'both' }}
           CHANNEL: ${{ inputs.channel || 'stable' }}
           ATTESTATION: ${{ inputs.attestation }}
+          EVENT: ${{ github.event_name }}
+          # In a called workflow this names the top-level caller.
+          CALLER: ${{ github.workflow_ref }}
         run: |
           [[ "$CHANNEL" =~ ^(stable|rc|edge)$ ]] || { echo "unknown channel: $CHANNEL"; exit 1; }
-          # Fail closed: a blank value is required; only an explicit report-only reports.
+          # Fail closed: a blank value is required, and report-only only for the dedicated pull_request self-test.
           ATTESTATION="${ATTESTATION:-required}"
           [[ "$ATTESTATION" =~ ^(required|report-only)$ ]] || { echo "unknown attestation policy: '$ATTESTATION'"; exit 1; }
+          if [[ "$ATTESTATION" == report-only ]]; then
+            [[ "$EVENT" == pull_request && "$CALLER" == "$GITHUB_REPOSITORY/.github/workflows/omarchy-native-gates-self-test.yml@"* ]] ||
+              { echo "attestation: report-only is only for omarchy-native-gates-self-test.yml on a pull request, not $CALLER ($EVENT)"; exit 1; }
+          fi
           case "$ARCH" in
             both) arches=(x86_64 aarch64) ;;
             x86_64 | aarch64) arches=("$ARCH") ;;
@@ -212,7 +213,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     # Setup and session deadlines inside the container (15 + 50 min) and the step caps below leave the
     # always() staging and upload steps time inside this cap.
-    timeout-minutes: 95
+    # Budget: vkms 5 + download 10 + image 10 + gates 70 (container setup 15 + session 50 + kill grace) + staging 5
+    # + upload 5, plus checkout, inside this cap.
+    timeout-minutes: 110
     permissions:
       contents: read
       actions: read
@@ -238,6 +241,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Load vkms
+        timeout-minutes: 5
         run: |
           uname -m -r
           [[ "$(uname -m)" == "$ARCH" ]]
@@ -352,11 +356,20 @@ jobs:
             -e GATE_ARCHIVE -e OMARCHY_CHANNEL -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/release:/release:ro" -v "$RUNNER_TEMP/out:/out" \
             "$BASE_IMAGE" bash /repo/.github/omarchy-x86-native/gates.sh
       - name: Stage the evidence
+        id: stage
         if: always()
+        timeout-minutes: 5
         run: |
-          # The container writes /out as the tested payload's account: stop it, then copy only regular files and
-          # directories into a fresh host-owned directory, which is all the uploader sees.
+          # The container writes /out as the tested payload's account: confirm through Docker that it is gone or
+          # stopped, then copy only regular files and directories into a fresh host-owned directory, which is all
+          # the uploader sees. Unconfirmed means no upload, so the verdict finds no evidence and fails.
           docker rm -f omarchy-gates > /dev/null 2>&1 || true
+          if state="$(docker inspect --format '{{.State.Status}}' omarchy-gates 2>&1)"; then
+            [[ "$state" == exited || "$state" == dead ]] || { echo "::error::the gates container is still $state; evidence not uploaded"; exit 1; }
+          elif ! grep -qiE 'no such (object|container)' <<< "$state"; then
+            echo "::error::cannot confirm the gates container stopped ($state); evidence not uploaded"
+            exit 1
+          fi
           status=0
           python3 -I .github/omarchy-x86-native/stage-evidence.py "$RUNNER_TEMP/out" "$RUNNER_TEMP/evidence" || status=$?
           rm -f "$RUNNER_TEMP/evidence/host-record.json"
@@ -367,9 +380,11 @@ jobs:
             cat "$RUNNER_TEMP/evidence/probe-timings.tsv" 2>/dev/null || true
             printf '</pre>\n'
           } >> "$GITHUB_STEP_SUMMARY"
+          echo "staged=true" >> "$GITHUB_OUTPUT"
           exit "$status"
       - name: Upload evidence
-        if: always()
+        if: always() && steps.stage.outputs.staged == 'true'
+        timeout-minutes: 5
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: omarchy-native-gates-${{ matrix.arch }}-${{ needs.source.outputs.channel }}-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}

@@ -94,10 +94,15 @@ def main():
     args = parser.parse_args()
     verdict = decide(args.evidence, json.loads(args.expected.read_text()), args.run_id, args.attempt,
                      args.source_result, args.gates_result)
+    # report-only is the pull_request self-test: it may finish green on unattested archives, and never passes.
+    if args.attestation == "report-only":
+        verdict["passed"] = False
     for error in verdict["errors"]:
         print(f"::error::{error}")
     if not verdict["attested"]:
         print("::warning::not every archive has a verified build attestation, so passed is false")
+    if args.attestation == "report-only":
+        print("::warning::attestation: report-only, so passed is false")
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
             for key in ("passed", "attested"):
@@ -105,7 +110,6 @@ def main():
             for key in ("results", "archives"):
                 output.write(f"{key}={json.dumps(verdict[key], sort_keys=True)}\n")
     print(json.dumps({key: verdict[key] for key in ("passed", "attested", "archives")}, indent=2, sort_keys=True))
-    # report-only lets a self-test with unattested archives finish green; passed is still false.
     failed = verdict["errors"] or (args.attestation == "required" and not verdict["attested"])
     raise SystemExit(1 if failed else 0)
 

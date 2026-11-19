@@ -13,11 +13,19 @@ import stat
 import sys
 
 
+def raise_error(error):
+    raise error
+
+
 def stage(source, target):
-    """Rejected relative paths; regular files and directories under SOURCE are copied into a new TARGET."""
+    """Rejected relative paths; regular files and directories under SOURCE are copied into a new TARGET.
+
+    A scan error raises: evidence that could not be read is never silently left out."""
+    if not stat.S_ISDIR(os.lstat(source).st_mode):
+        raise NotADirectoryError(f"{source} is not a directory")
     target.mkdir(mode=0o755)
     rejected = []
-    for directory, names, files in os.walk(source, followlinks=False):
+    for directory, names, files in os.walk(source, followlinks=False, onerror=raise_error):
         relative = Path(directory).relative_to(source)
         for name in sorted(names):
             path = Path(directory) / name

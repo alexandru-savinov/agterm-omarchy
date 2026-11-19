@@ -46,5 +46,17 @@ class StageEvidenceTests(unittest.TestCase):
             staging.stage(self.source, self.root / "staged")
 
 
+    def test_a_scan_error_or_an_invalid_source_raises(self):
+        blocked = self.source / "probe"
+        blocked.chmod(0)
+        self.addCleanup(blocked.chmod, 0o755)
+        with self.assertRaises(PermissionError):
+            staging.stage(self.source, self.root / "staged")
+        with self.assertRaises(OSError):
+            staging.stage(self.root / "missing", self.root / "staged-missing")
+        with self.assertRaises(NotADirectoryError):
+            staging.stage(self.secret, self.root / "staged-file")
+
+
 if __name__ == "__main__":
     unittest.main()
