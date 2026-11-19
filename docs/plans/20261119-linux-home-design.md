@@ -60,7 +60,7 @@ A scheduled workflow, `upstream-sync.yml`, runs daily and also on dispatch:
 - Create the branch `sync/umputun-<tag>` as main merged with that tag. If the merge conflicts, keep the
   conflicts as a commit and open a draft PR labelled `needs-adaptation`. Otherwise open a PR labelled
   `upstream-sync`.
-- Respect `SYNC_PAUSED`: do nothing while it is `true`.
+- Apply the pause rule in C4 before opening a sync PR.
 - Only one sync PR is open at a time. Tags that arrive while one is open are taken by the next run, after merge.
 - Agent pickup: the lead (mac_lead) watches for `needs-adaptation` and red `upstream-sync` PRs, and starts an
   adaptation worker. Fully unattended agent pickup is out of scope for M4.
@@ -79,16 +79,18 @@ A scheduled workflow, `upstream-sync.yml`, runs daily and also on dispatch:
 
 A workflow, `auto-release.yml`, triggers on a successful Omarchy CI push run on main whose head is a merged
 sync, or a fork fix since the last release.
-- Gate: C3 on that run's artifacts for both arches. Skip if `SYNC_PAUSED=true`.
+- Gate: C3 on that run's artifacts for both arches. Skip while automation is paused.
 - Then call the #470 promotion path (dispatch on main, `dry_run=false`, the next `0.<base>.N` version). That
   path verifies attestations before tagging, and publishes a non-prerelease release.
 - After publishing, a 24-hour watch: re-run the C3 gates against the **published** assets, plus an install
   smoke from the release URLs. On failure:
-  - mark the release as a prerelease (retraction);
-  - set `SYNC_PAUSED=true`;
-  - open an incident issue labelled `release-incident`.
+  - open an issue labelled `release-incident` using the workflow token with `issues: write`;
+  - mark the release as a prerelease using the workflow token with `contents: write` in the retraction job.
 
-Owner override: set `SYNC_PAUSED=true` at any time. Unset it to resume.
+Automation is paused when the repository variable `SYNC_PAUSED` is `true` or any open issue carries the
+`release-incident` label. Only the owner changes the variable for a manual hold. Close the incident to
+clear its hold. Automatic work resumes once no incident remains open and the manual switch is clear.
+The post-release watch continues while automation is paused.
 
 ### C5. Courtesy note and re-entry
 
@@ -110,7 +112,7 @@ Owner override: set `SYNC_PAUSED=true` at any time. Unset it to resume.
 - An end-to-end proof:
   - a real umputun tag produces a sync PR, which merges and leads to a published release;
   - a forced gate failure in a dry run exercises retract-and-pause;
-  - `SYNC_PAUSED` blocks both workflows.
+  - The manual switch and an open release incident each block new syncs and promotions.
 
 ## Out of scope
 

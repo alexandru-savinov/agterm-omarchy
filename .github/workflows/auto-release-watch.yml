@@ -7,22 +7,26 @@ on:
         description: Published versioned Omarchy tag to watch
         type: string
         required: true
-    secrets:
-      SYNC_PAUSE_TOKEN:
-        description: Fine-grained token with Variables write permission in this repository
-        required: false
-
 permissions:
   contents: read
 
 jobs:
   native_published:
     # #475 wiring: replace runs-on, timeout-minutes, outputs and steps with:
-    # uses: ./.github/workflows/omarchy-x86-native.yml
+    # uses: $/.github/workflows/omarchy-x86-native.yml
     # with:
     #   source: release
     #   release_tag: ${{ inputs.tag }}
     #   arch: both
+    if: >-
+      github.repository == 'alexandru-savinov/agterm-omarchy' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.conclusion == 'success'))
     permissions:
       contents: read
       actions: read
@@ -37,7 +41,16 @@ jobs:
 
   public_urls:
     needs: native_published
-    if: needs.native_published.outputs.passed == 'true'
+    if: >-
+      github.repository == 'alexandru-savinov/agterm-omarchy' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.conclusion == 'success')) &&
+      needs.native_published.outputs.passed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -62,7 +75,12 @@ jobs:
       !cancelled() &&
       github.repository == 'alexandru-savinov/agterm-omarchy' &&
       github.ref == 'refs/heads/main' &&
-      (github.event_name == 'schedule' || github.event_name == 'workflow_run') &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.conclusion == 'success')) &&
       needs.native_published.outputs.watch_enabled == 'true' &&
       (needs.native_published.result != 'success' ||
        needs.native_published.outputs.passed != 'true' ||
@@ -73,16 +91,16 @@ jobs:
       group: omarchy-retract-${{ inputs.tag }}
       cancel-in-progress: false
     permissions:
-      contents: write
-      issues: write
+      contents: write # Mark the published release as a prerelease.
+      issues: write # Open a labelled incident to hold promotions.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Pause, mark as prerelease and open a release incident
+      - name: Open a release incident to pause and mark the release as a prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-          SYNC_PAUSE_TOKEN: ${{ secrets.SYNC_PAUSE_TOKEN }}
           TAG: ${{ inputs.tag }}
           NATIVE_RESULT: ${{ needs.native_published.result }}
           PUBLISHED_PASSED: ${{ needs.native_published.outputs.passed }}

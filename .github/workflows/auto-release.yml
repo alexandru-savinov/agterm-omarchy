@@ -1,7 +1,7 @@
 name: Omarchy automatic release
 
 on:
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] Every eligible job requires a same-repo main push and runs code at the trusted workflow SHA.
     workflows: [Omarchy CI]
     types: [completed]
     branches: [main]
@@ -21,6 +21,7 @@ jobs:
   candidate:
     if: >-
       github.repository == 'alexandru-savinov/agterm-omarchy' &&
+      github.ref == 'refs/heads/main' &&
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
@@ -31,6 +32,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      issues: read
     outputs:
       run_id: ${{ steps.plan.outputs.run_id }}
       sha: ${{ steps.plan.outputs.sha }}
@@ -38,6 +40,7 @@ jobs:
       # Use the workflow's trusted main checkout, never the event's ref or its artifacts.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Select a release candidate
         id: plan
@@ -48,12 +51,20 @@ jobs:
 
   native_candidate:
     needs: candidate
-    if: needs.candidate.outputs.run_id != ''
+    if: >-
+      github.repository == 'alexandru-savinov/agterm-omarchy' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'success' &&
+      needs.candidate.outputs.run_id != ''
     permissions:
       contents: read
       actions: read
     # #475 wiring: replace runs-on, timeout-minutes, outputs and steps with:
-    # uses: ./.github/workflows/omarchy-x86-native.yml
+    # uses: $/.github/workflows/omarchy-x86-native.yml
     # with:
     #   source: ci-run
     #   run_id: ${{ needs.candidate.outputs.run_id }}
@@ -70,7 +81,13 @@ jobs:
   promote:
     needs: [candidate, native_candidate]
     if: >-
+      github.repository == 'alexandru-savinov/agterm-omarchy' &&
       github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'success' &&
       needs.native_candidate.outputs.passed == 'true' &&
       needs.native_candidate.outputs.source_commit == needs.candidate.outputs.sha
     runs-on: ubuntu-24.04
@@ -81,22 +98,26 @@ jobs:
     permissions:
       contents: read
       actions: write
+      issues: read
     outputs:
       tag: ${{ steps.promote.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Recheck main, the CI attempt and pause, then dispatch #470
         id: promote
         env:
           GH_TOKEN: ${{ github.token }}
           SYNC_PAUSED: ${{ vars.SYNC_PAUSED }}
-          SYNC_PAUSE_TOKEN: ${{ secrets.SYNC_PAUSE_TOKEN }}
         run: python3 -I scripts/omarchy-auto-release.py promote
 
   watch_recent:
-    if: github.repository == 'alexandru-savinov/agterm-omarchy' && github.event_name == 'schedule'
+    if: >-
+      github.repository == 'alexandru-savinov/agterm-omarchy' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -104,6 +125,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Find stable releases published in the last 24 hours
         id: watch
@@ -113,33 +135,42 @@ jobs:
 
   watch_promotion:
     needs: promote
-    if: needs.promote.outputs.tag != ''
-    uses: ./.github/workflows/auto-release-watch.yml
+    if: >-
+      github.repository == 'alexandru-savinov/agterm-omarchy' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'success' &&
+      needs.promote.outputs.tag != ''
+    uses: $/.github/workflows/auto-release-watch.yml
     with:
       tag: ${{ needs.promote.outputs.tag }}
     permissions:
-      contents: write
+      contents: write # Permission ceiling for the called retraction job.
       actions: read
-      issues: write
-    secrets:
-      SYNC_PAUSE_TOKEN: ${{ secrets.SYNC_PAUSE_TOKEN }}
+      issues: write # Permission ceiling for the called retraction job.
 
   watch_scheduled:
     needs: watch_recent
-    if: needs.watch_recent.outputs.tags != '' && needs.watch_recent.outputs.tags != '[]'
+    if: >-
+      github.repository == 'alexandru-savinov/agterm-omarchy' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'schedule' &&
+      needs.watch_recent.outputs.tags != '' &&
+      needs.watch_recent.outputs.tags != '[]'
     strategy:
       fail-fast: false
       matrix:
         tag: ${{ fromJSON(needs.watch_recent.outputs.tags || '[]') }}
-    uses: ./.github/workflows/auto-release-watch.yml
+    uses: $/.github/workflows/auto-release-watch.yml
     with:
       tag: ${{ matrix.tag }}
     permissions:
-      contents: write
+      contents: write # Permission ceiling for the called retraction job.
       actions: read
-      issues: write
-    secrets:
-      SYNC_PAUSE_TOKEN: ${{ secrets.SYNC_PAUSE_TOKEN }}
+      issues: write # Permission ceiling for the called retraction job.
 
   dry_run:
     if: github.event_name == 'workflow_dispatch'

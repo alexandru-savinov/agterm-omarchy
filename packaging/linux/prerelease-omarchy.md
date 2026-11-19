@@ -103,18 +103,19 @@ on main with `dry_run=false`, the selected source SHA and run ID, and the exact 
 The automatic promotion checks that attempt before reading its artifacts.
 Both manual promotion modes retain their existing inputs.
 
-Set the repository variable `SYNC_PAUSED=true` to stop new automatic syncs and releases. Unset it to resume.
-The release automation reads it again before dispatch and after promotion verifies attestations, before tagging.
-Configure the repository secret `SYNC_PAUSE_TOKEN` with a fine-grained credential scoped to this repository
-with **Variables: write**. The built-in Actions token handles dispatch, release edits, and incident issues.
-The gate runners receive read-only permissions and do not receive the pause credential.
+Set the repository variable `SYNC_PAUSED=true` for a manual hold. An open issue labelled `release-incident`
+also holds automation. Close resolved incidents and clear any manual hold to resume.
+Automatic promotion checks both holds at candidate selection, before dispatch, and after attestation
+verification before tagging. It reads the manual switch from Actions configuration and queries open
+incidents with the built-in token. Gate runners receive read-only permissions.
 
 The watch starts as soon as promotion reports success. A scheduled check every two hours also finds
 stable releases published in the last 24 hours, including after an interrupted promotion caller.
 The #475 published-release mode downloads, verifies, and installs both architectures' published assets.
 The watch also tests both public asset URLs without credentials.
-The watch runs while sync is paused. On a failure it sets the pause, marks that release as a prerelease,
-and records the failed checks, action results, and run link in a `release-incident` issue.
+The watch runs while automation is paused. On a failure it opens a `release-incident` issue to hold
+new promotions and records the failed checks and run link there. It marks the release as a prerelease.
+Both edits use the built-in Actions token, with write permissions scoped to the retraction job.
 The release and tag remain available for investigation and the next fixed commit uses a new serial.
 If any incident action fails, review the incident and rerun the failed watch jobs before resuming.
 Scheduled starts depend on hosted Actions availability.
@@ -123,7 +124,7 @@ Both native gate calls are stubbed while #475 is paused.
 The candidate stub blocks promotion and the published-release stub skips the watch verdict.
 Replace the two stubs with #475's reusable workflow calls after that interface lands.
 Manual dispatch of `auto-release.yml` runs only fixtures, even from main.
-The **force_failure** input also prints the planned retraction, pause, and incident actions for a synthetic release.
+The **force_failure** input also prints the planned prerelease edit and open-issue hold for a synthetic release.
 The same dry run can run locally without credentials:
 
 ```bash

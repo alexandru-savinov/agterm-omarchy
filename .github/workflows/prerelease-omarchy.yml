@@ -37,7 +37,7 @@ on:
         type: string
         default: ""
       source_attempt:
-        description: Exact CI attempt for an automatic versioned release (enables the final SYNC_PAUSED check)
+        description: Exact CI attempt for an automatic versioned release (enables the final pause check)
         required: false
         type: string
         default: ""
@@ -189,6 +189,7 @@ jobs:
     permissions:
       contents: write
       actions: read
+      issues: read
       id-token: write
       attestations: write
     steps:
@@ -249,10 +250,11 @@ jobs:
         with:
           path: automation
           persist-credentials: false
-      - name: Recheck the live pause variable before automatic publication
+      - name: Recheck the manual hold and open incidents before automatic publication
         if: inputs.source_attempt != ''
         env:
-          SYNC_PAUSE_TOKEN: ${{ secrets.SYNC_PAUSE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          SYNC_PAUSED: ${{ vars.SYNC_PAUSED }}
         run: python3 -I automation/scripts/omarchy-auto-release.py check-pause
       - name: Create the versioned release without replacing anything
         if: needs.prepare.outputs.version != ''

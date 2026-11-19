@@ -22,9 +22,11 @@ SHA = "a" * 40
 TAG = "omarchy-v0.43.0.2"
 CANDIDATE = {"run_id": "123", "sha": SHA, "attempt": "2", "version": "0.43.0.2"}
 EVENT = {"workflow_run": {"event": "push", "head_branch": "main", "conclusion": "success",
+                          "head_repository": {"full_name": auto.promotion.REPOSITORY},
                           "id": 123, "head_sha": SHA, "run_attempt": 2}}
 RELEASE = {"id": 456, "tag_name": TAG, "draft": False, "prerelease": False,
            "published_at": "2026-11-19T17:00:00Z"}
+OPEN_INCIDENTS = "issues?labels=release-incident&state=open&per_page=100"
 
 
 class PlanTests(unittest.TestCase):
@@ -40,13 +42,13 @@ class PlanTests(unittest.TestCase):
                          "omarchy-v0.43.1.42", "omarchy-v0.43.0.11.99"]), "0.43.0.11")
 
     def test_pause_blocks_before_any_api_call(self):
-        with patch.dict(os.environ, {"SYNC_PAUSED": " TRUE "}), patch.object(auto.promotion, "api") as api:
+        with patch.dict(os.environ, {"SYNC_PAUSED": "true"}), patch.object(auto.promotion, "api") as api:
             self.assertEqual(auto.plan(EVENT), (None, "SYNC_PAUSED is true"))
             api.assert_not_called()
 
     def test_manual_pr_and_failed_runs_do_not_plan(self):
-        inputs = ({"event": "workflow_dispatch"}, {"event": "pull_request"},
-                  {"head_branch": "feature"}, {"conclusion": "failure"})
+        inputs = ({"event": "workflow_dispatch"}, {"event": "pull_request"}, {"head_branch": "feature"},
+                  {"conclusion": "failure"}, {"head_repository": {"full_name": "other/fork"}})
         for changes in inputs:
             event = {"workflow_run": EVENT["workflow_run"] | changes}
             with self.subTest(changes=changes), patch.object(auto.promotion, "api") as api:
@@ -54,10 +56,10 @@ class PlanTests(unittest.TestCase):
                 api.assert_not_called()
 
     def test_superseded_commit_and_ci_attempt_do_not_plan(self):
-        with patch.object(auto.promotion, "api", return_value={"object": {"sha": "b" * 40}}):
+        with patch.object(auto.promotion, "api", side_effect=[[[]], {"object": {"sha": "b" * 40}}]):
             self.assertIsNone(auto.plan(EVENT)[0])
         with patch.object(auto.promotion, "api", side_effect=[
-            {"object": {"sha": SHA}}, {"run_attempt": 3, "status": "completed"}
+            [[]], {"object": {"sha": SHA}}, {"run_attempt": 3, "status": "completed"}
         ]):
             self.assertIsNone(auto.plan(EVENT)[0])
 
@@ -68,6 +70,7 @@ class PlanTests(unittest.TestCase):
             "head_repository": {"full_name": auto.promotion.REPOSITORY},
         }
         fixtures = {"git/ref/heads/main": {"object": {"sha": SHA}}, "actions/runs/123": run,
+                    OPEN_INCIDENTS: [[]],
                     "actions/workflows/ci.yml": {"id": 4},
                     auto.RELEASES_PATH: [[RELEASE | {"prerelease": True}]],
                     f"compare/{TAG}...{SHA}": {"status": "ahead"},
@@ -86,21 +89,31 @@ class PlanTests(unittest.TestCase):
             self.assertIsNone(auto.plan(EVENT)[0])
 
     def test_owner_pause_can_arrive_after_the_native_gate(self):
-        with patch.object(auto, "pause_variable", return_value="true"), patch.object(auto, "gh") as gh:
+        with patch.dict(os.environ, {"SYNC_PAUSED": "true"}), patch.object(auto, "gh") as gh:
             with redirect_stdout(io.StringIO()):
                 self.assertEqual(auto.dispatch(CANDIDATE), "")
             gh.assert_not_called()
 
-    def test_live_pause_lookup_reads_past_the_first_page(self):
-        with patch.object(auto, "gh", return_value=[
-            {"variables": [{"name": "OTHER", "value": "false"}]},
-            {"variables": [{"name": "SYNC_PAUSED", "value": "true"}]},
-        ]) as gh:
-            self.assertEqual(auto.pause_variable(), "true")
-        gh.assert_called_once_with("actions/variables?per_page=30", variables=True, pages=True)
+    def test_incident_pauses_selection_dispatch_and_final_check_until_closed(self):
+        open_issue = {"number": 12}
+        labelled_pr = {"number": 13, "pull_request": {}}
+        with patch.object(auto.promotion, "api", return_value=[[labelled_pr], [open_issue]]) as api, \
+             patch.object(auto, "gh") as gh, redirect_stdout(io.StringIO()):
+            reason = auto.plan(EVENT)[1]
+            self.assertIn("open release-incident", reason)
+            self.assertEqual(auto.dispatch(CANDIDATE), "")
+            gh.assert_not_called()
+            with patch.object(sys, "argv", ["auto-release", "check-pause"]):
+                with self.assertRaisesRegex(ValueError, "publication blocked"):
+                    auto.main()
+                api.return_value = [[labelled_pr]]
+                auto.main()
+            self.assertEqual(auto.pause_reason(), "")
+            self.assertTrue(all(call.args == (OPEN_INCIDENTS,) and call.kwargs == {"pages": True}
+                                for call in api.call_args_list))
 
     def test_dispatch_pins_run_sha_and_attempt_of_candidate(self):
-        with patch.object(auto, "pause_variable", return_value=None), \
+        with patch.object(auto.promotion, "api", return_value=[[]]), \
              patch.object(auto, "gh", return_value={"workflow_run_id": 99}) as gh, \
              patch.object(auto, "wait_for_promotion", return_value=TAG) as wait, redirect_stdout(io.StringIO()):
             self.assertEqual(auto.dispatch(CANDIDATE), TAG)
@@ -131,45 +144,43 @@ class WatchTests(unittest.TestCase):
         self.assertEqual(json.loads(output.getvalue()), {
             "dry_run": True, "tag": TAG, "failure": "Forced watch failure",
             "release": {"prerelease": True, "make_latest": "false"},
-            "repo_variable": {"SYNC_PAUSED": "true"}, "issue_label": "release-incident",
+            "pause_issue": {"state": "open", "labels": ["release-incident"]},
         })
 
-    def test_retract_uses_patch_then_creates_labelled_incident(self):
+    def test_retract_opens_labelled_incident_then_marks_prerelease(self):
         def read(path, **kwargs):
             if path == f"releases/tags/{TAG}":
                 return RELEASE
             self.assertTrue(path.startswith("issues?labels=release-incident"))
             return [[]]
 
-        with patch.object(auto, "pause_variable", return_value="false"), \
-             patch.object(auto.promotion, "api", side_effect=read), \
+        with patch.object(auto.promotion, "api", side_effect=read), \
              patch.object(auto.promotion, "absent", return_value=True), \
              patch.object(auto, "gh", return_value={"html_url": "fixture issue"}) as gh, redirect_stdout(io.StringIO()):
             auto.retract(TAG, "native gates failed", "fixture run", dry_run=False)
         self.assertEqual([(call.args[0], call.kwargs["method"]) for call in gh.call_args_list],
-                         [("actions/variables/SYNC_PAUSED", "PATCH"), ("releases/456", "PATCH"),
-                          ("labels", "POST"), ("issues", "POST")])
-        self.assertEqual(gh.call_args_list[0].kwargs["data"], {"name": "SYNC_PAUSED", "value": "true"})
-        self.assertTrue(gh.call_args_list[0].kwargs["variables"])
-        self.assertEqual(gh.call_args_list[1].kwargs["data"], {"prerelease": True, "make_latest": "false"})
-        issue = gh.call_args_list[3].kwargs["data"]
+                         [("labels", "POST"), ("issues", "POST"), ("releases/456", "PATCH")])
+        self.assertEqual(gh.call_args_list[2].kwargs["data"], {"prerelease": True, "make_latest": "false"})
+        issue = gh.call_args_list[1].kwargs["data"]
         self.assertEqual(issue["labels"], ["release-incident"])
         self.assertIn("native gates failed", issue["body"])
 
-    def test_retract_still_reports_incident_if_pause_fails(self):
-        with patch.object(auto, "set_pause", side_effect=ValueError("no token")), \
-             patch.object(auto, "mark_prerelease") as mark, patch.object(auto, "record_incident") as incident:
-            with self.assertRaisesRegex(ValueError, "Incomplete incident response"):
-                auto.retract(TAG, "failed", "fixture run", dry_run=False)
-            mark.assert_called_once_with(TAG)
-            incident.assert_called_once_with(TAG, "failed", {"pause": "failed", "retract": "done"}, "fixture run")
+    def test_retraction_attempts_both_actions_even_if_either_fails(self):
+        for failing_action in ("record_incident", "mark_prerelease"):
+            with self.subTest(failing_action=failing_action), patch.object(auto, "mark_prerelease") as mark, \
+                 patch.object(auto, "record_incident") as incident:
+                (incident if failing_action == "record_incident" else mark).side_effect = ValueError(failing_action)
+                with self.assertRaisesRegex(ValueError, failing_action):
+                    auto.retract(TAG, "failed", "fixture run", dry_run=False)
+                mark.assert_called_once_with(TAG)
+                incident.assert_called_once_with(TAG, "failed", "fixture run")
 
     def test_already_retracted_release_and_incident_are_idempotent(self):
         with patch.object(auto.promotion, "api", side_effect=[
             RELEASE | {"prerelease": True}, [[{"title": f"Release incident: {TAG}"}]],
         ]), patch.object(auto, "gh") as gh:
             auto.mark_prerelease(TAG)
-            auto.record_incident(TAG, "failed", {"pause": "done", "retract": "done"}, "fixture run")
+            auto.record_incident(TAG, "failed", "fixture run")
             gh.assert_not_called()
 
     def test_workflow_dry_run_command_is_runnable_without_gh_or_credentials(self):

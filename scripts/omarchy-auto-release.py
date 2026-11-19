@@ -25,32 +25,28 @@ RELEASES_PATH = "releases?per_page=100"
 MAIN = "refs/heads/main"
 
 
-def paused(value):
-    return value.strip().lower() == "true"
-
-
-def gh(path, *, method="GET", data=None, variables=False, pages=False):
+def gh(path, *, method="GET", data=None):
     command = ["gh", "api", "-X", method, "-H", "X-GitHub-Api-Version: 2026-03-10",
                f"repos/{promotion.REPOSITORY}/{path}"]
-    env = os.environ.copy()
-    if variables:
-        token = env.pop("SYNC_PAUSE_TOKEN", "")
-        promotion.require(token, "SYNC_PAUSE_TOKEN needs Variables: write on this repository")
-        env["GH_TOKEN"] = token
-    if pages:
-        command += ["--paginate", "--slurp"]
     kwargs = {}
     if data is not None:
         command += ["--input", "-"]
         kwargs["input"] = json.dumps(data)
-    result = subprocess.run(command, text=True, check=True, capture_output=True, env=env, **kwargs)
+    result = subprocess.run(command, text=True, check=True, capture_output=True, **kwargs)
     return json.loads(result.stdout) if result.stdout.strip() else None
 
 
-def pause_variable():
-    pages = gh("actions/variables?per_page=30", variables=True, pages=True)
-    return next((var["value"] for page in pages for var in page["variables"]
-                 if var["name"] == "SYNC_PAUSED"), None)
+def incident_issues(state):
+    pages = promotion.api(f"issues?labels={INCIDENT}&state={state}&per_page=100", pages=True)
+    return (item for page in pages for item in page if "pull_request" not in item)
+
+
+def pause_reason():
+    if os.environ.get("SYNC_PAUSED") == "true":
+        return "SYNC_PAUSED is true"
+    if next(incident_issues("open"), None) is not None:
+        return "An open release-incident issue is holding releases"
+    return ""
 
 
 def releases():
@@ -65,11 +61,13 @@ def next_version(base, tags):
 
 
 def plan(event):
-    if paused(os.environ.get("SYNC_PAUSED", "")):
-        return None, "SYNC_PAUSED is true"
     source = event["workflow_run"]
     if (source["event"], source["head_branch"], source["conclusion"]) != ("push", "main", "success"):
         return None, "Expected a successful main push"
+    if source["head_repository"]["full_name"] != promotion.REPOSITORY:
+        return None, "Expected a same-repository push"
+    if reason := pause_reason():
+        return None, reason
     run_id, sha, attempt = source["id"], source["head_sha"], source["run_attempt"]
     head = promotion.api("git/ref/heads/main")["object"]["sha"]
     if head != sha:
@@ -111,8 +109,8 @@ def find_watch_tags(items, now):
 
 
 def dispatch(candidate):
-    if paused(pause_variable() or ""):
-        print("SYNC_PAUSED is true; promotion skipped.")
+    if reason := pause_reason():
+        print(f"{reason}; promotion skipped.")
         return ""
     response = gh("actions/workflows/prerelease-omarchy.yml/dispatches", method="POST", data={
         "ref": "main",
@@ -150,24 +148,10 @@ def wait_for_promotion(run_id, candidate):
     raise ValueError(f"Promotion run {run_id} is still active; scheduled watches discover published releases")
 
 
-def set_pause():
-    data = {"name": "SYNC_PAUSED", "value": "true"}
-    if pause_variable() is None:
-        try:
-            gh("actions/variables", method="POST", data=data, variables=True)
-            return
-        except subprocess.CalledProcessError:
-            # An operator may have created the variable after we read the list.
-            if pause_variable() is None:
-                raise
-    gh("actions/variables/SYNC_PAUSED", method="PATCH", data=data, variables=True)
-
-
-def record_incident(tag, reason, actions, evidence):
+def record_incident(tag, reason, evidence):
     title = f"Release incident: {tag}"
     # The watch serializes this operation per tag. Keep one incident even across retries.
-    items = promotion.api(f"issues?labels={INCIDENT}&state=all&per_page=100", pages=True)
-    if any(item["title"] == title for page in items for item in page if "pull_request" not in item):
+    if any(item["title"] == title for item in incident_issues("all")):
         return
     if promotion.absent(f"labels/{INCIDENT}"):
         try:
@@ -179,10 +163,10 @@ def record_incident(tag, reason, actions, evidence):
     body = (f"The post-release watch failed for [`{tag}`](https://github.com/"
             f"{promotion.REPOSITORY}/releases/tag/{tag}).\n\n"
             f"- Failure: {reason}\n"
-            f"- Mark release as prerelease: {actions['retract']}\n"
-            f"- Set `SYNC_PAUSED=true`: {actions['pause']}\n"
             f"- Evidence: {evidence}\n\n"
-            "Investigate the failure and fix forward. Keep the release and tag for incident evidence.")
+            "This open issue pauses automation. Check the linked run for the prerelease edit. "
+            "Close the issue to clear this hold after investigating and preparing a fix. "
+            "Keep the release and tag for incident evidence.")
     issue = gh("issues", method="POST", data={"title": title, "body": body, "labels": [INCIDENT]})
     print(f"Incident: {issue['html_url']}")
 
@@ -192,21 +176,14 @@ def retract(tag, reason, evidence, dry_run):
     if dry_run:
         print(json.dumps({"dry_run": True, "tag": tag, "failure": reason,
                           "release": {"prerelease": True, "make_latest": "false"},
-                          "repo_variable": {"SYNC_PAUSED": "true"}, "issue_label": INCIDENT}, indent=2))
+                          "pause_issue": {"state": "open", "labels": [INCIDENT]}}, indent=2))
         return
 
-    actions = {}
-    # Pause first to stop pending promotions. Retraction and the incident still run if pausing fails.
-    for name, action in (("pause", set_pause), ("retract", lambda: mark_prerelease(tag))):
-        try:
-            action()
-            actions[name] = "done"
-        except (ValueError, subprocess.CalledProcessError) as error:
-            actions[name] = "failed"
-            report_error(error)
-    record_incident(tag, reason, actions, evidence)
-    promotion.require(all(result == "done" for result in actions.values()),
-                      f"Incomplete incident response for {tag}. See the incident and retry failed jobs.")
+    # Open the hold first. A failed issue write must still attempt to retract.
+    try:
+        record_incident(tag, reason, evidence)
+    finally:
+        mark_prerelease(tag)
 
 
 def mark_prerelease(tag):
@@ -249,7 +226,8 @@ def main():
         elif candidate:
             promotion.write_outputs({"tag": dispatch(candidate)})
     elif args.command == "check-pause":
-        promotion.require(not paused(pause_variable() or ""), "SYNC_PAUSED is true; publication blocked")
+        if reason := pause_reason():
+            raise ValueError(f"{reason}; publication blocked")
     elif args.command == "watch-tags":
         tags = find_watch_tags(releases(), datetime.now(timezone.utc))
         promotion.write_outputs({"tags": json.dumps(tags)})
