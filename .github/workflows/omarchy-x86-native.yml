@@ -285,6 +285,13 @@ jobs:
             --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
             -e GATE_ARCHIVE -e OMARCHY_CHANNEL -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/release:/release:ro" -v "$RUNNER_TEMP/out:/out" \
             "$BASE_IMAGE" bash /repo/.github/omarchy-x86-native/gates.sh
+      - name: Verify EGL compatibility retry
+        if: env.OMARCHY_CHANNEL == 'edge'
+        run: |
+          out="$RUNNER_TEMP/out"
+          grep -Fx $'mesa\t1:26.3.1-1' "$out/gates.tsv"
+          grep -Fx $'egl_gtk_configs\t0' "$out/gates.tsv"
+          grep -E 'GTK EGL compatibility retry matched [1-9][0-9]* configs \(desktop OpenGL\)' "$out/ordinary/app.log"
       - name: Summary
         if: always()
         run: |
