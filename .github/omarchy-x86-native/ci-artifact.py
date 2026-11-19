@@ -47,8 +47,8 @@ def validate(run):
         # #485 diagnostic branch. Accept only the exact workflow_dispatch and source revision
         # under test. Keep all original job, attempt, artifact digest and payload checks.
         expected_branch = "codex/edge-egl-485"
-        sha = "00ed1e781dc66ba0509627790f1513910c5692c6"
-        require(run["id"] == 44624365599 and run["event"] == "workflow_dispatch",
+        sha = "6b2804fe3b8e27988f5bec1ac74332da319440e5"
+        require(run["id"] == 44625271405 and run["event"] == "workflow_dispatch",
                 "Only the #485 draft's exact CI dispatch may enter this diagnostic leg")
         require(run["head_branch"] == expected_branch, "Wrong #485 source branch")
         promotion.BRANCHES = (expected_branch,)
