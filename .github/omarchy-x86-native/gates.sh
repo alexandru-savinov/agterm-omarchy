@@ -13,6 +13,7 @@ USER_NAME=omarchy
 PREFIX_NAME=agt-prefix
 ARCHIVE="${GATE_ARCHIVE:?GATE_ARCHIVE names the archive in /release}"
 PROBE_RUNS="${PROBE_RUNS:-10}"
+SESSION_DEADLINE=50m
 OMARCHY_CHANNEL="${OMARCHY_CHANNEL:-stable}"
 
 # Omarchy's desktop-runtime packages that are in the official Arch repositories, from
@@ -95,11 +96,14 @@ root_phase() {
   install -d -m 0700 -o "$USER_NAME" /run/user/1000
   install -d -m 0700 -o "$USER_NAME" "/home/$USER_NAME/evidence"
   status=0
-  runuser -u "$USER_NAME" -- env -i PATH=/usr/local/bin:/usr/bin HOME="/home/$USER_NAME" USER="$USER_NAME" \
+  # A bounded session leaves time inside the job cap to copy whatever evidence it wrote.
+  timeout --kill-after=60s "$SESSION_DEADLINE" runuser -u "$USER_NAME" -- env -i PATH=/usr/local/bin:/usr/bin HOME="/home/$USER_NAME" USER="$USER_NAME" \
     LOGNAME="$USER_NAME" SHELL=/bin/bash LANG=C.UTF-8 XDG_RUNTIME_DIR=/run/user/1000 PROBE_RUNS="$PROBE_RUNS" \
     OMARCHY_CHANNEL="$OMARCHY_CHANNEL" \
     GATE_ARCHIVE="$ARCHIVE" \
     dbus-run-session -- bash "$SELF" session || status=$?
+  (( status != 124 && status != 137 )) ||
+    printf 'session\tFAIL deadline %s reached\n' "$SESSION_DEADLINE" >> "/home/$USER_NAME/evidence/gates.tsv"
   # Copying "evidence/." would also copy its 0700 mode and owner onto /out itself.
   cp -a "/home/$USER_NAME/evidence/." /out/
   chown -R "$owner" /out
@@ -203,6 +207,21 @@ int main(void) {
 }
 C
   cc -o "$HOME/egl-configs" "$HOME/egl-configs.c" -lEGL -lwayland-client && "$HOME/egl-configs"
+}
+
+# TERM, then KILL after 30 s: a compositor stuck in teardown must not hold the session to its deadline.
+stop_hyprland() {
+  local tick
+  kill "$HYPRLAND_PID" 2>/dev/null || return 0
+  for tick in $(seq 60); do
+    kill -0 "$HYPRLAND_PID" 2>/dev/null || break
+    sleep 0.5
+  done
+  if kill -0 "$HYPRLAND_PID" 2>/dev/null; then
+    echo "Hyprland ignored TERM for 30 s (tick $tick); sending KILL" >> "$EVIDENCE/hyprland-info.txt"
+    kill -KILL "$HYPRLAND_PID" 2>/dev/null || true
+  fi
+  wait "$HYPRLAND_PID" 2>/dev/null || true
 }
 
 record() { printf '%s\t%s\n' "$1" "$2" >> "$EVIDENCE/gates.tsv"; }
@@ -310,8 +329,7 @@ PY
 
   cp "$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/hyprland.log" "$EVIDENCE/hyprland-runtime.log" 2>/dev/null || true
   grep -iE 'GL_RENDERER|GL_VENDOR|EGL|llvmpipe|renderer' "$EVIDENCE/hyprland-runtime.log" | head -n 20 >> "$EVIDENCE/hyprland-info.txt" || true
-  kill "$HYPRLAND_PID" 2>/dev/null || true
-  wait "$HYPRLAND_PID" 2>/dev/null || true
+  stop_hyprland
   cat "$EVIDENCE/gates.tsv"
   ! grep -qP '^(ordinary|live|probe|uninstall)\tFAIL' "$EVIDENCE/gates.tsv"
 }

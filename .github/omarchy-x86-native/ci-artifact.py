@@ -51,15 +51,20 @@ def validate(run):
 
 
 def resolve(args):
+    """One JSON line: the run, its attempt and commit, and each architecture's artifact identity."""
     run = select_run(args.run_id)
-    validate(run)
-    print(run["id"], run["run_attempt"], run["head_sha"])
+    artifacts = validate(run)
+    print(json.dumps({"run_id": run["id"], "attempt": run["run_attempt"], "sha": run["head_sha"],
+                      "artifacts": {arch: {"id": item["id"], "name": item["name"], "transport_digest": item["digest"]}
+                                    for arch, item in artifacts.items()}}, sort_keys=True))
 
 
 def download(args):
     run = select_run(args.run_id)
     require(run["run_attempt"] == args.attempt, "Run attempt changed since it was resolved")
     artifact = validate(run)[args.arch]
+    require(artifact["id"] == args.artifact_id and artifact["digest"] == args.transport_digest,
+            "Artifact changed since it was resolved")
     name, data = promotion.download_artifact(artifact, args.arch, run["head_sha"])
     current = promotion.api(f"actions/runs/{run['id']}")
     require(current["run_attempt"] == run["run_attempt"] and current["status"] == "completed"
@@ -81,12 +86,14 @@ def download(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    resolve_parser = commands.add_parser("resolve", help="validate a run; print its id, attempt and commit")
+    resolve_parser = commands.add_parser("resolve", help="validate a run; print its identity as JSON")
     resolve_parser.add_argument("--run-id", default="")
     download_parser = commands.add_parser("download", help="download one architecture's validated archive")
     download_parser.add_argument("--run-id", required=True)
     download_parser.add_argument("--attempt", type=int, required=True)
     download_parser.add_argument("--arch", choices=sorted(promotion.ARCHITECTURES), required=True)
+    download_parser.add_argument("--artifact-id", type=int, required=True)
+    download_parser.add_argument("--transport-digest", required=True)
     download_parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     (resolve if args.command == "resolve" else download)(args)

@@ -1,0 +1,48 @@
+name: Native gates call probe (temporary, #475)
+
+# Proves the workflow_call interface for #477 at this head; removed before this PR leaves draft.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/omarchy-native-gates-call-probe.yml
+      - .github/workflows/omarchy-x86-native.yml
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    uses: ./.github/workflows/omarchy-x86-native.yml
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    with:
+      source: release
+      release_tag: omarchy-dev-b1356f0ad7ae-run43761095738
+
+  # main CI does not attest its archives yet, so this call must fail before executing them.
+  ci-run:
+    uses: ./.github/workflows/omarchy-x86-native.yml
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    with:
+      source: ci-run
+      arch: x86_64
+
+  report:
+    needs: [release, ci-run]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          RELEASE: ${{ toJSON(needs.release) }}
+          CI_RUN: ${{ toJSON(needs.ci-run) }}
+        run: |
+          jq -c '{result, passed: .outputs.passed, attested: .outputs.attested, commit: .outputs.source_commit,
+            tag: .outputs.release_tag, archives: (.outputs.archives | fromjson? // .outputs.archives)}' <<< "$RELEASE"
+          jq -c '{result, passed: .outputs.passed, attested: .outputs.attested, run: .outputs.source_run_id,
+            attempt: .outputs.source_run_attempt, archives: (.outputs.archives | fromjson? // .outputs.archives)}' <<< "$CI_RUN"

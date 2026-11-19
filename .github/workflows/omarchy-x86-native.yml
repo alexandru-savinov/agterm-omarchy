@@ -6,11 +6,14 @@ name: Omarchy native gates
 # It installs an archive that CI already built, never a build from this ref:
 # - ci-run: one successful main Omarchy CI run's artifacts, under the versioned promotion's own checks, so
 #   a release can be gated before it is published. An empty run id takes the newest such run.
-# - release: a published omarchy-dev-* or omarchy-v* release's assets, checked against its SHA256SUMS.
+# - release: a published omarchy-dev-* or omarchy-v* release's assets, resolved once to asset IDs and digests.
+# Either way the source job resolves the bytes once, and no leg executes an archive before its build or
+# promotion attestation verifies and its embedded commit matches (attestation: required).
 # This is Arch (or Arch Linux ARM) plus Omarchy's packages on a cloud runner, not an Omarchy ISO install.
 # Not a required check. The pull_request trigger runs only when this workflow, its directory or the promotion
 # checks it reuses change.
-# Callers grant contents: read and actions: read. The call fails when any leg fails; `passed` says the same.
+# Callers grant contents: read, actions: read and attestations: read, and gate on `passed`, which
+# verdict.py defines. The call fails whenever `passed` is false, except under attestation: report-only.
 
 on:
   workflow_dispatch:
@@ -43,6 +46,12 @@ on:
         type: choice
         options: [stable, rc, edge]
         default: stable
+      attestation:
+        description: "required, or report-only: run unattested archives and report; passed stays false"
+        required: true
+        type: choice
+        options: [required, report-only]
+        default: required
   workflow_call:
     inputs:
       source:
@@ -70,15 +79,32 @@ on:
         required: false
         type: string
         default: stable
+      attestation:
+        description: "required, or report-only (passed stays false)"
+        required: false
+        type: string
+        default: required
     outputs:
       passed:
-        description: "'true' only when every requested architecture passed every gate"
+        description: "'true' only for complete, attested evidence of the resolved bytes passing all four gates on every arch"
         value: ${{ jobs.verdict.outputs.passed }}
       source_commit:
         description: Commit the tested archives were built from
         value: ${{ jobs.source.outputs.sha }}
+      source_run_id:
+        description: "ci-run: the Omarchy CI run whose artifacts were tested"
+        value: ${{ jobs.source.outputs.run_id }}
+      source_run_attempt:
+        description: "ci-run: that run's attempt; a later attempt's artifacts were not tested"
+        value: ${{ jobs.source.outputs.attempt }}
+      release_tag:
+        description: "release: the tested tag"
+        value: ${{ jobs.source.outputs.tag }}
+      archives:
+        description: "JSON by arch: the tested artifact or asset (id, name, transport_digest or sha256), its sha256 and attestation"
+        value: ${{ jobs.verdict.outputs.archives }}
       results:
-        description: "JSON object by architecture of that leg's gates.tsv rows (archive sha256, payload commit, gates)"
+        description: "JSON by arch of that leg's gates.tsv rows"
         value: ${{ jobs.verdict.outputs.results }}
   pull_request:
     paths:
@@ -94,7 +120,7 @@ permissions:
 # Never shared between sources, so a release gate is not cancelled by another one; called runs keep their
 # caller's event, so only pull requests cancel an older run.
 concurrency:
-  group: omarchy-native-gates-${{ github.ref }}-${{ inputs.source || 'ci-run' }}-${{ inputs.run_id || inputs.release_tag || 'newest' }}-${{ inputs.arch || 'both' }}-${{ inputs.channel || 'stable' }}
+  group: omarchy-native-gates-${{ github.ref }}-${{ inputs.source || 'ci-run' }}-${{ inputs.run_id || inputs.release_tag || 'newest' }}-${{ inputs.arch || 'both' }}-${{ inputs.channel || 'stable' }}-${{ inputs.attestation || 'self-test' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
@@ -111,6 +137,7 @@ jobs:
       actions: read
     outputs:
       matrix: ${{ steps.resolve.outputs.matrix }}
+      plan: ${{ steps.resolve.outputs.plan }}
       source: ${{ steps.resolve.outputs.source }}
       run_id: ${{ steps.resolve.outputs.run_id }}
       attempt: ${{ steps.resolve.outputs.attempt }}
@@ -118,6 +145,7 @@ jobs:
       tag: ${{ steps.resolve.outputs.tag }}
       label: ${{ steps.resolve.outputs.label }}
       channel: ${{ steps.resolve.outputs.channel }}
+      attestation: ${{ steps.resolve.outputs.attestation }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -126,54 +154,59 @@ jobs:
         run: |
           bash -n .github/omarchy-x86-native/gates.sh
           shellcheck -x -P SCRIPTDIR .github/omarchy-x86-native/gates.sh
-          python3 -I .github/omarchy-x86-native/test_ci_artifact.py
+          for test in .github/omarchy-x86-native/test_*.py; do python3 -I "$test"; done
       - name: Resolve the source
         id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
           SOURCE: ${{ inputs.source || 'ci-run' }}
           RUN_ID: ${{ inputs.run_id }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           ARCH: ${{ inputs.arch || 'both' }}
           CHANNEL: ${{ inputs.channel || 'stable' }}
+          ATTESTATION: ${{ inputs.attestation }}
         run: |
           [[ "$CHANNEL" =~ ^(stable|rc|edge)$ ]] || { echo "unknown channel: $CHANNEL"; exit 1; }
+          # Dispatch and workflow_call always pass a value, so only this workflow's own pull_request self-test
+          # arrives without one; until main CI attests its archives, that self-test can only report.
+          if [[ -z "$ATTESTATION" && "$EVENT" == pull_request ]]; then ATTESTATION=report-only; fi
+          [[ "$ATTESTATION" =~ ^(required|report-only)$ ]] || { echo "unknown attestation policy: '$ATTESTATION'"; exit 1; }
           case "$ARCH" in
             both) arches=(x86_64 aarch64) ;;
             x86_64 | aarch64) arches=("$ARCH") ;;
             *) echo "unknown arch: $ARCH"; exit 1 ;;
           esac
           matrix="$(printf '%s\n' "${arches[@]}" | jq -cR '{arch: ., runner: (if . == "x86_64" then "ubuntu-24.04" else "ubuntu-24.04-arm" end)}' | jq -cs '{include: .}')"
+          arch_args=()
+          for arch in "${arches[@]}"; do arch_args+=(--arch "$arch"); done
           case "$SOURCE" in
             ci-run)
               [[ -z "$RELEASE_TAG" ]] || { echo "release_tag is for source=release"; exit 1; }
-              python3 -I .github/omarchy-x86-native/ci-artifact.py resolve --run-id "$RUN_ID" | tee "$RUNNER_TEMP/resolved"
-              read -r run_id attempt sha < "$RUNNER_TEMP/resolved"
-              label="run$run_id-$attempt"
+              python3 -I .github/omarchy-x86-native/ci-artifact.py resolve --run-id "$RUN_ID" > "$RUNNER_TEMP/resolved.json"
+              plan="$(jq -c --argjson arches "$(printf '%s\n' "${arches[@]}" | jq -cR . | jq -cs .)" '{
+                run_id: (.run_id | tostring), attempt: (.attempt | tostring), sha, tag: "",
+                label: "run\(.run_id)-\(.attempt)",
+                identities: (.artifacts | with_entries(select(.key as $arch | $arches | index($arch))))}' "$RUNNER_TEMP/resolved.json")"
               ;;
             release)
               [[ -z "$RUN_ID" ]] || { echo "run_id is for source=ci-run"; exit 1; }
-              [[ "$RELEASE_TAG" =~ ^omarchy-(dev-[0-9a-f]{12}-run[0-9]+|v[0-9]+(\.[0-9]+)+)$ ]] || { echo "unexpected tag: $RELEASE_TAG"; exit 1; }
-              mkdir -p "$RUNNER_TEMP/promotion"
-              gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/promotion" \
-                --pattern SHA256SUMS --pattern promotion.json
-              (cd "$RUNNER_TEMP/promotion" && sha256sum --check --strict --ignore-missing SHA256SUMS) > "$RUNNER_TEMP/check.txt"
-              grep -qx 'promotion.json: OK' "$RUNNER_TEMP/check.txt"
-              sha="$(jq -er '.source_commit' "$RUNNER_TEMP/promotion/promotion.json")"
-              label="$RELEASE_TAG"
+              python3 -I .github/omarchy-x86-native/release-assets.py resolve --tag "$RELEASE_TAG" "${arch_args[@]}" \
+                > "$RUNNER_TEMP/resolved.json"
+              plan="$(jq -c '{run_id: "", attempt: "", sha, tag, label: .tag, identities: .archives,
+                release: {sums, promotion}}' "$RUNNER_TEMP/resolved.json")"
               ;;
             *) echo "unknown source: $SOURCE"; exit 1 ;;
           esac
-          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          plan="$(jq -c --arg source "$SOURCE" --arg channel "$CHANNEL" --arg attestation "$ATTESTATION" \
+            --argjson arches "$(printf '%s\n' "${arches[@]}" | jq -cR . | jq -cs .)" \
+            '. + {source: $source, channel: $channel, attestation: $attestation, arches: $arches}' <<< "$plan")"
+          jq -e '(.sha | test("^[0-9a-f]{40}$")) and (.identities | length) == (.arches | length)' <<< "$plan" > /dev/null
           {
             echo "matrix=$matrix"
-            echo "source=$SOURCE"
-            echo "run_id=${run_id:-}"
-            echo "attempt=${attempt:-}"
-            echo "sha=$sha"
-            echo "tag=${RELEASE_TAG}"
-            echo "label=$label"
-            echo "channel=$CHANNEL"
+            echo "plan=$plan"
+            jq -r '"source=\(.source)", "run_id=\(.run_id)", "attempt=\(.attempt)", "sha=\(.sha)", "tag=\(.tag)",
+              "label=\(.label)", "channel=\(.channel)", "attestation=\(.attestation)"' <<< "$plan"
           } | tee -a "$GITHUB_OUTPUT"
 
   gates:
@@ -187,16 +220,22 @@ jobs:
     permissions:
       contents: read
       actions: read
+      attestations: read
     env:
       ARCH: ${{ matrix.arch }}
+      PLAN: ${{ needs.source.outputs.plan }}
       SOURCE: ${{ needs.source.outputs.source }}
+      SHA: ${{ needs.source.outputs.sha }}
       LABEL: ${{ needs.source.outputs.label }}
       OMARCHY_CHANNEL: ${{ needs.source.outputs.channel }}
+      ATTESTATION: ${{ needs.source.outputs.attestation }}
       X86_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
       # Arch Linux ARM's own aarch64 rootfs: Docker's official archlinux image is x86_64 only, and a
-      # community multi-arch image would make a third party's build the trust root for the keyring. Its
-      # one URL is rebuilt in place, so it is pinned by the build system's signing key, not a digest.
+      # community multi-arch image would make a third party's build the trust root for the keyring.
+      # os.archlinuxarm.org serves no valid HTTPS certificate and rebuilds this URL in place, so the bytes are
+      # pinned twice: the build system's signature, and a reviewed digest that blocks replaying an older pair.
       ALARM_ROOTFS: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+      ALARM_ROOTFS_SHA256: 42a4eeaa038994ffd31fa173256ef2f0ef511358eeb41b9ea1f8626391b9b319
       ALARM_KEY: 68B3537F39A313B3E574D06777193F152BDBE6A6
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -220,34 +259,62 @@ jobs:
             ls -l /dev/dri
             for card in /sys/class/drm/card[0-9]; do echo "$card -> $(readlink -f "$card/device")"; done
           } | tee "$RUNNER_TEMP/out/host.txt"
-      - name: Download and verify the CI run's archive
-        if: needs.source.outputs.source == 'ci-run'
+      - name: Download the resolved archive and verify it before anything runs
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ needs.source.outputs.run_id }}
-          ATTEMPT: ${{ needs.source.outputs.attempt }}
         run: |
-          python3 -I .github/omarchy-x86-native/ci-artifact.py download --run-id "$RUN_ID" --attempt "$ATTEMPT" \
-            --arch "$ARCH" --output "$RUNNER_TEMP/release"
-          echo "GATE_ARCHIVE=agterm-omarchy-$ARCH.tar.gz" >> "$GITHUB_ENV"
-          cp "$RUNNER_TEMP/release/source.json" "$RUNNER_TEMP/out/"
-      - name: Download and verify the release archive
-        if: needs.source.outputs.source == 'release'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.source.outputs.tag }}
-        run: |
-          if [[ "$RELEASE_TAG" == omarchy-v* ]]; then archive="agterm-omarchy-${RELEASE_TAG#omarchy-v}-$ARCH.tar.gz"
-          else archive="agterm-omarchy-$ARCH.tar.gz"; fi
-          mkdir -p "$RUNNER_TEMP/release"
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/release" \
-            --pattern "$archive" --pattern SHA256SUMS --pattern promotion.json
-          cd "$RUNNER_TEMP/release"
-          sha256sum --check --strict --ignore-missing SHA256SUMS | tee "$RUNNER_TEMP/check.txt"
-          grep -qx "$archive: OK" "$RUNNER_TEMP/check.txt"
-          grep -qx 'promotion.json: OK' "$RUNNER_TEMP/check.txt"
-          cp promotion.json "$RUNNER_TEMP/out/"
+          identity="$(jq -ce --arg arch "$ARCH" '.identities[$arch]' <<< "$PLAN")"
+          release="$RUNNER_TEMP/release"
+          mkdir -p "$release"
+          if [[ "$SOURCE" == ci-run ]]; then
+            python3 -I .github/omarchy-x86-native/ci-artifact.py download \
+              --run-id "$(jq -r .run_id <<< "$PLAN")" --attempt "$(jq -r .attempt <<< "$PLAN")" --arch "$ARCH" \
+              --artifact-id "$(jq -r .id <<< "$identity")" --transport-digest "$(jq -r .transport_digest <<< "$identity")" \
+              --output "$release"
+            archive="agterm-omarchy-$ARCH.tar.gz"
+            cp "$release/source.json" "$RUNNER_TEMP/out/"
+          else
+            archive="$(jq -r .name <<< "$identity")"
+            for asset in "$identity" "$(jq -c .release.sums <<< "$PLAN")" "$(jq -c .release.promotion <<< "$PLAN")"; do
+              python3 -I .github/omarchy-x86-native/release-assets.py download --asset-id "$(jq -r .id <<< "$asset")" \
+                --sha256 "$(jq -r .sha256 <<< "$asset")" --output "$release/$(jq -r .name <<< "$asset")"
+            done
+            (cd "$release" && sha256sum --check --strict --ignore-missing SHA256SUMS) > "$RUNNER_TEMP/check.txt"
+            grep -qx "$archive: OK" "$RUNNER_TEMP/check.txt"
+            grep -qx 'promotion.json: OK' "$RUNNER_TEMP/check.txt"
+            cp "$release/promotion.json" "$RUNNER_TEMP/out/"
+          fi
+          sha256="$(sha256sum "$release/$archive" | cut -d' ' -f1)"
+          commit="$(tar -xzOf "$release/$archive" agterm-stage/share/agterm/COMMIT | tr -d '[:space:]')"
+          [[ "$commit" == "$SHA" ]] || { echo "embedded commit $commit is not the resolved $SHA"; exit 1; }
+          attested=verified
+          if [[ "$SOURCE" == ci-run ]]; then
+            gh attestation verify "$release/$archive" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" --source-ref refs/heads/main \
+              --source-digest "$SHA" --deny-self-hosted-runners > "$RUNNER_TEMP/out/attestation.txt" 2>&1 || attested=unverified
+          else
+            for predicate in https://slsa.dev/provenance/v1 "https://github.com/$GITHUB_REPOSITORY/attestations/promotion/v1"; do
+              gh attestation verify "$release/$archive" --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/prerelease-omarchy.yml" --source-ref refs/heads/main \
+                --deny-self-hosted-runners --predicate-type "$predicate" --format json > "$RUNNER_TEMP/attestation.json" \
+                2>> "$RUNNER_TEMP/out/attestation.txt" || { attested=unverified; continue; }
+              # The signed promotion predicate must name the commit this run resolved.
+              [[ "$predicate" == https://slsa.dev/* ]] || jq -e --arg sha "$SHA" \
+                'length > 0 and all(.[]; .verificationResult.statement.predicate.source_commit == $sha)' \
+                "$RUNNER_TEMP/attestation.json" >> "$RUNNER_TEMP/out/attestation.txt" || attested=unverified
+            done
+          fi
+          echo "attestation: $attested" | tee -a "$RUNNER_TEMP/out/attestation.txt"
+          # Written by the host outside /out, so nothing the container writes can stand in for it.
+          jq -n --arg arch "$ARCH" --arg source "$SOURCE" --argjson identity "$identity" --arg archive "$archive" \
+            --arg sha256 "$sha256" --arg commit "$commit" --arg attestation "$attested" \
+            '{arch: $arch, source: $source, identity: $identity, archive: $archive, sha256: $sha256, commit: $commit,
+              attestation: $attestation}' > "$RUNNER_TEMP/host-record.json"
           echo "GATE_ARCHIVE=$archive" >> "$GITHUB_ENV"
+          if [[ "$attested" != verified && "$ATTESTATION" == required ]]; then
+            echo "::error::$archive has no verified attestation; it is not executed"
+            exit 1
+          fi
       - name: Prepare the Arch base image
         env:
           KEY_FILE: .github/omarchy-x86-native/archlinuxarm-builder.asc
@@ -269,6 +336,8 @@ jobs:
           gpgv --keyring "$rootfs/builder.gpg" "$rootfs/rootfs.tar.gz.sig" "$rootfs/rootfs.tar.gz" 2>&1 | tee "$rootfs/gpgv.txt"
           grep -q "using RSA key $ALARM_KEY" "$rootfs/gpgv.txt"
           digest="$(sha256sum "$rootfs/rootfs.tar.gz" | cut -d' ' -f1)"
+          # A rebuilt rootfs fails here until its signature-verified digest is reviewed and pinned above.
+          [[ "$digest" == "$ALARM_ROOTFS_SHA256" ]] || { echo "::error::ALARM rootfs sha256 $digest is not the pinned $ALARM_ROOTFS_SHA256"; exit 1; }
           docker import --platform linux/arm64 "$rootfs/rootfs.tar.gz" "alarm-rootfs:$digest"
           rm "$rootfs/rootfs.tar.gz"
           echo "BASE_IMAGE=alarm-rootfs:$digest" >> "$GITHUB_ENV"
@@ -286,6 +355,8 @@ jobs:
       - name: Summary
         if: always()
         run: |
+          # After the container, so the host's record replaces any file of that name the container wrote.
+          if [[ -f "$RUNNER_TEMP/host-record.json" ]]; then cp "$RUNNER_TEMP/host-record.json" "$RUNNER_TEMP/out/"; else rm -f "$RUNNER_TEMP/out/host-record.json"; fi
           {
             printf '### %s Omarchy gates (%s channel)\nSource: %s %s\n\n<pre>\n' "$ARCH" "$OMARCHY_CHANNEL" "$SOURCE" "$LABEL"
             cat "$RUNNER_TEMP/out/gates.tsv" 2>/dev/null || echo 'no gate results'
@@ -305,36 +376,51 @@ jobs:
     needs: [source, gates]
     if: always()
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
     outputs:
       passed: ${{ steps.verdict.outputs.passed }}
+      attested: ${{ steps.verdict.outputs.attested }}
+      archives: ${{ steps.verdict.outputs.archives }}
       results: ${{ steps.verdict.outputs.results }}
     steps:
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        if: needs.source.result == 'success'
-        continue-on-error: true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          pattern: omarchy-native-gates-*-${{ needs.source.outputs.channel }}-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: evidence
+          persist-credentials: false
+      - name: Fetch this attempt's evidence
+        if: needs.source.result == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREFIX: omarchy-native-gates-
+          SUFFIX: -${{ needs.source.outputs.channel }}-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          # One directory per artifact, by name; verdict.py decides what is missing.
+          mkdir -p evidence
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired | not) | "\(.id) \(.name)"' |
+          while read -r id name; do
+            [[ "$name" == "$PREFIX"*"$SUFFIX" ]] || continue
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "evidence/$name.zip"
+            unzip -q -d "evidence/$name" "evidence/$name.zip"
+          done
+          ls evidence
       - name: Decide
         id: verdict
         env:
+          PLAN: ${{ needs.source.outputs.plan }}
           SOURCE_RESULT: ${{ needs.source.result }}
           GATES_RESULT: ${{ needs.gates.result }}
-          LABEL: ${{ needs.source.outputs.label }}
+          ATTESTATION: ${{ needs.source.outputs.attestation || 'required' }}
         run: |
-          # One matching artifact is extracted into evidence/ itself, several into a directory each.
-          results='{}'
-          while IFS= read -r -d '' tsv; do
-            results="$(jq -c --rawfile tsv "$tsv" '
-              ([$tsv | split("\n")[] | select(length > 0) | split("\t") | {(.[0]): .[1]}] | add) as $rows
-              | . + {($rows.host_arch // "unknown"): $rows}' <<< "$results")"
-          done < <(find evidence -name gates.tsv -print0 2>/dev/null)
-          # Skipped or cancelled legs fail: only success on both jobs passes.
-          passed=false
-          [[ "$SOURCE_RESULT" == success && "$GATES_RESULT" == success ]] && passed=true
-          echo "passed=$passed" >> "$GITHUB_OUTPUT"
-          echo "results=$results" >> "$GITHUB_OUTPUT"
-          printf '### Native gates verdict: %s\nSource %s, gates %s, %s\n' "$passed" "$SOURCE_RESULT" "$GATES_RESULT" "$LABEL" >> "$GITHUB_STEP_SUMMARY"
-          jq . <<< "$results"
-          [[ "$passed" == true ]]
+          # Without a resolved plan nothing can pass; verdict.py still reports what is missing.
+          if [[ -n "$PLAN" ]]; then printf '%s' "$PLAN" > plan.json
+          else echo '{"arches": ["x86_64", "aarch64"], "identities": {}, "channel": "", "label": "", "sha": "", "source": ""}' > plan.json; fi
+          mkdir -p evidence
+          status=0
+          python3 -I .github/omarchy-x86-native/verdict.py --evidence evidence --expected plan.json \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --source-result "$SOURCE_RESULT" \
+            --gates-result "$GATES_RESULT" --attestation "$ATTESTATION" | tee verdict.txt || status=$?
+          { printf '### Native gates verdict\n<pre>\n'; cat verdict.txt; printf '</pre>\n'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
