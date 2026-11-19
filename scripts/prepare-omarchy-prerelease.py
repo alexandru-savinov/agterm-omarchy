@@ -238,13 +238,12 @@ def on_main(sha):
     return sha == head or api(f"compare/{sha}...{head}")["status"] == "ahead"
 
 
-def tag_commit(tag):
-    """The commit an existing tag names, peeling an annotated tag."""
-    target = api(f"git/ref/tags/{tag}")["object"]
-    if target["type"] == "tag":
-        target = api(f"git/tags/{target['sha']}")["object"]
-    require(target["type"] == "commit", f"Tag {tag} does not name a commit")
-    return target["sha"]
+def source_base(release, sha):
+    """The upstream base the source commit itself declares, not this checkout's."""
+    import base64
+    content = api(f"contents/{WORKFLOW}?ref={sha}")
+    require(content.get("encoding") == "base64", "Unreadable source ci.yml")
+    return release.upstream_base(base64.b64decode(content["content"]).decode())
 
 
 def released_versions(release):
@@ -287,6 +286,8 @@ def discover_commit(sha):
     pages = api(f"actions/workflows/ci.yml/runs?branch=main&head_sha={sha}&status=success&per_page=100", pages=True)
     candidates = []
     for run in (run for page in pages for run in page["workflow_runs"]):
+        if run["head_branch"] != "main":
+            continue
         try:
             validate_run(run, workflow, sha, sha)
             validate_jobs(run_jobs(run), release=True)
@@ -305,8 +306,6 @@ def main():
     parser.add_argument("--next-version", action="store_true", help="print the next unpublished release version")
     parser.add_argument("--release", metavar="VERSION",
                         help="build versioned release assets for tag omarchy-vVERSION instead of a dev prerelease")
-    parser.add_argument("--tagged", action="store_true",
-                        help="with --release: the tag already exists (a tag push) and must name SHA")
     parser.add_argument("run_id", type=int, nargs="?")
     parser.add_argument("sha", nargs="?")
     parser.add_argument("output", type=Path, nargs="?")
@@ -324,10 +323,13 @@ def main():
         return
     require(None not in (args.run_id, args.sha, args.output), "Expected RUN_ID SHA OUTPUT")
     require(args.run_id > 0, "Invalid run ID")
-    require(args.release or not args.tagged, "--tagged needs --release")
     release = release_module() if args.release else None
-    tag = release.release_tag(args.release, release.upstream_base()) if release else promotion_tag(args.sha, args.run_id)
+    if release:
+        release.check_version(args.release)
+    else:
+        tag = promotion_tag(args.sha, args.run_id)
     run = api(f"actions/runs/{args.run_id}")
+    require(run["id"] == args.run_id, "Requested run ID mismatch")
     if release:
         # A release names its commit explicitly, so main may have moved on; it must still contain it.
         require(run["head_branch"] == "main", "Releases are cut only from main CI runs")
@@ -338,13 +340,11 @@ def main():
         branch_sha = api(f"git/ref/heads/{run['head_branch']}")["object"]["sha"]
     validate_run(run, api("actions/workflows/ci.yml"), args.sha, branch_sha)
     validate_jobs(run_jobs(run), release=bool(release))
+    if release:
+        tag = release.release_tag(args.release, source_base(release, args.sha))
     artifacts = select_artifacts(run_artifacts(run), run, args.sha)
     # A dry run must fail where publication would: tag creation refuses an existing ref.
-    if args.tagged:
-        require(absent(f"releases/tags/{tag}"), f"Release {tag} already exists")
-        require(tag_commit(tag) == args.sha, f"Tag {tag} does not name {args.sha}")
-    else:
-        require(not published(tag), f"Tag or release {tag} already exists")
+    require(not published(tag), f"Tag or release {tag} already exists")
     latest = is_latest(args.release, released_versions(release)) if release else False
     args.output.mkdir(parents=True, exist_ok=False)
     evidence = {"repository": REPOSITORY, "source_commit": args.sha, "source_branch": run["head_branch"],
@@ -367,6 +367,7 @@ def main():
         checksums.append(f"{digest}  {name}\n")
     # Recheck the mutable run before allowing a privileged publishing job to consume these results.
     current = api(f"actions/runs/{args.run_id}")
+    require(current["id"] == args.run_id, "Requested run ID mismatch")
     require(current["run_attempt"] == run["run_attempt"] and current["status"] == "completed"
             and current["conclusion"] == "success", "Run changed while downloading")
     (args.output / "promotion.json").write_text(json.dumps(evidence, indent=2) + "\n")
@@ -399,8 +400,6 @@ def development_notes(tag, sha, run, _version):
 
 
 def release_notes(tag, sha, run, version):
-    # Attestations record the ref this workflow ran on: main for a dispatch, the tag for a tag push.
-    ref = os.environ.get("GITHUB_REF", "refs/heads/main")
     return (
         f"agterm for Omarchy {version}, built from upstream agterm {version.rsplit('.', 1)[0]} plus the Linux port.\n\n"
         f"Source: https://github.com/{REPOSITORY}/commit/{sha}\n\n"
@@ -417,7 +416,7 @@ def release_notes(tag, sha, run, version):
         "the promotion workflow; the additional signed promotion predicate records the validated build run, "
         "source SHA and artifact identities.\n\n"
         f"Verify: `gh attestation verify agterm-omarchy-{version}-aarch64.tar.gz --repo {REPOSITORY} "
-        f"--signer-workflow {REPOSITORY}/.github/workflows/prerelease-omarchy.yml --source-ref {ref}`.\n")
+        f"--signer-workflow {REPOSITORY}/.github/workflows/prerelease-omarchy.yml --source-ref refs/heads/main`.\n")
 
 
 if __name__ == "__main__":

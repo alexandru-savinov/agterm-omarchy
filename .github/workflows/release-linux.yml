@@ -1,7 +1,7 @@
 name: linux release
 
-# Legacy x86_64 DEB/RPM/tar release of an existing linux-v tag, dispatch only. Omarchy packages follow
-# the versioned omarchy-v releases of prerelease-omarchy.yml, which ship both architectures.
+# Legacy x86_64 DEB/RPM/tar release of an existing linux-v tag, kept for upstream parity and retired in
+# this fork: every job is skipped here, so prerelease-omarchy.yml is the fork's only publishing path.
 on:
   workflow_dispatch:
     inputs:
@@ -29,6 +29,7 @@ env:
 
 jobs:
   sbom:
+    if: github.repository != 'alexandru-savinov/agterm-omarchy'
     permissions:
       contents: read
     uses: ./.github/workflows/sbom.yml
@@ -38,6 +39,7 @@ jobs:
 
   release-linux:
     name: Build Linux x86_64 release
+    if: github.repository != 'alexandru-savinov/agterm-omarchy'
     needs: sbom
     runs-on: ubuntu-24.04
     timeout-minutes: 60

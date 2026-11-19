@@ -4,7 +4,7 @@
 It does not rebuild, change CI/UI gates, or publish on pull requests.
 Without a version it publishes a development prerelease of unchanged archives (below).
 With a version it publishes the versioned release that omarchy-pkgs follows ([Versioned releases](#versioned-releases)).
-The inherited `release-linux.yml` is dispatch-only and x86_64-only; it is not the Omarchy package source.
+The inherited `release-linux.yml` (x86_64 linux-v releases) is retired here: all of its jobs are skipped in this repository.
 
 A maintainer dispatches it from `main`. Dispatch is a dry run unless `dry_run=false` is passed:
 
@@ -63,20 +63,19 @@ omarchy-pkgs' `upstream-watch` follows non-prerelease releases whose whole tag m
 `omarchy-v(?P<version>[0-9]+(?:\.[0-9]+)*)`.
 A version is the `UPSTREAM_BASE_TAG` of `ci.yml` plus a serial, `0.41.1.N` with N ≥ 1 and no leading zeros,
 so pacman's vercmp orders it below upstream `0.41.2`; serial 0 is the CI rehearsal and is never published.
-Dry-run first, then publish the same source with a dispatch, or push the tag yourself:
+Dispatch from main is the only publishing path. Dry-run first, then publish the same source:
 
 ```bash
 gh workflow run prerelease-omarchy.yml --repo alexandru-savinov/agterm-omarchy --ref main \
   -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA -f version=0.41.1.1            # dry run
 gh workflow run prerelease-omarchy.yml --repo alexandru-savinov/agterm-omarchy --ref main \
   -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA -f version=0.41.1.1 -f dry_run=false
-# or: git tag omarchy-v0.41.1.1 FULL_TESTED_COMMIT_SHA && git push collaboration omarchy-v0.41.1.1
 ```
 
-A tag push publishes; it uses the newest successful main push/dispatch CI run at the tagged commit.
-Push the tag only after that run is green: a run that finds no source fails, and a later dispatch refuses the
-existing tag, so recover by re-running the failed workflow run on the tag once CI has passed.
-The source commit must be on main, which may have moved past it, and its CI artifacts must be unexpired (14 days).
+The workflow creates the tag itself, only after attestation verification; a hand-pushed `omarchy-v` tag triggers
+nothing, and a later dispatch for that version refuses the existing tag.
+The source must be a successful main push/dispatch CI run, its commit must be on main (main may have moved past it),
+its CI artifacts must be unexpired (14 days), and the version's base must equal that commit's own `UPSTREAM_BASE_TAG`.
 Every development-prerelease check applies, and then `scripts/omarchy-release.py` writes
 `agterm-omarchy-<version>-<arch>.tar.gz` for both architectures: the tested archive with only
 `share/agterm/VERSION` changed, numeric root ownership and a timestamp-free gzip header.
@@ -89,5 +88,4 @@ CI rehearses this on both architectures under serial 0 and checks the result nat
 (`release-rehearsal-<arch>-<sha>` artifacts).
 The release is created as a non-prerelease; it is marked latest only when no published `omarchy-v` release
 has a higher version, so a backport never takes it.
-Attestations are verified with `--source-ref` set to the ref the workflow ran on:
-`refs/heads/main` for a dispatch, `refs/tags/omarchy-v<version>` for a tag push; the release notes say which.
+Attestations are verified with `--source-ref refs/heads/main`, as for development prereleases.

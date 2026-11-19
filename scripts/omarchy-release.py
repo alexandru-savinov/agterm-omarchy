@@ -40,20 +40,27 @@ runpath = load("runpath", "linux-runpath.py")
 require = promotion.require
 
 
-def upstream_base(workflow=CI_WORKFLOW):
-    match = re.search(r'^  UPSTREAM_BASE_TAG: "v([0-9.]+)"$', workflow.read_text(), re.MULTILINE)
+def upstream_base(text=None):
+    """UPSTREAM_BASE_TAG from ci.yml TEXT, by default this checkout's."""
+    text = CI_WORKFLOW.read_text() if text is None else text
+    match = re.search(r'^  UPSTREAM_BASE_TAG: "v([0-9.]+)"$', text, re.MULTILINE)
     require(match and VERSION.fullmatch(match[1]), "ci.yml has no UPSTREAM_BASE_TAG")
     return match[1]
 
 
-def release_tag(version, base, rehearsal=False):
-    """The tag for VERSION, which must be BASE.N; N is 0 only for a rehearsal, which is never published."""
+def check_version(version, rehearsal=False):
+    """The base-independent rules, checkable before any source is read."""
     require(isinstance(version, str) and VERSION.fullmatch(version), f"Invalid release version {version!r}")
-    require(version.startswith(base + ".") and version.count(".") == base.count(".") + 1,
-            f"Release version {version} is not {base}.N for upstream base {base}")
     serial = int(version.rsplit(".", 1)[1])
     require(serial == 0 if rehearsal else serial >= 1,
             "Release serial 0 is reserved for CI rehearsals" if not rehearsal else "A rehearsal uses serial 0")
+
+
+def release_tag(version, base, rehearsal=False):
+    """The tag for VERSION, which must be BASE.N; N is 0 only for a rehearsal, which is never published."""
+    check_version(version, rehearsal)
+    require(version.startswith(base + ".") and version.count(".") == base.count(".") + 1,
+            f"Release version {version} is not {base}.N for upstream base {base}")
     tag = f"omarchy-v{version}"
     match = WATCH_TAG.fullmatch(tag)
     require(match and match["version"] == version, f"{tag} does not match the omarchy-pkgs watch pattern")

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Adversarial provenance/architecture checks without network or executing payloads."""
 
+import base64
 import copy
 import hashlib
 import importlib.util
@@ -495,7 +496,7 @@ def release_zip(arch, sha=SHA):
 class ReleaseGitHub(FakeGitHub):
     """The fake with archives built like the fixed stage, plus releases, tags and main ancestry."""
 
-    def __init__(self, releases=(), tag=None, ahead=True, **kwargs):
+    def __init__(self, releases=(), ahead=True, ci=None, **kwargs):
         super().__init__(**kwargs)
         for job in self.jobs:
             if job["name"].startswith("GTK build"):
@@ -504,7 +505,8 @@ class ReleaseGitHub(FakeGitHub):
         self.zips = {arch: release_zip(arch, self.sha) for arch in promotion.ARCHITECTURES}
         for artifact, arch in zip(self.artifacts, promotion.ARCHITECTURES):
             artifact["digest"] = "sha256:" + hashlib.sha256(self.zips[arch]).hexdigest()
-        self.releases, self.tag, self.ahead = list(releases), tag, ahead
+        self.releases, self.ahead = list(releases), ahead
+        self.ci = CI_WORKFLOW.read_text() if ci is None else ci
 
     def answer(self, path):
         base = f"repos/{promotion.REPOSITORY}/"
@@ -515,10 +517,8 @@ class ReleaseGitHub(FakeGitHub):
             return {"status": "ahead" if self.ahead else "diverged"}
         if short.startswith("git/ref/heads/main") and not self.ahead:
             return {"object": {"sha": "f" * 40}}
-        if short.startswith("git/ref/tags/") and self.tag:
-            return {"object": self.tag}
-        if short.startswith("git/tags/"):
-            return {"object": {"type": "commit", "sha": self.sha}}
+        if short == f"contents/{promotion.WORKFLOW}?ref={self.sha}":
+            return {"encoding": "base64", "content": base64.b64encode(self.ci.encode()).decode()}
         return super().answer(path)
 
 
@@ -580,23 +580,6 @@ class ReleaseDryRunTests(unittest.TestCase):
         with first, second:
             self.assertEqual(promotion.next_version(promotion.release_module()), "0.41.1.3")
 
-    def test_tag_push_requires_its_tag_to_name_the_tested_commit(self):
-        cases = ((dict(tag={"type": "commit", "sha": SHA}), None),
-                 (dict(tag={"type": "tag", "sha": "e" * 40}), None),
-                 (dict(tag={"type": "commit", "sha": "b" * 40}), "does not name"),
-                 (dict(tag={"type": "commit", "sha": SHA}, existing=["releases/tags/omarchy-v0.41.1.1"]), "already exists"))
-        for kwargs, error in cases:
-            with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as temp:
-                github = ReleaseGitHub(**kwargs)
-                if error is None:
-                    self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.1", "--tagged",
-                                 env={"GITHUB_REF": "refs/tags/omarchy-v0.41.1.1"})
-                    notes = (Path(temp) / "promotion/release-notes.md").read_text()
-                    self.assertIn("--source-ref refs/tags/omarchy-v0.41.1.1`", notes)
-                else:
-                    with self.assertRaisesRegex(ValueError, error):
-                        self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.1", "--tagged")
-
     def test_dispatch_refuses_an_existing_tag_or_release(self):
         for existing in ("git/ref/tags/omarchy-v0.41.1.1", "releases/tags/omarchy-v0.41.1.1"):
             with self.subTest(existing=existing), tempfile.TemporaryDirectory() as temp:
@@ -626,17 +609,36 @@ class ReleaseDryRunTests(unittest.TestCase):
                     self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.1")
                 self.prepare(github, Path(temp) / "dev")
 
-    def test_rejects_invalid_versions_before_any_api_call(self):
-        for version in ("0.41.1", "0.41.1.0", "0.41.1.1rc1", "0.41.2.1"):
+    def test_rejects_malformed_versions_before_any_api_call(self):
+        for version in ("0.41.1.0", "0.41.1.1rc1", "0.41.1.01", "v0.41.1.1", "0.41.1.1-1"):
             github = ReleaseGitHub()
             with self.subTest(version=version), tempfile.TemporaryDirectory() as temp:
                 with self.assertRaises(ValueError):
                     self.prepare(github, Path(temp) / "promotion", "--release", version)
                 self.assertEqual(github.calls, [])
 
-    def test_tagged_needs_a_release_version(self):
-        with tempfile.TemporaryDirectory() as temp, self.assertRaisesRegex(ValueError, "--tagged needs --release"):
-            self.prepare(ReleaseGitHub(), Path(temp) / "promotion", "--tagged")
+    def test_the_upstream_base_comes_from_the_source_commit(self):
+        for version in ("0.41.1", "0.41.2.1"):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as temp:
+                with self.assertRaisesRegex(ValueError, "is not 0.41.1.N"):
+                    self.prepare(ReleaseGitHub(), Path(temp) / "promotion", "--release", version)
+        moved = CI_WORKFLOW.read_text().replace('UPSTREAM_BASE_TAG: "v0.41.1"', 'UPSTREAM_BASE_TAG: "v0.42.0"')
+        with tempfile.TemporaryDirectory() as temp:
+            self.prepare(ReleaseGitHub(ci=moved), Path(temp) / "next", "--release", "0.42.0.1")
+            with self.assertRaisesRegex(ValueError, "is not 0.42.0.N"):
+                self.prepare(ReleaseGitHub(ci=moved), Path(temp) / "old", "--release", "0.41.1.1")
+
+    def test_the_requested_run_id_must_be_the_run_the_api_returns(self):
+        for extra in ((), ("--release", "0.41.1.1")):
+            github = ReleaseGitHub()
+            github.runs[7] = (dict(github.run, id=8),) + github.runs[7][1:]
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as temp:
+                with self.assertRaisesRegex(ValueError, "Requested run ID mismatch"):
+                    self.prepare(github, Path(temp) / "promotion", *extra)
+
+    def test_tagged_is_not_an_option(self):
+        with tempfile.TemporaryDirectory() as temp, self.assertRaises(SystemExit):
+            self.prepare(ReleaseGitHub(), Path(temp) / "promotion", "--release", "0.41.1.1", "--tagged")
 
     def test_discover_commit_finds_the_green_main_run_at_that_commit(self):
         github = ReleaseGitHub()
@@ -668,16 +670,15 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("type: boolean", inputs)
         self.assertIn("default: true", inputs)
 
-    def test_only_a_non_dry_dispatch_from_main_or_an_omarchy_v_tag_push_can_publish(self):
+    def test_only_an_explicit_non_dry_dispatch_from_main_can_publish(self):
         self.assertEqual(set(self.jobs), {"test", "prepare", "publish"})
-        self.assertIn("    if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' "
-                      "&& inputs.dry_run == false) || (github.event_name == 'push' "
-                      "&& startsWith(github.ref, 'refs/tags/omarchy-v'))\n", self.jobs["publish"])
-        condition = re.search(r"^    if: (.+)$", self.jobs["publish"], re.M)[1]
-        self.assertNotIn("pull_request", condition)
-        triggers = self.text[:self.text.index("\npermissions:")]
-        self.assertIn('  push:\n    tags: ["omarchy-v*"]\n', triggers)
-        self.assertNotIn("branches", triggers[:triggers.index("  pull_request:")])
+        self.assertIn("    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' "
+                      "&& inputs.dry_run == false\n", self.jobs["publish"])
+        triggers = self.text[self.text.index("\non:\n"):self.text.index("\npermissions:")]
+        self.assertEqual(re.findall(r"^  ([a-z_]+):", triggers, re.M), ["pull_request", "workflow_dispatch"])
+        for push in ("push:", "== 'push'", "refs/tags/omarchy-v"):
+            self.assertNotIn(push, self.text)
+        self.assertNotIn("--tagged", self.text)
         for name in ("test", "prepare"):
             job = self.jobs[name]
             for privileged in ("id-token: write", "contents: write", "attestations: write", "actions/attest",
@@ -697,7 +698,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('for predicate in https://slsa.dev/provenance/v1 '
                       '"https://github.com/$GH_REPO/attestations/promotion/v1"; do', verify)
         for flag in ('--source-digest "$GITHUB_SHA"', "--deny-self-hosted-runners",
-                     '--predicate-type "$predicate"', '--source-ref "$GITHUB_REF"'):
+                     '--predicate-type "$predicate"', "--source-ref refs/heads/main"):
             with self.subTest(flag=flag):
                 self.assertIn(flag, verify)
 
@@ -705,8 +706,7 @@ class WorkflowTests(unittest.TestCase):
         job = self.jobs["prepare"]
         upload = job[job.rindex("      - uses: actions/upload-artifact@"):]
         self.assertIn("name: verified-prerelease-", upload)
-        self.assertIn("        if: (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) "
-                      "|| github.event_name == 'push'\n", upload)
+        self.assertIn("        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false\n", upload)
         self.assertEqual(job.count("verified-prerelease-"), 1)
 
     def test_a_dry_run_without_a_source_says_it_checked_nothing(self):
@@ -720,7 +720,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertLess(job.rindex("actions/attest@"), verify)
         self.assertLess(verify, job.index('gh api --method POST "repos/$GH_REPO/git/refs"'))
         self.assertIn("--signer-workflow \"$GH_REPO/.github/workflows/prerelease-omarchy.yml\"", job)
-        self.assertIn('--source-ref "$GITHUB_REF"', job)
+        self.assertIn("--source-ref refs/heads/main", job)
         self.assertIn("--prerelease --latest=false", job)
 
     def test_versioned_release_is_a_non_prerelease_with_latest_by_version(self):
@@ -729,19 +729,21 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("        if: needs.prepare.outputs.version != ''\n", step)
         self.assertIn('--latest="$LATEST"', step)
         self.assertNotIn("--prerelease", step)
-        self.assertIn('if [[ "$TAGGED" != true ]]; then', step)
+        self.assertIn('gh api --method POST "repos/$GH_REPO/git/refs"', step)
         self.assertLess(job.index("gh attestation verify"), job.index(step))
         dev = job[job.index("      - name: Create new tag and prerelease"):job.index(step)]
         self.assertIn("        if: needs.prepare.outputs.version == ''\n", dev)
 
-    def test_tag_push_and_dispatch_select_the_release_mode(self):
+    def test_dispatch_selects_the_release_mode_and_prs_dry_run_main_sources(self):
         job = self.jobs["prepare"]
-        self.assertIn('printf \'version=%s\\ntagged=true\\n\' "${REF_NAME#omarchy-v}"', job)
-        self.assertIn("REF_NAME: ${{ github.ref_name }}", job)
-        self.assertNotIn("${{ github.ref_name }}\" ", job)
-        self.assertIn('python3 scripts/prepare-omarchy-prerelease.py --discover --commit "$GITHUB_SHA"', job)
+        self.assertIn("VERSION: ${{ inputs.version }}", job)
         self.assertIn('[[ -z "$VERSION" ]] || mode=(--release "$VERSION")', job)
-        self.assertIn("      - name: Dry-run the next versioned release on the same source\n", job)
+        step = job[job.index("      - name: Dry-run the next versioned release on the newest main source\n"):]
+        step = step[:step.index("\n      - name: ")]
+        self.assertIn('gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha', step)
+        self.assertIn('--discover --commit "$head"', step)
+        self.assertIn('--release "$version"', step)
+        self.assertNotIn("steps.source.outputs", step)
 
     def test_dry_run_runs_the_same_validation_and_checksum_steps(self):
         job = self.jobs["prepare"]
@@ -751,11 +753,15 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("sha256sum --check SHA256SUMS", job)
         self.assertIn("release-notes.md", job)
 
-    def test_legacy_linux_release_is_dispatch_only_and_shares_the_upstream_base(self):
+    def test_legacy_linux_release_is_retired_here_and_shares_the_upstream_base(self):
         legacy = (REPO / ".github/workflows/release-linux.yml").read_text()
         triggers = legacy[legacy.index("\non:\n"):legacy.index("\nconcurrency:")]
         self.assertNotIn("push:", triggers)
-        self.assertIn("workflow_dispatch:", triggers)
+        jobs = workflow_jobs(legacy)
+        self.assertEqual(set(jobs), {"sbom", "release-linux"})
+        for name, body in jobs.items():
+            with self.subTest(job=name):
+                self.assertIn("    if: github.repository != 'alexandru-savinov/agterm-omarchy'\n", body)
         ci = CI_WORKFLOW.read_text()
         for name in ("UPSTREAM_BASE_TAG", "UPSTREAM_BASE_COMMIT"):
             pin = re.compile(rf'^  {name}: "([^"]+)"$', re.M)
