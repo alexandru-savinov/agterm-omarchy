@@ -10,8 +10,8 @@ name: Omarchy native gates
 # Either way the source job resolves the bytes once, and no leg executes an archive before its build or
 # promotion attestation verifies and its embedded commit matches (attestation: required).
 # This is Arch (or Arch Linux ARM) plus Omarchy's packages on a cloud runner, not an Omarchy ISO install.
-# Not a required check. The pull_request trigger runs only when this workflow, its directory or the promotion
-# checks it reuses change.
+# Not a required check. Its pull_request self-test is omarchy-native-gates-self-test.yml, which passes
+# attestation: report-only explicitly; a blank attestation input here means required.
 # Callers grant contents: read, actions: read and attestations: read, and gate on `passed`, which
 # verdict.py defines. The call fails whenever `passed` is false, except under attestation: report-only.
 
@@ -109,13 +109,6 @@ on:
       results:
         description: "JSON by arch of that leg's gates.tsv rows"
         value: ${{ jobs.verdict.outputs.results }}
-  pull_request:
-    paths:
-      - .github/workflows/omarchy-x86-native.yml
-      - .github/omarchy-x86-native/**
-      # ci-artifact.py runs the promotion's checks, and its test runs on the promotion tests' fixture.
-      - scripts/prepare-omarchy-prerelease.py
-      - scripts/tests/test_omarchy_prerelease.py
 
 permissions:
   contents: read
@@ -123,7 +116,7 @@ permissions:
 # Never shared between sources, so a release gate is not cancelled by another one; called runs keep their
 # caller's event, so only pull requests cancel an older run.
 concurrency:
-  group: omarchy-native-gates-${{ github.ref }}-${{ inputs.source || 'ci-run' }}-${{ inputs.run_id || inputs.release_tag || 'newest' }}-${{ inputs.arch || 'both' }}-${{ inputs.channel || 'stable' }}-${{ inputs.attestation || 'self-test' }}
+  group: omarchy-native-gates-${{ github.ref }}-${{ inputs.source || 'ci-run' }}-${{ inputs.run_id || inputs.release_tag || 'newest' }}-${{ inputs.arch || 'both' }}-${{ inputs.channel || 'stable' }}-${{ inputs.attestation || 'required' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
@@ -162,7 +155,6 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
-          EVENT: ${{ github.event_name }}
           SOURCE: ${{ inputs.source || 'ci-run' }}
           RUN_ID: ${{ inputs.run_id }}
           RELEASE_TAG: ${{ inputs.release_tag }}
@@ -171,9 +163,8 @@ jobs:
           ATTESTATION: ${{ inputs.attestation }}
         run: |
           [[ "$CHANNEL" =~ ^(stable|rc|edge)$ ]] || { echo "unknown channel: $CHANNEL"; exit 1; }
-          # Dispatch and workflow_call always pass a value, so only this workflow's own pull_request self-test
-          # arrives without one; until main CI attests its archives, that self-test can only report.
-          if [[ -z "$ATTESTATION" && "$EVENT" == pull_request ]]; then ATTESTATION=report-only; fi
+          # Fail closed: a blank value is required; only an explicit report-only reports.
+          ATTESTATION="${ATTESTATION:-required}"
           [[ "$ATTESTATION" =~ ^(required|report-only)$ ]] || { echo "unknown attestation policy: '$ATTESTATION'"; exit 1; }
           case "$ARCH" in
             both) arches=(x86_64 aarch64) ;;
@@ -219,7 +210,9 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.source.outputs.matrix) }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 75
+    # Setup and session deadlines inside the container (15 + 50 min) and the step caps below leave the
+    # always() staging and upload steps time inside this cap.
+    timeout-minutes: 95
     permissions:
       contents: read
       actions: read
@@ -263,6 +256,7 @@ jobs:
             for card in /sys/class/drm/card[0-9]; do echo "$card -> $(readlink -f "$card/device")"; done
           } | tee "$RUNNER_TEMP/out/host.txt"
       - name: Download the resolved archive and verify it before anything runs
+        timeout-minutes: 10
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -319,6 +313,7 @@ jobs:
             exit 1
           fi
       - name: Prepare the Arch base image
+        timeout-minutes: 10
         env:
           KEY_FILE: .github/omarchy-x86-native/archlinuxarm-builder.asc
         run: |
@@ -346,32 +341,39 @@ jobs:
           echo "BASE_IMAGE=alarm-rootfs:$digest" >> "$GITHUB_ENV"
           { echo "base $ALARM_ROOTFS sha256 $digest"; cat "$rootfs/gpgv.txt"; } > "$RUNNER_TEMP/out/base-image.txt"
       - name: Run the gates
+        timeout-minutes: 70
         # WebKitGTK sandboxes its helpers with bwrap, which needs unprivileged user namespaces and a mountable
         # /proc, as on a native Arch host. Ubuntu's AppArmor userns restriction and Docker's seccomp profile and
         # masked /proc paths forbid them, so the test container lifts those; the WebKit sandbox stays enabled.
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          docker run --rm --device /dev/dri -v /run/udev:/run/udev:ro \
+          docker run --rm --name omarchy-gates --device /dev/dri -v /run/udev:/run/udev:ro \
             --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
             -e GATE_ARCHIVE -e OMARCHY_CHANNEL -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/release:/release:ro" -v "$RUNNER_TEMP/out:/out" \
             "$BASE_IMAGE" bash /repo/.github/omarchy-x86-native/gates.sh
-      - name: Summary
+      - name: Stage the evidence
         if: always()
         run: |
-          # After the container, so the host's record replaces any file of that name the container wrote.
-          if [[ -f "$RUNNER_TEMP/host-record.json" ]]; then cp "$RUNNER_TEMP/host-record.json" "$RUNNER_TEMP/out/"; else rm -f "$RUNNER_TEMP/out/host-record.json"; fi
+          # The container writes /out as the tested payload's account: stop it, then copy only regular files and
+          # directories into a fresh host-owned directory, which is all the uploader sees.
+          docker rm -f omarchy-gates > /dev/null 2>&1 || true
+          status=0
+          python3 -I .github/omarchy-x86-native/stage-evidence.py "$RUNNER_TEMP/out" "$RUNNER_TEMP/evidence" || status=$?
+          rm -f "$RUNNER_TEMP/evidence/host-record.json"
+          [[ ! -f "$RUNNER_TEMP/host-record.json" ]] || cp "$RUNNER_TEMP/host-record.json" "$RUNNER_TEMP/evidence/"
           {
             printf '### %s Omarchy gates (%s channel)\nSource: %s %s\n\n<pre>\n' "$ARCH" "$OMARCHY_CHANNEL" "$SOURCE" "$LABEL"
-            cat "$RUNNER_TEMP/out/gates.tsv" 2>/dev/null || echo 'no gate results'
-            cat "$RUNNER_TEMP/out/probe-timings.tsv" 2>/dev/null || true
+            cat "$RUNNER_TEMP/evidence/gates.tsv" 2>/dev/null || echo 'no gate results'
+            cat "$RUNNER_TEMP/evidence/probe-timings.tsv" 2>/dev/null || true
             printf '</pre>\n'
           } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: omarchy-native-gates-${{ matrix.arch }}-${{ needs.source.outputs.channel }}-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/out
+          path: ${{ runner.temp }}/evidence
           retention-days: 30
 
   verdict:

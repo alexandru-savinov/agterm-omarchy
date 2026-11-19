@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 
 GATES = {"ordinary": "PASS 7/7 ", "live": "PASS 9/9 ", "probe": "PASS 10/10", "uninstall": "PASS "}
+ARCHITECTURES = ("x86_64", "aarch64")
 
 
 def rows(path):
@@ -44,6 +45,7 @@ def check_leg(directory, arch, expected):
         "tested architecture": table.get("host_arch") == arch,
         "payload commit": table.get("payload_commit") == expected["sha"],
         "archive sha256": bool(host.get("sha256")) and table.get("archive") == host.get("sha256"),
+        "installed bytes": table.get("installed_vs_stage", "").startswith("PASS "),
     }
     if expected["source"] == "release":
         checks["release asset sha256"] = identity is not None and host.get("sha256") == identity.get("sha256")
@@ -60,6 +62,10 @@ def decide(evidence, expected, run_id, attempt, source_result, gates_result):
     errors = [] if source_result == "success" else [f"source job {source_result}"]
     if gates_result != "success":
         errors.append(f"gates jobs {gates_result}")
+    arches = expected.get("arches")
+    if not (isinstance(arches, list) and arches and len(set(arches)) == len(arches) and set(arches) <= set(ARCHITECTURES)):
+        return {"passed": False, "attested": False, "errors": errors + [f"invalid architecture list {arches!r}"],
+                "results": {}, "archives": {}}
     results, archives, attested = {}, {}, True
     for arch in expected["arches"]:
         name = f"omarchy-native-gates-{arch}-{expected['channel']}-{expected['label']}-{run_id}-{attempt}"

@@ -13,6 +13,7 @@ USER_NAME=omarchy
 PREFIX_NAME=agt-prefix
 ARCHIVE="${GATE_ARCHIVE:?GATE_ARCHIVE names the archive in /release}"
 PROBE_RUNS="${PROBE_RUNS:-10}"
+SETUP_DEADLINE=15m
 SESSION_DEADLINE=50m
 OMARCHY_CHANNEL="${OMARCHY_CHANNEL:-stable}"
 
@@ -72,9 +73,8 @@ prepare_base() {
   fi
 }
 
-root_phase() {
-  local owner
-  owner="$(stat -c %u:%g /out)"
+# Package setup: the Omarchy channel mirror, the base's preparation, Omarchy's packages and the runtime.
+setup_phase() {
   grep -E '^(ID|NAME|BUILD_ID)=' /etc/os-release > /out/base-os.txt
   local mirror
   mirror="$(omarchy_mirror)"
@@ -90,13 +90,28 @@ root_phase() {
   pacman -Q > /out/packages.txt
   { echo "omarchy package list: basecamp/omarchy@$OMARCHY_REF install/omarchy-base.packages"
     echo "omarchy channel: $OMARCHY_CHANNEL, Server = $mirror"; } > /out/omarchy-ref.txt
+}
+
+finish_root() {
+  chown -R "$1" /out
+  chmod -R u+rwX,go+rX /out
+  exit "$2"
+}
+
+root_phase() {
+  local owner status=0
+  owner="$(stat -c %u:%g /out)"
+  # Setup and session each have a deadline, so the job always has time left to stage and upload evidence.
+  timeout --kill-after=30s "$SETUP_DEADLINE" bash "$SELF" setup || status=$?
+  if (( status != 0 )); then
+    printf 'setup\tFAIL exit=%s deadline=%s\n' "$status" "$SETUP_DEADLINE" >> /out/gates.tsv
+    finish_root "$owner" "$status"
+  fi
   useradd --create-home --uid 1000 --shell /bin/bash "$USER_NAME"
   # The container's own /dev nodes; the host's permissions are unchanged.
   chown "$USER_NAME" /dev/dri/card* /dev/dri/renderD* 2>/dev/null || true
   install -d -m 0700 -o "$USER_NAME" /run/user/1000
   install -d -m 0700 -o "$USER_NAME" "/home/$USER_NAME/evidence"
-  status=0
-  # A bounded session leaves time inside the job cap to copy whatever evidence it wrote.
   timeout --kill-after=60s "$SESSION_DEADLINE" runuser -u "$USER_NAME" -- env -i PATH=/usr/local/bin:/usr/bin HOME="/home/$USER_NAME" USER="$USER_NAME" \
     LOGNAME="$USER_NAME" SHELL=/bin/bash LANG=C.UTF-8 XDG_RUNTIME_DIR=/run/user/1000 PROBE_RUNS="$PROBE_RUNS" \
     OMARCHY_CHANNEL="$OMARCHY_CHANNEL" \
@@ -106,9 +121,7 @@ root_phase() {
     printf 'session\tFAIL deadline %s reached\n' "$SESSION_DEADLINE" >> "/home/$USER_NAME/evidence/gates.tsv"
   # Copying "evidence/." would also copy its 0700 mode and owner onto /out itself.
   cp -a "/home/$USER_NAME/evidence/." /out/
-  chown -R "$owner" /out
-  chmod -R u+rwX,go+rX /out
-  exit "$status"
+  finish_root "$owner" "$status"
 }
 
 drm_card() {
@@ -274,10 +287,16 @@ session_phase() {
   record payload_version "$(cat "$stage/agterm-stage/share/agterm/VERSION")"
   /repo/scripts/install-linux.sh --payload "$stage/agterm-stage" --software-rendering --prefix "$PREFIX" \
     > "$EVIDENCE/install.log" 2>&1
-  # The installer adds its renderer marker and manifests; every payload file must be byte-identical.
-  diff -r "$stage/agterm-stage" "$PREFIX/lib/agterm" > "$EVIDENCE/installed-vs-stage.diff" || true
-  record installed_vs_stage "$(grep -vcE '^Only in .*/share/agterm: (RENDERER|INSTALLED_FILES|INSTALLED_DIRS)$' \
-    "$EVIDENCE/installed-vs-stage.diff" || true) unexpected differences"
+  # Nothing launches unless the installed payload is the archive plus the installer's own files.
+  local compared=0
+  python3 -I /repo/.github/omarchy-x86-native/compare-install.py "$stage/agterm-stage" "$(readlink -f "$PREFIX/lib/agterm")" \
+    > "$EVIDENCE/installed-vs-stage.txt" 2>&1 || compared=$?
+  if (( compared != 0 )); then
+    record installed_vs_stage "FAIL exit=$compared $(wc -l < "$EVIDENCE/installed-vs-stage.txt") differences"
+    echo "the installed payload is not the archive; not launching it" >&2
+    return 1
+  fi
+  record installed_vs_stage "PASS 0 differences"
   local app_sha
   app_sha="$(sha256sum "$PREFIX/lib/agterm/bin/agterm-linux.bin" | cut -d' ' -f1)"
   record app_sha256 "$app_sha"
@@ -336,6 +355,7 @@ PY
 
 case "$PHASE" in
   root) root_phase ;;
+  setup) setup_phase ;;
   session) session_phase ;;
   *) echo "unknown phase: $PHASE" >&2; exit 2 ;;
 esac

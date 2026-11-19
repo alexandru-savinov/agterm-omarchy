@@ -44,7 +44,8 @@ class VerdictTests(unittest.TestCase):
         sha256 = identity.get("sha256", "f" * 64)
         table = {"archive": sha256, "payload_commit": SHA, "host_arch": arch,
                  "ordinary": "PASS 7/7 exit=0 cleanup=True", "live": "PASS 9/9 exit=0 cleanup=True",
-                 "probe": "PASS 10/10", "uninstall": "PASS exit=0 files_left=0 stray_processes=0"} | (gates or {})
+                 "probe": "PASS 10/10", "uninstall": "PASS exit=0 files_left=0 stray_processes=0",
+                 "installed_vs_stage": "PASS 0 differences"} | (gates or {})
         (directory / "gates.tsv").write_text(raw if raw is not None else
                                              "".join(f"{key}\t{value}\n" for key, value in table.items()))
         record = {"arch": arch, "source": plan["source"], "identity": identity, "archive": "archive.tar.gz",
@@ -75,7 +76,16 @@ class VerdictTests(unittest.TestCase):
         result = self.decide(plan)
         self.assertFalse(result["passed"])
         self.assertIn("aarch64: no evidence from attempt 1", result["errors"][0])
-        self.assertFalse(self.decide(dict(plan, arches=[]), gates="skipped")["passed"])
+
+    def test_an_empty_duplicate_or_unknown_architecture_list_never_passes(self):
+        plan = expected()
+        for arch in ARCHES:
+            self.leg(arch, plan)
+        for arches in ([], ["x86_64", "x86_64"], ["x86_64", "riscv64"], None, "x86_64"):
+            with self.subTest(arches=arches):
+                result = self.decide(dict(plan, arches=arches))
+                self.assertFalse(result["passed"])
+                self.assertIn(f"invalid architecture list {arches!r}", result["errors"])
 
     def test_a_partial_rerun_reuses_no_earlier_attempt(self):
         plan = expected()
@@ -115,6 +125,7 @@ class VerdictTests(unittest.TestCase):
             "release asset sha256": {"host": {"sha256": "e" * 64}, "gates": {"archive": "e" * 64}},
             "tested architecture": {"gates": {"host_arch": "x86_64"}},
             "host record architecture": {"host": {"arch": "x86_64"}},
+            "installed bytes": {"gates": {"installed_vs_stage": "FAIL 1 differences"}},
         }
         for check, change in cases.items():
             with self.subTest(check):
