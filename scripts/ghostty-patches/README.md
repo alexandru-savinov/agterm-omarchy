@@ -32,10 +32,9 @@ line under the exit hold. On a hangup the gather stage now reads and publishes w
 `read()` returns 0, `EAGAIN`, `EIO` or another error, bounded by 4 MiB (`hangup_drain_max`), then exits.
 On macOS the patch is harmless but recovers nothing: Darwin discards what is queued when the replica
 closes (`revents` IN|HUP with `read()` returning 0), so the drain costs one `read()`; #449 tracks the
-macOS side. The Linux-only Zig tests poll a real pty whose replica closed with output queued and feed
-those revents to the gather stage's decision after its poll (`hungUp`), which must end the stage with
-all of the output delivered; the same with nothing queued; and the drain on `/dev/zero`, which never runs
-dry, so it must stop at its cap. `scripts/test-ghostty-patches-linux.sh` runs them. Remove the patch when
+macOS side. The Zig tests exercise the real gather stage with `POLLIN|POLLHUP` from a pty and check
+the drain with a full pty queue, an empty queue, and `/dev/zero` to verify the cap.
+The cap test has a five-second watchdog. Remove the patch when
 `GHOSTTY_REV` reads a hung-up pty to the end.
 
 `0003` orders the exit message after the child's last output (#447). The process watcher can report the
@@ -45,11 +44,17 @@ the surface writes `Process exited. Press any key to close the terminal.` into t
 runs of the #447 trace with `0002` alone). The parse stage, now `ReadThread.parseMainPosix`, sets
 `Exec.read_done` once the gather stage is done and the ring is empty; `processExitCommon` records the exit
 and `ExitHold` sends the notice once `read_done` is set, re-checking on a 2 ms `xev.Timer` so the IO
-thread never blocks, or after `ExitHold.max_ms` (1 s) when the read thread never finishes, as it does
-not while a background process keeps the pty open; then the notice goes as before and a warning is
-logged. `threadMainPosix` also sets `read_done` when it returns, so an early return releases the hold
-at once. Windows sends it at once. The Linux-only Zig tests run the real gather and parse stages on a pty whose replica closed with
-output queued, with parsing held until the exit is reported, and assert on a real terminal that the
-exit message follows the output and was released by the read thread, not the bound; two more cover the
-at-once path and the bound. Do not use `FIONREAD` as a drained signal: it does not count the tty flip
-buffer. Remove the patch when `GHOSTTY_REV` orders the exit notice after the final output.
+thread never blocks. `threadMainPosix` also sets `read_done` when it returns early.
+The Zig tests verify the notice in the real surface mailbox and check that the real gather and parse
+stages put the final output before the exit message. They also check immediate release and the bound,
+with a five-second watchdog on the bound test. Do not use `FIONREAD` as a drained signal because it
+does not count the tty flip buffer. Remove the patch when `GHOSTTY_REV` orders the exit notice after
+the final output.
+
+### Compatibility
+
+On POSIX, if a background process keeps the pty open past `ExitHold.max_ms`, the exit notice waits
+one second and libghostty logs a warning when it delivers the notice. Windows sends it immediately.
+
+Run `scripts/test-ghostty-patches-linux.sh` to verify the tests added by all patches applied on Linux,
+including tests in the embedded runtime.
