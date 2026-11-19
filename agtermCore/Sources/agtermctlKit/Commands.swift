@@ -99,8 +99,14 @@ public enum AgtermctlCommandCatalog {
     public static var subcommands: [ParsableCommand.Type] {
         [Tree.self, Events.self, Workspace.self, Session.self, Surface.self, Dashboard.self, Window.self, Quick.self,
          Sidebar.self, Notify.self, Msg.self, Font.self, Keymap.self, Hooks.self, Browser.self, Config.self, Theme.self, Pick.self, Ask.self,
-         Restore.self, Recent.self, Zmx.self, Terminfo.self, Clipboard.self, Version.self]
+         Restore.self, Recent.self, Zmx.self, Catalog.self, Terminfo.self] + hostSubcommands + [Clipboard.self, Update.self, Version.self]
     }
+
+    #if os(macOS)
+    private static let hostSubcommands: [ParsableCommand.Type] = [Server.self]
+    #else
+    private static let hostSubcommands: [ParsableCommand.Type] = []
+    #endif
 
     public static func rootConfiguration(
         abstract: String = "Drive agterm over its control socket, and install its terminfo entry on other hosts.",
@@ -112,7 +118,8 @@ public enum AgtermctlCommandCatalog {
     }
 }
 
-/// The root `agtermctl` command. Subcommands mirror the control catalog.
+/// Agtermctl is the root `agtermctl` command. Subcommands mirror the control catalog 1:1, except `terminfo`,
+/// `clipboard` and the macOS-only `server`, which run locally and never open the socket.
 public struct Agtermctl: ParsableCommand {
     public static let configuration = AgtermctlCommandCatalog.rootConfiguration()
 

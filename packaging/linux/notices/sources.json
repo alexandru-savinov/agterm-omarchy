@@ -1710,9 +1710,12 @@
     "linux/patches/ghostty-embedded-input-handoff.patch": "1cc9ecc7b1dbbe8432cf75c794600aadeed694ab2f677e87d221ddf5d6d0120a",
     "linux/patches/ghostty-embedded-opengl.patch": "c495d6f3743082bffcad0cc9a543052e78014e26e6c2c4e49124fd1d3cd4866d",
     "linux/patches/ghostty-lib-resources.patch": "ec86e84173b0e1b712c1506eb074ef6ef8e25d0efbf6ce40f467bd39944a33ee",
-    "linux/patches/ghostty-surface-env-unset.patch": "16e113ed16828b6a7ca1896e09e19f90ce1ecc12cd9fc076af8a7c389090ffe7",
-    "scripts/ghostty-patches/0001-drain-mailbox-during-surface-teardown.patch": "442ce0b6524568e2ce442b34eb5d60c58db4657e32c1471392875c99e12c4a5d",
-    "scripts/ghostty-patches/0002-drain-pty-on-hangup.patch": "a0e176b006c8945d8c37bbb23ecdf18d6b156ddfe81766eee218910fdb2dca54",
-    "scripts/ghostty-patches/0003-exit-message-after-final-output.patch": "908be2f85ea7f04aba4f446605dda65452a965d7ead06b6f4951ae2d7b69a6d1"
+    "linux/patches/ghostty-surface-env-unset.patch": "b9bdd2c5fb18acb54c0766448a451932051d39bd0c67db0354abaed3d043b340",
+    "scripts/ghostty-patches/0001-drain-mailbox-during-surface-teardown.patch": "76d2f9c49e68a1ac89363cf0438d5e5aef19dd3ca5ff18b404873da382c98e8d",
+    "scripts/ghostty-patches/0002-report-system-color-scheme.patch": "a1ffeb806054d6cdad27fd48747018249c823c711cf2985ec51fae8d81aaee2e",
+    "scripts/ghostty-patches/0003-surface-try-free.patch": "dbe598d4c79daa141fcdad9d29ac0cb2388d021b5a95bdacd6b4a088530c0c21",
+    "scripts/ghostty-patches/0004-agterm-session-link-scheme.patch": "24dc1b56a90396d479fb23d60e688b68ef2fe6849bf5f105d184d7fda85a4027",
+    "scripts/ghostty-patches/0005-drain-pty-on-hangup.patch": "a0e176b006c8945d8c37bbb23ecdf18d6b156ddfe81766eee218910fdb2dca54",
+    "scripts/ghostty-patches/0006-exit-message-after-final-output.patch": "908be2f85ea7f04aba4f446605dda65452a965d7ead06b6f4951ae2d7b69a6d1"
   }
 }

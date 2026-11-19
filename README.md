@@ -129,7 +129,7 @@ with the matching bundled Ghostty integration.
 The mode is latched at process startup, and a missing daemon after reboot falls back to a new login shell
 with its last cleanly captured command pre-filled at the prompt, waiting for Enter.
 Re-run commands pre-fills the captured command the same way instead of running it.
-The libghostty pin matches upstream v0.41.1 (Ghostty v1.4.0).
+The libghostty pin matches upstream v0.43.0 (Ghostty v1.4.0).
 Kitty clipboard (OSC 5522) text reads and multi-representation writes are supported.
 Kitty image reads are not: reads serve text only.
 Kitty writes to PRIMARY are unsupported; copy-on-select to PRIMARY still works.
@@ -626,12 +626,16 @@ Claude Code and Codex share the same skill format, so it installs to detected `~
 
 The same skill is also published as a plugin from this repository, which is the better route if you keep your agent's config somewhere other than `~/.claude` or `~/.codex` — the agent does the installing, so the skill lands wherever that agent actually looks, and updates through the agent's own plugin commands:
 
+### Claude Code
+
 ```sh
-# Claude Code
 claude plugin marketplace add umputun/agterm
 claude plugin install agterm@agterm
+```
 
-# Codex
+### Codex
+
+```sh
 codex plugin marketplace add umputun/agterm
 codex plugin add agterm@agterm
 ```

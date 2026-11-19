@@ -279,7 +279,7 @@ struct CommandsTests {
     }
 
     @Test func sessionMoveRequiresWorkspaceOrTo() {
-        #expect(validationMessage(["session", "move"]) == "provide a destination workspace, --to, or --after/--before")
+        #expect(validationMessage(["session", "move"]) == "provide a destination workspace, --to, --after/--before, or --parent")
     }
 
     @Test func sessionMoveRejectsWorkspaceAndTo() {
@@ -431,6 +431,22 @@ struct CommandsTests {
         #expect(try request(["session", "scratch", "off"]) == expected)
     }
 
+    @Test func sessionScratchCarriesTheExpectedScratchWithAnOperation() throws {
+        let identity = UUID().uuidString
+        let args = try request(["session", "scratch", "on", "--command", "htop", "--op-id", "op-1", "--epoch", "e1",
+                                "--expect-scratch", identity]).args
+
+        #expect(args?.scratch == identity)
+        #expect(args?.opID == "op-1")
+        #expect(args?.epoch == "e1")
+        #expect(try request(["session", "scratch", "on", "--op-id", "op-1", "--epoch", "e1", "--expect-scratch", "none"]).args?.scratch == "none")
+    }
+
+    @Test(arguments: [["--expect-scratch", "none"], ["--expect-scratch", "nope", "--op-id", "op-1", "--epoch", "e1"]])
+    func sessionScratchRefusesAnExpectedScratchItCannotSend(_ flags: [String]) {
+        #expect(throws: (any Error).self) { try request(["session", "scratch", "on"] + flags) }
+    }
+
     @Test func sessionFocusDefaultsOther() throws {
         let expected = ControlRequest(cmd: .sessionFocus, target: "active", args: ControlArgs(pane: "other"))
         #expect(try request(["session", "focus"]) == expected)
@@ -508,6 +524,11 @@ struct CommandsTests {
     @Test func sessionGoWithWindow() throws {
         let expected = ControlRequest(cmd: .sessionGo, args: ControlArgs(window: "w1", to: "last"))
         #expect(try request(["session", "go", "--to", "last", "--window", "w1"]) == expected)
+    }
+
+    @Test func sessionGoPosition() throws {
+        let expected = ControlRequest(cmd: .sessionGo, args: ControlArgs(to: "3"))
+        #expect(try request(["session", "go", "--to", "3"]) == expected)
     }
 
     @Test func sessionGoRequiresToFails() {
@@ -640,6 +661,12 @@ struct CommandsTests {
                                       args: ControlArgs(status: "completed", autoReset: true)))
     }
 
+    @Test func sessionStatusWithIfIdle() throws {
+        let req = try request(["session", "status", "active", "--blink", "--if-idle"])
+        #expect(req == ControlRequest(cmd: .sessionStatus, target: "active",
+                                      args: ControlArgs(status: "active", blink: true, ifIdle: true)))
+    }
+
     @Test func sessionStatusWithSound() throws {
         let req = try request(["session", "status", "blocked", "--sound", "Glass"])
         #expect(req.cmd == .sessionStatus)
@@ -695,7 +722,7 @@ struct CommandsTests {
     @Test func sessionStatusRejectsUnknownShape() {
         // pin the exact allCases-derived message so an unrelated parse failure can't pass for it.
         #expect(validationMessage(["session", "status", "blocked", "--shape", "hexagon"])
-            == "shape must be one of: circle, square, triangle, triangle-down, play, diamond, capsule, seal, star, bolt, bell")
+            == "shape must be one of: circle, square, triangle, triangle-down, play, diamond, capsule, seal, star, bolt, bell, checkmark")
     }
 
     @Test func sessionStatusShapeHelpListsEveryShape() {
@@ -1518,10 +1545,9 @@ struct CommandsTests {
             ControlRequest(cmd: .pickCancel, target: "pick-1", args: ControlArgs(window: "w1")))
     }
 
-    @Test func pickOpenHasNoTimeoutOption() {
-        #expect(throws: (any Error).self) {
-            try Agtermctl.parseAsRoot(["pick", "--timeout", "60"])
-        }
+    @Test func pickOpenTakesATimeoutFromTheRoot() throws {
+        let command = try #require(try Agtermctl.parseAsRoot(["pick", "--timeout", "60"]) as? Pick.Open)
+        #expect(try command.makeRequest(input: Data("a\n".utf8)).args?.timeout == 60)
     }
 
     // MARK: - dashboard

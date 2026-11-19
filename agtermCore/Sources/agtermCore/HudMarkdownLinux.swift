@@ -4,9 +4,9 @@ import Foundation
 /// Swift's Foundation markdown intents are unavailable on Linux. Keep the same HUD row model and render
 /// the supported markdown subset here, before the shared wrapping and SGR encoding in HudMarkdown.
 extension HudMarkdown {
-    static func lines(_ source: String) -> [Line] {
-        let input = source.precomposedStringWithCanonicalMapping
-            .components(separatedBy: "\n")
+    /// linuxLines lays out the precomposed `text` for the GTK HUD painter; see `lines`.
+    static func linuxLines(_ text: String) -> [Line] {
+        let input = text.components(separatedBy: "\n")
         var parser = LinuxParser(input: input)
         return parser.parse()
     }

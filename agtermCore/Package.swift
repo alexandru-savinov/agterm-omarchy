@@ -11,6 +11,7 @@ let package = Package(
         .library(name: "agtermctlKit", targets: ["agtermctlKit"]),
         .library(name: "AgtermResponsibility", targets: ["AgtermResponsibility"]),
         .executable(name: "agtermctl", targets: ["agtermctl"]),
+        .executable(name: "agterm-server", targets: ["agterm-server"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
@@ -31,13 +32,18 @@ let package = Package(
         // debug-only fixture: it imports agtermctlKit @testable, and release builds name their products.
         .executableTarget(name: "session-wait-watchdog-probe", dependencies: ["agtermctlKit"]),
         .testTarget(name: "agtermctlKitTests", dependencies: ["agtermctlKit", "agtermctl", "session-wait-watchdog-probe"]),
+        .target(name: "AgtermServerKit", dependencies: ["agtermCore"]),
+        .executableTarget(
+            name: "agterm-server",
+            dependencies: ["AgtermServerKit", "agtermCore", .product(name: "ArgumentParser", package: "swift-argument-parser")]
+        ),
+        .testTarget(name: "AgtermServerTests", dependencies: ["AgtermServerKit", "agterm-server"]),
     ],
     swiftLanguageModes: [.v6]
 )
 
 #if os(Linux)
-// Foundation's attributed Markdown APIs are absent on Linux. Keep the parser dependency local to the
-// hosts that need it so upstream Darwin builds retain their original dependency graph and behavior.
+// Foundation's attributed Markdown parser is Darwin only; agterm-server parses with swift-markdown instead
 package.dependencies.append(.package(url: "https://github.com/swiftlang/swift-markdown", exact: "0.8.0"))
 coreTarget.dependencies.append(.product(name: "Markdown", package: "swift-markdown"))
 #endif
