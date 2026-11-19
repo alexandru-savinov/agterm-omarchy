@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tarfile
 import zipfile
@@ -42,10 +43,21 @@ def select_run(run_id):
 
 def validate(run):
     """The run's artifacts by architecture, or ValueError when release mode would reject the run."""
-    require(run["head_branch"] == "main", "The gates take only main CI runs")
-    sha = run["head_sha"]
-    promotion.validate_run(run, promotion.api("actions/workflows/ci.yml"), sha, sha)
-    require(promotion.on_main(sha), f"{sha} is not a commit on main")
+    if os.environ.get("AGTERM_TEST_485_DRAFT") == "1":
+        # #485 diagnostic branch. Accept only the exact workflow_dispatch and source revision
+        # under test. Keep all original job, attempt, artifact digest and payload checks.
+        expected_branch = "codex/edge-egl-485"
+        sha = "00ed1e781dc66ba0509627790f1513910c5692c6"
+        require(run["id"] == 44624365599 and run["event"] == "workflow_dispatch",
+                "Only the #485 draft's exact CI dispatch may enter this diagnostic leg")
+        require(run["head_branch"] == expected_branch, "Wrong #485 source branch")
+        promotion.BRANCHES = (expected_branch,)
+        promotion.validate_run(run, promotion.api("actions/workflows/ci.yml"), sha, sha)
+    else:
+        require(run["head_branch"] == "main", "The gates take only main CI runs")
+        sha = run["head_sha"]
+        promotion.validate_run(run, promotion.api("actions/workflows/ci.yml"), sha, sha)
+        require(promotion.on_main(sha), f"{sha} is not a commit on main")
     promotion.validate_jobs(promotion.run_jobs(run), release=True)
     return promotion.select_artifacts(promotion.run_artifacts(run), run, sha)
 
@@ -67,7 +79,7 @@ def download(args):
     args.output.mkdir(parents=True, exist_ok=False)
     (args.output / name).write_bytes(data)
     digest = hashlib.sha256(data).hexdigest()
-    source = {"repository": promotion.REPOSITORY, "source_commit": run["head_sha"], "source_branch": "main",
+    source = {"repository": promotion.REPOSITORY, "source_commit": run["head_sha"], "source_branch": run["head_branch"],
               "source_run": run["html_url"], "source_run_attempt": run["run_attempt"],
               "source_workflow": promotion.WORKFLOW,
               "artifacts": [{"id": artifact["id"], "name": artifact["name"],

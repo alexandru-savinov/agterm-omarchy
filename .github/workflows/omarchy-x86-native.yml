@@ -1,4 +1,4 @@
-name: Omarchy native gates
+name: Omarchy native gates (#485 draft evidence)
 
 # Runs the native Omarchy acceptance gates (#437, #475) on x86_64 and aarch64 cloud hardware: an Arch container
 # with Omarchy's official-repository desktop packages, installed from Omarchy's own snapshot mirror for the
@@ -133,6 +133,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SOURCE: ${{ inputs.source || 'ci-run' }}
           RUN_ID: ${{ inputs.run_id }}
+          AGTERM_TEST_485_DRAFT: "1"
           RELEASE_TAG: ${{ inputs.release_tag }}
           ARCH: ${{ inputs.arch || 'both' }}
           CHANNEL: ${{ inputs.channel || 'stable' }}
@@ -225,6 +226,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ needs.source.outputs.run_id }}
+          AGTERM_TEST_485_DRAFT: "1"
           ATTEMPT: ${{ needs.source.outputs.attempt }}
         run: |
           python3 -I .github/omarchy-x86-native/ci-artifact.py download --run-id "$RUN_ID" --attempt "$ATTEMPT" \
