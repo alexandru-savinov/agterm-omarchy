@@ -28,6 +28,9 @@ private let onTextPageReport: @MainActor @convention(c) (OpaquePointer?, OpaqueP
 
 @MainActor
 extension AppController {
+    /// A page shown for another host's origin has no text renderer here, so its text actions would do nothing.
+    static let replicaTextActionRefusal = "text page actions on a remote page are not supported by agterm-linux"
+
     func setSessionOverlayFollow(_ target: String?, window: String?, pane: OverlayPane?, mode: ControlToggleMode) -> ControlResponse {
         switch resolveSessionResponse(target) {
         case .failure(let response): return response
@@ -54,6 +57,7 @@ extension AppController {
             case .failure(let failure): return err(failure.message)
             case .success(let value): page = value
             }
+            guard page.replicaOf == nil else { return err(Self.replicaTextActionRefusal) }
             let forward: Bool
             switch request {
             case .query(let text): store.setTextSearch(page.id, query: text); reconcile(focusActive: false); return ok(id)
@@ -83,6 +87,7 @@ extension AppController {
             case .failure(let failure): return err(failure.message)
             case .success(let value): page = value
             }
+            guard page.replicaOf == nil else { return err(Self.replicaTextActionRefusal) }
             guard let text = LinuxHtmlOverlayRegistry.shared.existing(page.id)?.textPage,
                   let found = text.step(forward: forward, changes: true), let count = found["count"] as? Int,
                   let current = found["current"] as? Int else { return err(TextChangesFailure.notLoaded.message) }
