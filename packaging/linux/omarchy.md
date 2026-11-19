@@ -146,6 +146,8 @@ the caller's value untouched, including an explicit one-shot override.
 For child processes, the packaged wrapper's software override is replaced with the caller's previous
 value, or removed if the caller had none.
 A caller-supplied one-shot value can therefore reach those children.
+A root-owned system package, such as the Omarchy package, has no writable marker: set
+`LIBGL_ALWAYS_SOFTWARE=1` in the session environment (for example in `~/.config/uwsm/env`) instead.
 The opt-in addresses the tested VM's EGL limitation; it is not enabled automatically for other Linux machines.
 Hardware rendering remains dependent on each machine's Mesa/driver configuration.
 
