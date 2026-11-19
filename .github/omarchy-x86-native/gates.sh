@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Run the native Omarchy gates (ordinary, Live, config probe x10, uninstall) against a released x86_64
-# archive inside an Arch container on an x86_64 host whose vkms module supplies a KMS device.
+# Run the native Omarchy gates (ordinary, Live, config probe x10, uninstall) against one architecture's
+# archive inside an Arch Linux (x86_64) or Arch Linux ARM (aarch64) container on a same-architecture host
+# whose vkms module supplies a KMS device.
 # Called by .github/workflows/omarchy-x86-native.yml as root in the container; drops to an unprivileged
 # bash-login user for everything except package installation.
-# Mounts: /repo (read-only checkout), /release (verified archive + SHA256SUMS + promotion.json), /out.
+# Mounts: /repo (read-only checkout), /release (verified archive + SHA256SUMS), /out.
+# GATE_ARCHIVE names the archive in /release.
 set -euo pipefail
 PHASE="${1:-root}"
 SELF="$(readlink -f "$0")"
 USER_NAME=omarchy
 PREFIX_NAME=agt-prefix
-ARCHIVE=agterm-omarchy-x86_64.tar.gz
+ARCHIVE="${GATE_ARCHIVE:?GATE_ARCHIVE names the archive in /release}"
 PROBE_RUNS="${PROBE_RUNS:-10}"
 
 # Omarchy's desktop-runtime packages that are in the official Arch repositories, from
@@ -24,15 +26,39 @@ OMARCHY_PACKAGES=(hyprland hyprland-guiutils hypridle hyprlock hyprpicker hyprsu
 RUNTIME_PACKAGES=(gtk4 libadwaita webkitgtk-6.0 libepoxy mesa libglvnd zsh python dbus git gcc
   desktop-file-utils procps-ng file mesa-utils)
 
+# Mirror fetches only; package signatures are still verified on every attempt.
+pacman_retry() {
+  local attempt
+  for attempt in 1 2 3; do
+    pacman "$@" && return
+    echo "pacman $* failed (attempt $attempt)" >&2
+    sleep $((attempt * 15))
+  done
+  return 1
+}
+
+# The Arch Linux ARM rootfs is a bootable system, not a container image: it ships no pacman keyring, a
+# kernel and firmware whose upgrade would rebuild an initramfs, and a stock user holding uid 1000.
+prepare_base() {
+  [[ -d /etc/pacman.d/gnupg ]] || { pacman-key --init && pacman-key --populate; } > /out/pacman-key.log 2>&1
+  local boot=()
+  mapfile -t boot < <(pacman -Qq | grep -E '^(linux-aarch64|linux-firmware.*)$' || true)
+  (( ${#boot[@]} == 0 )) || pacman -Rdd --noconfirm "${boot[@]}" > /out/base-removed.txt
+  if getent passwd alarm >/dev/null; then userdel --remove alarm; fi
+  if getent passwd 1000; then echo "uid 1000 is taken" >&2; return 1; fi
+}
+
 root_phase() {
   local owner
   owner="$(stat -c %u:%g /out)"
-  pacman -Syu --noconfirm
+  grep -E '^(ID|NAME|BUILD_ID)=' /etc/os-release > /out/base-os.txt
+  prepare_base
+  pacman_retry -Syu --noconfirm
   local available=() package
   for package in "${OMARCHY_PACKAGES[@]}"; do
     if pacman -Si "$package" >/dev/null 2>&1; then available+=("$package"); else echo "$package" >> /out/omarchy-packages-unavailable.txt; fi
   done
-  pacman -S --noconfirm --needed "${available[@]}" "${RUNTIME_PACKAGES[@]}"
+  pacman_retry -S --noconfirm --needed "${available[@]}" "${RUNTIME_PACKAGES[@]}"
   pacman -Q > /out/packages.txt
   echo "omarchy package list: basecamp/omarchy@$OMARCHY_REF install/omarchy-base.packages" > /out/omarchy-ref.txt
   useradd --create-home --uid 1000 --shell /bin/bash "$USER_NAME"
@@ -152,7 +178,16 @@ session_phase() {
   mkdir -p "$stage"
   tar -xzf "/release/$ARCHIVE" -C "$stage"
   record payload_commit "$(cat "$stage/agterm-stage/share/agterm/COMMIT")"
-  record payload_elf "$(file -b "$stage/agterm-stage/bin/agterm-linux.bin" | cut -d, -f1-2)"
+  local elf
+  elf="$(file -b "$stage/agterm-stage/bin/agterm-linux.bin" | cut -d, -f1-2)"
+  record payload_elf "$elf"
+  record host_arch "$(uname -m)"
+  case "$(uname -m)" in
+    x86_64) [[ "$elf" == *x86-64 ]] ;;
+    aarch64) [[ "$elf" == *aarch64 ]] ;;
+    *) false ;;
+  esac || { echo "payload ELF ($elf) does not match host $(uname -m)" >&2; return 1; }
+  record payload_version "$(cat "$stage/agterm-stage/share/agterm/VERSION")"
   /repo/scripts/install-linux.sh --payload "$stage/agterm-stage" --software-rendering --prefix "$PREFIX" \
     > "$EVIDENCE/install.log" 2>&1
   # The installer adds its renderer marker and manifests; every payload file must be byte-identical.

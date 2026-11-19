@@ -1,58 +1,319 @@
-name: x86_64 Omarchy native gates
+name: Omarchy native gates
+
+# Runs the native Omarchy acceptance gates (#437, #475) on x86_64 and aarch64 cloud hardware: an Arch container
+# with Omarchy's official-repository desktop packages and Hyprland 0.5x on the host's vkms KMS device with
+# Mesa software rendering. It installs an archive that CI already built, never a build from this ref:
+# - ci-run: one successful main Omarchy CI run's artifacts, under the versioned promotion's own checks, so
+#   a release can be gated before it is published. An empty run id takes the newest such run.
+# - release: a published omarchy-dev-* or omarchy-v* release's assets, checked against its SHA256SUMS.
+# This is Arch (or Arch Linux ARM) plus Omarchy's packages on a cloud runner, not an Omarchy ISO install.
+# Not a required check. The pull_request trigger runs only when this workflow or its directory changes.
+# Callers grant contents: read and actions: read. The call fails when any leg fails; `passed` says the same.
 
 on:
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: probe
+      source:
+        description: What to test
+        required: true
+        type: choice
+        options: [ci-run, release]
+        default: ci-run
+      run_id:
+        description: "ci-run: Omarchy CI run ID on main (empty: the newest run a versioned release accepts)"
         required: false
         type: string
+        default: ""
+      release_tag:
+        description: "release: omarchy-dev-<sha12>-run<id> or omarchy-v<version> tag"
+        required: false
+        type: string
+        default: ""
+      arch:
+        description: Architectures to gate
+        required: true
+        type: choice
+        options: [both, x86_64, aarch64]
+        default: both
+  workflow_call:
+    inputs:
+      source:
+        description: ci-run or release
+        required: false
+        type: string
+        default: ci-run
+      run_id:
+        description: "ci-run: Omarchy CI run ID on main (empty: the newest run a versioned release accepts)"
+        required: false
+        type: string
+        default: ""
+      release_tag:
+        description: "release: omarchy-dev-<sha12>-run<id> or omarchy-v<version> tag"
+        required: false
+        type: string
+        default: ""
+      arch:
+        description: both, x86_64 or aarch64
+        required: false
+        type: string
+        default: both
+    outputs:
+      passed:
+        description: "'true' only when every requested architecture passed every gate"
+        value: ${{ jobs.verdict.outputs.passed }}
+      source_commit:
+        description: Commit the tested archives were built from
+        value: ${{ jobs.source.outputs.sha }}
+      results:
+        description: "JSON object by architecture of that leg's gates.tsv rows (archive sha256, payload commit, gates)"
+        value: ${{ jobs.verdict.outputs.results }}
+  pull_request:
+    paths:
+      - .github/workflows/omarchy-x86-native.yml
+      - .github/omarchy-x86-native/**
 
 permissions:
   contents: read
+
+# Never shared between sources, so a release gate is not cancelled by another one; called runs keep their
+# caller's event, so only pull requests cancel an older run.
+concurrency:
+  group: omarchy-native-gates-${{ github.ref }}-${{ inputs.source || 'ci-run' }}-${{ inputs.run_id || inputs.release_tag || 'newest' }}-${{ inputs.arch || 'both' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  probe:
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 40
+  source:
+    name: Resolve and validate the source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      matrix: ${{ steps.resolve.outputs.matrix }}
+      source: ${{ steps.resolve.outputs.source }}
+      run_id: ${{ steps.resolve.outputs.run_id }}
+      attempt: ${{ steps.resolve.outputs.attempt }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      label: ${{ steps.resolve.outputs.label }}
     steps:
-      - name: Host
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Lint and test the gate scripts
         run: |
-          uname -a; nproc; cat /etc/os-release | head -3
-          which shellcheck docker gpgv gpg || true
-          ls -l /dev/dri || true
-          sudo modprobe vkms && echo VKMS_OK || echo VKMS_FAIL
-          if ! lsmod | grep -q vkms; then
-            sudo apt-get update -qq
-            apt-cache policy "linux-modules-extra-$(uname -r)" || true
-            sudo apt-get install -y "linux-modules-extra-$(uname -r)" && sudo modprobe vkms && echo VKMS_EXTRA_OK || echo VKMS_EXTRA_FAIL
+          bash -n .github/omarchy-x86-native/gates.sh
+          shellcheck -x -P SCRIPTDIR .github/omarchy-x86-native/gates.sh
+          python3 -I .github/omarchy-x86-native/test_ci_artifact.py
+      - name: Resolve the source
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE: ${{ inputs.source || 'ci-run' }}
+          RUN_ID: ${{ inputs.run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          ARCH: ${{ inputs.arch || 'both' }}
+        run: |
+          case "$ARCH" in
+            both) arches=(x86_64 aarch64) ;;
+            x86_64 | aarch64) arches=("$ARCH") ;;
+            *) echo "unknown arch: $ARCH"; exit 1 ;;
+          esac
+          matrix="$(printf '%s\n' "${arches[@]}" | jq -cR '{arch: ., runner: (if . == "x86_64" then "ubuntu-24.04" else "ubuntu-24.04-arm" end)}' | jq -cs '{include: .}')"
+          case "$SOURCE" in
+            ci-run)
+              [[ -z "$RELEASE_TAG" ]] || { echo "release_tag is for source=release"; exit 1; }
+              python3 -I .github/omarchy-x86-native/ci-artifact.py resolve --run-id "$RUN_ID" | tee "$RUNNER_TEMP/resolved"
+              read -r run_id attempt sha < "$RUNNER_TEMP/resolved"
+              label="run$run_id-$attempt"
+              ;;
+            release)
+              [[ -z "$RUN_ID" ]] || { echo "run_id is for source=ci-run"; exit 1; }
+              [[ "$RELEASE_TAG" =~ ^omarchy-(dev-[0-9a-f]{12}-run[0-9]+|v[0-9]+(\.[0-9]+)+)$ ]] || { echo "unexpected tag: $RELEASE_TAG"; exit 1; }
+              mkdir -p "$RUNNER_TEMP/promotion"
+              gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/promotion" \
+                --pattern SHA256SUMS --pattern promotion.json
+              (cd "$RUNNER_TEMP/promotion" && sha256sum --check --strict --ignore-missing SHA256SUMS) > "$RUNNER_TEMP/check.txt"
+              grep -qx 'promotion.json: OK' "$RUNNER_TEMP/check.txt"
+              sha="$(jq -er '.source_commit' "$RUNNER_TEMP/promotion/promotion.json")"
+              label="$RELEASE_TAG"
+              ;;
+            *) echo "unknown source: $SOURCE"; exit 1 ;;
+          esac
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          {
+            echo "matrix=$matrix"
+            echo "source=$SOURCE"
+            echo "run_id=${run_id:-}"
+            echo "attempt=${attempt:-}"
+            echo "sha=$sha"
+            echo "tag=${RELEASE_TAG}"
+            echo "label=$label"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  gates:
+    name: Omarchy gates (${{ matrix.arch }}, Arch container, vkms)
+    needs: source
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.source.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ARCH: ${{ matrix.arch }}
+      SOURCE: ${{ needs.source.outputs.source }}
+      LABEL: ${{ needs.source.outputs.label }}
+      X86_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+      # Arch Linux ARM's own aarch64 rootfs: Docker's official archlinux image is x86_64 only, and a
+      # community multi-arch image would make a third party's build the trust root for the keyring. Its
+      # one URL is rebuilt in place, so it is pinned by the build system's signing key, not a digest.
+      ALARM_ROOTFS: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+      ALARM_KEY: 68B3537F39A313B3E574D06777193F152BDBE6A6
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Load vkms
+        run: |
+          uname -m -r
+          [[ "$(uname -m)" == "$ARCH" ]]
+          if ! sudo modprobe vkms; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+            sudo modprobe vkms
           fi
-          find /lib/modules/$(uname -r) -name 'vkms*' || true
-          ls -l /dev/dri || true
-          for card in /sys/class/drm/card[0-9]; do echo "$card -> $(readlink -f "$card/device")"; done
-      - name: ALARM tarball
+          mkdir -p "$RUNNER_TEMP/out"
+          {
+            uname -srm
+            grep -m1 -E 'model name|CPU part' /proc/cpuinfo || true
+            nproc
+            ls -l /dev/dri
+            for card in /sys/class/drm/card[0-9]; do echo "$card -> $(readlink -f "$card/device")"; done
+          } | tee "$RUNNER_TEMP/out/host.txt"
+      - name: Download and verify the CI run's archive
+        if: needs.source.outputs.source == 'ci-run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ needs.source.outputs.run_id }}
+          ATTEMPT: ${{ needs.source.outputs.attempt }}
         run: |
-          cd "$RUNNER_TEMP"
-          time curl -fsSL --retry 3 -o alarm.tar.gz http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
-          curl -fsSL --retry 3 -o alarm.tar.gz.sig http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz.sig
-          ls -l alarm.tar.gz*; sha256sum alarm.tar.gz
-          curl -fsS -o key.asc 'https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0x68B3537F39A313B3E574D06777193F152BDBE6A6'
-          gpg --show-keys --with-colons key.asc | grep -E '^(pub|sub|fpr)'
-          gpg --dearmor < key.asc > key.gpg
-          gpgv --keyring "$PWD/key.gpg" alarm.tar.gz.sig alarm.tar.gz && echo SIG_OK
-          time docker import --platform linux/arm64 alarm.tar.gz alarm:probe
-          docker run --rm alarm:probe bash -c 'getent passwd 1000; pacman -Q | grep -E "^(linux|firmware|mkinitcpio|uboot)" ; pacman -Q | wc -l; cat /etc/pacman.d/mirrorlist | grep -v "^#" | head; ls /etc/pacman.d/gnupg | head'
-      - name: Container pacman
+          python3 -I .github/omarchy-x86-native/ci-artifact.py download --run-id "$RUN_ID" --attempt "$ATTEMPT" \
+            --arch "$ARCH" --output "$RUNNER_TEMP/release"
+          echo "GATE_ARCHIVE=agterm-omarchy-$ARCH.tar.gz" >> "$GITHUB_ENV"
+          cp "$RUNNER_TEMP/release/source.json" "$RUNNER_TEMP/out/"
+      - name: Download and verify the release archive
+        if: needs.source.outputs.source == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.source.outputs.tag }}
         run: |
-          docker run --rm --device /dev/dri alarm:probe bash -c '
-            set -e
-            pacman-key --init >/dev/null; pacman-key --populate archlinuxarm >/dev/null
-            pacman -Rdd --noconfirm $(pacman -Qq | grep -E "^(linux-aarch64|linux-firmware.*)$") || true
-            time pacman -Syu --noconfirm >/tmp/syu.log 2>&1 || { tail -40 /tmp/syu.log; exit 1; }
-            tail -5 /tmp/syu.log
-            for p in hyprland hyprland-guiutils uwsm yaru-icon-theme ttf-jetbrains-mono-nerd webkitgtk-6.0 gtk4 libadwaita mesa xdg-terminal-exec swayosd waybar; do pacman -Si $p 2>/dev/null | grep -E "^(Name|Version)" | tr "\n" " "; echo " <$p"; done
-          '
+          if [[ "$RELEASE_TAG" == omarchy-v* ]]; then archive="agterm-omarchy-${RELEASE_TAG#omarchy-v}-$ARCH.tar.gz"
+          else archive="agterm-omarchy-$ARCH.tar.gz"; fi
+          mkdir -p "$RUNNER_TEMP/release"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/release" \
+            --pattern "$archive" --pattern SHA256SUMS --pattern promotion.json
+          cd "$RUNNER_TEMP/release"
+          sha256sum --check --strict --ignore-missing SHA256SUMS | tee "$RUNNER_TEMP/check.txt"
+          grep -qx "$archive: OK" "$RUNNER_TEMP/check.txt"
+          grep -qx 'promotion.json: OK' "$RUNNER_TEMP/check.txt"
+          cp promotion.json "$RUNNER_TEMP/out/"
+          echo "GATE_ARCHIVE=$archive" >> "$GITHUB_ENV"
+      - name: Prepare the Arch base image
+        env:
+          KEY_FILE: .github/omarchy-x86-native/archlinuxarm-builder.asc
+        run: |
+          if [[ "$ARCH" == x86_64 ]]; then
+            docker pull "$X86_IMAGE"
+            echo "BASE_IMAGE=$X86_IMAGE" >> "$GITHUB_ENV"
+            echo "base $X86_IMAGE" > "$RUNNER_TEMP/out/base-image.txt"
+            exit 0
+          fi
+          rootfs="$RUNNER_TEMP/alarm"
+          mkdir -p "$rootfs"
+          curl -fsSL --retry 5 --retry-all-errors -o "$rootfs/rootfs.tar.gz" "$ALARM_ROOTFS"
+          curl -fsSL --retry 5 --retry-all-errors -o "$rootfs/rootfs.tar.gz.sig" "$ALARM_ROOTFS.sig"
+          export GNUPGHOME="$rootfs/gnupg"
+          install -d -m 0700 "$GNUPGHOME"
+          [[ "$(gpg --show-keys --with-colons "$KEY_FILE" | awk -F: '$1 == "fpr" { print $10; exit }')" == "$ALARM_KEY" ]]
+          gpg --dearmor < "$KEY_FILE" > "$rootfs/builder.gpg"
+          gpgv --keyring "$rootfs/builder.gpg" "$rootfs/rootfs.tar.gz.sig" "$rootfs/rootfs.tar.gz" 2>&1 | tee "$rootfs/gpgv.txt"
+          grep -q "using RSA key $ALARM_KEY" "$rootfs/gpgv.txt"
+          digest="$(sha256sum "$rootfs/rootfs.tar.gz" | cut -d' ' -f1)"
+          docker import --platform linux/arm64 "$rootfs/rootfs.tar.gz" "alarm-rootfs:$digest"
+          rm "$rootfs/rootfs.tar.gz"
+          echo "BASE_IMAGE=alarm-rootfs:$digest" >> "$GITHUB_ENV"
+          { echo "base $ALARM_ROOTFS sha256 $digest"; cat "$rootfs/gpgv.txt"; } > "$RUNNER_TEMP/out/base-image.txt"
+      - name: Run the gates
+        # WebKitGTK sandboxes its helpers with bwrap, which needs unprivileged user namespaces and a mountable
+        # /proc, as on a native Arch host. Ubuntu's AppArmor userns restriction and Docker's seccomp profile and
+        # masked /proc paths forbid them, so the test container lifts those; the WebKit sandbox stays enabled.
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          docker run --rm --device /dev/dri -v /run/udev:/run/udev:ro \
+            --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
+            -e GATE_ARCHIVE -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/release:/release:ro" -v "$RUNNER_TEMP/out:/out" \
+            "$BASE_IMAGE" bash /repo/.github/omarchy-x86-native/gates.sh
+      - name: Summary
+        if: always()
+        run: |
+          {
+            printf '### %s Omarchy gates\nSource: %s %s\n\n<pre>\n' "$ARCH" "$SOURCE" "$LABEL"
+            cat "$RUNNER_TEMP/out/gates.tsv" 2>/dev/null || echo 'no gate results'
+            cat "$RUNNER_TEMP/out/probe-timings.tsv" 2>/dev/null || true
+            printf '</pre>\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: omarchy-native-gates-${{ matrix.arch }}-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/out
+          retention-days: 30
+
+  verdict:
+    name: Native gates verdict
+    needs: [source, gates]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      passed: ${{ steps.verdict.outputs.passed }}
+      results: ${{ steps.verdict.outputs.results }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.source.result == 'success'
+        continue-on-error: true
+        with:
+          pattern: omarchy-native-gates-*-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence
+      - name: Decide
+        id: verdict
+        env:
+          SOURCE_RESULT: ${{ needs.source.result }}
+          GATES_RESULT: ${{ needs.gates.result }}
+          LABEL: ${{ needs.source.outputs.label }}
+        run: |
+          results='{}'
+          for dir in evidence/omarchy-native-gates-*; do
+            [[ -f "$dir/gates.tsv" ]] || continue
+            arch="${dir#evidence/omarchy-native-gates-}"
+            arch="${arch%%-*}"
+            results="$(jq -c --arg arch "$arch" --rawfile tsv "$dir/gates.tsv" '. + {($arch): (
+              [$tsv | split("\n")[] | select(length > 0) | split("\t") | {(.[0]): .[1]}] | add)}' <<< "$results")"
+          done
+          # Skipped or cancelled legs fail: only success on both jobs passes.
+          passed=false
+          [[ "$SOURCE_RESULT" == success && "$GATES_RESULT" == success ]] && passed=true
+          echo "passed=$passed" >> "$GITHUB_OUTPUT"
+          echo "results=$results" >> "$GITHUB_OUTPUT"
+          printf '### Native gates verdict: %s\nSource %s, gates %s, %s\n' "$passed" "$SOURCE_RESULT" "$GATES_RESULT" "$LABEL" >> "$GITHUB_STEP_SUMMARY"
+          jq . <<< "$results"
+          [[ "$passed" == true ]]
