@@ -1,8 +1,9 @@
 name: Omarchy native gates
 
 # Runs the native Omarchy acceptance gates (#437, #475) on x86_64 and aarch64 cloud hardware: an Arch container
-# with Omarchy's official-repository desktop packages and Hyprland 0.5x on the host's vkms KMS device with
-# Mesa software rendering. It installs an archive that CI already built, never a build from this ref:
+# with Omarchy's official-repository desktop packages, installed from Omarchy's own snapshot mirror for the
+# chosen channel, and Hyprland 0.5x on the host's vkms KMS device with Mesa software rendering.
+# It installs an archive that CI already built, never a build from this ref:
 # - ci-run: one successful main Omarchy CI run's artifacts, under the versioned promotion's own checks, so
 #   a release can be gated before it is published. An empty run id takes the newest such run.
 # - release: a published omarchy-dev-* or omarchy-v* release's assets, checked against its SHA256SUMS.
@@ -35,11 +36,12 @@ on:
         type: choice
         options: [both, x86_64, aarch64]
         default: both
-      mesa_pin:
-        description: "Diagnosis only, x86_64 only: Arch Linux Archive mesa version (e.g. 1:26.2.7-1); the verdict then fails"
-        required: false
-        type: string
-        default: ""
+      channel:
+        description: Omarchy package channel the container installs from
+        required: true
+        type: choice
+        options: [stable, rc, edge]
+        default: stable
   workflow_call:
     inputs:
       source:
@@ -62,6 +64,11 @@ on:
         required: false
         type: string
         default: both
+      channel:
+        description: "Omarchy package channel: stable (an install's default), rc or edge"
+        required: false
+        type: string
+        default: stable
     outputs:
       passed:
         description: "'true' only when every requested architecture passed every gate"
@@ -83,7 +90,7 @@ permissions:
 # Never shared between sources, so a release gate is not cancelled by another one; called runs keep their
 # caller's event, so only pull requests cancel an older run.
 concurrency:
-  group: omarchy-native-gates-${{ github.ref }}-${{ inputs.source || 'ci-run' }}-${{ inputs.run_id || inputs.release_tag || 'newest' }}-${{ inputs.arch || 'both' }}
+  group: omarchy-native-gates-${{ github.ref }}-${{ inputs.source || 'ci-run' }}-${{ inputs.run_id || inputs.release_tag || 'newest' }}-${{ inputs.arch || 'both' }}-${{ inputs.channel || 'stable' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
@@ -106,6 +113,7 @@ jobs:
       sha: ${{ steps.resolve.outputs.sha }}
       tag: ${{ steps.resolve.outputs.tag }}
       label: ${{ steps.resolve.outputs.label }}
+      channel: ${{ steps.resolve.outputs.channel }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,9 +131,9 @@ jobs:
           RUN_ID: ${{ inputs.run_id }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           ARCH: ${{ inputs.arch || 'both' }}
-          MESA_PIN: ${{ inputs.mesa_pin }}
+          CHANNEL: ${{ inputs.channel || 'stable' }}
         run: |
-          [[ -z "$MESA_PIN" || "$ARCH" == x86_64 ]] || { echo "mesa_pin needs arch=x86_64"; exit 1; }
+          [[ "$CHANNEL" =~ ^(stable|rc|edge)$ ]] || { echo "unknown channel: $CHANNEL"; exit 1; }
           case "$ARCH" in
             both) arches=(x86_64 aarch64) ;;
             x86_64 | aarch64) arches=("$ARCH") ;;
@@ -161,6 +169,7 @@ jobs:
             echo "sha=$sha"
             echo "tag=${RELEASE_TAG}"
             echo "label=$label"
+            echo "channel=$CHANNEL"
           } | tee -a "$GITHUB_OUTPUT"
 
   gates:
@@ -178,7 +187,7 @@ jobs:
       ARCH: ${{ matrix.arch }}
       SOURCE: ${{ needs.source.outputs.source }}
       LABEL: ${{ needs.source.outputs.label }}
-      MESA_PIN: ${{ inputs.mesa_pin }}
+      OMARCHY_CHANNEL: ${{ needs.source.outputs.channel }}
       X86_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
       # Arch Linux ARM's own aarch64 rootfs: Docker's official archlinux image is x86_64 only, and a
       # community multi-arch image would make a third party's build the trust root for the keyring. Its
@@ -268,13 +277,13 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           docker run --rm --device /dev/dri -v /run/udev:/run/udev:ro \
             --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
-            -e GATE_ARCHIVE -e MESA_PIN -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/release:/release:ro" -v "$RUNNER_TEMP/out:/out" \
+            -e GATE_ARCHIVE -e OMARCHY_CHANNEL -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/release:/release:ro" -v "$RUNNER_TEMP/out:/out" \
             "$BASE_IMAGE" bash /repo/.github/omarchy-x86-native/gates.sh
       - name: Summary
         if: always()
         run: |
           {
-            printf '### %s Omarchy gates\nSource: %s %s\n\n<pre>\n' "$ARCH" "$SOURCE" "$LABEL"
+            printf '### %s Omarchy gates (%s channel)\nSource: %s %s\n\n<pre>\n' "$ARCH" "$OMARCHY_CHANNEL" "$SOURCE" "$LABEL"
             cat "$RUNNER_TEMP/out/gates.tsv" 2>/dev/null || echo 'no gate results'
             cat "$RUNNER_TEMP/out/probe-timings.tsv" 2>/dev/null || true
             printf '</pre>\n'
@@ -283,7 +292,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: omarchy-native-gates-${{ matrix.arch }}-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: omarchy-native-gates-${{ matrix.arch }}-${{ needs.source.outputs.channel }}-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/out
           retention-days: 30
 
@@ -301,7 +310,7 @@ jobs:
         if: needs.source.result == 'success'
         continue-on-error: true
         with:
-          pattern: omarchy-native-gates-*-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: omarchy-native-gates-*-${{ needs.source.outputs.channel }}-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: evidence
       - name: Decide
         id: verdict
@@ -309,7 +318,6 @@ jobs:
           SOURCE_RESULT: ${{ needs.source.result }}
           GATES_RESULT: ${{ needs.gates.result }}
           LABEL: ${{ needs.source.outputs.label }}
-          MESA_PIN: ${{ inputs.mesa_pin }}
         run: |
           # One matching artifact is extracted into evidence/ itself, several into a directory each.
           results='{}'
@@ -318,11 +326,9 @@ jobs:
               ([$tsv | split("\n")[] | select(length > 0) | split("\t") | {(.[0]): .[1]}] | add) as $rows
               | . + {($rows.host_arch // "unknown"): $rows}' <<< "$results")"
           done < <(find evidence -name gates.tsv -print0 2>/dev/null)
-          # Skipped or cancelled legs fail: only success on both jobs passes. A pinned environment is a
-          # diagnosis, never a pass.
+          # Skipped or cancelled legs fail: only success on both jobs passes.
           passed=false
-          [[ "$SOURCE_RESULT" == success && "$GATES_RESULT" == success && -z "$MESA_PIN" ]] && passed=true
-          if jq -e 'any(.[]; has("environment_pin"))' <<< "$results" > /dev/null; then passed=false; fi
+          [[ "$SOURCE_RESULT" == success && "$GATES_RESULT" == success ]] && passed=true
           echo "passed=$passed" >> "$GITHUB_OUTPUT"
           echo "results=$results" >> "$GITHUB_OUTPUT"
           printf '### Native gates verdict: %s\nSource %s, gates %s, %s\n' "$passed" "$SOURCE_RESULT" "$GATES_RESULT" "$LABEL" >> "$GITHUB_STEP_SUMMARY"

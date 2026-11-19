@@ -13,6 +13,7 @@ USER_NAME=omarchy
 PREFIX_NAME=agt-prefix
 ARCHIVE="${GATE_ARCHIVE:?GATE_ARCHIVE names the archive in /release}"
 PROBE_RUNS="${PROBE_RUNS:-10}"
+OMARCHY_CHANNEL="${OMARCHY_CHANNEL:-stable}"
 
 # Omarchy's desktop-runtime packages that are in the official Arch repositories, from
 # basecamp/omarchy install/omarchy-base.packages at OMARCHY_REF. Omarchy-repo/AUR packages (walker, aether,
@@ -22,6 +23,22 @@ OMARCHY_PACKAGES=(hyprland hyprland-guiutils hypridle hyprlock hyprpicker hyprsu
   xdg-desktop-portal-gtk uwsm mako waybar swaybg swayosd wl-clipboard grim slurp imagemagick fcitx5 fcitx5-gtk
   gnome-keyring gnome-themes-extra yaru-icon-theme noto-fonts noto-fonts-emoji ttf-jetbrains-mono-nerd
   fontconfig polkit-gnome xdg-terminal-exec bash-completion python-gobject jq libsecret)
+# Omarchy's own Arch (and Arch Linux ARM) snapshot mirrors, from default/pacman/mirrorlist-<channel> and
+# default/pacman/aarch64/mirrorlist-<channel> at OMARCHY_REF. stable is what an Omarchy install uses on x86
+# and generic aarch64 (install/helpers/pacman.sh); it lags rolling Arch.
+omarchy_mirror() {
+  # shellcheck disable=SC2016 # pacman expands $repo and $arch.
+  case "$(uname -m)-$OMARCHY_CHANNEL" in
+    x86_64-stable) echo 'https://stable-mirror.omarchy.org/$repo/os/$arch' ;;
+    x86_64-rc) echo 'https://rc-mirror.omarchy.org/$repo/os/$arch' ;;
+    x86_64-edge) echo 'https://mirror.omarchy.org/$repo/os/$arch' ;;
+    aarch64-stable) echo 'https://arm-stable-mirror.omarchy.org/$arch/$repo' ;;
+    aarch64-rc) echo 'https://arm-rc-mirror.omarchy.org/$arch/$repo' ;;
+    aarch64-edge) echo 'https://arm-mirror.omarchy.org/$arch/$repo' ;;
+    *) echo "no Omarchy mirror for $(uname -m) channel $OMARCHY_CHANNEL" >&2; return 1 ;;
+  esac
+}
+
 # The archive's runtime: GTK/WebKitGTK, Mesa software GL, zsh for the Live fixture, a compiler for it.
 RUNTIME_PACKAGES=(gtk4 libadwaita webkitgtk-6.0 libepoxy mesa libglvnd zsh python dbus git gcc
   desktop-file-utils procps-ng file mesa-utils)
@@ -58,21 +75,20 @@ root_phase() {
   local owner
   owner="$(stat -c %u:%g /out)"
   grep -E '^(ID|NAME|BUILD_ID)=' /etc/os-release > /out/base-os.txt
+  local mirror
+  mirror="$(omarchy_mirror)"
+  printf 'Server = %s\n' "$mirror" > /etc/pacman.d/mirrorlist
   prepare_base
-  pacman_retry -Syu --noconfirm
+  # -uu: the snapshot can be older than the base image's own packages.
+  pacman_retry -Syuu --noconfirm
   local available=() package
   for package in "${OMARCHY_PACKAGES[@]}"; do
     if pacman -Si "$package" >/dev/null 2>&1; then available+=("$package"); else echo "$package" >> /out/omarchy-packages-unavailable.txt; fi
   done
   pacman_retry -S --noconfirm --needed "${available[@]}" "${RUNTIME_PACKAGES[@]}"
-  if [[ -n "${MESA_PIN:-}" ]]; then
-    # A diagnosis aid, never a release gate: the workflow's verdict refuses a pinned run.
-    [[ "$(uname -m)" == x86_64 && "$MESA_PIN" =~ ^[0-9]+:[0-9][0-9.]*-[0-9]+$ ]] || { echo "bad MESA_PIN $MESA_PIN" >&2; exit 1; }
-    pacman_retry -U --noconfirm "https://archive.archlinux.org/packages/m/mesa/mesa-$MESA_PIN-x86_64.pkg.tar.zst" \
-      > /out/mesa-pin.log 2>&1
-  fi
   pacman -Q > /out/packages.txt
-  echo "omarchy package list: basecamp/omarchy@$OMARCHY_REF install/omarchy-base.packages" > /out/omarchy-ref.txt
+  { echo "omarchy package list: basecamp/omarchy@$OMARCHY_REF install/omarchy-base.packages"
+    echo "omarchy channel: $OMARCHY_CHANNEL, Server = $mirror"; } > /out/omarchy-ref.txt
   useradd --create-home --uid 1000 --shell /bin/bash "$USER_NAME"
   # The container's own /dev nodes; the host's permissions are unchanged.
   chown "$USER_NAME" /dev/dri/card* /dev/dri/renderD* 2>/dev/null || true
@@ -81,7 +97,7 @@ root_phase() {
   status=0
   runuser -u "$USER_NAME" -- env -i PATH=/usr/local/bin:/usr/bin HOME="/home/$USER_NAME" USER="$USER_NAME" \
     LOGNAME="$USER_NAME" SHELL=/bin/bash LANG=C.UTF-8 XDG_RUNTIME_DIR=/run/user/1000 PROBE_RUNS="$PROBE_RUNS" \
-    MESA_PIN="${MESA_PIN:-}" \
+    OMARCHY_CHANNEL="$OMARCHY_CHANNEL" \
     GATE_ARCHIVE="$ARCHIVE" \
     dbus-run-session -- bash "$SELF" session || status=$?
   # Copying "evidence/." would also copy its 0700 mode and owner onto /out itself.
@@ -251,7 +267,8 @@ session_phase() {
     record "sha256:$file" "$(sha256sum "/repo/$file" | cut -d' ' -f1)"
   done
   record harness_blob "$(git -C /repo rev-parse HEAD:scripts/test-omarchy.sh)"
-  [[ -z "$MESA_PIN" ]] || record environment_pin "mesa=$(pacman -Q mesa | cut -d' ' -f2)"
+  record omarchy_channel "$OMARCHY_CHANNEL $(omarchy_mirror)"
+  record mesa "$(pacman -Q mesa | cut -d' ' -f2)"
   record egl_gtk_configs "$(awk -F'\t' '$1 == "gtk-rgba8-window" { print $2 }' "$EVIDENCE/egl-choose-config.txt")"
 
   harness_gate ordinary none 7
