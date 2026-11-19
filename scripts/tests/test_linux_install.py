@@ -442,7 +442,8 @@ class PayloadStageTests(unittest.TestCase):
         shutil.copytree(ROOT / 'packaging/linux/notices', self.repo / 'packaging/linux/notices')
         shutil.copytree(ROOT / 'packaging/linux/licenses', self.repo / 'packaging/linux/licenses')
         (self.repo / 'linux').mkdir()
-        shutil.copy2(ROOT / 'linux/ghostty-resources.env', self.repo / 'linux/ghostty-resources.env')
+        for name in ('ghostty-resources.env', 'egl-compat.c'):
+            shutil.copy2(ROOT / 'linux' / name, self.repo / 'linux' / name)
         shutil.copytree(ROOT / 'linux/patches', self.repo / 'linux/patches')
         shutil.copytree(ROOT / 'scripts/ghostty-patches', self.repo / 'scripts/ghostty-patches')
         shutil.copy2(ROOT / 'LICENSE', self.repo / 'LICENSE')
@@ -480,8 +481,15 @@ class PayloadStageTests(unittest.TestCase):
         ldd = self.bin / 'ldd'
         ldd.write_text('#!/bin/sh\nprintf "%s\\n" "$FAKE_DEPENDENCIES"\n')
         ldd.chmod(0o755)
+        # The wrappers here run text probes. test_linux_egl_compat.py covers the real ELF loader.
+        cc = self.bin / 'cc'
+        cc.write_text(f'#!{sys.executable}\n' + '''import pathlib, sys
+pathlib.Path(next(arg for arg in sys.argv[1:] if arg.endswith('.c'))).read_bytes()
+pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_text('fixture EGL shim')
+''')
+        cc.chmod(0o755)
         self.env = dict(os.environ, PATH=str(self.bin) + ':' + os.environ['PATH'],
-                        AGTERM_PACKAGE_COMMIT='fixture',
+                        AGTERM_PACKAGE_COMMIT='fixture', AGTERM_DISABLE_EGL_COMPAT='1', CC=str(cc),
                         FAKE_DEPENDENCIES=f'libncurses.so.6 => {self.compat}/libncurses.so.6 (0x123)')
         self.destination = self.work / 'payload'
 
@@ -512,7 +520,9 @@ class PayloadStageTests(unittest.TestCase):
         self.assertTrue((notices / 'swift-foundation/NOTICE.txt').is_file())
         self.assertTrue((notices / 'icu-76.1/LICENSE').is_file())
         provenance = json.loads((notices / 'payload.json').read_text())
-        self.assertEqual(provenance['bundled_libraries'][0]['file'], 'libncurses.so.6')
+        self.assertEqual({entry['file'] for entry in provenance['bundled_libraries']},
+                         {'libagterm-egl-compat.so', 'libncurses.so.6'})
+        self.assertNotIn('libagterm-egl-compat.so', provenance['unresolved_libraries'])
 
     def test_rewrites_executable_runpath_and_checks_every_staged_elf(self):
         result = self.stage()
@@ -522,7 +532,8 @@ class PayloadStageTests(unittest.TestCase):
                                     str(self.destination / 'bin/agtermctl.bin')])
         self.assertEqual(calls[1][0], 'check')
         self.assertTrue({str(self.destination / 'bin/zmx'), str(self.destination / 'lib/libncurses.so.6'),
-                         str(self.destination / 'bin/agterm-linux.bin')} <= set(calls[1][1:]))
+                         str(self.destination / 'bin/agterm-linux.bin'),
+                         str(self.destination / 'lib/libagterm-egl-compat.so')} <= set(calls[1][1:]))
         self.assertEqual(len(calls), 2)
 
     def test_desktop_entry_is_staged_once_under_share_applications(self):
