@@ -112,12 +112,13 @@ def dispatch(candidate, gate):
     if reason := pause_reason():
         print(f"{reason}; promotion skipped.")
         return ""
-    promotion.require(gate.get("passed") == "true" and gate.get("attested") == "true",
+    promotion.require(isinstance(gate, dict) and gate.get("passed") == "true" and gate.get("attested") == "true",
                       "Automatic promotion requires a green, attested native verdict")
+    # Actions can omit empty outputs. A CI-artifact gate has no release tag.
     promotion.require(gate.get("source_commit") == candidate["sha"]
                       and gate.get("source_run_id") == candidate["run_id"]
                       and gate.get("source_run_attempt") == candidate["attempt"]
-                      and gate.get("release_tag") == "",
+                      and gate.get("release_tag", "") == "",
                       "Native evidence does not identify the selected CI run, attempt and commit")
     archives = promotion.parse_native_archives(gate.get("archives", ""), candidate["sha"])
     response = gh("actions/workflows/prerelease-omarchy.yml/dispatches", method="POST", data={

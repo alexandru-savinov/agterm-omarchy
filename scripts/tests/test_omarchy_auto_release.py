@@ -26,7 +26,7 @@ ARCHIVES = {arch: {"id": index, "name": f"agterm-omarchy-{arch}-{SHA}",
                    "sha256": "c" * 64, "attestation": "verified"}
             for index, arch in enumerate(auto.promotion.ARCHITECTURES, start=1)}
 NATIVE_GATE = {"passed": "true", "attested": "true", "source_commit": SHA, "source_run_id": "123",
-               "source_run_attempt": "2", "release_tag": "", "archives": json.dumps(ARCHIVES)}
+               "source_run_attempt": "2", "archives": json.dumps(ARCHIVES)}
 EVENT = {"workflow_run": {"event": "push", "head_branch": "main", "conclusion": "success",
                           "head_repository": {"full_name": auto.promotion.REPOSITORY},
                           "id": 123, "head_sha": SHA, "run_attempt": 2}}
