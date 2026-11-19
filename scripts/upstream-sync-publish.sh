@@ -53,11 +53,11 @@ trap withdraw EXIT
 # The empty expected value creates the branch only, never moving one pushed since the plan.
 git push --force-with-lease="refs/heads/$BRANCH:" origin "refs/heads/$BRANCH:refs/heads/$BRANCH"
 pushed=1
-draft=()
-[[ "$DRAFT" != true ]] || draft=(--draft)
+as_draft=()
+[[ "$DRAFT" != true ]] || as_draft=(--draft)
 # gh pr create applies --label in a second call once the PR exists, so its failure can leave the PR unlabelled.
 if url="$(gh pr create --base main --head "$BRANCH" --title "$TITLE" --label "$LABEL" \
-    --body-file "$BODY_FILE" "${draft[@]}")"; then
+    --body-file "$BODY_FILE" "${as_draft[@]}")"; then
   number="${url##*/}"
 else
   number="$(this_pr)" || number=''
