@@ -1954,7 +1954,7 @@ private func systemSocket() -> Int32 {
     socket(AF_UNIX, unixStreamType, 0)
 }
 
-private func systemAccept(_ fd: Int32) -> Int32 {
+func systemAccept(_ fd: Int32) -> Int32 {
     #if canImport(Darwin)
     return Darwin.accept(fd, nil, nil)
     #else
