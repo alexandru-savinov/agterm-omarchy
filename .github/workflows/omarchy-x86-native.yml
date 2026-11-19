@@ -88,6 +88,9 @@ on:
       passed:
         description: "'true' only for complete, attested evidence of the resolved bytes passing all four gates on every arch"
         value: ${{ jobs.verdict.outputs.passed }}
+      attested:
+        description: "'true' when every tested archive's attestation verified"
+        value: ${{ jobs.verdict.outputs.attested }}
       source_commit:
         description: Commit the tested archives were built from
         value: ${{ jobs.source.outputs.sha }}
