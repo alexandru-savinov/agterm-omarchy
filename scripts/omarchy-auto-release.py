@@ -108,14 +108,23 @@ def find_watch_tags(items, now):
     return tags
 
 
-def dispatch(candidate):
+def dispatch(candidate, gate):
     if reason := pause_reason():
         print(f"{reason}; promotion skipped.")
         return ""
+    promotion.require(gate.get("passed") == "true" and gate.get("attested") == "true",
+                      "Automatic promotion requires a green, attested native verdict")
+    promotion.require(gate.get("source_commit") == candidate["sha"]
+                      and gate.get("source_run_id") == candidate["run_id"]
+                      and gate.get("source_run_attempt") == candidate["attempt"]
+                      and gate.get("release_tag") == "",
+                      "Native evidence does not identify the selected CI run, attempt and commit")
+    archives = promotion.parse_native_archives(gate.get("archives", ""), candidate["sha"])
     response = gh("actions/workflows/prerelease-omarchy.yml/dispatches", method="POST", data={
         "ref": "main",
         "inputs": {"source_run": candidate["run_id"], "source_sha": candidate["sha"],
-                   "source_attempt": candidate["attempt"], "version": candidate["version"], "dry_run": False},
+                   "source_attempt": gate["source_run_attempt"], "native_archives": json.dumps(archives),
+                   "version": candidate["version"], "dry_run": False},
     })
     run_id = response["workflow_run_id"]
     promotion.require(type(run_id) is int and run_id > 0, "Dispatch did not return a promotion run ID")
@@ -224,7 +233,7 @@ def main():
         if args.command == "plan":
             promotion.write_outputs(candidate or {})
         elif candidate:
-            promotion.write_outputs({"tag": dispatch(candidate)})
+            promotion.write_outputs({"tag": dispatch(candidate, json.loads(os.environ["NATIVE_GATE"]))})
     elif args.command == "check-pause":
         if reason := pause_reason():
             raise ValueError(f"{reason}; publication blocked")

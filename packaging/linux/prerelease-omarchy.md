@@ -98,9 +98,12 @@ It skips a commit already covered by the latest versioned release, including a r
 The first upstream base is `0.43.0`.
 The next serial is one above the highest exact tag or release for that base, including drafts, retractions,
 and tags left behind after a failed publication.
-Once #475 is wired, both architectures must pass the native gates before dispatching this promotion workflow
-on main with `dry_run=false`, the selected source SHA and run ID, and the exact gated `source_attempt`.
-The automatic promotion checks that attempt before reading its artifacts.
+Automatic promotion requires #481's green attested verdict for both architectures.
+It dispatches this workflow on main with `dry_run=false`, the gated source SHA, run ID and `source_attempt`,
+and the native gate's `archives` output as `native_archives`.
+Promotion checks the attempt and both artifact IDs and transport digests.
+It hashes each downloaded CI tarball and requires an exact match to the SHA-256 that passed the native gates
+before stamping the versioned release archive. The signed promotion evidence retains the tested digests.
 Both manual promotion modes retain their existing inputs.
 
 Set the repository variable `SYNC_PAUSED=true` for a manual hold. An open issue labelled `release-incident`
@@ -120,9 +123,10 @@ The release and tag remain available for investigation and the next fixed commit
 If any incident action fails, review the incident and rerun the failed watch jobs before resuming.
 Scheduled starts depend on hosted Actions availability.
 
-Both native gate calls are stubbed while #475 is paused.
+Both native gate calls remain stubbed while #481 is unmerged.
 The candidate stub blocks promotion and the published-release stub skips the watch verdict.
-Replace the two stubs with #475's reusable workflow calls after that interface lands.
+After #481 lands, the candidate call requires verified build attestations from #483.
+An unattested CI archive cannot pass the call or reach automatic promotion.
 Manual dispatch of `auto-release.yml` runs only fixtures, even from main.
 The **force_failure** input also prints the planned prerelease edit and open-issue hold for a synthetic release.
 The same dry run can run locally without credentials:

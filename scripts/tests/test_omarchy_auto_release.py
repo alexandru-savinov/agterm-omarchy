@@ -21,6 +21,12 @@ SPEC.loader.exec_module(auto)
 SHA = "a" * 40
 TAG = "omarchy-v0.43.0.2"
 CANDIDATE = {"run_id": "123", "sha": SHA, "attempt": "2", "version": "0.43.0.2"}
+ARCHIVES = {arch: {"id": index, "name": f"agterm-omarchy-{arch}-{SHA}",
+                   "filename": f"agterm-omarchy-{arch}.tar.gz", "transport_digest": "sha256:" + "b" * 64,
+                   "sha256": "c" * 64, "attestation": "verified"}
+            for index, arch in enumerate(auto.promotion.ARCHITECTURES, start=1)}
+NATIVE_GATE = {"passed": "true", "attested": "true", "source_commit": SHA, "source_run_id": "123",
+               "source_run_attempt": "2", "release_tag": "", "archives": json.dumps(ARCHIVES)}
 EVENT = {"workflow_run": {"event": "push", "head_branch": "main", "conclusion": "success",
                           "head_repository": {"full_name": auto.promotion.REPOSITORY},
                           "id": 123, "head_sha": SHA, "run_attempt": 2}}
@@ -91,7 +97,7 @@ class PlanTests(unittest.TestCase):
     def test_owner_pause_can_arrive_after_the_native_gate(self):
         with patch.dict(os.environ, {"SYNC_PAUSED": "true"}), patch.object(auto, "gh") as gh:
             with redirect_stdout(io.StringIO()):
-                self.assertEqual(auto.dispatch(CANDIDATE), "")
+                self.assertEqual(auto.dispatch(CANDIDATE, NATIVE_GATE), "")
             gh.assert_not_called()
 
     def test_incident_pauses_selection_dispatch_and_final_check_until_closed(self):
@@ -101,7 +107,7 @@ class PlanTests(unittest.TestCase):
              patch.object(auto, "gh") as gh, redirect_stdout(io.StringIO()):
             reason = auto.plan(EVENT)[1]
             self.assertIn("open release-incident", reason)
-            self.assertEqual(auto.dispatch(CANDIDATE), "")
+            self.assertEqual(auto.dispatch(CANDIDATE, NATIVE_GATE), "")
             gh.assert_not_called()
             with patch.object(sys, "argv", ["auto-release", "check-pause"]):
                 with self.assertRaisesRegex(ValueError, "publication blocked"):
@@ -112,16 +118,27 @@ class PlanTests(unittest.TestCase):
             self.assertTrue(all(call.args == (OPEN_INCIDENTS,) and call.kwargs == {"pages": True}
                                 for call in api.call_args_list))
 
-    def test_dispatch_pins_run_sha_and_attempt_of_candidate(self):
+    def test_dispatch_passes_the_gated_run_attempt_and_archive_evidence(self):
         with patch.object(auto.promotion, "api", return_value=[[]]), \
              patch.object(auto, "gh", return_value={"workflow_run_id": 99}) as gh, \
              patch.object(auto, "wait_for_promotion", return_value=TAG) as wait, redirect_stdout(io.StringIO()):
-            self.assertEqual(auto.dispatch(CANDIDATE), TAG)
+            self.assertEqual(auto.dispatch(CANDIDATE, NATIVE_GATE), TAG)
         gh.assert_called_once_with("actions/workflows/prerelease-omarchy.yml/dispatches", method="POST", data={
             "ref": "main", "inputs": {"source_run": "123", "source_sha": SHA, "source_attempt": "2",
-                                      "version": "0.43.0.2", "dry_run": False},
+                                      "native_archives": json.dumps(ARCHIVES), "version": "0.43.0.2", "dry_run": False},
         })
         wait.assert_called_once_with(99, CANDIDATE)
+
+    def test_dispatch_rejects_unattested_wrong_or_incomplete_native_evidence(self):
+        changes = ({"passed": "false"}, {"attested": "false"}, {"source_commit": "b" * 40},
+                   {"source_run_id": "124"}, {"source_run_attempt": "1"}, {"release_tag": TAG},
+                   {"archives": "{}"}, {"archives": "invalid JSON"})
+        for change in changes:
+            with self.subTest(change=change), patch.object(auto.promotion, "api", return_value=[[]]), \
+                 patch.object(auto, "gh") as gh:
+                with self.assertRaises(ValueError):
+                    auto.dispatch(CANDIDATE, NATIVE_GATE | change)
+                gh.assert_not_called()
 
 
 class WatchTests(unittest.TestCase):

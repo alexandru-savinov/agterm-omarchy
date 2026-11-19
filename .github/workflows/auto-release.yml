@@ -35,6 +35,7 @@ jobs:
       issues: read
     outputs:
       run_id: ${{ steps.plan.outputs.run_id }}
+      attempt: ${{ steps.plan.outputs.attempt }}
       sha: ${{ steps.plan.outputs.sha }}
     steps:
       # Use the workflow's trusted main checkout, never the event's ref or its artifacts.
@@ -63,20 +64,27 @@ jobs:
     permissions:
       contents: read
       actions: read
-    # #475 wiring: replace runs-on, timeout-minutes, outputs and steps with:
+    # Once #481 is on main, replace runs-on, timeout-minutes, outputs and steps with this call.
+    # Required attestation keeps CI-artifact gates closed until #483 signs the archives.
     # uses: $/.github/workflows/omarchy-x86-native.yml
     # with:
     #   source: ci-run
     #   run_id: ${{ needs.candidate.outputs.run_id }}
     #   arch: both
+    #   attestation: required
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     outputs:
       passed: 'false'
+      attested: 'false'
       source_commit: ''
+      source_run_id: ''
+      source_run_attempt: ''
+      release_tag: ''
+      archives: ''
     steps:
       - run: |
-          echo '::warning::Awaiting #475. No native evidence, so promotion is blocked.'
+          echo '::warning::Awaiting #481 and #483. No attested native evidence, so promotion is blocked.'
 
   promote:
     needs: [candidate, native_candidate]
@@ -89,7 +97,12 @@ jobs:
       github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.conclusion == 'success' &&
       needs.native_candidate.outputs.passed == 'true' &&
-      needs.native_candidate.outputs.source_commit == needs.candidate.outputs.sha
+      needs.native_candidate.outputs.attested == 'true' &&
+      needs.native_candidate.outputs.source_commit == needs.candidate.outputs.sha &&
+      needs.native_candidate.outputs.source_run_id == needs.candidate.outputs.run_id &&
+      needs.native_candidate.outputs.source_run_attempt == needs.candidate.outputs.attempt &&
+      needs.native_candidate.outputs.release_tag == '' &&
+      needs.native_candidate.outputs.archives != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     concurrency:
@@ -106,11 +119,12 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Recheck main, the CI attempt and pause, then dispatch #470
+      - name: Recheck main, native evidence and pause, then dispatch #470
         id: promote
         env:
           GH_TOKEN: ${{ github.token }}
           SYNC_PAUSED: ${{ vars.SYNC_PAUSED }}
+          NATIVE_GATE: ${{ toJSON(needs.native_candidate.outputs) }}
         run: python3 -I scripts/omarchy-auto-release.py promote
 
   watch_recent:

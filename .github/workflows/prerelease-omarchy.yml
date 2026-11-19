@@ -41,6 +41,11 @@ on:
         required: false
         type: string
         default: ""
+      native_archives:
+        description: Attested native gate archive metadata JSON for both architectures, required with source_attempt
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -108,10 +113,12 @@ jobs:
           # The script validates the version against the source's upstream base and the omarchy-pkgs watch pattern.
           VERSION: ${{ inputs.version }}
           SOURCE_ATTEMPT: ${{ inputs.source_attempt }}
+          NATIVE_ARCHIVES: ${{ inputs.native_archives }}
         run: |
           mode=()
           [[ -z "$VERSION" ]] || mode=(--release "$VERSION")
           [[ -z "$SOURCE_ATTEMPT" ]] || mode+=(--source-attempt "$SOURCE_ATTEMPT")
+          [[ -z "$NATIVE_ARCHIVES" ]] || mode+=(--native-archives "$NATIVE_ARCHIVES")
           python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA" "$RUNNER_TEMP/promotion" "${mode[@]}"
       # A pull request also dry-runs the versioned path, for the next unpublished version, on the newest
       # main run that release mode accepts (never an omarchy-branch run). While the main head's CI is still

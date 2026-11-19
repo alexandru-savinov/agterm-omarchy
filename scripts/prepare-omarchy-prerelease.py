@@ -83,6 +83,27 @@ def select_artifacts(artifacts, run, sha):
     return selected
 
 
+def parse_native_archives(text, sha):
+    """Validate the native gate's ci-run archives output for both architectures."""
+    archives = json.loads(text)
+    require(isinstance(archives, dict) and archives.keys() == ARCHITECTURES.keys(),
+            "Native evidence must contain exactly x86_64 and aarch64 archives")
+    for arch, record in archives.items():
+        require(isinstance(record, dict), f"Invalid native archive record for {arch}")
+        artifact_id = record.get("id")
+        require(type(artifact_id) is int and artifact_id > 0, f"Invalid native artifact ID for {arch}")
+        require(record.get("name") == f"agterm-omarchy-{arch}-{sha}"
+                and record.get("filename") == f"agterm-omarchy-{arch}.tar.gz",
+                f"Native archive names differ from the expected CI archive for {arch}")
+        digest, transport = record.get("sha256"), record.get("transport_digest")
+        require(isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest),
+                f"Invalid native archive SHA-256 for {arch}")
+        require(isinstance(transport, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", transport),
+                f"Invalid native artifact transport digest for {arch}")
+        require(record.get("attestation") == "verified", f"Native archive attestation is not verified for {arch}")
+    return archives
+
+
 def discover():
     """Newest run at a current trusted branch head that main() would accept for an unpublished tag."""
     workflow = api("actions/workflows/ci.yml")
@@ -332,10 +353,13 @@ def main():
                         help="build versioned release assets for tag omarchy-vVERSION instead of a dev prerelease")
     parser.add_argument("--source-attempt", type=int,
                         help="require the exact CI attempt that passed the automatic release gates")
+    parser.add_argument("--native-archives", help="require the native gate's attested CI archives JSON")
     parser.add_argument("run_id", type=int, nargs="?")
     parser.add_argument("sha", nargs="?")
     parser.add_argument("output", type=Path, nargs="?")
     args = parser.parse_args()
+    require((args.source_attempt is None) == (args.native_archives is None),
+            "--source-attempt and --native-archives must be provided together")
     if args.source_attempt is not None:
         require(args.source_attempt > 0 and args.release and not (args.next_version or args.discover),
                 "--source-attempt requires a positive attempt and versioned release preparation")
@@ -358,6 +382,7 @@ def main():
         release.check_version(args.release)
     else:
         tag = promotion_tag(args.sha, args.run_id)
+    gated = parse_native_archives(args.native_archives, args.sha) if args.native_archives is not None else {}
     run = api(f"actions/runs/{args.run_id}")
     require(run["id"] == args.run_id, "Requested run ID mismatch")
     require(args.source_attempt is None or run["run_attempt"] == args.source_attempt,
@@ -375,6 +400,10 @@ def main():
     if release:
         tag = release.release_tag(args.release, source_base(release, args.sha))
     artifacts = select_artifacts(run_artifacts(run), run, args.sha)
+    for arch, expected in gated.items():
+        require(artifacts[arch]["id"] == expected["id"], f"Selected artifact ID differs from native evidence for {arch}")
+        require(artifacts[arch].get("digest") == expected["transport_digest"],
+                f"Selected artifact transport digest differs from native evidence for {arch}")
     # A dry run must fail where publication would: tag creation refuses an existing ref.
     require(not published(tag), f"Tag or release {tag} already exists")
     latest = is_latest(args.release, released_versions(release)) if release else False
@@ -388,6 +417,8 @@ def main():
     for arch, artifact in artifacts.items():
         name, data = download_artifact(artifact, arch, args.sha)
         digest = hashlib.sha256(data).hexdigest()
+        if gated:
+            require(digest == gated[arch]["sha256"], f"Archive SHA-256 differs from native evidence for {arch}")
         evidence["artifacts"].append({"id": artifact["id"], "name": artifact["name"],
                                       "transport_digest": artifact["digest"], "filename": name, "sha256": digest})
         if release:
