@@ -93,7 +93,7 @@ int main(void)
     assert(calls == 1 + active);
     assert(gtk_choose(normal, &cfg, 1, &count) && count == active);
     assert(cfg == (EGLConfig)(long)active);
-    assert(gtk_choose(hdr, NULL, -1, &count) && count == active);
+    assert(gtk_choose(hdr, NULL, -1, &count) && count == 0);
 
     calls = 0;
     assert(gtk_choose(explicit, NULL, -1, &count) && count == 0);
@@ -144,7 +144,7 @@ class EGLCompatTests(unittest.TestCase):
             env = dict(os.environ, AGTERM_DISABLE_EGL_COMPAT='0')
             env.pop('LD_PRELOAD', None)
             result = subprocess.run([launcher], env=env, check=True, capture_output=True, text=True)
-            self.assertEqual(result.stderr.count('compatibility retry matched 1 configs'), 2)
+            self.assertEqual(result.stderr.count('compatibility retry matched 1 configs'), 1)
             result = subprocess.run([launcher], env=dict(env, AGTERM_DISABLE_EGL_COMPAT='1'),
                                     check=True, capture_output=True, text=True)
             self.assertEqual(result.stderr, '')

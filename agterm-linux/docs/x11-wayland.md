@@ -59,7 +59,7 @@ delta above).
 
 ### Mesa 26.3.1 EGL compatibility
 
-Packaged agterm-linux retries GTK's window-config request with `EGL_OPENGL_BIT` when
+Packaged agterm-linux retries GTK's RGBA8 window-config request with `EGL_OPENGL_BIT` when
 Mesa returns zero matches for the original request. GTK 4.24 can omit
 `EGL_RENDERABLE_TYPE`, which makes EGL look for GLES1 configs. Arch Mesa 26.3.1
 stopped advertising GLES1 when the driver was built without it.
