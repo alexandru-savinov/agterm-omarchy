@@ -65,6 +65,12 @@ root_phase() {
     if pacman -Si "$package" >/dev/null 2>&1; then available+=("$package"); else echo "$package" >> /out/omarchy-packages-unavailable.txt; fi
   done
   pacman_retry -S --noconfirm --needed "${available[@]}" "${RUNTIME_PACKAGES[@]}"
+  if [[ -n "${MESA_PIN:-}" ]]; then
+    # A diagnosis aid, never a release gate: the workflow's verdict refuses a pinned run.
+    [[ "$(uname -m)" == x86_64 && "$MESA_PIN" =~ ^[0-9]+:[0-9][0-9.]*-[0-9]+$ ]] || { echo "bad MESA_PIN $MESA_PIN" >&2; exit 1; }
+    pacman_retry -U --noconfirm "https://archive.archlinux.org/packages/m/mesa/mesa-$MESA_PIN-x86_64.pkg.tar.zst" \
+      > /out/mesa-pin.log 2>&1
+  fi
   pacman -Q > /out/packages.txt
   echo "omarchy package list: basecamp/omarchy@$OMARCHY_REF install/omarchy-base.packages" > /out/omarchy-ref.txt
   useradd --create-home --uid 1000 --shell /bin/bash "$USER_NAME"
@@ -75,6 +81,7 @@ root_phase() {
   status=0
   runuser -u "$USER_NAME" -- env -i PATH=/usr/local/bin:/usr/bin HOME="/home/$USER_NAME" USER="$USER_NAME" \
     LOGNAME="$USER_NAME" SHELL=/bin/bash LANG=C.UTF-8 XDG_RUNTIME_DIR=/run/user/1000 PROBE_RUNS="$PROBE_RUNS" \
+    MESA_PIN="${MESA_PIN:-}" \
     GATE_ARCHIVE="$ARCHIVE" \
     dbus-run-session -- bash "$SELF" session || status=$?
   # Copying "evidence/." would also copy its 0700 mode and owner onto /out itself.
@@ -144,7 +151,42 @@ LUA
   { hyprctl version; hyprctl monitors; } > "$EVIDENCE/hyprland-info.txt"
   # vkms has no GPU, so GBM/EGL on it is Mesa's software rasterizer; record what Mesa reports.
   eglinfo -B > "$EVIDENCE/eglinfo.txt" 2>&1 || true
+  eglinfo -p wayland > "$EVIDENCE/eglinfo-wayland.txt" 2>&1 || true
+  egl_configs > "$EVIDENCE/egl-choose-config.txt" 2>&1 || true
   grep -iE "GL_RENDERER|renderer|llvmpipe|softpipe" "$EVIDENCE/hyprland.log" | head -n 20 >> "$EVIDENCE/hyprland-info.txt" || true
+}
+
+# GTK 4.24 chooses its EGL config without EGL_RENDERABLE_TYPE, which defaults to ES 1.x. Count what Mesa
+# offers on the compositor's display for that request and for explicit GL and ES 3 requests.
+egl_configs() {
+  cat > "$HOME/egl-configs.c" <<'C'
+#include <stdio.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <wayland-client.h>
+int main(void) {
+  struct wl_display *wayland = wl_display_connect(NULL);
+  if (!wayland) return 1;
+  EGLDisplay display = eglGetPlatformDisplay(EGL_PLATFORM_WAYLAND_KHR, wayland, NULL);
+  EGLint major, minor;
+  if (!eglInitialize(display, &major, &minor)) return 2;
+  printf("EGL %d.%d %s\n", major, minor, eglQueryString(display, EGL_VENDOR));
+  struct { const char *name; EGLint attributes[16]; } requests[] = {
+    {"gtk-rgba8-window", {EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_COLOR_BUFFER_TYPE, EGL_RGB_BUFFER, EGL_RED_SIZE, 8,
+                          EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_NONE}},
+    {"opengl-window", {EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_NONE}},
+    {"gles3-window", {EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT, EGL_NONE}},
+    {"any", {EGL_NONE}},
+  };
+  for (unsigned i = 0; i < sizeof requests / sizeof requests[0]; i++) {
+    EGLint count = 0;
+    eglChooseConfig(display, requests[i].attributes, NULL, 0, &count);
+    printf("%s\t%d\n", requests[i].name, count);
+  }
+  return 0;
+}
+C
+  cc -o "$HOME/egl-configs" "$HOME/egl-configs.c" -lEGL -lwayland-client && "$HOME/egl-configs"
 }
 
 record() { printf '%s\t%s\n' "$1" "$2" >> "$EVIDENCE/gates.tsv"; }
@@ -209,6 +251,8 @@ session_phase() {
     record "sha256:$file" "$(sha256sum "/repo/$file" | cut -d' ' -f1)"
   done
   record harness_blob "$(git -C /repo rev-parse HEAD:scripts/test-omarchy.sh)"
+  [[ -z "$MESA_PIN" ]] || record environment_pin "mesa=$(pacman -Q mesa | cut -d' ' -f2)"
+  record egl_gtk_configs "$(awk -F'\t' '$1 == "gtk-rgba8-window" { print $2 }' "$EVIDENCE/egl-choose-config.txt")"
 
   harness_gate ordinary none 7
 

@@ -35,6 +35,11 @@ on:
         type: choice
         options: [both, x86_64, aarch64]
         default: both
+      mesa_pin:
+        description: "Diagnosis only, x86_64 only: Arch Linux Archive mesa version (e.g. 1:26.2.7-1); the verdict then fails"
+        required: false
+        type: string
+        default: ""
   workflow_call:
     inputs:
       source:
@@ -118,7 +123,9 @@ jobs:
           RUN_ID: ${{ inputs.run_id }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           ARCH: ${{ inputs.arch || 'both' }}
+          MESA_PIN: ${{ inputs.mesa_pin }}
         run: |
+          [[ -z "$MESA_PIN" || "$ARCH" == x86_64 ]] || { echo "mesa_pin needs arch=x86_64"; exit 1; }
           case "$ARCH" in
             both) arches=(x86_64 aarch64) ;;
             x86_64 | aarch64) arches=("$ARCH") ;;
@@ -171,6 +178,7 @@ jobs:
       ARCH: ${{ matrix.arch }}
       SOURCE: ${{ needs.source.outputs.source }}
       LABEL: ${{ needs.source.outputs.label }}
+      MESA_PIN: ${{ inputs.mesa_pin }}
       X86_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
       # Arch Linux ARM's own aarch64 rootfs: Docker's official archlinux image is x86_64 only, and a
       # community multi-arch image would make a third party's build the trust root for the keyring. Its
@@ -260,7 +268,7 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           docker run --rm --device /dev/dri -v /run/udev:/run/udev:ro \
             --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
-            -e GATE_ARCHIVE -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/release:/release:ro" -v "$RUNNER_TEMP/out:/out" \
+            -e GATE_ARCHIVE -e MESA_PIN -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/release:/release:ro" -v "$RUNNER_TEMP/out:/out" \
             "$BASE_IMAGE" bash /repo/.github/omarchy-x86-native/gates.sh
       - name: Summary
         if: always()
@@ -310,9 +318,11 @@ jobs:
             results="$(jq -c --arg arch "$arch" --rawfile tsv "$dir/gates.tsv" '. + {($arch): (
               [$tsv | split("\n")[] | select(length > 0) | split("\t") | {(.[0]): .[1]}] | add)}' <<< "$results")"
           done
-          # Skipped or cancelled legs fail: only success on both jobs passes.
+          # Skipped or cancelled legs fail: only success on both jobs passes. A pinned environment is a
+          # diagnosis, never a pass.
           passed=false
           [[ "$SOURCE_RESULT" == success && "$GATES_RESULT" == success ]] && passed=true
+          if jq -e 'any(.[]; has("environment_pin"))' <<< "$results" > /dev/null; then passed=false; fi
           echo "passed=$passed" >> "$GITHUB_OUTPUT"
           echo "results=$results" >> "$GITHUB_OUTPUT"
           printf '### Native gates verdict: %s\nSource %s, gates %s, %s\n' "$passed" "$SOURCE_RESULT" "$GATES_RESULT" "$LABEL" >> "$GITHUB_STEP_SUMMARY"
