@@ -270,7 +270,7 @@ final class ControlServer: @unchecked Sendable {
             }
             if req.cmd == .sessionOverlayPageServe { return handlePageServe(conn, request: req) }
             if req.cmd == .sessionOverlayJobRun {
-                let reply = claimOverlayJobOnMain(req.target)
+                let reply = claimOverlayJobOnMain(req.target, token: req.args?.token)
                 let written = writeResponse(conn, reply)
                 guard reply.ok, let job = reply.result?.id else { return false }
                 guard written, adoptOverlayJobOnMain(conn, job: job) else {

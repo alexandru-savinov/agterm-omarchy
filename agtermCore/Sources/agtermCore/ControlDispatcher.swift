@@ -23,7 +23,7 @@ public struct ControlDispatcher {
         case .sessionOverlayOpen, .sessionOverlayClose, .sessionOverlayResize, .sessionOverlayResult,
              .sessionOverlayReload, .sessionOverlayNavigate, .sessionOverlaySubmit, .sessionOverlayCopy,
              .sessionOverlayText, .sessionOverlayHide, .sessionOverlayShow, .sessionOverlayToggle,
-             .sessionOverlayFollow, .sessionOverlayJobRun, .sessionOverlayPageServe:
+             .sessionOverlayJobRun, .sessionOverlayPageServe:
             return dispatchSessionOverlayCommand(request)
         default: return nil
         }

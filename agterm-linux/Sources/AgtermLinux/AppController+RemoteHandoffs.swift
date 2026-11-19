@@ -59,7 +59,7 @@ extension AppController {
 
     func showReplicaOverlay(_ overlay: PresentationOverlay, forSession id: UUID) -> Bool {
         guard let session = store.session(withID: id), let host = session.remoteHost,
-              let argv = try? RemoteSession.runJobCommand(host: host, job: overlay.job) else { return false }
+              let argv = try? RemoteSession.runJobCommand(host: host, job: overlay.job, token: overlay.token) else { return false }
         let command = CommandRestore.shellQuotedLine(argv)
         let accepted = store.presentReplicaOverlay(overlay, command: command, forSession: id) { [weak self] job in
             self?.remoteClients[id]?.answer(.overlayClosed(PresentationOverlayChange(job: job)))

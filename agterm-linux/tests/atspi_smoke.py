@@ -1632,11 +1632,17 @@ def verify_upstream_control_parity(env):
             "cmd": "session.status", "target": initial_session,
             "args": {"status": "active", "pane": "left", "window": window_id},
         })
-        assert not competing["ok"] and competing.get("error") == "blocked status owned by pane right", competing
+        assert competing["ok"], competing
         assert parity_session().get("status") == "blocked"
+        assert parity_session().get("activePanes") == ["left"], parity_session()
         assert raw_control_json(env, {
             "cmd": "session.status", "target": initial_session,
             "args": {"status": "idle", "pane": "right", "window": window_id},
+        })["ok"]
+        assert parity_session().get("status") == "active", parity_session()
+        assert raw_control_json(env, {
+            "cmd": "session.status", "target": initial_session,
+            "args": {"status": "idle", "pane": "left", "window": window_id},
         })["ok"]
 
         bootstrap = raw_control_json(env, {"cmd": "events.read"})

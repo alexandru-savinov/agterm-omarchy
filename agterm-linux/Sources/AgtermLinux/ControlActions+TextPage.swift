@@ -100,6 +100,12 @@ extension LinuxControlDispatcher {
         case .rejected(let response): return response
         case .pane(let value): pane = value
         }
+        if request.cmd == .sessionOverlayFollow {
+            guard let mode = ControlToggleMode.parse(request.args?.mode) else {
+                return actions.err("invalid overlay follow mode: \(request.args?.mode ?? "toggle")")
+            }
+            return actions.setSessionOverlayFollow(request.target, window: request.args?.window, pane: pane, mode: mode)
+        }
         if request.cmd == .sessionOverlayChanges {
             guard let direction = request.args?.to, ["next", "prev"].contains(direction) else {
                 return actions.err(request.args?.to.map { "invalid overlay changes direction: \($0)" }

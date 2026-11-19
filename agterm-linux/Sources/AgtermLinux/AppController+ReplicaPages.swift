@@ -7,6 +7,9 @@ struct LinuxReplicaPageRecord {
     let origin: UUID
     let channel: LinuxPageChannel?
     var appliedSeq = 0
+    /// offer is the origin's hand-over this page was shown for, echoed on every report about it.
+    var offer: Int?
+    var channelLost = false
 }
 
 @MainActor
@@ -36,11 +39,12 @@ extension AppController {
         guard let slot = store.replicaPage(page.page, forSession: id), let origin = slot.page.replicaOf else { return "page not shown" }
         let channel = command.map { _ in LinuxPageChannel() }
         let local = slot.page.id
-        replicaPages[local] = LinuxReplicaPageRecord(session: id, origin: origin, channel: channel)
+        replicaPages[local] = LinuxReplicaPageRecord(session: id, origin: origin, channel: channel, offer: page.offer)
         _ = LinuxHtmlOverlayRegistry.shared.page(for: slot.page, controller: self, backgroundColor: page.backgroundColor)
         if let channel, let command {
             channel.onClose = { [weak self] in
                 guard let self else { return }
+                self.replicaPages[local]?.channelLost = true
                 _ = self.store.closeHtmlOverlay(local)
                 self.reconcile(focusActive: false)
             }
@@ -52,7 +56,8 @@ extension AppController {
 
     func replicaPageReleased(_ local: UUID, origin: UUID) {
         guard let record = replicaPages.removeValue(forKey: local) else { return }
-        remoteClients[record.session]?.answer(.pageClosed(PresentationPageChange(page: origin.uuidString)))
+        remoteClients[record.session]?.answer(.pageClosed(PresentationPageChange(
+            page: origin.uuidString, reason: record.channelLost ? PresentationPageChange.channelLost : nil, offer: record.offer)))
         record.channel?.onClose = nil
         record.channel?.close()
     }
@@ -93,7 +98,8 @@ extension AppController {
             guard let self, gWindows[self.windowID] === self else { return }
             self.replicaPageFlushCancel = nil
             for (local, record) in self.replicaPages {
-                guard let state = self.store.replicaPageState(local, appliedSeq: record.appliedSeq) else { continue }
+                guard var state = self.store.replicaPageState(local, appliedSeq: record.appliedSeq) else { continue }
+                state.offer = record.offer
                 self.remoteClients[record.session]?.answer(.pageState(state))
             }
         }

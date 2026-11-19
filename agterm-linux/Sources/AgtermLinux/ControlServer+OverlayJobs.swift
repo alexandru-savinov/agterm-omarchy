@@ -49,8 +49,8 @@ final class LinuxOverlayJobStream {
 }
 
 extension ControlServer {
-    func claimOverlayJobOnMain(_ target: String?) -> ControlResponse {
-        awaitMain { $0.resolve(self.claimOverlayJob(target)) }
+    func claimOverlayJobOnMain(_ target: String?, token: String?) -> ControlResponse {
+        awaitMain { $0.resolve(self.claimOverlayJob(target, token: token)) }
     }
 
     /// False when shutdown failed the wait before the stream took the descriptor.
@@ -66,12 +66,12 @@ extension ControlServer {
     }
 
     @MainActor
-    private func claimOverlayJob(_ target: String?) -> ControlResponse {
+    private func claimOverlayJob(_ target: String?, token: String?) -> ControlResponse {
         guard let target, UUID(uuidString: target) != nil else {
             return ControlResponse(ok: false, error: target == nil
                 ? "session.overlay.job.run requires a job id" : "invalid job id")
         }
-        guard overlayJobs.claim(target, cancel: { [weak self] in self?.cancelJobHelper(target) }) != nil else {
+        guard overlayJobs.claim(target, token: token, cancel: { [weak self] in self?.cancelJobHelper(target) }) != nil else {
             return ControlResponse(ok: false, error: "job not claimable")
         }
         scheduleOverlayJobExpiry(after: OverlayJobs.startWindow)
