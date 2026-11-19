@@ -16,6 +16,7 @@ from pathlib import Path
 TAG = re.compile(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", re.ASCII)
 BRANCH_PREFIX = "sync/umputun-"
 LABEL_CLEAN, LABEL_CONFLICT = "upstream-sync", "needs-adaptation"
+LABEL_INCIDENT = "release-incident"  # opened by auto-release on a retraction; closing it resumes syncs
 SYNC_LABELS = frozenset({LABEL_CLEAN, LABEL_CONFLICT})
 TAG_NAMESPACE = "refs/upstream-tags"
 UPSTREAM = "umputun/agterm"
@@ -37,6 +38,18 @@ def version(tag):
 
 def paused(value):
     return (value or "").strip().lower() == "true"
+
+
+def pause_reason(paused_value, incidents):
+    """Why syncing is paused, or "": SYNC_PAUSED, or any open release-incident issue."""
+    if not isinstance(incidents, list):
+        raise SyncError(f"open {LABEL_INCIDENT} issue list is not a JSON list")
+    if paused(paused_value):
+        return "SYNC_PAUSED is true"
+    if incidents:
+        numbers = ", ".join(f"#{issue.get('number')}" for issue in incidents)
+        return f"an open {LABEL_INCIDENT} issue pauses syncing: {numbers}"
+    return ""
 
 
 def open_sync_prs(prs):
@@ -78,12 +91,13 @@ def select(tags, is_ancestor, override=""):
     return candidate, commit, f"{candidate} is not an ancestor of main"
 
 
-def decide(*, paused_value, prs, tags, is_ancestor, remote_branches, override=""):
+def decide(*, paused_value, incidents, prs, tags, is_ancestor, remote_branches, override=""):
     """The run's decision. Gates in order: pause, one open sync PR, a release to sync, no existing branch.
 
     `blocked` (a branch with no open PR) fails the run: skipping it green would hide a stuck sync forever."""
-    if paused(paused_value):
-        return {"action": "skip", "tag": "", "commit": "", "branch": "", "selection": "", "reason": "SYNC_PAUSED is true"}
+    reason = pause_reason(paused_value, incidents)
+    if reason:
+        return {"action": "skip", "tag": "", "commit": "", "branch": "", "selection": "", "reason": reason}
     tag, commit, reason = select(tags, is_ancestor, override)
     plan = {"action": "skip", "tag": tag or "", "commit": commit, "branch": BRANCH_PREFIX + tag if tag else "",
             "selection": reason}
@@ -224,9 +238,12 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command", required=True)
     plan_cmd = sub.add_parser("plan")
     plan_cmd.add_argument("--base", required=True)
-    plan_cmd.add_argument("--open-prs", required=True, type=Path, help="gh pr list --json number,headRefName,labels")
+    plan_cmd.add_argument("--open-prs", required=True, type=Path,
+                          help="gh pr list --json number,headRefName,isCrossRepository,labels")
     plan_cmd.add_argument("--remote-branches", required=True, type=Path, help="git ls-remote --heads output")
     plan_cmd.add_argument("--paused", default="")
+    plan_cmd.add_argument("--incidents", required=True, type=Path,
+                          help=f"gh issue list --state open --label {LABEL_INCIDENT} --json number")
     plan_cmd.add_argument("--tag", default="")
     merge_cmd = sub.add_parser("merge")
     for name in ("--base", "--branch", "--tag", "--commit", "--worktree", "--body", "--run-url"):
@@ -234,11 +251,12 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
+            incidents = json.loads(args.incidents.read_text(encoding="utf-8"))
             prs = json.loads(args.open_prs.read_text(encoding="utf-8"))
             branches = {line.split("\t")[1].removeprefix("refs/heads/")
                         for line in args.remote_branches.read_text(encoding="utf-8").splitlines() if "\t" in line}
             base = git("rev-parse", "--verify", args.base + "^{commit}").stdout.strip()
-            emit(decide(paused_value=args.paused, prs=prs, tags=fetched_tags(), is_ancestor=ancestor_check(base),
+            emit(decide(paused_value=args.paused, incidents=incidents, prs=prs, tags=fetched_tags(), is_ancestor=ancestor_check(base),
                         remote_branches=branches, override=args.tag.strip()))
         else:
             base = git("rev-parse", "--verify", args.base + "^{commit}").stdout.strip()

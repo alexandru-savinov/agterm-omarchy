@@ -36,7 +36,7 @@ def text(conflicts=(), github_changes=(), head="2" * 40):
 
 
 def decide(**overrides):
-    args = {"paused_value": "", "prs": [], "tags": TAGS, "is_ancestor": contains("a" * 40),
+    args = {"paused_value": "", "incidents": [], "prs": [], "tags": TAGS, "is_ancestor": contains("a" * 40),
             "remote_branches": set(), "override": ""}
     args.update(overrides)
     return sync.decide(**args)
@@ -94,7 +94,22 @@ class GateTests(unittest.TestCase):
     def test_paused_run_selects_nothing(self):
         def unreachable(_):
             raise AssertionError("a paused run must not inspect history")
-        self.assertEqual(decide(paused_value="true", is_ancestor=unreachable, tags={})["action"], "skip")
+        for pause in ({"paused_value": "true"}, {"incidents": [{"number": 5}]}):
+            with self.subTest(pause=pause):
+                self.assertEqual(decide(**pause, is_ancestor=unreachable, tags={})["action"], "skip")
+
+    def test_open_release_incident_pauses_like_the_variable(self):
+        plan = decide(incidents=[{"number": 5}, {"number": 8}], remote_branches={"sync/umputun-v0.43.0"})
+        self.assertEqual((plan["action"], plan["tag"]), ("skip", ""))
+        self.assertEqual(plan["reason"], "an open release-incident issue pauses syncing: #5, #8")
+
+    def test_variable_and_incident_together_still_pause(self):
+        self.assertEqual(decide(paused_value="true", incidents=[{"number": 5}])["action"], "skip")
+
+    def test_malformed_incident_listing_fails_closed(self):
+        for paused_value in ("", "true"):
+            with self.subTest(paused=paused_value), self.assertRaises(sync.SyncError):
+                decide(paused_value=paused_value, incidents={"number": 5})
 
     def test_other_pause_values_do_not_pause(self):
         for value in ("", "false", "1", "yes"):
@@ -251,23 +266,51 @@ class GitRepoTests(unittest.TestCase):
             is_ancestor("1" * 40)
 
     def test_plan_command_selects_the_unmerged_release(self):
-        prs, branches = self.root / "prs.json", self.root / "branches.txt"
+        prs, branches, incidents = self.root / "prs.json", self.root / "branches.txt", self.root / "incidents.json"
+        incidents.write_text("[]", encoding="utf-8")
         prs.write_text("[]", encoding="utf-8")
         branches.write_text(f"{'0' * 40}\trefs/heads/sync/umputun-v0.1.0\n", encoding="utf-8")
         out = io.StringIO()
         with mock.patch.dict(os.environ, {"GITHUB_OUTPUT": str(self.root / "out")}), contextlib.redirect_stdout(out):
             self.assertEqual(sync.main(["plan", "--base", "main", "--open-prs", str(prs),
-                                        "--remote-branches", str(branches)]), 0)
+                                        "--remote-branches", str(branches), "--incidents", str(incidents)]), 0)
         self.assertEqual(json.loads(out.getvalue())["tag"], "v0.2.0")
         self.assertIn("action=sync\n", (self.root / "out").read_text(encoding="utf-8"))
 
-    def test_plan_command_fails_closed_on_unreadable_pr_listing(self):
+    def test_plan_command_honours_an_open_release_incident(self):
+        prs, branches, incidents = self.root / "prs.json", self.root / "branches.txt", self.root / "incidents.json"
+        prs.write_text("[]", encoding="utf-8")
+        branches.write_text("", encoding="utf-8")
+        incidents.write_text('[{"number": 482}]', encoding="utf-8")
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {"GITHUB_OUTPUT": str(self.root / "out")}), contextlib.redirect_stdout(out):
+            self.assertEqual(sync.main(["plan", "--base", "main", "--open-prs", str(prs),
+                                        "--remote-branches", str(branches), "--incidents", str(incidents)]), 0)
+        plan = json.loads(out.getvalue())
+        self.assertEqual((plan["action"], plan["tag"]), ("skip", ""))
+        self.assertIn("#482", plan["reason"])
+
+    def test_plan_command_requires_the_incident_listing(self):
         prs, branches = self.root / "prs.json", self.root / "branches.txt"
+        prs.write_text("[]", encoding="utf-8")
+        branches.write_text("", encoding="utf-8")
+        for extra in ([], ["--incidents", str(self.root / "missing.json")]):
+            with self.subTest(extra=extra), contextlib.redirect_stderr(io.StringIO()):
+                try:
+                    code = sync.main(["plan", "--base", "main", "--open-prs", str(prs),
+                                      "--remote-branches", str(branches), *extra])
+                except SystemExit as exit_:
+                    code = exit_.code
+                self.assertEqual(code, 2)
+
+    def test_plan_command_fails_closed_on_unreadable_pr_listing(self):
+        prs, branches, incidents = self.root / "prs.json", self.root / "branches.txt", self.root / "incidents.json"
+        incidents.write_text("[]", encoding="utf-8")
         prs.write_text("not json", encoding="utf-8")
         branches.write_text("", encoding="utf-8")
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(sync.main(["plan", "--base", "main", "--open-prs", str(prs),
-                                        "--remote-branches", str(branches)]), 2)
+                                        "--remote-branches", str(branches), "--incidents", str(incidents)]), 2)
 
     def test_clean_merge_is_a_two_parent_commit(self):
         self.git("checkout", "-q", "-b", "nonconflicting", self.base_tag)

@@ -2,9 +2,9 @@ name: Upstream sync
 
 # One sync PR per umputun/agterm release (#476): main merged with the newest vX.Y.Z tag main lacks, on
 # sync/umputun-<tag>. A clean merge opens a PR labelled upstream-sync; conflicts, or any change under .github/,
-# open a draft labelled needs-adaptation with the markers committed. Nothing runs while the repository variable
-# SYNC_PAUSED is true or while any sync PR is open; a sync branch with no open PR fails the run until it is
-# deleted. Gates and selection live in scripts/upstream-sync.py.
+# open a draft labelled needs-adaptation with the markers committed. Nothing runs while syncing is paused
+# (repository variable SYNC_PAUSED is true, or an issue labelled release-incident is open) or while any sync PR
+# is open; a sync branch with no open PR fails the run until it is deleted. Gates and selection live in scripts/upstream-sync.py.
 # Merge sync PRs as merge commits only: a squash leaves the tag outside main's history and it syncs again.
 #
 # Token: the push and the PR use UPSTREAM_SYNC_TOKEN, never GITHUB_TOKEN, which cannot push upstream's
@@ -66,6 +66,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      issues: read
       pull-requests: read
     outputs:
       action: ${{ steps.plan.outputs.action }}
@@ -94,11 +95,12 @@ jobs:
           # A private namespace, so upstream tags never mix with this repository's own.
           git fetch --quiet --no-tags https://github.com/umputun/agterm.git '+refs/tags/v*:refs/upstream-tags/v*'
           git ls-remote --heads origin 'refs/heads/sync/umputun-*' > "$RUNNER_TEMP/branches.txt"
-      - name: List open pull requests
+      - name: List open pull requests and release incidents
         env:
           GH_TOKEN: ${{ github.token }}
-        # A failed listing fails the job: without it the one-at-a-time gate cannot be evaluated.
+        # A failed listing fails the job: without it the pause and one-at-a-time gates cannot be evaluated.
         run: |
+          gh issue list --state open --label release-incident --limit 100 --json number > "$RUNNER_TEMP/incidents.json"
           gh pr list --state open --limit 1000 --json number,headRefName,isCrossRepository,labels \
             > "$RUNNER_TEMP/prs.json"
       - name: Plan
@@ -106,7 +108,7 @@ jobs:
         run: |
           python3 scripts/upstream-sync.py plan --base refs/remotes/origin/main \
             --open-prs "$RUNNER_TEMP/prs.json" --remote-branches "$RUNNER_TEMP/branches.txt" \
-            --paused "$SYNC_PAUSED" --tag "$TAG_OVERRIDE"
+            --paused "$SYNC_PAUSED" --incidents "$RUNNER_TEMP/incidents.json" --tag "$TAG_OVERRIDE"
       - name: Build the sync branch
         id: merge
         # A dry run builds the merge even when a gate skips, so its log shows what a live run would open.
