@@ -1,0 +1,93 @@
+name: Omarchy post-release watch
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Published versioned Omarchy tag to watch
+        type: string
+        required: true
+    secrets:
+      SYNC_PAUSE_TOKEN:
+        description: Fine-grained token with Variables write permission in this repository
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  native_published:
+    # #475 wiring: replace runs-on, timeout-minutes, outputs and steps with:
+    # uses: ./.github/workflows/omarchy-x86-native.yml
+    # with:
+    #   source: release
+    #   release_tag: ${{ inputs.tag }}
+    #   arch: both
+    permissions:
+      contents: read
+      actions: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    outputs:
+      passed: 'false'
+      watch_enabled: 'false'
+    steps:
+      - run: echo '::warning::Awaiting #475 release mode.'
+
+  public_urls:
+    needs: native_published
+    if: needs.native_published.outputs.passed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Smoke-test public stable download URLs
+        env:
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          [[ "$TAG" =~ ^omarchy-v[0-9]+\.[0-9]+\.[0-9]+\.[1-9][0-9]*$ ]]
+          for arch in x86_64 aarch64; do
+            # The native release gate also installs and tests these exact release assets.
+            asset="agterm-omarchy-${TAG#omarchy-v}-$arch.tar.gz"
+            curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+              --retry 2 --max-time 45 --range 0-0 --output /dev/null \
+              "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$asset"
+          done
+
+  retract:
+    needs: [native_published, public_urls]
+    # #475 wiring: replace the watch_enabled check with native_published.result != 'skipped'.
+    if: >-
+      !cancelled() &&
+      github.repository == 'alexandru-savinov/agterm-omarchy' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_run') &&
+      needs.native_published.outputs.watch_enabled == 'true' &&
+      (needs.native_published.result != 'success' ||
+       needs.native_published.outputs.passed != 'true' ||
+       needs.public_urls.result != 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: omarchy-retract-${{ inputs.tag }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Pause, mark as prerelease and open a release incident
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SYNC_PAUSE_TOKEN: ${{ secrets.SYNC_PAUSE_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          NATIVE_RESULT: ${{ needs.native_published.result }}
+          PUBLISHED_PASSED: ${{ needs.native_published.outputs.passed }}
+          URL_RESULT: ${{ needs.public_urls.result }}
+        shell: bash
+        run: |
+          python3 -I scripts/omarchy-auto-release.py retract --tag "$TAG" \
+            --reason "Native: $NATIVE_RESULT (passed=${PUBLISHED_PASSED:-missing}), public URLs: $URL_RESULT" \
+            --evidence "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

@@ -36,6 +36,11 @@ on:
         required: false
         type: string
         default: ""
+      source_attempt:
+        description: Exact CI attempt for an automatic versioned release (enables the final SYNC_PAUSED check)
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -102,9 +107,11 @@ jobs:
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
           # The script validates the version against the source's upstream base and the omarchy-pkgs watch pattern.
           VERSION: ${{ inputs.version }}
+          SOURCE_ATTEMPT: ${{ inputs.source_attempt }}
         run: |
           mode=()
           [[ -z "$VERSION" ]] || mode=(--release "$VERSION")
+          [[ -z "$SOURCE_ATTEMPT" ]] || mode+=(--source-attempt "$SOURCE_ATTEMPT")
           python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA" "$RUNNER_TEMP/promotion" "${mode[@]}"
       # A pull request also dry-runs the versioned path, for the next unpublished version, on the newest
       # main run that release mode accepts (never an omarchy-branch run). While the main head's CI is still
@@ -236,6 +243,17 @@ jobs:
             --notes-file dist/release-notes.md \
             dist/*.tar.gz dist/SHA256SUMS dist/promotion.json
           printf 'Published prerelease: https://github.com/%s/releases/tag/%s\n' "$GH_REPO" "$TAG" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check out the automatic release pause check
+        if: inputs.source_attempt != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: automation
+          persist-credentials: false
+      - name: Recheck the live pause variable before automatic publication
+        if: inputs.source_attempt != ''
+        env:
+          SYNC_PAUSE_TOKEN: ${{ secrets.SYNC_PAUSE_TOKEN }}
+        run: python3 -I automation/scripts/omarchy-auto-release.py check-pause
       - name: Create the versioned release without replacing anything
         if: needs.prepare.outputs.version != ''
         env:

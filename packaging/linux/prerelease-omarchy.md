@@ -90,3 +90,43 @@ CI rehearses this on both architectures under serial 0 and checks the result nat
 The release is created as a non-prerelease; it is marked latest only when no published `omarchy-v` release
 has a higher version, so a backport never takes it.
 Attestations are verified with `--source-ref refs/heads/main`, as for development prereleases.
+
+## M4 automatic releases
+
+`auto-release.yml` selects a successful Omarchy CI push run at the current main head.
+It skips a commit already covered by the latest versioned release, including a retracted release.
+The first upstream base is `0.43.0`.
+The next serial is one above the highest exact tag or release for that base, including drafts, retractions,
+and tags left behind after a failed publication.
+Once #475 is wired, both architectures must pass the native gates before dispatching this promotion workflow
+on main with `dry_run=false`, the selected source SHA and run ID, and the exact gated `source_attempt`.
+The automatic promotion checks that attempt before reading its artifacts.
+Both manual promotion modes retain their existing inputs.
+
+Set the repository variable `SYNC_PAUSED=true` to stop new automatic syncs and releases. Unset it to resume.
+The release automation reads it again before dispatch and after promotion verifies attestations, before tagging.
+Configure the repository secret `SYNC_PAUSE_TOKEN` with a fine-grained credential scoped to this repository
+with **Variables: write**. The built-in Actions token handles dispatch, release edits, and incident issues.
+The gate runners receive read-only permissions and do not receive the pause credential.
+
+The watch starts as soon as promotion reports success. A scheduled check every two hours also finds
+stable releases published in the last 24 hours, including after an interrupted promotion caller.
+The #475 published-release mode downloads, verifies, and installs both architectures' published assets.
+The watch also tests both public asset URLs without credentials.
+The watch runs while sync is paused. On a failure it sets the pause, marks that release as a prerelease,
+and records the failed checks, action results, and run link in a `release-incident` issue.
+The release and tag remain available for investigation and the next fixed commit uses a new serial.
+If any incident action fails, review the incident and rerun the failed watch jobs before resuming.
+Scheduled starts depend on hosted Actions availability.
+
+Both native gate calls are stubbed while #475 is paused.
+The candidate stub blocks promotion and the published-release stub skips the watch verdict.
+Replace the two stubs with #475's reusable workflow calls after that interface lands.
+Manual dispatch of `auto-release.yml` runs only fixtures, even from main.
+The **force_failure** input also prints the planned retraction, pause, and incident actions for a synthetic release.
+The same dry run can run locally without credentials:
+
+```bash
+python3 -I scripts/omarchy-auto-release.py retract --dry-run --tag omarchy-v0.43.0.1 \
+  --reason "Forced watch failure" --evidence "Synthetic release"
+```

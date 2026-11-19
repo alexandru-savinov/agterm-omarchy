@@ -330,10 +330,15 @@ def main():
     parser.add_argument("--next-version", action="store_true", help="print the next unpublished release version")
     parser.add_argument("--release", metavar="VERSION",
                         help="build versioned release assets for tag omarchy-vVERSION instead of a dev prerelease")
+    parser.add_argument("--source-attempt", type=int,
+                        help="require the exact CI attempt that passed the automatic release gates")
     parser.add_argument("run_id", type=int, nargs="?")
     parser.add_argument("sha", nargs="?")
     parser.add_argument("output", type=Path, nargs="?")
     args = parser.parse_args()
+    if args.source_attempt is not None:
+        require(args.source_attempt > 0 and args.release and not (args.next_version or args.discover),
+                "--source-attempt requires a positive attempt and versioned release preparation")
     if args.next_version:
         version = next_version(release_module())
         write_outputs({"version": version})
@@ -355,6 +360,8 @@ def main():
         tag = promotion_tag(args.sha, args.run_id)
     run = api(f"actions/runs/{args.run_id}")
     require(run["id"] == args.run_id, "Requested run ID mismatch")
+    require(args.source_attempt is None or run["run_attempt"] == args.source_attempt,
+            "CI attempt differs from the attempt tested by the automatic release gates")
     if release:
         # A release names its commit explicitly, so main may have moved on; it must still contain it.
         require(run["head_branch"] == "main", "Releases are cut only from main CI runs")

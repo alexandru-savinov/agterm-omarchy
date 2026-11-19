@@ -691,6 +691,16 @@ class ReleaseDryRunTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Requested run ID mismatch"):
                     self.prepare(github, Path(temp) / "promotion", *extra)
 
+    def test_automatic_release_requires_the_gated_ci_attempt(self):
+        github = ReleaseGitHub()
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "promotion"
+            with self.assertRaisesRegex(ValueError, "CI attempt differs"):
+                self.prepare(github, output, "--release", "0.41.1.1", "--source-attempt", "2")
+            self.assertFalse(output.exists())
+            self.prepare(github, output, "--release", "0.41.1.1", "--source-attempt", "1")
+            self.assertEqual(json.loads((output / "promotion.json").read_text())["source_run_attempt"], 1)
+
     def test_tagged_is_not_an_option(self):
         with tempfile.TemporaryDirectory() as temp, self.assertRaises(SystemExit):
             self.prepare(ReleaseGitHub(), Path(temp) / "promotion", "--release", "0.41.1.1", "--tagged")
