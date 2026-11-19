@@ -102,7 +102,7 @@ def find_watch_tags(items, now):
     for item in items:
         if item["draft"] or item["prerelease"] or not item["published_at"]:
             continue
-        published = datetime.fromisoformat(item["published_at"])
+        published = datetime.fromisoformat(item["published_at"].replace("Z", "+00:00"))
         if timedelta(0) <= now - published < WATCH_WINDOW:
             tags.append(item["tag_name"])
     return tags

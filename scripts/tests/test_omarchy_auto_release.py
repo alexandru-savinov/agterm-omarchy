@@ -126,7 +126,7 @@ class PlanTests(unittest.TestCase):
 
 class WatchTests(unittest.TestCase):
     def test_watch_only_includes_stable_releases_in_publication_window(self):
-        published = datetime.fromisoformat(RELEASE["published_at"])
+        published = datetime(2026, 11, 19, 17, tzinfo=timezone.utc)
         now = published + timedelta(hours=23, minutes=59)
         self.assertEqual(auto.find_watch_tags([
             RELEASE, RELEASE | {"prerelease": True}, RELEASE | {"draft": True},
