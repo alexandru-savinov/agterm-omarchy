@@ -66,6 +66,9 @@ install -m755 "$APP/vendor/zmx/zmx" "$DEST/bin/zmx"
 # shellcheck disable=SC2016 # $ORIGIN is the literal dynamic-loader token.
 python3 "$ROOT/scripts/linux-runpath.py" set '$ORIGIN/../lib' "$DEST/bin/agterm-linux.bin" "$DEST/bin/agtermctl.bin"
 cp -R "$APP_RESOURCES" "$DEST/bin/"
+# Build the app-only EGL compatibility library on the payload's target architecture.
+"${CC:-cc}" -std=c11 -O2 -fPIC -fvisibility=hidden -Wall -Wextra -Werror -shared \
+  -Wl,-z,defs -o "$DEST/lib/libagterm-egl-compat.so" "$ROOT/linux/egl-compat.c" -lEGL -ldl
 
 # Bundle the non-system libraries that make the Swift app portable. GTK, libadwaita, and glibc remain
 # host dependencies in tar/DEB/RPM.
@@ -137,6 +140,11 @@ agterm_set AGTERM_ZMX_PATH "$HERE/bin/zmx"
 # This is a data marker, never shell configuration. Default/absent values preserve the caller's choice.
 if [[ -f "$HERE/share/agterm/RENDERER" ]] && [[ "$(cat "$HERE/share/agterm/RENDERER")" == software ]]; then
   agterm_set LIBGL_ALWAYS_SOFTWARE 1
+fi
+# $ORIGIN is expanded by the loader after it parses LD_PRELOAD, including in prefixes with spaces.
+# shellcheck disable=SC2016
+if [[ "${AGTERM_DISABLE_EGL_COMPAT:-}" != 1 && -r "$HERE/lib/libagterm-egl-compat.so" ]]; then
+  agterm_set LD_PRELOAD '$ORIGIN/../lib/libagterm-egl-compat.so'"${LD_PRELOAD:+:$LD_PRELOAD}"
 fi
 export AGTERM_ORIG_UNSET
 exec "$HERE/bin/agterm-linux.bin" "$@"

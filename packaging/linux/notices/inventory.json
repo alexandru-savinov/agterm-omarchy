@@ -572,6 +572,7 @@
     }
   },
   "bundled_libraries": {
+    "libagterm-egl-compat.so": [],
     "libghostty.so": [
       "ghostty",
       "libxev",
@@ -6898,7 +6899,7 @@
   "unresolved": [
     "Themes without a pinned redistributable author license are dropped from the payload; THEMES.md lists each with its reason.",
     "A library filename/component mapping does not attest arbitrary externally supplied toolchain bytes.",
-    "Optional copied libraries outside the reviewed 16-name runtime profile require a notice profile update.",
+    "Optional copied libraries outside the reviewed runtime profile require a notice profile update.",
     "Zig-generated runtime and remaining source-embedded attribution require review before blanket distribution clearance; this collection is bounded.",
     "Nerd Fonts preserves glyph-source licenses supplied at v3.4.0; logo/trademark terms and any glyph sources without separate retained notices remain a distribution review item."
   ],

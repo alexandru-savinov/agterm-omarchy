@@ -73,12 +73,18 @@ enum LauncherChildEnvironment {
         apply(restore(from: environment), to: environment)
     }
 
-    /// AppImage only, and only the library path: an AppImage runtime's `LD_LIBRARY_PATH` is dropped from
-    /// agterm's own environ (glibc read it at startup, so agterm's own loading is unaffected). The launcher
-    /// bookkeeping is deliberately NOT applied here — agterm itself still needs `LIBGL_ALWAYS_SOFTWARE` and
-    /// the `AGTERM_*` locations, which are restored per child instead.
+    /// Restore loader variables in the running process before GTK or WebKit can spawn helpers.
+    /// The dynamic loader already loaded these libraries. agterm still needs the other launcher
+    /// overrides, which are restored per child.
     static func sanitizeCurrentProcess() {
         let environment = ProcessInfo.processInfo.environment
+        if let preload = restore(from: environment)["LD_PRELOAD"] {
+            if let preload {
+                setenv("LD_PRELOAD", preload, 1)
+            } else {
+                unsetenv("LD_PRELOAD")
+            }
+        }
         guard let appDirectory = environment["APPDIR"],
               let libraryPath = environment["LD_LIBRARY_PATH"] else { return }
         if let remaining = withoutAppImagePaths(libraryPath, appDirectory: appDirectory) {
