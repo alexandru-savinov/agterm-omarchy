@@ -1712,7 +1712,7 @@
     "linux/patches/ghostty-lib-resources.patch": "ec86e84173b0e1b712c1506eb074ef6ef8e25d0efbf6ce40f467bd39944a33ee",
     "linux/patches/ghostty-surface-env-unset.patch": "16e113ed16828b6a7ca1896e09e19f90ce1ecc12cd9fc076af8a7c389090ffe7",
     "scripts/ghostty-patches/0001-drain-mailbox-during-surface-teardown.patch": "442ce0b6524568e2ce442b34eb5d60c58db4657e32c1471392875c99e12c4a5d",
-    "scripts/ghostty-patches/0002-drain-pty-on-hangup.patch": "e46a7f26b12f636fdbd04f1f7b6b3767381ce51c99f0732b979911b377c0932c",
-    "scripts/ghostty-patches/0003-exit-message-after-final-output.patch": "6df10f9bef3a20e147c3f0aad061a4952e20edc1d01f0036e4c351188749e2f4"
+    "scripts/ghostty-patches/0002-drain-pty-on-hangup.patch": "3b7ad5943a3e396e1b1dc319363887e2458c16740031d8e8d5a1c1529e63a3ec",
+    "scripts/ghostty-patches/0003-exit-message-after-final-output.patch": "d109b93494a93c799564a16a843a59e8a22308b1bedce4b03eb2ae2e05ef73c4"
   }
 }

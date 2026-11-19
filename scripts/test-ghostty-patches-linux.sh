@@ -37,7 +37,11 @@ for ghostty_patch in "${GHOSTTY_PATCHES[@]}"; do
     )
   fi
   awk '/^\+\+\+ / { file = $2; sub(/^[^\/]*\//, "", file) }
-    file ~ /\.zig$/ && /^\+test "/ {
+    file ~ /\.zig$/ && /^\+[[:space:]]*test([[:space:]"{]|$)/ {
+      if ($0 !~ /^\+test ".+" \{$/) {
+        printf "%s:%d: expected a top-level named Zig test in %s: %s\n", FILENAME, FNR, file, $0 > "/dev/stderr"
+        exit 1
+      }
       name = $0; sub(/^\+test "/, "", name); sub(/" \{$/, "", name); print file "\t" name }' "$ghostty_patch" >> "$tests"
 done
 [[ -s "$tests" ]] || { echo "no Zig tests in the patch chain" >&2; exit 1; }
