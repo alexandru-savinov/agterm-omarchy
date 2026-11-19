@@ -3,7 +3,7 @@
 # port is melonamin's (https://github.com/melonamin/agterm-linux). This
 # repackages the Omarchy fork's CI archives for both architectures.
 pkgname=agterm-omarchy-bin
-# DRAFT: placeholder below the first omarchy-v0.41.1.1 release (#462).
+# DRAFT: placeholder below the first omarchy-v0.43.0.1 release (#478).
 pkgver=0.41.1.0
 pkgrel=1
 pkgdesc="Native terminal with a workspace and session sidebar, built on libghostty (Omarchy build)"

@@ -8,7 +8,7 @@ Nothing here is submitted upstream without the owner's approval.
 `.github/workflows/omarchy-pkgs-build.yml` builds it with omarchy-pkgs' own `bin/build` on both
 architectures, inspects the package and runs that repository's recipe checks (#466).
 
-Until #462 publishes a non-prerelease `omarchy-v0.41.1.N` release, the recipe builds the prerelease
+Until the first release, `omarchy-v0.43.0.1` (#478), is published, the recipe builds the prerelease
 `omarchy-dev-b1356f0ad7ae-run43761095738` with the placeholder `pkgver=0.41.1.0`. Then:
 
 - set `pkgver` to the release's version and drop `_tag` and its two `source_*` lines for the commented ones;
