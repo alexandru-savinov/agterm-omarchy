@@ -107,17 +107,17 @@ jobs:
           [[ -z "$VERSION" ]] || mode=(--release "$VERSION")
           python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA" "$RUNNER_TEMP/promotion" "${mode[@]}"
       # A pull request also dry-runs the versioned path, for the next unpublished version, on the newest
-      # main run that release mode accepts (never an omarchy-branch run).
+      # main run that release mode accepts (never an omarchy-branch run). While the main head's CI is still
+      # running, that is the last releasable main commit, not nothing.
       - name: Dry-run the next versioned release on the newest main source
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          head="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)"
-          source="$(GITHUB_OUTPUT=/dev/null python3 scripts/prepare-omarchy-prerelease.py --discover --commit "$head")"
+          source="$(GITHUB_OUTPUT=/dev/null python3 scripts/prepare-omarchy-prerelease.py --discover --releasable)"
           if [[ "$source" == "No promotable source run" ]]; then
-            echo "::warning::No releasable main CI run at $head: the versioned dry run checked nothing"
-            echo "Versioned dry run: no releasable main CI run at \`$head\`; nothing was checked." >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::No releasable main CI run: the versioned dry run checked nothing"
+            echo "Versioned dry run: no releasable main CI run; nothing was checked." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           read -r source_run source_sha <<< "$source"

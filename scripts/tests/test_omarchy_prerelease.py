@@ -359,6 +359,9 @@ class FakeGitHub:
         result = self.answer(command[2])
         if isinstance(result, bytes):
             return result
+        if isinstance(result, list) and "--paginate" not in command:
+            # Listings are answered as slurped pages; an unpaginated call reads only the first.
+            result = result[0]
         return json.dumps(result).encode()
 
     def run_command(self, command, **kwargs):
@@ -640,6 +643,18 @@ class ReleaseDryRunTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp, self.assertRaises(SystemExit):
             self.prepare(ReleaseGitHub(), Path(temp) / "promotion", "--release", "0.41.1.1", "--tagged")
 
+    def test_releasable_discovery_falls_back_past_a_head_run_release_mode_rejects(self):
+        github = ReleaseGitHub()
+        head = github.add_run(8, "2026-11-02T00:00:00Z")
+        gtk = next(job for job in github.runs[8][1] if job["name"].startswith("GTK build"))
+        gtk["steps"] = [step for step in gtk["steps"] if step["name"] != "Rehearse versioned release archive"]
+        github.add_run(9, "2026-11-03T00:00:00Z", head_branch="omarchy")
+        first, second = github.patches()
+        with first, second:
+            self.assertEqual(promotion.discover_releasable()["id"], 7)
+            github.listed[:] = [head]
+            self.assertIsNone(promotion.discover_releasable())
+
     def test_discover_commit_finds_the_green_main_run_at_that_commit(self):
         github = ReleaseGitHub()
         github.add_run(8, "2026-11-02T00:00:00Z", event="pull_request")
@@ -740,8 +755,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('[[ -z "$VERSION" ]] || mode=(--release "$VERSION")', job)
         step = job[job.index("      - name: Dry-run the next versioned release on the newest main source\n"):]
         step = step[:step.index("\n      - name: ")]
-        self.assertIn('gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha', step)
-        self.assertIn('--discover --commit "$head"', step)
+        self.assertIn("prepare-omarchy-prerelease.py --discover --releasable", step)
         self.assertIn('--release "$version"', step)
         self.assertNotIn("steps.source.outputs", step)
 

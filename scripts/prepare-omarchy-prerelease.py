@@ -298,11 +298,35 @@ def discover_commit(sha):
     return max(candidates, key=lambda run: run["created_at"], default=None)
 
 
+def discover_releasable(limit=20):
+    """Newest successful main CI run, at any main commit, that release mode accepts.
+
+    A PR dry run uses it so an unfinished CI run at the main head falls back to the last releasable commit
+    instead of checking nothing."""
+    workflow = api("actions/workflows/ci.yml")
+    runs = api(f"actions/workflows/ci.yml/runs?branch=main&status=success&per_page={limit}")["workflow_runs"]
+    for run in sorted(runs, key=lambda run: run["created_at"], reverse=True):
+        sha = run["head_sha"]
+        if run["head_branch"] != "main" or not re.fullmatch(r"[0-9a-f]{40}", sha):
+            continue
+        try:
+            validate_run(run, workflow, sha, sha)
+            validate_jobs(run_jobs(run), release=True)
+            select_artifacts(run_artifacts(run), run, sha)
+        except ValueError:
+            continue
+        if on_main(sha):
+            return run
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--discover", action="store_true",
                         help="print the newest promotable source run and SHA instead of validating one")
     parser.add_argument("--commit", help="with --discover: the newest promotable run at this main commit instead")
+    parser.add_argument("--releasable", action="store_true",
+                        help="with --discover: the newest main run release mode accepts, at any main commit")
     parser.add_argument("--next-version", action="store_true", help="print the next unpublished release version")
     parser.add_argument("--release", metavar="VERSION",
                         help="build versioned release assets for tag omarchy-vVERSION instead of a dev prerelease")
@@ -317,7 +341,8 @@ def main():
         return
     if args.discover:
         require(args.run_id is None, "--discover takes no arguments")
-        run = discover_commit(args.commit) if args.commit else discover()
+        require(not (args.commit and args.releasable), "--commit and --releasable are exclusive")
+        run = discover_commit(args.commit) if args.commit else discover_releasable() if args.releasable else discover()
         write_outputs({"run": run["id"], "sha": run["head_sha"]} if run else {"run": ""})
         print(f"{run['id']} {run['head_sha']}" if run else "No promotable source run")
         return
