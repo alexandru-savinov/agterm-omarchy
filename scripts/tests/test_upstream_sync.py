@@ -575,6 +575,7 @@ class WorkflowOrderTests(unittest.TestCase):
         upload = self.position("          name: upstream-sync-first-seen\n")
         self.assertLess(self.position("if: steps.plan.outcome == 'success' && env.DRY_RUN != 'true'"), upload)
         self.assertLess(self.position("name: Refuse a live run off main"), upload)
+        self.assertLess(upload, self.position("          overwrite: true"))
         self.position('select((.expired | not) and .workflow_run.head_branch == "main"\n'
                       "              and .workflow_run.head_repository_id == .workflow_run.repository_id)")
 

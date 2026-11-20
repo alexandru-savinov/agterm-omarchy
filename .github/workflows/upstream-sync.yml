@@ -168,6 +168,7 @@ jobs:
           path: ${{ runner.temp }}/seen-out/first-seen.json
           retention-days: 90
           if-no-files-found: error
+          overwrite: true # a re-run attempt uploads the name again on the same run
       - name: Build the sync branch
         id: merge
         # A dry run builds the merge even when a gate skips, so its log shows what a live run would open.
