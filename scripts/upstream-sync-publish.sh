@@ -39,19 +39,28 @@ ensure_label() {
 }
 
 withdraw() {
+  local status=$?
   [[ -n "$pushed" && -z "$published" ]] || return 0
-  if [[ -n "$number" ]]; then
-    gh pr close "$number" --comment "upstream-sync could not label this PR, so it withdrew it; the next run reopens the sync." \
-      || echo "::error::could not close #$number" >&2
+  if [[ -z "$number" ]]; then
+    echo "::error::no PR from $BRANCH was found to close; deleting $BRANCH closes any this run opened" >&2
+  elif ! gh pr close "$number" --comment "upstream-sync could not label this PR, so it withdrew it; the next run reopens the sync."; then
+    echo "::error::could not close #$number; deleting $BRANCH closes it" >&2
   fi
-  # Deleting the head also closes a PR this run opened but could not find.
+  # GitHub closes an open PR whose head branch is deleted, so the delete stands in for a close that failed.
   git push --force-with-lease="refs/heads/$BRANCH:$HEAD_SHA" origin ":refs/heads/$BRANCH" \
-    || echo "::error::could not delete $BRANCH; delete it by hand" >&2
+    || echo "::error::could not delete $BRANCH; delete it and close any PR from it by hand" >&2
+  exit $(( status ? status : 1 ))
 }
 trap withdraw EXIT
 
-# The empty expected value creates the branch only, never moving one pushed since the plan.
-git push --force-with-lease="refs/heads/$BRANCH:" origin "refs/heads/$BRANCH:refs/heads/$BRANCH"
+# The empty expected value creates the branch only, never moving one pushed since the plan. A ref already at
+# HEAD_SHA also succeeds, as "[up to date]": only "[new branch]" makes the branch this run's to delete.
+refspec="refs/heads/$BRANCH:refs/heads/$BRANCH"
+pushout="$(git push --porcelain --force-with-lease="refs/heads/$BRANCH:" origin "$refspec")" \
+  || { printf '%s\n' "$pushout"; echo "::error::could not create $BRANCH; see the push output above" >&2; exit 1; }
+printf '%s\n' "$pushout"
+grep -qxF "$(printf '*\t%s\t[new branch]' "$refspec")" <<< "$pushout" \
+  || { echo "::error::$BRANCH already existed at $HEAD_SHA; this run created nothing and deletes nothing" >&2; exit 1; }
 pushed=1
 as_draft=()
 [[ "$DRAFT" != true ]] || as_draft=(--draft)
@@ -60,7 +69,7 @@ if url="$(gh pr create --base main --head "$BRANCH" --title "$TITLE" --label "$L
     --body-file "$BODY_FILE" "${as_draft[@]}")"; then
   number="${url##*/}"
 else
-  number="$(this_pr)" || number=''
+  number="$(this_pr)" || { echo "::error::gh pr create failed and the PR lookup for $BRANCH failed" >&2; exit 1; }
   [[ -n "$number" ]] || { echo "::error::gh pr create failed and no PR for $BRANCH is open" >&2; exit 1; }
   ensure_label "$number" || { echo "::error::could not apply $LABEL to #$number" >&2; exit 1; }
   echo "::warning::gh pr create failed after opening #$number; $LABEL was applied separately" >&2

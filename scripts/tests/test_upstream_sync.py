@@ -276,13 +276,19 @@ class WorkflowOrderTests(unittest.TestCase):
 STUB = r"""#!/usr/bin/env bash
 printf '%s\t%s\t%s\n' "$(basename "$0")" "${GH_TOKEN:-}|${GIT_CONFIG_VALUE_0:-}" "$*" >> "$STUB_LOG"
 if [[ "$(basename "$0")" == git ]]; then
-  [[ "$*" != *"refs/heads/sync/umputun-v0.43.0:refs/heads/"* || -z "${STUB_PUSH_FAILS:-}" ]] || exit 1
+  ref=refs/heads/sync/umputun-v0.43.0
+  [[ "$*" == *"$ref:$ref"* ]] || exit 0
+  case "${STUB_PUSH:-new}" in
+    new) printf '*\t%s:%s\t[new branch]\n' "$ref" "$ref" ;;
+    same) printf '=\t%s:%s\t[up to date]\n' "$ref" "$ref" ;;
+    *) printf '!\t%s:%s\t[rejected] (stale info)\n' "$ref" "$ref"; exit 1 ;;
+  esac
   exit 0
 fi
 case "$1 $2" in
   "pr create") [[ "$STUB_CREATE" == ok ]] && { echo "https://github.com/o/r/pull/12"; exit 0; }; exit 1 ;;
-  "pr list") echo "${STUB_FOUND:-}" ;;
-  "pr close") ;;
+  "pr list") [[ -z "${STUB_LIST_FAILS:-}" ]] || exit 1; echo "${STUB_FOUND:-}" ;;
+  "pr close") [[ -z "${STUB_CLOSE_FAILS:-}" ]] || exit 1 ;;
   "api "*)
     if [[ " $* " == *" -f "* ]]; then
       echo x >> "$STUB_STATE.adds"
@@ -331,7 +337,7 @@ class PublishScriptTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_all_as_pat(calls)
         self.assertEqual(self.args(calls, "git", "push"), [
-            "push --force-with-lease=refs/heads/sync/umputun-v0.43.0: origin "
+            "push --porcelain --force-with-lease=refs/heads/sync/umputun-v0.43.0: origin "
             "refs/heads/sync/umputun-v0.43.0:refs/heads/sync/umputun-v0.43.0"])
         create = self.args(calls, "gh", "pr create")
         self.assertEqual(len(create), 1)
@@ -366,10 +372,23 @@ class PublishScriptTests(unittest.TestCase):
         self.assertEqual(self.args(calls, "gh", "pr close"), [])
         self.assertIn(":refs/heads/sync/umputun-v0.43.0", calls[-1][2])
 
+    def test_a_failed_close_or_lookup_still_deletes_the_branch_and_fails(self):
+        for stub, error in (({"STUB_FOUND": "12", "STUB_CLOSE_FAILS": "1"}, "::error::could not close #12"),
+                            ({"STUB_LIST_FAILS": "1"}, "::error::no PR from sync/umputun-v0.43.0 was found")):
+            with self.subTest(stub=stub):
+                result, calls, output = self.run_publish(STUB_CREATE="label-fails", **stub)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(error, result.stderr)
+                self.assertIn(":refs/heads/sync/umputun-v0.43.0", calls[-1][2])
+                self.assertEqual(output, "")
+
     def test_an_existing_branch_stops_before_any_pr_and_is_never_deleted(self):
-        result, calls, _ = self.run_publish(STUB_CREATE="ok", STUB_PUSH_FAILS="1")
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual([name for name, _, _ in calls], ["git"])
+        for push in ("stale", "same"):
+            with self.subTest(push=push):
+                result, calls, _ = self.run_publish(STUB_CREATE="ok", STUB_PUSH=push)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("::error::", result.stderr)
+                self.assertEqual([name for name, _, _ in calls], ["git"])
 
     def test_missing_inputs_fail_before_any_call(self):
         result, calls, _ = self.run_publish(STUB_CREATE="ok", SYNC_TOKEN="")
