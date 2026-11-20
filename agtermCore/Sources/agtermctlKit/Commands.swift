@@ -30,9 +30,8 @@ struct BasicOptions: ParsableArguments, ConnectionOptions {
 
     /// Resolve the socket path, in precedence order: `--socket` → a non-empty `AGTERM_CONTROL_SOCKET` →
     /// `<AGTERM_STATE_DIR>/agterm.sock` → `<default>/agterm.sock`. The default is agterm-server's
-    /// `ControlResolve.defaultStateDirectory`; `AGTERM_CLI_RENDEZVOUS=desktop`, which the Linux desktop payload's
-    /// `bin/agtermctl` sets, selects the GTK app's Foundation application-support directory instead (the same
-    /// directory on macOS). `env` and that directory are injectable so the precedence is unit-testable.
+    /// `ControlResolve.defaultStateDirectory`; `AGTERM_CLI_RENDEZVOUS=desktop`, which the GTK `agtermctl-linux`
+    /// sets, selects the GTK app's Foundation application-support directory instead (the same directory on macOS). `env` and that directory are injectable so the precedence is unit-testable.
     func socketPath(env: [String: String] = ProcessInfo.processInfo.environment) -> String {
         let directory = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask

@@ -183,8 +183,6 @@ cat > "$DEST/bin/agtermctl" <<'LAUNCH'
 #!/usr/bin/env bash
 HERE="$(CDPATH='' cd -- "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-# The shared CLI defaults to agterm-server's socket; this desktop payload's CLI meets the GTK app instead.
-export AGTERM_CLI_RENDEZVOUS=desktop
 exec "$HERE/bin/agtermctl.bin" "$@"
 LAUNCH
 chmod 0755 "$DEST/bin/agtermctl"

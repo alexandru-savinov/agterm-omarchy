@@ -554,17 +554,6 @@ pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_text('fixture EGL shim')
         self.assertIn('no agterm-server checksums', result.stderr)
         self.assertFalse(self.destination.exists())
 
-    def test_desktop_cli_wrapper_selects_the_desktop_rendezvous(self):
-        result = self.stage()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertFalse((self.destination / 'share/agterm/UPSTREAM_VERSION').exists())
-        probe = f'#!{sys.executable}\n' + 'import json, os\nprint(json.dumps(dict(os.environ)))\n'
-        (self.destination / 'bin/agtermctl.bin').write_text(probe)
-        seen = subprocess.run([str(self.destination / 'bin/agtermctl')], env=self.env, text=True,
-                              capture_output=True, check=True, timeout=15).stdout
-        self.assertEqual(json.loads(seen)['AGTERM_CLI_RENDEZVOUS'], 'desktop')
-        self.assertNotIn('AGTERM_CLI_RENDEZVOUS', (self.destination / 'bin/agterm-linux').read_text())
-
     def test_desktop_entry_is_staged_once_under_share_applications(self):
         result = self.stage()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
