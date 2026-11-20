@@ -3,10 +3,14 @@
 
 import json
 from pathlib import Path
+import re
 import sys
 
 
 def harness_result(root, expected, status, name, gtk_configs):
+    if not re.fullmatch(r"[0-9]+", gtk_configs):
+        return f"{name}\tFAIL exit={status} egl_retry=unknown_gtk_configs"
+
     try:
         result = json.loads((root / "result.json").read_text())
         cleanup = json.loads((root / "cleanup.json").read_text())
@@ -16,7 +20,7 @@ def harness_result(root, expected, status, name, gtk_configs):
     checks = result.get("checks") or result.get("completed_checks") or []
     ok = status == 0 and result.get("passed") is True and len(checks) == expected and cleanup.get("passed") is True
     egl = ""
-    if name == "ordinary" and gtk_configs == "0":
+    if not gtk_configs.strip("0"):
         # The harness combines the application's stdout and stderr in app.log.
         try:
             with (root / "app.log").open("rb") as log:

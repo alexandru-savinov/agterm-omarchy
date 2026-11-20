@@ -313,7 +313,7 @@ session_phase() {
 
   cc -shared -fPIC -o "$HOME/fixture.so" /repo/agterm-linux/tests/login_shell_zsh_fixture.c -ldl
   record login_shell "$(getent passwd "$USER" | cut -d: -f7)"
-  harness_gate live live 9 "" LD_PRELOAD="$HOME/fixture.so"
+  harness_gate live live 9 "$gtk_configs" LD_PRELOAD="$HOME/fixture.so"
 
   local run passes=0 probe_parent="$EVIDENCE/probe"
   install -d -m 0700 "$probe_parent"
