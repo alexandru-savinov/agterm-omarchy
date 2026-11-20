@@ -923,11 +923,11 @@ def app_stderr_sink():
     return sink
 
 
-def launch(env, arguments=None):
+def launch(env, arguments=None, *, binary=BIN):
     sink = app_stderr_sink()
     try:
         process = subprocess.Popen(
-            [BIN, *(arguments or [])], env=env, stdout=subprocess.DEVNULL, stderr=sink)
+            [binary, *(arguments or [])], env=env, stdout=subprocess.DEVNULL, stderr=sink)
     finally:
         if sink is not subprocess.DEVNULL:
             sink.close()

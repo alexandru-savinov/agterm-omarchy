@@ -98,8 +98,10 @@ def verify_inventory(inventory, paths):
     for component in inventory['components'].values():
         require(component['notices'] and set(component['notices']) <= paths, 'component is missing retained notices')
     for name, components in inventory['bundled_libraries'].items():
-        require(Path(name).name == name and components and set(components) <= inventory['components'].keys(),
-                'invalid runtime notice association')
+        # This library is built from agterm source and covered by the repository LICENSE.
+        repository_owned = name == 'libagterm-egl-compat.so'
+        require(Path(name).name == name and (components or repository_owned)
+                and set(components) <= inventory['components'].keys(), 'invalid runtime notice association')
     for components in inventory['executables'].values():
         require(components and set(components) <= inventory['components'].keys(), 'invalid executable notice association')
     themes = inventory['themes']
