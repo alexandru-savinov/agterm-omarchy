@@ -65,18 +65,35 @@ follow linux-port:
   branch `sync/linux-port-<sha8>` as main merged with that head.
 - **Fallback:** a direct umputun sync, only when main already has linux-port's head. It takes the newest
   umputun `vX.Y.Z` tag above linux-port's own that linux-port has lacked for more than 7 days
-  (`LINUX_PORT_LAG_DAYS` in `scripts/upstream-sync.py`), on `sync/umputun-<tag>`. Each tag's lag runs from its
-  own creation date, so a fresher tag waits its own 7 days and exactly 7 days still waits. A tag below a
-  release main already holds is never synced.
+  (`LINUX_PORT_LAG_DAYS` in `scripts/upstream-sync.py`), on `sync/umputun-<tag>`. Each tag has its own lag,
+  so a fresher tag waits its own 7 days and exactly 7 days still waits. A tag below a release main already
+  holds is never synced.
+- **Lag clock:** the `published_at` of the tag's GitHub release. A tag with no published release starts at
+  the first live run that sees it; that time is carried between runs in the `upstream-sync-first-seen`
+  artifact, read only from runs on main. Git dates are never used: a lightweight tag pushed today carries its
+  commit's date. A lost record restarts the clock, so the fallback can only be late, never early.
 - linux-port goes first when both apply; the fallback takes a later run, after the linux-port PR merges.
-- A dispatch may name a umputun tag to sync directly. That is the one manual exception to the precedence and
-  the lag; every gate below still applies.
-- If linux-port can't be fetched, the run fails. It never falls back on its own.
+- A dispatch may name a umputun tag. A live run then syncs only that tag, and only if an unattended run could:
+  main has linux-port's head, the tag is above the newest release linux-port and main carry, and its lag is
+  past. Only a dry run previews any tag main lacks.
+- If linux-port or the release list can't be fetched, the run fails. It never falls back on its own.
 - If the merge conflicts, or changes anything under `.github/`, keep the conflicts as a commit and open a draft
   PR labelled `needs-adaptation`. Otherwise open a PR labelled `upstream-sync`.
 - The PR body says to bump `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` in `ci.yml` and `release-linux.yml` to
   the newest umputun tag the merged source contains: for a linux-port sync, the tag linux-port contains. If main
   already holds a newer tag from a fallback sync, it says to keep the pins there.
+- **Trust:** the sync branch is pushed before anyone reviews it, so a workflow that linux-port or umputun
+  adds runs here on that push. This was accepted as residual risk on 2026-11-20 (the #501 review), as the
+  same trust we extend by merging their code, because such a workflow gets a read-only token on a public repository and no secrets. That
+  rests on these repository settings, verified that day:
+  - default workflow permissions are read, and Actions cannot approve pull requests;
+  - there are no repository secrets; the only credential is the PAT in the `upstream-sync` environment, which
+    deploys from main only;
+  - allowed actions are a selected list.
+
+  The publish job enforces the two that carry the risk: it refuses to push unless the default workflow
+  permissions are read and no repository secret exists. It reads both as the PAT, which needs Administration
+  and Secrets read for that. A cross-repository PR never counts as an open sync PR, whatever its label.
 - Apply the pause rule in C4 before opening a sync PR.
 - Only one sync PR is open at a time. Commits and tags that arrive while one is open are taken by the next run,
   after merge.

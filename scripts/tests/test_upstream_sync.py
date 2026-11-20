@@ -144,12 +144,43 @@ class SourceSelectionTests(unittest.TestCase):
         self.assertEqual(select(main=[PORT], port=TAGS.values(), tags=tags), NOTHING)
         self.assertEqual(select(main=[PORT], port=BEHIND, tags=tags), DIRECT)
 
-    def test_override_syncs_the_named_release_past_linux_port_and_the_lag(self):
-        self.assertEqual(select(port=["a" * 40], ages={"v0.42.3": 0}, override="v0.42.3"),
+    def test_dry_run_override_previews_any_release_main_lacks(self):
+        for scenario in ({"port": ["a" * 40], "ages": {"v0.42.3": 0}}, {"main": [PORT]}, {"main": [PORT, "c" * 40]}):
+            with self.subTest(scenario=scenario):
+                chosen = select(override="v0.42.3", dry_run=True, **scenario)
+                self.assertEqual(chosen, ("umputun", "v0.42.3", "b" * 40))
+
+    def test_live_override_waits_for_linux_port_to_merge_first(self):
+        for dry_run in ({}, {"dry_run": False}):
+            with self.subTest(dry_run=dry_run):
+                chosen = sync.select(**selection(port=BEHIND, override="v0.43.0", **dry_run))
+                self.assertEqual((chosen["source"], chosen["commit"]), ("", ""))
+                self.assertEqual(chosen["reason"],
+                                 "linux-port eeeeeeee is not an ancestor of main and syncs before v0.43.0")
+
+    def test_live_override_waits_out_the_lag(self):
+        scenario = {"main": [PORT], "port": BEHIND, "override": "v0.43.0"}
+        chosen = sync.select(**selection(ages={"v0.43.0": LAG}, **scenario))
+        self.assertEqual(chosen["source"], "")
+        self.assertIn("has lacked v0.43.0 for 7.0 days; the direct sync waits", chosen["reason"])
+        self.assertEqual(select(ages={"v0.43.0": LAG + 1}, **scenario), DIRECT)
+
+    def test_live_override_never_takes_a_release_linux_port_or_main_already_passed(self):
+        tags = {**TAGS, "v0.42.4": "f" * 40}
+        for scenario in ({"port": TAGS.values()}, {"main": [PORT, "c" * 40], "port": BEHIND}):
+            with self.subTest(scenario=scenario):
+                chosen = sync.select(**selection(tags=tags, override="v0.42.4", **{"main": [PORT], **scenario}))
+                self.assertEqual(chosen["source"], "")
+                self.assertIn("v0.42.4 is not above v0.43.0", chosen["reason"])
+
+    def test_live_override_narrows_the_direct_sync_to_an_older_overdue_release(self):
+        self.assertEqual(select(main=[PORT], port=["a" * 40, "d" * 40], override="v0.42.3"),
                          ("umputun", "v0.42.3", "b" * 40))
 
     def test_override_already_in_main_is_nothing_to_do(self):
-        self.assertEqual(select(main=["b" * 40], override="v0.42.3"), NOTHING)
+        for dry_run in (False, True):
+            with self.subTest(dry_run=dry_run):
+                self.assertEqual(select(main=["b" * 40], override="v0.42.3", dry_run=dry_run), NOTHING)
 
     def test_override_must_be_a_fetched_release_tag(self):
         for bad in ("v0.44.0", "main", "v0.43.0-rc1", "refs/tags/v0.43.0"):
@@ -164,15 +195,118 @@ class SourceSelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "contains no umputun/agterm release"):
             select(main=[PORT], port=[])
 
-    def test_a_lacking_release_without_a_creation_time_fails(self):
+    def test_a_lacking_release_without_a_lag_clock_fails(self):
         scenario = selection(main=[PORT], port=BEHIND)
         del scenario["tag_times"]["v0.43.0"]
-        with self.assertRaisesRegex(sync.SyncError, "no creation time for v0.43.0"):
+        with self.assertRaisesRegex(sync.SyncError, "no lag clock for v0.43.0"):
             sync.select(**scenario)
 
     def test_newest_contained_release_is_by_version(self):
         self.assertEqual(sync.newest_contained(TAGS, contains("a" * 40, "b" * 40, "d" * 40)), "v0.42.3")
         self.assertIsNone(sync.newest_contained({**TAGS, "latest": "f" * 40}, contains("f" * 40)))
+
+
+def release(tag, published="2026-11-17T19:07:29Z", draft=False, **extra):
+    return {"tag_name": tag, "draft": draft, "published_at": published, **extra}
+
+
+PUBLISHED = 1794942449  # 2026-11-17T19:07:29Z
+
+
+class LagClockTests(unittest.TestCase):
+    def clocks(self, releases, first_seen=None, tags=TAGS):
+        return sync.lag_clocks(tags, releases, first_seen or {}, NOW)
+
+    def test_a_published_release_sets_the_clock(self):
+        clocks, kept = self.clocks([release(tag) for tag in TAGS])
+        self.assertEqual((clocks, kept), (dict.fromkeys(TAGS, PUBLISHED), {}))
+
+    def test_the_release_creation_time_is_never_the_clock(self):
+        created = release("v0.43.0", created_at="2026-10-01T00:00:00Z")
+        self.assertEqual(self.clocks([created])[0]["v0.43.0"], PUBLISHED)
+
+    def test_a_tag_without_a_published_release_starts_when_first_seen(self):
+        unpublished = ([], [release("v0.43.0", draft=True)], [release("v0.43.0", published=None)],
+                       [{"tag_name": "v0.43.0", "published_at": "2026-11-17T19:07:29Z"}], [release("v0.42.3")])
+        for releases in unpublished:
+            with self.subTest(releases=releases):
+                clocks, kept = self.clocks(releases)
+                self.assertEqual((clocks["v0.43.0"], kept["v0.43.0"]), (NOW, NOW))
+
+    def test_a_recorded_first_sighting_is_kept_and_a_lost_one_restarts_now(self):
+        clocks, kept = self.clocks([], {"v0.43.0": NOW - 3 * sync.DAY, "v0.1.0": 5})
+        self.assertEqual((clocks["v0.43.0"], kept["v0.43.0"]), (NOW - 3 * sync.DAY, NOW - 3 * sync.DAY))
+        self.assertEqual(clocks["v0.42.3"], NOW)
+        self.assertEqual(sorted(kept), sorted(TAGS))
+
+    def test_a_release_replaces_the_first_sighting_and_drops_it_from_the_record(self):
+        clocks, kept = self.clocks([release("v0.43.0")], {"v0.43.0": NOW - 30 * sync.DAY})
+        self.assertEqual(clocks["v0.43.0"], PUBLISHED)
+        self.assertNotIn("v0.43.0", kept)
+
+    def test_non_release_tags_get_no_clock(self):
+        clocks, kept = self.clocks([], tags={"v0.44.0-rc1": "f" * 40, "latest": "1" * 40})
+        self.assertEqual((clocks, kept), ({}, {}))
+
+    def test_offsets_are_honoured(self):
+        self.assertEqual(self.clocks([release("v0.43.0", "2026-11-17T21:07:29+02:00")])[0]["v0.43.0"], PUBLISHED)
+
+    def test_malformed_inputs_fail_closed(self):
+        bad_releases = ({"message": "Not Found"}, ["v0.43.0"], [release("v0.43.0", "yesterday")],
+                        [release("v0.43.0", "2026-11-17T19:07:29")])
+        for releases in bad_releases:
+            with self.subTest(releases=releases), self.assertRaises(sync.SyncError):
+                self.clocks(releases)
+        for first_seen in (["v0.43.0"], {"v0.43.0": "1"}, {"v0.43.0": 1.5}, {"v0.43.0": True}):
+            with self.subTest(first_seen=first_seen), self.assertRaises(sync.SyncError):
+                sync.lag_clocks(TAGS, [], first_seen, NOW)
+
+
+class SettingsGuardTests(unittest.TestCase):
+    SAFE = ({"default_workflow_permissions": "read", "can_approve_pull_request_reviews": False},
+            {"total_count": 0, "secrets": []})
+
+    def test_read_only_token_and_no_repository_secret_is_safe(self):
+        self.assertEqual(sync.settings_problems(*self.SAFE), [])
+
+    def test_a_writable_default_token_is_unsafe(self):
+        problems = sync.settings_problems({"default_workflow_permissions": "write"}, self.SAFE[1])
+        self.assertEqual(problems, ["default workflow permissions are 'write', not 'read'"])
+
+    def test_any_repository_secret_is_unsafe(self):
+        listing = {"total_count": 2, "secrets": [{"name": "A"}, {"name": "B"}]}
+        self.assertEqual(sync.settings_problems(self.SAFE[0], listing), ["repository secrets exist (2): A, B"])
+        self.assertEqual(len(sync.settings_problems(self.SAFE[0], {"total_count": 3, "secrets": []})), 1)
+        self.assertEqual(len(sync.settings_problems(self.SAFE[0], {"total_count": 0, "secrets": [{"name": "A"}]})), 1)
+
+    def test_error_bodies_and_malformed_listings_are_unsafe(self):
+        error = {"message": "Resource not accessible by personal access token", "status": "403"}
+        self.assertEqual(len(sync.settings_problems(error, error)), 2)
+        safe = self.SAFE[0]
+        for permissions, secrets in ((safe, {"secrets": []}), (safe, {"total_count": "0", "secrets": []}),
+                                     (safe, {"total_count": 0}), ([], self.SAFE[1]), (safe, [])):
+            with self.subTest(permissions=permissions, secrets=secrets):
+                self.assertTrue(sync.settings_problems(permissions, secrets))
+
+    def run_guard(self, permissions, secrets):
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = [Path(tmp) / "permissions.json", Path(tmp) / "secrets.json"]
+            for path, content in zip(paths, (permissions, secrets), strict=True):
+                path.write_text(content, encoding="utf-8")
+            error = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
+                code = sync.main(["guard", "--workflow-permissions", str(paths[0]), "--secrets", str(paths[1])])
+            return code, error.getvalue()
+
+    def test_guard_command_passes_only_safe_settings(self):
+        safe = [json.dumps(part) for part in self.SAFE]
+        self.assertEqual(self.run_guard(*safe), (0, ""))
+        code, error = self.run_guard('{"default_workflow_permissions": "write"}',
+                                     '{"total_count": 1, "secrets": [{"name": "A"}]}')
+        self.assertEqual(code, 2)
+        self.assertIn("a sync push is unsafe: default workflow permissions are 'write', not 'read'; "
+                      "repository secrets exist (1): A", error)
+        self.assertEqual(self.run_guard("", safe[1])[0], 2)
 
 
 class GateTests(unittest.TestCase):
@@ -246,17 +380,16 @@ class GateTests(unittest.TestCase):
                {**pr(2, head="upstream-sync-notes"), "labels": None}]
         self.assertEqual(decide(prs=prs)["action"], "sync")
 
-    def test_fork_head_named_like_a_sync_branch_does_not_block(self):
-        for head in ("sync/umputun-v0.43.0", PORT_BRANCH):
-            with self.subTest(head=head):
-                self.assertEqual(decide(prs=[pr(7, head=head, cross=True)])["action"], "sync")
-
-    def test_labelled_fork_pr_still_blocks(self):
-        self.assertEqual(decide(prs=[pr(7, head="x", labels=["needs-adaptation"], cross=True)])["action"], "skip")
+    def test_fork_pr_never_blocks_whatever_its_label_or_head(self):
+        for label in ("upstream-sync", "needs-adaptation"):
+            for head in ("x", PORT_BRANCH, "sync/umputun-v0.43.0"):
+                with self.subTest(label=label, head=head):
+                    self.assertEqual(decide(prs=[pr(7, head=head, labels=[label], cross=True)])["action"], "sync")
 
     def test_pr_listing_without_the_cross_repository_field_fails_closed(self):
-        with self.assertRaises(sync.SyncError):
-            decide(prs=[{"number": 3, "headRefName": PORT_BRANCH, "labels": []}])
+        for cross in ({}, {"isCrossRepository": None}, {"isCrossRepository": "true"}):
+            with self.subTest(cross=cross), self.assertRaises(sync.SyncError):
+                decide(prs=[{"number": 3, "headRefName": "x", "labels": [], **cross}])
 
     def test_malformed_pr_listing_fails_closed(self):
         with self.assertRaises(sync.SyncError):
@@ -407,9 +540,10 @@ class WorkflowOrderTests(unittest.TestCase):
         variable = self.position('python3 scripts/upstream-sync.py pause --paused "$SYNC_PAUSED" || status=$?')
         self.assertLess(variable, self.position("gh issue list --state open --label release-incident"))
         decided = self.position("--incidents \"$RUNNER_TEMP/incidents.json\"\n")
-        for upstream in ("https://github.com/melonamin/agterm-linux.git", "https://github.com/umputun/agterm.git"):
+        for upstream in ("https://github.com/melonamin/agterm-linux.git", "https://github.com/umputun/agterm.git",
+                         "'repos/umputun/agterm/releases?per_page=100'", "actions/artifacts?name="):
             self.assertLess(decided, self.position(upstream))
-        self.assertEqual(WORKFLOW.count("if: steps.pause.outputs.paused == 'false'"), 3)
+        self.assertEqual(WORKFLOW.count("if: steps.pause.outputs.paused == 'false'"), 4)
 
     def test_fetches_land_where_the_script_reads_them(self):
         self.position(f"'+refs/heads/{sync.LINUX_PORT_BRANCH}:{sync.LINUX_PORT_REF}'")
@@ -426,6 +560,33 @@ class WorkflowOrderTests(unittest.TestCase):
         for name in ("SOURCE", "TAG", "COMMIT"):
             self.position(f"          {name}: ${{{{ steps.plan.outputs.{name.lower()} }}}}\n")
         self.position('--source "$SOURCE" --tag "$TAG" --commit "$COMMIT"')
+
+    def test_the_plan_gets_the_run_mode_the_releases_and_the_first_seen_record(self):
+        self.position('--tag "$TAG_OVERRIDE" --dry-run "$DRY_RUN" --releases "$RUNNER_TEMP/releases.json"')
+        self.position("--jq '.[] | {tag_name, draft, published_at}' | jq -s . > \"$RUNNER_TEMP/releases.json\"")
+        self.position('unzip -q "$RUNNER_TEMP/first-seen.zip" first-seen.json -d "$RUNNER_TEMP/seen"')
+        self.position('--first-seen "$RUNNER_TEMP/seen/first-seen.json" '
+                      '--first-seen-out "$RUNNER_TEMP/seen-out/first-seen.json"')
+        self.position("path: ${{ runner.temp }}/seen-out/first-seen.json")
+
+    def test_the_first_seen_record_is_written_by_live_runs_and_read_only_from_main(self):
+        self.assertEqual(WORKFLOW.count("upstream-sync-first-seen"), 3)
+        self.position("actions/artifacts?name=upstream-sync-first-seen&")
+        upload = self.position("          name: upstream-sync-first-seen\n")
+        self.assertLess(self.position("if: steps.plan.outcome == 'success' && env.DRY_RUN != 'true'"), upload)
+        self.assertLess(self.position("name: Refuse a live run off main"), upload)
+        self.position('select((.expired | not) and .workflow_run.head_branch == "main"\n'
+                      "              and .workflow_run.head_repository_id == .workflow_run.repository_id)")
+
+    def test_the_settings_guard_runs_as_the_pat_before_the_push(self):
+        guard = self.position("python3 scripts/upstream-sync.py guard --workflow-permissions")
+        self.assertLess(guard, self.position("run: scripts/upstream-sync-publish.sh"))
+        self.assertLess(self.position("    environment: upstream-sync"), guard)
+        token = self.position("          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}\n")
+        self.assertLess(self.position("name: Require the settings that make the push safe"), token)
+        self.assertLess(token, guard)
+        for listing in ("setting permissions/workflow workflow-permissions.json", "setting secrets secrets.json"):
+            self.assertLess(token, self.position(listing))
 
     def test_labels_exist_before_the_publish_script_runs(self):
         self.assertLess(self.position("name: Create the sync labels if missing"),
@@ -568,9 +729,9 @@ class PublishScriptTests(unittest.TestCase):
 
 
 class GitRepoTests(unittest.TestCase):
-    """Real git: tag peeling and dating, the ancestor check, source selection, and both merge outcomes."""
+    """Real git: tag peeling, the ancestor check, source selection, and both merge outcomes."""
 
-    TAGGED = 1_700_000_000
+    COMMITTED = 1_600_000_000  # every commit and tag here is this old; only a release or a sighting sets a clock
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -589,8 +750,7 @@ class GitRepoTests(unittest.TestCase):
         self.port = self.head()
         self.git("checkout", "-q", "main")
         self.commit("fork-only.txt", "fork\n", "fork file")
-        self.git("tag", "-a", "-m", "release", "annotated", self.upstream,
-                 env={"GIT_COMMITTER_DATE": f"{self.TAGGED} +0000"})
+        self.git("tag", "-a", "-m", "release", "annotated", self.upstream)
         self.git("update-ref", "refs/upstream-tags/v0.2.0", self.git("rev-parse", "refs/tags/annotated"))
         self.git("tag", "-d", "annotated")
         self.git("update-ref", "refs/upstream-tags/v0.1.0", self.base_tag)
@@ -602,10 +762,12 @@ class GitRepoTests(unittest.TestCase):
         os.chdir(self.cwd)
         self.tmp.cleanup()
 
-    def git(self, *args, env=None):
+    DATES = {"GIT_COMMITTER_DATE": f"{COMMITTED} +0000", "GIT_AUTHOR_DATE": f"{COMMITTED} +0000"}
+
+    def git(self, *args):
         return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@invalid", "-c", "tag.gpgSign=false",
                                "-c", "commit.gpgSign=false", *args], cwd=self.repo, check=True,
-                              capture_output=True, text=True, env={**os.environ, **(env or {})}).stdout.strip()
+                              capture_output=True, text=True, env={**os.environ, **self.DATES}).stdout.strip()
 
     def commit(self, name, text, message):
         (self.repo / name).write_text(text, encoding="utf-8")
@@ -615,16 +777,18 @@ class GitRepoTests(unittest.TestCase):
     def head(self):
         return self.git("rev-parse", "HEAD")
 
-    def plan(self, *extra, prs="[]", branches="", incidents="[]"):
-        """(exit status, the plan) of the `plan` command against this repository."""
-        paths = {name: self.root / name for name in ("prs.json", "branches.txt", "incidents.json")}
-        for path, content in zip(paths.values(), (prs, branches, incidents), strict=True):
+    def plan(self, *extra, prs="[]", branches="", incidents="[]", releases=("v0.1.0", "v0.2.0")):
+        """(exit status, the plan) of the `plan` command; `releases` are published at PUBLISHED."""
+        listing = json.dumps([release(tag) for tag in releases]) if isinstance(releases, tuple) else releases
+        paths = {name: self.root / name for name in ("prs.json", "branches.txt", "incidents.json", "releases.json")}
+        for path, content in zip(paths.values(), (prs, branches, incidents, listing), strict=True):
             path.write_text(content, encoding="utf-8")
         out = io.StringIO()
         with mock.patch.dict(os.environ, {"GITHUB_OUTPUT": str(self.root / "out")}), \
                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
             code = sync.main(["plan", "--base", "main", "--open-prs", str(paths["prs.json"]), "--remote-branches",
-                              str(paths["branches.txt"]), "--incidents", str(paths["incidents.json"]), *extra])
+                              str(paths["branches.txt"]), "--incidents", str(paths["incidents.json"]),
+                              "--releases", str(paths["releases.json"]), *extra])
         return code, json.loads(out.getvalue()) if out.getvalue() else {}
 
     def merge(self, *args):
@@ -646,10 +810,6 @@ class GitRepoTests(unittest.TestCase):
         self.git("update-ref", "refs/upstream-tags/v0.3.0", self.git("rev-parse", "refs/tags/outer"))
         self.assertEqual(sync.fetched_tags()["v0.3.0"], self.upstream)
 
-    def test_tag_times_are_the_tagger_date_or_a_lightweight_tags_commit_date(self):
-        committed = int(self.git("log", "-1", "--format=%ct", self.base_tag))
-        self.assertEqual(sync.fetched_tag_times(), {"v0.1.0": committed, "v0.2.0": self.TAGGED})
-
     def test_ancestor_check_reads_the_real_history(self):
         is_ancestor = sync.ancestor_check(self.head())
         self.assertTrue(is_ancestor(self.base_tag))
@@ -666,23 +826,85 @@ class GitRepoTests(unittest.TestCase):
 
     def test_plan_command_falls_back_to_the_release_a_merged_linux_port_lags(self):
         self.git("update-ref", sync.LINUX_PORT_REF, self.base_tag)
-        code, plan = self.plan("--now", str(self.TAGGED + sync.LINUX_PORT_LAG_DAYS * sync.DAY))
+        code, plan = self.plan("--now", str(PUBLISHED + LAG))
         self.assertEqual((code, plan["action"], plan["source"]), (0, "skip", ""))
         self.assertIn("has lacked v0.2.0 for 7.0 days; the direct sync waits", plan["reason"])
-        code, plan = self.plan("--now", str(self.TAGGED + sync.LINUX_PORT_LAG_DAYS * sync.DAY + 1))
+        code, plan = self.plan("--now", str(PUBLISHED + LAG + 1))
         self.assertEqual(code, 0)
         self.assertEqual((plan["action"], plan["source"], plan["tag"], plan["commit"], plan["branch"]),
                          ("sync", "umputun", "v0.2.0", self.upstream, "sync/umputun-v0.2.0"))
 
     def test_plan_command_measures_the_lag_at_the_clock_by_default(self):
         self.git("update-ref", sync.LINUX_PORT_REF, self.base_tag)
-        self.assertEqual(self.plan()[1]["source"], "umputun")
-        with mock.patch.object(sync.time, "time", return_value=self.TAGGED + sync.DAY):
+        with mock.patch.object(sync.time, "time", return_value=PUBLISHED + LAG + 1.9):
+            self.assertEqual(self.plan()[1]["source"], "umputun")
+        with mock.patch.object(sync.time, "time", return_value=PUBLISHED + sync.DAY):
             self.assertEqual(self.plan()[1]["source"], "")
 
-    def test_plan_command_override_syncs_the_named_release_past_linux_port(self):
-        code, plan = self.plan("--tag", "v0.2.0", "--now", str(self.TAGGED))
-        self.assertEqual((code, plan["source"], plan["branch"]), (0, "umputun", "sync/umputun-v0.2.0"))
+    def lightweight_release_on_an_old_commit(self):
+        """v0.3.0 with no GitHub release, above a linux-port head that main already has."""
+        self.git("merge", "-q", "--no-edit", self.upstream)
+        self.git("update-ref", sync.LINUX_PORT_REF, self.upstream)
+        self.git("checkout", "-q", "-b", "next", self.upstream)
+        self.commit("next.txt", "next\n", "the next upstream release")
+        self.git("update-ref", "refs/upstream-tags/v0.3.0", self.head())
+        self.git("checkout", "-q", "main")
+        self.assertEqual(self.git("for-each-ref", "--format=%(objecttype) %(creatordate:unix)",
+                                  "refs/upstream-tags/v0.3.0"), f"commit {self.COMMITTED}")
+
+    def test_a_new_lightweight_tag_on_an_old_commit_waits_from_its_first_sighting(self):
+        self.lightweight_release_on_an_old_commit()
+        seen, first = self.root / "seen" / "first-seen.json", NOW
+        record = ["--first-seen", str(seen), "--first-seen-out", str(seen)]
+        code, plan = self.plan("--now", str(first), *record)
+        self.assertEqual((code, plan["source"]), (0, ""))
+        self.assertIn("has lacked v0.3.0 for 0.0 days; the direct sync waits", plan["reason"])
+        self.assertEqual(json.loads(seen.read_text(encoding="utf-8")), {"v0.3.0": first})
+        code, plan = self.plan("--now", str(first + LAG), *record)
+        self.assertEqual(plan["source"], "")
+        self.assertEqual(json.loads(seen.read_text(encoding="utf-8")), {"v0.3.0": first})
+        code, plan = self.plan("--now", str(first + LAG + 1), *record)
+        self.assertEqual((plan["source"], plan["tag"]), ("umputun", "v0.3.0"))
+        self.assertIn("has lacked v0.3.0 for 7.0 days, more than 7", plan["reason"])
+
+    def test_a_lost_first_seen_record_restarts_the_clock(self):
+        self.lightweight_release_on_an_old_commit()
+        for record in ([], ["--first-seen", str(self.root / "missing.json")]):
+            with self.subTest(record=record):
+                self.assertEqual(self.plan("--now", str(NOW + 30 * sync.DAY), *record)[1]["source"], "")
+
+    def test_a_release_published_after_an_old_tagged_commit_sets_the_clock(self):
+        self.git("update-ref", sync.LINUX_PORT_REF, self.base_tag)
+        self.assertEqual(self.plan("--now", str(PUBLISHED + sync.DAY))[1]["source"], "")
+        self.assertEqual(self.plan("--now", str(PUBLISHED + LAG + 1))[1]["source"], "umputun")
+
+    def test_plan_command_fails_closed_without_a_readable_release_listing(self):
+        for listing in ("not json", '{"message": "Not Found"}'):
+            with self.subTest(listing=listing):
+                self.assertEqual(self.plan(releases=listing)[0], 2)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            sync.main(["plan", "--base", "main", "--open-prs", "x", "--remote-branches", "x", "--incidents", "x"])
+
+    def test_plan_command_fails_closed_on_a_malformed_first_seen_record(self):
+        seen = self.root / "first-seen.json"
+        seen.write_text('{"v0.3.0": "yesterday"}', encoding="utf-8")
+        self.assertEqual(self.plan("--first-seen", str(seen))[0], 2)
+
+    def test_plan_command_override_is_free_only_in_a_dry_run(self):
+        now = ["--now", str(PUBLISHED)]
+        code, plan = self.plan("--tag", "v0.2.0", "--dry-run", "true", *now)
+        self.assertEqual((code, plan["action"], plan["source"], plan["branch"]),
+                         (0, "sync", "umputun", "sync/umputun-v0.2.0"))
+        for live in ([], ["--dry-run", "false"], ["--dry-run", ""]):
+            with self.subTest(live=live):
+                code, plan = self.plan("--tag", "v0.2.0", *live, *now)
+                self.assertEqual((code, plan["action"], plan["source"]), (0, "skip", ""))
+                self.assertIn("syncs before v0.2.0", plan["reason"])
+
+    def test_plan_command_live_override_still_waits_out_the_lag(self):
+        self.git("update-ref", sync.LINUX_PORT_REF, self.base_tag)
+        self.assertEqual(self.plan("--tag", "v0.2.0", "--now", str(PUBLISHED + LAG))[1]["source"], "")
+        self.assertEqual(self.plan("--tag", "v0.2.0", "--now", str(PUBLISHED + LAG + 1))[1]["tag"], "v0.2.0")
 
     def test_plan_command_fails_without_the_linux_port_head(self):
         self.git("update-ref", "-d", sync.LINUX_PORT_REF)
@@ -694,13 +916,14 @@ class GitRepoTests(unittest.TestCase):
         self.assertIn("#482", plan["reason"])
 
     def test_plan_command_requires_the_incident_listing(self):
-        prs, branches = self.root / "prs.json", self.root / "branches.txt"
+        prs, branches, releases = self.root / "prs.json", self.root / "branches.txt", self.root / "releases.json"
         prs.write_text("[]", encoding="utf-8")
         branches.write_text("", encoding="utf-8")
+        releases.write_text("[]", encoding="utf-8")
         for extra in ([], ["--incidents", str(self.root / "missing.json")]):
             with self.subTest(extra=extra), contextlib.redirect_stderr(io.StringIO()):
                 try:
-                    code = sync.main(["plan", "--base", "main", "--open-prs", str(prs),
+                    code = sync.main(["plan", "--base", "main", "--open-prs", str(prs), "--releases", str(releases),
                                       "--remote-branches", str(branches), *extra])
                 except SystemExit as exit_:
                     code = exit_.code

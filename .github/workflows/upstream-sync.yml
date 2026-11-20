@@ -3,7 +3,8 @@ name: Upstream sync
 # One sync PR at a time (#476, #493). The primary source is melonamin/agterm-linux linux-port: when its head is
 # not in main, main merged with it on sync/linux-port-<sha8>. The fallback is a direct umputun/agterm release,
 # main merged with a vX.Y.Z tag on sync/umputun-<tag>, taken only for a release linux-port has lacked for more
-# than LINUX_PORT_LAG_DAYS (scripts/upstream-sync.py), or for a tag the dispatch names.
+# than LINUX_PORT_LAG_DAYS (scripts/upstream-sync.py). The lag runs from the release's publication, or for a tag
+# with no release from the first live run that saw it, carried between runs in the upstream-sync-first-seen artifact.
 # A clean merge opens a PR labelled upstream-sync; conflicts, or any change under .github/,
 # open a draft labelled needs-adaptation with the markers committed. Nothing runs while syncing is paused
 # (repository variable SYNC_PAUSED is true, or an issue labelled release-incident is open) or while any sync PR
@@ -13,9 +14,12 @@ name: Upstream sync
 # Token: the push and the PR use UPSTREAM_SYNC_TOKEN, never GITHUB_TOKEN, which cannot push upstream's
 # .github/workflows changes (no `workflows` permission) and cannot open PRs here (Actions PR creation is
 # disabled). It is a fine-grained PAT for this repository only, with Contents, Pull requests and Workflows
-# read/write. Store it as a secret of the `upstream-sync` environment, whose deployment branch policy allows
-# main only, never as a repository secret: the pushed branch runs upstream-authored workflows, which can read
-# every repository secret. A GitHub App instead needs a token-minting step in the publish job.
+# read/write, plus Administration and Secrets read-only for the settings guard. Store it as a secret of the
+# `upstream-sync` environment, whose deployment branch policy allows main only, never as a repository secret:
+# the pushed branch runs upstream-authored workflows before any review, with whatever a workflow here gets.
+# The guard in `publish` therefore refuses to push unless the default workflow token is read-only and no
+# repository secret exists; docs/plans/20261119-linux-home-design.md (C2, Trust) owns that reasoning.
+# A GitHub App instead needs a token-minting step in the publish job.
 # GITHUB_TOKEN only creates the labels; scripts/upstream-sync-publish.sh pushes, opens and labels as the PAT, so
 # the labeled event triggers workflows.
 on:
@@ -29,7 +33,7 @@ on:
         type: boolean
         default: true
       tag:
-        description: Sync this umputun vX.Y.Z tag directly, skipping linux-port and the lag rule; the same gates apply
+        description: Narrow the direct sync to this umputun vX.Y.Z tag; a live run still needs linux-port merged and the lag passed, a dry run previews any tag
         required: false
         type: string
         default: ""
@@ -71,6 +75,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
+      actions: read # the first-seen artifact of an earlier run
       contents: read
       issues: read
       pull-requests: read
@@ -119,6 +124,24 @@ jobs:
           git fetch --quiet --no-tags https://github.com/umputun/agterm.git '+refs/tags/v*:refs/upstream-tags/v*'
           git ls-remote --heads origin 'refs/heads/sync/linux-port-*' 'refs/heads/sync/umputun-*' \
             > "$RUNNER_TEMP/branches.txt"
+      - name: List umputun releases and restore the first-seen record
+        if: steps.pause.outputs.paused == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # A failed listing fails the job: without it no lag can be measured.
+        run: |
+          gh api --paginate 'repos/umputun/agterm/releases?per_page=100' \
+            --jq '.[] | {tag_name, draft, published_at}' | jq -s . > "$RUNNER_TEMP/releases.json"
+          # Only a run on this repository's main may have written the record: a pull request's run can upload
+          # an artifact of any name. No record yet starts every clock now.
+          id="$(gh api --paginate "repos/$GH_REPO/actions/artifacts?name=upstream-sync-first-seen&per_page=100" \
+            --jq '.artifacts[] | select((.expired | not) and .workflow_run.head_branch == "main"
+              and .workflow_run.head_repository_id == .workflow_run.repository_id) | [.created_at, .id] | @tsv' \
+            | sort | tail -n 1 | cut -f 2)"
+          if [[ -n "$id" ]]; then
+            gh api "repos/$GH_REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/first-seen.zip"
+            unzip -q "$RUNNER_TEMP/first-seen.zip" first-seen.json -d "$RUNNER_TEMP/seen"
+          fi
       - name: List open pull requests
         if: steps.pause.outputs.paused == 'false'
         env:
@@ -133,7 +156,18 @@ jobs:
         run: |
           python3 scripts/upstream-sync.py plan --base refs/remotes/origin/main \
             --open-prs "$RUNNER_TEMP/prs.json" --remote-branches "$RUNNER_TEMP/branches.txt" \
-            --paused "$SYNC_PAUSED" --incidents "$RUNNER_TEMP/incidents.json" --tag "$TAG_OVERRIDE"
+            --paused "$SYNC_PAUSED" --incidents "$RUNNER_TEMP/incidents.json" \
+            --tag "$TAG_OVERRIDE" --dry-run "$DRY_RUN" --releases "$RUNNER_TEMP/releases.json" \
+            --first-seen "$RUNNER_TEMP/seen/first-seen.json" --first-seen-out "$RUNNER_TEMP/seen-out/first-seen.json"
+      - name: Keep the first-seen record for the next run
+        # Live runs only, and those run only from main, which is what the restore above trusts.
+        if: steps.plan.outcome == 'success' && env.DRY_RUN != 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: upstream-sync-first-seen
+          path: ${{ runner.temp }}/seen-out/first-seen.json
+          retention-days: 90
+          if-no-files-found: error
       - name: Build the sync branch
         id: merge
         # A dry run builds the merge even when a gate skips, so its log shows what a live run would open.
@@ -220,6 +254,21 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Require the settings that make the push safe
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+        # As the PAT: GITHUB_TOKEN cannot hold the Administration and Secrets read these two listings need.
+        run: |
+          setting() {
+            gh api "repos/$GH_REPO/actions/$1" > "$RUNNER_TEMP/$2" || {
+              echo "::error::cannot read actions/$1; UPSTREAM_SYNC_TOKEN needs Administration and Secrets read" >&2
+              exit 1
+            }
+          }
+          setting permissions/workflow workflow-permissions.json
+          setting secrets secrets.json
+          python3 scripts/upstream-sync.py guard --workflow-permissions "$RUNNER_TEMP/workflow-permissions.json" \
+            --secrets "$RUNNER_TEMP/secrets.json"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: upstream-sync-branch
