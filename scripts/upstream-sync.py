@@ -21,6 +21,7 @@ SYNC_LABELS = frozenset({LABEL_CLEAN, LABEL_CONFLICT})
 TAG_NAMESPACE = "refs/upstream-tags"
 UPSTREAM = "umputun/agterm"
 TASK = "#476"
+UNDECIDED = 3  # `pause` exit status: SYNC_PAUSED does not pause, so the incident listing decides
 LIST_BUDGET = 28000  # characters per list, so two lists stay below GitHub's 65536-character body limit
 CI_WORKFLOW = ".github/workflows/omarchy-ci.yml"
 RELEASE_WORKFLOW = ".github/workflows/release-linux.yml"
@@ -155,9 +156,9 @@ def pr_text(*, tag, commit, base_sha, head_sha, run_url, conflicts, github_chang
         f"Merges [{UPSTREAM} {tag}]({release}) (`{commit}`) into main (`{base_sha}`).",
         "Opened by `.github/workflows/upstream-sync.yml`. Merge as a plain merge commit after CI on both "
         "arches, a fresh-context review with no HIGH or MEDIUM, and the native gates on the merge result.",
-        "The merge updates `UPSTREAM_BASE_TAG` and `UPSTREAM_BASE_COMMIT` in `omarchy-ci.yml` and "
-        "`release-linux.yml`. Resolve any conflicted pins before marking the PR ready.",
-        "The fields above name the run that built this branch, not a review: the reviewer replaces them.", ""]
+        "The fields above name the run that built this branch, not a review: the reviewer replaces them.", "",
+        f"The merge advances `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` to `{tag}` / `{commit}` in "
+        f"`{CI_WORKFLOW}` and `{RELEASE_WORKFLOW}`. Resolve any conflicted pins before marking ready.", ""]
     if conflicts:
         body += [f"## Conflicts ({len(conflicts)})", "",
                  "The merge commit records these paths as committed with conflict markers (or the surviving side "
@@ -271,19 +272,29 @@ def main(argv=None):
     plan_cmd.add_argument("--incidents", required=True, type=Path,
                           help=f"gh issue list --state open --label {LABEL_INCIDENT} --json number")
     plan_cmd.add_argument("--tag", default="")
+    pause_cmd = sub.add_parser("pause", help="decide the pause alone, before anything is fetched")
+    pause_cmd.add_argument("--paused", default="")
+    pause_cmd.add_argument("--incidents", type=Path, help=f"gh issue list --state open --label {LABEL_INCIDENT} "
+                           "--json number; without it, exit 3 when SYNC_PAUSED alone does not pause")
     merge_cmd = sub.add_parser("merge")
     for name in ("--base", "--branch", "--tag", "--commit", "--worktree", "--body", "--run-url"):
         merge_cmd.add_argument(name, required=True)
     args = parser.parse_args(argv)
     try:
-        if args.command == "plan":
+        if args.command == "pause":
+            if args.incidents is None and not paused(args.paused):
+                return UNDECIDED
+            incidents = [] if args.incidents is None else json.loads(args.incidents.read_text(encoding="utf-8"))
+            reason = pause_reason(args.paused, incidents)
+            emit({"paused": str(bool(reason)).lower(), "reason": reason})
+        elif args.command == "plan":
             incidents = json.loads(args.incidents.read_text(encoding="utf-8"))
             prs = json.loads(args.open_prs.read_text(encoding="utf-8"))
             branches = {line.split("\t")[1].removeprefix("refs/heads/")
                         for line in args.remote_branches.read_text(encoding="utf-8").splitlines() if "\t" in line}
             base = git("rev-parse", "--verify", args.base + "^{commit}").stdout.strip()
-            emit(decide(paused_value=args.paused, incidents=incidents, prs=prs, tags=fetched_tags(), is_ancestor=ancestor_check(base),
-                        remote_branches=branches, override=args.tag.strip()))
+            emit(decide(paused_value=args.paused, incidents=incidents, prs=prs, tags=fetched_tags(),
+                        is_ancestor=ancestor_check(base), remote_branches=branches, override=args.tag.strip()))
         else:
             base = git("rev-parse", "--verify", args.base + "^{commit}").stdout.strip()
             conflicts, github_changes = build(Path(args.worktree), base, args.branch, args.tag, args.commit)
