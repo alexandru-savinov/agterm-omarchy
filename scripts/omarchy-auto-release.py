@@ -92,7 +92,7 @@ def plan(event):
             return None, f"No new main commit after {latest['tag_name']}"
     elif promotion.version_key(base) != MINIMUM_BASE:
         return None, "M4 starts the versioned release series at upstream v0.43.0"
-    if any(promotion.api(f"{PROMOTION_RUNS}?status={status}&per_page=1")["total_count"]
+    if any(promotion.api(f"{PROMOTION_RUNS}?branch=main&event=workflow_dispatch&status={status}&per_page=1")["total_count"]
            for status in ACTIVE_PROMOTION_STATUSES):
         return None, "A promotion workflow is already active"
     # A retraction, draft, or partially published release can leave a tag behind.

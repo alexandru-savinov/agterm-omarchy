@@ -83,7 +83,7 @@ sync, or a fork fix since the last release.
 - Then call the #470 promotion path (dispatch on main, `dry_run=false`, the next `0.<base>.N` version). That
   path requires the exact run attempt, artifact IDs, and archive SHA-256 digests that passed C3.
   It verifies attestations before tagging, records the automatic release run, and publishes a non-prerelease release.
-  Wait for any active promotion workflow before choosing a serial.
+  Wait for active promotion dispatches on main before choosing a serial.
 - After publishing, a 24-hour watch: re-run the C3 gates against the **published** assets, plus an install
   smoke from the release URLs. The scheduled watch reads the promotion record to select automatic releases.
   On a confirmed gate or URL probe failure:

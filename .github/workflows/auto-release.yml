@@ -53,6 +53,7 @@ jobs:
   native_candidate:
     needs: candidate
     if: >-
+      !cancelled() &&
       github.repository == 'alexandru-savinov/agterm-omarchy' &&
       github.ref == 'refs/heads/main' &&
       github.event_name == 'workflow_run' &&
@@ -60,6 +61,7 @@ jobs:
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.conclusion == 'success' &&
+      needs.candidate.result == 'success' &&
       needs.candidate.outputs.run_id != ''
     permissions:
       contents: read
@@ -76,6 +78,7 @@ jobs:
   promote:
     needs: [candidate, native_candidate]
     if: >-
+      !cancelled() &&
       github.repository == 'alexandru-savinov/agterm-omarchy' &&
       github.ref == 'refs/heads/main' &&
       github.event_name == 'workflow_run' &&
@@ -83,6 +86,8 @@ jobs:
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.conclusion == 'success' &&
+      needs.candidate.result == 'success' &&
+      needs.native_candidate.result == 'success' &&
       needs.native_candidate.outputs.passed == 'true' &&
       needs.native_candidate.outputs.attested == 'true' &&
       needs.native_candidate.outputs.source_commit == needs.candidate.outputs.sha &&
@@ -137,6 +142,7 @@ jobs:
   watch_promotion:
     needs: promote
     if: >-
+      !cancelled() &&
       github.repository == 'alexandru-savinov/agterm-omarchy' &&
       github.ref == 'refs/heads/main' &&
       github.event_name == 'workflow_run' &&
@@ -144,6 +150,7 @@ jobs:
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.conclusion == 'success' &&
+      needs.promote.result == 'success' &&
       needs.promote.outputs.tag != ''
     uses: $/.github/workflows/auto-release-watch.yml
     with:
@@ -157,9 +164,11 @@ jobs:
   watch_scheduled:
     needs: watch_recent
     if: >-
+      !cancelled() &&
       github.repository == 'alexandru-savinov/agterm-omarchy' &&
       github.ref == 'refs/heads/main' &&
       github.event_name == 'schedule' &&
+      needs.watch_recent.result == 'success' &&
       needs.watch_recent.outputs.tags != '' &&
       needs.watch_recent.outputs.tags != '[]'
     strategy:

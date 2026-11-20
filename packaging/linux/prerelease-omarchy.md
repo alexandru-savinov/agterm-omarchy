@@ -98,7 +98,7 @@ It skips a commit already covered by the latest versioned release, including a r
 The first upstream base is `0.43.0`.
 The next serial is one above the highest exact tag or release for that base, including drafts, retractions,
 and tags left behind after a failed publication.
-Automatic releases wait while any promotion workflow run is active.
+Automatic releases wait while a promotion dispatched on main is active.
 Automatic promotion requires #481's green attested verdict for both architectures.
 It dispatches this workflow on main with `dry_run=false`, the gated source SHA, run ID and `source_attempt`,
 the native gate's `archives` output as `native_archives`, and the automatic release workflow run ID.

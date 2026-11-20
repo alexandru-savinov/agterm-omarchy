@@ -87,7 +87,8 @@ class PlanTests(unittest.TestCase):
                     auto.RELEASES_PATH: [[RELEASE | {"prerelease": True}]],
                     f"compare/{TAG}...{SHA}": {"status": "ahead"},
                     "git/matching-refs/tags/omarchy-v?per_page=100": [[{"ref": "refs/tags/omarchy-v0.43.0.10"}]]}
-        fixtures.update({f"{auto.PROMOTION_RUNS}?status={status}&per_page=1": {"total_count": 0}
+        run_filters = f"{auto.PROMOTION_RUNS}?branch=main&event=workflow_dispatch"
+        fixtures.update({f"{run_filters}&status={status}&per_page=1": {"total_count": 0}
                          for status in auto.ACTIVE_PROMOTION_STATUSES})
 
         def api(path, **kwargs):
@@ -97,11 +98,11 @@ class PlanTests(unittest.TestCase):
              patch.object(auto.promotion, "source_base", return_value="0.43.0") as source_base:
             self.assertEqual(auto.plan(EVENT)[0], CANDIDATE | {"version": "0.43.0.11"})
             self.assertEqual(source_base.call_args.args[1], SHA)
-            fixtures[f"{auto.PROMOTION_RUNS}?status=queued&per_page=1"]["total_count"] = 1
+            fixtures[f"{run_filters}&status=queued&per_page=1"]["total_count"] = 1
             with patch.object(auto, "next_version") as serial:
                 self.assertEqual(auto.plan(EVENT), (None, "A promotion workflow is already active"))
                 serial.assert_not_called()
-            fixtures[f"{auto.PROMOTION_RUNS}?status=queued&per_page=1"]["total_count"] = 0
+            fixtures[f"{run_filters}&status=queued&per_page=1"]["total_count"] = 0
             fixtures[f"compare/{TAG}...{SHA}"]["status"] = "identical"
             self.assertIsNone(auto.plan(EVENT)[0])
             source_base.return_value = "0.41.1"
