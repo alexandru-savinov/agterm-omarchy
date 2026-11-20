@@ -13,6 +13,8 @@ name: Upstream sync
 # read/write. Store it as a secret of the `upstream-sync` environment, whose deployment branch policy allows
 # main only, never as a repository secret: the pushed branch runs upstream-authored workflows, which can read
 # every repository secret. A GitHub App instead needs a token-minting step in the publish job.
+# GITHUB_TOKEN only creates the labels; scripts/upstream-sync-publish.sh pushes, opens and labels as the PAT, so
+# the labeled event triggers workflows.
 on:
   schedule:
     - cron: '43 6 * * *'
@@ -34,6 +36,7 @@ on:
     paths:
       - .github/workflows/upstream-sync.yml
       - scripts/upstream-sync.py
+      - scripts/upstream-sync-publish.sh
       - scripts/tests/test_upstream_sync.py
       - scripts/github/pr_fields.py
 
@@ -85,26 +88,42 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Fetch main and umputun release tags
+      - name: Refuse a live run off main
         run: |
           if [[ "$DRY_RUN" != true && "$GITHUB_REF" != refs/heads/main ]]; then
             echo "::error::a live sync runs only from main; dispatch with dry_run for $GITHUB_REF" >&2
             exit 1
           fi
+      - name: Check the pause
+        id: pause
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Before anything is fetched from umputun: a paused run does nothing else. SYNC_PAUSED decides alone when
+        # it pauses; otherwise the incident listing is required, and a failed listing fails the job.
+        run: |
+          status=0
+          python3 scripts/upstream-sync.py pause --paused "$SYNC_PAUSED" || status=$?
+          (( status == 3 )) || exit "$status"
+          gh issue list --state open --label release-incident --limit 100 --json number > "$RUNNER_TEMP/incidents.json"
+          python3 scripts/upstream-sync.py pause --paused "$SYNC_PAUSED" --incidents "$RUNNER_TEMP/incidents.json"
+      - name: Fetch main and umputun release tags
+        if: steps.pause.outputs.paused == 'false'
+        run: |
           git fetch --quiet --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
           # A private namespace, so upstream tags never mix with this repository's own.
           git fetch --quiet --no-tags https://github.com/umputun/agterm.git '+refs/tags/v*:refs/upstream-tags/v*'
           git ls-remote --heads origin 'refs/heads/sync/umputun-*' > "$RUNNER_TEMP/branches.txt"
-      - name: List open pull requests and release incidents
+      - name: List open pull requests
+        if: steps.pause.outputs.paused == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
-        # A failed listing fails the job: without it the pause and one-at-a-time gates cannot be evaluated.
+        # A failed listing fails the job: without it the one-at-a-time gate cannot be evaluated.
         run: |
-          gh issue list --state open --label release-incident --limit 100 --json number > "$RUNNER_TEMP/incidents.json"
           gh pr list --state open --limit 1000 --json number,headRefName,isCrossRepository,labels \
             > "$RUNNER_TEMP/prs.json"
       - name: Plan
         id: plan
+        if: steps.pause.outputs.paused == 'false'
         run: |
           python3 scripts/upstream-sync.py plan --base refs/remotes/origin/main \
             --open-prs "$RUNNER_TEMP/prs.json" --remote-branches "$RUNNER_TEMP/branches.txt" \
@@ -134,10 +153,10 @@ jobs:
           retention-days: 1
           if-no-files-found: error
       - name: Summary
-        if: always() && steps.plan.outcome == 'success'
+        if: always() && steps.pause.outcome == 'success'
         env:
-          ACTION: ${{ steps.plan.outputs.action }}
-          REASON: ${{ steps.plan.outputs.reason }}
+          ACTION: ${{ steps.plan.outputs.action || 'skip' }}
+          REASON: ${{ steps.plan.outputs.reason || steps.pause.outputs.reason }}
           TAG: ${{ steps.plan.outputs.tag }}
           CONFLICTS: ${{ steps.merge.outputs.conflicts }}
           GITHUB_CHANGES: ${{ steps.merge.outputs.github_changes }}
@@ -175,7 +194,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-      pull-requests: write
     env:
       GH_REPO: ${{ github.repository }}
       BRANCH: ${{ needs.sync.outputs.branch }}
@@ -202,42 +220,9 @@ jobs:
           git fetch --quiet "$RUNNER_TEMP/in/sync.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
           got="$(git rev-parse "refs/heads/$BRANCH")"
           [[ "$got" == "$HEAD_SHA" ]] || { echo "::error::bundle holds $got, the sync job built $HEAD_SHA" >&2; exit 1; }
-      - name: Push the branch and open the PR
-        id: pr
-        env:
-          SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
-          TITLE: ${{ needs.sync.outputs.title }}
-          DRAFT: ${{ needs.sync.outputs.draft }}
-        run: |
-          auth="$(printf 'x-access-token:%s' "$SYNC_TOKEN" | base64 -w0)"
-          echo "::add-mask::$auth"
-          # Through the environment, so the credential is in no argv and no persisted git config.
-          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
-          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
-          # A pushed branch without its PR would block every later run, so a failed PR takes the branch back,
-          # and only while it still points at what this run pushed.
-          pushed='' opened=''
-          withdraw() {
-            [[ -n "$pushed" && -z "$opened" ]] || return 0
-            git push --force-with-lease="refs/heads/$BRANCH:$HEAD_SHA" origin ":refs/heads/$BRANCH" \
-              || echo "::error::could not delete $BRANCH after the PR failed; delete it by hand" >&2
-          }
-          trap withdraw EXIT
-          # The plan gated on the branch not existing; a plain push never rewrites one created since.
-          git push origin "refs/heads/$BRANCH:refs/heads/$BRANCH"
-          pushed=1
-          draft=()
-          [[ "$DRAFT" != true ]] || draft=(--draft)
-          url="$(GH_TOKEN="$SYNC_TOKEN" gh pr create --base main --head "$BRANCH" --title "$TITLE" \
-            --body-file "$RUNNER_TEMP/in/body.md" "${draft[@]}")"
-          opened=1
-          echo "number=${url##*/}" >> "$GITHUB_OUTPUT"
-          echo "- opened: $url" >> "$GITHUB_STEP_SUMMARY"
-      - name: Create the sync labels if missing and apply one
+      - name: Create the sync labels if missing
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ steps.pr.outputs.number }}
-          LABEL: ${{ needs.sync.outputs.label }}
         run: |
           # 422 means the label already exists.
           create() {
@@ -247,4 +232,12 @@ jobs:
           }
           create upstream-sync 0e8a16 'Automated umputun/agterm release sync that merged cleanly'
           create needs-adaptation d93f0b 'Automated umputun/agterm sync with conflicts or .github/ changes to resolve'
-          gh api "repos/$GH_REPO/issues/$PR/labels" -f "labels[]=$LABEL" > /dev/null
+      - name: Push the branch and open the PR
+        id: pr
+        env:
+          SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+          TITLE: ${{ needs.sync.outputs.title }}
+          DRAFT: ${{ needs.sync.outputs.draft }}
+          LABEL: ${{ needs.sync.outputs.label }}
+          BODY_FILE: ${{ runner.temp }}/in/body.md
+        run: scripts/upstream-sync-publish.sh
