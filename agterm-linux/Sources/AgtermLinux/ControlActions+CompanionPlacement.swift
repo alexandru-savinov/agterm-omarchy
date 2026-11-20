@@ -39,7 +39,7 @@ extension AppController {
         case .failure(let response): return response
         case .success(let id):
             guard let source = options.page else { return err(OverlayHtmlError.pageSessionNeedsPage) }
-            if options.persistent, let failure = LinuxBrowserStore.shared.failure() { return err(failure) }
+            if let failure = LinuxBrowserStore.shared.failure(persistent: options.persistent) { return err(failure) }
             let overlay = HtmlOverlay(source: source, navigation: options.navigation, javascript: options.javascript,
                                       chromeless: options.chromeless, persistent: options.persistent, browse: options.browse)
             switch store.addPageSession(after: id, overlay: overlay, select: options.follow, backgroundColor: options.backgroundColor) {
