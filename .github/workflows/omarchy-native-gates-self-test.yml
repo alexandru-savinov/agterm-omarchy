@@ -1,8 +1,7 @@
 name: Omarchy native gates self-test
 
-# The native gates on main's newest releasable CI run, for pull requests that change them. Main CI does not
-# attest its archives yet (#483), so this caller alone asks for report-only: the gates run and report, and
-# passed stays false. Switch it to required once main CI attests.
+# The renamed workflow cannot supply a main archive until the #483 cutover. Keep this caller report-only
+# during the cutover, then require attestation once a main run has signed and verified both archives.
 on:
   pull_request:
     paths:
@@ -17,7 +16,31 @@ permissions:
   contents: read
 
 jobs:
+  source-run:
+    name: Find a releasable main CI run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.source.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve the renamed CI workflow
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I scripts/prepare-omarchy-prerelease.py --discover --releasable
+      - name: Explain missing attestation source
+        if: steps.source.outputs.run == ''
+        run: echo 'Native gates skipped because omarchy-ci.yml has no releasable run on main.' >> "$GITHUB_STEP_SUMMARY"
+
   self-test:
+    needs: source-run
+    if: needs.source-run.outputs.run != ''
     uses: $/.github/workflows/omarchy-x86-native.yml
     permissions:
       contents: read
@@ -25,6 +48,7 @@ jobs:
       attestations: read
     with:
       source: ci-run
+      run_id: ${{ needs.source-run.outputs.run }}
       arch: both
       channel: stable
       attestation: report-only

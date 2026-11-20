@@ -44,5 +44,26 @@ class WorkflowGuardTests(unittest.TestCase):
         self.assertIn("must remain absent", self.errors()[0])
 
 
+class ArchiveSigningTests(unittest.TestCase):
+    def test_the_two_matrix_legs_sign_the_uploaded_archive_on_main_push(self):
+        workflows = Path(__file__).resolve().parents[2] / ".github/workflows"
+        ci = (workflows / "omarchy-ci.yml").read_text()
+        build = ci.split("  build-linux:\n")[1].split("  ghostty-patch-tests:\n")[0]
+        self.assertIn("- arch: x86_64", build)
+        self.assertIn("- arch: aarch64", build)
+        self.assertIn("id-token: write", build)
+        self.assertIn("attestations: write", build)
+        attest = build.split("- name: Attest the exact tested CI archive")[1].split("- name: Build summary")[0]
+        self.assertIn("github.event_name == 'push' && github.ref == 'refs/heads/main'", attest)
+        self.assertRegex(attest, r"actions/attest@[0-9a-f]{40}")
+        archive = "${{ runner.temp }}/agterm-omarchy-${{ matrix.arch }}.tar.gz"
+        upload = build.split("- name: Upload tested runtime payload")[1].split("- name:", 1)[0]
+        self.assertIn(f"path: {archive}", upload)
+        self.assertIn(f"subject-path: {archive}", attest)
+        native = (workflows / "omarchy-x86-native.yml").read_text()
+        self.assertIn('.github/workflows/omarchy-ci.yml" --source-ref refs/heads/main', native)
+        self.assertIn('--source-digest "$SHA" --deny-self-hosted-runners', native)
+
+
 if __name__ == "__main__":
     unittest.main()

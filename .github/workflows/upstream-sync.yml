@@ -5,6 +5,7 @@ name: Upstream sync
 # open a draft labelled needs-adaptation with the markers committed. Nothing runs while syncing is paused
 # (repository variable SYNC_PAUSED is true, or an issue labelled release-incident is open) or while any sync PR
 # is open; a sync branch with no open PR fails the run until it is deleted. Gates and selection live in scripts/upstream-sync.py.
+# Keep the base pins current in omarchy-ci.yml and release-linux.yml. Leave the inherited ci.yml bytes to upstream.
 # Merge sync PRs as merge commits only: a squash leaves the tag outside main's history and it syncs again.
 #
 # Token: the push and the PR use UPSTREAM_SYNC_TOKEN, never GITHUB_TOKEN, which cannot push upstream's

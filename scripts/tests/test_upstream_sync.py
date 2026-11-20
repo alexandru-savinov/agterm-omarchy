@@ -185,7 +185,7 @@ class TextTests(unittest.TestCase):
         for conflicts in ((), [("a", "both modified")]):
             with self.subTest(conflicts=conflicts):
                 body = text(conflicts)[3]
-                self.assertIn("`.github/workflows/ci.yml` and `.github/workflows/release-linux.yml`", body)
+                self.assertIn("`.github/workflows/omarchy-ci.yml` and `.github/workflows/release-linux.yml`", body)
                 self.assertIn(f"`v0.43.0` / `{'c' * 40}`", body)
 
     def test_github_changes_force_a_draft_listing_them(self):

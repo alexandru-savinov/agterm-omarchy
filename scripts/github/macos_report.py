@@ -26,7 +26,8 @@ def request(path, method="GET", data=None, pages=False):
 
 def eligible_run(run):
     return (run["event"] == "pull_request" and run["path"] == WORKFLOW
-            and run["repository"]["full_name"] == REPO and run["status"] == "completed")
+            and run["repository"]["full_name"] == REPO and run["status"] == "completed"
+            and bool(run.get("head_repository")))
 
 
 def current_pr(run, prs):

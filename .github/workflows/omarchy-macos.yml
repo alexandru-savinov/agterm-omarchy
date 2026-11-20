@@ -45,10 +45,11 @@ jobs:
     if: >-
       !cancelled() &&
       (github.event_name != 'pull_request' ||
-       (needs.changes.result == 'success' &&
-        (needs.changes.outputs.shared == 'true' ||
-         contains(github.event.pull_request.labels.*.name, 'upstream-sync') ||
-         contains(github.event.pull_request.labels.*.name, 'upstream-offer'))))
+       ((github.event.action != 'labeled' ||
+         github.event.label.name == 'upstream-sync' || github.event.label.name == 'upstream-offer') &&
+        (contains(github.event.pull_request.labels.*.name, 'upstream-sync') ||
+         contains(github.event.pull_request.labels.*.name, 'upstream-offer') ||
+         (needs.changes.result == 'success' && needs.changes.outputs.shared == 'true'))))
     runs-on: macos-26
     timeout-minutes: 90
     defaults:
