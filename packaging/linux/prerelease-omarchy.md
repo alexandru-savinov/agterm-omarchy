@@ -123,10 +123,9 @@ The release and tag remain available for investigation and the next fixed commit
 If any incident action fails, review the incident and rerun the failed watch jobs before resuming.
 Scheduled starts depend on hosted Actions availability.
 
-Both native gate calls remain stubbed while #481 is unmerged.
-The candidate stub blocks promotion and the published-release stub skips the watch verdict.
-After #481 lands, the candidate call requires verified build attestations from #483.
-An unattested CI archive cannot pass the call or reach automatic promotion.
+Both native gate calls use #481's reusable workflow in required attestation mode.
+CI-artifact gating stays closed until #483 supplies verified build attestations for both architectures.
+The post-release watch requires a green attested verdict for the requested release tag.
 Manual dispatch of `auto-release.yml` runs only fixtures, even from main.
 The **force_failure** input also prints the planned prerelease edit and open-issue hold for a synthetic release.
 The same dry run can run locally without credentials:

@@ -64,27 +64,13 @@ jobs:
     permissions:
       contents: read
       actions: read
-    # Once #481 is on main, replace runs-on, timeout-minutes, outputs and steps with this call.
     # Required attestation keeps CI-artifact gates closed until #483 signs the archives.
-    # uses: $/.github/workflows/omarchy-x86-native.yml
-    # with:
-    #   source: ci-run
-    #   run_id: ${{ needs.candidate.outputs.run_id }}
-    #   arch: both
-    #   attestation: required
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    outputs:
-      passed: 'false'
-      attested: 'false'
-      source_commit: ''
-      source_run_id: ''
-      source_run_attempt: ''
-      release_tag: ''
-      archives: ''
-    steps:
-      - run: |
-          echo '::warning::Awaiting #481 and #483. No attested native evidence, so promotion is blocked.'
+    uses: $/.github/workflows/omarchy-x86-native.yml
+    with:
+      source: ci-run
+      run_id: ${{ needs.candidate.outputs.run_id }}
+      arch: both
+      attestation: required
 
   promote:
     needs: [candidate, native_candidate]

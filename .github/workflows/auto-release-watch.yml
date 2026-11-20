@@ -12,12 +12,6 @@ permissions:
 
 jobs:
   native_published:
-    # #475 wiring: replace runs-on, timeout-minutes, outputs and steps with:
-    # uses: $/.github/workflows/omarchy-x86-native.yml
-    # with:
-    #   source: release
-    #   release_tag: ${{ inputs.tag }}
-    #   arch: both
     if: >-
       github.repository == 'alexandru-savinov/agterm-omarchy' &&
       github.ref == 'refs/heads/main' &&
@@ -30,14 +24,12 @@ jobs:
     permissions:
       contents: read
       actions: read
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    outputs:
-      passed: 'false'
-      watch_enabled: 'false'
-    steps:
-      - run: |
-          echo '::warning::Awaiting #475 release mode.'
+    uses: $/.github/workflows/omarchy-x86-native.yml
+    with:
+      source: release
+      release_tag: ${{ inputs.tag }}
+      arch: both
+      attestation: required
 
   public_urls:
     needs: native_published
@@ -50,7 +42,9 @@ jobs:
         github.event.workflow_run.head_branch == 'main' &&
         github.event.workflow_run.head_repository.full_name == github.repository &&
         github.event.workflow_run.conclusion == 'success')) &&
-      needs.native_published.outputs.passed == 'true'
+      needs.native_published.outputs.passed == 'true' &&
+      needs.native_published.outputs.attested == 'true' &&
+      needs.native_published.outputs.release_tag == inputs.tag
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -70,7 +64,6 @@ jobs:
 
   retract:
     needs: [native_published, public_urls]
-    # #475 wiring: replace the watch_enabled check with native_published.result != 'skipped'.
     if: >-
       !cancelled() &&
       github.repository == 'alexandru-savinov/agterm-omarchy' &&
@@ -81,9 +74,8 @@ jobs:
         github.event.workflow_run.head_branch == 'main' &&
         github.event.workflow_run.head_repository.full_name == github.repository &&
         github.event.workflow_run.conclusion == 'success')) &&
-      needs.native_published.outputs.watch_enabled == 'true' &&
+      needs.native_published.result != 'skipped' &&
       (needs.native_published.result != 'success' ||
-       needs.native_published.outputs.passed != 'true' ||
        needs.public_urls.result != 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -104,9 +96,11 @@ jobs:
           TAG: ${{ inputs.tag }}
           NATIVE_RESULT: ${{ needs.native_published.result }}
           PUBLISHED_PASSED: ${{ needs.native_published.outputs.passed }}
+          PUBLISHED_ATTESTED: ${{ needs.native_published.outputs.attested }}
+          TESTED_TAG: ${{ needs.native_published.outputs.release_tag }}
           URL_RESULT: ${{ needs.public_urls.result }}
         shell: bash
         run: |
           python3 -I scripts/omarchy-auto-release.py retract --tag "$TAG" \
-            --reason "Native: $NATIVE_RESULT (passed=${PUBLISHED_PASSED:-missing}), public URLs: $URL_RESULT" \
+            --reason "Native: $NATIVE_RESULT (passed=${PUBLISHED_PASSED:-missing}, attested=${PUBLISHED_ATTESTED:-missing}, tag=${TESTED_TAG:-missing}), public URLs: $URL_RESULT" \
             --evidence "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

@@ -8,6 +8,9 @@ paths:
   .github/workflows/auto-release.yml:
     ignore:
       - 'is not following the format "owner/repo/path/to/workflow.yml@ref"'
+  .github/workflows/auto-release-watch.yml:
+    ignore:
+      - 'is not following the format "owner/repo/path/to/workflow.yml@ref"'
   .github/workflows/atspi-targeted.yml:
     ignore:
       - 'unexpected key "cache-mode" for "workflow" section'
