@@ -2470,7 +2470,9 @@ side, and reads `lastAppliedIsDark` when bare. Refuse it outside XCUITest; provi
 - `ServerCommandPolicy.served` is default-deny: a protocol command reaches the server's store only once it
   is listed there, and `HeadlessCommandPolicy` gives the physical-window reason for the rest.
 - The Linux rendezvous is `ControlResolve.defaultStateDirectory`: `$XDG_STATE_HOME/agterm` (absolute only)
-  or `~/.local/state/agterm`, so a bare `agtermctl` over ssh finds the socket. zmx sockets live under
+  or `~/.local/state/agterm`, so a bare `agtermctl` over ssh finds the socket.
+  The fork's desktop payload's `bin/agtermctl` sets `AGTERM_CLI_RENDEZVOUS=desktop` to meet the GTK app in
+  Foundation's application-support directory instead (`BasicOptions.socketPath`). zmx sockets live under
   `XDG_RUNTIME_DIR`, and the server refuses to start without one (`ServerConfiguration`).
 - `catalog.subscribe` hands its descriptor to a stream like `zmx.present`: a hello with `CatalogVersions`,
   a snapshot carrying `epoch`, `rev` and `catalogID`, then diffs (`CatalogHub`, `CatalogDiff`).

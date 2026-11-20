@@ -28,11 +28,11 @@ struct BasicOptions: ParsableArguments, ConnectionOptions {
     @Flag(name: .long, help: "Print the raw JSON response.")
     var json = false
 
-    /// Resolve the socket path: explicit `--socket`, else the agtermCore rendezvous resolver. Precedence:
-    /// `--socket` → a non-empty `AGTERM_CONTROL_SOCKET` → `<AGTERM_STATE_DIR>/agterm.sock` →
-    /// `<platform application support>/agterm/agterm.sock` → `/tmp/agterm/agterm.sock`, so the CLI meets the
-    /// app on the path its control server binds. Production asks Foundation for the platform directory; the
-    /// resolved directory is injectable below so macOS and Linux path behavior remain unit-testable.
+    /// Resolve the socket path, in precedence order: `--socket` → a non-empty `AGTERM_CONTROL_SOCKET` →
+    /// `<AGTERM_STATE_DIR>/agterm.sock` → `<default>/agterm.sock`. The default is agterm-server's
+    /// `ControlResolve.defaultStateDirectory`; `AGTERM_CLI_RENDEZVOUS=desktop`, which the Linux desktop payload's
+    /// `bin/agtermctl` sets, selects the GTK app's Foundation application-support directory instead (the same
+    /// directory on macOS). `env` and that directory are injectable so the precedence is unit-testable.
     func socketPath(env: [String: String] = ProcessInfo.processInfo.environment) -> String {
         let directory = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
@@ -43,8 +43,10 @@ struct BasicOptions: ParsableArguments, ConnectionOptions {
     func socketPath(env: [String: String], applicationSupportDirectory: String?) -> String {
         if let socket { return socket }
         if let explicit = env["AGTERM_CONTROL_SOCKET"], !explicit.isEmpty { return explicit }
-        let appSupport = applicationSupportDirectory ?? "/tmp/agterm"
-        return ControlResolve.socketPath(stateDir: env["AGTERM_STATE_DIR"], appSupport: appSupport)
+        let fallback = env["AGTERM_CLI_RENDEZVOUS"] == "desktop"
+            ? applicationSupportDirectory ?? "/tmp/agterm"
+            : ControlResolve.defaultStateDirectory(environment: env)
+        return ControlResolve.socketPath(stateDir: env["AGTERM_STATE_DIR"], appSupport: fallback)
     }
 }
 

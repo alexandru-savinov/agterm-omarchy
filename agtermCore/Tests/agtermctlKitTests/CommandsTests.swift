@@ -1871,25 +1871,46 @@ struct CommandsTests {
             env: env, applicationSupportDirectory: "/ignored") == "/tmp/state/agterm.sock")
     }
 
-    @Test func socketPathPreservesMacOSApplicationSupportLocation() throws {
+    @Test func socketPathDefaultsToTheServerStateDirectory() throws {
         let command = try Tree.parse([])
-        let env = ["HOME": "/Users/x"]
-        #expect(command.options.basic.socketPath(
-            env: env, applicationSupportDirectory: "/Users/x/Library/Application Support/agterm")
-            == "/Users/x/Library/Application Support/agterm/agterm.sock")
+        let env = ["HOME": "/home/x", "XDG_STATE_HOME": "/var/state"]
+        let path = command.options.basic.socketPath(env: env, applicationSupportDirectory: "/xdg/data/agterm")
+        #expect(path == ControlResolve.defaultStateDirectory(environment: env) + "/agterm.sock")
+        #if os(Linux)
+        #expect(path == "/var/state/agterm/agterm.sock")
+        #else
+        #expect(path == "/home/x/Library/Application Support/agterm/agterm.sock")
+        #endif
     }
 
-    @Test func socketPathUsesLinuxFoundationApplicationSupportLocation() throws {
+    @Test func socketPathDesktopRendezvousUsesApplicationSupport() throws {
         let command = try Tree.parse([])
+        let env = ["HOME": "/home/x", "XDG_STATE_HOME": "/var/state", "AGTERM_CLI_RENDEZVOUS": "desktop"]
         #expect(command.options.basic.socketPath(
-            env: ["HOME": "/home/x", "XDG_DATA_HOME": "/xdg/data"],
-            applicationSupportDirectory: "/xdg/data/agterm") == "/xdg/data/agterm/agterm.sock")
+            env: env, applicationSupportDirectory: "/xdg/data/agterm") == "/xdg/data/agterm/agterm.sock")
+        #expect(command.options.basic.socketPath(env: env, applicationSupportDirectory: nil) == "/tmp/agterm/agterm.sock")
+        let other = env.merging(["AGTERM_CLI_RENDEZVOUS": "server"]) { $1 }
+        #expect(command.options.basic.socketPath(env: other, applicationSupportDirectory: "/xdg/data/agterm")
+            == ControlResolve.defaultStateDirectory(environment: other) + "/agterm.sock")
     }
 
-    @Test func socketPathFallsBackToTmpWithoutFoundationLocation() throws {
+    @Test func socketPathDesktopRendezvousKeepsExplicitPrecedence() throws {
+        let env = ["HOME": "/home/x", "AGTERM_CLI_RENDEZVOUS": "desktop", "AGTERM_STATE_DIR": "/tmp/state"]
         let command = try Tree.parse([])
         #expect(command.options.basic.socketPath(
-            env: [:], applicationSupportDirectory: nil) == "/tmp/agterm/agterm.sock")
+            env: env, applicationSupportDirectory: "/xdg/data/agterm") == "/tmp/state/agterm.sock")
+        let socket = env.merging(["AGTERM_CONTROL_SOCKET": "/tmp/override.sock"]) { $1 }
+        #expect(command.options.basic.socketPath(
+            env: socket, applicationSupportDirectory: "/xdg/data/agterm") == "/tmp/override.sock")
+        let flagged = try Tree.parse(["--socket", "/tmp/explicit.sock"])
+        #expect(flagged.options.basic.socketPath(
+            env: socket, applicationSupportDirectory: "/xdg/data/agterm") == "/tmp/explicit.sock")
+    }
+
+    @Test func socketPathFallsBackToTmpWithoutHome() throws {
+        let command = try Tree.parse([])
+        #expect(command.options.basic.socketPath(
+            env: [:], applicationSupportDirectory: "/xdg/data/agterm") == "/tmp/agterm/agterm.sock")
     }
 
     @Test func versionParsesWithNoArgumentsAndTakesNoTarget() throws {
