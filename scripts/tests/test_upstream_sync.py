@@ -99,11 +99,28 @@ class SourceSelectionTests(unittest.TestCase):
         with mock.patch.object(sync, "LINUX_PORT_LAG_DAYS", 3):
             self.assertEqual(select(**scenario), DIRECT)
 
-    def test_the_lag_runs_from_the_oldest_lacking_release_and_the_newest_one_syncs(self):
+    def test_each_release_has_its_own_lag_so_a_fresh_one_neither_syncs_nor_postpones_an_overdue_one(self):
         ages = {"v0.42.3": LAG + 1, "v0.43.0": sync.DAY}
         chosen = sync.select(**selection(main=[PORT], port=["a" * 40, "d" * 40], ages=ages))
-        self.assertEqual((chosen["source"], chosen["tag"]), ("umputun", "v0.43.0"))
-        self.assertIn("has lacked v0.42.3", chosen["reason"])
+        self.assertEqual((chosen["source"], chosen["tag"], chosen["commit"]), ("umputun", "v0.42.3", "b" * 40))
+        self.assertIn("has lacked v0.42.3 for 7.0 days, more than 7", chosen["reason"])
+
+    def test_the_newest_overdue_release_syncs(self):
+        self.assertEqual(select(main=[PORT], port=["a" * 40, "d" * 40]), DIRECT)
+
+    def test_a_wait_names_the_newest_lacking_release(self):
+        ages = {"v0.42.3": 2 * sync.DAY, "v0.43.0": sync.DAY}
+        chosen = sync.select(**selection(main=[PORT], port=["a" * 40, "d" * 40], ages=ages))
+        self.assertEqual(chosen["source"], "")
+        self.assertIn("has lacked v0.43.0 for 1.0 days; the direct sync waits", chosen["reason"])
+
+    def test_an_overdue_release_below_one_main_holds_is_never_synced_backwards(self):
+        for tags, port in ((TAGS, ["a" * 40, "d" * 40]), ({**TAGS, "v0.42.4": "f" * 40}, BEHIND)):
+            with self.subTest(tags=sorted(tags)):
+                ages = {"v0.43.0": sync.DAY}
+                chosen = sync.select(**selection(main=[PORT, "c" * 40], port=port, tags=tags, ages=ages))
+                self.assertEqual(chosen["source"], "")
+                self.assertEqual(chosen["reason"], "main already contains v0.43.0")
 
     def test_a_future_dated_tag_waits(self):
         self.assertEqual(select(main=[PORT], port=BEHIND, ages={"v0.43.0": -sync.DAY}), NOTHING)
@@ -402,6 +419,13 @@ class WorkflowOrderTests(unittest.TestCase):
     def test_the_stranded_branch_listing_covers_both_sources(self):
         for prefix in sync.BRANCH_PREFIXES.values():
             self.position(f"'refs/heads/{prefix}*'")
+
+    def test_the_plan_reaches_the_merge_for_either_source(self):
+        self.position("if: steps.plan.outputs.action == 'sync' || "
+                      "(env.DRY_RUN == 'true' && steps.plan.outputs.branch != '')")
+        for name in ("SOURCE", "TAG", "COMMIT"):
+            self.position(f"          {name}: ${{{{ steps.plan.outputs.{name.lower()} }}}}\n")
+        self.position('--source "$SOURCE" --tag "$TAG" --commit "$COMMIT"')
 
     def test_labels_exist_before_the_publish_script_runs(self):
         self.assertLess(self.position("name: Create the sync labels if missing"),

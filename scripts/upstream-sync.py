@@ -2,8 +2,8 @@
 """Plan and build one upstream sync branch for upstream-sync.yml (#476, #493).
 
 The primary source is melonamin/agterm-linux `linux-port`, which carries each umputun/agterm release
-plus the Linux adaptations. A direct umputun release sync is the fallback, taken only once linux-port
-has lacked a release for more than LINUX_PORT_LAG_DAYS, or for a tag a dispatch names.
+plus the Linux adaptations. A direct umputun release sync is the fallback, taken only for a release
+linux-port has lacked for more than LINUX_PORT_LAG_DAYS, or for a tag a dispatch names.
 
 `plan` decides whether this run opens a sync PR and from which source; `merge` builds the branch in a
 separate worktree. Neither pushes or talks to GitHub: the workflow feeds in the open PRs and the
@@ -93,10 +93,10 @@ def newest_contained(tags, is_ancestor):
 def select(*, tags, tag_times, linux_port, in_main, in_linux_port, now, override=""):
     """{"source", "tag", "commit", "reason"} for what to sync; source is "" when there is nothing to do.
 
-    linux-port wins whenever main lacks its head. The direct sync takes only the newest release, and only
-    once linux-port has lacked a release for more than LINUX_PORT_LAG_DAYS. The lag runs from the oldest
-    release above the newest one linux-port contains, so a stream of fresh tags cannot postpone it; an
-    older tag that is not an ancestor (a maintenance release) is never synced backwards.
+    linux-port wins whenever main lacks its head. The direct sync then takes the newest release above
+    linux-port's own that linux-port has lacked for more than LINUX_PORT_LAG_DAYS: each release has its
+    own clock, so a fresher tag neither syncs early nor postpones an overdue one. A release below one
+    main already holds (a maintenance release) is never synced backwards.
     A dispatch override names the release itself and skips both the linux-port precedence and the lag."""
     def result(source, tag, commit, reason):
         return {"source": source, "tag": tag, "commit": commit, "reason": reason}
@@ -122,18 +122,19 @@ def select(*, tags, tag_times, linux_port, in_main, in_linux_port, now, override
     lacking = [tag for tag in releases if version(tag) > version(contained)]
     if not lacking:
         return result("", "", "", f"main contains {head}, which carries the newest release {contained}")
-    newest = max(lacking, key=version)
-    if in_main(releases[newest]):
-        return result("", "", "", f"main already contains {newest}")
-    untimed = sorted(tag for tag in lacking if tag not in tag_times)
+    held = newest_contained(releases, in_main)
+    pending = sorted((tag for tag in lacking if not held or version(tag) > version(held)), key=version, reverse=True)
+    if not pending:
+        return result("", "", "", f"main already contains {held}")
+    untimed = sorted(tag for tag in pending if tag not in tag_times)
     if untimed:
         raise SyncError(f"no creation time for {', '.join(untimed)}")
-    oldest = min(lacking, key=lambda tag: (tag_times[tag], version(tag)))
-    lag = now - tag_times[oldest]
-    lacked = f"{head} has lacked {oldest} for {lag / DAY:.1f} days"
-    if lag <= LINUX_PORT_LAG_DAYS * DAY:
+    overdue = [tag for tag in pending if now - tag_times[tag] > LINUX_PORT_LAG_DAYS * DAY]
+    tag = (overdue or pending)[0]
+    lacked = f"{head} has lacked {tag} for {(now - tag_times[tag]) / DAY:.1f} days"
+    if not overdue:
         return result("", "", "", f"{lacked}; the direct sync waits for more than {LINUX_PORT_LAG_DAYS}")
-    return result(SOURCE_UMPUTUN, newest, releases[newest], f"{lacked}, more than {LINUX_PORT_LAG_DAYS}")
+    return result(SOURCE_UMPUTUN, tag, releases[tag], f"{lacked}, more than {LINUX_PORT_LAG_DAYS}")
 
 
 def decide(*, paused_value, incidents, prs, remote_branches, **selection):

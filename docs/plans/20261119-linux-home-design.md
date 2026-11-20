@@ -63,10 +63,11 @@ A scheduled workflow, `upstream-sync.yml`, runs daily and also on dispatch. Amen
 follow linux-port:
 - **Primary source:** `melonamin/agterm-linux` `linux-port`. When its head isn't an ancestor of main, create the
   branch `sync/linux-port-<sha8>` as main merged with that head.
-- **Fallback:** a direct umputun sync, only when main already has linux-port's head and linux-port lags.
-  The lag runs from the creation date of the oldest umputun `vX.Y.Z` tag above the newest one linux-port
-  contains. Once it is more than 7 days (`LINUX_PORT_LAG_DAYS` in `scripts/upstream-sync.py`), create
-  `sync/umputun-<tag>` as main merged with the newest tag. Exactly 7 days still waits.
+- **Fallback:** a direct umputun sync, only when main already has linux-port's head. It takes the newest
+  umputun `vX.Y.Z` tag above linux-port's own that linux-port has lacked for more than 7 days
+  (`LINUX_PORT_LAG_DAYS` in `scripts/upstream-sync.py`), on `sync/umputun-<tag>`. Each tag's lag runs from its
+  own creation date, so a fresher tag waits its own 7 days and exactly 7 days still waits. A tag below a
+  release main already holds is never synced.
 - linux-port goes first when both apply; the fallback takes a later run, after the linux-port PR merges.
 - A dispatch may name a umputun tag to sync directly. That is the one manual exception to the precedence and
   the lag; every gate below still applies.

@@ -2,8 +2,8 @@ name: Upstream sync
 
 # One sync PR at a time (#476, #493). The primary source is melonamin/agterm-linux linux-port: when its head is
 # not in main, main merged with it on sync/linux-port-<sha8>. The fallback is a direct umputun/agterm release,
-# main merged with the newest vX.Y.Z tag on sync/umputun-<tag>, taken only once linux-port has lacked a release
-# for more than LINUX_PORT_LAG_DAYS (scripts/upstream-sync.py), or for a tag the dispatch names.
+# main merged with a vX.Y.Z tag on sync/umputun-<tag>, taken only for a release linux-port has lacked for more
+# than LINUX_PORT_LAG_DAYS (scripts/upstream-sync.py), or for a tag the dispatch names.
 # A clean merge opens a PR labelled upstream-sync; conflicts, or any change under .github/,
 # open a draft labelled needs-adaptation with the markers committed. Nothing runs while syncing is paused
 # (repository variable SYNC_PAUSED is true, or an issue labelled release-incident is open) or while any sync PR
