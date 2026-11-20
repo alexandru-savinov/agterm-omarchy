@@ -5,6 +5,7 @@ and no agterm or zmx process is left. A failed inspection is a FAIL, never an em
 import argparse
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 
@@ -17,10 +18,12 @@ def raise_error(error):
 
 
 def leftovers(prefix):
-    """Every entry left under PREFIX; an absent prefix has none."""
-    if not os.path.lexists(prefix):
+    """Every entry left under PREFIX; an absent prefix has none, and any other lstat error raises."""
+    try:
+        info = os.lstat(prefix)
+    except FileNotFoundError:
         return []
-    if prefix.is_symlink() or not prefix.is_dir():
+    if not stat.S_ISDIR(info.st_mode):
         return [f"prefix {prefix} is not a directory"]
     entries = []
     for directory, names, files in os.walk(prefix, onerror=raise_error):

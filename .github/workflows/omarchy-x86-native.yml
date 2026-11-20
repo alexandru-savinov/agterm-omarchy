@@ -138,6 +138,7 @@ jobs:
       attestation: ${{ steps.resolve.outputs.attestation }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
         with:
           persist-credentials: false
       - name: Lint and test the gate scripts
@@ -213,9 +214,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     # Setup and session deadlines inside the container (15 + 50 min) and the step caps below leave the
     # always() staging and upload steps time inside this cap.
-    # Budget: vkms 5 + download 10 + image 10 + gates 70 (container setup 15 + session 50 + kill grace) + staging 5
-    # + upload 5, plus checkout, inside this cap.
-    timeout-minutes: 110
+    # Budget: checkout 5 + vkms 5 + download 10 + image 10 + gates 70 (container setup 15 + session 50 + kill
+    # grace) + staging 5 + upload 5 = 110, inside this cap.
+    timeout-minutes: 115
     permissions:
       contents: read
       actions: read
@@ -238,6 +239,7 @@ jobs:
       ALARM_KEY: 68B3537F39A313B3E574D06777193F152BDBE6A6
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
         with:
           persist-credentials: false
       - name: Load vkms
@@ -407,6 +409,7 @@ jobs:
       results: ${{ steps.verdict.outputs.results }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
         with:
           persist-credentials: false
       - name: Fetch this attempt's evidence

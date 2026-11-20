@@ -68,5 +68,24 @@ class InspectUninstallTests(unittest.TestCase):
         self.assertTrue(row.startswith("FAIL exit=0 inspection error:"), row)
 
 
+    def test_a_prefix_that_cannot_be_examined_fails(self):
+        for error in (PermissionError(13, "Permission denied"), OSError(5, "Input/output error")):
+            with self.subTest(error=error), pgrep(1), \
+                    patch.object(inspect.os, "lstat", side_effect=error):
+                row, code = self.row()
+            self.assertEqual(code, 1)
+            self.assertTrue(row.startswith("FAIL exit=0 inspection error:"), row)
+        parent = self.root / "locked"
+        parent.mkdir()
+        self.prefix = parent / "agt-prefix"
+        self.prefix.mkdir()
+        parent.chmod(0o600)
+        self.addCleanup(parent.chmod, 0o755)
+        with pgrep(1):
+            row, code = self.row()
+        self.assertEqual(code, 1)
+        self.assertTrue(row.startswith("FAIL exit=0 inspection error:"), row)
+
+
 if __name__ == "__main__":
     unittest.main()
