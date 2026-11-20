@@ -12,7 +12,7 @@ index 0483d82..6759819 100644
      pub fn performIpc(
          _: Allocator,
 diff --git a/src/termio/Exec.zig b/src/termio/Exec.zig
-index 354e8e3..c25f6d8 100644
+index 40a5c5d..b8b538d 100644
 --- a/src/termio/Exec.zig
 +++ b/src/termio/Exec.zig
 @@ -44,6 +44,10 @@ const FlatpakHostCommand = if (!build_config.flatpak) struct {
@@ -228,7 +228,7 @@ index 354e8e3..c25f6d8 100644
                      pipeline.batch_ready.waitUncancelable(global.io(), &pipeline.mutex);
                  }
                  const slot = pipeline.tail;
-@@ -1839,9 +1959,15 @@ pub const ReadThread = struct {
+@@ -1840,9 +1960,15 @@ pub const ReadThread = struct {
          return true;
      }
 
@@ -245,7 +245,7 @@ index 354e8e3..c25f6d8 100644
 
          // Setup our crash metadata
          crash.sentry.thread_state = .{
-@@ -2607,3 +2733,189 @@ test "a hangup drain stops at its cap when the fd never runs dry" {
+@@ -2617,3 +2743,191 @@ test "a hangup drain stops at its cap when the fd never runs dry" {
      try std.testing.expect(result.drained < ReadThread.hangup_drain_max + ReadThread.buffer_capacity);
      try std.testing.expectEqual(result.drained, result.received);
  }
@@ -374,12 +374,14 @@ index 354e8e3..c25f6d8 100644
 +    };
 +    defer td.backend.exec.exit_hold.timer.deinit();
 +
++    const start: std.Io.Timestamp = .now(io, .awake);
 +    processExitCommon(&td, 42);
 +    try std.testing.expect(td.backend.exec.exited);
 +    try std.testing.expect(queue.pop(io) == null);
 +
 +    read_done.store(true, .release);
 +    try loop.run(.until_done);
++    try std.testing.expect(start.untilNow(io, .awake).toMilliseconds() < ExitHold.max_ms);
 +    const message = queue.pop(io) orelse return error.TestExitNoticeMissing;
 +    try std.testing.expect(message == .surface_message);
 +    try std.testing.expectEqual(&surface, message.surface_message.surface);

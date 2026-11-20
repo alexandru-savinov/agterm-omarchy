@@ -1,5 +1,5 @@
 diff --git a/src/termio/Exec.zig b/src/termio/Exec.zig
-index df57e0f..354e8e3 100644
+index df57e0f..40a5c5d 100644
 --- a/src/termio/Exec.zig
 +++ b/src/termio/Exec.zig
 @@ -1462,7 +1462,7 @@ pub const ReadThread = struct {
@@ -11,11 +11,14 @@ index df57e0f..354e8e3 100644
          ) catch |err| {
              // If we can't spawn a thread the process is already
              // doomed (every surface spawns several), so don't try
-@@ -1523,7 +1523,12 @@ pub const ReadThread = struct {
+@@ -1522,8 +1522,14 @@ pub const ReadThread = struct {
+     /// The gather stage. This drains the pty into rotating buffers,
      /// bridging the kernel queue's refill gaps for saturated streams,
      /// and publishes each batch to the parse stage. This thread owns
-     /// all fd monitoring, including the quit fd.
+-    /// all fd monitoring, including the quit fd.
 -    fn gatherMainPosix(fd: posix.fd_t, quit: posix.fd_t, pipeline: *Pipeline) void {
++    /// all fd monitoring, including the quit fd. Production passes
++    /// std.posix as outer_poll. Tests can supply a stateful poller.
 +    fn gatherMainPosix(
 +        fd: posix.fd_t,
 +        quit: posix.fd_t,
@@ -25,7 +28,7 @@ index df57e0f..354e8e3 100644
          if (builtin.target.os.tag.isDarwin()) {
              internal_os.macos.pthread_setname_np(&"io-gather".*);
              setQosClass();
-@@ -1712,7 +1717,7 @@ pub const ReadThread = struct {
+@@ -1712,7 +1718,7 @@ pub const ReadThread = struct {
 
              // Wait for data. The idle fd is sliced off: the parse
              // stage only writes to it while we're bridging.
@@ -34,7 +37,7 @@ index df57e0f..354e8e3 100644
                  log.warn("poll failed on read thread, exiting early err={}", .{err});
                  return;
              };
-@@ -1724,12 +1729,71 @@ pub const ReadThread = struct {
+@@ -1724,12 +1730,71 @@ pub const ReadThread = struct {
              }
 
              // If our pty fd is closed, then we're also done with our
@@ -110,7 +113,7 @@ index df57e0f..354e8e3 100644
      }
 
      /// Clears the bridging flag armed before a bridge poll, closing
-@@ -2357,3 +2421,189 @@ test "init frees the env when it fails" {
+@@ -2357,3 +2422,198 @@ test "init frees the env when it fails" {
          try testing.expectEqual(failing.allocated_bytes, failing.freed_bytes);
      }
  }
@@ -234,9 +237,17 @@ index df57e0f..354e8e3 100644
 +
 +const TestHangupPoll = struct {
 +    slave: ?posix.fd_t,
++    poll_error: ?anyerror = null,
 +    const output = "final output";
 +
 +    fn poll(self: *TestHangupPoll, fds: []posix.pollfd, _: i32) !usize {
++        return self.pollOnce(fds) catch |err| {
++            self.poll_error = err;
++            return err;
++        };
++    }
++
++    fn pollOnce(self: *TestHangupPoll, fds: []posix.pollfd) !usize {
 +        const slave = self.slave orelse return error.TestUnexpectedPoll;
 +        self.slave = null;
 +        const written = posix.system.write(slave, output, output.len);
@@ -266,6 +277,7 @@ index df57e0f..354e8e3 100644
 +    pipeline.* = .{};
 +    ReadThread.gatherMainPosix(pty.master, -1, pipeline, &outer_poll);
 +
++    try std.testing.expectEqual(@as(?anyerror, null), outer_poll.poll_error);
 +    try std.testing.expect(pipeline.done);
 +    try std.testing.expectEqual(@as(usize, 1), pipeline.count);
 +    try std.testing.expectEqualStrings(TestHangupPoll.output, pipeline.bufs[0][0..pipeline.lens[0]]);
