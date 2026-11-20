@@ -26,5 +26,5 @@ jobs:
     with:
       source: ci-run
       arch: both
-      channel: edge
+      channel: stable
       attestation: report-only
