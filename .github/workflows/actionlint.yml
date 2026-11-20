@@ -51,5 +51,20 @@ jobs:
             echo "actionlint accepted a known-bad workflow; this check cannot fail" >&2
             exit 1
           fi
+      - name: Lint self-repository calls in their local form
+        # actionlint 1.7.12 cannot parse GitHub's `uses: $/...` (rhysd/actionlint#760). For a reusable workflow in
+        # this repository it is the same call as `./...`, so only this job's checkout is rewritten.
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          for workflow in Path(".github/workflows").glob("*.yml"):
+              source = workflow.read_text()
+              local = re.sub(r"(?m)^([ \t]+uses: )\$/(\.github/workflows/)", r"\1./\2", source)
+              if local != source:
+                  workflow.write_text(local)
+                  print(f"linting {workflow} with ./ for $/")
+          PY
       - name: Run actionlint
         run: /tmp/actionlint -color
