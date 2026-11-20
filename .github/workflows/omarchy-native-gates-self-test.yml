@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   self-test:
-    uses: ./.github/workflows/omarchy-x86-native.yml
+    uses: $/.github/workflows/omarchy-x86-native.yml
     permissions:
       contents: read
       actions: read
