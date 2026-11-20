@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -20,6 +21,8 @@ FIELDS_SPEC.loader.exec_module(pr_fields)
 RUN = "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/1"
 WORKFLOW = (Path(__file__).resolve().parents[2] / ".github/workflows/upstream-sync.yml").read_text(encoding="utf-8")
 PUBLISH = Path(__file__).resolve().parents[1] / "upstream-sync-publish.sh"
+BLOCKED = Path(__file__).resolve().parents[1] / "upstream-sync-blocked.sh"
+CI_WORKFLOW = (Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
 TAGS = {"v0.41.1": "a" * 40, "v0.42.3": "b" * 40, "v0.43.0": "c" * 40, "v0.9.9": "d" * 40}
 PORT = "e" * 40  # the linux-port head
@@ -27,6 +30,7 @@ PORT_BRANCH = "sync/linux-port-eeeeeeee"
 NOW = 1_800_000_000
 LAG = sync.LINUX_PORT_LAG_DAYS * sync.DAY
 BEHIND = ("a" * 40, "b" * 40, "d" * 40)  # a linux-port that carries every release but v0.43.0
+BEHIND_TAGS = ("v0.41.1", "v0.42.3", "v0.9.9")
 
 
 def contains(*commits):
@@ -231,16 +235,35 @@ class LagClockTests(unittest.TestCase):
         for releases in unpublished:
             with self.subTest(releases=releases):
                 clocks, kept = self.clocks(releases)
-                self.assertEqual((clocks["v0.43.0"], kept["v0.43.0"]), (NOW, NOW))
+                self.assertEqual((clocks["v0.43.0"], kept["v0.43.0"]), (NOW, {"commit": "c" * 40, "seen": NOW}))
 
     def test_a_recorded_first_sighting_is_kept_and_a_lost_one_restarts_now(self):
-        clocks, kept = self.clocks([], {"v0.43.0": NOW - 3 * sync.DAY, "v0.1.0": 5})
-        self.assertEqual((clocks["v0.43.0"], kept["v0.43.0"]), (NOW - 3 * sync.DAY, NOW - 3 * sync.DAY))
+        seen = {"commit": "c" * 40, "seen": NOW - 3 * sync.DAY}
+        clocks, kept = self.clocks([], {"v0.43.0": seen, "v0.1.0": {"commit": "9" * 40, "seen": 5}})
+        self.assertEqual((clocks["v0.43.0"], kept["v0.43.0"]), (NOW - 3 * sync.DAY, seen))
         self.assertEqual(clocks["v0.42.3"], NOW)
         self.assertEqual(sorted(kept), sorted(TAGS))
 
+    def test_a_tag_moved_to_another_commit_starts_a_fresh_clock(self):
+        seen = {"v0.43.0": {"commit": "c" * 40, "seen": NOW - 30 * sync.DAY}}
+        moved = {**TAGS, "v0.43.0": "f" * 40}
+        clocks, kept = self.clocks([], seen, tags=moved)
+        self.assertEqual((clocks["v0.43.0"], kept["v0.43.0"]), (NOW, {"commit": "f" * 40, "seen": NOW}))
+        back, kept_back = sync.lag_clocks(TAGS, [], kept, NOW + sync.DAY)
+        self.assertEqual((back["v0.43.0"], kept_back["v0.43.0"]["commit"]), (NOW + sync.DAY, "c" * 40))
+
+    def test_a_moved_tag_is_not_overdue_on_its_old_clock(self):
+        seen = {"v0.43.0": {"commit": "c" * 40, "seen": NOW - 30 * sync.DAY}}
+        for commit, expected in (("c" * 40, DIRECT), ("f" * 40, NOTHING)):
+            with self.subTest(commit=commit):
+                tags = {**TAGS, "v0.43.0": commit}
+                clocks, _ = sync.lag_clocks(tags, [release(tag) for tag in BEHIND_TAGS], seen, NOW)
+                chosen = sync.select(**{**selection(main=[PORT], port=BEHIND, tags=tags), "tag_times": clocks})
+                self.assertEqual((chosen["source"], chosen["tag"]), expected[:2])
+
     def test_a_release_replaces_the_first_sighting_and_drops_it_from_the_record(self):
-        clocks, kept = self.clocks([release("v0.43.0")], {"v0.43.0": NOW - 30 * sync.DAY})
+        seen = {"v0.43.0": {"commit": "c" * 40, "seen": NOW - 30 * sync.DAY}}
+        clocks, kept = self.clocks([release("v0.43.0")], seen)
         self.assertEqual(clocks["v0.43.0"], PUBLISHED)
         self.assertNotIn("v0.43.0", kept)
 
@@ -257,7 +280,10 @@ class LagClockTests(unittest.TestCase):
         for releases in bad_releases:
             with self.subTest(releases=releases), self.assertRaises(sync.SyncError):
                 self.clocks(releases)
-        for first_seen in (["v0.43.0"], {"v0.43.0": "1"}, {"v0.43.0": 1.5}, {"v0.43.0": True}):
+        entry = {"commit": "c" * 40, "seen": NOW}
+        for first_seen in (["v0.43.0"], {"v0.43.0": NOW}, {"v0.43.0": {**entry, "seen": "1"}},
+                           {"v0.43.0": {**entry, "seen": 1.5}}, {"v0.43.0": {**entry, "seen": True}},
+                           {"v0.43.0": {"seen": NOW}}, {"v0.43.0": {**entry, "commit": None}}):
             with self.subTest(first_seen=first_seen), self.assertRaises(sync.SyncError):
                 sync.lag_clocks(TAGS, [], first_seen, NOW)
 
@@ -647,7 +673,7 @@ class WorkflowOrderTests(unittest.TestCase):
         upload = self.position("          name: upstream-sync-first-seen\n")
         self.assertLess(self.position("if: steps.plan.outcome == 'success' && env.DRY_RUN != 'true'"), upload)
         self.assertLess(self.position("name: Refuse a live run off main"), upload)
-        self.assertLess(upload, self.position("          overwrite: true"))
+        self.assertLess(upload, self.position("          overwrite: true # a re-run attempt uploads the name again"))
         self.position('select((.expired | not) and .workflow_run.head_branch == "main"\n'
                       "              and .workflow_run.head_repository_id == .workflow_run.repository_id)")
 
@@ -665,6 +691,41 @@ class WorkflowOrderTests(unittest.TestCase):
             self.assertLess(listing, guard)
         self.position('guard --workflow-permissions "$RUNNER_TEMP/workflow-permissions.http" \\\n'
                       '            --secrets "$RUNNER_TEMP/secrets.http"')
+
+    def job(self, name):
+        start = WORKFLOW.index(f"\n  {name}:\n")
+        following = [WORKFLOW.index(f"\n  {other}:\n") for other in ("test", "sync", "publish", "blocked")]
+        return WORKFLOW[start:min([position for position in following if position > start], default=len(WORKFLOW))]
+
+    def test_a_blocked_sync_reaches_the_issue_and_never_the_push(self):
+        blocked_true = "needs.sync.outputs.action == 'sync' && needs.sync.outputs.blocked == 'true' &&"
+        blocked_false = "needs.sync.outputs.action == 'sync' && needs.sync.outputs.blocked == 'false' &&"
+        self.assertIn(blocked_false, self.job("publish"))
+        self.assertIn(blocked_true, self.job("blocked"))
+        self.position("      blocked: ${{ steps.merge.outputs.blocked }}\n")
+        branch = self.position("if: steps.plan.outputs.action == 'sync' && env.DRY_RUN != 'true' && "
+                               "steps.merge.outputs.blocked == 'false'")
+        issue = self.position("if: steps.plan.outputs.action == 'sync' && env.DRY_RUN != 'true' && "
+                              "steps.merge.outputs.blocked == 'true'")
+        self.assertLess(branch, self.position("          name: upstream-sync-branch\n"
+                                              "          path: ${{ runner.temp }}/out/\n"))
+        self.assertLess(issue, self.position("          path: ${{ runner.temp }}/out/body.md"))
+        self.assertEqual(self.job("sync").count("${{ runner.temp }}/out/\n"), 1)
+
+    def test_the_blocked_job_only_writes_issues_and_holds_no_sync_credential(self):
+        job = self.job("blocked")
+        self.assertIn("    permissions:\n      contents: read\n      issues: write\n    env:", job)
+        self.assertIn("run: scripts/upstream-sync-blocked.sh", job)
+        self.assertIn("github.ref == 'refs/heads/main' &&\n      (github.event_name == 'schedule' || "
+                      "(github.event_name == 'workflow_dispatch' && !inputs.dry_run))", job)
+        for absent in ("secrets.", "environment:", "git push", "sync.bundle"):
+            self.assertNotIn(absent, job)
+        self.assertLess(job.index("name: Create the needs-adaptation label if missing"),
+                        job.index("run: scripts/upstream-sync-blocked.sh"))
+
+    def test_the_blocked_script_is_linted_and_dry_runs_its_own_changes(self):
+        self.position("      - scripts/upstream-sync-blocked.sh\n")
+        self.assertEqual(CI_WORKFLOW.count("            scripts/upstream-sync-blocked.sh\n"), 1)
 
     def test_labels_exist_before_the_publish_script_runs(self):
         self.assertLess(self.position("name: Create the sync labels if missing"),
@@ -806,6 +867,85 @@ class PublishScriptTests(unittest.TestCase):
         self.assertEqual(calls, [])
 
 
+BLOCKED_STUB = r"""#!/usr/bin/env bash
+printf '%s\t%s\n' "${GH_TOKEN:-}" "$*" >> "$STUB_LOG"
+case "$1 $2" in
+  "issue list") [[ -z "${STUB_LIST_FAILS:-}" ]] || exit 1; printf '%s' "${STUB_ISSUES:-}" ;;
+  "issue create") [[ -z "${STUB_CREATE_FAILS:-}" ]] || exit 1; echo "https://github.com/o/r/issues/77" ;;
+  "issue edit") [[ -z "${STUB_EDIT_FAILS:-}" ]] || exit 1 ;;
+esac
+"""
+BLOCKED_ISSUE = "Upstream sync blocked: new workflow file(s) from linux-port@12e8b468"
+
+
+class BlockedScriptTests(unittest.TestCase):
+    """The blocked step against a stubbed gh: one issue, created once and rewritten after."""
+
+    def run_blocked(self, **stub):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "bin").mkdir()
+            (root / "bin" / "gh").write_text(BLOCKED_STUB, encoding="utf-8")
+            (root / "bin" / "gh").chmod(0o755)
+            (root / "body.md").write_text("body", encoding="utf-8")
+            env = {"PATH": f"{root / 'bin'}:{os.environ['PATH']}", "STUB_LOG": str(root / "log"),
+                   "GITHUB_OUTPUT": str(root / "out"), "GH_TOKEN": "run-token", "GH_REPO": "o/r",
+                   "TITLE": BLOCKED_ISSUE, "LABEL": "needs-adaptation", "BODY_FILE": str(root / "body.md"), **stub}
+            result = subprocess.run(["bash", str(BLOCKED)], env=env, capture_output=True, text=True)
+            log = (root / "log").read_text(encoding="utf-8").splitlines() if (root / "log").exists() else []
+            output = (root / "out").read_text(encoding="utf-8") if (root / "out").exists() else ""
+            return result, [line.split("\t", 1)[1] for line in log], output, str(root / "body.md")
+
+    def test_the_title_prefix_is_the_one_the_planner_writes(self):
+        self.assertIn(f"PREFIX='{sync.BLOCKED_TITLE}'", BLOCKED.read_text(encoding="utf-8"))
+        self.assertTrue(BLOCKED_ISSUE.startswith(sync.BLOCKED_TITLE))
+
+    def test_no_open_issue_creates_one_with_the_label_and_warns_without_failing(self):
+        result, calls, output, body = self.run_blocked()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(calls[0], "issue list --state open --label needs-adaptation --limit 1000 --json number,title "
+                                   "--jq sort_by(.number) | .[] | [.number, .title] | @tsv")
+        self.assertEqual(calls[1:],
+                         [f"issue create --title {BLOCKED_ISSUE} --label needs-adaptation --body-file {body}"])
+        self.assertEqual(output, "number=77\n")
+        self.assertIn(f"::warning::{BLOCKED_ISSUE}; nothing was pushed, see https://github.com/o/r/issues/77",
+                      result.stdout)
+        self.assertNotIn("::error::", result.stdout + result.stderr)
+
+    def test_an_open_blocked_issue_is_rewritten_not_duplicated(self):
+        issues = ("12\tSync melonamin/agterm-linux linux-port 12e8b468\n"
+                  "31\tUpstream sync blocked: new workflow file(s) from linux-port@aaaaaaaa\n"
+                  "40\tUpstream sync blocked: new workflow file(s) from umputun@bbbbbbbb\n")
+        result, calls, output, body = self.run_blocked(STUB_ISSUES=issues)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(calls[1:], [f"issue edit 31 --title {BLOCKED_ISSUE} --body-file {body}"])
+        self.assertEqual(output, "number=31\n")
+        self.assertIn("https://github.com/o/r/issues/31", result.stdout)
+
+    def test_other_labelled_issues_do_not_stand_in(self):
+        issues = "12\tNot Upstream sync blocked: new workflow file(s) from x\n13\tupstream sync blocked\n"
+        _, calls, output, _ = self.run_blocked(STUB_ISSUES=issues)
+        self.assertTrue(calls[1].startswith("issue create "))
+        self.assertEqual(output, "number=77\n")
+
+    def test_a_failed_listing_create_or_edit_fails_the_step(self):
+        blocked = "31\tUpstream sync blocked: new workflow file(s) from linux-port@aaaaaaaa\n"
+        for stub, made in (({"STUB_LIST_FAILS": "1"}, 1), ({"STUB_CREATE_FAILS": "1"}, 2),
+                           ({"STUB_ISSUES": blocked, "STUB_EDIT_FAILS": "1"}, 2)):
+            with self.subTest(stub=stub):
+                result, calls, output, _ = self.run_blocked(**stub)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual((len(calls), output), (made, ""))
+                self.assertNotIn("::warning::", result.stdout)
+
+    def test_a_title_that_is_not_a_blocked_title_or_a_missing_input_makes_no_call(self):
+        for stub in ({"TITLE": "Sync umputun/agterm v0.43.0"}, {"TITLE": ""}, {"LABEL": ""}, {"GH_TOKEN": ""},
+                     {"BODY_FILE": ""}):
+            with self.subTest(stub=stub):
+                result, calls, _, _ = self.run_blocked(**stub)
+                self.assertEqual((result.returncode, calls), (1, []))
+
+
 class GitRepoTests(unittest.TestCase):
     """Real git: tag peeling, the ancestor check, source selection, and both merge outcomes."""
 
@@ -869,12 +1009,12 @@ class GitRepoTests(unittest.TestCase):
                               "--releases", str(paths["releases.json"]), *extra])
         return code, json.loads(out.getvalue()) if out.getvalue() else {}
 
-    def merge(self, *args):
+    def merge(self, *args, base="main"):
         """(exit status, the outputs, the body) of the `merge` command against this repository."""
         body, out = self.root / "body.md", io.StringIO()
         with mock.patch.dict(os.environ, {"GITHUB_OUTPUT": str(self.root / "out")}), \
                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            code = sync.main(["merge", "--base", "main", "--worktree", str(self.root / "wt"), "--body", str(body),
+            code = sync.main(["merge", "--base", base, "--worktree", str(self.root / "wt"), "--body", str(body),
                               "--run-url", RUN, *args])
         return (code, json.loads(out.getvalue()) if out.getvalue() else {},
                 body.read_text(encoding="utf-8") if body.exists() else "")
@@ -937,13 +1077,32 @@ class GitRepoTests(unittest.TestCase):
         code, plan = self.plan("--now", str(first), *record)
         self.assertEqual((code, plan["source"]), (0, ""))
         self.assertIn("has lacked v0.3.0 for 0.0 days; the direct sync waits", plan["reason"])
-        self.assertEqual(json.loads(seen.read_text(encoding="utf-8")), {"v0.3.0": first})
+        entry = {"v0.3.0": {"commit": self.git("rev-parse", "next"), "seen": first}}
+        self.assertEqual(json.loads(seen.read_text(encoding="utf-8")), entry)
         code, plan = self.plan("--now", str(first + LAG), *record)
         self.assertEqual(plan["source"], "")
-        self.assertEqual(json.loads(seen.read_text(encoding="utf-8")), {"v0.3.0": first})
+        self.assertEqual(json.loads(seen.read_text(encoding="utf-8")), entry)
         code, plan = self.plan("--now", str(first + LAG + 1), *record)
         self.assertEqual((plan["source"], plan["tag"]), ("umputun", "v0.3.0"))
         self.assertIn("has lacked v0.3.0 for 7.0 days, more than 7", plan["reason"])
+
+    def test_a_lightweight_tag_moved_to_another_commit_waits_again(self):
+        self.lightweight_release_on_an_old_commit()
+        seen = self.root / "seen" / "first-seen.json"
+        record = ["--first-seen", str(seen), "--first-seen-out", str(seen)]
+        self.plan("--now", str(NOW), *record)
+        self.git("checkout", "-q", "next")
+        self.commit("moved.txt", "moved\n", "the commit the tag moves to")
+        moved = self.head()
+        self.git("update-ref", "refs/upstream-tags/v0.3.0", moved)
+        self.git("checkout", "-q", "main")
+        later = NOW + LAG + 1
+        code, plan = self.plan("--now", str(later), *record)
+        self.assertEqual((code, plan["source"]), (0, ""))
+        self.assertIn("has lacked v0.3.0 for 0.0 days; the direct sync waits", plan["reason"])
+        self.assertEqual(json.loads(seen.read_text(encoding="utf-8")), {"v0.3.0": {"commit": moved, "seen": later}})
+        code, plan = self.plan("--now", str(later + LAG + 1), *record)
+        self.assertEqual((plan["source"], plan["tag"], plan["commit"]), ("umputun", "v0.3.0", moved))
 
     def test_a_lost_first_seen_record_restarts_the_clock(self):
         self.lightweight_release_on_an_old_commit()
@@ -965,8 +1124,10 @@ class GitRepoTests(unittest.TestCase):
 
     def test_plan_command_fails_closed_on_a_malformed_first_seen_record(self):
         seen = self.root / "first-seen.json"
-        seen.write_text('{"v0.3.0": "yesterday"}', encoding="utf-8")
-        self.assertEqual(self.plan("--first-seen", str(seen))[0], 2)
+        for record in ('{"v0.3.0": "yesterday"}', '{"v0.3.0": 1800000000}', "not json"):
+            with self.subTest(record=record):
+                seen.write_text(record, encoding="utf-8")
+                self.assertEqual(self.plan("--first-seen", str(seen))[0], 2)
 
     def test_plan_command_override_is_free_only_in_a_dry_run(self):
         now = ["--now", str(PUBLISHED)]
@@ -1015,8 +1176,8 @@ class GitRepoTests(unittest.TestCase):
         self.commit("other.txt", "x\n", "upstream file only")
         clean = self.head()
         self.git("checkout", "-q", "main")
-        conflicts, github = sync.build(self.root / "wt", self.head(), "sync/umputun-v0.3.0", clean, "upstream v0.3.0")
-        self.assertEqual((conflicts, github), ([], []))
+        built = sync.build(self.root / "wt", self.head(), "sync/umputun-v0.3.0", clean, "upstream v0.3.0")
+        self.assertEqual(built, ([], [], []))
         parents = self.git("rev-list", "--parents", "-n", "1", "sync/umputun-v0.3.0").split()[1:]
         self.assertEqual(parents, [self.head(), clean])
         self.assertEqual(self.git("log", "-1", "--format=%s", "sync/umputun-v0.3.0"), "Merge upstream v0.3.0 into main")
@@ -1024,7 +1185,7 @@ class GitRepoTests(unittest.TestCase):
     def test_conflicts_are_committed_with_markers_and_both_parents(self):
         self.commit("shared.txt", "fork\n", "fork change")
         main = self.head()
-        conflicts, _ = sync.build(self.root / "wt", main, "sync/umputun-v0.2.0", self.upstream, "upstream v0.2.0")
+        conflicts, _, _ = sync.build(self.root / "wt", main, "sync/umputun-v0.2.0", self.upstream, "upstream v0.2.0")
         self.assertEqual(conflicts, [("shared.txt", "both modified")])
         self.assertEqual(self.git("rev-list", "--parents", "-n", "1", "sync/umputun-v0.2.0").split()[1:],
                          [main, self.upstream])
@@ -1033,14 +1194,96 @@ class GitRepoTests(unittest.TestCase):
         self.assertEqual(self.git("-C", str(self.root / "wt"), "status", "--porcelain"), "")
         self.assertEqual(self.head(), main)
 
-    def test_upstream_github_changes_are_reported(self):
-        self.git("checkout", "-q", "-b", "workflow", self.base_tag)
+    CI = ".github/workflows/ci.yml"
+
+    def workflow_branches(self, on_main=None, on_upstream=None):
+        """(main, upstream) commits forked from a base that carries ci.yml; each side then runs its edit."""
+        self.git("checkout", "-q", "-b", "shared", self.base_tag)
         (self.repo / ".github/workflows").mkdir(parents=True)
-        self.commit(".github/workflows/upstream.yml", "on: push\n", "upstream workflow")
-        upstream = self.head()
+        self.commit(self.CI, "on: push\njobs: {}\n", "a workflow both sides have")
+        heads = []
+        for branch, edit in (("wf-main", on_main), ("wf-upstream", on_upstream)):
+            self.git("checkout", "-q", "-b", branch, "shared")
+            self.commit(f"{branch}.txt", "x\n", f"{branch} file")
+            if edit:
+                edit()
+                self.git("add", "-A")
+                self.git("commit", "-q", "-m", f"{branch} workflow edit")
+            heads.append(self.head())
         self.git("checkout", "-q", "main")
-        _, github = sync.build(self.root / "wt", self.head(), "sync/umputun-v0.4.0", upstream, "upstream v0.4.0")
-        self.assertEqual(github, [".github/workflows/upstream.yml"])
+        return heads
+
+    def write(self, path, text):
+        (self.repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (self.repo / path).write_text(text, encoding="utf-8")
+
+    def built(self, on_main=None, on_upstream=None):
+        main, upstream = self.workflow_branches(on_main, on_upstream)
+        return sync.build(self.root / "wt", main, "sync/umputun-v0.4.0", upstream, "upstream v0.4.0")
+
+    def test_a_workflow_at_a_path_main_lacks_is_a_new_workflow(self):
+        path = ".github/workflows/upstream.yml"
+        _, github, new = self.built(on_upstream=lambda: self.write(path, "on: push\n"))
+        self.assertEqual((github, new), ([path], [path]))
+
+    def test_a_nested_path_under_workflows_counts_as_new_too(self):
+        path = ".github/workflows/nested/upstream.yaml"
+        self.assertEqual(self.built(on_upstream=lambda: self.write(path, "on: push\n"))[2], [path])
+
+    def test_a_modified_existing_workflow_is_a_github_change_but_not_new(self):
+        _, github, new = self.built(on_upstream=lambda: self.write(self.CI, "on: pull_request\njobs: {}\n"))
+        self.assertEqual((github, new), ([self.CI], []))
+
+    def test_other_new_files_under_github_are_not_new_workflows(self):
+        def edit():
+            self.write(".github/dependabot.yml", "version: 2\n")
+            self.write(".github/workflows-notes/readme.yml", "on: push\n")
+            self.write("docs/.github/workflows/example.yml", "on: push\n")
+        _, github, new = self.built(on_upstream=edit)
+        self.assertEqual((github, new), ([".github/dependabot.yml", ".github/workflows-notes/readme.yml"], []))
+
+    def test_a_renamed_workflow_is_new_at_its_new_path(self):
+        _, _, new = self.built(on_upstream=lambda: self.git("mv", self.CI, ".github/workflows/renamed.yml"))
+        self.assertEqual(new, [".github/workflows/renamed.yml"])
+
+    def test_a_workflow_main_deleted_stays_deleted_and_is_not_new(self):
+        conflicts, github, new = self.built(on_main=lambda: self.git("rm", "-q", self.CI))
+        self.assertEqual((conflicts, github, new), ([], [], []))
+
+    def test_a_workflow_main_deleted_and_upstream_changed_comes_back_as_new(self):
+        conflicts, _, new = self.built(on_main=lambda: self.git("rm", "-q", self.CI),
+                                       on_upstream=lambda: self.write(self.CI, "on: pull_request\njobs: {}\n"))
+        self.assertEqual((conflicts, new), ([(self.CI, "deleted by us")], [self.CI]))
+
+    def test_merge_command_blocks_a_sync_that_adds_a_workflow_file(self):
+        new = ".github/workflows/upstream.yml"
+        _, upstream = self.workflow_branches(on_upstream=lambda: self.write(new, "on: push\n"))
+        for source, extra in (("linux-port", []), ("umputun", ["--tag", "v0.5.0"])):
+            with self.subTest(source=source):
+                self.git("update-ref", "refs/upstream-tags/v0.5.0", upstream)
+                self.git("worktree", "prune")
+                code, result, body = self.merge("--source", source, "--branch", f"sync/{source}-blocked",
+                                                "--commit", upstream, *extra, base="wf-main")
+                self.assertEqual(code, 0)
+                self.assertEqual((result["blocked"], result["new_workflows"], result["label"]),
+                                 ("true", 1, "needs-adaptation"))
+                self.assertEqual(result["title"],
+                                 f"Upstream sync blocked: new workflow file(s) from {source}@{upstream[:8]}")
+                self.assertIn(f"## New workflow files (1)\n\n- `{new}`\n", body)
+                self.assertIn("not pushed: no branch, no PR", body)
+                self.assertNotIn("Reviewed head:", body)
+                shutil.rmtree(self.root / "wt")
+
+    def test_merge_command_opens_a_draft_for_a_modified_existing_workflow(self):
+        _, upstream = self.workflow_branches(on_upstream=lambda: self.write(self.CI, "on: pull_request\njobs: {}\n"))
+        code, result, body = self.merge("--source", "linux-port", "--branch", "sync/linux-port-modified",
+                                        "--commit", upstream, base="wf-main")
+        self.assertEqual(code, 0)
+        self.assertEqual((result["blocked"], result["new_workflows"], result["label"], result["draft"]),
+                         ("false", 0, "needs-adaptation", "true"))
+        self.assertTrue(result["title"].startswith("Sync melonamin/agterm-linux linux-port "))
+        self.assertIn(f"## Changes under .github/ (1)", body)
+        self.assertEqual(pr_fields.problems(body, result["head"]), [])
 
     def test_a_merge_that_records_no_upstream_parent_fails(self):
         with self.assertRaisesRegex(sync.SyncError, "parents"):

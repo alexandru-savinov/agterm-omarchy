@@ -6,8 +6,9 @@ plus the Linux adaptations. A direct umputun release sync is the fallback, taken
 linux-port has lacked for more than LINUX_PORT_LAG_DAYS.
 
 `plan` decides whether this run opens a sync PR and from which source; `merge` builds the branch in a
-separate worktree; `guard` checks the repository settings a sync push relies on. None pushes or talks
-to GitHub: the workflow feeds in every listing, and owns every write.
+separate worktree, and marks it blocked when it adds workflow files; `guard` checks the repository
+settings a sync push relies on. None pushes or talks to GitHub: the workflow feeds in every listing,
+and owns every write.
 """
 import argparse
 import datetime
@@ -31,6 +32,8 @@ TAG_NAMESPACE = "refs/upstream-tags"
 UPSTREAM = "umputun/agterm"
 LINUX_PORT, LINUX_PORT_BRANCH = "melonamin/agterm-linux", "linux-port"
 LINUX_PORT_REF = "refs/upstream-heads/linux-port"  # where the workflow fetches the linux-port head
+WORKFLOWS = ".github/workflows"
+BLOCKED_TITLE = "Upstream sync blocked: new workflow file(s) from "  # upstream-sync-blocked.sh finds it by this
 TASK = "#476"
 UNDECIDED = 3  # `pause` exit status: SYNC_PAUSED does not pause, so the incident listing decides
 STATUS_LINE = re.compile(r"HTTP/[0-9.]+ ([0-9]{3})\b", re.ASCII)
@@ -97,12 +100,15 @@ def lag_clocks(tags, releases, first_seen, now):
     """(tag -> the epoch its lag runs from, the first-seen record to keep) for every release tag.
 
     The clock is the GitHub release's `published_at`, or, for a tag with no published release, the first
-    run that saw it. Never a git date: a lightweight tag pushed today carries its commit's date, and the
-    release's `created_at` repeats it. A lost record restarts at `now`, so a clock is only ever late."""
+    run that saw it at its commit: the record is {tag: {"commit", "seen"}}, so a tag moved to another
+    commit starts again. Never a git date: a lightweight tag pushed today carries its commit's date, and
+    the release's `created_at` repeats it. A lost record restarts at `now`, so a clock is only ever late."""
     if not isinstance(releases, list) or not all(isinstance(release, dict) for release in releases):
         raise SyncError(f"{UPSTREAM} release list is not a JSON list of objects")
-    if not isinstance(first_seen, dict) or not all(type(seen) is int for seen in first_seen.values()):
-        raise SyncError("first-seen record is not a JSON object of epoch seconds")
+    if not isinstance(first_seen, dict) or not all(
+            isinstance(entry, dict) and isinstance(entry.get("commit"), str) and type(entry.get("seen")) is int
+            for entry in first_seen.values()):
+        raise SyncError("first-seen record is not a JSON object of {commit, seen} entries")
     published = {}
     for release in releases:
         stamp = release.get("published_at")
@@ -115,13 +121,15 @@ def lag_clocks(tags, releases, first_seen, now):
                 raise SyncError(f"release {release.get('tag_name')} has a published_at without a time zone")
             published[release.get("tag_name")] = int(moment.timestamp())
     clocks, kept = {}, {}
-    for tag in tags:
+    for tag, commit in tags.items():
         if not version(tag):
             continue
         if tag in published:
             clocks[tag] = published[tag]
-        else:
-            clocks[tag] = kept[tag] = first_seen.get(tag, now)
+            continue
+        seen = first_seen.get(tag)
+        kept[tag] = seen if seen and seen["commit"] == commit else {"commit": commit, "seen": now}
+        clocks[tag] = kept[tag]["seen"]
     return clocks, kept
 
 
@@ -327,6 +335,30 @@ def pr_text(*, source, commit, release, pin, base_sha, head_sha, run_url, confli
     return title, LABEL_CONFLICT, True, "\n".join(body)
 
 
+def blocked_text(*, source, commit, release, base_sha, run_url, new_workflows):
+    """(title, body) of the one issue that stands in for a sync whose merge adds workflow files.
+
+    Nothing is pushed for such a merge: a workflow on a path main lacks is enabled the moment its branch
+    lands here, and can request a write token for itself whatever the repository default is."""
+    origin = (f"[{LINUX_PORT} `{LINUX_PORT_BRANCH}`](https://github.com/{LINUX_PORT}/commit/{commit})"
+              if source == SOURCE_LINUX_PORT else
+              f"[{UPSTREAM} {release[0]}](https://github.com/{UPSTREAM}/releases/tag/{release[0]})")
+    body = [
+        f"The sync of {origin} (`{commit}`) into main (`{base_sha}`) was built by {run_url} and not pushed: "
+        "no branch, no PR.", "",
+        "The merge adds workflow files at paths main does not have. A new workflow path is enabled as soon as "
+        "its branch is pushed here, and a workflow can request a write token for itself whatever the repository "
+        "default is, so it could push branches or create tags and releases before anyone reviews it.", "",
+        f"## New workflow files ({len(new_workflows)})", "",
+        *listing([f"- `{path}`" for path in new_workflows]), "",
+        "## To unblock", "",
+        "1. Review each file at the source commit.",
+        "2. Vendor it to main at the same path and disable it (`gh workflow disable <file>`).",
+        "3. The next run then opens the sync PR as usual. Close this issue once it has.", "",
+        "Every run that is still blocked rewrites this issue for the head it found."]
+    return f"{BLOCKED_TITLE}{source}@{commit[:8]}", "\n".join(body) + "\n"
+
+
 def git(*args, cwd=None, check=True):
     result = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
     if check and result.returncode:
@@ -362,7 +394,7 @@ def build(worktree, base, branch, commit, what):
     """Create `branch` in a new worktree as base merged with commit; conflicts are committed with markers.
 
     `what` names the merged source in the commit message.
-    Returns (conflicts, paths the merge changes under .github/)."""
+    Returns (conflicts, paths the merge changes under .github/, workflow paths it adds that base lacks)."""
     git("worktree", "add", "-b", branch, str(worktree), base)
     message = f"Merge {what} into main"
     merged = git(*IDENTITY, "merge", "--no-ff", "--no-edit", "-m", message, commit, cwd=worktree, check=False)
@@ -377,8 +409,11 @@ def build(worktree, base, branch, commit, what):
     parents = git("rev-list", "--parents", "-n", "1", "HEAD", cwd=worktree).stdout.split()[1:]
     if parents != [git("rev-parse", base).stdout.strip(), commit]:
         raise SyncError(f"sync commit parents are {parents}, expected base then {commit}")
-    github = git("diff", "--name-only", "-z", base, "HEAD", "--", ".github", cwd=worktree).stdout
-    return conflicts, sorted(path for path in github.split("\0") if path)
+    def changed(under, *options):
+        names = git("diff", "--no-renames", "--name-only", "-z", *options, base, "HEAD", "--", under, cwd=worktree)
+        return sorted(path for path in names.stdout.split("\0") if path)
+    # Without rename detection a moved workflow counts as the new path it is.
+    return conflicts, changed(".github"), changed(WORKFLOWS, "--diff-filter=A")
 
 
 def emit(values):
@@ -476,16 +511,23 @@ def main(argv=None):
                 if not tag:
                     raise SyncError(f"{LINUX_PORT_BRANCH} {args.commit[:8]} contains no {UPSTREAM} release")
                 what = f"{LINUX_PORT} {LINUX_PORT_BRANCH} {args.commit[:8]}"
-            conflicts, github_changes = build(Path(args.worktree), base, args.branch, args.commit, what)
+            conflicts, github_changes, new_workflows = build(Path(args.worktree), base, args.branch, args.commit,
+                                                             what)
             head = git("rev-parse", "HEAD", cwd=args.worktree).stdout.strip()
             pin = newest_contained(tags, ancestor_check(head))
-            title, label, draft, body = pr_text(source=args.source, commit=args.commit, release=(tag, tags[tag]),
-                                                pin=(pin, tags[pin]), base_sha=base, head_sha=head,
-                                                run_url=args.run_url, conflicts=conflicts,
-                                                github_changes=github_changes)
+            if new_workflows:
+                label, draft = LABEL_CONFLICT, True
+                title, body = blocked_text(source=args.source, commit=args.commit, release=(tag, tags[tag]),
+                                           base_sha=base, run_url=args.run_url, new_workflows=new_workflows)
+            else:
+                title, label, draft, body = pr_text(source=args.source, commit=args.commit, release=(tag, tags[tag]),
+                                                    pin=(pin, tags[pin]), base_sha=base, head_sha=head,
+                                                    run_url=args.run_url, conflicts=conflicts,
+                                                    github_changes=github_changes)
             Path(args.body).write_text(body, encoding="utf-8")
-            emit({"title": title, "label": label, "draft": str(draft).lower(), "conflicts": len(conflicts),
-                  "github_changes": len(github_changes), "base": base, "head": head})
+            emit({"blocked": str(bool(new_workflows)).lower(), "title": title, "label": label,
+                  "draft": str(draft).lower(), "conflicts": len(conflicts), "github_changes": len(github_changes),
+                  "new_workflows": len(new_workflows), "base": base, "head": head})
     except (SyncError, OSError, ValueError) as error:
         print(f"upstream-sync: {error}", file=sys.stderr)
         return 2

@@ -69,34 +69,46 @@ follow linux-port:
   so a fresher tag waits its own 7 days and exactly 7 days still waits. A tag below a release main already
   holds is never synced.
 - **Lag clock:** the `published_at` of the tag's GitHub release. A tag with no published release starts at
-  the first live run that sees it; that time is carried between runs in the `upstream-sync-first-seen`
-  artifact, read only from runs on main. Git dates are never used: a lightweight tag pushed today carries its
-  commit's date. A lost record restarts the clock, so the fallback can only be late, never early.
+  the first live run that sees it at its commit, so a tag moved to another commit starts again. That time
+  is carried between runs in the `upstream-sync-first-seen` artifact, read only from runs on main. Git dates
+  are never used: a lightweight tag pushed today carries its commit's date. A lost record restarts the
+  clock, so the fallback can only be late, never early.
 - linux-port goes first when both apply; the fallback takes a later run, after the linux-port PR merges.
 - A dispatch may name a umputun tag. A live run then syncs only that tag, and only if an unattended run could:
   main has linux-port's head, the tag is above the newest release linux-port and main carry, and its lag is
   past. Only a dry run previews any tag main lacks.
 - If linux-port or the release list can't be fetched, the run fails. It never falls back on its own.
 - If the merge conflicts, or changes anything under `.github/`, keep the conflicts as a commit and open a draft
-  PR labelled `needs-adaptation`. Otherwise open a PR labelled `upstream-sync`.
+  PR labelled `needs-adaptation`. Otherwise open a PR labelled `upstream-sync`. A merge that adds a new
+  workflow path is not pushed at all (Trust, below).
 - The PR body says to bump `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` in `ci.yml` and `release-linux.yml` to
   the newest umputun tag the merged source contains: for a linux-port sync, the tag linux-port contains. If main
   already holds a newer tag from a fallback sync, it says to keep the pins there.
-- **Trust:** the sync branch is pushed before anyone reviews it, so a workflow that linux-port or umputun
-  adds runs here on that push. This was accepted as residual risk on 2026-11-20 (the #501 review), as the
-  same trust we extend by merging their code, because such a workflow gets a read-only token on a public repository and no secrets. That
-  rests on these repository settings, verified that day:
-  - default workflow permissions are read, and Actions cannot approve pull requests;
-  - there are no repository secrets; the only credential is the PAT in the `upstream-sync` environment, which
-    deploys from main only;
-  - allowed actions are a selected list.
-
-  Before it pushes, the publish job reads the two that carry the risk, and fails if the default workflow
-  permissions are not read or a repository secret exists. Reading them takes Administration and Secrets
-  read, which the sync PAT is deliberately not given (least privilege). GitHub then answers 403 or 404, and
-  the job warns that those settings are unverified and pushes anyway. Any other failure to read them stops
-  the push. So today the settings above are a manual check: re-verify them whenever repository settings
-  or secrets change. A cross-repository PR never counts as an open sync PR, whatever its label.
+- **Trust:** the sync branch is pushed before anyone reviews it, and the workflows it carries run on that
+  push. A workflow file can request a write token for itself (`permissions:`), whatever the repository
+  default is, so an upstream-authored workflow could push branches or create tags and releases here.
+  - **New workflow paths are never pushed.** If the merge adds a file under `.github/workflows/` at a path
+    main lacks, the run pushes no branch and opens no PR. It opens, or rewrites, the one `needs-adaptation`
+    issue titled `Upstream sync blocked: new workflow file(s) from <source>@<sha8>`, which lists the paths,
+    and it ends with a warning, not a failure. A human or agent vendors those workflows to main and
+    disables them; the next run then syncs. A workflow main deleted and upstream left alone stays deleted
+    and does not block.
+  - **Existing workflow paths** keep the `needs-adaptation` draft, with the changed paths listed. A workflow
+    that is disabled in this repository does not run, even when its content changes; #483 will hold
+    umputun's own workflows that way. Until #483 lands, that protection is not in place: `ci.yml` and
+    `release-linux.yml` are enabled here and both upstreams change them, so a merge of either that applies
+    without conflict runs upstream-authored steps on the push. That exposure stays open until then.
+  - **Settings this rests on,** verified on 2026-11-20: there are no repository secrets; the only credential
+    is the PAT in the `upstream-sync` environment, which deploys from main only; allowed actions are a
+    selected list; Actions cannot approve pull requests. The default workflow permissions are read, but
+    that is only a default a workflow can raise for itself.
+  - **Settings guard:** before it pushes, the publish job reads the default workflow permissions and the
+    repository secret list, and fails if the default is not read or a secret exists. Reading them takes
+    Administration and Secrets read, which the sync PAT is deliberately not given (least privilege). GitHub
+    then answers 403 or 404, and the job warns that those settings are unverified and pushes anyway. Any
+    other failure to read them stops the push. So today they are a manual check: re-verify them whenever
+    repository settings or secrets change.
+  - A cross-repository PR never counts as an open sync PR, whatever its label.
 - Apply the pause rule in C4 before opening a sync PR.
 - Only one sync PR is open at a time. Commits and tags that arrive while one is open are taken by the next run,
   after merge.
