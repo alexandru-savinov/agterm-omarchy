@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          curl -fsSLo "/tmp/${archive}" \
+          curl --disable --proto '=https' --proto-redir '=https' -fsSLo "/tmp/${archive}" \
             "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
           echo "${ACTIONLINT_SHA256}  /tmp/${archive}" | sha256sum --check
           tar -xzf "/tmp/${archive}" -C /tmp actionlint

@@ -113,14 +113,14 @@ jobs:
             rpm cpio desktop-file-utils patchelf ncurses-bin \
             at-spi2-core dbus-x11 gir1.2-atspi-2.0 openbox python3-gi xdotool xvfb xauth \
             libatk-bridge2.0-0 libgl1-mesa-dri libegl-mesa0 mesa-utils
-          curl -fsSLo /tmp/swiftlint.zip \
+          curl --disable --proto '=https' --proto-redir '=https' -fsSLo /tmp/swiftlint.zip \
             "https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/swiftlint_linux_amd64.zip"
           echo "${SWIFTLINT_SHA256}  /tmp/swiftlint.zip" | sha256sum --check
           unzip -q /tmp/swiftlint.zip -d /usr/local/bin
           chmod +x /usr/local/bin/swiftlint
           swift --version
           swiftlint --version
-          curl -fsSLo /tmp/zig.tar.xz \
+          curl --disable --proto '=https' --proto-redir '=https' -fsSLo /tmp/zig.tar.xz \
             https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz
           echo "${ZIG_SHA256}  /tmp/zig.tar.xz" | sha256sum --check
           tar -xJf /tmp/zig.tar.xz -C /opt
@@ -128,7 +128,7 @@ jobs:
 
       - name: Install Linux packaging tools
         run: |
-          curl -fsSLo /tmp/nfpm.tar.gz \
+          curl --disable --proto '=https' --proto-redir '=https' -fsSLo /tmp/nfpm.tar.gz \
             "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz"
           echo "${NFPM_SHA256}  /tmp/nfpm.tar.gz" | sha256sum --check
           tar -xzf /tmp/nfpm.tar.gz -C /usr/local/bin nfpm
@@ -199,13 +199,13 @@ jobs:
 
       - name: Test Linux package
         working-directory: agterm-linux
-        run: swift test
+        run: swift test --disable-automatic-resolution
 
       - name: Build Linux Debug products for GTK smoke
         working-directory: agterm-linux
         run: |
-          swift build --product AgtermLinux
-          swift build --product agtermctl-linux
+          swift build --disable-automatic-resolution --product AgtermLinux
+          swift build --disable-automatic-resolution --product agtermctl-linux
 
       - name: GTK AT-SPI smoke tests
         env:
@@ -222,7 +222,7 @@ jobs:
 
       - name: Build agterm-linux
         working-directory: agterm-linux
-        run: swift build -c release
+        run: swift build --disable-automatic-resolution -c release
 
       - name: Package Linux release formats
         env:

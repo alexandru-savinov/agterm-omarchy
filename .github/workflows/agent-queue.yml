@@ -16,7 +16,6 @@ on:
 
 permissions:
   contents: read
-  issues: read
 
 concurrency:
   group: agent-queue-${{ github.event_name == 'pull_request' && 'pr' || 'snapshot' }}-${{ github.ref }}
@@ -27,6 +26,9 @@ jobs:
     name: Queue snapshot
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
