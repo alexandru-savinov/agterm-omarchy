@@ -14,11 +14,12 @@ name: Upstream sync
 # Token: the push and the PR use UPSTREAM_SYNC_TOKEN, never GITHUB_TOKEN, which cannot push upstream's
 # .github/workflows changes (no `workflows` permission) and cannot open PRs here (Actions PR creation is
 # disabled). It is a fine-grained PAT for this repository only, with Contents, Pull requests and Workflows
-# read/write, plus Administration and Secrets read-only for the settings guard. Store it as a secret of the
-# `upstream-sync` environment, whose deployment branch policy allows main only, never as a repository secret:
-# the pushed branch runs upstream-authored workflows before any review, with whatever a workflow here gets.
-# The guard in `publish` therefore refuses to push unless the default workflow token is read-only and no
-# repository secret exists; docs/plans/20261119-linux-home-design.md (C2, Trust) owns that reasoning.
+# read/write. Store it as a secret of the `upstream-sync` environment, whose deployment branch policy allows
+# main only, never as a repository secret: the pushed branch runs upstream-authored workflows before any
+# review, with whatever a workflow here gets. The guard in `publish` therefore refuses to push when it reads
+# a writable default workflow token or a repository secret. Reading either takes Administration or Secrets
+# read, which the PAT is deliberately not given, so the guard warns that they are unverified and the push
+# proceeds; docs/plans/20261119-linux-home-design.md (C2, Trust) owns that reasoning.
 # A GitHub App instead needs a token-minting step in the publish job.
 # GITHUB_TOKEN only creates the labels; scripts/upstream-sync-publish.sh pushes, opens and labels as the PAT, so
 # the labeled event triggers workflows.
@@ -255,21 +256,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Require the settings that make the push safe
+      - name: Check the settings that make the push safe
         env:
           GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
-        # As the PAT: GITHUB_TOKEN cannot hold the Administration and Secrets read these two listings need.
+        # A failed read is not fatal here: the script warns on 403 or 404 and fails on any other answer or none.
         run: |
-          setting() {
-            gh api "repos/$GH_REPO/actions/$1" > "$RUNNER_TEMP/$2" || {
-              echo "::error::cannot read actions/$1; UPSTREAM_SYNC_TOKEN needs Administration and Secrets read" >&2
-              exit 1
-            }
-          }
-          setting permissions/workflow workflow-permissions.json
-          setting secrets secrets.json
-          python3 scripts/upstream-sync.py guard --workflow-permissions "$RUNNER_TEMP/workflow-permissions.json" \
-            --secrets "$RUNNER_TEMP/secrets.json"
+          gh api --include "repos/$GH_REPO/actions/permissions/workflow" > "$RUNNER_TEMP/workflow-permissions.http" || true
+          gh api --include "repos/$GH_REPO/actions/secrets" > "$RUNNER_TEMP/secrets.http" || true
+          python3 scripts/upstream-sync.py guard --workflow-permissions "$RUNNER_TEMP/workflow-permissions.http" \
+            --secrets "$RUNNER_TEMP/secrets.http"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: upstream-sync-branch

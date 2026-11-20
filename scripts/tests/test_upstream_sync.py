@@ -262,51 +262,123 @@ class LagClockTests(unittest.TestCase):
                 sync.lag_clocks(TAGS, [], first_seen, NOW)
 
 
+def http(status, body, reason="OK"):
+    """`gh api --include` output: an LF status line, CRLF headers, a blank line, the body."""
+    return f"HTTP/2.0 {status} {reason}\nContent-Type: application/json\r\nX-Github-Request-Id: 1\r\n\r\n{body}"
+
+
 class SettingsGuardTests(unittest.TestCase):
-    SAFE = ({"default_workflow_permissions": "read", "can_approve_pull_request_reviews": False},
-            {"total_count": 0, "secrets": []})
+    PERMISSIONS = {"default_workflow_permissions": "read", "can_approve_pull_request_reviews": False}
+    SECRETS = {"total_count": 0, "secrets": []}
+    DENIED = {"message": "Resource not accessible by personal access token", "status": "403"}
+
+    def check(self, permissions=(200, PERMISSIONS), secrets=(200, SECRETS)):
+        return sync.settings_check(permissions, secrets)
+
+    def test_response_parsing_reads_the_status_and_the_json_body(self):
+        self.assertEqual(sync.http_response(http(200, json.dumps(self.PERMISSIONS))), (200, self.PERMISSIONS))
+        self.assertEqual(sync.http_response(http(403, json.dumps(self.DENIED), "Forbidden")), (403, self.DENIED))
+        self.assertEqual(sync.http_response("HTTP/1.1 502 Bad Gateway\r\n\r\n<html>"), (502, None))
+        self.assertEqual(sync.http_response(http(200, "")), (200, None))
+        for nothing in ("", "\n", '{"default_workflow_permissions": "read"}', "gh: connection refused",
+                        "gh: error\nHTTP/2.0 403 Forbidden\r\n\r\n{}", " HTTP/2.0 403 Forbidden\n\n{}"):
+            with self.subTest(nothing=nothing):
+                self.assertIsNone(sync.http_response(nothing)[0])
 
     def test_read_only_token_and_no_repository_secret_is_safe(self):
-        self.assertEqual(sync.settings_problems(*self.SAFE), [])
+        self.assertEqual(self.check(), ([], []))
 
     def test_a_writable_default_token_is_unsafe(self):
-        problems = sync.settings_problems({"default_workflow_permissions": "write"}, self.SAFE[1])
-        self.assertEqual(problems, ["default workflow permissions are 'write', not 'read'"])
+        problems, unverified = self.check(permissions=(200, {"default_workflow_permissions": "write"}))
+        self.assertEqual((problems, unverified), (["default workflow permissions are 'write', not 'read'"], []))
 
     def test_any_repository_secret_is_unsafe(self):
         listing = {"total_count": 2, "secrets": [{"name": "A"}, {"name": "B"}]}
-        self.assertEqual(sync.settings_problems(self.SAFE[0], listing), ["repository secrets exist (2): A, B"])
-        self.assertEqual(len(sync.settings_problems(self.SAFE[0], {"total_count": 3, "secrets": []})), 1)
-        self.assertEqual(len(sync.settings_problems(self.SAFE[0], {"total_count": 0, "secrets": [{"name": "A"}]})), 1)
+        self.assertEqual(self.check(secrets=(200, listing)), (["repository secrets exist (2): A, B"], []))
+        for listing in ({"total_count": 3, "secrets": []}, {"total_count": 0, "secrets": [{"name": "A"}]}):
+            with self.subTest(listing=listing):
+                self.assertEqual(len(self.check(secrets=(200, listing))[0]), 1)
 
-    def test_error_bodies_and_malformed_listings_are_unsafe(self):
-        error = {"message": "Resource not accessible by personal access token", "status": "403"}
-        self.assertEqual(len(sync.settings_problems(error, error)), 2)
-        safe = self.SAFE[0]
-        for permissions, secrets in ((safe, {"secrets": []}), (safe, {"total_count": "0", "secrets": []}),
-                                     (safe, {"total_count": 0}), ([], self.SAFE[1]), (safe, [])):
-            with self.subTest(permissions=permissions, secrets=secrets):
-                self.assertTrue(sync.settings_problems(permissions, secrets))
+    def test_a_setting_the_token_may_not_read_is_unverified_not_unsafe(self):
+        for status in (403, 404):
+            with self.subTest(status=status):
+                denied = (status, self.DENIED)
+                self.assertEqual(self.check(permissions=denied), ([], ["default workflow permissions"]))
+                self.assertEqual(self.check(secrets=denied), ([], ["repository secrets"]))
+                self.assertEqual(self.check(denied, denied),
+                                 ([], ["default workflow permissions", "repository secrets"]))
+
+    def test_an_unreadable_setting_never_hides_a_readable_unsafe_one(self):
+        denied, listed = (403, self.DENIED), (200, {"total_count": 1, "secrets": [{"name": "A"}]})
+        self.assertEqual(self.check(permissions=denied, secrets=listed),
+                         (["repository secrets exist (1): A"], ["default workflow permissions"]))
+        problems, unverified = self.check(permissions=(200, {"default_workflow_permissions": "write"}), secrets=denied)
+        self.assertEqual((len(problems), unverified), (1, ["repository secrets"]))
+
+    def test_any_other_failure_to_read_a_setting_is_unsafe(self):
+        for status in (None, 401, 429, 500, 502, 301):
+            with self.subTest(status=status):
+                self.assertEqual(len(self.check(permissions=(status, self.DENIED))[0]), 1)
+                self.assertEqual(len(self.check(secrets=(status, None))[0]), 1)
+        self.assertEqual(self.check(secrets=(None, None))[0],
+                         ["repository secrets could not be read (no HTTP response)"])
+        self.assertEqual(self.check(secrets=(500, None))[0], ["repository secrets could not be read (HTTP 500)"])
+
+    def test_a_malformed_readable_answer_is_unsafe(self):
+        for body in (None, [], self.DENIED, {"default_workflow_permissions": None}):
+            with self.subTest(body=body):
+                self.assertEqual(len(self.check(permissions=(200, body))[0]), 1)
+        for body in (None, [], self.DENIED, {"secrets": []}, {"total_count": "0", "secrets": []}, {"total_count": 0}):
+            with self.subTest(body=body):
+                self.assertEqual(len(self.check(secrets=(200, body))[0]), 1)
 
     def run_guard(self, permissions, secrets):
+        """(exit status, stdout, stderr) of the `guard` command on two `gh api --include` outputs."""
         with tempfile.TemporaryDirectory() as tmp:
-            paths = [Path(tmp) / "permissions.json", Path(tmp) / "secrets.json"]
+            paths = [Path(tmp) / "permissions.http", Path(tmp) / "secrets.http"]
             for path, content in zip(paths, (permissions, secrets), strict=True):
-                path.write_text(content, encoding="utf-8")
-            error = io.StringIO()
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
+                path.write_text(content, encoding="utf-8", newline="")
+            out, error = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(error):
                 code = sync.main(["guard", "--workflow-permissions", str(paths[0]), "--secrets", str(paths[1])])
-            return code, error.getvalue()
+            return code, out.getvalue(), error.getvalue()
 
-    def test_guard_command_passes_only_safe_settings(self):
-        safe = [json.dumps(part) for part in self.SAFE]
-        self.assertEqual(self.run_guard(*safe), (0, ""))
-        code, error = self.run_guard('{"default_workflow_permissions": "write"}',
-                                     '{"total_count": 1, "secrets": [{"name": "A"}]}')
+    def test_guard_command_passes_safe_settings_without_a_warning(self):
+        code, out, error = self.run_guard(http(200, json.dumps(self.PERMISSIONS)), http(200, json.dumps(self.SECRETS)))
+        self.assertEqual((code, error), (0, ""))
+        self.assertNotIn("::warning::", out)
+
+    def test_guard_command_warns_and_continues_when_the_token_may_not_read(self):
+        denied = json.dumps(self.DENIED)
+        for status, reason in ((403, "Forbidden"), (404, "Not Found")):
+            with self.subTest(status=status):
+                code, out, error = self.run_guard(http(status, denied, reason), http(status, denied, reason))
+                self.assertEqual((code, error), (0, ""))
+                self.assertRegex(out, r"(?m)^::warning::upstream-sync could not verify default workflow permissions "
+                                      r"and repository secrets: ")
+        code, out, _ = self.run_guard(http(200, json.dumps(self.PERMISSIONS)), http(403, denied, "Forbidden"))
+        self.assertEqual(code, 0)
+        self.assertIn("::warning::upstream-sync could not verify repository secrets: ", out)
+
+    def test_guard_command_fails_on_what_it_can_read_even_beside_an_unreadable_setting(self):
+        code, out, error = self.run_guard(http(200, '{"default_workflow_permissions": "write"}'),
+                                          http(403, json.dumps(self.DENIED), "Forbidden"))
         self.assertEqual(code, 2)
-        self.assertIn("a sync push is unsafe: default workflow permissions are 'write', not 'read'; "
-                      "repository secrets exist (1): A", error)
-        self.assertEqual(self.run_guard("", safe[1])[0], 2)
+        self.assertIn("::warning::upstream-sync could not verify repository secrets: ", out)
+        self.assertIn("a sync push is unsafe: default workflow permissions are 'write', not 'read'", error)
+        code, _, error = self.run_guard(http(200, json.dumps(self.PERMISSIONS)),
+                                        http(200, '{"total_count": 1, "secrets": [{"name": "A"}]}'))
+        self.assertEqual(code, 2)
+        self.assertIn("repository secrets exist (1): A", error)
+
+    def test_guard_command_fails_on_any_other_error_or_no_answer(self):
+        safe = http(200, json.dumps(self.PERMISSIONS))
+        for answer in ("", http(500, '{"message": "Server Error"}', "Internal Server Error"), http(200, "not json"),
+                       http(401, '{"message": "Bad credentials"}', "Unauthorized"), json.dumps(self.SECRETS)):
+            with self.subTest(answer=answer):
+                code, out, _ = self.run_guard(safe, answer)
+                self.assertEqual(code, 2)
+                self.assertNotIn("::warning::", out)
 
 
 class GateTests(unittest.TestCase):
@@ -584,10 +656,15 @@ class WorkflowOrderTests(unittest.TestCase):
         self.assertLess(guard, self.position("run: scripts/upstream-sync-publish.sh"))
         self.assertLess(self.position("    environment: upstream-sync"), guard)
         token = self.position("          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}\n")
-        self.assertLess(self.position("name: Require the settings that make the push safe"), token)
+        self.assertLess(self.position("name: Check the settings that make the push safe"), token)
         self.assertLess(token, guard)
-        for listing in ("setting permissions/workflow workflow-permissions.json", "setting secrets secrets.json"):
-            self.assertLess(token, self.position(listing))
+        for setting, saved in (("permissions/workflow", "workflow-permissions"), ("secrets", "secrets")):
+            listing = self.position(f'gh api --include "repos/$GH_REPO/actions/{setting}" '
+                                    f'> "$RUNNER_TEMP/{saved}.http" || true\n')
+            self.assertLess(token, listing)
+            self.assertLess(listing, guard)
+        self.position('guard --workflow-permissions "$RUNNER_TEMP/workflow-permissions.http" \\\n'
+                      '            --secrets "$RUNNER_TEMP/secrets.http"')
 
     def test_labels_exist_before_the_publish_script_runs(self):
         self.assertLess(self.position("name: Create the sync labels if missing"),

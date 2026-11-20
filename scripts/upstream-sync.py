@@ -33,6 +33,8 @@ LINUX_PORT, LINUX_PORT_BRANCH = "melonamin/agterm-linux", "linux-port"
 LINUX_PORT_REF = "refs/upstream-heads/linux-port"  # where the workflow fetches the linux-port head
 TASK = "#476"
 UNDECIDED = 3  # `pause` exit status: SYNC_PAUSED does not pause, so the incident listing decides
+STATUS_LINE = re.compile(r"HTTP/[0-9.]+ ([0-9]{3})\b", re.ASCII)
+UNREADABLE = (403, 404)  # how GitHub answers a token that lacks the permission to read a setting
 BASE_PIN_FILES = (".github/workflows/ci.yml", ".github/workflows/release-linux.yml")
 LIST_BUDGET = 28000  # characters per list, so two lists stay below GitHub's 65536-character body limit
 UNMERGED = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
@@ -177,24 +179,51 @@ def select(*, tags, tag_times, linux_port, in_main, in_linux_port, now, override
     return result(SOURCE_UMPUTUN, tag, releases[tag], f"{lacked}, more than {LINUX_PORT_LAG_DAYS}")
 
 
-def settings_problems(workflow_permissions, secrets):
-    """Why a sync push is unsafe under these repository settings; empty when it is safe.
+def http_response(text):
+    """(status, JSON body) of `gh api --include` output; (None, None) when it holds no response."""
+    lines = text.splitlines()
+    status = STATUS_LINE.match(lines[0]) if lines else None
+    blank = next((index for index, line in enumerate(lines) if not line.strip()), len(lines))
+    try:
+        body = json.loads("\n".join(lines[blank + 1:]))
+    except ValueError:
+        body = None
+    return (int(status[1]) if status else None), body
+
+
+def workflow_token_problem(body):
+    default = body.get("default_workflow_permissions") if isinstance(body, dict) else None
+    return "" if default == "read" else f"default workflow permissions are {default!r}, not 'read'"
+
+
+def repository_secrets_problem(body):
+    count, listed = (body.get("total_count"), body.get("secrets")) if isinstance(body, dict) else (None, None)
+    if type(count) is not int or not isinstance(listed, list):
+        return "the repository secret listing has no total_count and secrets"
+    if not count and not listed:
+        return ""
+    names = ", ".join(str(secret.get("name")) if isinstance(secret, dict) else "?" for secret in listed)
+    return f"repository secrets exist ({count}): {names}"
+
+
+def settings_check(workflow_permissions, secrets):
+    """(problems, unverified settings) for a sync push, from the two (status, body) responses.
 
     The pushed branch runs upstream-authored workflows before any review. That is acceptable only while
-    their token is read-only and no repository secret exists for them to read."""
-    if not isinstance(workflow_permissions, dict) or not isinstance(secrets, dict):
-        return ["a repository settings response is not a JSON object"]
-    problems = []
-    default = workflow_permissions.get("default_workflow_permissions")
-    if default != "read":
-        problems.append(f"default workflow permissions are {default!r}, not 'read'")
-    count, listed = secrets.get("total_count"), secrets.get("secrets")
-    if type(count) is not int or not isinstance(listed, list):
-        problems.append("the repository secret listing has no total_count and secrets")
-    elif count or listed:
-        names = ", ".join(str(secret.get("name")) if isinstance(secret, dict) else "?" for secret in listed)
-        problems.append(f"repository secrets exist ({count}): {names}")
-    return problems
+    their token is read-only and no repository secret exists for them to read. A setting the token may
+    not read (403 or 404) is unverified, not a problem: the sync token is deliberately not given the
+    Administration and Secrets read it would take. Any other failure to read one is a problem."""
+    problems, unverified = [], []
+    checks = (("default workflow permissions", workflow_permissions, workflow_token_problem),
+              ("repository secrets", secrets, repository_secrets_problem))
+    for name, (status, body), problem in checks:
+        if status in UNREADABLE:
+            unverified.append(name)
+        elif status != 200:
+            problems.append(f"{name} could not be read ({f'HTTP {status}' if status else 'no HTTP response'})")
+        elif found := problem(body):
+            problems.append(found)
+    return problems, unverified
 
 
 def decide(*, paused_value, incidents, prs, remote_branches, **selection):
@@ -381,10 +410,11 @@ def main(argv=None):
     plan_cmd.add_argument("--first-seen", type=Path, help="the last run's first-seen record; a missing file is empty")
     plan_cmd.add_argument("--first-seen-out", type=Path, help="where to write the record the next run restores")
     plan_cmd.add_argument("--now", type=int, help="epoch seconds the lag is measured at; the clock by default")
-    guard_cmd = sub.add_parser("guard", help="fail unless the repository settings make a sync push safe")
+    guard_cmd = sub.add_parser("guard", help="fail when the repository settings make a sync push unsafe")
     guard_cmd.add_argument("--workflow-permissions", required=True, type=Path,
-                           help="gh api repos/OWNER/REPO/actions/permissions/workflow")
-    guard_cmd.add_argument("--secrets", required=True, type=Path, help="gh api repos/OWNER/REPO/actions/secrets")
+                           help="gh api --include repos/OWNER/REPO/actions/permissions/workflow")
+    guard_cmd.add_argument("--secrets", required=True, type=Path,
+                           help="gh api --include repos/OWNER/REPO/actions/secrets")
     pause_cmd = sub.add_parser("pause", help="decide the pause alone, before anything is fetched")
     pause_cmd.add_argument("--paused", default="")
     pause_cmd.add_argument("--incidents", type=Path, help=f"gh issue list --state open --label {LABEL_INCIDENT} "
@@ -424,11 +454,16 @@ def main(argv=None):
                 args.first_seen_out.write_text(json.dumps(kept, indent=2, sort_keys=True) + "\n", encoding="utf-8")
             emit(plan)
         elif args.command == "guard":
-            problems = settings_problems(json.loads(args.workflow_permissions.read_text(encoding="utf-8")),
-                                         json.loads(args.secrets.read_text(encoding="utf-8")))
+            problems, unverified = settings_check(
+                http_response(args.workflow_permissions.read_text(encoding="utf-8")),
+                http_response(args.secrets.read_text(encoding="utf-8")))
+            if unverified:
+                print(f"::warning::upstream-sync could not verify {' and '.join(unverified)}: the token may not "
+                      "read them. The push relies on them being as docs/plans/20261119-linux-home-design.md "
+                      "(C2, Trust) records.")
             if problems:
                 raise SyncError("a sync push is unsafe: " + "; ".join(problems))
-            print("repository settings allow a sync push")
+            print("no repository setting that could be read makes a sync push unsafe")
         else:
             base = git("rev-parse", "--verify", args.base + "^{commit}").stdout.strip()
             tags = fetched_tags()

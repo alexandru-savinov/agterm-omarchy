@@ -91,9 +91,12 @@ follow linux-port:
     deploys from main only;
   - allowed actions are a selected list.
 
-  The publish job enforces the two that carry the risk: it refuses to push unless the default workflow
-  permissions are read and no repository secret exists. It reads both as the PAT, which needs Administration
-  and Secrets read for that. A cross-repository PR never counts as an open sync PR, whatever its label.
+  Before it pushes, the publish job reads the two that carry the risk, and fails if the default workflow
+  permissions are not read or a repository secret exists. Reading them takes Administration and Secrets
+  read, which the sync PAT is deliberately not given (least privilege). GitHub then answers 403 or 404, and
+  the job warns that those settings are unverified and pushes anyway. Any other failure to read them stops
+  the push. So today the settings above are a manual check: re-verify them whenever repository settings
+  or secrets change. A cross-repository PR never counts as an open sync PR, whatever its label.
 - Apply the pause rule in C4 before opening a sync PR.
 - Only one sync PR is open at a time. Commits and tags that arrive while one is open are taken by the next run,
   after merge.
