@@ -3,7 +3,18 @@ paths:
   - ".github/workflows/**"
 ---
 
-## CI (`ci.yml`)
+## Omarchy CI and macOS validation
+
+- Fork CI runs in `.github/workflows/omarchy-ci.yml`. Keep the required aggregate job named `CI`.
+- `.github/workflows/ci.yml` is the byte-identical copy shipped by the pinned `melonamin/agterm-linux` source.
+  It stays manually disabled in this repository. The required workflow guard checks its bytes and registry state.
+- Keep `UPSTREAM_BASE_TAG` and `UPSTREAM_BASE_COMMIT` aligned in `omarchy-ci.yml` and `release-linux.yml`.
+  When the Linux sync source moves, update `LINUX_PORT_BASE_COMMIT` and preserve its exact `ci.yml`.
+- Both build matrix legs attest their tested CI tarballs on pushes to `main`.
+  CI-native verification binds the artifact to `omarchy-ci.yml`, the main ref and source commit.
+- Hosted macOS validation runs in `omarchy-macos.yml`. Follow the exact-head rule for `upstream-offer` PRs.
+
+## Upstream CI (`ci.yml`)
 
 - Linux branch and release jobs pin the exact incorporated upstream tag for boundary checks.
   After building the bundled zmx and shell resources, they run `ServerLifecycleTests` with
@@ -11,8 +22,8 @@ paths:
   Missing prerequisites must fail this gate instead of silently skipping real process coverage.
   The Omarchy fork's branch CI skips it: its zmx v1 build writes no `ZMX_EXIT_FILE` record, which only
   agterm-server reads (`scripts/zmx-patches/0009`).
-- `ci.yml` runs for pushes and PRs to `master`; concurrency cancels the older run for the same ref. All
-  macOS jobs use `macos-26`. Releases are local; see `.claude/rules/release.md`.
+- The inherited pipeline runs for pushes and PRs to `linux-port` at the sync source.
+  macOS jobs use `macos-26`.
 - `docs/ci-flakes.md` records every investigated intermittent failure by test name and log text; read it
   before investigating a red run, and add an entry after one.
 - Every job carries its own `timeout-minutes`, with generous headroom over observed runtime. A job without

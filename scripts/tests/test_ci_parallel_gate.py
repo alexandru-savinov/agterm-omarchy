@@ -12,7 +12,7 @@ import unittest
 class ParallelGateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml").read_text()
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/omarchy-ci.yml").read_text()
         cls.gate = workflow.split("  ci:\n", 1)[1].split("\n  cookbook:\n", 1)[0]
         cls.script = textwrap.dedent(cls.gate.split("        run: |\n", 1)[1])
         cls.jobs = {"scripts", "changes", "test-linux", "lint-linux", "build-linux", "ghostty-patch-tests", "zmx-patch-tests",

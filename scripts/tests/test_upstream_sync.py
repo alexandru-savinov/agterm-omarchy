@@ -242,7 +242,9 @@ class GitRepoTests(unittest.TestCase):
                               capture_output=True, text=True).stdout.strip()
 
     def commit(self, name, text, message):
-        (self.repo / name).write_text(text, encoding="utf-8")
+        path = self.repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
         self.git("add", name)
         self.git("commit", "-q", "-m", message)
 
@@ -321,6 +323,20 @@ class GitRepoTests(unittest.TestCase):
         self.assertEqual((conflicts, github), ([], []))
         parents = self.git("rev-list", "--parents", "-n", "1", "sync/umputun-v0.3.0").split()[1:]
         self.assertEqual(parents, [self.head(), clean])
+
+    def test_merge_advances_downstream_pins_without_editing_upstream_ci(self):
+        pins = f'env:\n  UPSTREAM_BASE_TAG: "v0.1.0"\n  UPSTREAM_BASE_COMMIT: "{self.base_tag}"\n'
+        for name in (sync.CI_WORKFLOW, sync.RELEASE_WORKFLOW, ".github/workflows/ci.yml"):
+            self.commit(name, pins, f"initial pins: {name}")
+        branch = "sync/umputun-v0.2.0"
+        conflicts, github = sync.build(self.root / "wt", self.head(), branch, "v0.2.0", self.upstream)
+
+        self.assertEqual((conflicts, github), ([], []))
+        for name in (sync.CI_WORKFLOW, sync.RELEASE_WORKFLOW):
+            content = self.git("show", f"{branch}:{name}")
+            self.assertIn('UPSTREAM_BASE_TAG: "v0.2.0"', content)
+            self.assertIn(f'UPSTREAM_BASE_COMMIT: "{self.upstream}"', content)
+        self.assertEqual(self.git("show", f"{branch}:.github/workflows/ci.yml"), pins.strip())
 
     def test_conflicts_are_committed_with_markers_and_both_parents(self):
         self.commit("shared.txt", "fork\n", "fork change")

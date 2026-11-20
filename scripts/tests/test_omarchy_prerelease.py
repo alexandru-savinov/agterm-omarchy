@@ -24,7 +24,7 @@ SPEC.loader.exec_module(promotion)
 SHA = "a" * 40
 REPO = Path(__file__).resolve().parents[2]
 PROMOTION_WORKFLOW = REPO / ".github/workflows/prerelease-omarchy.yml"
-CI_WORKFLOW = REPO / ".github/workflows/ci.yml"
+CI_WORKFLOW = REPO / ".github/workflows/omarchy-ci.yml"
 RELEASE_SPEC = importlib.util.spec_from_file_location("release_fixture", Path(__file__).resolve().parent / "test_omarchy_release.py")
 release_fixture = importlib.util.module_from_spec(RELEASE_SPEC)
 RELEASE_SPEC.loader.exec_module(release_fixture)
@@ -170,7 +170,7 @@ class PromotionTests(unittest.TestCase):
                 promotion.validate_payload(payload(extra=[self.link(*item) for item in links]), "aarch64", SHA)
 
     def ci_archive(self, links=()):
-        # Archive a real directory tree exactly as ci.yml does: tar -czf OUT -C PARENT agterm-stage.
+        # Archive a real directory tree exactly as omarchy-ci.yml does: tar -czf OUT -C PARENT agterm-stage.
         with tempfile.TemporaryDirectory() as temp:
             stage = Path(temp) / "agterm-stage"
             header = bytearray(b"\x7fELF\x02\x01" + b"\0" * 14)
@@ -334,11 +334,11 @@ class FakeGitHub:
         if not path.startswith(base):
             raise AssertionError(f"Unexpected API call {path}")
         path = path[len(base):]
-        if path == "actions/workflows/ci.yml":
+        if path == "actions/workflows/omarchy-ci.yml":
             return {"id": 42}
         if path.startswith("git/ref/heads/"):
             return {"object": {"sha": self.sha}}
-        if path.startswith("actions/workflows/ci.yml/runs?"):
+        if path.startswith("actions/workflows/omarchy-ci.yml/runs?"):
             return [{"workflow_runs": self.listed if "branch=main&" in path else []}]
         for run_id, (run, jobs, artifacts) in self.runs.items():
             if path == f"actions/runs/{run_id}":
@@ -409,7 +409,7 @@ class DryRunTests(unittest.TestCase):
             self.assertEqual([item["filename"] for item in evidence["artifacts"]],
                              [f"agterm-omarchy-{arch}.tar.gz" for arch in promotion.ARCHITECTURES])
         paths = [call[2] for call in github.calls]
-        for expected in ("actions/workflows/ci.yml", "/jobs", "/artifacts", "/zip", f"git/ref/tags/{tag}",
+        for expected in ("actions/workflows/omarchy-ci.yml", "/jobs", "/artifacts", "/zip", f"git/ref/tags/{tag}",
                          f"releases/tags/{tag}"):
             self.assertTrue(any(expected in path for path in paths), f"{expected} was not checked")
 

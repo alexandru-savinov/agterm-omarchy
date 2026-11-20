@@ -9,7 +9,7 @@ import textwrap
 import unittest
 
 
-WORKFLOW = pathlib.Path(__file__).resolve().parents[2] / '.github/workflows/ci.yml'
+WORKFLOW = pathlib.Path(__file__).resolve().parents[2] / '.github/workflows/omarchy-ci.yml'
 
 
 class ProbeRoutingTests(unittest.TestCase):
@@ -28,7 +28,7 @@ class ProbeRoutingTests(unittest.TestCase):
             'scripts/omarchy-config-probe.py', 'scripts/tests/test_omarchy_config_probe.py'])
         for pattern in ('scripts/**', 'plugins/**', '.agents/**', '.claude-plugin/**',
                         'agtermCore/**', 'agterm-linux/**', 'linux/**', 'packaging/linux/**',
-                        '.github/workflows/ci.yml'):
+                        '.github/workflows/omarchy-ci.yml'):
             self.assertIn('"' + pattern + '"', self.text)
 
     def test_existing_validation_jobs_are_retained(self):

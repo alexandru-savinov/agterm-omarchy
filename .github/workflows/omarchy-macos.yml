@@ -1,4 +1,4 @@
-name: macOS weekly build
+name: Omarchy macOS validation
 
 # The fork's CI builds only the Linux targets, so a shared-core change once left the macOS app
 # uncompilable for two months (#370). This builds and tests the macOS app on main every week, and on
@@ -8,21 +8,49 @@ on:
   schedule:
     - cron: '41 5 * * 1'
   workflow_dispatch:
-  # A change to this workflow runs it once on its own pull request.
   pull_request:
-    paths: ['.github/workflows/macos-weekly.yml']
+    types: [opened, synchronize, reopened, labeled]
 
 permissions:
   contents: read
 
 concurrency:
-  group: macos-weekly-${{ github.ref }}
+  group: omarchy-macos-${{ github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'upstream-sync' && github.event.label.name != 'upstream-offer' && github.run_id || '' }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' ||
+       github.event.label.name == 'upstream-sync' || github.event.label.name == 'upstream-offer')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      shared: ${{ steps.paths.outputs.shared }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: paths
+        with:
+          filters: |
+            shared:
+              - 'agtermCore/**'
+              - '.github/workflows/omarchy-macos.yml'
+
   macos:
+    name: Hosted macOS checks
+    needs: changes
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+       (needs.changes.result == 'success' &&
+        (needs.changes.outputs.shared == 'true' ||
+         contains(github.event.pull_request.labels.*.name, 'upstream-sync') ||
+         contains(github.event.pull_request.labels.*.name, 'upstream-offer'))))
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 90
     defaults:
       run:
         shell: bash
@@ -111,7 +139,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: macos-weekly-${{ github.run_id }}-${{ github.run_attempt }}
+          name: omarchy-macos-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             validation-logs
             build/DerivedData/Logs/Test

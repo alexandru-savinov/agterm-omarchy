@@ -22,6 +22,8 @@ TAG_NAMESPACE = "refs/upstream-tags"
 UPSTREAM = "umputun/agterm"
 TASK = "#476"
 LIST_BUDGET = 28000  # characters per list, so two lists stay below GitHub's 65536-character body limit
+CI_WORKFLOW = ".github/workflows/omarchy-ci.yml"
+RELEASE_WORKFLOW = ".github/workflows/release-linux.yml"
 UNMERGED = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
 CONFLICT_KINDS = {"DD": "both deleted", "AU": "added by us", "UD": "deleted by them", "UA": "added by them",
                   "DU": "deleted by us", "AA": "both added", "UU": "both modified"}
@@ -153,12 +155,14 @@ def pr_text(*, tag, commit, base_sha, head_sha, run_url, conflicts, github_chang
         f"Merges [{UPSTREAM} {tag}]({release}) (`{commit}`) into main (`{base_sha}`).",
         "Opened by `.github/workflows/upstream-sync.yml`. Merge as a plain merge commit after CI on both "
         "arches, a fresh-context review with no HIGH or MEDIUM, and the native gates on the merge result.",
+        "The merge updates `UPSTREAM_BASE_TAG` and `UPSTREAM_BASE_COMMIT` in `omarchy-ci.yml` and "
+        "`release-linux.yml`. Resolve any conflicted pins before marking the PR ready.",
         "The fields above name the run that built this branch, not a review: the reviewer replaces them.", ""]
     if conflicts:
         body += [f"## Conflicts ({len(conflicts)})", "",
                  "The merge commit records these paths as committed with conflict markers (or the surviving side "
-                 "of a delete conflict). Resolve them on this branch, adapt `agterm-linux`, and move "
-                 "`UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` in `ci.yml`, then mark the PR ready.", "",
+                 "of a delete conflict). Resolve them on this branch and adapt `agterm-linux` before "
+                 "marking the PR ready.", "",
                  *listing([f"- `{path}` ({kind})" for path, kind in conflicts]), ""]
     if github_changes:
         body += [f"## Changes under .github/ ({len(github_changes)})", "",
@@ -200,26 +204,48 @@ IDENTITY = ("-c", "user.name=github-actions[bot]",
             "-c", "user.email=41898283+github-actions[bot]@users.noreply.github.com")
 
 
+def update_boundary(worktree, base, tag, commit, conflicted_paths):
+    """Update the downstream boundary pins without changing any upstream-owned workflow."""
+    for name in (CI_WORKFLOW, RELEASE_WORKFLOW):
+        if name in conflicted_paths or git("cat-file", "-e", f"{base}:{name}", cwd=worktree, check=False).returncode:
+            continue
+        path = Path(worktree) / name
+        if path.is_symlink():
+            raise SyncError(f"cannot update boundary pins in symlink {name}")
+        text = path.read_text(encoding="utf-8")
+        for key, value in (("UPSTREAM_BASE_TAG", tag), ("UPSTREAM_BASE_COMMIT", commit)):
+            text, count = re.subn(rf'^  {key}: "[^"\n]+"$', f'  {key}: "{value}"', text, flags=re.MULTILINE)
+            if count != 1:
+                raise SyncError(f"expected exactly one {key} in {name}")
+        path.write_text(text, encoding="utf-8")
+        git("add", "--", name, cwd=worktree)
+
+
 def build(worktree, base, branch, tag, commit):
     """Create `branch` in a new worktree as base merged with commit; conflicts are committed with markers.
 
     Returns (conflicts, paths the merge changes under .github/)."""
     git("worktree", "add", "-b", branch, str(worktree), base)
     message = f"Merge {UPSTREAM} {tag} into main"
-    merged = git(*IDENTITY, "merge", "--no-ff", "--no-edit", "-m", message, commit, cwd=worktree, check=False)
+    merged = git(*IDENTITY, "merge", "--no-ff", "--no-commit", commit, cwd=worktree, check=False)
     conflicts = conflicts_from_status(git("status", "--porcelain=v1", "-z", cwd=worktree).stdout)
     if merged.returncode and not conflicts:
         raise SyncError(f"git merge failed without conflicts: {merged.stderr.strip() or merged.stdout.strip()}")
+    if git("rev-parse", "--verify", "MERGE_HEAD", cwd=worktree, check=False).returncode:
+        raise SyncError("sync commit must have both main and upstream parents")
+    github = git("diff", "--name-only", "-z", base, "--", ".github", cwd=worktree).stdout
+    update_boundary(worktree, base, tag, commit, {path for path, _ in conflicts})
     if conflicts:
         git("add", "-A", cwd=worktree)
         listing = "\n".join(path for path, _ in conflicts)
         git(*IDENTITY, "commit", "--no-verify", "-m", f"{message} (conflicts committed for adaptation)",
             "-m", f"Conflicted paths:\n{listing}", cwd=worktree)
+    else:
+        git(*IDENTITY, "commit", "--no-verify", "-m", message, cwd=worktree)
     parents = git("rev-list", "--parents", "-n", "1", "HEAD", cwd=worktree).stdout.split()[1:]
     if parents != [git("rev-parse", base).stdout.strip(), commit]:
         raise SyncError(f"sync commit parents are {parents}, expected base then {commit}")
-    github = git("diff", "--name-only", "-z", base, "HEAD", "--", ".github", cwd=worktree).stdout
-    return conflicts, sorted(path for path in github.split("\0") if path)
+    return conflicts, sorted(set(github.split("\0")) - {""})
 
 
 def emit(values):

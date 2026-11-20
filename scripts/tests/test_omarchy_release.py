@@ -176,7 +176,7 @@ class ReleaseTagTests(unittest.TestCase):
             release.release_tag("0.41.1.1", "0.41.1", rehearsal=True)
 
     def test_upstream_base_comes_from_ci(self):
-        tag = re.search(r'^  UPSTREAM_BASE_TAG: "v(.+)"$', (REPO / ".github/workflows/ci.yml").read_text(), re.MULTILINE)
+        tag = re.search(r'^  UPSTREAM_BASE_TAG: "v(.+)"$', (REPO / ".github/workflows/omarchy-ci.yml").read_text(), re.MULTILINE)
         self.assertEqual(release.upstream_base(), tag[1])
 
 
@@ -201,7 +201,7 @@ class CommandAndWorkflowTests(unittest.TestCase):
             self.assertIn("already exists", again.stderr)
 
     def test_ci_archives_as_root_and_rehearses_on_both_arches(self):
-        workflow = (REPO / ".github/workflows/ci.yml").read_text()
+        workflow = (REPO / ".github/workflows/omarchy-ci.yml").read_text()
         self.assertIn('tar --owner=0 --group=0 --numeric-owner -czf "$RUNNER_TEMP/agterm-omarchy-${BUILD_ARCH}.tar.gz"',
                       workflow)
         upload = workflow.index("- name: Upload tested runtime payload")

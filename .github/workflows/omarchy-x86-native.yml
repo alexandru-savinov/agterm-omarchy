@@ -293,7 +293,7 @@ jobs:
           attested=verified
           if [[ "$SOURCE" == ci-run ]]; then
             gh attestation verify "$release/$archive" --repo "$GITHUB_REPOSITORY" \
-              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" --source-ref refs/heads/main \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/omarchy-ci.yml" --source-ref refs/heads/main \
               --source-digest "$SHA" --deny-self-hosted-runners > "$RUNNER_TEMP/out/attestation.txt" 2>&1 || attested=unverified
           else
             for predicate in https://slsa.dev/provenance/v1 "https://github.com/$GITHUB_REPOSITORY/attestations/promotion/v1"; do

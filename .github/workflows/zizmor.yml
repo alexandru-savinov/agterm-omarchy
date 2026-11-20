@@ -32,6 +32,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Select tracked Actions inputs
+        id: inputs
+        shell: bash
+        run: |
+          # Preserve workflow, composite-action and configuration scans, except the disabled ci.yml.
+          git ls-files -z -- ':(glob).github/workflows/*.yml' ':(glob).github/workflows/*.yaml' \
+            ':(glob)**/action.yml' ':(glob)**/action.yaml' '.github/dependabot.yml' '.github/dependabot.yaml' \
+            ':(glob)**/.pre-commit-config.y*ml' ':(glob)**/.pre-commit-hooks.y*ml' \
+            ':(exclude).github/workflows/ci.yml' > "$RUNNER_TEMP/zizmor-inputs"
+          mapfile -d '' -t paths < "$RUNNER_TEMP/zizmor-inputs"
+          (( ${#paths[@]} > 0 ))
+          for path in "${paths[@]}"; do
+            # The pinned action splits its input on whitespace and expands shell globs.
+            [[ "$path" =~ ^[a-zA-Z0-9._/-]+$ ]] || exit 1
+          done
+          printf 'paths=%s\n' "${paths[*]}" >> "$GITHUB_OUTPUT"
       - uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
         with:
           version: v1.31.1
+          inputs: ${{ steps.inputs.outputs.paths }}

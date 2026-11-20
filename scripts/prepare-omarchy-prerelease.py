@@ -15,7 +15,8 @@ import tarfile
 import zipfile
 
 REPOSITORY = "alexandru-savinov/agterm-omarchy"
-WORKFLOW = ".github/workflows/ci.yml"
+WORKFLOW = ".github/workflows/omarchy-ci.yml"
+WORKFLOW_API = f"actions/workflows/{Path(WORKFLOW).name}"
 ARCHITECTURES = {"x86_64": 62, "aarch64": 183}
 BRANCHES = ("main", "omarchy")
 TAG = re.compile(r"omarchy-dev-[0-9a-f]{12}-run[1-9][0-9]*")
@@ -85,11 +86,11 @@ def select_artifacts(artifacts, run, sha):
 
 def discover():
     """Newest run at a current trusted branch head that main() would accept for an unpublished tag."""
-    workflow = api("actions/workflows/ci.yml")
+    workflow = api(WORKFLOW_API)
     candidates = []
     for branch in BRANCHES:
         head = api(f"git/ref/heads/{branch}")["object"]["sha"]
-        pages = api(f"actions/workflows/ci.yml/runs?branch={branch}&head_sha={head}&status=success&per_page=100",
+        pages = api(f"{WORKFLOW_API}/runs?branch={branch}&head_sha={head}&status=success&per_page=100",
                     pages=True)
         for run in (run for page in pages for run in page["workflow_runs"]):
             try:
@@ -242,7 +243,7 @@ def source_base(release, sha):
     """The upstream base the source commit itself declares, not this checkout's."""
     import base64
     content = api(f"contents/{WORKFLOW}?ref={sha}")
-    require(content.get("encoding") == "base64", "Unreadable source ci.yml")
+    require(content.get("encoding") == "base64", "Unreadable source omarchy-ci.yml")
     return release.upstream_base(base64.b64decode(content["content"]).decode())
 
 
@@ -283,8 +284,8 @@ def write_outputs(values):
 def discover_commit(sha):
     """Newest successful main CI run at SHA, which must be on main, for a versioned release of that commit."""
     require(re.fullmatch(r"[0-9a-f]{40}", sha) and on_main(sha), f"{sha} is not a commit on main")
-    workflow = api("actions/workflows/ci.yml")
-    pages = api(f"actions/workflows/ci.yml/runs?branch=main&head_sha={sha}&status=success&per_page=100", pages=True)
+    workflow = api(WORKFLOW_API)
+    pages = api(f"{WORKFLOW_API}/runs?branch=main&head_sha={sha}&status=success&per_page=100", pages=True)
     candidates = []
     for run in (run for page in pages for run in page["workflow_runs"]):
         if run["head_branch"] != "main":
@@ -304,8 +305,8 @@ def discover_releasable(limit=20):
 
     A PR dry run uses it so an unfinished CI run at the main head falls back to the last releasable commit
     instead of checking nothing."""
-    workflow = api("actions/workflows/ci.yml")
-    runs = api(f"actions/workflows/ci.yml/runs?branch=main&status=success&per_page={limit}")["workflow_runs"]
+    workflow = api(WORKFLOW_API)
+    runs = api(f"{WORKFLOW_API}/runs?branch=main&status=success&per_page={limit}")["workflow_runs"]
     for run in sorted(runs, key=lambda run: run["created_at"], reverse=True):
         sha = run["head_sha"]
         if run["head_branch"] != "main" or not re.fullmatch(r"[0-9a-f]{40}", sha):
@@ -368,7 +369,7 @@ def main():
     else:
         require(run["head_branch"] in BRANCHES, "Untrusted source branch")
         branch_sha = api(f"git/ref/heads/{run['head_branch']}")["object"]["sha"]
-    validate_run(run, api("actions/workflows/ci.yml"), args.sha, branch_sha)
+    validate_run(run, api(WORKFLOW_API), args.sha, branch_sha)
     validate_jobs(run_jobs(run), release=bool(release))
     if release:
         tag = release.release_tag(args.release, source_base(release, args.sha))
