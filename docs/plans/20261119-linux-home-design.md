@@ -96,8 +96,10 @@ follow linux-port:
   - **Existing workflow paths** keep the `needs-adaptation` draft, with the changed paths listed. A workflow
     that is disabled in this repository does not run, even when its content changes; #483 will hold
     umputun's own workflows that way. Until #483 lands, that protection is not in place: `ci.yml` and
-    `release-linux.yml` are enabled here and both upstreams change them, so a merge of either that applies
-    without conflict runs upstream-authored steps on the push. That exposure stays open until then.
+    `release-linux.yml` are enabled here, linux-port changes both and umputun changes `ci.yml`. On
+    2026-11-20 each of those merges conflicted, and a workflow file holding conflict markers does not
+    parse, so it does not run. A later merge of either file that applies cleanly would run
+    upstream-authored steps on the push. That exposure stays open until #483 lands.
   - **Settings this rests on,** verified on 2026-11-20: there are no repository secrets; the only credential
     is the PAT in the `upstream-sync` environment, which deploys from main only; allowed actions are a
     selected list; Actions cannot approve pull requests. The default workflow permissions are read, but
