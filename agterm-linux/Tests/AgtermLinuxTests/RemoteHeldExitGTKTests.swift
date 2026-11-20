@@ -50,7 +50,7 @@ struct RemoteHeldExitGTKTests {
             let remotePrimary = try #require(session.remotePresentation?.binding.daemon(forLocalPane: session.paneIdentity))
             let remote = try #require(ZmxSupport.paneIdentity(fromDaemonName: remotePrimary))
             let layout = PresentationLayout(panes: [remote], primary: remote, shown: false)
-            #expect(controller.store.applyRemoteLayout(layout, forSession: session.id).contains(pane))
+            #expect(controller.store.applyRemoteLayout(layout, forSession: session.id, attach: LinuxRemoteAttachLines()).contains(pane))
             try #require(GhosttyApp.exerciseHeldExitAction(split))
             try barrier()
             #expect(session.surface === primary)

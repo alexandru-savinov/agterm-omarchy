@@ -151,6 +151,18 @@ struct LinuxControlDispatchCoverageTests {
         #expect(routing.followed.contains("dispatchHtmlOverlayCommand"), "two-level route not followed")
     }
 
+    @Test("every command the core's synchronous route sends to a family switch has an arm there")
+    func sharedSynchronousRoutesReachAFamilyArm() throws {
+        let core = Self.repository.appendingPathComponent("agtermCore/Sources/agtermCore")
+        let files = try FileManager.default.contentsOfDirectory(atPath: core.path)
+            .filter { $0.hasPrefix("ControlDispatcher") && $0.hasSuffix(".swift") }
+        let switches = try files.flatMap { SourceScan.commandSwitches(in: try Self.read(core.appendingPathComponent($0))) }
+        let routing = SourceScan.resolve(entries: ["dispatchSynchronous"], switches: switches)
+        #expect(routing.missing.isEmpty,
+                "routed to a family switch with no arm for it (hits preconditionFailure): \(routing.missing.map(\.description))")
+        #expect(routing.followed.contains("dispatchSessionOverlayCommand"), "route into dispatchSessionOverlayCommand not followed")
+    }
+
     @Test("the unsupported answer and the window.move refusal the docs quote still exist")
     func documentedRefusalsExist() throws {
         let control = try Self.read(Self.linuxSources.appendingPathComponent("AppControllerControl.swift"))

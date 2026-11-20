@@ -6,16 +6,18 @@ import Glibc
 
 enum LinuxZmxLaunch {
     /// zmx ignores creation argv when the named daemon already exists.
-    static func prefillCommand(_ configuration: ZmxSupport.Configuration, line: String) -> String? {
+    static func prefillCommand(_ configuration: ZmxSupport.Configuration, line: String, detached: Bool = false) -> String? {
         guard let shell = configuration.environment["SHELL"],
               let integration = configuration.environment["ZDOTDIR"],
               let shim = Bundle.module.resourceURL?.appendingPathComponent("live-prefill"),
               FileManager.default.isReadableFile(atPath: shim.appendingPathComponent(".zshenv").path) else { return nil }
-        var arguments = configuration.attachArguments + [
+        let attach = detached
+            ? [configuration.executablePath, "attach", "--detached", configuration.daemonName] : configuration.attachArguments
+        var arguments = attach + [
             "/usr/bin/env", "ZDOTDIR=\(shim.path)", "AGTERM_LIVE_INTEGRATION=\(integration)",
             "AGTERM_LIVE_PREFILL=\(line)", shell, "-il"
         ]
-        if let host = configuration.sessionHostExecutablePath {
+        if !detached, let host = configuration.sessionHostExecutablePath {
             arguments = [host, "client", configuration.daemonName, "--"] + arguments
         }
         return CommandRestore.shellQuotedLine(arguments)

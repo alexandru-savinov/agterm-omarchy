@@ -1,4 +1,6 @@
 import ArgumentParser
+import Foundation
+import Glibc
 import agtermctlKit
 
 struct AgtermctlLinux: ParsableCommand {

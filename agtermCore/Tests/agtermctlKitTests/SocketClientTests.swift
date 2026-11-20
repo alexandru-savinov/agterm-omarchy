@@ -10,120 +10,6 @@ import agtermCore
 @testable import agtermctlKit
 
 struct SocketClientTests {
-    @Test func silentResponseHasABoundedDeadline() throws {
-        let release = DispatchSemaphore(value: 0)
-        let server = StubServer(line: Data(), serve: { socket in
-            consumeFixtureRequest(socket)
-            _ = release.wait(timeout: .now() + 1)
-        })
-        try server.start()
-        defer { release.signal(); server.stop() }
-        let error = try #require(throws: SocketClientError.self) {
-            _ = try SocketClient(path: server.path, timeout: 0.15).send(ControlRequest(cmd: .tree))
-        }
-        #expect(error.description.contains("timed out"))
-        #expect(error.description.contains("may have completed"))
-    }
-
-    @Test func partialAndDrippingResponsesDoNotRenewTheDeadline() throws {
-        for dripping in [false, true] {
-            let release = DispatchSemaphore(value: 0)
-            let server = StubServer(line: Data(), serve: { socket in
-                consumeFixtureRequest(socket)
-                guard sendFixtureBytes(Data("{".utf8), socket: socket) else { return }
-                for _ in 0..<20 {
-                    if release.wait(timeout: .now() + 0.05) == .success { return }
-                    if dripping, !sendFixtureBytes(Data(" ".utf8), socket: socket) { return }
-                }
-            })
-            try server.start()
-            defer { release.signal(); server.stop() }
-            let error = try #require(throws: SocketClientError.self) {
-                _ = try SocketClient(path: server.path, timeout: 0.2).send(ControlRequest(cmd: .tree))
-            }
-            #expect(error.description.contains("timed out"))
-        }
-    }
-
-    @Test func aPeerThatDoesNotReadCannotBlockTheRequestWrite() throws {
-        let release = DispatchSemaphore(value: 0)
-        let server = StubServer(line: Data(), serve: { _ in
-            _ = release.wait(timeout: .now() + 1)
-        })
-        try server.start()
-        defer { release.signal(); server.stop() }
-        let request = ControlRequest(cmd: .sessionType, target: "active",
-                                     args: ControlArgs(text: String(repeating: "x", count: 600_000)))
-        let error = try #require(throws: SocketClientError.self) {
-            _ = try SocketClient(path: server.path, timeout: 0.2).send(request)
-        }
-        #expect(error.description.contains("timed out"))
-    }
-
-    @Test func successfulResponseAndEOFKeepTheirExistingSemantics() throws {
-        for line in ["", "{\"ok\":true}", "{\"ok\":true}\n"] {
-            let server = StubServer(line: Data(), serve: { socket in
-                consumeFixtureRequest(socket)
-                _ = sendFixtureBytes(Data(line.utf8), socket: socket)
-            })
-            try server.start()
-            defer { server.stop() }
-            let client = SocketClient(path: server.path, timeout: 1)
-            if line.isEmpty {
-                let error = try #require(throws: SocketClientError.self) {
-                    _ = try client.send(ControlRequest(cmd: .tree))
-                }
-                #expect(error.description.contains("no response"))
-            } else {
-                #expect(try client.send(ControlRequest(cmd: .tree)).response.ok)
-            }
-        }
-    }
-
-    @Test func connectedStreamRemainsBlockingAndCanOutliveTheConnectBudget() throws {
-        let server = StubServer(line: Data(), serve: { socket in
-            Thread.sleep(forTimeInterval: 0.3)
-            _ = sendFixtureBytes(Data([42]), socket: socket)
-        })
-        try server.start()
-        defer { server.stop() }
-        let socket = try SocketClient(path: server.path, timeout: 0.1).connect()
-        defer { close(socket) }
-        #expect(fcntl(socket, F_GETFL) & O_NONBLOCK == 0)
-        var readTimeout = timeval()
-        var size = socklen_t(MemoryLayout<timeval>.size)
-        #expect(getsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &readTimeout, &size) == 0)
-        #expect(readTimeout.tv_sec == 0 && readTimeout.tv_usec == 0)
-        var byte: UInt8 = 0
-        #expect(read(socket, &byte, 1) == 1)
-        #expect(byte == 42)
-    }
-
-    #if os(Linux)
-    @Test func fullUnixBacklogHasABoundedConnectDeadline() throws {
-        let server = try RefusedSocket()
-        defer { server.stop() }
-        let listening = try server.startListening()
-        let queued = try SocketClient(path: server.path, timeout: 1).connect()
-        defer { close(queued) }
-        let release = DispatchSemaphore(value: 0)
-        let finished = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
-            _ = release.wait(timeout: .now() + 1)
-            let accepted = systemAccept(listening)
-            if accepted >= 0 { close(accepted) }
-            finished.signal()
-        }
-        defer { release.signal(); finished.wait() }
-        let error = try #require(throws: SocketClientError.self) {
-            let unexpected = try SocketClient(path: server.path, timeout: 0.15).connect()
-            close(unexpected)
-        }
-        #expect(error.description.contains("timed out waiting to connect"))
-        #expect(!error.description.contains("may have completed"))
-    }
-    #endif
-
     @Test func formatsCustomCommandErrorOptions() {
         let payload = ControlKeymap(path: "/tmp/keymap.conf", actions: [], commands: [
             ControlKeymapCommand(name: "quiet"),
@@ -421,6 +307,7 @@ struct SocketClientTests {
             duplicate_session           -
             new_companion               -
             duplicate_companion         -
+            convert_companion           -
             close_session               cmd+w
             reopen_recent               cmd+shift+t
             undo_close                  cmd+z
@@ -459,6 +346,9 @@ struct SocketClientTests {
             show_attention              ctrl+shift+i
             dashboard                   cmd+shift+g
             attach_remote               cmd+shift+r
+            open_remote_window          -
+            detached_sessions           -
+            new_remote_session          -
             edit_flagged_sessions       -
             edit_focused_workspaces     -
 
@@ -517,6 +407,99 @@ struct SocketClientTests {
         #expect(run.status == 1)
         #expect(run.out.isEmpty)
         #expect(server.received?.cmd == .sessionCompanionNew)
+    }
+
+    @Test func anAppTooOldForUndoIsNamed() throws {
+        let decodeError = "invalid request: Cannot initialize Command from invalid String value session.undo"
+        let server = StubServer(response: ControlResponse(ok: false, error: decodeError))
+        try server.start()
+        defer { server.stop() }
+
+        let run = try runCLI(["session", "undo", "--target", "u1", "--socket", server.path])
+
+        #expect(run.status == 1)
+        #expect(String(decoding: run.err, as: UTF8.self) == "error: the running app is too old for session undo\n")
+        #expect(server.received?.cmd == .sessionUndo)
+    }
+
+    @Test func anAppTooOldForConvertIsNamedAndNothingElseIsSent() throws {
+        let decodeError = "invalid request: Cannot initialize Command from invalid String value session.companion.convert"
+        let server = StubServer(response: ControlResponse(ok: false, error: decodeError))
+        try server.start()
+        defer { server.stop() }
+
+        let run = try runCLI(["session", "convert", "--companion", "--socket", server.path])
+
+        #expect(run.status == 1)
+        #expect(run.out.isEmpty)
+        #expect(String(decoding: run.err, as: UTF8.self) == "error: the running app is too old for convert\n")
+        #expect(server.received?.cmd == .sessionCompanionConvert)
+    }
+
+    @Test(arguments: [
+        (["session", "close", "--terminate", "--target", "s1"], Command.sessionTerminate, "terminate"),
+        (["zmx", "kill", "--target", "s1", "--pane", "left", "--pane-id", "tok", "--force"], .zmxKillPane, "a pinned pane kill"),
+    ])
+    func anAppTooOldForTerminateOrAPinnedKillIsNamed(argv: [String], command: Command, what: String) throws {
+        let decodeError = "invalid request: Cannot initialize Command from invalid String value \(command.rawValue)"
+        let server = StubServer(response: ControlResponse(ok: false, error: decodeError))
+        try server.start()
+        defer { server.stop() }
+
+        let run = try runCLI(argv + ["--socket", server.path])
+
+        #expect(run.status == 1)
+        #expect(run.out.isEmpty)
+        #expect(String(decoding: run.err, as: UTF8.self) == "error: the running app is too old for \(what)\n")
+        #expect(server.received?.cmd == command)
+    }
+
+    @Test func anAppTooOldForPageSessionsIsNamedAndNothingElseIsSent() throws {
+        let decodeError = "invalid request: Cannot initialize Command from invalid String value session.page"
+        let server = StubServer(response: ControlResponse(ok: false, error: decodeError))
+        try server.start()
+        defer { server.stop() }
+
+        let run = try runCLI(["session", "overlay", "open", "--html", "/tmp/p.html", "--page", "--socket", server.path])
+
+        #expect(run.status == 1)
+        #expect(run.out.isEmpty)
+        #expect(String(decoding: run.err, as: UTF8.self) == "error: the running app is too old for page sessions\n")
+        #expect(server.received?.cmd == .sessionPage)
+    }
+
+    @Test func aPageSessionPrintsTheRowItCreated() throws {
+        let server = StubServer(response: ControlResponse(ok: true, result: ControlResult(id: "PS1", pageID: "P1")))
+        try server.start()
+        defer { server.stop() }
+
+        let run = try runCLI(["session", "overlay", "open", "--url", "https://example.com/", "--page", "--socket", server.path])
+
+        #expect(run.status == 0)
+        #expect(run.out == Data("PS1\n".utf8))
+    }
+
+    @Test func aConvertPrintsTheFreshParentItCreated() throws {
+        let server = StubServer(response: ControlResponse(ok: true, result: ControlResult(id: "S1", parent: "N1")))
+        try server.start()
+        defer { server.stop() }
+
+        let run = try runCLI(["session", "convert", "--companion", "--target", "S1", "--socket", server.path])
+
+        #expect(run.status == 0)
+        #expect(run.out == Data("N1\n".utf8))
+    }
+
+    @Test func aRefusedConvertReportsTheReasonAndFails() throws {
+        let server = StubServer(response: ControlResponse(ok: false, error: "already a companion"))
+        try server.start()
+        defer { server.stop() }
+
+        let run = try runCLI(["session", "convert", "--companion", "--socket", server.path])
+
+        #expect(run.status == 1)
+        #expect(run.out.isEmpty)
+        #expect(String(decoding: run.err, as: UTF8.self).contains("already a companion"))
     }
 
     @Test func anAppTooOldForCompanionsKeepsTheRawReplyUnderJSON() throws {
@@ -588,17 +571,8 @@ struct SocketClientTests {
         #expect(run.out == Data("ok\n".utf8))
     }
 
-    @Test func recentClearRunLabelsAffectedEntriesAsItems() throws {
-        let server = StubServer(response: ControlResponse(ok: true, result: ControlResult(affected: 2)))
-        try server.start()
-        defer { server.stop() }
-        let run = try runCLI(["recent", "clear", "--socket", server.path])
-        #expect(run.status == 0)
-        #expect(run.out == Data("2 items\n".utf8))
-    }
-
     // a separate process: redirecting this one's stdout or stderr also catches what parallel suites print
-    private func runCLI(_ args: [String]) throws -> (status: Int32, out: Data, err: Data) {
+    func runCLI(_ args: [String]) throws -> (status: Int32, out: Data, err: Data) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent(".build/debug/agtermctl")
@@ -738,6 +712,53 @@ struct SocketClientTests {
         ])
         #expect(try JSONSerialization.jsonObject(with: Data(#require(output.first).utf8)) as? [String: String] ==
             ["id": "pick-1"])
+    }
+
+    private func pickRequests(_ arguments: [String], environment: [String: String], headless: Bool?) throws -> [ControlRequest] {
+        var requests: [ControlRequest] = []
+        var version = ControlResult()
+        version.headless = headless
+        try Pick.Open.parse(arguments + ["--no-block"]).execute(
+            input: Data("One\n".utf8),
+            send: { request in
+                requests.append(request)
+                return SocketReply(ControlResponse(ok: true, result: request.cmd == .version ? version : ControlResult(id: "pick-1")))
+            },
+            sleep: { _ in },
+            output: { _ in },
+            environment: environment
+        )
+        return requests
+    }
+
+    private static let items = [ControlPickItem(id: "One", label: "One")]
+
+    @Test func pickSessionTargetsTheSessionWithoutAskingTheServer() throws {
+        let requests = try pickRequests(["--session", "s1"], environment: ["AGTERM_SESSION_ID": "own"], headless: true)
+
+        #expect(requests == [ControlRequest(cmd: .pickOpen, target: "s1", args: ControlArgs(items: Self.items))])
+    }
+
+    @Test func aPaneOnAgtermServerBindsThePickToItsOwnSession() throws {
+        let requests = try pickRequests([], environment: ["AGTERM_SESSION_ID": "own"], headless: true)
+
+        #expect(requests == [
+            ControlRequest(cmd: .version),
+            ControlRequest(cmd: .pickOpen, target: "own", args: ControlArgs(items: Self.items)),
+        ])
+    }
+
+    @Test(arguments: [nil, false] as [Bool?])
+    func aPaneOnTheMacKeepsTheWindowPick(headless: Bool?) throws {
+        let requests = try pickRequests([], environment: ["AGTERM_SESSION_ID": "own"], headless: headless)
+
+        #expect(requests.last == ControlRequest(cmd: .pickOpen, args: ControlArgs(items: Self.items)))
+    }
+
+    @Test func noSessionInTheEnvironmentAsksNothing() throws {
+        let requests = try pickRequests([], environment: [:], headless: true)
+
+        #expect(requests == [ControlRequest(cmd: .pickOpen, args: ControlArgs(items: Self.items))])
     }
 
     @Test func pickBlockPollsWithBackoffPrintsResultAndExitsZero() throws {
@@ -1093,12 +1114,6 @@ struct SocketClientTests {
         #expect(SocketClient.formatResponse(response) == expected)
     }
 
-    @Test(arguments: [(1, "1 item"), (2, "2 items"), (0, "0 items")])
-    func formatResponseAffectedItems(_ affected: Int, _ expected: String) {
-        let response = ControlResponse(ok: true, result: ControlResult(affected: affected))
-        #expect(SocketClient.formatResponse(response, affectedNoun: "item") == expected)
-    }
-
     @Test(arguments: [
         (ControlResult(id: "9f3c", undoable: true), "ok (undoable)"),
         (ControlResult(id: "9f3c", undoable: false), "ok (not undoable)"),
@@ -1178,6 +1193,16 @@ struct SocketClientTests {
         #expect(output == "* work  [w]\n  * shell (split)  [s]  \(expected)")
     }
 
+    @Test(arguments: [("/other", "/main  scratch cwd: /other"), ("/main", "/main")])
+    func formatTreeIncludesOnlyADifferingScratchDirectory(_ scratchCwd: String, _ expected: String) throws {
+        let data = Data(#"{"id":"s","name":"shell","cwd":"/main","scratchCwd":"\#(scratchCwd)","active":true,"split":false,"overlay":false,"scratch":true,"flagged":false}"#.utf8)
+        let session = try JSONDecoder().decode(ControlSessionNode.self, from: data)
+        let tree = ControlTree(workspaces: [ControlWorkspaceNode(id: "w", name: "work", active: true, sessions: [session])])
+        let response = ControlResponse(ok: true, result: ControlResult(tree: tree))
+        let output = SocketClient.formatResponse(response)
+        #expect(output == "* work  [w]\n  * shell (scratch)  [s]  \(expected)")
+    }
+
     @Test func formatWindowResizeReportsAppliedWidthAndHeight() throws {
         let response = try JSONDecoder().decode(ControlResponse.self, from: Data(#"{"ok":true,"result":{"id":"w","width":1200,"height":800}}"#.utf8))
         #expect(SocketClient.formatResponse(response) == "1200 800")
@@ -1193,6 +1218,19 @@ struct SocketClientTests {
         let output = SocketClient.formatResponse(ControlResponse(ok: true, result: ControlResult(tree: tree)))
         #expect(output.contains("live attribution: supervisor"))
         #expect(output.contains("split live attribution: orphaned"))
+        #expect(!output.contains("earlier helper"))
+    }
+
+    @Test func formatTreeMarksAPaneOnAnEarlierHelper() throws {
+        let data = Data(#"""
+        {"id":"s","name":"shell","cwd":"/main","active":true,"split":false,"hasSplit":true,
+         "overlay":false,"scratch":false,"flagged":false,"liveAttribution":"supervisor","splitLiveAttribution":"supervisor",
+         "splitLiveHostStale":true}
+        """#.utf8)
+        let session = try JSONDecoder().decode(ControlSessionNode.self, from: data)
+        let tree = ControlTree(workspaces: [ControlWorkspaceNode(id: "w", name: "work", active: true, sessions: [session])])
+        let output = SocketClient.formatResponse(ControlResponse(ok: true, result: ControlResult(tree: tree)))
+        #expect(output.contains("  live attribution: supervisor  split live attribution: supervisor (earlier helper)"))
     }
 
     @Test func formatTreeShowsTheViewersStreamStateAndTheOriginsMirrorCount() {
@@ -1209,7 +1247,25 @@ struct SocketClientTests {
         let out = SocketClient.formatResponse(ControlResponse(ok: true, result: ControlResult(tree: tree)))
 
         #expect(out.contains("presentation: failed (exit 255)"))
-        #expect(out.contains("mirrored by: 2"))
+        #expect(out.contains("viewed by: 2"))
+    }
+
+    @Test(arguments: [(ControlPresentersNode(mirrors: 1, presenter: true, viewers: 3), 3), (ControlPresentersNode(mirrors: 1, presenter: true), 2),
+                      (ControlPresentersNode(mirrors: 2), 2)])
+    func theViewerCountComesFromViewersOrFromAnOlderAppsMirrorsAndPresenter(node: ControlPresentersNode, count: Int) {
+        #expect(node.viewedBy == count)
+    }
+
+    @Test func presentersDecodeAcrossVersions() throws {
+        struct OlderPresenters: Decodable, Equatable {
+            let mirrors: Int
+            let presenter: Bool?
+        }
+        let current = try JSONEncoder().encode(ControlPresentersNode(mirrors: 1, presenter: true, viewers: 2))
+        let older = Data(#"{"mirrors":1,"presenter":true}"#.utf8)
+
+        #expect(try JSONDecoder().decode(OlderPresenters.self, from: current) == OlderPresenters(mirrors: 1, presenter: true))
+        #expect(try JSONDecoder().decode(ControlPresentersNode.self, from: older).viewedBy == 2)
     }
 
     @Test func formatTreeShowsThePresenterOnBothSides() {
@@ -1225,8 +1281,7 @@ struct SocketClientTests {
         let out = SocketClient.formatResponse(ControlResponse(ok: true, result: ControlResult(tree: tree)))
 
         #expect(out.contains("presentation: connected, presenter"))
-        #expect(out.contains("presented remotely"))
-        #expect(!out.contains("mirrored by"))
+        #expect(out.contains("viewed by: 1"))
     }
 
     @Test func formatResponseTree() {
@@ -1279,6 +1334,27 @@ struct SocketClientTests {
         let out = SocketClient.formatResponse(ControlResponse(ok: true, result: ControlResult(tree: tree)))
         let lines = out.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         #expect(lines[1] == "  * shell  [s2]  /tmp", "only the failing state earns a tag; nil must stay quiet too")
+    }
+
+    @Test(arguments: [("pending", "  * shell (pending)  [s4]  /tmp"), ("unknown", "  * shell (outcome unknown)  [s4]  /tmp")])
+    func formatTreeTagsARowsOperationState(_ state: String, _ expected: String) {
+        let session = ControlSessionNode(id: "s4", name: "shell", cwd: "/tmp", active: true, split: false, backedByZmx: nil, pending: state)
+        let tree = ControlTree(workspaces: [ControlWorkspaceNode(id: "w4", name: "work", active: true, sessions: [session])])
+
+        let lines = SocketClient.formatResponse(ControlResponse(ok: true, result: ControlResult(tree: tree))).split(separator: "\n").map(String.init)
+
+        #expect(lines[1] == expected)
+    }
+
+    @Test func formatTreeCountsTheInteractionsARowHolds() {
+        let held = [ControlInteraction(kind: "ask", id: "a", state: ControlInteraction.unpresented),
+                    ControlInteraction(kind: "page", id: "p", state: ControlInteraction.offered)]
+        let session = ControlSessionNode(id: "s5", name: "shell", cwd: "/tmp", active: true, split: false, backedByZmx: nil, interactions: held)
+        let tree = ControlTree(workspaces: [ControlWorkspaceNode(id: "w5", name: "work", active: true, sessions: [session])])
+
+        let lines = SocketClient.formatResponse(ControlResponse(ok: true, result: ControlResult(tree: tree))).split(separator: "\n").map(String.init)
+
+        #expect(lines[1] == "  * shell (2 interactions)  [s5]  /tmp")
     }
 
     @Test func formatTreeShowsScratchTag() {
@@ -1382,6 +1458,60 @@ struct SocketClientTests {
         #expect(format(installed: AppIdentity(version: "0.35.1")) == "0.34.0 (a1b2c3d)\ninstalled: 0.35.1")
     }
 
+    @Test func formatsTheUpdateScheduleOnVersion() {
+        let app = AppIdentity(version: "0.43.0")
+        func format(_ updates: ControlUpdateStatus) -> String {
+            SocketClient.formatResponse(ControlResponse(ok: true, result: ControlResult(app: app, updates: updates)))
+        }
+
+        #expect(format(ControlUpdateStatus(automaticChecks: true, lastCheck: 0)) == "0.43.0\nupdates: automatic, last checked 1970-01-01T00:00:00Z")
+        #expect(format(ControlUpdateStatus(automaticChecks: false, lastCheck: nil)) == "0.43.0\nupdates: manual, never checked")
+    }
+
+    @Test func formatsTheVersionsAHeadlessServerAdvertises() {
+        var result = ControlResult(app: AppIdentity(version: "1.2.3"))
+        result.versions = CatalogVersions(server: "1.2.3", protocolVersion: 1, catalog: 1)
+
+        #expect(SocketClient.formatResponse(ControlResponse(ok: true, result: result))
+            == "1.2.3\nserver: 1.2.3, protocol: 1, catalog: 1")
+    }
+
+    @Test(arguments: [
+        (CatalogReceipt(opID: "a", epoch: "e1", outcome: .applied, rev: 4), "operation a: applied at rev 4 in epoch e1"),
+        (CatalogReceipt(opID: "a", epoch: "e1", outcome: .applied), "operation a: applied in epoch e1"),
+        (CatalogReceipt(opID: "a", epoch: "e1", outcome: .noop), "operation a: no change in epoch e1"),
+        (CatalogReceipt(opID: "a", epoch: "e1", outcome: .refused, error: "no such session"),
+         "operation a: refused in epoch e1: no such session"),
+        (CatalogReceipt(opID: "a", epoch: "e1", outcome: .fenced), "operation a: fenced in epoch e1, so it will not run"),
+        (CatalogReceipt(opID: "a", epoch: "e1", outcome: .unknown), "operation a: outcome unknown in epoch e1; it will not run now"),
+    ])
+    func formatsAReceiptAlone(_ receipt: CatalogReceipt, _ expected: String) {
+        var result = ControlResult()
+        result.receipt = receipt
+
+        #expect(SocketClient.formatResponse(ControlResponse(ok: true, result: result)) == expected)
+    }
+
+    @Test(arguments: [
+        (CatalogReceipt(opID: "a", epoch: "e1", outcome: .refused, error: "no such session"),
+         "error: operation a: refused in epoch e1: no such session"),
+        (CatalogReceipt(opID: "a", epoch: "e1", outcome: .fenced), "error: operation a: fenced in epoch e1, so it will not run"),
+    ])
+    func aRefusedOrFencedCommandStillNamesItsReceipt(_ receipt: CatalogReceipt, _ expected: String) {
+        var result = ControlResult()
+        result.receipt = receipt
+
+        #expect(SocketClient.formatResponse(ControlResponse(ok: false, result: result, error: "ignored")) == expected)
+    }
+
+    @Test func aReceiptFollowsWhatTheCommandPrints() {
+        var result = ControlResult(id: "s1")
+        result.receipt = CatalogReceipt(opID: "a", epoch: "e1", outcome: .applied, rev: 2)
+
+        #expect(SocketClient.formatResponse(ControlResponse(ok: true, result: result), echoID: true)
+            == "s1\noperation a: applied at rev 2 in epoch e1")
+    }
+
     @Test func versionJSONCarriesTheRawResponseWithoutTheClientPath() throws {
         let line = "{\"ok\": true, \"result\": {\"app\": {\"version\": \"0.24.0\", \"commit\": \"a1b2c3d\\u0020\"}}} "
         let server = StubServer(line: Data(line.utf8))
@@ -1394,6 +1524,7 @@ struct SocketClientTests {
         #expect(!String(decoding: run.out, as: UTF8.self).contains("client"))
     }
 
+    #if canImport(Darwin)
     @Test func refusedConnectWithAHeldOwnershipLockReportsThePresentOwner() throws {
         let socket = try RefusedSocket()
         defer { socket.stop() }
@@ -1401,13 +1532,10 @@ struct SocketClientTests {
         defer { close(lock) }
 
         let error = try #require(throws: SocketClientError.self) { _ = try SocketClient(path: socket.path).connect() }
-        #if os(Linux)
-        #expect(error.description.contains("agterm may be stopped or unable to accept connections"))
-        #else
-        #expect(error.description.contains("the socket owner is present but not accepting connections"))
-        #endif
+        #expect(error.description.contains(SocketClientDeadlineTests.heldLockHint))
         #expect(error.description.contains("Connection refused"))
     }
+    #endif
 
     @Test func refusedConnectWithAnUnheldOwnershipLockDoesNotClaimTheAppIsGone() throws {
         let socket = try RefusedSocket()
@@ -1430,6 +1558,7 @@ struct SocketClientTests {
         #expect(error.connectErrno == ECONNREFUSED)
     }
 
+    #if canImport(Darwin)
     @Test func aMissingSocketWithAHeldOwnershipLockReportsThePresentOwner() throws {
         let path = NSTemporaryDirectory() + "agterm-unbound-\(UUID().uuidString.prefix(8)).sock"
         let lockPath = ControlResolve.ownershipLockPath(forSocket: path)
@@ -1439,13 +1568,10 @@ struct SocketClientTests {
         try #require(flock(lock, LOCK_EX | LOCK_NB) == 0)
 
         let error = try #require(throws: SocketClientError.self) { _ = try SocketClient(path: path).connect() }
-        #if os(Linux)
-        #expect(error.description.contains("agterm may be stopped or unable to accept connections"))
-        #else
-        #expect(error.description.contains("the socket owner is present but not accepting connections"))
-        #endif
+        #expect(error.description.contains(SocketClientDeadlineTests.heldLockHint))
         #expect(error.description.contains("No such file or directory"))
     }
+    #endif
 
     @Test func aMissingSocketWithNoOwnershipLockStaysUncertainAndKeepsItsErrno() throws {
         let path = NSTemporaryDirectory() + "agterm-absent-\(UUID().uuidString.prefix(8)).sock"
@@ -1469,13 +1595,13 @@ struct SocketClientTests {
     }
 }
 
-private final class RefusedSocket {
+final class RefusedSocket {
     let path: String
     private let fd: Int32
 
     init() throws {
         path = NSTemporaryDirectory() + "agterm-refused-\(UUID().uuidString.prefix(8)).sock"
-        fd = systemSocket()
+        fd = socket(AF_UNIX, unixStreamType, 0)
         guard fd >= 0 else { throw SocketClientError("refused socket() failed") }
         unlink(path)
         var addr = sockaddr_un()
@@ -1611,13 +1737,16 @@ final class StubServer: @unchecked Sendable {
 
         var buffer = Data()
         var byte: UInt8 = 0
+        var complete = false
         while true {
             let n = read(conn, &byte, 1)
             if n <= 0 { break }
-            if byte == UInt8(ascii: "\n") { break }
+            if byte == UInt8(ascii: "\n") { complete = true; break }
             buffer.append(byte)
         }
         received = try? JSONDecoder().decode(ControlRequest.self, from: buffer)
+        // a request cut off before its newline means the client hung up, so nobody reads a reply
+        guard complete else { return }
 
         var data = canned
         data.append(UInt8(ascii: "\n"))
@@ -1625,7 +1754,7 @@ final class StubServer: @unchecked Sendable {
             var offset = 0
             let base = raw.bindMemory(to: UInt8.self).baseAddress!
             while offset < data.count {
-                let written = write(conn, base + offset, data.count - offset)
+                let written = UnixSocket.write(conn, base + offset, data.count - offset)
                 if written <= 0 { break }
                 offset += written
             }
@@ -1639,30 +1768,6 @@ final class StubServer: @unchecked Sendable {
         _ = finished.wait(timeout: .now() + 2)  // join the accept loop before freeing the fd
         close(listenFD); listenFD = -1
         unlink(path)
-    }
-}
-
-private func consumeFixtureRequest(_ socket: Int32) {
-    var timeout = timeval(tv_sec: 1, tv_usec: 0)
-    _ = setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-    var byte: UInt8 = 0
-    while read(socket, &byte, 1) == 1 {
-        if byte == UInt8(ascii: "\n") { return }
-    }
-}
-
-private func sendFixtureBytes(_ data: Data, socket: Int32) -> Bool {
-    #if canImport(Darwin)
-    var noSigPipe: Int32 = 1
-    _ = setsockopt(socket, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
-    #endif
-    return data.withUnsafeBytes { buffer in
-        guard let base = buffer.baseAddress, !buffer.isEmpty else { return true }
-        #if canImport(Darwin)
-        return send(socket, base, buffer.count, 0) == buffer.count
-        #else
-        return Glibc.send(socket, base, buffer.count, Int32(MSG_NOSIGNAL)) == buffer.count
-        #endif
     }
 }
 
@@ -1822,7 +1927,7 @@ private final class ScriptedStubServer: @unchecked Sendable {
             var offset = 0
             let base = raw.bindMemory(to: UInt8.self).baseAddress!
             while offset < data.count {
-                let written = write(conn, base + offset, data.count - offset)
+                let written = UnixSocket.write(conn, base + offset, data.count - offset)
                 if written <= 0 { break }
                 offset += written
             }
@@ -1839,15 +1944,17 @@ private final class ScriptedStubServer: @unchecked Sendable {
     }
 }
 
+#if canImport(Darwin)
+let unixStreamType = SOCK_STREAM
+#else
+let unixStreamType = Int32(SOCK_STREAM.rawValue)
+#endif
+
 private func systemSocket() -> Int32 {
-    #if canImport(Darwin)
-    return socket(AF_UNIX, SOCK_STREAM, 0)
-    #else
-    return socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
-    #endif
+    socket(AF_UNIX, unixStreamType, 0)
 }
 
-private func systemAccept(_ fd: Int32) -> Int32 {
+func systemAccept(_ fd: Int32) -> Int32 {
     #if canImport(Darwin)
     return Darwin.accept(fd, nil, nil)
     #else

@@ -90,7 +90,7 @@ struct StreamBridge: Sendable {
             guard ready > 0, pollers[1].revents == 0 else { return }
             let count = chunk.withUnsafeMutableBytes { read(source, $0.baseAddress, $0.count) }
             if count < 0, errno == EINTR { continue }
-            guard count > 0, writeAll(destination, Data(chunk[0..<count])) else {
+            guard count > 0, sendAll(destination, Data(chunk[0..<count])) else {
                 shutdown(destination, Int32(SHUT_RDWR))
                 return
             }
@@ -104,6 +104,26 @@ struct StreamBridge: Sendable {
             if count < 0, errno == EINTR { continue }
             guard count > 0, writeAll(destination, Data(chunk[0..<count])) else { return }
         }
+    }
+
+    /// sendAll writes to the app's socket. Glibc has no SO_NOSIGPIPE, so there MSG_NOSIGNAL turns an app that
+    /// hung up into a failed write instead of a fatal SIGPIPE; `writeAll` stays for the pipes, where send fails.
+    static func sendAll(_ socket: Int32, _ data: Data) -> Bool {
+        #if canImport(Darwin)
+        return writeAll(socket, data)
+        #else
+        return data.withUnsafeBytes { raw in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return true }
+            var offset = 0
+            while offset < data.count {
+                let count = send(socket, base + offset, data.count - offset, Int32(MSG_NOSIGNAL))
+                if count < 0, errno == EINTR { continue }
+                guard count > 0 else { return false }
+                offset += count
+            }
+            return true
+        }
+        #endif
     }
 
     static func writeAll(_ fd: Int32, _ data: Data) -> Bool {

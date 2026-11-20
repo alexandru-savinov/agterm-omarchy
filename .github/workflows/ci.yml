@@ -20,8 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  UPSTREAM_BASE_TAG: "v0.41.1"
-  UPSTREAM_BASE_COMMIT: "911345a87df1aa32c8617ce0445b0be8975abb49"
+  UPSTREAM_BASE_TAG: "v0.43.0"
+  UPSTREAM_BASE_COMMIT: "be92bc63eca595a2955a0dc5c9a2b1e593e31a66"
   SWIFTLINT_VERSION: "0.65.0"
   SWIFTLINT_SHA256: "79306a34e5c7cc55a220cd108cbb861dcad5f10138dcdf261e2624ae8b0a486b"
   LINUX_SOURCEKIT_LIB_PATH: "/usr/lib/libsourcekitdInProc.so"
@@ -179,9 +179,9 @@ jobs:
         with:
           path: agtermCore/.build
           key: swiftpm-core-${{ matrix.arch }}-swift-6.3.2-${{ hashFiles('agtermCore/Package.swift', 'agtermCore/Package.resolved') }}
-      - name: Install test shell
+      - name: Install test shells and hook dependencies
         run: |
-          scripts/ci-install-ubuntu-deps.sh ripgrep zsh fish
+          scripts/ci-install-ubuntu-deps.sh jq ripgrep zsh fish csh tcsh
       - name: Install Node for OpenCode hook tests
         if: needs.changes.outputs.ui_python_only != 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -338,6 +338,7 @@ jobs:
           python3 -I -m unittest discover -s scripts/tests -p 'test_zmx_incompatible_daemon.py' -v
           # Explicit leadership, screen/type and managed exit, driven through real ptys.
           python3 -I scripts/zmx-patches/check.py "$AGTERM_IDENTITY_TEST_ZMX"
+
       - name: swift test (agterm-linux)
         working-directory: agterm-linux
         run: swift test
