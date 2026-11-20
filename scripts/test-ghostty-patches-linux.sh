@@ -24,16 +24,13 @@ git -C "$SOURCE" fetch -q --depth 1 origin "$GHOSTTY_REV"
 git -C "$SOURCE" -c advice.detachedHead=false checkout -q FETCH_HEAD
 [[ "$(git -C "$SOURCE" rev-parse HEAD)" == "$GHOSTTY_REV" ]]
 
-# Only applied patches contribute tests, so a patch dropped from the chain drops its tests too. Every
-# patched Zig file counts, whatever prefix its diff uses (b/, w/), not only src/App.zig (#435), except
-# src/apprt/embedded.zig: the -Dapp-runtime=none test build does not compile it, so its tests cannot run
-# here and would only fail the check (#435 keeps that open).
-names=()
+# Track the source file as well as the test name so another module cannot satisfy the check.
 # src/App.zig and every Zig file the patches under scripts/ghostty-patches touch must stay zig-fmt clean;
 # the linux/patches adapters predate the check and one of them is not (src/apprt/embedded.zig), so the shared
 # set is checked before the adapters apply and again, without that file, after them.
 formatted=(src/App.zig)
 shared_checked=false
+tests="$WORK/tests.tsv"
 for ghostty_patch in "${GHOSTTY_PATCHES[@]}"; do
   if ! $shared_checked && [[ "$ghostty_patch" != "$ROOT/scripts/ghostty-patches/"* ]]; then
     mapfile -t shared < <(printf '%s\n' "${formatted[@]}" | sort -u)
@@ -46,15 +43,32 @@ for ghostty_patch in "${GHOSTTY_PATCHES[@]}"; do
       awk '/^\+\+\+ / { file = $2; sub(/^[^\/]*\//, "", file); if (file ~ /\.zig$/) print file }' "$ghostty_patch"
     )
   fi
-  while IFS=$'\t' read -r file name; do names+=("$name"); done < <(
-    awk '/^\+\+\+ / { file = $2; sub(/^[^\/]*\//, "", file) }
-      file ~ /^src\/.*\.zig$/ && file != "src/apprt/embedded.zig" && /^\+test "/ {
-        name = $0; sub(/^\+test "/, "", name); sub(/" \{$/, "", name); print file "\t" name }' "$ghostty_patch"
-  )
+  awk '/^\+\+\+ / { file = $2; sub(/^[^\/]*\//, "", file) }
+    file ~ /\.zig$/ && /^\+test "/ {
+      name = $0; sub(/^\+test "/, "", name); sub(/" \{$/, "", name); print file "\t" name }' "$ghostty_patch" >> "$tests"
 done
-[[ ${#names[@]} -gt 0 ]] || { echo "no Zig tests in the patch chain" >&2; exit 1; }
+[[ -s "$tests" ]] || { echo "no Zig tests in the patch chain" >&2; exit 1; }
+sort -u -o "$tests" "$tests"
+
+# Register test files explicitly, including runtimes omitted by -Dapp-runtime=none.
+{
+  printf '\ntest {\n'
+  while IFS= read -r file; do
+    [[ "$file" == src/* && -f "$SOURCE/$file" ]] || { echo "patch test source outside Ghostty test root: $file" >&2; exit 1; }
+    [[ "$file" == src/main.zig ]] || printf '    _ = @import("%s");\n' "${file#src/}"
+  done < <(cut -f1 "$tests" | uniq)
+  printf '}\n'
+} >> "$SOURCE/src/main.zig"
+
+names=()
 filters=()
-for name in "${names[@]}"; do filters+=("-Dtest-filter=$name"); done
+while IFS=$'\t' read -r file name; do
+  module="${file#src/}"
+  module="${module%.zig}"
+  test_id="${module//\//.}.test.$name"
+  names+=("$test_id")
+  filters+=("-Dtest-filter=$test_id")
+done < "$tests"
 
 $shared_checked || { echo "no linux/patches adapter followed the shared set" >&2; exit 1; }
 mapfile -t formatted < <(printf '%s\n' "${formatted[@]}" | grep -vxF src/apprt/embedded.zig | sort -u)
@@ -74,7 +88,7 @@ status=0
 cat "$WORK/tests.log"
 missing=()
 for name in "${names[@]}"; do
-  [[ "$(grep -cF -- ".test.$name...OK" "$WORK/tests.log")" == 1 ]] || missing+=("$name")
+  [[ "$(grep -cF -- " $name...OK" "$WORK/tests.log")" == 1 ]] || missing+=("$name")
 done
 [[ $status -eq 0 && ${#missing[@]} -eq 0 && "$(tail -n 1 "$WORK/tests.log")" =~ ^All\ [0-9]+\ tests\ passed\.$ ]] || {
   printf 'patch tests that did not run and pass (%d of %d):\n' "${#missing[@]}" "${#names[@]}" >&2
