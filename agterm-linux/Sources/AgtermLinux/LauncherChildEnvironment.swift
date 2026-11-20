@@ -13,7 +13,7 @@ import Glibc
 /// restored — agterm's documented per-child variables (`AGTERM_SOCKET`, `AGTERM_SESSION_ID`, …) are set by
 /// the spawning site and never touched here — and the bookkeeping itself never reaches a child.
 ///
-/// The app process keeps its own values: the restore is applied per child, never to agterm's environ.
+/// The process restores loader variables before GTK starts and applies the remaining restore per child.
 /// `LinuxGdkPolicy.PreLaunchEnvironment` captures it once, and every spawning site reaches it through the
 /// same two helpers that carry the GDK restore.
 enum LauncherChildEnvironment {
@@ -73,19 +73,25 @@ enum LauncherChildEnvironment {
         apply(restore(from: environment), to: environment)
     }
 
-    /// AppImage only, and only the library path: an AppImage runtime's `LD_LIBRARY_PATH` is dropped from
-    /// agterm's own environ (glibc read it at startup, so agterm's own loading is unaffected). The launcher
-    /// bookkeeping is deliberately NOT applied here — agterm itself still needs `LIBGL_ALWAYS_SOFTWARE` and
-    /// the `AGTERM_*` locations, which are restored per child instead.
-    static func sanitizeCurrentProcess() {
-        let environment = ProcessInfo.processInfo.environment
+    /// Restore loader variables in the running process before GTK or WebKit can spawn helpers.
+    /// The dynamic loader already loaded these libraries. agterm still needs the other launcher
+    /// overrides, which are restored per child.
+    static func sanitizeCurrentProcess(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        update: (String, String?) -> Void = { name, value in
+            if let value {
+                setenv(name, value, 1)
+            } else {
+                unsetenv(name)
+            }
+        }
+    ) {
+        if let preload = restore(from: environment)["LD_PRELOAD"] {
+            update("LD_PRELOAD", preload)
+        }
         guard let appDirectory = environment["APPDIR"],
               let libraryPath = environment["LD_LIBRARY_PATH"] else { return }
-        if let remaining = withoutAppImagePaths(libraryPath, appDirectory: appDirectory) {
-            setenv("LD_LIBRARY_PATH", remaining, 1)
-        } else {
-            unsetenv("LD_LIBRARY_PATH")
-        }
+        update("LD_LIBRARY_PATH", withoutAppImagePaths(libraryPath, appDirectory: appDirectory))
     }
 
     /// `libraryPath` without `appDirectory` and anything under it; nil when nothing remains.

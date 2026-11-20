@@ -56,3 +56,20 @@ reporting GL 4.6 core / GLSL 4.60, GSK falls back from Vulkan to `GskGLRenderer`
 sustained output flood.
 Without the assignment, the same GTK 4.22.4 fails on BOTH backends, since both resolve to EGL (see the GL
 delta above).
+
+### Mesa 26.3.1 EGL compatibility
+
+Packaged agterm-linux retries GTK's RGBA8 window-config request with `EGL_OPENGL_BIT` when
+Mesa returns zero matches for the original request. GTK 4.24 can omit
+`EGL_RENDERABLE_TYPE`, which makes EGL look for GLES1 configs. Arch Mesa 26.3.1
+stopped advertising GLES1 when the driver was built without it.
+The retry uses desktop OpenGL, as required by the terminal renderer.
+The launcher loads the compatibility library only into agterm-linux and restores
+the caller's preload environment before GTK initializes.
+Set `AGTERM_DISABLE_EGL_COMPAT=1` on launch to test a system fix.
+
+Removal note (2026-11-19). Remove the compatibility library and launcher integration
+once the supported Omarchy channels pass the native Wayland gates with the retry
+disabled. Track the gate results in [#485](https://github.com/alexandru-savinov/agterm-omarchy/issues/485)
+and the upstream fixes in [GNOME/gtk#8566](https://gitlab.gnome.org/GNOME/gtk/-/work_items/8566)
+and [Mesa #16934](https://gitlab.freedesktop.org/mesa/mesa/-/issues/16934).
