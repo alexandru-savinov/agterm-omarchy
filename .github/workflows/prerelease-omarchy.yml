@@ -46,6 +46,11 @@ on:
         required: false
         type: string
         default: ""
+      auto_release_run_id:
+        description: Automatic release orchestration run ID recorded in promotion.json
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -114,11 +119,13 @@ jobs:
           VERSION: ${{ inputs.version }}
           SOURCE_ATTEMPT: ${{ inputs.source_attempt }}
           NATIVE_ARCHIVES: ${{ inputs.native_archives }}
+          AUTO_RELEASE_RUN_ID: ${{ inputs.auto_release_run_id }}
         run: |
           mode=()
           [[ -z "$VERSION" ]] || mode=(--release "$VERSION")
           [[ -z "$SOURCE_ATTEMPT" ]] || mode+=(--source-attempt "$SOURCE_ATTEMPT")
           [[ -z "$NATIVE_ARCHIVES" ]] || mode+=(--native-archives "$NATIVE_ARCHIVES")
+          [[ -z "$AUTO_RELEASE_RUN_ID" ]] || mode+=(--auto-release-run-id "$AUTO_RELEASE_RUN_ID")
           python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA" "$RUNNER_TEMP/promotion" "${mode[@]}"
       # A pull request also dry-runs the versioned path, for the next unpublished version, on the newest
       # main run that release mode accepts (never an omarchy-branch run). While the main head's CI is still

@@ -712,9 +712,11 @@ class ReleaseDryRunTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "CI attempt differs"):
                 self.prepare(github, output, "--release", "0.41.1.1", "--source-attempt", "2", *gated)
             self.assertFalse(output.exists())
-            self.prepare(github, output, "--release", "0.41.1.1", "--source-attempt", "1", *gated)
+            self.prepare(github, output, "--release", "0.41.1.1", "--source-attempt", "1",
+                         "--auto-release-run-id", "987", *gated)
             evidence = json.loads((output / "promotion.json").read_text())
             self.assertEqual(evidence["source_run_attempt"], 1)
+            self.assertEqual(evidence["auto_release_run_id"], 987)
             self.assertEqual(
                 evidence["artifacts"],
                 [{key: value for key, value in archive.items() if key != "attestation"}

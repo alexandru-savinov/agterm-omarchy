@@ -21,8 +21,10 @@ MINIMUM_BASE = (0, 43, 0)
 TAG = re.compile(r"omarchy-v(?P<base>(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2})\.(?P<serial>[1-9][0-9]*)")
 WATCH_WINDOW = timedelta(hours=24)
 INCIDENT = "release-incident"
+WATCH_UNAVAILABLE = "release-watch-unavailable"
 RELEASES_PATH = "releases?per_page=100"
-MAIN = "refs/heads/main"
+PROMOTION_RUNS = "actions/workflows/prerelease-omarchy.yml/runs"
+ACTIVE_PROMOTION_STATUSES = ("queued", "in_progress", "requested", "waiting", "pending")
 
 
 def gh(path, *, method="GET", data=None):
@@ -36,15 +38,15 @@ def gh(path, *, method="GET", data=None):
     return json.loads(result.stdout) if result.stdout.strip() else None
 
 
-def incident_issues(state):
-    pages = promotion.api(f"issues?labels={INCIDENT}&state={state}&per_page=100", pages=True)
+def open_issues(label):
+    pages = promotion.api(f"issues?labels={label}&state=open&per_page=100", pages=True)
     return (item for page in pages for item in page if "pull_request" not in item)
 
 
 def pause_reason():
-    if os.environ.get("SYNC_PAUSED") == "true":
-        return "SYNC_PAUSED is true"
-    if next(incident_issues("open"), None) is not None:
+    if os.environ.get("SYNC_PAUSED", "").strip().casefold() not in ("", "false"):
+        return "SYNC_PAUSED is set"
+    if next(open_issues(INCIDENT), None) is not None:
         return "An open release-incident issue is holding releases"
     return ""
 
@@ -90,11 +92,31 @@ def plan(event):
             return None, f"No new main commit after {latest['tag_name']}"
     elif promotion.version_key(base) != MINIMUM_BASE:
         return None, "M4 starts the versioned release series at upstream v0.43.0"
+    if any(promotion.api(f"{PROMOTION_RUNS}?status={status}&per_page=1")["total_count"]
+           for status in ACTIVE_PROMOTION_STATUSES):
+        return None, "A promotion workflow is already active"
     # A retraction, draft, or partially published release can leave a tag behind.
     refs = promotion.api("git/matching-refs/tags/omarchy-v?per_page=100", pages=True)
     tags = [item["ref"].removeprefix("refs/tags/") for page in refs for item in page]
     version = next_version(base, tags + [item["tag_name"] for item in items])
     return {"run_id": str(run_id), "sha": sha, "attempt": str(attempt), "version": version}, "Candidate selected"
+
+
+def promoted_automatically(release):
+    assets = [asset for asset in release.get("assets", []) if asset["name"] == "promotion.json"
+              and asset["state"] == "uploaded" and asset["size"] <= 65536]
+    if len(assets) != 1:
+        return False
+    path = f"repos/{promotion.REPOSITORY}/releases/assets/{int(assets[0]['id'])}"
+    data = subprocess.check_output(["gh", "api", "-H", "Accept: application/octet-stream", path])
+    try:
+        record = json.loads(data)
+    except (ValueError, UnicodeError):
+        return False
+    if not isinstance(record, dict) or record.get("tag") != release["tag_name"]:
+        return False
+    run_id = record.get("auto_release_run_id")
+    return type(run_id) is int and run_id > 0
 
 
 def find_watch_tags(items, now):
@@ -103,7 +125,7 @@ def find_watch_tags(items, now):
         if item["draft"] or item["prerelease"] or not item["published_at"]:
             continue
         published = datetime.fromisoformat(item["published_at"].replace("Z", "+00:00"))
-        if timedelta(0) <= now - published < WATCH_WINDOW:
+        if timedelta(0) <= now - published < WATCH_WINDOW and promoted_automatically(item):
             tags.append(item["tag_name"])
     return tags
 
@@ -121,10 +143,13 @@ def dispatch(candidate, gate):
                       and gate.get("release_tag", "") == "",
                       "Native evidence does not identify the selected CI run, attempt and commit")
     archives = promotion.parse_native_archives(gate.get("archives", ""), candidate["sha"])
+    auto_run_id = os.environ.get("GITHUB_RUN_ID", "")
+    promotion.require(re.fullmatch(r"[1-9][0-9]*", auto_run_id), "Automatic promotion requires GITHUB_RUN_ID")
     response = gh("actions/workflows/prerelease-omarchy.yml/dispatches", method="POST", data={
         "ref": "main",
         "inputs": {"source_run": candidate["run_id"], "source_sha": candidate["sha"],
                    "source_attempt": gate["source_run_attempt"], "native_archives": json.dumps(archives),
+                   "auto_release_run_id": auto_run_id,
                    "version": candidate["version"], "dry_run": False},
     })
     run_id = response["workflow_run_id"]
@@ -158,18 +183,20 @@ def wait_for_promotion(run_id, candidate):
     raise ValueError(f"Promotion run {run_id} is still active; scheduled watches discover published releases")
 
 
-def record_incident(tag, reason, evidence):
-    title = f"Release incident: {tag}"
-    # The watch serializes this operation per tag. Keep one incident even across retries.
-    if any(item["title"] == title for item in incident_issues("all")):
+def record_issue(label, title, description, body):
+    if any(item["title"] == title for item in open_issues(label)):
         return
-    if promotion.absent(f"labels/{INCIDENT}"):
+    if promotion.absent(f"labels/{label}"):
         try:
-            gh("labels", method="POST", data={"name": INCIDENT, "color": "B60205",
-                                             "description": "Published Omarchy release failed its watch"})
+            gh("labels", method="POST", data={"name": label, "color": "B60205", "description": description})
         except subprocess.CalledProcessError:
-            if promotion.absent(f"labels/{INCIDENT}"):
+            if promotion.absent(f"labels/{label}"):
                 raise
+    issue = gh("issues", method="POST", data={"title": title, "body": body, "labels": [label]})
+    print(f"Issue: {issue['html_url']}")
+
+
+def record_incident(tag, reason, evidence):
     body = (f"The post-release watch failed for [`{tag}`](https://github.com/"
             f"{promotion.REPOSITORY}/releases/tag/{tag}).\n\n"
             f"- Failure: {reason}\n"
@@ -177,23 +204,43 @@ def record_incident(tag, reason, evidence):
             "This open issue pauses automation. Check the linked run for the prerelease edit. "
             "Close the issue to clear this hold after investigating and preparing a fix. "
             "Keep the release and tag for incident evidence.")
-    issue = gh("issues", method="POST", data={"title": title, "body": body, "labels": [INCIDENT]})
-    print(f"Incident: {issue['html_url']}")
+    record_issue(INCIDENT, f"Release incident: {tag}", "Published Omarchy release failed its watch", body)
 
 
-def retract(tag, reason, evidence, dry_run):
+def retract(tag, reason, evidence):
     promotion.require(TAG.fullmatch(tag), "Expected a canonical versioned Omarchy tag")
-    if dry_run:
-        print(json.dumps({"dry_run": True, "tag": tag, "failure": reason,
-                          "release": {"prerelease": True, "make_latest": "false"},
-                          "pause_issue": {"state": "open", "labels": [INCIDENT]}}, indent=2))
-        return
-
     # Open the hold first. A failed issue write must still attempt to retract.
     try:
         record_incident(tag, reason, evidence)
     finally:
         mark_prerelease(tag)
+
+
+def watch_verdict(tag, attempts):
+    for attempt in attempts.values():
+        result, outputs = attempt["result"], attempt.get("outputs") or {}
+        if outputs.get("release_tag") != tag or outputs.get("attested") != "true":
+            continue
+        if result == "success" and outputs.get("passed") == "true":
+            return "passed"
+        if result == "failure" and outputs.get("passed") == "false" and outputs.get("gate_failed") == "true":
+            return "failed"
+    return "missing"
+
+
+def watch_action(verdict, urls):
+    if verdict == "failed" or (verdict == "passed" and urls == "failure"):
+        return "retract"
+    if verdict == "passed" and urls == "success":
+        return "keep"
+    return "report"
+
+
+def record_watch_unavailable(tag, evidence):
+    promotion.require(TAG.fullmatch(tag), "Expected a canonical versioned Omarchy tag")
+    record_issue(WATCH_UNAVAILABLE, f"Release watch unavailable: {tag}", "Release watch could not establish a verdict",
+                 f"The post-release watch could not establish a verdict for `{tag}`. "
+                 f"The release remains published and automation can continue.\n\n[Watch run]({evidence})")
 
 
 def mark_prerelease(tag):
@@ -222,11 +269,15 @@ def main():
     commands.add_parser("promote")
     commands.add_parser("check-pause")
     commands.add_parser("watch-tags")
+    commands.add_parser("watch-verdict")
+    commands.add_parser("watch-action")
+    unavailable = commands.add_parser("watch-unavailable")
+    unavailable.add_argument("--tag", required=True)
+    unavailable.add_argument("--evidence", required=True)
     failure = commands.add_parser("retract")
     failure.add_argument("--tag", required=True)
     failure.add_argument("--reason", required=True)
     failure.add_argument("--evidence", required=True)
-    failure.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.command in ("plan", "promote"):
         candidate, message = plan(read_event())
@@ -242,8 +293,17 @@ def main():
         tags = find_watch_tags(releases(), datetime.now(timezone.utc))
         promotion.write_outputs({"tags": json.dumps(tags)})
         print(f"Within the 24-hour watch window: {', '.join(tags) or 'none'}")
+    elif args.command == "watch-verdict":
+        attempts = json.loads(os.environ["NATIVE_ATTEMPTS"])
+        promotion.write_outputs({"verdict": watch_verdict(os.environ["TAG"], attempts)})
+    elif args.command == "watch-action":
+        action = watch_action(os.environ["NATIVE_VERDICT"], os.environ.get("URL_RESULT", ""))
+        promotion.write_outputs({"action": action})
+        print(f"Release watch action: {action}")
+    elif args.command == "watch-unavailable":
+        record_watch_unavailable(args.tag, args.evidence)
     else:
-        retract(args.tag, args.reason, args.evidence, args.dry_run)
+        retract(args.tag, args.reason, args.evidence)
 
 
 if __name__ == "__main__":

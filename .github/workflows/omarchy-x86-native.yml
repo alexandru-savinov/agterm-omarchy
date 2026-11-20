@@ -85,6 +85,9 @@ on:
       attested:
         description: "'true' when every tested archive's attestation verified"
         value: ${{ jobs.verdict.outputs.attested }}
+      gate_failed:
+        description: "'true' for complete, attested evidence of an actual failed gate"
+        value: ${{ jobs.verdict.outputs.gate_failed }}
       source_commit:
         description: Commit the tested archives were built from
         value: ${{ jobs.source.outputs.sha }}
@@ -405,6 +408,7 @@ jobs:
     outputs:
       passed: ${{ steps.verdict.outputs.passed }}
       attested: ${{ steps.verdict.outputs.attested }}
+      gate_failed: ${{ steps.verdict.outputs.gate_failed }}
       archives: ${{ steps.verdict.outputs.archives }}
       results: ${{ steps.verdict.outputs.results }}
     steps:

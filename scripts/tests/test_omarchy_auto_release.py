@@ -37,7 +37,7 @@ OPEN_INCIDENTS = "issues?labels=release-incident&state=open&per_page=100"
 
 class PlanTests(unittest.TestCase):
     def setUp(self):
-        env = patch.dict(os.environ, {"SYNC_PAUSED": ""})
+        env = patch.dict(os.environ, {"SYNC_PAUSED": "", "GITHUB_RUN_ID": "456"})
         env.start()
         self.addCleanup(env.stop)
 
@@ -48,9 +48,15 @@ class PlanTests(unittest.TestCase):
                          "omarchy-v0.43.1.42", "omarchy-v0.43.0.11.99"]), "0.43.0.11")
 
     def test_pause_blocks_before_any_api_call(self):
-        with patch.dict(os.environ, {"SYNC_PAUSED": "true"}), patch.object(auto.promotion, "api") as api:
-            self.assertEqual(auto.plan(EVENT), (None, "SYNC_PAUSED is true"))
-            api.assert_not_called()
+        for value in ("true", " TRUE ", "1", "typo"):
+            with self.subTest(value=value), patch.dict(os.environ, {"SYNC_PAUSED": value}), \
+                 patch.object(auto.promotion, "api") as api:
+                self.assertEqual(auto.plan(EVENT), (None, "SYNC_PAUSED is set"))
+                api.assert_not_called()
+        for value in ("", "   ", " FaLsE "):
+            with self.subTest(value=value), patch.dict(os.environ, {"SYNC_PAUSED": value}), \
+                 patch.object(auto.promotion, "api", return_value=[[]]):
+                self.assertEqual(auto.pause_reason(), "")
 
     def test_manual_pr_and_failed_runs_do_not_plan(self):
         inputs = ({"event": "workflow_dispatch"}, {"event": "pull_request"}, {"head_branch": "feature"},
@@ -81,6 +87,8 @@ class PlanTests(unittest.TestCase):
                     auto.RELEASES_PATH: [[RELEASE | {"prerelease": True}]],
                     f"compare/{TAG}...{SHA}": {"status": "ahead"},
                     "git/matching-refs/tags/omarchy-v?per_page=100": [[{"ref": "refs/tags/omarchy-v0.43.0.10"}]]}
+        fixtures.update({f"{auto.PROMOTION_RUNS}?status={status}&per_page=1": {"total_count": 0}
+                         for status in auto.ACTIVE_PROMOTION_STATUSES})
 
         def api(path, **kwargs):
             return fixtures[path]
@@ -89,6 +97,11 @@ class PlanTests(unittest.TestCase):
              patch.object(auto.promotion, "source_base", return_value="0.43.0") as source_base:
             self.assertEqual(auto.plan(EVENT)[0], CANDIDATE | {"version": "0.43.0.11"})
             self.assertEqual(source_base.call_args.args[1], SHA)
+            fixtures[f"{auto.PROMOTION_RUNS}?status=queued&per_page=1"]["total_count"] = 1
+            with patch.object(auto, "next_version") as serial:
+                self.assertEqual(auto.plan(EVENT), (None, "A promotion workflow is already active"))
+                serial.assert_not_called()
+            fixtures[f"{auto.PROMOTION_RUNS}?status=queued&per_page=1"]["total_count"] = 0
             fixtures[f"compare/{TAG}...{SHA}"]["status"] = "identical"
             self.assertIsNone(auto.plan(EVENT)[0])
             source_base.return_value = "0.41.1"
@@ -125,7 +138,8 @@ class PlanTests(unittest.TestCase):
             self.assertEqual(auto.dispatch(CANDIDATE, NATIVE_GATE), TAG)
         gh.assert_called_once_with("actions/workflows/prerelease-omarchy.yml/dispatches", method="POST", data={
             "ref": "main", "inputs": {"source_run": "123", "source_sha": SHA, "source_attempt": "2",
-                                      "native_archives": json.dumps(ARCHIVES), "version": "0.43.0.2", "dry_run": False},
+                                      "native_archives": json.dumps(ARCHIVES), "auto_release_run_id": "456",
+                                      "version": "0.43.0.2", "dry_run": False},
         })
         wait.assert_called_once_with(99, CANDIDATE)
 
@@ -145,24 +159,44 @@ class WatchTests(unittest.TestCase):
     def test_watch_only_includes_stable_releases_in_publication_window(self):
         published = datetime(2026, 11, 19, 17, tzinfo=timezone.utc)
         now = published + timedelta(hours=23, minutes=59)
-        self.assertEqual(auto.find_watch_tags([
-            RELEASE, RELEASE | {"prerelease": True}, RELEASE | {"draft": True},
-            RELEASE | {"published_at": None}, RELEASE | {"published_at": (now + timedelta(seconds=1)).isoformat()},
-            RELEASE | {"published_at": (now - timedelta(hours=24)).isoformat()},
-        ], now), [TAG])
-        self.assertEqual(auto.find_watch_tags([RELEASE], published + timedelta(hours=24)), [])
+        with patch.object(auto, "promoted_automatically", return_value=True) as inspect_release:
+            self.assertEqual(auto.find_watch_tags([
+                RELEASE, RELEASE | {"prerelease": True}, RELEASE | {"draft": True},
+                RELEASE | {"published_at": None}, RELEASE | {"published_at": (now + timedelta(seconds=1)).isoformat()},
+                RELEASE | {"published_at": (now - timedelta(hours=24)).isoformat()},
+            ], now), [TAG])
+            self.assertEqual(auto.find_watch_tags([RELEASE], published + timedelta(hours=24)), [])
+            inspect_release.assert_called_once_with(RELEASE)
 
-    def test_forced_failure_dry_run_prints_all_actions_and_never_calls_gh(self):
-        with patch.object(auto.subprocess, "run") as run, patch.object(auto.promotion, "api") as api, \
-             redirect_stdout(io.StringIO()) as output:
-            auto.retract(TAG, "Forced watch failure", "fixture", dry_run=True)
-        run.assert_not_called()
-        api.assert_not_called()
-        self.assertEqual(json.loads(output.getvalue()), {
-            "dry_run": True, "tag": TAG, "failure": "Forced watch failure",
-            "release": {"prerelease": True, "make_latest": "false"},
-            "pause_issue": {"state": "open", "labels": ["release-incident"]},
-        })
+    def test_scheduled_watch_requires_the_automatic_promotion_record(self):
+        release = RELEASE | {"assets": [{"id": 101, "name": "promotion.json", "state": "uploaded", "size": 200}]}
+        for record, expected in (({"tag": TAG, "auto_release_run_id": 12}, True), ({"tag": TAG}, False),
+                                 ({"tag": TAG, "auto_release_run_id": True}, False),
+                                 ({"tag": "different", "auto_release_run_id": 12}, False)):
+            with self.subTest(record=record), patch.object(auto.subprocess, "check_output",
+                                                           return_value=json.dumps(record).encode()):
+                self.assertEqual(auto.promoted_automatically(release), expected)
+
+    def test_watch_retraction_truth_table(self):
+        for verdict, actions in {"passed": ("keep", "retract", "report"),
+                                 "failed": ("retract", "retract", "retract"),
+                                 "missing": ("report", "report", "report")}.items():
+            for urls, action in zip(("success", "failure", ""), actions):
+                with self.subTest(verdict=verdict, urls=urls):
+                    self.assertEqual(auto.watch_action(verdict, urls), action)
+
+    def test_native_status_only_uses_conclusive_evidence_from_the_expected_tag(self):
+        red = {"result": "failure", "outputs": {"release_tag": TAG, "attested": "true",
+                                               "passed": "false", "gate_failed": "true"}}
+        green = {"result": "success", "outputs": {"release_tag": TAG, "attested": "true", "passed": "true"}}
+        for attempt in (red | {"result": "cancelled"}, {"result": "failure"}, red | {"outputs": None},
+                        red | {"outputs": red["outputs"] | {"gate_failed": "false"}},
+                        red | {"outputs": red["outputs"] | {"attested": "false"}},
+                        red | {"outputs": red["outputs"] | {"release_tag": "different"}}):
+            with self.subTest(attempt=attempt):
+                self.assertEqual(auto.watch_verdict(TAG, {"initial": attempt}), "missing")
+                self.assertEqual(auto.watch_verdict(TAG, {"initial": attempt, "retry": green}), "passed")
+        self.assertEqual(auto.watch_verdict(TAG, {"initial": red}), "failed")
 
     def test_retract_opens_labelled_incident_then_marks_prerelease(self):
         def read(path, **kwargs):
@@ -174,7 +208,7 @@ class WatchTests(unittest.TestCase):
         with patch.object(auto.promotion, "api", side_effect=read), \
              patch.object(auto.promotion, "absent", return_value=True), \
              patch.object(auto, "gh", return_value={"html_url": "fixture issue"}) as gh, redirect_stdout(io.StringIO()):
-            auto.retract(TAG, "native gates failed", "fixture run", dry_run=False)
+            auto.retract(TAG, "native gates failed", "fixture run")
         self.assertEqual([(call.args[0], call.kwargs["method"]) for call in gh.call_args_list],
                          [("labels", "POST"), ("issues", "POST"), ("releases/456", "PATCH")])
         self.assertEqual(gh.call_args_list[2].kwargs["data"], {"prerelease": True, "make_latest": "false"})
@@ -188,25 +222,63 @@ class WatchTests(unittest.TestCase):
                  patch.object(auto, "record_incident") as incident:
                 (incident if failing_action == "record_incident" else mark).side_effect = ValueError(failing_action)
                 with self.assertRaisesRegex(ValueError, failing_action):
-                    auto.retract(TAG, "failed", "fixture run", dry_run=False)
+                    auto.retract(TAG, "failed", "fixture run")
                 mark.assert_called_once_with(TAG)
                 incident.assert_called_once_with(TAG, "failed", "fixture run")
 
     def test_already_retracted_release_and_incident_are_idempotent(self):
         with patch.object(auto.promotion, "api", side_effect=[
-            RELEASE | {"prerelease": True}, [[{"title": f"Release incident: {TAG}"}]],
+            RELEASE | {"prerelease": True}, [[{"title": f"Release incident: {TAG}", "state": "open"}]],
         ]), patch.object(auto, "gh") as gh:
             auto.mark_prerelease(TAG)
             auto.record_incident(TAG, "failed", "fixture run")
             gh.assert_not_called()
 
-    def test_workflow_dry_run_command_is_runnable_without_gh_or_credentials(self):
+    def test_closed_incident_does_not_suppress_a_new_hold(self):
+        def issues(path, **kwargs):
+            closed = {"title": f"Release incident: {TAG}", "state": "closed"}
+            return [[]] if path == OPEN_INCIDENTS else [[closed]]
+
+        with patch.object(auto.promotion, "api", side_effect=issues), \
+             patch.object(auto.promotion, "absent", return_value=False), \
+             patch.object(auto, "gh", return_value={"html_url": "fixture"}) as gh, redirect_stdout(io.StringIO()):
+            auto.record_incident(TAG, "again", "fixture")
+        self.assertEqual(gh.call_args.kwargs["data"]["labels"], ["release-incident"])
+
+    def test_missing_watch_evidence_uses_a_non_pausing_issue(self):
+        with patch.object(auto, "record_issue") as issue, patch.object(auto, "mark_prerelease") as edit:
+            auto.record_watch_unavailable(TAG, "fixture")
+        self.assertEqual(issue.call_args.args[0], "release-watch-unavailable")
+        edit.assert_not_called()
+
+    def test_rehearsal_executes_the_real_retraction_with_stubbed_writes(self):
         result = subprocess.check_output([
-            sys.executable, "-I", str(SCRIPT), "retract", "--dry-run", "--tag", TAG, "--reason",
-            "Forced watch failure", "--evidence", "Synthetic release",
+            sys.executable, "-I", __file__, "--rehearse-retract",
         ], text=True, env={"PATH": os.defpath})
-        self.assertTrue(json.loads(result)["dry_run"])
+        writes = json.loads(result)
+        self.assertEqual([(write["method"], write["path"]) for write in writes],
+                         [("POST", "issues"), ("PATCH", "releases/456")])
+        self.assertEqual(writes[0]["data"]["labels"], ["release-incident"])
+        self.assertTrue(writes[1]["data"]["prerelease"])
+
+
+def rehearse_retract():
+    tag = "omarchy-v0.43.0.1"
+    writes = []
+
+    def stub_write(path, *, method, data):
+        writes.append({"method": method, "path": path, "data": data})
+        return {"html_url": "Synthetic incident"}
+
+    with patch.object(auto.promotion, "api", side_effect=[[[]], RELEASE | {"tag_name": tag}]), \
+         patch.object(auto.promotion, "absent", return_value=False), patch.object(auto, "gh", side_effect=stub_write), \
+         redirect_stdout(io.StringIO()):
+        auto.retract(tag, "Forced watch failure", "Synthetic release")
+    print(json.dumps(writes, indent=2))
 
 
 if __name__ == "__main__":
-    unittest.main()
+    if sys.argv[1:] == ["--rehearse-retract"]:
+        rehearse_retract()
+    else:
+        unittest.main()

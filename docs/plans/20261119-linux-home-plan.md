@@ -32,8 +32,9 @@ omarchy-pkgs release (M3) waits for `omarchy-v0.43.0.1` after Task 1.
 - [ ] Add `.github/workflows/auto-release.yml`. On a successful main push CI run, it runs Task 2's gates on
   that run's artifacts. When they're green and automation is unpaused, it calls the #470 promotion with
   `dry_run=false` and the next `<base>.N` version.
-- [ ] Post-release watch: rerun the gates against the published assets within 24 h. On failure, open a
+- [ ] Watch automatically promoted assets for 24 h. On a confirmed gate or public URL failure, open a
   `release-incident` issue to pause automation and mark the release as a prerelease using `GITHUB_TOKEN`.
+  Retry missing native evidence and report exhaustion without pausing.
 - [ ] Tests: version derivation, the pause gate, and retraction (dry-run with a forced failure).
 
 ### Task 5: First automated release, end to end

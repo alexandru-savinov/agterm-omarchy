@@ -82,16 +82,21 @@ sync, or a fork fix since the last release.
 - Gate: C3 on that run's attested artifacts for both arches. Skip while automation is paused.
 - Then call the #470 promotion path (dispatch on main, `dry_run=false`, the next `0.<base>.N` version). That
   path requires the exact run attempt, artifact IDs, and archive SHA-256 digests that passed C3.
-  It verifies attestations before tagging and publishes a non-prerelease release.
+  It verifies attestations before tagging, records the automatic release run, and publishes a non-prerelease release.
+  Wait for any active promotion workflow before choosing a serial.
 - After publishing, a 24-hour watch: re-run the C3 gates against the **published** assets, plus an install
-  smoke from the release URLs. On failure:
+  smoke from the release URLs. The scheduled watch reads the promotion record to select automatic releases.
+  On a confirmed gate or URL probe failure:
   - open an issue labelled `release-incident` using the workflow token with `issues: write`;
   - mark the release as a prerelease using the workflow token with `contents: write` in the retraction job.
 
-Automation is paused when the repository variable `SYNC_PAUSED` is `true` or any open issue carries the
+Release automation is paused when `SYNC_PAUSED` is nonempty and differs from `false` after trimming whitespace
+and ignoring case, or any open issue carries the
 `release-incident` label. Only the owner changes the variable for a manual hold. Close the incident to
 clear its hold. Automatic work resumes once no incident remains open and the manual switch is clear.
 The post-release watch continues while automation is paused.
+Missing native evidence is retried twice with doubling backoff. Exhaustion opens a non-pausing
+`release-watch-unavailable` issue.
 
 ### C5. Courtesy note and re-entry
 

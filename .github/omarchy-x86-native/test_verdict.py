@@ -65,6 +65,7 @@ class VerdictTests(unittest.TestCase):
                 result = self.decide(plan)
                 self.assertEqual(result["errors"], [])
                 self.assertTrue(result["passed"])
+                self.assertFalse(result["gate_failed"])
                 self.assertEqual(set(result["archives"]), set(ARCHES))
                 for arch in ARCHES:
                     self.assertEqual(result["archives"][arch]["id"], plan["identities"][arch]["id"])
@@ -146,6 +147,25 @@ class VerdictTests(unittest.TestCase):
                 result = self.decide(plan)
                 self.assertFalse(result["passed"])
                 self.assertIn("aarch64: unreadable evidence", result["errors"][0])
+
+    def test_gate_failure_requires_complete_attested_non_cancelled_evidence(self):
+        plan = expected("release")
+        for change in (
+            {"live": "PASS 9/9 exit=0"}, {"live": ""}, {"live": "FAIL exit=1 no result (FileNotFoundError)"},
+        ):
+            with self.subTest(change=change):
+                self.fresh()
+                self.leg("x86_64", plan, gates={"ordinary": "FAIL 6/7 exit=1"})
+                self.leg("aarch64", plan, gates=change)
+                result = self.decide(plan, gates="failure")
+                self.assertFalse(result["passed"])
+                self.assertEqual(result["gate_failed"], change["live"].startswith("PASS"))
+                self.assertFalse(self.decide(plan, gates="cancelled")["gate_failed"])
+        self.fresh()
+        self.leg("x86_64", plan, gates={"ordinary": "FAIL 6/7 exit=1"})
+        self.assertFalse(self.decide(plan, gates="failure")["gate_failed"])
+        self.leg("aarch64", plan, host={"attestation": "unverified"})
+        self.assertFalse(self.decide(plan, gates="failure")["gate_failed"])
 
     def test_an_unattested_archive_never_passes_and_fails_the_job_unless_report_only(self):
         plan = expected()

@@ -7,12 +7,18 @@ on:
         description: Published versioned Omarchy tag to watch
         type: string
         required: true
+      dry_run:
+        description: Rehearse a confirmed gate failure with fixture data
+        type: boolean
+        default: false
+
 permissions:
   contents: read
 
 jobs:
   native_published:
     if: >-
+      !inputs.dry_run &&
       github.repository == 'alexandru-savinov/agterm-omarchy' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'schedule' ||
@@ -24,6 +30,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      attestations: read
     uses: $/.github/workflows/omarchy-x86-native.yml
     with:
       source: release
@@ -31,52 +38,112 @@ jobs:
       arch: both
       attestation: required
 
-  public_urls:
+  backoff_1:
     needs: native_published
     if: >-
-      github.repository == 'alexandru-savinov/agterm-omarchy' &&
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'schedule' ||
-       (github.event_name == 'workflow_run' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.head_repository.full_name == github.repository &&
-        github.event.workflow_run.conclusion == 'success')) &&
-      needs.native_published.outputs.passed == 'true' &&
-      needs.native_published.outputs.attested == 'true' &&
-      needs.native_published.outputs.release_tag == inputs.tag
+      !cancelled() &&
+      needs.native_published.result != 'skipped' &&
+      !(needs.native_published.outputs.release_tag == inputs.tag &&
+        needs.native_published.outputs.attested == 'true' &&
+        ((needs.native_published.result == 'success' && needs.native_published.outputs.passed == 'true') ||
+         (needs.native_published.result == 'failure' && needs.native_published.outputs.passed == 'false' &&
+          needs.native_published.outputs.gate_failed == 'true')))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - run: sleep 60
+
+  native_retry_1:
+    needs: backoff_1
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    uses: $/.github/workflows/omarchy-x86-native.yml
+    with:
+      source: release
+      release_tag: ${{ inputs.tag }}
+      arch: both
+      attestation: required
+
+  backoff_2:
+    needs: native_retry_1
+    if: >-
+      !cancelled() &&
+      needs.native_retry_1.result != 'skipped' &&
+      !(needs.native_retry_1.outputs.release_tag == inputs.tag &&
+        needs.native_retry_1.outputs.attested == 'true' &&
+        ((needs.native_retry_1.result == 'success' && needs.native_retry_1.outputs.passed == 'true') ||
+         (needs.native_retry_1.result == 'failure' && needs.native_retry_1.outputs.passed == 'false' &&
+          needs.native_retry_1.outputs.gate_failed == 'true')))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - run: sleep 120
+
+  native_retry_2:
+    needs: backoff_2
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    uses: $/.github/workflows/omarchy-x86-native.yml
+    with:
+      source: release
+      release_tag: ${{ inputs.tag }}
+      arch: both
+      attestation: required
+
+  evaluate:
+    needs: [native_published, native_retry_1, native_retry_2]
+    if: >-
+      !cancelled() &&
+      ((inputs.dry_run && github.event_name == 'workflow_dispatch' &&
+        github.repository == 'alexandru-savinov/agterm-omarchy' && github.ref == 'refs/heads/main') ||
+       (!inputs.dry_run && needs.native_published.result != 'skipped'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      action: ${{ steps.action.outputs.action }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Classify native evidence
+        id: native
+        env:
+          TAG: ${{ inputs.tag }}
+          NATIVE_ATTEMPTS: ${{ inputs.dry_run && '{"fixture":{"result":"failure","outputs":{"passed":"false","attested":"true","gate_failed":"true","release_tag":"omarchy-v0.43.0.1"}}}' || toJSON(needs) }}
+        run: python3 -I scripts/omarchy-auto-release.py watch-verdict
       - name: Smoke-test public stable download URLs
+        id: public_urls
+        if: steps.native.outputs.verdict == 'passed'
         env:
           TAG: ${{ inputs.tag }}
         shell: bash
         run: |
           [[ "$TAG" =~ ^omarchy-v[0-9]+\.[0-9]+\.[0-9]+\.[1-9][0-9]*$ ]]
           for arch in x86_64 aarch64; do
-            # The native release gate also installs and tests these exact release assets.
             asset="agterm-omarchy-${TAG#omarchy-v}-$arch.tar.gz"
-            curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
-              --retry 2 --max-time 45 --range 0-0 --output /dev/null \
-              "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$asset"
+            if ! curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+                --retry 2 --max-time 45 --range 0-0 --output /dev/null \
+                "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$asset"; then
+              echo 'result=failure' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           done
+          echo 'result=success' >> "$GITHUB_OUTPUT"
+      - name: Select the watch action
+        id: action
+        env:
+          NATIVE_VERDICT: ${{ steps.native.outputs.verdict }}
+          URL_RESULT: ${{ steps.public_urls.outputs.result }}
+        run: python3 -I scripts/omarchy-auto-release.py watch-action
 
   retract:
-    needs: [native_published, public_urls]
-    if: >-
-      !cancelled() &&
-      github.repository == 'alexandru-savinov/agterm-omarchy' &&
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'schedule' ||
-       (github.event_name == 'workflow_run' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.head_repository.full_name == github.repository &&
-        github.event.workflow_run.conclusion == 'success')) &&
-      needs.native_published.result != 'skipped' &&
-      (needs.native_published.result != 'success' ||
-       needs.public_urls.result != 'success')
+    needs: evaluate
+    if: needs.evaluate.outputs.action == 'retract'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     concurrency:
@@ -90,17 +157,44 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Open a release incident to pause and mark the release as a prerelease
+      - name: Rehearse release retraction with stubbed GitHub writes
+        if: inputs.dry_run && github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: python3 -I scripts/tests/test_omarchy_auto_release.py --rehearse-retract | tee "$GITHUB_STEP_SUMMARY"
+      - name: Open a release incident and mark the release as a prerelease
+        if: '!inputs.dry_run && github.event_name != ''workflow_dispatch'''
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
-          NATIVE_RESULT: ${{ needs.native_published.result }}
-          PUBLISHED_PASSED: ${{ needs.native_published.outputs.passed }}
-          PUBLISHED_ATTESTED: ${{ needs.native_published.outputs.attested }}
-          TESTED_TAG: ${{ needs.native_published.outputs.release_tag }}
-          URL_RESULT: ${{ needs.public_urls.result }}
         shell: bash
         run: |
           python3 -I scripts/omarchy-auto-release.py retract --tag "$TAG" \
-            --reason "Native: $NATIVE_RESULT (passed=${PUBLISHED_PASSED:-missing}, attested=${PUBLISHED_ATTESTED:-missing}, tag=${TESTED_TAG:-missing}), public URLs: $URL_RESULT" \
+            --reason "Confirmed native gate or public download failure" \
+            --evidence "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+  report_unavailable:
+    needs: evaluate
+    if: >-
+      !inputs.dry_run && github.event_name != 'workflow_dispatch' &&
+      needs.evaluate.outputs.action == 'report'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: omarchy-watch-unavailable-${{ inputs.tag }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Report missing evidence without pausing releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          python3 -I scripts/omarchy-auto-release.py watch-unavailable --tag "$TAG" \
             --evidence "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

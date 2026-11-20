@@ -98,39 +98,44 @@ It skips a commit already covered by the latest versioned release, including a r
 The first upstream base is `0.43.0`.
 The next serial is one above the highest exact tag or release for that base, including drafts, retractions,
 and tags left behind after a failed publication.
+Automatic releases wait while any promotion workflow run is active.
 Automatic promotion requires #481's green attested verdict for both architectures.
 It dispatches this workflow on main with `dry_run=false`, the gated source SHA, run ID and `source_attempt`,
-and the native gate's `archives` output as `native_archives`.
+the native gate's `archives` output as `native_archives`, and the automatic release workflow run ID.
 Promotion checks the attempt and both artifact IDs and transport digests.
 It hashes each downloaded CI tarball and requires an exact match to the SHA-256 that passed the native gates
-before stamping the versioned release archive. The signed promotion evidence retains the tested digests.
+before stamping the versioned release archive. Signed `promotion.json` retains the tested digests and
+`auto_release_run_id`.
 Both manual promotion modes retain their existing inputs.
 
-Set the repository variable `SYNC_PAUSED=true` for a manual hold. An open issue labelled `release-incident`
+Any nonempty repository variable `SYNC_PAUSED` other than `false`, ignoring case and surrounding whitespace,
+sets a manual hold. An open issue labelled `release-incident`
 also holds automation. Close resolved incidents and clear any manual hold to resume.
 Automatic promotion checks both holds at candidate selection, before dispatch, and after attestation
 verification before tagging. It reads the manual switch from Actions configuration and queries open
 incidents with the built-in token. Gate runners receive read-only permissions.
 
-The watch starts as soon as promotion reports success. A scheduled check every two hours also finds
-stable releases published in the last 24 hours, including after an interrupted promotion caller.
+The watch starts as soon as promotion reports success. Every two hours it also finds stable releases from
+the last 24 hours whose promotion record identifies an automatic release run.
 The #475 published-release mode downloads, verifies, and installs both architectures' published assets.
 The watch also tests both public asset URLs without credentials.
-The watch runs while automation is paused. On a failure it opens a `release-incident` issue to hold
+The watch runs while automation is paused. A confirmed failing native gate or failed public URL probe opens
+a `release-incident` issue to hold
 new promotions and records the failed checks and run link there. It marks the release as a prerelease.
 Both edits use the built-in Actions token, with write permissions scoped to the retraction job.
 The release and tag remain available for investigation and the next fixed commit uses a new serial.
 If any incident action fails, review the incident and rerun the failed watch jobs before resuming.
-Scheduled starts depend on hosted Actions availability.
+If native evidence is incomplete or unavailable, the watch retries twice, after 60 and 120 seconds.
+If it still has no verdict, it opens a `release-watch-unavailable` issue. This label does not pause releases
+and the release stays published. Scheduled starts depend on hosted Actions availability.
 
 Both native gate calls use #481's reusable workflow in required attestation mode.
 CI-artifact gating stays closed until #483 supplies verified build attestations for both architectures.
 The post-release watch requires a green attested verdict for the requested release tag.
 Manual dispatch of `auto-release.yml` runs only fixtures, even from main.
-The **force_failure** input also prints the planned prerelease edit and open-issue hold for a synthetic release.
-The same dry run can run locally without credentials:
+The **force_failure** input feeds a synthetic failed verdict through the same watch and retraction job.
+The retraction code uses stubbed GitHub operations in the rehearsal. To run that part locally:
 
 ```bash
-python3 -I scripts/omarchy-auto-release.py retract --dry-run --tag omarchy-v0.43.0.1 \
-  --reason "Forced watch failure" --evidence "Synthetic release"
+python3 -I scripts/tests/test_omarchy_auto_release.py --rehearse-retract
 ```

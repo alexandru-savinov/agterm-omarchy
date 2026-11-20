@@ -354,6 +354,7 @@ def main():
     parser.add_argument("--source-attempt", type=int,
                         help="require the exact CI attempt that passed the automatic release gates")
     parser.add_argument("--native-archives", help="require the native gate's attested CI archives JSON")
+    parser.add_argument("--auto-release-run-id", type=int, help="record the automatic release orchestration run")
     parser.add_argument("run_id", type=int, nargs="?")
     parser.add_argument("sha", nargs="?")
     parser.add_argument("output", type=Path, nargs="?")
@@ -363,6 +364,8 @@ def main():
     if args.source_attempt is not None:
         require(args.source_attempt > 0 and args.release and not (args.next_version or args.discover),
                 "--source-attempt requires a positive attempt and versioned release preparation")
+    require(args.auto_release_run_id is None or (args.auto_release_run_id > 0 and args.source_attempt is not None),
+            "--auto-release-run-id requires positive ID and gated release evidence")
     if args.next_version:
         version = next_version(release_module())
         write_outputs({"version": version})
@@ -413,6 +416,8 @@ def main():
                 "source_workflow": WORKFLOW, "artifacts": []}
     if release:
         evidence.update(tag=tag, version=args.release, latest=latest, releases=[])
+    if args.auto_release_run_id is not None:
+        evidence["auto_release_run_id"] = args.auto_release_run_id
     checksums = []
     for arch, artifact in artifacts.items():
         name, data = download_artifact(artifact, arch, args.sha)
