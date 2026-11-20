@@ -11,3 +11,8 @@ paths:
   .github/workflows/atspi-targeted.yml:
     ignore:
       - 'unexpected key "cache-mode" for "workflow" section'
+  # GitHub's self-repository `uses: $/...` call (zizmor self-repository) is not parsed by actionlint 1.7.12
+  # (https://github.com/rhysd/actionlint/issues/760); remove once the pinned actionlint supports it.
+  .github/workflows/omarchy-native-gates-self-test.yml:
+    ignore:
+      - 'is not following the format "owner/repo/path/to/workflow.yml@ref"'

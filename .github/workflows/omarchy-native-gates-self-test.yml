@@ -1,0 +1,30 @@
+name: Omarchy native gates self-test
+
+# The native gates on main's newest releasable CI run, for pull requests that change them. Main CI does not
+# attest its archives yet (#483), so this caller alone asks for report-only: the gates run and report, and
+# passed stays false. Switch it to required once main CI attests.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/omarchy-native-gates-self-test.yml
+      - .github/workflows/omarchy-x86-native.yml
+      - .github/omarchy-x86-native/**
+      # ci-artifact.py runs the promotion's checks, and its test runs on the promotion tests' fixture.
+      - scripts/prepare-omarchy-prerelease.py
+      - scripts/tests/test_omarchy_prerelease.py
+
+permissions:
+  contents: read
+
+jobs:
+  self-test:
+    uses: $/.github/workflows/omarchy-x86-native.yml
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    with:
+      source: ci-run
+      arch: both
+      channel: stable
+      attestation: report-only
