@@ -725,6 +725,8 @@ struct AppStoreRemotePageTests {
         let session = try liveTextOrigin()
         let page = logPage()
         #expect(open(session, page) == .opened)
+        // a starved main queue runs the deadline's timer before this test's answer; the deadline is not under test
+        store.remoteTextDeadline = .seconds(300)
 
         let action = Task { await store.remoteTextAction(session.id, pane: nil, .follow(.off)) }
         let command = try await sentCommand()
@@ -788,6 +790,7 @@ struct AppStoreRemotePageTests {
             page: page.id.uuidString, title: nil, address: nil, load: .loaded, error: nil, canGoBack: false,
             canGoForward: false, hidden: false, appliedSeq: 0, text: seed, offer: presenter.offer(page))), forSession: session.id, from: presenter.frames[0].gen)
 
+        headless.remoteTextDeadline = .seconds(300)
         let action = Task { await headless.remoteTextAction(session.id, pane: nil, .search(.next)) }
         _ = try await sentCommand()
         hub.unsubscribe(id)
