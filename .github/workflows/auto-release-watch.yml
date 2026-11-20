@@ -37,6 +37,7 @@ jobs:
       release_tag: ${{ inputs.tag }}
       arch: both
       attestation: required
+      evidence_suffix: watch-initial
 
   backoff_1:
     needs: native_published
@@ -65,6 +66,7 @@ jobs:
       release_tag: ${{ inputs.tag }}
       arch: both
       attestation: required
+      evidence_suffix: watch-retry-1
 
   backoff_2:
     needs: native_retry_1
@@ -93,6 +95,7 @@ jobs:
       release_tag: ${{ inputs.tag }}
       arch: both
       attestation: required
+      evidence_suffix: watch-retry-2
 
   evaluate:
     needs: [native_published, native_retry_1, native_retry_2]

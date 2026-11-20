@@ -38,7 +38,7 @@ class VerdictTests(unittest.TestCase):
         self.evidence = Path(tempfile.mkdtemp(dir=self.temp.name))
 
     def leg(self, arch, plan, attempt=1, gates=None, host=None, raw=None):
-        directory = self.evidence / f"omarchy-native-gates-{arch}-stable-run7-1-55-{attempt}"
+        directory = self.evidence / f"omarchy-native-gates-{arch}-{plan['channel']}-{plan['label']}-55-{attempt}"
         directory.mkdir()
         identity = plan["identities"][arch]
         sha256 = identity.get("sha256", "f" * 64)
@@ -96,6 +96,19 @@ class VerdictTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertEqual(len(result["errors"]), 1)
         self.assertIn("x86_64: no evidence from attempt 2", result["errors"][0])
+
+    def test_a_second_reusable_call_reuses_no_evidence_from_the_first(self):
+        first = expected("release") | {"label": "omarchy-v0.43.0.1-watch-initial"}
+        retry = first | {"label": "omarchy-v0.43.0.1-watch-retry-1"}
+        self.leg("x86_64", first, gates={"ordinary": "FAIL 6/7 exit=1"})
+        self.leg("aarch64", first)
+        self.assertTrue(self.decide(first, gates="failure")["gate_failed"])
+        self.leg("aarch64", retry)
+        missing = self.decide(retry)
+        self.assertFalse(missing["passed"])
+        self.assertFalse(missing["gate_failed"])
+        self.leg("x86_64", retry)
+        self.assertTrue(self.decide(retry)["passed"])
 
     def test_mixed_outcomes_fail(self):
         cases = {"ordinary": {"ordinary": "FAIL 0/7 exit=1"}, "live": {"live": "PASS 8/9 exit=0"},
