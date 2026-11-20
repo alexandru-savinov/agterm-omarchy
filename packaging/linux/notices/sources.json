@@ -1715,7 +1715,7 @@
     "scripts/ghostty-patches/0002-report-system-color-scheme.patch": "a1ffeb806054d6cdad27fd48747018249c823c711cf2985ec51fae8d81aaee2e",
     "scripts/ghostty-patches/0003-surface-try-free.patch": "dbe598d4c79daa141fcdad9d29ac0cb2388d021b5a95bdacd6b4a088530c0c21",
     "scripts/ghostty-patches/0004-agterm-session-link-scheme.patch": "24dc1b56a90396d479fb23d60e688b68ef2fe6849bf5f105d184d7fda85a4027",
-    "scripts/ghostty-patches/0005-drain-pty-on-hangup.patch": "e46a7f26b12f636fdbd04f1f7b6b3767381ce51c99f0732b979911b377c0932c",
-    "scripts/ghostty-patches/0006-exit-message-after-final-output.patch": "6df10f9bef3a20e147c3f0aad061a4952e20edc1d01f0036e4c351188749e2f4"
+    "scripts/ghostty-patches/0005-drain-pty-on-hangup.patch": "3b7ad5943a3e396e1b1dc319363887e2458c16740031d8e8d5a1c1529e63a3ec",
+    "scripts/ghostty-patches/0006-exit-message-after-final-output.patch": "d109b93494a93c799564a16a843a59e8a22308b1bedce4b03eb2ae2e05ef73c4"
   }
 }

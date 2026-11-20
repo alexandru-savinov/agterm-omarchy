@@ -246,26 +246,13 @@ stop_hyprland() {
 record() { printf '%s\t%s\n' "$1" "$2" >> "$EVIDENCE/gates.tsv"; }
 
 harness_gate() {
-  local name="$1" mode="$2" expected="$3"; shift 3
+  local name="$1" mode="$2" expected="$3" gtk_configs="$4"; shift 4
   local status=0
   env "$@" AGTERM_TEST_BIN="$PREFIX/bin/agterm-linux" AGTERM_TEST_CTL="$PREFIX/bin/agtermctl" \
     AGTERM_TEST_RESTORE_MODE="$mode" AGTERM_OMARCHY_ARTIFACTS="$EVIDENCE/$name" \
     /repo/scripts/test-omarchy.sh > "$EVIDENCE/$name.log" 2>&1 || status=$?
-  python3 -I - "$EVIDENCE/$name" "$expected" "$status" "$name" >> "$EVIDENCE/gates.tsv" <<'PY'
-import json, pathlib, sys
-root, expected, status, name = pathlib.Path(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
-try:
-    result = json.loads((root / 'result.json').read_text())
-    cleanup = json.loads((root / 'cleanup.json').read_text())
-except (OSError, ValueError) as error:
-    print(f'{name}\tFAIL exit={status} no result ({type(error).__name__})')
-    raise SystemExit
-checks = result.get('checks') or result.get('completed_checks') or []
-ok = status == 0 and result.get('passed') is True and len(checks) == expected and cleanup.get('passed') is True
-print(f"{name}\t{'PASS' if ok else 'FAIL'} {len(checks)}/{expected} exit={status} "
-      f"cleanup={cleanup.get('passed')} daemons={cleanup.get('tracked_daemon_count')} "
-      f"harness_matches_commit={result['identity']['harness'].get('matches_commit')}")
-PY
+  python3 -I /repo/.github/omarchy-x86-native/harness-result.py \
+    "$EVIDENCE/$name" "$expected" "$status" "$name" "$gtk_configs" >> "$EVIDENCE/gates.tsv"
 }
 
 session_phase() {
@@ -318,13 +305,15 @@ session_phase() {
   record harness_blob "$(git -C /repo rev-parse HEAD:scripts/test-omarchy.sh)"
   record omarchy_channel "$OMARCHY_CHANNEL $(omarchy_mirror)"
   record mesa "$(pacman -Q mesa | cut -d' ' -f2)"
-  record egl_gtk_configs "$(awk -F'\t' '$1 == "gtk-rgba8-window" { print $2 }' "$EVIDENCE/egl-choose-config.txt")"
+  local gtk_configs
+  gtk_configs="$(awk -F'\t' '$1 == "gtk-rgba8-window" { print $2 }' "$EVIDENCE/egl-choose-config.txt")"
+  record egl_gtk_configs "$gtk_configs"
 
-  harness_gate ordinary none 7
+  harness_gate ordinary none 7 "$gtk_configs"
 
   cc -shared -fPIC -o "$HOME/fixture.so" /repo/agterm-linux/tests/login_shell_zsh_fixture.c -ldl
   record login_shell "$(getent passwd "$USER" | cut -d: -f7)"
-  harness_gate live live 9 LD_PRELOAD="$HOME/fixture.so"
+  harness_gate live live 9 "$gtk_configs" LD_PRELOAD="$HOME/fixture.so"
 
   local run passes=0 probe_parent="$EVIDENCE/probe"
   install -d -m 0700 "$probe_parent"
