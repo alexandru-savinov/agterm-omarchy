@@ -1174,6 +1174,7 @@ Closing an attached page companion closes only the local view.
 GTK uses Ctrl for the platform command modifier; Ctrl+Shift+R opens Attach Remote from `remotes.conf`.
 HUD Markdown links open with Ctrl-click and keep the HUD visible.
 Linux omits restorable window x/y coordinates and does not register compositor-wide shortcuts or lock input sources.
+Linux answers `command not yet supported on Linux` for `update check` and, on a local row, `zmx kill --pane-id`.
 These commands never connect to the socket and work while agterm is stopped:
 
 ```bash
