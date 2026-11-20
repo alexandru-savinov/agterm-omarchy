@@ -52,17 +52,4 @@ jobs:
             exit 1
           fi
       - name: Run actionlint
-        run: |
-          # Actionlint 1.7.12 cannot parse the self-repository syntax (rhysd/actionlint#760).
-          # The two same-commit forms are equivalent for reusable workflow calls.
-          python3 - <<'PY'
-          from pathlib import Path
-
-          workflow = Path(".github/workflows/auto-release.yml")
-          source = workflow.read_text()
-          workflow.write_text(source.replace(
-              "\n    uses: $/.github/workflows/auto-release-watch.yml\n",
-              "\n    uses: ./.github/workflows/auto-release-watch.yml\n",
-          ))
-          PY
-          /tmp/actionlint -color
+        run: /tmp/actionlint -color
