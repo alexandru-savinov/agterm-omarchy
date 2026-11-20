@@ -36,6 +36,21 @@ on:
         required: false
         type: string
         default: ""
+      source_attempt:
+        description: Exact CI attempt for an automatic versioned release (enables the final pause check)
+        required: false
+        type: string
+        default: ""
+      native_archives:
+        description: Attested native gate archive metadata JSON for both architectures, required with source_attempt
+        required: false
+        type: string
+        default: ""
+      auto_release_run_id:
+        description: Automatic release orchestration run ID recorded in promotion.json
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -102,9 +117,15 @@ jobs:
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
           # The script validates the version against the source's upstream base and the omarchy-pkgs watch pattern.
           VERSION: ${{ inputs.version }}
+          SOURCE_ATTEMPT: ${{ inputs.source_attempt }}
+          NATIVE_ARCHIVES: ${{ inputs.native_archives }}
+          AUTO_RELEASE_RUN_ID: ${{ inputs.auto_release_run_id }}
         run: |
           mode=()
           [[ -z "$VERSION" ]] || mode=(--release "$VERSION")
+          [[ -z "$SOURCE_ATTEMPT" ]] || mode+=(--source-attempt "$SOURCE_ATTEMPT")
+          [[ -z "$NATIVE_ARCHIVES" ]] || mode+=(--native-archives "$NATIVE_ARCHIVES")
+          [[ -z "$AUTO_RELEASE_RUN_ID" ]] || mode+=(--auto-release-run-id "$AUTO_RELEASE_RUN_ID")
           python3 scripts/prepare-omarchy-prerelease.py "$SOURCE_RUN" "$SOURCE_SHA" "$RUNNER_TEMP/promotion" "${mode[@]}"
       # A pull request also dry-runs the versioned path, for the next unpublished version, on the newest
       # main run that release mode accepts (never an omarchy-branch run). While the main head's CI is still
@@ -182,6 +203,7 @@ jobs:
     permissions:
       contents: write
       actions: read
+      issues: read
       id-token: write
       attestations: write
     steps:
@@ -236,6 +258,18 @@ jobs:
             --notes-file dist/release-notes.md \
             dist/*.tar.gz dist/SHA256SUMS dist/promotion.json
           printf 'Published prerelease: https://github.com/%s/releases/tag/%s\n' "$GH_REPO" "$TAG" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check out the automatic release pause check
+        if: inputs.source_attempt != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: automation
+          persist-credentials: false
+      - name: Recheck the manual hold and open incidents before automatic publication
+        if: inputs.source_attempt != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SYNC_PAUSED: ${{ vars.SYNC_PAUSED }}
+        run: python3 -I automation/scripts/omarchy-auto-release.py check-pause
       - name: Create the versioned release without replacing anything
         if: needs.prepare.outputs.version != ''
         env:

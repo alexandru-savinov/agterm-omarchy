@@ -11,8 +11,15 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 
 GATES = {"ordinary": "PASS 7/7 ", "live": "PASS 9/9 ", "probe": "PASS 10/10", "uninstall": "PASS "}
+FAILURES = {
+    "ordinary": r"FAIL \d+/7 exit=\d+(?: .*)?",
+    "live": r"FAIL \d+/9 exit=\d+(?: .*)?",
+    "probe": r"FAIL \d+/10",
+    "uninstall": r"FAIL exit=\d+ files_left=\d+ stray_processes=\d+",
+}
 ARCHITECTURES = ("x86_64", "aarch64")
 
 
@@ -30,13 +37,13 @@ def rows(path):
 
 
 def check_leg(directory, arch, expected):
-    """(gates rows, archive entry, attested, errors) for one architecture's evidence directory."""
+    """Return rows, archive, attestation, completeness, and errors for one leg."""
     errors = []
     try:
         table = rows(directory / "gates.tsv")
         host = json.loads((directory / "host-record.json").read_text())
     except (OSError, ValueError) as error:
-        return {}, None, False, [f"{arch}: unreadable evidence ({error})"]
+        return {}, None, False, False, [f"{arch}: unreadable evidence ({error})"]
     identity = expected["identities"].get(arch)
     checks = {
         "host record architecture": host.get("arch") == arch,
@@ -49,13 +56,16 @@ def check_leg(directory, arch, expected):
     }
     if expected["source"] == "release":
         checks["release asset sha256"] = identity is not None and host.get("sha256") == identity.get("sha256")
+    complete = all(checks.values())
     for name, prefix in GATES.items():
         value = table.get(name, "")
-        checks[f"{name} gate"] = value == prefix if name == "probe" else value.startswith(prefix)
+        passed = value == prefix if name == "probe" else value.startswith(prefix)
+        checks[f"{name} gate"] = passed
+        complete = complete and (passed or re.fullmatch(FAILURES[name], value) is not None)
     errors += [f"{arch}: {name} does not match" for name, ok in checks.items() if not ok]
     archive = dict(identity or {}, filename=host.get("archive"), sha256=host.get("sha256"),
                    attestation=host.get("attestation"))
-    return table, archive, host.get("attestation") == "verified", errors
+    return table, archive, host.get("attestation") == "verified", complete, errors
 
 
 def decide(evidence, expected, run_id, attempt, source_result, gates_result):
@@ -64,21 +74,28 @@ def decide(evidence, expected, run_id, attempt, source_result, gates_result):
         errors.append(f"gates jobs {gates_result}")
     arches = expected.get("arches")
     if not (isinstance(arches, list) and arches and len(set(arches)) == len(arches) and set(arches) <= set(ARCHITECTURES)):
-        return {"passed": False, "attested": False, "errors": errors + [f"invalid architecture list {arches!r}"],
+        return {"passed": False, "attested": False, "gate_failed": False,
+                "errors": errors + [f"invalid architecture list {arches!r}"],
                 "results": {}, "archives": {}}
     results, archives, attested = {}, {}, True
+    complete = source_result == "success" and gates_result in ("success", "failure")
+    gate_failed = False
     for arch in expected["arches"]:
         name = f"omarchy-native-gates-{arch}-{expected['channel']}-{expected['label']}-{run_id}-{attempt}"
         directory = evidence / name
         if not directory.is_dir():
             errors.append(f"{arch}: no evidence from attempt {attempt}; re-run all jobs, not only failed ones")
             attested = False
+            complete = False
             continue
-        table, archive, leg_attested, leg_errors = check_leg(directory, arch, expected)
+        table, archive, leg_attested, leg_complete, leg_errors = check_leg(directory, arch, expected)
         results[arch], archives[arch] = table, archive
         attested = attested and leg_attested
+        complete = complete and leg_complete
+        gate_failed = gate_failed or (leg_complete and bool(leg_errors))
         errors += leg_errors
-    return {"passed": not errors and attested, "attested": attested, "errors": errors,
+    return {"passed": not errors and attested, "attested": attested,
+            "gate_failed": complete and attested and gate_failed, "errors": errors,
             "results": results, "archives": archives}
 
 
@@ -97,6 +114,7 @@ def main():
     # report-only is the pull_request self-test: it may finish green on unattested archives, and never passes.
     if args.attestation == "report-only":
         verdict["passed"] = False
+        verdict["gate_failed"] = False
     for error in verdict["errors"]:
         print(f"::error::{error}")
     if not verdict["attested"]:
@@ -105,11 +123,12 @@ def main():
         print("::warning::attestation: report-only, so passed is false")
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-            for key in ("passed", "attested"):
+            for key in ("passed", "attested", "gate_failed"):
                 output.write(f"{key}={str(verdict[key]).lower()}\n")
             for key in ("results", "archives"):
                 output.write(f"{key}={json.dumps(verdict[key], sort_keys=True)}\n")
-    print(json.dumps({key: verdict[key] for key in ("passed", "attested", "archives")}, indent=2, sort_keys=True))
+    print(json.dumps({key: verdict[key] for key in ("passed", "attested", "gate_failed", "archives")},
+                     indent=2, sort_keys=True))
     failed = verdict["errors"] or (args.attestation == "required" and not verdict["attested"])
     raise SystemExit(1 if failed else 0)
 

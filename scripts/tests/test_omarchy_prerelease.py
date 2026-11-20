@@ -564,6 +564,17 @@ class ReleaseGitHub(FakeGitHub):
         self.releases, self.ahead = list(releases), ahead
         self.ci = CI_WORKFLOW.read_text() if ci is None else ci
 
+    def native_archives(self):
+        """Build the #481 archives output from the exact fixture ZIP contents."""
+        archives = {}
+        for arch, artifact in zip(promotion.ARCHITECTURES, self.artifacts):
+            name = f"agterm-omarchy-{arch}.tar.gz"
+            with zipfile.ZipFile(io.BytesIO(self.zips[arch])) as archive:
+                digest = hashlib.sha256(archive.read(name)).hexdigest()
+            archives[arch] = {"id": artifact["id"], "name": artifact["name"], "filename": name,
+                              "transport_digest": artifact["digest"], "sha256": digest, "attestation": "verified"}
+        return archives
+
     def answer(self, path):
         base = f"repos/{promotion.REPOSITORY}/"
         short = path[len(base):]
@@ -692,6 +703,67 @@ class ReleaseDryRunTests(unittest.TestCase):
             with self.subTest(extra=extra), tempfile.TemporaryDirectory() as temp:
                 with self.assertRaisesRegex(ValueError, "Requested run ID mismatch"):
                     self.prepare(github, Path(temp) / "promotion", *extra)
+
+    def test_automatic_release_requires_the_gated_ci_attempt(self):
+        github = ReleaseGitHub()
+        gated = ("--native-archives", json.dumps(github.native_archives()))
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "promotion"
+            with self.assertRaisesRegex(ValueError, "CI attempt differs"):
+                self.prepare(github, output, "--release", "0.41.1.1", "--source-attempt", "2", *gated)
+            self.assertFalse(output.exists())
+            self.prepare(github, output, "--release", "0.41.1.1", "--source-attempt", "1",
+                         "--auto-release-run-id", "987", *gated)
+            evidence = json.loads((output / "promotion.json").read_text())
+            self.assertEqual(evidence["source_run_attempt"], 1)
+            self.assertEqual(evidence["auto_release_run_id"], 987)
+            self.assertEqual(
+                evidence["artifacts"],
+                [{key: value for key, value in archive.items() if key != "attestation"}
+                 for archive in github.native_archives().values()],
+            )
+
+    def test_automatic_release_requires_both_attested_archives_before_api_calls(self):
+        github = ReleaseGitHub()
+        archives = github.native_archives()
+        unattested = archives | {"aarch64": archives["aarch64"] | {"attestation": "unverified"}}
+        malformed = archives | {"aarch64": archives["aarch64"] | {"sha256": ""}}
+        cases = [
+            (("--source-attempt", "1"), "must be provided together"),
+            (("--native-archives", json.dumps(archives)), "must be provided together"),
+            (("--source-attempt", "1", "--native-archives", json.dumps({"x86_64": archives["x86_64"]})),
+             "exactly x86_64 and aarch64"),
+            (("--source-attempt", "1", "--native-archives", json.dumps(unattested)), "attestation is not verified"),
+            (("--source-attempt", "1", "--native-archives", json.dumps(malformed)), "Invalid native archive SHA-256"),
+        ]
+        for extra, message in cases:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as temp:
+                with self.assertRaisesRegex(ValueError, message):
+                    self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.1", *extra)
+        self.assertEqual(github.calls, [])
+
+    def test_automatic_release_rejects_replaced_artifact_even_when_bytes_are_identical(self):
+        github = ReleaseGitHub()
+        archives = github.native_archives()
+        github.artifacts[1]["id"] = 234
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "promotion"
+            with self.assertRaisesRegex(ValueError, "artifact ID differs.*aarch64"):
+                self.prepare(github, output, "--release", "0.41.1.1", "--source-attempt", "1",
+                             "--native-archives", json.dumps(archives))
+            self.assertFalse(output.exists())
+        self.assertFalse(any(call[2].endswith("/zip") for call in github.calls))
+
+    def test_automatic_release_rejects_different_archive_sha_even_with_a_valid_transport_digest(self):
+        github = ReleaseGitHub()
+        archives = github.native_archives()
+        archives["aarch64"]["sha256"] = "b" * 64
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "promotion"
+            with self.assertRaisesRegex(ValueError, "Archive SHA-256 differs.*aarch64"):
+                self.prepare(github, output, "--release", "0.41.1.1", "--source-attempt", "1",
+                             "--native-archives", json.dumps(archives))
+            self.assertFalse((output / "promotion.json").exists())
 
     def test_tagged_is_not_an_option(self):
         with tempfile.TemporaryDirectory() as temp, self.assertRaises(SystemExit):
