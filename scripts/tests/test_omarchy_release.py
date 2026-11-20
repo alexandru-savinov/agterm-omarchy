@@ -91,8 +91,11 @@ class ReleaseAssetTests(unittest.TestCase):
                 self.assertEqual(evidence["asset"], f"agterm-omarchy-0.41.1.1-{arch}.tar.gz")
 
     def test_stamp_is_deterministic(self):
-        self.assertEqual(release.stamp(archive(), "0.41.1.2"), release.stamp(archive(), "0.41.1.2"))
-        self.assertNotEqual(release.stamp(archive(), "0.41.1.2"), release.stamp(archive(), "0.41.1.3"))
+        source = archive(uid=1001)
+        stamped = release.stamp(source, "0.41.1.2")
+        self.assertEqual(stamped, release.stamp(archive(uid=1002), "0.41.1.2"))
+        self.assertEqual(stamped[4:8], bytes(4), "gzip header mtime must be zero")
+        self.assertNotEqual(stamped, release.stamp(source, "0.41.1.3"))
 
     def test_rejects_release_not_owned_by_root(self):
         source = archive()
