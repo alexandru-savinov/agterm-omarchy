@@ -50,7 +50,9 @@ def verify_v0430(env, state):
         request("session.scratch", identity, {"mode": "on"})
         directory = Path(state, "scratch-cwd")
         directory.mkdir()
-        request("session.type", identity, {"text": f"cd '{directory}'\n", "pane": "scratch"})
+        # The image's login shell is /bin/sh, which has no Ghostty integration, so report the cwd as one would.
+        report = "printf '\\033]7;file://localhost%s\\007' \"$PWD\""
+        request("session.type", identity, {"text": f"cd '{directory}' && {report}\n", "pane": "scratch"})
         wait_for(lambda: row(identity).get("scratchCwd") == str(directory), "scratch cwd did not reach tree")
         request("session.scratch", identity, {"mode": "off"})
 
