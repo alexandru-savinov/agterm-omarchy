@@ -1,11 +1,14 @@
 name: Upstream sync
 
-# One sync PR per umputun/agterm release (#476): main merged with the newest vX.Y.Z tag main lacks, on
-# sync/umputun-<tag>. A clean merge opens a PR labelled upstream-sync; conflicts, or any change under .github/,
+# One sync PR at a time (#476, #493). The primary source is melonamin/agterm-linux linux-port: when its head is
+# not in main, main merged with it on sync/linux-port-<sha8>. The fallback is a direct umputun/agterm release,
+# main merged with the newest vX.Y.Z tag on sync/umputun-<tag>, taken only once linux-port has lacked a release
+# for more than LINUX_PORT_LAG_DAYS (scripts/upstream-sync.py), or for a tag the dispatch names.
+# A clean merge opens a PR labelled upstream-sync; conflicts, or any change under .github/,
 # open a draft labelled needs-adaptation with the markers committed. Nothing runs while syncing is paused
 # (repository variable SYNC_PAUSED is true, or an issue labelled release-incident is open) or while any sync PR
 # is open; a sync branch with no open PR fails the run until it is deleted. Gates and selection live in scripts/upstream-sync.py.
-# Merge sync PRs as merge commits only: a squash leaves the tag outside main's history and it syncs again.
+# Merge sync PRs as merge commits only: a squash leaves the source outside main's history and it syncs again.
 #
 # Token: the push and the PR use UPSTREAM_SYNC_TOKEN, never GITHUB_TOKEN, which cannot push upstream's
 # .github/workflows changes (no `workflows` permission) and cannot open PRs here (Actions PR creation is
@@ -26,7 +29,7 @@ on:
         type: boolean
         default: true
       tag:
-        description: Sync this umputun vX.Y.Z tag instead of the newest one; the same gates apply
+        description: Sync this umputun vX.Y.Z tag directly, skipping linux-port and the lag rule; the same gates apply
         required: false
         type: string
         default: ""
@@ -98,7 +101,7 @@ jobs:
         id: pause
         env:
           GH_TOKEN: ${{ github.token }}
-        # Before anything is fetched from umputun: a paused run does nothing else. SYNC_PAUSED decides alone when
+        # Before anything is fetched from upstream: a paused run does nothing else. SYNC_PAUSED decides alone when
         # it pauses; otherwise the incident listing is required, and a failed listing fails the job.
         run: |
           status=0
@@ -106,13 +109,16 @@ jobs:
           (( status == 3 )) || exit "$status"
           gh issue list --state open --label release-incident --limit 100 --json number > "$RUNNER_TEMP/incidents.json"
           python3 scripts/upstream-sync.py pause --paused "$SYNC_PAUSED" --incidents "$RUNNER_TEMP/incidents.json"
-      - name: Fetch main and umputun release tags
+      - name: Fetch main, the linux-port head and umputun release tags
         if: steps.pause.outputs.paused == 'false'
         run: |
           git fetch --quiet --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
-          # A private namespace, so upstream tags never mix with this repository's own.
+          # Private namespaces, so upstream refs never mix with this repository's own.
+          git fetch --quiet --no-tags https://github.com/melonamin/agterm-linux.git \
+            '+refs/heads/linux-port:refs/upstream-heads/linux-port'
           git fetch --quiet --no-tags https://github.com/umputun/agterm.git '+refs/tags/v*:refs/upstream-tags/v*'
-          git ls-remote --heads origin 'refs/heads/sync/umputun-*' > "$RUNNER_TEMP/branches.txt"
+          git ls-remote --heads origin 'refs/heads/sync/linux-port-*' 'refs/heads/sync/umputun-*' \
+            > "$RUNNER_TEMP/branches.txt"
       - name: List open pull requests
         if: steps.pause.outputs.paused == 'false'
         env:
@@ -131,8 +137,9 @@ jobs:
       - name: Build the sync branch
         id: merge
         # A dry run builds the merge even when a gate skips, so its log shows what a live run would open.
-        if: steps.plan.outputs.action == 'sync' || (env.DRY_RUN == 'true' && steps.plan.outputs.tag != '')
+        if: steps.plan.outputs.action == 'sync' || (env.DRY_RUN == 'true' && steps.plan.outputs.branch != '')
         env:
+          SOURCE: ${{ steps.plan.outputs.source }}
           TAG: ${{ steps.plan.outputs.tag }}
           COMMIT: ${{ steps.plan.outputs.commit }}
           BRANCH: ${{ steps.plan.outputs.branch }}
@@ -140,8 +147,8 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/out"
           python3 scripts/upstream-sync.py merge --base refs/remotes/origin/main --branch "$BRANCH" \
-            --tag "$TAG" --commit "$COMMIT" --worktree "$RUNNER_TEMP/sync" --body "$RUNNER_TEMP/out/body.md" \
-            --run-url "$RUN_URL"
+            --source "$SOURCE" --tag "$TAG" --commit "$COMMIT" --worktree "$RUNNER_TEMP/sync" \
+            --body "$RUNNER_TEMP/out/body.md" --run-url "$RUN_URL"
           git -C "$RUNNER_TEMP/sync" bundle create "$RUNNER_TEMP/out/sync.bundle" "refs/heads/$BRANCH" \
             ^refs/remotes/origin/main
       - name: Hand the branch to the publish job
@@ -157,7 +164,8 @@ jobs:
         env:
           ACTION: ${{ steps.plan.outputs.action || 'skip' }}
           REASON: ${{ steps.plan.outputs.reason || steps.pause.outputs.reason }}
-          TAG: ${{ steps.plan.outputs.tag }}
+          BRANCH: ${{ steps.plan.outputs.branch }}
+          SELECTION: ${{ steps.plan.outputs.selection }}
           CONFLICTS: ${{ steps.merge.outputs.conflicts }}
           GITHUB_CHANGES: ${{ steps.merge.outputs.github_changes }}
         run: |
@@ -165,7 +173,8 @@ jobs:
             echo "### Upstream sync ($([[ "$DRY_RUN" == true ]] && echo 'dry run' || echo live))"
             echo
             echo "- decision: \`$ACTION\` ($REASON)"
-            [[ -z "$TAG" ]] || echo "- tag: \`$TAG\`, conflicted paths: ${CONFLICTS:-not built}, changes under .github/: ${GITHUB_CHANGES:-not built}"
+            [[ -z "$SELECTION" || "$SELECTION" == "$REASON" ]] || echo "- selection: $SELECTION"
+            [[ -z "$BRANCH" ]] || echo "- branch: \`$BRANCH\`, conflicted paths: ${CONFLICTS:-not built}, changes under .github/: ${GITHUB_CHANGES:-not built}"
             if [[ -f "$RUNNER_TEMP/out/body.md" ]]; then
               echo
               echo '<details><summary>PR body</summary>'
@@ -230,8 +239,8 @@ jobs:
             out="$(gh api "repos/$GH_REPO/labels" -f "name=$1" -f "color=$2" -f "description=$3" 2>&1)" \
               || grep -q 'already_exists' <<< "$out" || { echo "$out" >&2; return 1; }
           }
-          create upstream-sync 0e8a16 'Automated umputun/agterm release sync that merged cleanly'
-          create needs-adaptation d93f0b 'Automated umputun/agterm sync with conflicts or .github/ changes to resolve'
+          create upstream-sync 0e8a16 'Automated linux-port or umputun/agterm sync that merged cleanly'
+          create needs-adaptation d93f0b 'Automated upstream sync with conflicts or .github/ changes to resolve'
       - name: Push the branch and open the PR
         id: pr
         env:

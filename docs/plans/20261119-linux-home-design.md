@@ -15,18 +15,22 @@ Milestone: M4 "Linux home: track umputun, auto-release". Related: #380 (fork gat
   and agtermctlKit.
 - M3 lists the package `agterm-omarchy-bin` in omacom/omarchy-pkgs, watching *this* fork's `omarchy-v*`
   releases. Once listed, Omarchy users depend on this fork.
+- Amended 2026-11-20 (#493): melonamin resumed `linux-port` on 2026-11-19 and published `linux-v0.43.0`, which
+  carries umputun v0.43.0. The owner decided the fork follows linux-port again: decisions 2 and 5, C2 and C5.
 
 ## Decisions (owner)
 
 1. **Goal:** keep a maintained agterm GUI on Omarchy/Linux regardless of linux-port's future. This fork is that
    home.
-2. **Base:** track umputun/agterm releases directly. Merge every umputun release, and carry the Linux frontend
-   as our own code. melonamin's linux-port becomes an ordinary contributor: if it moves again, we merge it.
+2. **Base** (amended 2026-11-20, #493): follow melonamin's `linux-port` as the Linux upstream. It carries each
+   umputun/agterm release plus the Linux adaptations, and this fork stays downstream of it. A umputun release is
+   merged directly only as a fallback, once linux-port has lacked it for more than 7 days.
 3. **Identity:** keep `io.github.melonamin.agterm`, `agterm-linux` and `agtermctl`, and credit umputun (app)
    and melonamin (Linux port). Revisit only if melonamin objects or ships his own releases.
 4. **melonamin:** one short courtesy note on linux-port #61. It says we track umputun directly, keep his IDs
    and credit, list the app on omarchy-pkgs, and will merge his work back or step aside if he resumes.
-5. **Cadence:** one sync PR per umputun release tag, opened automatically.
+5. **Cadence:** one sync PR at a time, opened automatically: per linux-port head, or per umputun release tag
+   in the fallback.
 6. **Releases:** automatic after a green sync. No per-release owner approval.
 7. **Release gates:** Omarchy CI plus native Omarchy gates on **both** arches, on hosted runners, against the
    exact release archives. No dependency on the owner's Mac or VM.
@@ -55,13 +59,26 @@ being upstream-first.
 
 ### C2. Sync automation
 
-A scheduled workflow, `upstream-sync.yml`, runs daily and also on dispatch:
-- Find the newest `umputun/agterm` tag `v*` that isn't an ancestor of main.
-- Create the branch `sync/umputun-<tag>` as main merged with that tag. If the merge conflicts, keep the
-  conflicts as a commit and open a draft PR labelled `needs-adaptation`. Otherwise open a PR labelled
-  `upstream-sync`.
+A scheduled workflow, `upstream-sync.yml`, runs daily and also on dispatch. Amended 2026-11-20 (#493) to
+follow linux-port:
+- **Primary source:** `melonamin/agterm-linux` `linux-port`. When its head isn't an ancestor of main, create the
+  branch `sync/linux-port-<sha8>` as main merged with that head.
+- **Fallback:** a direct umputun sync, only when main already has linux-port's head and linux-port lags.
+  The lag runs from the creation date of the oldest umputun `vX.Y.Z` tag above the newest one linux-port
+  contains. Once it is more than 7 days (`LINUX_PORT_LAG_DAYS` in `scripts/upstream-sync.py`), create
+  `sync/umputun-<tag>` as main merged with the newest tag. Exactly 7 days still waits.
+- linux-port goes first when both apply; the fallback takes a later run, after the linux-port PR merges.
+- A dispatch may name a umputun tag to sync directly. That is the one manual exception to the precedence and
+  the lag; every gate below still applies.
+- If linux-port can't be fetched, the run fails. It never falls back on its own.
+- If the merge conflicts, or changes anything under `.github/`, keep the conflicts as a commit and open a draft
+  PR labelled `needs-adaptation`. Otherwise open a PR labelled `upstream-sync`.
+- The PR body says to bump `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` in `ci.yml` and `release-linux.yml` to
+  the newest umputun tag the merged source contains: for a linux-port sync, the tag linux-port contains. If main
+  already holds a newer tag from a fallback sync, it says to keep the pins there.
 - Apply the pause rule in C4 before opening a sync PR.
-- Only one sync PR is open at a time. Tags that arrive while one is open are taken by the next run, after merge.
+- Only one sync PR is open at a time. Commits and tags that arrive while one is open are taken by the next run,
+  after merge.
 - Agent pickup: the lead (mac_lead) watches for `needs-adaptation` and red `upstream-sync` PRs, and starts an
   adaptation worker. Fully unattended agent pickup is out of scope for M4.
 - Merge rule: CI green on both arches, a fresh-context review with no HIGH or MEDIUM, and the native gates
@@ -101,7 +118,7 @@ Missing native evidence is retried twice with doubling backoff. Exhaustion opens
 ### C5. Courtesy note and re-entry
 
 - Post the note (decision 4) on melonamin/agterm-linux#61.
-- If linux-port moves: merge it like any contribution, and offer our Linux fixes as PRs there.
+- linux-port moved on 2026-11-19: it is now the sync source (C2). Offer our Linux fixes as PRs there.
 
 ## Error handling
 
@@ -113,10 +130,11 @@ Missing native evidence is retried twice with doubling backoff. Exhaustion opens
 
 ## Testing
 
-- Unit tests for the sync tag selection, the version derivation (`0.43.0.N`) and retraction-state handling.
+- Unit tests for the sync source selection, including the lag fallback, the version derivation (`0.43.0.N`)
+  and retraction-state handling.
   Dry-run mode for every workflow.
 - An end-to-end proof:
-  - a real umputun tag produces a sync PR, which merges and leads to a published release;
+  - a real linux-port head or umputun tag produces a sync PR, which merges and leads to a published release;
   - a forced gate failure in a dry run exercises retract-and-pause;
   - The manual switch and an open release incident each block new syncs and promotions.
 
