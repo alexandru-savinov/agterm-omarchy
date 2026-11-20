@@ -43,8 +43,9 @@ class ProbeRoutingTests(unittest.TestCase):
         self.assertIn('!cancelled()', gate)
         code = re.search("python3 - <<'PYTHON'\n(.*?)^          PYTHON", gate, re.M | re.S).group(1)
         for status in ('success', 'skipped', 'failure', 'cancelled'):
+            results = {'upstream-ci-disabled': {'result': 'success'}, 'changes': {'result': status}}
             result = subprocess.run([sys.executable, '-c', textwrap.dedent(code)],
-                                    env={**os.environ, 'RESULTS': json.dumps({'changes': {'result': status}})},
+                                    env={**os.environ, 'RESULTS': json.dumps(results)},
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode == 0, status in ('success', 'skipped'), result.stderr)
 

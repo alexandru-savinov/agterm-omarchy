@@ -91,8 +91,12 @@ def report(run, api=request):
     if not labelled:
         labels = api("labels?per_page=100", pages=True)
         if not any(label["name"] == LABEL for page in labels for label in page):
-            api("labels", method="POST", data={"name": LABEL, "color": "d93f0b",
-                                               "description": "Advisory hosted macOS checks failed or timed out"})
+            try:
+                api("labels", method="POST", data={"name": LABEL, "color": "d93f0b",
+                                                  "description": "Advisory hosted macOS checks failed or timed out"})
+            except subprocess.CalledProcessError:
+                # Another reporter can create the shared label between listing and creation.
+                api(f"labels/{LABEL}")
         api(f"{path}/labels", method="POST", data={"labels": [LABEL]})
     if job["conclusion"] == "timed_out":
         status = "timed out"

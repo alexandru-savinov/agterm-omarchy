@@ -15,8 +15,8 @@ class ParallelGateTests(unittest.TestCase):
         workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/omarchy-ci.yml").read_text()
         cls.gate = workflow.split("  ci:\n", 1)[1].split("\n  cookbook:\n", 1)[0]
         cls.script = textwrap.dedent(cls.gate.split("        run: |\n", 1)[1])
-        cls.jobs = {"scripts", "changes", "test-linux", "lint-linux", "build-linux", "ghostty-patch-tests", "zmx-patch-tests",
-                    "cookbook"}
+        cls.jobs = {"upstream-ci-disabled", "scripts", "changes", "test-linux", "lint-linux", "build-linux",
+                    "ghostty-patch-tests", "zmx-patch-tests", "cookbook"}
 
     def run_gate(self, overrides):
         results = {job: {"result": overrides.get(job, "success")} for job in self.jobs}
@@ -46,6 +46,11 @@ class ParallelGateTests(unittest.TestCase):
                     result = self.run_gate({job: status})
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn(job, result.stderr)
+
+    def test_upstream_workflow_guard_cannot_be_skipped(self):
+        result = self.run_gate({"upstream-ci-disabled": "skipped"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("upstream-ci-disabled", result.stderr)
 
 
 if __name__ == "__main__":

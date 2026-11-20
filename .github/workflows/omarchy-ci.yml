@@ -589,8 +589,8 @@ jobs:
           python3 - <<'PYTHON'
           import json, os
           results = json.loads(os.environ['RESULTS'])
-          if results['upstream-ci-disabled']['result'] != 'success':
-              raise SystemExit('Upstream workflow guard must pass')
+          if results.get('upstream-ci-disabled', {}).get('result') != 'success':
+              raise SystemExit('Required workflow guard did not pass: upstream-ci-disabled')
           failed = [name for name, value in results.items() if value['result'] not in ('success', 'skipped')]
           if failed:
               raise SystemExit('Failed or cancelled checks: ' + ', '.join(failed))
