@@ -22,7 +22,7 @@ struct LinuxHtmlPasteTraceTests {
     @Test func theProductionGuardTakesEveryAnchorOnce() throws {
         let traced = try #require(LinuxHtmlPasteTrace.instrument(LinuxHtmlOverlayPage.transferGuard))
         #expect(traced.contains("window.webkit.messageHandlers.agtermPasteTrace"))
-        #expect(traced.contains("const result = first || second || data.files.length > 0;"))
+        #expect(traced.contains("const result = first || second || data.files.length > 0 || (paste && !hasType);"))
         #expect(!LinuxHtmlOverlayPage.transferGuard.contains("agtermPasteTrace"))
     }
 

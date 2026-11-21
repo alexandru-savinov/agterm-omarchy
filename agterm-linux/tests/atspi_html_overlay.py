@@ -40,7 +40,7 @@ class PasteTrace:
         print(f"html-paste-trace {phase}: producer {steps}")
         if mark is None:
             print(f"html-paste-trace {phase}: app trace unavailable (AGTERM_UI_APP_STDERR unset)")
-            return
+            return []
         with open(self.log, encoding="utf-8", errors="replace") as source:
             source.seek(mark)
             lines = [line[len(self.PREFIX):] for line in source.read().splitlines() if line.startswith(self.PREFIX)]
@@ -51,6 +51,7 @@ class PasteTrace:
             print(f"html-paste-trace {phase}: app +{relative} " + " ".join(field for field in fields if field != at))
         if not lines:
             print(f"html-paste-trace {phase}: no app trace lines")
+        return lines
 
 
 def verify_html_overlay(env, state):
@@ -248,11 +249,17 @@ def verify_html_overlay(env, state):
         plain_set = time.monotonic()
         clipboard.set(plain)
         plain_send = time.monotonic()
-        send_into_page("key", "--clearmodifiers", "ctrl+v")
+        # The clipboard owner only answers TARGETS once wait_clipboard pumps GLib.
+        # Press a modifier in the meantime to exercise normal keyboard activity during the wait.
+        send_into_page("key", "--clearmodifiers", "ctrl+v", "key", "Shift_L")
         plain_sent = time.monotonic()
-        wait_clipboard(lambda: page() and page().get("title") == "pasted:plain")
-        paste_trace.report("plain", plain_mark, {"set": plain_set, "sendStart": plain_send, "sendEnd": plain_sent,
-                                                 "observed": time.monotonic(), "title": "pasted"})
+        try:
+            wait_clipboard(lambda: page() and page().get("title") == "pasted:plain")
+        finally:
+            plain_result = page() or {}
+            paste_trace.report("plain", plain_mark, {"set": plain_set, "sendStart": plain_send, "sendEnd": plain_sent,
+                                                     "observed": time.monotonic(),
+                                                     "title": title_class(plain_result.get("title"))})
 
         assert cli("session", "overlay", "reload", "--target", session,
                    "--window", window, "--json")["ok"]
@@ -261,6 +268,28 @@ def verify_html_overlay(env, state):
         blocked = GObject.Value(GObject.TYPE_STRING)
         blocked.set_string("blocked")
         text_provider = Gdk.ContentProvider.new_for_value(blocked)
+
+        # CLIPBOARD still holds the successful plain offer. Exercise the separate PRIMARY selection.
+        primary = Gdk.Display.get_default().get_primary_clipboard()
+        primary_mark = paste_trace.mark()
+        primary_set = time.monotonic()
+        assert primary.set_content(Gdk.ContentProvider.new_union([uri_provider, text_provider]))
+        assert primary.get_formats().contain_mime_type("text/uri-list")
+        send_into_page("click", "2")
+        primary_sent = time.monotonic()
+        for _ in range(30):
+            while GLib.MainContext.default().pending():
+                GLib.MainContext.default().iteration(False)
+            time.sleep(0.05)
+        final = page()
+        trace = paste_trace.report("primary", primary_mark, {"set": primary_set, "sendEnd": primary_sent,
+                                                             "observed": time.monotonic(),
+                                                             "title": title_class(final.get("title"))})
+        assert final.get("title") == "Paste check", f"URI-list PRIMARY reached the page: {page()}"
+        if primary_mark is not None:
+            assert any("decision=primary-blocked" in line for line in trace), "the app did not intercept middle-click"
+        primary.set_content(None)
+
         mixed_mark = paste_trace.mark()
         mixed_set = time.monotonic()
         clipboard.set_content(Gdk.ContentProvider.new_union([uri_provider, text_provider]))
@@ -279,6 +308,7 @@ def verify_html_overlay(env, state):
                                                  "sendStart": mixed_send, "sendEnd": mixed_sent,
                                                  "observed": time.monotonic(), "title": title_class(final.get("title"))})
         assert final.get("title") == "Paste check", f"URI-list clipboard reached the page: {page()}"
+
         assert cli("session", "overlay", "close", "--target", session,
                    "--window", window, "--json")["ok"]
 

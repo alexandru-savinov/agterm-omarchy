@@ -32,6 +32,26 @@ Each entry separates a demonstrated cause from one that is only consistent with 
 - **Local repetition with the suspected component swapped.** For example the DA test ran 24 times against the
   patched zmx and 24 times against the unpatched one.
 
+## Linux HTML overlay clipboard (#421)
+
+- **Symptom.** `html-overlay` reports `URI-list clipboard reached the page` and the textarea title is
+  `pasted:blocked`, the test's plain-text sentinel from a mixed-format clipboard offer.
+- **Demonstrated cause.** On X11, GDK clears the receiving clipboard's cached formats when ownership
+  changes and requests TARGETS asynchronously. In the failing ARM64 trace, Ctrl+V arrived at +1465.4 ms
+  with empty GDK formats. Both DOM type reads were empty at +1486.8 ms. GDK reported the URI list at
+  +1487.4 ms, then WebKit emitted `insertFromPaste` at +1494.9 ms. The test showed the mixed offer's
+  text fallback reaching the document. [Main run 44864094283, ARM64 attempt 1](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44864094283/job/136723830745)
+- **Fix.** On X11, hold the keyboard paste while GDK discovers the format set. A classified non-file
+  offer may complete the request once in its still-focused page, after the clipboard change signal
+  returns. File offers, focus loss, page changes, and timeout cancel it. Further empty notifications
+  share the original deadline. GDK can publish partial sets for chunked TARGETS, and its signal
+  carries no end-of-list marker.
+- **Backend and input limits.** Wayland delivers the offer's formats at claim time, so an empty
+  offer is refused immediately. The middle button checks PRIMARY separately at press and release.
+  Empty and file PRIMARY offers consume the click because keyboard replay would lose the pointer
+  target. Context-menu paste checks CLIPBOARD again on activation. The DOM guard also refuses a
+  paste if it observes no transfer types. Hosted smoke exercises GTK under Xvfb.
+
 ## Core tests (`swift test` in `agtermCore`)
 
 ### `SessionHostServerTests.realHostStartupReplyAndClientlessControl`

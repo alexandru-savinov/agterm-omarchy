@@ -120,7 +120,7 @@ jobs:
         run: scripts/verify-linux-zmx-cache.sh agterm-linux/vendor/zmx
       - name: swift build (agterm-linux)
         working-directory: agterm-linux
-        run: swift build
+        run: swift build --disable-automatic-resolution
       - name: GTK AT-SPI targeted scenarios
         env:
           SCENARIOS: ${{ inputs.scenarios }}
@@ -168,7 +168,7 @@ jobs:
         run: scripts/verify-linux-zmx-cache.sh agterm-linux/vendor/zmx
       - name: swift build (agterm-linux)
         working-directory: agterm-linux
-        run: swift build
+        run: swift build --disable-automatic-resolution
       - name: GTK AT-SPI targeted scenarios
         env:
           SCENARIOS: ${{ inputs.scenarios }}

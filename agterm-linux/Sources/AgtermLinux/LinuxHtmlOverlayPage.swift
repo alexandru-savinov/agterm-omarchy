@@ -8,22 +8,24 @@ import agtermCore
 final class LinuxHtmlOverlayPage {
     static let transferGuard = """
         (() => {
-          const blocked = data => {
-            if (!data) return false;
+          const blocked = (data, paste) => {
+            if (!data) return paste;
+            let hasType = false;
             const hasURI = () => {
               for (const type of data.types) {
+                hasType = true;
                 if (type === 'text/uri-list' || type === 'x-special/gnome-copied-files' ||
                     type === 'application/vnd.portal.filetransfer') return true;
               }
               return false;
             };
             // On X11, WebKit can populate DataTransfer.types on its first read.
-            return hasURI() || hasURI() || data.files.length > 0;
+            return hasURI() || hasURI() || data.files.length > 0 || (paste && !hasType);
           };
           for (const name of ['paste', 'drop', 'dragover']) {
             window.addEventListener(name, event => {
               const transfer = event.clipboardData || event.dataTransfer;
-              if (!blocked(transfer)) return;
+              if (!blocked(transfer, name === 'paste')) return;
               event.preventDefault();
               event.stopImmediatePropagation();
               if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
@@ -50,6 +52,9 @@ final class LinuxHtmlOverlayPage {
     var textPage: LinuxTextPage?
     let manager: OpaquePointer
     private var inputController: OpaquePointer?
+    private var focusController: OpaquePointer?
+    private let clipboardPaste = LinuxHtmlClipboardPaste()
+    private var refusedPrimaryPress = false
     private var strip: OpaquePointer?
     let bridgeNonce = UUID().uuidString
     var closed = false
@@ -122,6 +127,7 @@ final class LinuxHtmlOverlayPage {
 
     func close() {
         closed = true
+        clipboardPaste.cancel("closed")
         textPage?.stop()
         agterm_disconnect_signals(RAW(manager), Unmanaged.passUnretained(self).toOpaque())
         let data = Unmanaged.passUnretained(self).toOpaque()
@@ -134,6 +140,7 @@ final class LinuxHtmlOverlayPage {
         }
         agterm_disconnect_signals(RAW(webView), data)
         if let inputController { agterm_disconnect_signals(RAW(inputController), data) }
+        if let focusController { agterm_disconnect_signals(RAW(focusController), data) }
         for button in buttons.values { agterm_disconnect_signals(RAW(button), data) }
         webkit_web_view_stop_loading(cast(webView))
         controller?.moveHtmlRoot(root, into: nil)
@@ -143,6 +150,7 @@ final class LinuxHtmlOverlayPage {
 
     func setOnScreen(_ visible: Bool) {
         onScreen = visible
+        if !visible { clipboardPaste.cancel("hidden") }
         textPage?.apply()
         guard !visible, let dialog = pendingDialog else { return }
         pendingDialog = nil
@@ -439,6 +447,10 @@ final class LinuxHtmlOverlayPage {
                 unsafeBitCast(onHtmlUserEvent as @convention(c)
                     (OpaquePointer?, OpaquePointer?, gpointer?) -> gboolean, to: GCallback.self), data)
         gtk_widget_add_controller(W(webView), input)
+        let focus = gtk_event_controller_focus_new()
+        focusController = focus.map { OpaquePointer(UnsafeMutableRawPointer($0)) }
+        connect(focusController, "leave", unsafeBitCast(onHtmlFocusLeft, to: GCallback.self), data)
+        gtk_widget_add_controller(W(webView), focus)
         connect(webView, "close", unsafeBitCast(onHtmlClose as @convention(c)
             (OpaquePointer?, gpointer?) -> Void, to: GCallback.self), data)
         connect(webView, "load-changed", unsafeBitCast(onHtmlLoadChanged as @convention(c)
@@ -473,6 +485,7 @@ final class LinuxHtmlOverlayPage {
     func loadChanged(_ event: Int32) {
         switch event {
         case 0:
+            clipboardPaste.cancel("load-started")
             loadFailed = false
             gtk_widget_set_visible(W(errorLabel), 0)
             store?.setHtmlLoadState(id, state: .loading, error: nil)
@@ -544,45 +557,77 @@ final class LinuxHtmlOverlayPage {
         }
     }
 
-    private func hasFileTransfer(_ formats: OpaquePointer?) -> Bool {
-        guard let formats else { return false }
-        if gdk_content_formats_contain_gtype(formats, gdk_file_list_get_type()) != 0 { return true }
-        return ["text/uri-list", "x-special/gnome-copied-files", "application/vnd.portal.filetransfer"]
-            .contains { mime in
-                mime.withCString { gdk_content_formats_contain_mime_type(formats, $0) != 0 }
-            }
+    private var display: OpaquePointer? {
+        gtk_widget_get_display(W(webView))
     }
 
-    private var clipboardHasFileTransfer: Bool {
-        guard let display = gdk_display_get_default(), let clipboard = gdk_display_get_clipboard(display) else {
-            return false
+    var clipboard: OpaquePointer? { display.flatMap { gdk_display_get_clipboard($0) } }
+
+    func cancelPendingPaste(_ reason: String) { clipboardPaste.cancel(reason) }
+
+    private func interceptPrimary(_ type: GdkEventType) -> Bool {
+        let primary = display.flatMap { gdk_display_get_primary_clipboard($0) }
+        let refused = LinuxHtmlClipboardPaste.refusesPrimary(primary.flatMap { gdk_clipboard_get_formats($0) })
+        if type == GDK_BUTTON_PRESS {
+            refusedPrimaryPress = refused
+            #if DEBUG
+            if refused { LinuxHtmlPasteTrace.emit("native-paste", [("decision", "primary-blocked")]) }
+            #endif
+            return refused
         }
-        return hasFileTransfer(gdk_clipboard_get_formats(clipboard))
+        // WebKit can paste PRIMARY on mouse-up. Keep a refused press and its release paired.
+        defer { refusedPrimaryPress = false }
+        return refusedPrimaryPress || refused
     }
 
-    func blockFileContextMenu() -> gboolean { clipboardHasFileTransfer ? 1 : 0 }
+    private func finishDeferredPaste(_ command: LinuxHtmlClipboardPaste.Command) {
+        guard !closed, onScreen, let controller,
+              gtk_window_is_active(WIN(controller.windowPointer)) != 0,
+              let focus = gtk_root_get_focus(controller.windowPointer),
+              focus == W(webView) || gtk_widget_is_ancestor(focus, W(webView)) != 0 else {
+            #if DEBUG
+            LinuxHtmlPasteTrace.emit("native-paste", [("decision", "target-unavailable")])
+            #endif
+            return
+        }
+        executePaste(command)
+    }
+
+    func executePaste(_ command: LinuxHtmlClipboardPaste.Command) {
+        promptSilenced = false
+        store?.noteUserActivity()
+        command.rawValue.withCString { webkit_web_view_execute_editing_command(cast(webView), $0) }
+    }
 
     func userEvent(_ event: OpaquePointer?) -> gboolean {
         guard let event else { return 0 }
         let type = gdk_event_get_event_type(event)
         if type == GDK_DRAG_ENTER || type == GDK_DRAG_MOTION || type == GDK_DROP_START,
-           let drop = gdk_dnd_event_get_drop(event), hasFileTransfer(gdk_drop_get_formats(drop)) {
+           let drop = gdk_dnd_event_get_drop(event), LinuxHtmlClipboardPaste.hasFileTransfer(gdk_drop_get_formats(drop)) {
             if type == GDK_DROP_START { gdk_drop_finish(drop, GdkDragAction(rawValue: 0)) }
             return 1
         }
         if type == GDK_KEY_RELEASE {
             controller?.leaderKeyReleased(gdk_key_event_get_keycode(event))
         }
+        if type == GDK_BUTTON_PRESS { clipboardPaste.cancel("button") }
+        if type == GDK_BUTTON_PRESS || type == GDK_BUTTON_RELEASE,
+           gdk_button_event_get_button(event) == 2, interceptPrimary(type) { return 1 }
         if type == GDK_KEY_PRESS {
+            clipboardPaste.keyPressed(isModifier: gdk_key_event_is_modifier(event) != 0)
             if handleNativeKey(event) { return 1 }
-            let key = gdk_keyval_to_lower(gdk_key_event_get_keyval(event))
-            let modifiers = UInt32(gdk_event_get_modifier_state(event).rawValue)
-            let paste = (key == UInt32(GDK_KEY_v) && modifiers & UInt32(GDK_CONTROL_MASK.rawValue) != 0)
-                || (key == UInt32(GDK_KEY_Insert) && modifiers & UInt32(GDK_SHIFT_MASK.rawValue) != 0)
-            #if DEBUG
-            if paste, LinuxHtmlPasteTrace.enabled { LinuxHtmlPasteTrace.key(event, insert: key == UInt32(GDK_KEY_Insert)) }
-            #endif
-            if paste && clipboardHasFileTransfer { return 1 }
+            let key = gdk_key_event_get_keyval(event)
+            if let command = LinuxHtmlClipboardPaste.command(key: key, modifiers: gdk_event_get_modifier_state(event)) {
+                #if DEBUG
+                if LinuxHtmlPasteTrace.enabled {
+                    LinuxHtmlPasteTrace.key(event, insert: key == UInt32(GDK_KEY_Insert) || key == UInt32(GDK_KEY_KP_Insert))
+                }
+                #endif
+                let source = clipboard.map { LinuxHtmlClipboardPaste.Source.clipboard($0) }
+                if clipboardPaste.intercept(source,
+                                            holdUnresolved: display.map { agterm_display_is_x11($0) != 0 } ?? false,
+                                            paste: { [weak self] in self?.finishDeferredPaste(command) }) { return 1 }
+            }
         }
         if type == GDK_BUTTON_PRESS || type == GDK_KEY_PRESS {
             promptSilenced = false
@@ -624,9 +669,15 @@ private let onHtmlExternalResponse: @MainActor @convention(c) (OpaquePointer?, U
     { _, answer, data in htmlPage(data)?.externalResponse(answer) }
 private let onHtmlUserEvent: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> gboolean =
     { _, event, data in htmlPage(data)?.userEvent(event) ?? 0 }
+private let onHtmlFocusLeft: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { _, data in
+    htmlPage(data)?.cancelPendingPaste("focus-left")
+}
 private let onHtmlContextMenu: @MainActor @convention(c)
     (OpaquePointer?, OpaquePointer?, OpaquePointer?, gpointer?) -> gboolean =
-    { _, _, _, data in htmlPage(data)?.blockFileContextMenu() ?? 0 }
+    { _, menu, _, data in
+        if let menu { htmlPage(data)?.guardPasteMenuItems(menu) }
+        return 0
+    }
 
 private let onHtmlClose: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { _, data in
     guard let data else { return }

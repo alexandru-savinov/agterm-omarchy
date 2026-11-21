@@ -78,7 +78,7 @@ jobs:
           persist-credentials: false
       - name: Download checksum-verified OSV-Scanner
         run: |
-          curl -fsSLo "$RUNNER_TEMP/osv-scanner" \
+          curl --disable --proto '=https' --proto-redir '=https' -fsSLo "$RUNNER_TEMP/osv-scanner" \
             "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64"
           echo "${OSV_SHA256}  $RUNNER_TEMP/osv-scanner" | sha256sum -c -
           chmod +x "$RUNNER_TEMP/osv-scanner"

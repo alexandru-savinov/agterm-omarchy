@@ -110,16 +110,17 @@ enum LinuxHtmlPasteTrace {
             ("(() => {\n", "(() => {\n  let trace = null;\n"
                 + "  const post = message => { try { window.webkit.messageHandlers.\(handler).postMessage(message); } catch (e) {} };\n"
                 + "  window.addEventListener('input', event => post({event: 'input', inputType: String(event.inputType || '')}), true);\n"),
-            ("const blocked = data => {\n", "const blocked = data => {\n  trace = {transfer: !!data, calls: []};\n"),
+            ("const blocked = (data, paste) => {\n",
+             "const blocked = (data, paste) => {\n  trace = {transfer: !!data, calls: []};\n"),
             ("for (const type of data.types) {\n", "const seen = []; trace.calls.push(seen);\n"
                 + "for (const type of data.types) {\n  seen.push(String(type));\n"),
-            ("return hasURI() || hasURI() || data.files.length > 0;\n",
+            ("return hasURI() || hasURI() || data.files.length > 0 || (paste && !hasType);\n",
              "const first = hasURI(); const second = first || hasURI();\n"
-                + "const result = first || second || data.files.length > 0;\n"
+                + "const result = first || second || data.files.length > 0 || (paste && !hasType);\n"
                 + "Object.assign(trace, {first, second: first ? null : second, filesChecked: !(first || second)});\n"
                 + "return result;\n"),
-            ("if (!blocked(transfer)) return;\n",
-             "const refused = blocked(transfer);\n"
+            ("if (!blocked(transfer, name === 'paste')) return;\n",
+             "const refused = blocked(transfer, name === 'paste');\n"
                 + "if (name === 'paste') post(Object.assign({event: name}, trace || {transfer: false}, {refused}));\n"
                 + "if (!refused) return;\n"),
         ]

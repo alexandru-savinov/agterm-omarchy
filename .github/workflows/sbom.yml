@@ -42,7 +42,7 @@ jobs:
       # The repository's allowed-actions list excludes anchore/sbom-action; fetch syft like the other release tools.
       - name: Generate SPDX with checksum-verified syft
         run: |
-          curl -fsSLo "$RUNNER_TEMP/syft.tar.gz" \
+          curl --disable --proto '=https' --proto-redir '=https' -fsSLo "$RUNNER_TEMP/syft.tar.gz" \
             "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
           echo "${SYFT_SHA256}  $RUNNER_TEMP/syft.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/syft.tar.gz" -C "$RUNNER_TEMP" syft

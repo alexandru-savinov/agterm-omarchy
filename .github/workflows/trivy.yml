@@ -45,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           archive="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-          curl -fsSLo "${RUNNER_TEMP}/${archive}" \
+          curl --disable --proto '=https' --proto-redir '=https' -fsSLo "${RUNNER_TEMP}/${archive}" \
             "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${archive}"
           echo "${TRIVY_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" trivy
