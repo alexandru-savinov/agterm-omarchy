@@ -13,27 +13,32 @@ and [melonamin/agterm-linux](https://github.com/melonamin/agterm-linux), its Lin
 ## Install
 
 Download the [latest release](https://github.com/alexandru-savinov/agterm-omarchy/releases/latest)
-for your architecture, verify it, and install the extracted payload into `~/.local`:
+for your architecture, verify it, and install the extracted payload into `~/.local`.
+The block runs in a subshell with `set -eu`, so a failed checksum or attestation stops it before anything is extracted or installed:
 
 ```sh
-mkdir agterm-release && cd agterm-release
-arch=$(uname -m)  # x86_64 or aarch64
-gh release download --repo alexandru-savinov/agterm-omarchy \
-  --pattern "agterm-omarchy-*-$arch.tar.gz" --pattern SHA256SUMS
-sha256sum --check --ignore-missing SHA256SUMS
-gh attestation verify agterm-omarchy-*-"$arch".tar.gz --repo alexandru-savinov/agterm-omarchy \
-  --signer-workflow alexandru-savinov/agterm-omarchy/.github/workflows/prerelease-omarchy.yml \
-  --source-ref refs/heads/main
-tar -xzf agterm-omarchy-*-"$arch".tar.gz  # unpacks agterm-stage/
-git clone --depth 1 https://github.com/alexandru-savinov/agterm-omarchy.git
-agterm-omarchy/scripts/install-linux.sh --payload agterm-stage
+(
+  set -eu
+  mkdir agterm-release
+  cd agterm-release
+  repo=alexandru-savinov/agterm-omarchy
+  arch=$(uname -m)  # x86_64 or aarch64
+  tag=$(gh release view --repo "$repo" --json tagName --jq .tagName)
+  gh release download "$tag" --repo "$repo" --pattern "agterm-omarchy-*-$arch.tar.gz" --pattern SHA256SUMS
+  sha256sum --check --ignore-missing SHA256SUMS
+  gh attestation verify agterm-omarchy-*-"$arch".tar.gz --repo "$repo" \
+    --signer-workflow "$repo/.github/workflows/prerelease-omarchy.yml" --source-ref refs/heads/main
+  tar -xzf agterm-omarchy-*-"$arch".tar.gz  # unpacks agterm-stage/
+  git clone --depth 1 --branch "$tag" "https://github.com/$repo.git"  # installer at the release's source commit
+  agterm-omarchy/scripts/install-linux.sh --payload agterm-stage
+)
 ```
 
 The archive needs GTK4, libadwaita, WebKitGTK 6 and platform system libraries; the installer needs `python3`.
 The installer puts the runtime under `~/.local/lib/agterm`, commands under `~/.local/bin`,
 and an **agterm** entry in the application launcher.
 It does not change your Hyprland configuration or default terminal.
-Remove it with `agterm-omarchy/scripts/install-linux.sh --uninstall`.
+Remove it from the same directory with `agterm-release/agterm-omarchy/scripts/install-linux.sh --uninstall`.
 
 If a VM reports `No EGL configuration available` or another OpenGL context error, start agterm with Mesa software rendering:
 `LIBGL_ALWAYS_SOFTWARE=1 ~/.local/bin/agterm-linux`.
@@ -58,13 +63,17 @@ For example, `omarchy-v0.43.0.2` is built from upstream agterm 0.43.0.
 Each release has one archive per architecture, a `SHA256SUMS` file, and `promotion.json`,
 which records the source commit, the CI run and the archive digests.
 
-Releases are cut automatically from `main`:
+Releases are normally cut automatically from `main`:
 
 1. Omarchy CI builds and tests both architectures on a push to `main`.
 2. The native gates install those exact archives and test them on x86_64 and aarch64.
 3. Only if both architectures pass, the archives are published as a release with GitHub build-provenance attestations.
 4. The native gates run again on the published assets, right away and every two hours for 24 hours.
    A confirmed failure marks the release as a prerelease and opens a `release-incident` issue that pauses new releases.
+
+A release cut this way has an `auto_release_run_id` in its `promotion.json`.
+A maintainer can also publish a versioned release by dispatching the promotion workflow by hand.
+That path does not require native gate results, and the 24-hour watch does not cover it.
 
 The native gates run an Arch Linux (x86_64) or Arch Linux ARM (aarch64) container with the Omarchy desktop packages
 that are in the official Arch repositories, installed from Omarchy's stable package mirror, and Hyprland on a virtual display with Mesa software rendering.
@@ -80,8 +89,10 @@ Release mechanics are documented in [packaging/linux/prerelease-omarchy.md](pack
   Each architecture has its own archive.
 - Wayland under Hyprland; GTK selects native Wayland there.
   See the [Wayland support matrix](agterm-linux/docs/x11-wayland.md) for compositor-owned behavior.
-- Live session restore needs zsh or fish as the login shell; see [Restore limitations](#restore-limitations).
-- macOS is not built here. Use [upstream agterm](https://github.com/umputun/agterm) on macOS.
+- Live session restore needs zsh or fish as the login shell, or an absolute zsh or fish path in Ghostty's `command` setting;
+  see [Restore limitations](#restore-limitations).
+- This repository does not publish macOS builds; its macOS CI only checks that shared changes keep the macOS app building.
+  Use [upstream agterm](https://github.com/umputun/agterm) on macOS.
 
 ## Relationship to upstreams
 
@@ -403,7 +414,7 @@ The Arch build reuses `packaging/aur/PKGBUILD` with local, checksum-verified sou
 it does not require the release to exist on GitHub or AUR credentials.
 It installs the package and exercises the installed GTK/WebKit/resources before exporting it.
 These DEB/RPM/Arch packaging scripts come from melonamin/agterm-linux, whose `linux-v*` release workflow is
-disabled in this repository; this repository publishes only the tar archives described in
+disabled in this repository; this repository publishes tar archives, described in
 [Releases and verification](#releases-and-verification).
 Branch CI compiles the GTK package in Swift 6 language mode and runs the complete real GTK
 accessibility smoke suite in an isolated HOME, state directory, control socket, D-Bus session, and X display.
@@ -464,7 +475,8 @@ Shared `agtermCore` changes should stay portable, upstream-compatible, and accep
 Linux-only behavior, including Glibc/socket portability and Linux CLI glue, belongs under `agterm-linux/`,
 `linux/`, `packaging/linux/`, or Linux-specific scripts.
 
-This repository publishes only the `omarchy-v*` releases described in [Releases and verification](#releases-and-verification).
+This repository publishes versioned `omarchy-v*` releases, described in [Releases and verification](#releases-and-verification),
+and `omarchy-dev-*` development prereleases.
 melonamin/agterm-linux publishes its own `linux-v*` tar, DEB and RPM releases; they are separate builds.
 The Flatpak manifest remains a local, experimental packaging path.
 

@@ -1,7 +1,7 @@
 # Omarchy support
 
-This is the Omarchy development port of agterm, built on the GTK Linux frontend.
-Check the [project hub](https://alexandru-savinov.github.io/agterm-omarchy/) and [native acceptance task](https://github.com/alexandru-savinov/agterm-omarchy/issues/5) for current readiness.
+This is the Omarchy build of agterm, based on the GTK Linux frontend.
+Releases, their verification and what the native gates cover are described in the [README](README.md#releases-and-verification).
 
 - Ask setup questions and share compatibility results in the [Omarchy compatibility discussion](https://github.com/alexandru-savinov/agterm-omarchy/discussions/7).
 - Report a reproducible build, packaging, or desktop defect through the [Omarchy bug form](https://github.com/alexandru-savinov/agterm-omarchy/issues/new?template=bug.yml).
