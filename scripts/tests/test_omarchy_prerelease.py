@@ -22,6 +22,7 @@ SPEC = importlib.util.spec_from_file_location("promotion", Path(__file__).resolv
 promotion = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(promotion)
 SHA = "a" * 40
+INVALID_SOURCE_SHAS = ("", "main", SHA[:12], SHA.upper(), SHA + "a", SHA + "&x=y", SHA + "\n")
 REPO = Path(__file__).resolve().parents[2]
 PROMOTION_WORKFLOW = REPO / ".github/workflows/prerelease-omarchy.yml"
 CI_WORKFLOW = REPO / ".github/workflows/omarchy-ci.yml"
@@ -655,6 +656,34 @@ class ReleaseDryRunTests(unittest.TestCase):
             self.assertEqual(promotion.next_version(promotion.release_module()), "0.43.0.3")
             self.assertEqual(promotion.next_version(promotion.release_module(), "0.40.0"), "0.40.0.5")
             self.assertEqual(promotion.next_version(promotion.release_module(), "0.41.1"), "0.41.1.1")
+
+    def test_next_version_uses_the_base_at_the_requested_commit(self):
+        github = ReleaseGitHub(ci='env:\n  UPSTREAM_BASE_TAG: "v0.44.0"\n')
+        first, second = github.patches()
+        with tempfile.TemporaryDirectory() as temp, first, second:
+            output = Path(temp) / "github-output"
+            with patch("sys.argv", ["prepare", "--next-version", "--base-of", SHA]), \
+                    patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}):
+                promotion.main()
+            self.assertEqual(output.read_text(), "version=0.44.0.1\n")
+        lookup = f"repos/{promotion.REPOSITORY}/contents/{promotion.WORKFLOW}?ref={SHA}"
+        self.assertEqual([call[2] for call in github.calls if "/contents/" in call[2]], [lookup])
+
+    def test_next_version_rejects_non_commit_base_before_calling_the_api(self):
+        for source in INVALID_SOURCE_SHAS:
+            with self.subTest(source=source), patch.object(promotion, "api") as api, \
+                    patch("sys.argv", ["prepare", "--next-version", "--base-of", source]):
+                with self.assertRaisesRegex(ValueError, "Expected a full lowercase source SHA"):
+                    promotion.main()
+                api.assert_not_called()
+
+    def test_release_rejects_non_commit_sha_before_checking_ancestry(self):
+        for source in INVALID_SOURCE_SHAS:
+            with self.subTest(source=source), patch.object(promotion, "api", return_value={"id": 7, "head_branch": "main"}) as api, \
+                    patch("sys.argv", ["prepare", "--release", "0.43.0.1", "7", source, "promotion"]):
+                with self.assertRaisesRegex(ValueError, "Expected a full lowercase source SHA"):
+                    promotion.main()
+                api.assert_called_once_with("actions/runs/7")
 
     def test_dispatch_refuses_an_existing_tag_or_release(self):
         for existing in ("git/ref/tags/omarchy-v0.43.0.1", "releases/tags/omarchy-v0.43.0.1"):
