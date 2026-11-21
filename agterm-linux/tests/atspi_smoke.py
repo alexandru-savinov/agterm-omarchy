@@ -7742,6 +7742,7 @@ def main():
             "appearance-follow",
             "cursor-preferences",
             "quick-card-rendering",
+            "omarchy-theme",
         )
         try:
             shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
@@ -8046,6 +8047,9 @@ def main():
         elif scenario == "theme-many-sessions":
             from atspi_theme_many_sessions import verify_theme_many_sessions
             verify_theme_many_sessions(env)
+        elif scenario == "omarchy-theme":
+            from atspi_omarchy_theme import verify_omarchy_theme
+            verify_omarchy_theme(env)
         elif scenario == "clipboard-lifetime":
             from atspi_clipboard_lifetime import verify_clipboard_lifetime
             verify_clipboard_lifetime(env)

@@ -102,6 +102,13 @@ extension AppController {
                     subtitle: "Also load ~/.config/ghostty/config before agterm's own configuration",
                     active: settings.inheritGlobalGhosttyConfig ?? false,
                     handler: unsafeBitCast(onSettingsInheritGhostty, to: GCallback.self))))
+        adw_preferences_group_add(
+            cast(ghostty),
+            W(preferencesSwitch(
+                "Follow the Omarchy theme",
+                subtitle: "Use Omarchy’s terminal colors and update them when the desktop theme changes",
+                active: OmarchyThemePreference().follows(OmarchyTheme()),
+                handler: unsafeBitCast(onSettingsFollowOmarchy, to: GCallback.self))))
         let edit = OpaquePointer(adw_action_row_new())
         "agterm-scoped configuration".withCString { adw_preferences_row_set_title(cast(edit), $0) }
         ConfigPaths.ghosttyConfigPath(configDirectory: configDirectory()).path.withCString {
@@ -167,6 +174,20 @@ private let onSettingsSessionDirectory: @MainActor @convention(c) (OpaquePointer
 private let onSettingsInheritGhostty: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { row, _, _ in
     MainActor.assumeIsolated {
         controllerForWidget(row)?.setInheritGlobalGhosttyConfig(adw_switch_row_get_active(row) != 0)
+    }
+}
+private let onSettingsFollowOmarchy: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { row, _, _ in
+    MainActor.assumeIsolated {
+        guard let controller = controllerForWidget(row) else { return }
+        let enabled = adw_switch_row_get_active(row) != 0
+        do {
+            try OmarchyThemePreference().save(enabled)
+        } catch {
+            controller.showToast("Could not save the Omarchy theme preference")
+            return
+        }
+        if enabled { OmarchyThemeObserver.shared.start() } else { OmarchyThemeObserver.shared.stop() }
+        reloadObservedGhosttyConfig()
     }
 }
 private let onChooseSessionDirectory: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { button, _ in

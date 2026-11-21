@@ -29,8 +29,7 @@ extension AppController {
         appearanceSide: LinuxAppearanceSide? = nil
     ) -> Bool {
         let side = appearanceSide ?? LinuxAppearanceSide(isDark: Self.systemIsDark)
-        let lines = Self.ghosttyLines(for: settings, isDark: side.isDark)
-        guard let config = GhosttyApp.shared.buildConfig(extraLines: lines) else { return false }
+        guard let config = GhosttyApp.shared.buildConfig(settings: settings, isDark: side.isDark) else { return false }
         let chromeColors = GhosttyConfigTheme.colors(from: config)
         GhosttyApp.shared.currentThemeBackgroundHex = chromeColors.background
         GhosttyApp.shared.currentThemeForegroundHex = chromeColors.foreground

@@ -114,8 +114,7 @@ extension AppController {
     func applyResolvedWindowThemeColors() {
         let settings = AppController.resolvedThemeSettings(persisted: linuxSettingsStore().load())
         let isDark = Self.systemIsDark
-        let lines = Self.ghosttyLines(for: settings, isDark: isDark)
-        guard let config = GhosttyApp.shared.buildConfig(extraLines: lines) else { return }
+        guard let config = GhosttyApp.shared.buildConfig(settings: settings, isDark: isDark) else { return }
         defer { ghostty_config_free(config) }
         applyWindowThemeColors(
             for: settings.activeTheme(isDark: isDark),

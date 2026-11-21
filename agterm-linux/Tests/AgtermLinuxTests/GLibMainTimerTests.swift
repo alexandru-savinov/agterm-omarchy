@@ -77,6 +77,52 @@ struct GLibMainTimerTests {
         }
     }
 
+    @Test func omarchyMonitorDebouncesRearmsAndCancels() {
+        withGLibMainTimer {
+            let theme = OmarchyTheme(home: URL(fileURLWithPath: "/omarchy-fixture", isDirectory: true))
+            var watches: [URL: OmarchyThemeObserver.Change] = [:]
+            var themeWatchCount = 0
+            var reloads = 0
+            let observer = OmarchyThemeObserver(theme: theme, observe: { url, change in
+                if url == theme.directory { themeWatchCount += 1 }
+                watches[url] = change
+                return { watches[url] = nil }
+            }, reload: { reloads += 1 })
+            defer { observer.stop() }
+            observer.start()
+            #expect(themeWatchCount == 1)
+            watches[theme.current]?("theme.name", nil)
+            watches[theme.directory]?("colors.toml", nil)
+            settleOmarchyDebounce()
+            #expect(reloads == 0)
+
+            watches[theme.current]?("theme", nil)
+            watches[theme.current]?("temporary-generation", "theme.generation")
+            watches[theme.directory]?("ghostty.conf", nil)
+            #expect(reloads == 0)
+            settleOmarchyDebounce()
+            #expect(reloads == 1)
+            #expect(themeWatchCount == 2)
+
+            watches[theme.directory]?("temp-config", "ghostty.conf")
+            settleOmarchyDebounce()
+            #expect(reloads == 2)
+            watches[theme.current]?("theme.generation", nil)
+            observer.stop()
+            settleOmarchyDebounce()
+            #expect(reloads == 2)
+            #expect(watches.isEmpty)
+        }
+    }
+
+    private func settleOmarchyDebounce() {
+        let deadline = g_get_monotonic_time() + 350_000
+        while g_get_monotonic_time() < deadline {
+            _ = g_main_context_iteration(nil, 0)
+            g_usleep(1_000)
+        }
+    }
+
     /// Installs the GLib seam for the duration of `body` and restores the previous one. Synchronous by
     /// type: `MainTimer.scheduleTimer` is a process-global static.
     private func withGLibMainTimer<R>(_ body: () throws -> R) rethrows -> R {

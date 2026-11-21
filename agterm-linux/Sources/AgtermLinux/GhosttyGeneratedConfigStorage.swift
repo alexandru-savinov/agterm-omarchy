@@ -10,7 +10,7 @@ import Darwin
 /// The desktop runtime root is an input only: never replace XDG_RUNTIME_DIR in the process environment.
 final class GhosttyGeneratedConfigStorage {
     enum Kind: String, CaseIterable {
-        case defaults, runtime, title
+        case defaults, theme, runtime, title
     }
 
     struct AppearanceThemes: Equatable {
