@@ -317,6 +317,15 @@ class FakeGitHub:
         self.runs = {run_id: (self.run, self.jobs, self.artifacts)}
         self.listed = [self.run]
 
+    def add_release_gates(self):
+        for job in self.jobs:
+            if job["name"].startswith("GTK build"):
+                job["steps"] = job["steps"] + [{"name": name, "conclusion": "success"}
+                                               for name in promotion.RELEASE_GTK_STEPS if name != promotion.ATTEST_STEP]
+        self.jobs.extend({"name": promotion.ATTEST_JOB.format(arch=arch), "conclusion": "success",
+                          "steps": [{"name": promotion.ATTEST_STEP, "conclusion": "success"}]}
+                         for arch in promotion.ARCHITECTURES)
+
     def add_run(self, run_id, created_at, jobs=None, artifacts=None, **changes):
         """Another run at the same head, listed newest first; its artifacts default to fresh copies of the base run's."""
         run = dict(self.run, id=run_id, created_at=created_at, run_started_at=created_at,
@@ -554,10 +563,7 @@ class ReleaseGitHub(FakeGitHub):
 
     def __init__(self, releases=(), ahead=True, ci=None, **kwargs):
         super().__init__(**kwargs)
-        for job in self.jobs:
-            if job["name"].startswith("GTK build"):
-                job["steps"] = job["steps"] + [{"name": name, "conclusion": "success"}
-                                               for name in promotion.RELEASE_GTK_STEPS]
+        self.add_release_gates()
         self.zips = {arch: release_zip(arch, self.sha) for arch in promotion.ARCHITECTURES}
         for artifact, arch in zip(self.artifacts, promotion.ARCHITECTURES):
             artifact["digest"] = "sha256:" + hashlib.sha256(self.zips[arch]).hexdigest()
@@ -678,6 +684,20 @@ class ReleaseDryRunTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Rehearse versioned release archive"):
                     self.prepare(github, Path(temp) / "promotion", "--release", "0.43.0.1")
                 self.prepare(github, Path(temp) / "dev")
+
+    def test_manual_main_run_is_selectable_only_with_both_attestations(self):
+        for arch in promotion.ARCHITECTURES:
+            github = ReleaseGitHub()
+            github.run["event"] = "workflow_dispatch"
+            signer = next(job for job in github.jobs if job["name"] == promotion.ATTEST_JOB.format(arch=arch))
+            first, second = github.patches()
+            with self.subTest(arch=arch), first, second:
+                self.assertEqual(promotion.discover_releasable(), github.run)
+                signer["steps"][0]["conclusion"] = "skipped"
+                self.assertIsNone(promotion.discover_releasable())
+                signer["steps"][0]["conclusion"] = "success"
+                signer["conclusion"] = "skipped"
+                self.assertIsNone(promotion.discover_releasable())
 
     def test_rejects_malformed_versions_before_any_api_call(self):
         for version in ("0.43.0.0", "0.43.0.1rc1", "0.43.0.01", "v0.43.0.1", "0.43.0.1-1"):
@@ -895,21 +915,6 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("sha256sum --check SHA256SUMS", job)
         self.assertIn("release-notes.md", job)
 
-    def test_legacy_linux_release_is_retired_here_and_shares_the_upstream_base(self):
-        legacy = (REPO / ".github/workflows/release-linux.yml").read_text()
-        triggers = legacy[legacy.index("\non:\n"):legacy.index("\nconcurrency:")]
-        self.assertNotIn("push:", triggers)
-        jobs = workflow_jobs(legacy)
-        self.assertEqual(set(jobs), {"sbom", "release-linux"})
-        for name, body in jobs.items():
-            with self.subTest(job=name):
-                self.assertIn("    if: github.repository != 'alexandru-savinov/agterm-omarchy'\n", body)
-        ci = CI_WORKFLOW.read_text()
-        for name in ("UPSTREAM_BASE_TAG", "UPSTREAM_BASE_COMMIT"):
-            pin = re.compile(rf'^  {name}: "([^"]+)"$', re.M)
-            with self.subTest(name=name):
-                self.assertEqual(pin.search(legacy)[1], pin.search(ci)[1])
-
     def test_required_gates_exist_in_ci(self):
         ci = CI_WORKFLOW.read_text()
         self.assertIn("name: Omarchy CI\n", ci)
@@ -923,7 +928,9 @@ class WorkflowTests(unittest.TestCase):
                 self.assertIn(name.format(arch="${{ matrix.arch }}"), names.values())
         for step in promotion.REQUIRED_GTK_STEPS + promotion.RELEASE_GTK_STEPS:
             with self.subTest(step=step):
-                self.assertEqual(build.count(f"      - name: {step}\n"), 1)
+                body = jobs["attest-linux"] if step == promotion.ATTEST_STEP else build
+                self.assertEqual(body.count(f"      - name: {step}\n"), 1)
+        self.assertEqual(names["attest-linux"], promotion.ATTEST_JOB.format(arch="${{ matrix.arch }}"))
 
 
 if __name__ == "__main__":

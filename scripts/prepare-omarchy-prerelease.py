@@ -24,8 +24,10 @@ REQUIRED_JOBS = ("Installer and scripts", "SwiftLint (Linux)", "CI")
 REQUIRED_ARCH_JOBS = ("Core tests ({arch})", "GTK build and tests ({arch})")
 REQUIRED_GTK_STEPS = ("swift test (agterm-linux)", "swift build Release/WMO (agterm-linux)",
                       "Validate staged Linux payload", "GTK AT-SPI smoke tests", "Upload tested runtime payload")
-# A versioned release also needs the native tar/readelf/ldd check its notes describe.
-RELEASE_GTK_STEPS = ("Rehearse versioned release archive", "Upload release rehearsal evidence")
+ATTEST_JOB = "Attest CI archive ({arch})"
+ATTEST_STEP = "Attest the exact tested CI archive"
+# A versioned release needs the rehearsal and a successful signature for each tested tarball.
+RELEASE_GTK_STEPS = ("Rehearse versioned release archive", "Upload release rehearsal evidence", ATTEST_STEP)
 
 
 def require(condition, message):
@@ -139,16 +141,23 @@ def validate_run(run, workflow, sha, branch_sha):
 
 
 def validate_jobs(jobs, release=False):
-    required = set(REQUIRED_JOBS)
-    for arch in ARCHITECTURES:
-        required.update(name.format(arch=arch) for name in REQUIRED_ARCH_JOBS)
-    for name in required:
+    def successful_job(name):
         matches = [job for job in jobs if job["name"] == name]
         require(len(matches) == 1 and matches[0]["conclusion"] == "success", f"Missing successful {name}")
-        if name.startswith("GTK build"):
-            for step in REQUIRED_GTK_STEPS + (RELEASE_GTK_STEPS if release else ()):
-                steps = [item for item in matches[0]["steps"] if item["name"] == step]
-                require(len(steps) == 1 and steps[0]["conclusion"] == "success", f"Missing successful {step}")
+        return matches[0]
+
+    core_name, gtk_name = REQUIRED_ARCH_JOBS
+    for name in REQUIRED_JOBS:
+        successful_job(name)
+    for arch in ARCHITECTURES:
+        successful_job(core_name.format(arch=arch))
+        gtk = successful_job(gtk_name.format(arch=arch))
+        signer = successful_job(ATTEST_JOB.format(arch=arch)) if release else None
+        for step in REQUIRED_GTK_STEPS + (RELEASE_GTK_STEPS if release else ()):
+            job = signer if step == ATTEST_STEP else gtk
+            steps = [item for item in job["steps"] if item["name"] == step]
+            require(len(steps) == 1 and steps[0]["conclusion"] == "success",
+                    f"Missing successful {step} ({arch})")
 
 
 def resolve_member_path(parts, links, depth=0):

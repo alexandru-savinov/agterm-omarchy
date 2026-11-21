@@ -6,12 +6,12 @@ paths:
 ## Omarchy CI and macOS validation
 
 - Fork CI runs in `.github/workflows/omarchy-ci.yml`. Keep the required aggregate job named `CI`.
-- `.github/workflows/ci.yml` is the byte-identical copy shipped by the pinned `melonamin/agterm-linux` source.
-  It stays manually disabled in this repository. The required workflow guard checks its bytes and registry state.
-- Keep `UPSTREAM_BASE_TAG` and `UPSTREAM_BASE_COMMIT` aligned in `omarchy-ci.yml` and `release-linux.yml`.
-  When the Linux sync source moves, update `LINUX_PORT_BASE_COMMIT` and preserve its exact `ci.yml`.
-- Both build matrix legs attest their tested CI tarballs on pushes to `main`.
-  CI-native verification binds the artifact to `omarchy-ci.yml`, the main ref and source commit.
+- `ci.yml`, `release-linux.yml`, and `publish-aur.yml` are byte-identical copies from the pinned
+  `melonamin/agterm-linux` source. The required guard checks their bytes and manually disabled registry states.
+- Advance `UPSTREAM_BASE_TAG` and `UPSTREAM_BASE_COMMIT` in `omarchy-ci.yml`.
+  A linux-port sync also advances `LINUX_PORT_BASE_COMMIT` and carries the three upstream workflow files.
+- The read-only build matrix uploads both tested tarballs. A separate signer job attests both archives for
+  main pushes and main manual dispatches. Native verification binds them to the workflow, ref, and source commit.
 - Hosted macOS validation runs in `omarchy-macos.yml`. Follow the exact-head rule for `upstream-offer` PRs.
 
 ## Upstream CI (`ci.yml`)

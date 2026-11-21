@@ -84,7 +84,9 @@ It rejects the archive unless both executables have RUNPATH `$ORIGIN/../lib`, no
 search path, `share/licenses/agterm/` carries the repository `LICENSE`, `payload.json` lists no unresolved
 library, and every shipped theme is resolved, byte for byte, in the archive's own notice inventory;
 `promotion.json` records the tested and released digest of each archive.
-The source run must also have passed both arches' "Rehearse versioned release archive" step.
+The source run must pass "Rehearse versioned release archive" and the separate "Attest CI archive" job
+on both architectures. The signing job downloads the tested CI artifacts and signs their original tarballs.
+Main pushes and manual dispatches on main are eligible for signing.
 CI rehearses this on both architectures under serial 0 and checks the result natively with tar, readelf and ldd
 (`release-rehearsal-<arch>-<sha>` artifacts).
 The release is created as a non-prerelease; it is marked latest only when no published `omarchy-v` release

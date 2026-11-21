@@ -54,6 +54,7 @@ jobs:
       - name: Run actionlint
         shell: bash
         run: |
-          # ci.yml is a byte-identical, disabled upstream workflow checked by the CI guard.
+          # The CI guard checks the byte-identical, disabled upstream workflows.
           git ls-files -z -- ':(glob).github/workflows/*.yml' ':(glob).github/workflows/*.yaml' \
-            ':(exclude).github/workflows/ci.yml' | xargs -0 /tmp/actionlint -color
+            ':(exclude).github/workflows/ci.yml' ':(exclude).github/workflows/release-linux.yml' \
+            ':(exclude).github/workflows/publish-aur.yml' | xargs -0 /tmp/actionlint -color

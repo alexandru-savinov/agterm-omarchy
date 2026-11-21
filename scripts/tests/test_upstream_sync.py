@@ -544,21 +544,20 @@ class TextTests(unittest.TestCase):
                     self.assertEqual(pr_fields.problems(body, "2" * 40), [])
                     self.assertEqual(pr_fields.values(body)["Task"], ["#476"])
 
-    def test_every_body_names_both_base_pin_files_and_the_contained_release(self):
+    def test_every_body_names_the_fork_ci_pin_and_the_contained_release(self):
         for source in ("umputun", "linux-port"):
             for conflicts in ((), [("a", "both modified")]):
                 with self.subTest(source=source, conflicts=conflicts):
                     body = text(conflicts, source=source)[3]
                     self.assertIn("sets `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` to `v0.43.0` / "
-                                  f"`{'c' * 40}` in both `.github/workflows/omarchy-ci.yml` and "
-                                  "`.github/workflows/release-linux.yml`", body)
+                                  f"`{'c' * 40}` in `.github/workflows/omarchy-ci.yml`", body)
 
     def test_pins_never_move_back_when_main_holds_a_newer_release(self):
         for source in ("umputun", "linux-port"):
             with self.subTest(source=source):
                 body = text(source=source, pin=("v0.44.0", "f" * 40))[3]
-                self.assertIn(f"keep `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` at `v0.44.0` / `{'f' * 40}` in both "
-                              "`.github/workflows/omarchy-ci.yml` and `.github/workflows/release-linux.yml`", body)
+                self.assertIn(f"keep `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` at `v0.44.0` / `{'f' * 40}` in "
+                              "`.github/workflows/omarchy-ci.yml`", body)
                 self.assertIn("never move them back to `v0.43.0`", body)
                 self.assertNotIn("sets `UPSTREAM_BASE_TAG`", body)
 
@@ -1289,17 +1288,18 @@ class GitRepoTests(unittest.TestCase):
         release = f'env:\n  UPSTREAM_BASE_TAG: "v0.1.0"\n  UPSTREAM_BASE_COMMIT: "{self.base_tag}"\n'
         linux = f'  LINUX_PORT_BASE_COMMIT: "{self.base_tag}"\n'
         self.write(sync.CI_WORKFLOW, release + linux)
-        self.write(sync.RELEASE_WORKFLOW, release)
+        self.write(".github/workflows/release-linux.yml", release)
         self.write(self.CI, "name: inherited upstream\n")
         self.git("add", ".github/workflows")
         self.git("commit", "-q", "-m", "add the fork and inherited CI layout")
 
     def assert_boundary_pins(self, branch, linux_port):
-        for path in sync.BASE_PIN_FILES:
-            content = self.git("show", f"{branch}:{path}")
-            self.assertIn('UPSTREAM_BASE_TAG: "v0.2.0"', content)
-            self.assertIn(f'UPSTREAM_BASE_COMMIT: "{self.upstream}"', content)
-        self.assertIn(f'LINUX_PORT_BASE_COMMIT: "{linux_port}"', self.git("show", f"{branch}:{sync.CI_WORKFLOW}"))
+        content = self.git("show", f"{branch}:{sync.CI_WORKFLOW}")
+        self.assertIn('UPSTREAM_BASE_TAG: "v0.2.0"', content)
+        self.assertIn(f'UPSTREAM_BASE_COMMIT: "{self.upstream}"', content)
+        self.assertIn(f'LINUX_PORT_BASE_COMMIT: "{linux_port}"', content)
+        inherited_release = self.git("show", f"{branch}:.github/workflows/release-linux.yml")
+        self.assertIn(f'UPSTREAM_BASE_COMMIT: "{self.base_tag}"', inherited_release)
         self.assertEqual(self.git("show", f"{branch}:{self.CI}"), "name: inherited upstream")
 
     def test_automatic_fallback_advances_only_the_umputun_pins(self):

@@ -269,10 +269,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     container: ${{ matrix.container }}
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -501,13 +497,6 @@ jobs:
           path: ${{ runner.temp }}/release-rehearsal
           if-no-files-found: error
           retention-days: 7
-      - name: Attest the exact tested CI archive
-        if: >-
-          github.repository == 'alexandru-savinov/agterm-omarchy' &&
-          github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-path: ${{ runner.temp }}/agterm-omarchy-${{ matrix.arch }}.tar.gz
       - name: Build summary
         if: always()
         env:
@@ -516,6 +505,35 @@ jobs:
         run: |
           printf '### Linux %s\nResult: %s\n\nSwift 6.3.2; Zig 0.17.0. GTK tests use Xvfb.\n' "$BUILD_ARCH" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
           echo 'Native Hyprland/Wayland validation remains a separate Omarchy VM check.' >> "$GITHUB_STEP_SUMMARY"
+
+  attest-linux:
+    name: Attest CI archive (${{ matrix.arch }})
+    needs: build-linux
+    if: >-
+      !cancelled() && needs.build-linux.result == 'success' &&
+      github.repository == 'alexandru-savinov/agterm-omarchy' && github.ref == 'refs/heads/main' &&
+      github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download the tested CI archive from this run
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: agterm-omarchy-${{ matrix.arch }}-${{ github.sha }}
+          path: ${{ runner.temp }}/sign
+          digest-mismatch: error
+      - name: Attest the exact tested CI archive
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/sign/agterm-omarchy-${{ matrix.arch }}.tar.gz
 
   ghostty-patch-tests:
     name: libghostty patch Zig tests (${{ matrix.arch }})
@@ -572,7 +590,7 @@ jobs:
           git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
           git fetch --quiet --no-tags --filter=blob:none origin "$GITHUB_SHA"
           git checkout --quiet --detach FETCH_HEAD
-      - name: Verify the byte-identical upstream CI is disabled
+      - name: Verify the byte-identical upstream workflows are disabled
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -585,20 +603,24 @@ jobs:
     name: CI
     # Superseded runs must not hold the concurrency slot while this job waits for a runner.
     if: ${{ !cancelled() }}
-    needs: [upstream-ci-disabled, scripts, changes, test-linux, lint-linux, build-linux, ghostty-patch-tests, zmx-patch-tests, cookbook]
+    needs: [upstream-ci-disabled, scripts, changes, test-linux, lint-linux, build-linux, attest-linux, ghostty-patch-tests, zmx-patch-tests, cookbook]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require successful checks
         env:
           RESULTS: ${{ toJSON(needs) }}
+          REQUIRE_ATTESTATION: ${{ github.repository == 'alexandru-savinov/agterm-omarchy' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.build-linux.result == 'success' }}
         run: |
           python3 - <<'PYTHON'
           import json, os
           results = json.loads(os.environ['RESULTS'])
-          if results.get('upstream-ci-disabled', {}).get('result') != 'success':
-              raise SystemExit('Required workflow guard did not pass: upstream-ci-disabled')
           failed = [name for name, value in results.items() if value['result'] not in ('success', 'skipped')]
+          required = ['upstream-ci-disabled']
+          if os.environ.get('REQUIRE_ATTESTATION') == 'true':
+              required.append('attest-linux')
+          failed.extend(name for name in required
+                        if results.get(name, {}).get('result') != 'success' and name not in failed)
           if failed:
               raise SystemExit('Failed or cancelled checks: ' + ', '.join(failed))
           PYTHON

@@ -1,8 +1,9 @@
 name: linux release
 
-# Legacy x86_64 DEB/RPM/tar release of an existing linux-v tag, kept for upstream parity and retired in
-# this fork: every job is skipped here, so prerelease-omarchy.yml is the fork's only publishing path.
 on:
+  push:
+    tags:
+      - "linux-v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -15,7 +16,9 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
+  id-token: write
+  attestations: write
 
 env:
   UPSTREAM_BASE_TAG: "v0.43.0"
@@ -23,38 +26,29 @@ env:
   SWIFTLINT_VERSION: "0.65.0"
   SWIFTLINT_SHA256: "79306a34e5c7cc55a220cd108cbb861dcad5f10138dcdf261e2624ae8b0a486b"
   LINUX_SOURCEKIT_LIB_PATH: "/usr/lib/libsourcekitdInProc.so"
-  ZIG_SHA256: "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026"
+  ZIG_SHA256: "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00"
   NFPM_VERSION: "2.47.0"
   NFPM_SHA256: "0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783"
 
 jobs:
-  sbom:
-    if: github.repository != 'alexandru-savinov/agterm-omarchy'
-    permissions:
-      contents: read
-    uses: ./.github/workflows/sbom.yml
-    with:
-      # Fully qualified, so a branch with the same name as the tag cannot be checked out instead.
-      ref: refs/tags/${{ inputs.tag || github.ref_name }}
-
   release-linux:
     name: Build Linux x86_64 release
-    if: github.repository != 'alexandru-savinov/agterm-omarchy'
-    needs: sbom
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      aur_publish: ${{ steps.release.outputs.aur_publish }}
+      version: ${{ steps.release.outputs.version }}
+      package_version: ${{ steps.release.outputs.package_version }}
+      commit: ${{ steps.release.outputs.commit }}
+      source_date_epoch: ${{ steps.release.outputs.source_date_epoch }}
+    timeout-minutes: 45
     container: swift:6.3.2-noble
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7
         with:
-          persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
 
@@ -66,23 +60,17 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           TAG="$REQUESTED_TAG"
-          # Same grammar as scripts/package-linux.sh; see scripts/tests/test_linux_package_version.py.
-          if [[ ! "$TAG" =~ ^linux-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z][0-9A-Za-z]*))*)?(\+linux\.[1-9][0-9]*)?$ ]]; then
-            echo "invalid Linux release tag: $TAG (expected MAJOR.MINOR.PATCH[-PRERELEASE][+linux.N]; prerelease identifiers are dot-separated letters and digits without '-', numbers without leading zeros)" >&2
-            exit 1
-          fi
-          # Attestations record the run's ref; the published instructions bind verification to the tag.
-          if [[ "$GITHUB_REF" != "refs/tags/$TAG" ]]; then
-            echo "run this workflow on the tag ref itself (gh workflow run release-linux.yml --ref $TAG -f tag=$TAG), not $GITHUB_REF" >&2
+          if [[ ! "$TAG" =~ ^linux-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?(\+linux\.[1-9][0-9]*)?$ ]]; then
+            echo "invalid Linux release tag: $TAG" >&2
             exit 1
           fi
 
           git fetch --force origin \
-            "+refs/heads/main:refs/remotes/origin/main" \
+            "+refs/heads/linux-port:refs/remotes/origin/linux-port" \
             "+refs/tags/$TAG:refs/tags/$TAG"
           COMMIT="$(git rev-parse "$TAG^{commit}")"
-          if ! git merge-base --is-ancestor "$COMMIT" origin/main; then
-            echo "$TAG does not point to a commit on origin/main" >&2
+          if ! git merge-base --is-ancestor "$COMMIT" origin/linux-port; then
+            echo "$TAG does not point to a commit on origin/linux-port" >&2
             exit 1
           fi
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
@@ -91,16 +79,18 @@ jobs:
 
           VERSION="${TAG#linux-}"
           PACKAGE_VERSION="${VERSION#v}"
-          # A prerelease suffix is the only place the validated grammar allows '-'.
-          PRERELEASE=false
-          [[ "$PACKAGE_VERSION" == *-* ]] && PRERELEASE=true
           {
             echo "tag=$TAG"
             echo "version=$VERSION"
             echo "package_version=$PACKAGE_VERSION"
-            echo "prerelease=$PRERELEASE"
             echo "commit=$COMMIT"
             echo "source_date_epoch=$(git show -s --format=%ct "$COMMIT")"
+            # Arch pkgver forbids prerelease hyphens; +linux.N revisions remain eligible.
+            if [[ "$PACKAGE_VERSION" == *-* ]]; then
+              echo "aur_publish=false"
+            else
+              echo "aur_publish=true"
+            fi
           } >> "$GITHUB_OUTPUT"
 
       - name: Install Linux build and test dependencies
@@ -121,10 +111,15 @@ jobs:
           swift --version
           swiftlint --version
           curl -fsSLo /tmp/zig.tar.xz \
-            https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz
+            https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz
           echo "${ZIG_SHA256}  /tmp/zig.tar.xz" | sha256sum --check
           tar -xJf /tmp/zig.tar.xz -C /opt
-          echo "/opt/zig-x86_64-linux-0.17.0" >> "$GITHUB_PATH"
+          echo "/opt/zig-x86_64-linux-0.16.0" >> "$GITHUB_PATH"
+          curl -fsSLo /tmp/zig17.tar.xz \
+            https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz
+          echo "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026  /tmp/zig17.tar.xz" | sha256sum --check
+          tar -xJf /tmp/zig17.tar.xz -C /opt
+          echo "GHOSTTY_ZIG=/opt/zig-x86_64-linux-0.17.0/zig" >> "$GITHUB_ENV"
 
       - name: Install Linux packaging tools
         run: |
@@ -134,25 +129,6 @@ jobs:
           tar -xzf /tmp/nfpm.tar.gz -C /usr/local/bin nfpm
 
           nfpm --version
-
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: sbom
-          path: release-sbom
-          digest-mismatch: error
-
-      - name: Name the SBOM for this release
-        env:
-          VERSION: ${{ steps.release.outputs.version }}
-          COMMIT: ${{ steps.release.outputs.commit }}
-          SBOM_COMMIT: ${{ needs.sbom.outputs.commit }}
-        run: |
-          # A tag moved between the two jobs would make the SBOM describe a different tree.
-          if [[ "$SBOM_COMMIT" != "$COMMIT" ]]; then
-            echo "SBOM describes $SBOM_COMMIT, but the release verified $COMMIT" >&2
-            exit 1
-          fi
-          mv release-sbom/sbom.spdx.json "release-sbom/agterm-linux-${VERSION}.spdx.json"
 
       # The Swift container is root, but persistence failure tests intentionally depend on normal-user
       # POSIX write permissions. Run them at the same privilege level as the desktop application.
@@ -174,17 +150,39 @@ jobs:
           git diff --check
           git diff --check "$UPSTREAM_BASE_TAG"...HEAD
 
-      # This historical release fixture deliberately asserts the upstream repository name.
       - name: Test published-release verifier
-        run: env -u GITHUB_REPOSITORY scripts/test-published-linux-release.sh
+        run: scripts/test-published-linux-release.sh
 
       - name: Test Linux architecture verification
         run: scripts/test-linux-architecture.sh
 
+      - name: Resolve Linux architecture
+        id: linux-architecture
+        shell: bash
+        run: |
+          source linux/arch.sh
+          echo "host=$HOST_ARCH" >> "$GITHUB_OUTPUT"
+
       - name: Lint Swift sources
         run: swiftlint lint --strict --quiet
 
-      # No cache: a release restores nothing it did not build in this run (cache poisoning).
+      - name: Cache vendored Linux runtimes
+        id: ghostty-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            agterm-linux/vendor/ghostty
+            agterm-linux/vendor/zmx
+          key: linux-runtimes-${{ steps.linux-architecture.outputs.host }}-${{ hashFiles('scripts/setup-linux.sh', 'scripts/verify-linux-vendor-cache.sh', 'scripts/verify-linux-zmx-cache.sh', 'scripts/verify-linux-architecture.sh', 'scripts/verify-linux-resources.sh', 'scripts/zmx-patches/**/*.patch', 'linux/arch.sh', 'linux/ghostty-resources.env', 'linux/ghostty-build.sh', 'scripts/ghostty-patches/**/*.patch', 'linux/zmx.env', 'linux/patches/*.patch') }}
+
+      - name: Verify restored libghostty cache
+        if: steps.ghostty-cache.outputs.cache-hit == 'true'
+        run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty
+
+      - name: Verify restored zmx cache
+        if: steps.ghostty-cache.outputs.cache-hit == 'true'
+        run: scripts/verify-linux-zmx-cache.sh agterm-linux/vendor/zmx
+
       - name: Test deterministic Ghostty resources
         run: scripts/test-linux-resources.sh
 
@@ -227,7 +225,7 @@ jobs:
 
       - name: Upload GTK diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@v6
         with:
           name: linux-release-ui-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/linux-ui
@@ -240,38 +238,99 @@ jobs:
       - name: Package Linux release formats
         env:
           SOURCE_DATE_EPOCH: ${{ steps.release.outputs.source_date_epoch }}
-          PACKAGE_VERSION: ${{ steps.release.outputs.package_version }}
-        run: scripts/package-linux.sh "$PACKAGE_VERSION" dist-linux
+        run: scripts/package-linux.sh "${{ steps.release.outputs.package_version }}" dist-linux
 
       - name: Verify Linux release formats
-        env:
-          PACKAGE_VERSION: ${{ steps.release.outputs.package_version }}
-        run: scripts/verify-linux-packages.sh "$PACKAGE_VERSION" dist-linux
-
-      - name: Generate artifact attestations
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-path: |
-            dist-linux/*
-            release-sbom/*
+        run: scripts/verify-linux-packages.sh "${{ steps.release.outputs.package_version }}" dist-linux
 
       - name: Write release notes
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
-        run: scripts/write-linux-release-notes.sh "$RELEASE_TAG" "$RELEASE_COMMIT" release-notes.md
+        run: >-
+          scripts/write-linux-release-notes.sh
+          "${{ steps.release.outputs.tag }}"
+          "${{ steps.release.outputs.commit }}"
+          release-notes.md
+
+      - name: Transfer verified packages and release notes
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-release-build
+          path: |
+            dist-linux/*
+            release-notes.md
+          if-no-files-found: error
+          retention-days: 3
+
+  publish-linux:
+    name: Validate Arch and publish Linux release
+    needs: release-linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-linux.outputs.commit }}
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: linux-release-build
+          path: .
+
+      - name: Build, install, and exercise the Arch release package
+        if: needs.release-linux.outputs.aur_publish == 'true'
+        env:
+          PACKAGE_VERSION: ${{ needs.release-linux.outputs.package_version }}
+          SOURCE_DATE_EPOCH: ${{ needs.release-linux.outputs.source_date_epoch }}
+        run: scripts/test-aur-package.sh "$PACKAGE_VERSION" dist-linux
+
+      - name: Upload Arch diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-release-arch-diagnostics
+          path: artifacts/aur
+          if-no-files-found: warn
+
+      - name: Check final release checksums
+        working-directory: dist-linux
+        env:
+          PACKAGE_VERSION: ${{ needs.release-linux.outputs.package_version }}
+        run: sha256sum --check --strict "agterm-linux-v${PACKAGE_VERSION}-SHA256SUMS"
+
+      - name: Generate artifact attestations
+        uses: actions/attest@v4
+        with:
+          subject-path: dist-linux/*
 
       - name: Publish GitHub release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.release.outputs.tag }}
-          target_commitish: ${{ steps.release.outputs.commit }}
-          files: |
-            dist-linux/*
-            release-sbom/*
+          tag_name: ${{ needs.release-linux.outputs.tag }}
+          target_commitish: ${{ needs.release-linux.outputs.commit }}
+          files: dist-linux/*
           fail_on_unmatched_files: true
-          name: agterm-linux ${{ steps.release.outputs.version }}
+          name: agterm-linux ${{ needs.release-linux.outputs.version }}
           body_path: release-notes.md
-          prerelease: ${{ steps.release.outputs.prerelease }}
-          make_latest: ${{ steps.release.outputs.prerelease == 'true' && 'false' || 'true' }}
+          make_latest: true
+
+      - name: Verify public release assets and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.release-linux.outputs.tag }}
+          ARCH_PACKAGE: ${{ needs.release-linux.outputs.aur_publish }}
+        run: |
+          args=("$RELEASE_TAG")
+          if [[ "$ARCH_PACKAGE" == true ]]; then args+=(--require-arch); fi
+          scripts/verify-published-linux-release.sh "${args[@]}"
+
+  publish-aur:
+    needs: [release-linux, publish-linux]
+    if: needs.release-linux.outputs.aur_publish == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/publish-aur.yml
+    with:
+      tag: ${{ needs.release-linux.outputs.tag }}
+    secrets:
+      AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}

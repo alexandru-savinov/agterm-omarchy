@@ -82,9 +82,9 @@ follow linux-port:
 - If the merge conflicts, or changes anything under `.github/`, keep the conflicts as a commit and open a draft
   PR labelled `needs-adaptation`. Otherwise open a PR labelled `upstream-sync`. A merge that adds a new
   workflow path is not pushed at all (Trust, below).
-- The merge commit pins the newest incorporated umputun release in `omarchy-ci.yml` and `release-linux.yml`.
-  A linux-port sync also advances `LINUX_PORT_BASE_COMMIT` in `omarchy-ci.yml`.
-  The PR body lists the expected pins for every path that needs conflict resolution.
+- The merge commit pins the newest incorporated umputun release in `omarchy-ci.yml`.
+  A linux-port sync also advances `LINUX_PORT_BASE_COMMIT` and carries the three inherited workflow files.
+  The PR body lists the expected pins for conflict resolution.
 - **Trust:** the sync branch is pushed before anyone reviews it, and the workflows it carries run on that
   push. A workflow file can request a write token for itself (`permissions:`), whatever the repository
   default is, so an upstream-authored workflow could push branches or create tags and releases here.
@@ -96,8 +96,8 @@ follow linux-port:
     and does not block.
   - **Existing workflow paths** keep the `needs-adaptation` draft, with the changed paths listed. A workflow
     that is disabled in this repository stays disabled when its content changes.
-    At the #483 cutover, `ci.yml` takes the exact linux-port copy and its registration is disabled.
-    Review upstream changes to other existing paths, including the retired `release-linux.yml`.
+    At the #483 cutover, `ci.yml`, `release-linux.yml`, and `publish-aur.yml` take the exact linux-port
+    copies and all three registrations are disabled. The fork publishes via `prerelease-omarchy.yml`.
     A clean merge into an enabled workflow path can run upstream-authored steps when its triggers match.
   - **Settings this rests on,** verified on 2026-11-20: there are no repository secrets; the only credential
     is the PAT in the `upstream-sync` environment, which deploys from main only; allowed actions are a

@@ -11,8 +11,9 @@ the scanner workflows (`zizmor.yml`, `actionlint.yml`, `semgrep-osv.yml`, `trivy
 
 ### Task 1: Split the pipelines
 - [ ] `git mv .github/workflows/ci.yml .github/workflows/omarchy-ci.yml`, keeping the aggregate job name `CI`.
-- [ ] Restore `.github/workflows/ci.yml` byte-identical from `LINUX_PORT_BASE_COMMIT` in `omarchy-ci.yml`.
-- [ ] Exclude `.github/workflows/ci.yml` in actionlint, zizmor, semgrep and trivy.
+- [ ] Restore `ci.yml`, `release-linux.yml`, and `publish-aur.yml` byte-identical from `LINUX_PORT_BASE_COMMIT`.
+- [ ] Exclude the three inherited paths in Actionlint, Zizmor, Semgrep and Trivy.
+- [ ] Simulate an upstream change to all three. Require a clean merge and no new workflow paths.
 - [ ] Replay the v0.41.1→v0.43.0 merge on a scratch branch with the new layout, and record that ci.yml has no
   conflict.
 
@@ -22,7 +23,7 @@ the scanner workflows (`zizmor.yml`, `actionlint.yml`, `semgrep-osv.yml`, `trivy
 - [ ] Put the logic in a script under `scripts/`, with unit tests in `scripts/tests` covering: active, edited,
   new upstream file, and clean.
 - [ ] Make #476's sync branch advance `UPSTREAM_BASE_TAG` and `UPSTREAM_BASE_COMMIT` in `omarchy-ci.yml`
-  and `release-linux.yml` in the merge commit, with a test. #493 advances the linux-port source pin.
+  in the merge commit, with a test. #493 also advances the linux-port source pin.
 
 ### Task 3: Advisory macOS workflow
 - [ ] `git mv macos-weekly.yml omarchy-macos.yml`. Triggers: weekly, dispatch, and pull_request
@@ -37,13 +38,14 @@ the scanner workflows (`zizmor.yml`, `actionlint.yml`, `semgrep-osv.yml`, `trivy
 ### Task 4: References and enablement
 - [ ] Update every lookup of `ci.yml` and `macos-weekly.yml`: upstream-sync, auto-release,
   prerelease-omarchy, `.claude/rules/ci.md`, the README badge and PR-fields docs.
-- [ ] After #474 merges, the lead disables `ci.yml`. Show the draft guard red before and green after the disable.
-- [ ] Verify both archives signed by `omarchy-ci.yml` on the first qualifying main push. Then require
-  attestation in the native PR self-test.
+- [ ] After #474 merges, the lead pauses sync and disables all three inherited workflows.
+  Show the draft guard red before and green after the disable.
+- [ ] Verify both archives signed by `omarchy-ci.yml` on the first qualifying main run. Then require
+  attestation in the native PR self-test and unpause.
 - [ ] Merge a docs-only PR under the unchanged ruleset, with `CI` green.
 
 ## Constraints
-- Preserve linux-port's `ci.yml` content. Never change the required-check ruleset. Never make macOS
+- Preserve the linux-port workflow files byte for byte. Never change the required-check ruleset. Never make macOS
   required, except the `upstream-offer` verdict.
 - No self-hosted runners. Pin actions by SHA, use least-privilege permissions, and pass zizmor and actionlint.
 - PRs go to `main` on alexandru-savinov/agterm-omarchy only. Never push to melonamin or umputun.

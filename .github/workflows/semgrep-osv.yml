@@ -54,7 +54,8 @@ jobs:
       - name: Scan with a named rule pack (no token, metrics off)
         run: |
           "$RUNNER_TEMP/semgrep-venv/bin/semgrep" scan --config p/default --metrics=off \
-            --exclude .github/workflows/ci.yml \
+            --exclude .github/workflows/ci.yml --exclude .github/workflows/release-linux.yml \
+            --exclude .github/workflows/publish-aur.yml \
             --sarif --output semgrep.sarif
           python3 -c 'import json; r=json.load(open("semgrep.sarif"))["runs"][0]["results"]; print(f"semgrep results: {len(r)}")'
       - name: Upload SARIF

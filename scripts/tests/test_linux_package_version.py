@@ -2,7 +2,6 @@
 """Release version grammar, package version mapping and release-time checks, without package tools."""
 from pathlib import Path
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -11,7 +10,6 @@ import unittest
 REPO = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO / 'scripts'
 SOURCE = SCRIPTS / 'verify-linux-packages.sh'
-WORKFLOW = REPO / '.github/workflows/release-linux.yml'
 
 # Versions both nFPM 2.47.0 packagers and verify-linux-packages.sh map to the same metadata.
 ACCEPTED = [
@@ -143,30 +141,6 @@ class PackageVersionTests(unittest.TestCase):
                         result = command('linux-v' + version)
                         self.assertEqual(result.returncode, 2, result.stderr)
                         self.assertIn('invalid Linux release tag', result.stderr)
-
-    def test_release_workflow_rejects_tags_before_building(self):
-        text = WORKFLOW.read_text()
-        match = re.search(r'^\s*(if \[\[ ! "\$TAG" =~ .*? \]\]; then)$', text, re.M)
-        self.assertIsNotNone(match)
-        snippet = match.group(1) + ' exit 3; fi'
-        env = {'PATH': os.environ['PATH']}
-        for version in ACCEPTED:
-            with self.subTest(version=version):
-                result = run(['bash', '-c', snippet], env={**env, 'TAG': 'linux-v' + version})
-                self.assertEqual(result.returncode, 0, result.stderr)
-        for version in REJECTED:
-            with self.subTest(version=version):
-                result = run(['bash', '-c', snippet], env={**env, 'TAG': 'linux-v' + version})
-                self.assertEqual(result.returncode, 3, result.stderr)
-
-    def test_release_workflow_publishes_prereleases_as_prereleases(self):
-        text = WORKFLOW.read_text()
-        self.assertIn('echo "prerelease=$PRERELEASE"', text)
-        self.assertIn('prerelease: ${{ steps.release.outputs.prerelease }}', text)
-        self.assertIn("make_latest: ${{ steps.release.outputs.prerelease == 'true' && 'false' || 'true' }}", text)
-        self.assertNotRegex(text, r'make_latest:\s*true\s*$')
-        self.assertIn('run: env -u GITHUB_REPOSITORY scripts/test-published-linux-release.sh', text)
-
 
 class ReleaseNotesTests(unittest.TestCase):
     def notes(self, tag, temp):

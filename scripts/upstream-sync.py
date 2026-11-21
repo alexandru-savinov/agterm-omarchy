@@ -39,8 +39,6 @@ UNDECIDED = 3  # `pause` exit status: SYNC_PAUSED does not pause, so the inciden
 STATUS_LINE = re.compile(r"HTTP/[0-9.]+ ([0-9]{3})\b", re.ASCII)
 UNREADABLE = (403, 404)  # how GitHub answers a token that lacks the permission to read a setting
 CI_WORKFLOW = f"{WORKFLOWS}/omarchy-ci.yml"
-RELEASE_WORKFLOW = f"{WORKFLOWS}/release-linux.yml"
-BASE_PIN_FILES = (CI_WORKFLOW, RELEASE_WORKFLOW)
 LIST_BUDGET = 28000  # characters per list, so two lists stay below GitHub's 65536-character body limit
 UNMERGED = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
 CONFLICT_KINDS = {"DD": "both deleted", "AU": "added by us", "UD": "deleted by them", "UA": "added by them",
@@ -306,13 +304,12 @@ def pr_text(*, source, commit, release, pin, base_sha, head_sha, run_url, confli
     else:
         title = f"Sync {UPSTREAM} {tag}"
         merges = f"Merges {link} into main (`{base_sha}`)."
-    files = " and ".join(f"`{path}`" for path in BASE_PIN_FILES)
     if pin_tag == tag:
         pins = (f"The merge commit sets `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` to `{tag}` / `{pin[1]}` "
-                f"in both {files} where resolved. Confirm the same pins when resolving workflow conflicts.")
+                f"in `{CI_WORKFLOW}` where resolved. Confirm the same pins when resolving workflow conflicts.")
     else:
         pins = (f"main already contains the newer {UPSTREAM} {pin_tag}: keep `UPSTREAM_BASE_TAG` / "
-                f"`UPSTREAM_BASE_COMMIT` at `{pin_tag}` / `{pin[1]}` in both {files}, and never move them back to "
+                f"`UPSTREAM_BASE_COMMIT` at `{pin_tag}` / `{pin[1]}` in `{CI_WORKFLOW}`, and never move them back to "
                 f"`{tag}`.")
     if source == SOURCE_LINUX_PORT:
         pins += (f" The merge also sets `LINUX_PORT_BASE_COMMIT` in `{CI_WORKFLOW}` to `{commit}` where resolved. "
@@ -396,24 +393,24 @@ IDENTITY = ("-c", "user.name=github-actions[bot]",
 
 
 def update_boundary(worktree, base, release_pin, linux_port_pin, conflicted_paths):
-    """Stage the downstream pins while leaving unresolved workflow paths for review."""
+    """Stage the fork's pins while preserving the inherited workflows."""
+    if (CI_WORKFLOW in conflicted_paths
+            or git("cat-file", "-e", f"{base}:{CI_WORKFLOW}", cwd=worktree, check=False).returncode):
+        return
+    path = worktree / CI_WORKFLOW
+    if path.is_symlink():
+        raise SyncError(f"cannot update boundary pins in symlink {CI_WORKFLOW}")
     tag, commit = release_pin
-    for name in BASE_PIN_FILES:
-        if name in conflicted_paths or git("cat-file", "-e", f"{base}:{name}", cwd=worktree, check=False).returncode:
-            continue
-        path = worktree / name
-        if path.is_symlink():
-            raise SyncError(f"cannot update boundary pins in symlink {name}")
-        pins = {"UPSTREAM_BASE_TAG": tag, "UPSTREAM_BASE_COMMIT": commit}
-        if name == CI_WORKFLOW and linux_port_pin:
-            pins["LINUX_PORT_BASE_COMMIT"] = linux_port_pin
-        text = path.read_text(encoding="utf-8")
-        for key, value in pins.items():
-            text, count = re.subn(rf'^  {key}: "[^"\n]+"$', f'  {key}: "{value}"', text, flags=re.MULTILINE)
-            if count != 1:
-                raise SyncError(f"expected exactly one {key} in {name}")
-        path.write_text(text, encoding="utf-8")
-        git("add", "--", name, cwd=worktree)
+    pins = {"UPSTREAM_BASE_TAG": tag, "UPSTREAM_BASE_COMMIT": commit}
+    if linux_port_pin:
+        pins["LINUX_PORT_BASE_COMMIT"] = linux_port_pin
+    text = path.read_text(encoding="utf-8")
+    for key, value in pins.items():
+        text, count = re.subn(rf'^  {key}: "[^"\n]+"$', f'  {key}: "{value}"', text, flags=re.MULTILINE)
+        if count != 1:
+            raise SyncError(f"expected exactly one {key} in {CI_WORKFLOW}")
+    path.write_text(text, encoding="utf-8")
+    git("add", "--", CI_WORKFLOW, cwd=worktree)
 
 
 def build(worktree, base, branch, commit, what, *, release_pin=None, linux_port_pin=None):

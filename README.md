@@ -22,6 +22,8 @@ The [earlier fd85fc58 acceptance](https://github.com/alexandru-savinov/agterm-om
 Earlier installation/renderer evidence remains in the [older native bundle](docs/evidence/omarchy-arm64-2026-10-29/)
 and [renderer acceptance](https://github.com/alexandru-savinov/agterm-omarchy/pull/116).
 
+[![Build Status](https://github.com/melonamin/agterm-linux/workflows/build/badge.svg)](https://github.com/melonamin/agterm-linux/actions)
+
 [![Omarchy CI](https://github.com/alexandru-savinov/agterm-omarchy/actions/workflows/omarchy-ci.yml/badge.svg?branch=main)](https://github.com/alexandru-savinov/agterm-omarchy/actions/workflows/omarchy-ci.yml)
 
 **[agterm.com](https://agterm.com)** · [Documentation](https://agterm.com/docs) · [Command reference](https://agterm.com/commands) · [Cookbook](cookbook/)

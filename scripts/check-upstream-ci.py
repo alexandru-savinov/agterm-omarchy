@@ -7,9 +7,7 @@ import re
 import subprocess
 from pathlib import Path
 
-CI = ".github/workflows/ci.yml"
-AUR = ".github/workflows/publish-aur.yml"
-LEGACY_RELEASE = ".github/workflows/release-linux.yml"
+INHERITED = frozenset(f".github/workflows/{name}" for name in ("ci.yml", "release-linux.yml", "publish-aur.yml"))
 
 
 def workflow_tree(commit):
@@ -31,17 +29,14 @@ def check_layout(linux_port, upstream, local, pages):
                 raise ValueError(f"duplicate workflow in registry: {path}")
             states[path] = item["state"]
     errors = []
-    if not linux_port.get(CI, b"").startswith(b"100644 blob "):
-        errors.append(f"linux-port must ship {CI} as a regular workflow file")
-    elif local.get(CI) != linux_port[CI]:
-        errors.append(f"{CI} must be byte-identical to the pinned linux-port copy")
-    if states.get(CI) != "disabled_manually":
-        errors.append(f"{CI} must be disabled manually (registry state: {states.get(CI, 'missing')})")
-    # The old downstream release workflow has its own fork skip gates and is protected by the
-    # promotion tests. AUR is upstream publishing and does not belong in the Omarchy workflow tree.
-    if AUR in local or states.get(AUR) == "active":
-        errors.append(f"{AUR} must remain absent here")
-    for path in sorted((linux_port.keys() | upstream.keys()) - {CI, AUR, LEGACY_RELEASE}):
+    for path in sorted(INHERITED):
+        if not linux_port.get(path, b"").startswith(b"100644 blob "):
+            errors.append(f"linux-port must ship {path} as a regular workflow file")
+        elif local.get(path) != linux_port[path]:
+            errors.append(f"{path} must be byte-identical to the pinned linux-port copy")
+        if states.get(path) != "disabled_manually":
+            errors.append(f"{path} must be disabled manually (registry state: {states.get(path, 'missing')})")
+    for path in sorted((linux_port.keys() | upstream.keys()) - INHERITED):
         errors.append(f"new upstream workflow requires an explicit disposition: {path}")
     return errors
 
@@ -56,7 +51,8 @@ def main():
                           json.loads(args.registry.read_text()))
     if errors:
         raise SystemExit("\n".join(errors))
-    print(f"{CI} matches linux-port at {args.linux_port} and is disabled")
+    for path in sorted(INHERITED):
+        print(f"{path} matches linux-port at {args.linux_port} and is disabled")
 
 
 if __name__ == "__main__":
