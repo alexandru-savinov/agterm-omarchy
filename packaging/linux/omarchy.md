@@ -92,6 +92,23 @@ Launch **agterm** from Omarchy's application launcher, or run:
 ```
 
 GTK selects native Wayland in a Hyprland session.
+No Hyprland configuration or default terminal selection is changed by installation.
+For an optional dedicated shortcut on Lua-based Hyprland (0.55 and later), add this to the user
+bindings file loaded by your configuration and reload Hyprland:
+
+```lua
+hl.bind("SUPER + SHIFT + Return", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/agterm-linux"))
+```
+
+Older Hyprland configurations use the following in `~/.config/hypr/bindings.conf`:
+
+```ini
+bind = SUPER SHIFT, Return, exec, ~/.local/bin/agterm-linux
+```
+
+Choose a chord that is unused in your configuration.
+See the [Wayland support matrix](../../agterm-linux/docs/x11-wayland.md) for compositor-owned behavior
+such as window placement and blur.
 
 ### Omarchy clipboard shortcuts
 
@@ -113,24 +130,6 @@ Run `agtermctl integration omarchy enable` again to restore the include.
 
 `status` checks the files on disk.
 After Hyprland reloads, `hyprctl clients -j` should show `terminal` or `terminal*` in the tags for `io.github.melonamin.agterm`.
-
-No Hyprland configuration or default terminal selection is changed by installation.
-For an optional dedicated shortcut on Lua-based Hyprland (0.55 and later), add this to the user
-bindings file loaded by your configuration and reload Hyprland:
-
-```lua
-hl.bind("SUPER + SHIFT + Return", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/agterm-linux"))
-```
-
-Older Hyprland configurations use the following in `~/.config/hypr/bindings.conf`:
-
-```ini
-bind = SUPER SHIFT, Return, exec, ~/.local/bin/agterm-linux
-```
-
-Choose a chord that is unused in your configuration.
-See the [Wayland support matrix](../../agterm-linux/docs/x11-wayland.md) for compositor-owned behavior
-such as window placement and blur.
 
 ## Rendering
 
