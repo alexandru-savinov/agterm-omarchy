@@ -536,7 +536,7 @@ static void remove_own_preload(void) {
 __attribute__((constructor)) static void shim_start(void) {
     if (!target_process()) return;
     const char *path = getenv("GL_TEARDOWN_LOG");
-    if (path) log_fd = open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
+    if (path) log_fd = open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0600);
     if (log_fd < 0) return;
     dl_iterate_phdr(main_range, NULL);
     remove_own_preload();
