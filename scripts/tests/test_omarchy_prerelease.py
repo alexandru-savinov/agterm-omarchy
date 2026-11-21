@@ -656,6 +656,14 @@ class ReleaseDryRunTests(unittest.TestCase):
             self.assertEqual(promotion.next_version(promotion.release_module(), "0.40.0"), "0.40.0.5")
             self.assertEqual(promotion.next_version(promotion.release_module(), "0.41.1"), "0.41.1.1")
 
+    def test_next_version_rejects_non_commit_base_before_calling_the_api(self):
+        for source in ("main", SHA[:12], SHA.upper()):
+            with self.subTest(source=source), patch.object(promotion, "api") as api, \
+                    patch("sys.argv", ["prepare", "--next-version", "--base-of", source]):
+                with self.assertRaisesRegex(ValueError, "Expected a full lowercase source SHA"):
+                    promotion.main()
+                api.assert_not_called()
+
     def test_dispatch_refuses_an_existing_tag_or_release(self):
         for existing in ("git/ref/tags/omarchy-v0.43.0.1", "releases/tags/omarchy-v0.43.0.1"):
             with self.subTest(existing=existing), tempfile.TemporaryDirectory() as temp:
