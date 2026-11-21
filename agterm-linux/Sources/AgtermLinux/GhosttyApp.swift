@@ -41,6 +41,7 @@ final class GhosttyApp: @unchecked Sendable {
     /// The finalized base config's `font-size`, refreshed with every base config build.
     var currentBaseFontSize: Double?
     @MainActor private var appliedAppearanceSide: LinuxAppearanceSide?
+    @MainActor private var lastOmarchyColors: [String] = []
 
     /// Process environment and locale initialization must precede GTK's worker threads.
     /// Called once from main(), after the GDK policy assignments and before GTK initializes.
@@ -140,11 +141,10 @@ final class GhosttyApp: @unchecked Sendable {
             try storage.withConfigFile("term = \(term)\n" + GhosttyDefaults.baseConfLines, as: .defaults) {
                 $0.withCString { ghostty_config_load_file(cfg, $0) }
             }
-            let theme = OmarchyTheme()
             let preference = OmarchyThemePreference()
             let layers = LinuxGhosttyConfigLayers(
                 settings: AppController.ghosttyLines(for: settings, isDark: isDark),
-                omarchy: preference.follows(theme) ? theme.colorLines() : [],
+                omarchy: omarchyColorLayer(enabled: preference.load() != false),
                 prefersAgtermTheme: preference.usesAgtermTheme(settings, previewing: AppController.themePreviewSettings != nil),
                 overlay: overlay)
             try layers.load(
@@ -161,6 +161,18 @@ final class GhosttyApp: @unchecked Sendable {
             Self.reportConfigFailure(error)
             return nil
         }
+    }
+
+    @MainActor private func omarchyColorLayer(enabled: Bool) -> [String] {
+        if enabled {
+            // Omarchy deletes the old directory before publishing its replacement. Any reload
+            // in that gap must keep the last published colors, even a signal or appearance reload.
+            let current = OmarchyTheme().colorLines()
+            if !current.isEmpty { lastOmarchyColors = current }
+        } else {
+            lastOmarchyColors = []
+        }
+        return lastOmarchyColors
     }
 
     /// A Ghostty static title would suppress the OSC title reports managed zmx uses for pane leadership.

@@ -1,5 +1,10 @@
 import Foundation
 import agtermCore
+#if canImport(Glibc)
+import Glibc
+#else
+import Darwin
+#endif
 
 /// Omarchy publishes here even when XDG_STATE_HOME is set.
 struct OmarchyTheme {
@@ -23,10 +28,22 @@ struct OmarchyTheme {
         return FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory) && isDirectory.boolValue
     }
 
+    static let configReadLimit = 64 * 1024
+
     func colorLines() -> [String] {
-        let config = config.resolvingSymlinksInPath()
-        guard (try? config.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
-              let contents = try? String(contentsOf: config, encoding: .utf8) else { return [] }
+        // Inspect and read the same open file. Nonblocking open lets fstat reject a FIFO even
+        // when no writer exists. Reject a full buffer because the final assignment may be cut off.
+        let fd = open(config.path, O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOCTTY)
+        guard fd >= 0 else { return [] }
+        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        defer { try? handle.close() }
+        var entry = stat()
+        guard fstat(fd, &entry) == 0,
+              entry.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG),
+              entry.st_size < Self.configReadLimit,
+              let bytes = try? handle.read(upToCount: Self.configReadLimit),
+              bytes.count < Self.configReadLimit,
+              let contents = String(data: bytes, encoding: .utf8) else { return [] }
         return Self.colorLines(in: contents)
     }
 

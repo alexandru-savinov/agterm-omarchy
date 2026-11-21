@@ -4,7 +4,9 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import time
 
+from atspi_prefs_combo import choose_combo, close_preferences, open_preferences
 from atspi_smoke import control_json, launch, stop, wait_for
 from x11_capture import capture
 
@@ -30,7 +32,7 @@ def verify_omarchy_theme(env):
     scoped.parent.mkdir()
     local = dict(env, XDG_STATE_HOME=str(state / "xdg"))
 
-    process, _ = launch(local)
+    process, app = launch(local)
     try:
         window = subprocess.check_output(
             ["xdotool", "search", "--sync", "--onlyvisible", "--pid", str(process.pid)],
@@ -42,6 +44,9 @@ def verify_omarchy_theme(env):
         x = int(geometry["X"]) + int(geometry["WIDTH"]) * 3 // 4
         y = int(geometry["Y"]) + int(geometry["HEIGHT"]) * 3 // 4
 
+        def terminal_pixel():
+            return capture().new_subpixbuf(x, y, 1, 1).get_pixels()[:3]
+
         def expect(background, stage):
             expected = bytes.fromhex(background)
             last = None
@@ -49,7 +54,7 @@ def verify_omarchy_theme(env):
             def painted():
                 nonlocal last
                 assert process.poll() is None, f"agterm exited during {stage}"
-                last = capture().new_subpixbuf(x, y, 1, 1).get_pixels()[:3]
+                last = terminal_pixel()
                 return last == expected
 
             if not wait_for(painted, "", required=False):
@@ -61,7 +66,17 @@ def verify_omarchy_theme(env):
         staged = current / "next-theme"
         staged.mkdir()
         (staged / "ghostty.conf").write_text(colors(theme_b), encoding="utf-8")
-        directory.rename(current / "previous-theme")
+        # Reproduce Omarchy's deletion before the rename. Keep the gap open longer than the
+        # debounce and force a signal reload while the old color file is absent.
+        (directory / "ghostty.conf").unlink()
+        directory.rmdir()
+        os.kill(process.pid, signal.SIGUSR2)
+        deadline = time.monotonic() + 0.65
+        while time.monotonic() < deadline:
+            actual = terminal_pixel()
+            assert actual == bytes.fromhex(theme_a), f"theme flashed to #{actual.hex()} during the directory swap"
+            time.sleep(0.05)
+        print("OK: previous Omarchy terminal pixel held through the deletion gap and SIGUSR2", flush=True)
         staged.rename(directory)
         generation.write_text("2\n", encoding="utf-8")
         expect(theme_b, "directory replacement and generation bump")
@@ -86,5 +101,14 @@ def verify_omarchy_theme(env):
         scoped.write_text(colors(scoped_color), encoding="utf-8")
         os.kill(process.pid, signal.SIGUSR2)
         expect(scoped_color, "scoped override of an explicit agterm theme")
+
+        scoped.unlink()
+        automatic = "Automatic (Omarchy)"
+        open_preferences(app, process.pid, "Appearance")
+        choose_combo(local, app, process.pid, "Theme", [automatic, "Dracula"], 0,
+                     lambda settings: settings.get("theme") == "agterm",
+                     search=lambda _: automatic)
+        close_preferences(app, process.pid)
+        expect(theme_a, "resuming Automatic (Omarchy) in Appearance")
     finally:
         stop(process)
