@@ -11,7 +11,7 @@ import agtermCore
 /// A single launcher terminal owns only its GTK window and surface. It never enters regular
 /// application activation, which owns persistence, restoration, hooks and the control socket.
 @MainActor func runEphemeralTerminal(_ launch: LinuxTerminalLaunch) -> Int32 {
-    let appID = launch.appID ?? LinuxAppMetadata.applicationID
+    let appID = launch.appID.flatMap { $0.isEmpty ? nil : $0 } ?? LinuxAppMetadata.applicationID
     // With no GApplication ID, GTK's Wayland toplevel takes its app_id from the program name
     // before its first commit. The compositor identity can therefore include names invalid on D-Bus.
     appID.withCString { g_set_prgname($0) }
@@ -52,7 +52,8 @@ import agtermCore
         (launch.title ?? "agterm").withCString { gtk_window_set_title(WIN(window), $0) }
         gtk_window_set_default_size(WIN(window), 1100, 700)
         let surface = GhosttySurface(sessionID: UUID(), cwd: directory, command: command,
-                                     reportsPaneState: false, usesSessionWatermark: false)
+                                     reportsPaneState: false, usesSessionWatermark: false,
+                                     unsettingEnvironment: ["AGTERM_SESSION_ID", "AGTERM_PANE_ID", "AGTERM_WINDOW_ID", "AGTERM_SOCKET"])
         surface.onExit = { gtk_window_destroy(WIN(window)) }
         gtk_window_set_child(WIN(window), W(surface.rootWidget))
         gtk_window_present(WIN(window))
@@ -66,6 +67,7 @@ private let onEphemeralActivate: @MainActor @convention(c) (OpaquePointer?, gpoi
 }
 
 private let onEphemeralShutdown: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { _, _ in
+    MainActor.assumeIsolated { GhosttyApp.shared.shutdown() }
 }
 
 private let onEphemeralQuitSignal: @MainActor @convention(c) (gpointer?) -> gboolean = { data in

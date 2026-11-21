@@ -10,7 +10,7 @@ import agtermCore
 enum NotificationManager {
     /// Whether OS banners are enabled (the user's `notificationsEnabled` setting, default on). A
     /// delivered notification still updates its unseen badge when banners are disabled.
-    static var bannersEnabled: Bool { linuxSettingsStore().load().notificationsEnabled ?? true }
+    @MainActor static var bannersEnabled: Bool { loadLinuxTerminalSettings().notificationsEnabled ?? true }
 
     /// Post a banner. A pane-qualified target is both the click target and the coalescing identity.
     @MainActor static func send(title: String, body: String, target: String? = nil) {

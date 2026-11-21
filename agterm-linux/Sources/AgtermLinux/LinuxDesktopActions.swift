@@ -71,7 +71,6 @@ enum LinuxApplicationInvocation: Equatable, Sendable {
         if let option = arguments.first(where: { $0.hasPrefix("-") }) {
             return .invalid("unknown option: \(option)")
         }
-        if arguments.count == 1, !URL(fileURLWithPath: arguments[0]).pathExtension.isEmpty { return .activate }
         return .open(arguments)
     }
 }
@@ -107,9 +106,7 @@ struct LinuxTerminalLaunch: Equatable, Sendable {
             } else if argument.hasPrefix(titlePrefix) {
                 launch.title = String(argument.dropFirst(titlePrefix.count))
             } else if argument.hasPrefix(appIDPrefix) {
-                let appID = String(argument.dropFirst(appIDPrefix.count))
-                guard validAppID(appID) else { return .invalid("invalid terminal app ID") }
-                launch.appID = appID
+                launch.appID = normalizedAppID(argument.dropFirst(appIDPrefix.count))
             } else {
                 return .invalid("unexpected terminal launch argument: \(argument)")
             }
@@ -117,24 +114,26 @@ struct LinuxTerminalLaunch: Equatable, Sendable {
         return .terminal(launch)
     }
 
-    private static func validAppID(_ value: String) -> Bool {
+    private static func normalizedAppID(_ value: Substring) -> String {
         func alphanumeric(_ byte: UInt8) -> Bool {
             (48...57).contains(byte) || (65...90).contains(byte) || (97...122).contains(byte)
         }
-        let bytes = value.utf8
-        return bytes.count <= 255 && bytes.contains(where: alphanumeric)
-            && bytes.allSatisfy { alphanumeric($0) || [45, 46, 95].contains($0) }
+        let bytes = value.utf8.prefix(255)
+        guard bytes.contains(where: alphanumeric) else { return "" }
+        // Preserve Omarchy's class prefix so unusual executable names still match its floating rule.
+        return String(decoding: bytes.map { alphanumeric($0) || [45, 46, 95].contains($0) ? $0 : 95 }, as: UTF8.self)
     }
 
     func workingDirectory(callerCwd: String?, fallback: String,
                           isDirectory: (String) -> Bool = Self.directoryExists) -> String {
         let callerDirectory = callerCwd.flatMap { $0.hasPrefix("/") && isDirectory($0) ? $0 : nil }
-        if let directory, !directory.isEmpty {
-            if directory.hasPrefix("/"), isDirectory(directory) { return directory }
-            if !directory.hasPrefix("/"), let callerDirectory {
-                let resolved = (callerDirectory as NSString).appendingPathComponent(directory)
-                if isDirectory(resolved) { return resolved }
-            }
+        guard let directory, !directory.isEmpty else { return callerDirectory ?? fallback }
+        let candidate = directory.hasPrefix("/") ? directory : callerDirectory.map {
+            ($0 as NSString).appendingPathComponent(directory)
+        }
+        if let candidate {
+            let normalized = URL(fileURLWithPath: candidate).standardizedFileURL.path
+            if isDirectory(normalized) { return normalized }
         }
         return callerDirectory ?? fallback
     }

@@ -37,7 +37,27 @@ struct LinuxDesktopActionsTests {
         #expect(LinuxApplicationInvocation.parse(arguments: ["-e", "btop"]) == .terminal(.init(command: ["btop"])))
         #expect(LinuxApplicationInvocation.parse(arguments: ["--app-id=TUI.float"]) == .terminal(.init(appID: "TUI.float")))
         #expect(LinuxApplicationInvocation.parse(arguments: ["-e"]) == .invalid("-e requires a program"))
-        #expect(LinuxApplicationInvocation.parse(arguments: ["--app-id=/tmp/app"]) == .invalid("invalid terminal app ID"))
+    }
+
+    @Test func appIDWithoutCommandIsEphemeral() {
+        let parsed = LinuxApplicationInvocation.parse(arguments: ["--app-id=TUI.float"])
+        guard case .terminal(let launch) = parsed else {
+            Issue.record("Missing app-ID launch: \(parsed)")
+            return
+        }
+        #expect(launch.isEphemeral)
+        #expect(launch.command == nil)
+    }
+
+    @Test func oddAppIDsKeepTheOmarchyPrefix() {
+        let parsed = LinuxApplicationInvocation.parse(arguments: ["--app-id=org.omarchy.g++"])
+        #expect(parsed == .terminal(.init(appID: "org.omarchy.g__")))
+    }
+
+    @Test func launcherDirectoryNormalizesParentComponents() {
+        let launch = LinuxTerminalLaunch(directory: "sub/../target")
+        let cwd = launch.workingDirectory(callerCwd: "/caller", fallback: "/home", isDirectory: { _ in true })
+        #expect(cwd == "/caller/target")
     }
 
     @Test func launcherDirectoryUsesTheCallerAndFallsBackForMissingPaths() {
