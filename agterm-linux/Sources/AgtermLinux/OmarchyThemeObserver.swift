@@ -16,9 +16,15 @@ final class OmarchyThemeObserver {
     private let observe: Observe
     private let reload: @MainActor () -> Void
     private let debounce = Debouncer()
+    private var started = false
     private var cancelParentWatch: Cancel?
     private var cancelThemeWatch: Cancel?
+    private var cancelFontWatch: Cancel?
     private var needsThemeWatch = false
+    private var themeChanged = false
+    private var fontConfigChanged = false
+    private var fontSource = OmarchyFontSource()
+    var fonts: OmarchyFonts { fontSource.fonts }
 
     init(theme: OmarchyTheme, observe: @escaping Observe = watchDirectory, reload: @escaping @MainActor () -> Void) {
         self.theme = theme
@@ -27,7 +33,8 @@ final class OmarchyThemeObserver {
     }
 
     func start() {
-        guard cancelParentWatch == nil else { return }
+        guard !started else { return }
+        started = true
         // Omarchy swaps out the theme directory. The stable parent sees that swap and the
         // generation marker. The inner watch also handles direct saves to ghostty.conf.
         cancelParentWatch = observe(theme.current) { [weak self] file, otherFile in
@@ -36,35 +43,58 @@ final class OmarchyThemeObserver {
             } else if file != "theme.generation" && otherFile != "theme.generation" {
                 return
             }
-            self?.scheduleReload()
+            self?.scheduleThemeReload()
         }
         watchThemeDirectory()
+        if theme.isInstalled {
+            cancelFontWatch = observe(theme.fontConfig.deletingLastPathComponent()) { [weak self] file, otherFile in
+                guard let self, file == "config" || otherFile == "config" else { return }
+                self.fontConfigChanged = true
+                self.scheduleReload()
+            }
+            _ = fontSource.refresh(from: theme.fontConfig)
+        }
     }
 
     func stop() {
         debounce.cancel()
+        cancelFontWatch?()
         cancelThemeWatch?()
         cancelParentWatch?()
         cancelThemeWatch = nil
         cancelParentWatch = nil
+        cancelFontWatch = nil
         needsThemeWatch = false
+        themeChanged = false
+        fontConfigChanged = false
+        fontSource = OmarchyFontSource()
+        started = false
     }
 
     private func watchThemeDirectory() {
         cancelThemeWatch?()
         cancelThemeWatch = observe(theme.directory) { [weak self] file, otherFile in
             if file == "ghostty.conf" || otherFile == "ghostty.conf" {
-                self?.scheduleReload()
+                self?.scheduleThemeReload()
             }
         }
         needsThemeWatch = false
+    }
+
+    private func scheduleThemeReload() {
+        themeChanged = true
+        scheduleReload()
     }
 
     private func scheduleReload() {
         debounce.schedule(after: 0.25) { [weak self] in
             guard let self else { return }
             if self.needsThemeWatch { self.watchThemeDirectory() }
-            self.reload()
+            let fontsChanged = self.fontConfigChanged && self.fontSource.refresh(from: self.theme.fontConfig)
+            let reloadNeeded = self.themeChanged || fontsChanged
+            self.themeChanged = false
+            self.fontConfigChanged = false
+            if reloadNeeded { self.reload() }
         }
     }
 

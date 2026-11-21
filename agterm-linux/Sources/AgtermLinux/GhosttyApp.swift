@@ -142,16 +142,22 @@ final class GhosttyApp: @unchecked Sendable {
                 $0.withCString { ghostty_config_load_file(cfg, $0) }
             }
             let preference = OmarchyThemePreference()
+            let runtime = AppController.ghosttyLines(for: settings, isDark: isDark)
+            let scopedPath = Self.scopedGhosttyConfigPath(settings: settings)
+            let loadsGlobal = settings.inheritGlobalGhosttyConfig == true
+            let fonts = loadsGlobal ? [] : OmarchyThemeObserver.shared.fonts.fallbackLines(
+                overriddenBy: runtime + overlay, scopedPath: scopedPath, home: OmarchyTheme().home.path)
             let layers = LinuxGhosttyConfigLayers(
-                settings: AppController.ghosttyLines(for: settings, isDark: isDark),
+                settings: runtime,
                 omarchy: omarchyColorLayer(enabled: preference.load() != false),
+                omarchyFonts: fonts,
                 prefersAgtermTheme: preference.usesAgtermTheme(settings, previewing: AppController.themePreviewSettings != nil),
                 overlay: overlay)
             try layers.load(
                 into: cfg,
                 storage: storage,
-                scopedPath: Self.scopedGhosttyConfigPath(settings: settings),
-                loadGlobal: settings.inheritGlobalGhosttyConfig == true ? { ghostty_config_load_default_files(cfg) } : nil)
+                scopedPath: scopedPath,
+                loadGlobal: loadsGlobal ? { ghostty_config_load_default_files(cfg) } : nil)
             let title = try clearStaticTitle(cfg, storage: storage)
             ghostty_config_finalize(cfg)
             staticTitle = title

@@ -103,13 +103,18 @@ can override individual colors from either source when the Omarchy color layer i
 Select **Automatic (Omarchy)** under **Settings ▸ Appearance ▸ Terminal ▸ Theme** to resume following
 after choosing an agterm theme.
 The same choice is available through `agtermctl theme set "Automatic (Omarchy)"` and appears in `agtermctl theme list`.
-Turn off **Follow the Omarchy theme** under **Settings ▸ General ▸ Ghostty Config** to disable the integration.
-The color-only filter applies to the automatic Omarchy layer.
-With **Use my global Ghostty config** enabled, libghostty also parses the Omarchy include in full if your global config includes it.
+**Follow Omarchy appearance** under **Settings ▸ General ▸ Ghostty Config** also follows Omarchy’s terminal font family and point size.
+`omarchy font set` and `omarchy display text size` update open terminals through `~/.config/ghostty/config`.
+agterm reads only `font-family` and `font-size` from that file, keeps the fallback order, and retains the last valid font during an invalid rewrite.
+Explicit agterm and scoped Ghostty fonts take precedence over Omarchy, and each pane keeps its zoom.
+Use **Reset** under **Settings ▸ Appearance ▸ Terminal** to return the terminal settings to automatic defaults.
+Turning off **Follow Omarchy appearance** disables automatic colors and fonts together.
+With **Use my global Ghostty config** enabled, the usual full Ghostty import supplies the font settings.
 On Linux, `SIGUSR2` reloads the Ghostty configuration, including on systems without Omarchy.
 
 On upgrade, existing Omarchy profiles on the seeded agterm theme or Ghostty’s default start following Omarchy.
 If you picked the agterm theme on purpose, select it again in **Settings ▸ Appearance ▸ Terminal ▸ Theme**.
+If you set the terminal to 13 pt on purpose, set it again in **Settings ▸ Appearance ▸ Terminal ▸ Default font size**.
 
 No Hyprland configuration or default terminal selection is changed by installation.
 For an optional dedicated shortcut on Lua-based Hyprland (0.55 and later), add this to the user

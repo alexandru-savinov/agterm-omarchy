@@ -8,11 +8,14 @@ import Darwin
 
 /// Omarchy publishes here even when XDG_STATE_HOME is set.
 struct OmarchyTheme {
+    let home: URL
     let current: URL
     var directory: URL { current.appendingPathComponent("theme", isDirectory: true) }
     var config: URL { directory.appendingPathComponent("ghostty.conf") }
+    var fontConfig: URL { home.appendingPathComponent(".config/ghostty/config") }
 
     init(home: URL = Self.homeDirectory()) {
+        self.home = home
         current = home.appendingPathComponent(".local/state/omarchy/current", isDirectory: true)
     }
 
@@ -31,20 +34,27 @@ struct OmarchyTheme {
     static let configReadLimit = 64 * 1024
 
     func colorLines() -> [String] {
+        Self.readConfig(at: config).map { Self.colorLines(in: $0) } ?? []
+    }
+
+    static func readConfig(at url: URL) -> String? {
         // Inspect and read the same open file. Nonblocking open lets fstat reject a FIFO even
         // when no writer exists. Reject a full buffer because the final assignment may be cut off.
-        let fd = open(config.path, O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOCTTY)
-        guard fd >= 0 else { return [] }
+        let fd = open(url.path, O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOCTTY)
+        guard fd >= 0 else { return nil }
         let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
         defer { try? handle.close() }
         var entry = stat()
         guard fstat(fd, &entry) == 0,
               entry.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG),
-              entry.st_size < Self.configReadLimit,
-              let bytes = try? handle.read(upToCount: Self.configReadLimit),
-              bytes.count < Self.configReadLimit,
-              let contents = String(data: bytes, encoding: .utf8) else { return [] }
-        return Self.colorLines(in: contents)
+              entry.st_size < Self.configReadLimit else { return nil }
+        do {
+            let bytes = try handle.read(upToCount: Self.configReadLimit) ?? Data()
+            guard bytes.count < Self.configReadLimit else { return nil }
+            return String(data: bytes, encoding: .utf8)
+        } catch {
+            return nil
+        }
     }
 
     private static let colorKeys: Set<String> = [

@@ -115,6 +115,50 @@ struct GLibMainTimerTests {
         }
     }
 
+    @Test func omarchyFontMonitorReloadsOnceAndIgnoresInvalidRewrites() throws {
+        try withGLibMainTimer {
+            let home = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+            let theme = OmarchyTheme(home: home)
+            let directory = theme.fontConfig.deletingLastPathComponent()
+            defer { try? FileManager.default.removeItem(at: home) }
+            try FileManager.default.createDirectory(at: theme.directory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try "font-size = 9".write(to: theme.fontConfig, atomically: true, encoding: .utf8)
+
+            var watches: [URL: OmarchyThemeObserver.Change] = [:]
+            var reloads = 0
+            let observer = OmarchyThemeObserver(theme: theme, observe: { url, change in
+                watches[url] = change
+                return { watches[url] = nil }
+            }, reload: { reloads += 1 })
+            defer { observer.stop() }
+            observer.start()
+            let changed = try #require(watches[directory])
+            @MainActor func replace(_ text: String) throws {
+                try text.write(to: theme.fontConfig, atomically: true, encoding: .utf8)
+                changed("config.tmp", "config")
+                changed("config", nil)
+            }
+
+            try replace("font-size = 15")
+            #expect(reloads == 0)
+            settleOmarchyDebounce()
+            #expect(reloads == 1)
+
+            for unchanged in ["font-size = 15\nbackground = #FF0000", "font-size = NaN",
+                              "font-size = 7\n#" + String(repeating: "a", count: 64 * 1024)] {
+                try replace(unchanged)
+                settleOmarchyDebounce()
+                #expect(reloads == 1)
+            }
+            try replace("font-size = 7")
+            observer.stop()
+            settleOmarchyDebounce()
+            #expect(reloads == 1)
+            #expect(watches.isEmpty)
+        }
+    }
+
     private func settleOmarchyDebounce() {
         let deadline = g_get_monotonic_time() + 350_000
         while g_get_monotonic_time() < deadline {

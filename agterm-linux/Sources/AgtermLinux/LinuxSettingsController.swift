@@ -212,7 +212,7 @@ extension AppController {
     }
 
     func setFontSize(_ value: Double) {
-        persist(\.fontSize, value == 13 ? nil : value)
+        persist(\.fontSize, value)
         reloadConfig()
         library.resetSessionFontSizesAllWindows()
     }
