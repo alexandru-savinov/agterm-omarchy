@@ -51,6 +51,8 @@ on:
     branches: [main]
     paths:
       - .github/workflows/upstream-sync.yml
+      - .github/workflows/upstream-sync-liveness.yml
+      - scripts/upstream-sync-liveness.py
       - scripts/upstream-sync.py
       - scripts/upstream-sync-publish.sh
       - scripts/upstream-sync-rehearsal.sh
