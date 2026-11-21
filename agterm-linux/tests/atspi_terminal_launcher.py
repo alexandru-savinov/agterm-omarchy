@@ -107,6 +107,14 @@ def verify_inherited_pane_environment(env, fixture):
     assert not leaked, f"child inherited {', '.join(sorted(leaked))}"
 
 
+def process_is_running(process_dir):
+    try:
+        fields = (process_dir / "stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()
+    except FileNotFoundError:
+        return False
+    return fields[0] not in ("Z", "X")
+
+
 def verify_ephemeral_cleanup(env, fixture, *, close):
     runtime = fixture / "runtime"
     runtime.mkdir(mode=0o700)
@@ -122,7 +130,7 @@ def verify_ephemeral_cleanup(env, fixture, *, close):
     try:
         wait_for(lambda: marker.exists() and marker.stat().st_size, "command did not start")
         child = Path("/proc") / marker.read_text(encoding="utf-8")
-        assert child.exists(), "command already exited before cleanup"
+        assert process_is_running(child), "command already exited before cleanup"
         assert list(runtime.glob("agterm-ghostty-*")), "fixture did not initialize Ghostty runtime storage"
         if close and native:
             wayland_window(process.pid, title)
@@ -136,8 +144,8 @@ def verify_ephemeral_cleanup(env, fixture, *, close):
         else:
             process.send_signal(signal.SIGTERM)
         assert process.wait(timeout=12) == 0, "ephemeral launcher exit status was nonzero"
-        wait_for(lambda: not child.exists(), "ephemeral child survived window teardown")
         assert not list(runtime.glob("agterm-ghostty-*")), "ephemeral launcher left its Ghostty runtime directory"
+        wait_for(lambda: not process_is_running(child), "ephemeral child survived window teardown")
         assert not Path(env["AGTERM_STATE_DIR"]).exists(), "ephemeral launcher created persistent state"
     finally:
         if process.poll() is None:

@@ -160,15 +160,15 @@ def verify_application_command_line_paths(env):
             "relative path did not resolve against the secondary process cwd",
         )
 
-        invoke_arguments(path_env, "--", file_path)
-        wait_for(
-            lambda: active_session_cwd(path_env, window_id) == file_directory,
-            "-- file path did not resolve to its parent session cwd",
-        )
         invoke_arguments(path_env, bare_path)
         wait_for(
             lambda: active_session_cwd(path_env, window_id) == bare_directory,
             "bare file path did not resolve to its parent session cwd",
+        )
+        invoke_arguments(path_env, "--", file_path)
+        wait_for(
+            lambda: active_session_cwd(path_env, window_id) == file_directory,
+            "-- file path did not resolve to its parent session cwd",
         )
         print("OK: GApplication command-line paths preserve cold/warm cwd semantics")
     finally:
