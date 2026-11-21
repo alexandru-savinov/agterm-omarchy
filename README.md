@@ -65,7 +65,9 @@ which records the source commit, the CI run and the archive digests.
 
 Releases are normally cut automatically from `main`:
 
-1. Omarchy CI builds and tests both architectures on a push to `main`.
+1. Omarchy CI builds and tests both architectures on a push to `main` that changes app, build or packaging files
+   (such as `agtermCore/`, `agterm-linux/`, `scripts/` or `packaging/linux/`).
+   Pushes that change only other files, such as most documentation, skip those jobs, so no release is cut for them.
 2. The native gates install those CI archives and test them on x86_64 and aarch64.
 3. Only if both architectures pass, promotion checks that the downloaded CI archives match the SHA-256 digests
    that passed the gates, then writes version-stamped release archives (the same files with `share/agterm/VERSION` set,
