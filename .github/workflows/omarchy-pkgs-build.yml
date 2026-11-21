@@ -12,7 +12,7 @@ on:
         description: omacom/omarchy-pkgs commit to build with
         required: true
         type: string
-        default: a929e3acace38b7341e835ccce1d47c2f9598c5b
+        default: 5c7d21d2af2fa1bea38b5c0dffeda4dfe40a6ab6
   pull_request:
     paths:
       - packaging/omarchy-pkgs/**
@@ -31,7 +31,7 @@ defaults:
     shell: bash
 
 env:
-  OMARCHY_PKGS_REF: ${{ inputs.omarchy_pkgs_ref || 'a929e3acace38b7341e835ccce1d47c2f9598c5b' }}
+  OMARCHY_PKGS_REF: ${{ inputs.omarchy_pkgs_ref || '5c7d21d2af2fa1bea38b5c0dffeda4dfe40a6ab6' }}
   PACKAGE: agterm-omarchy-bin
   ARCH_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
 

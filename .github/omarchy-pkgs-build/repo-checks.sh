@@ -31,12 +31,10 @@ git add -A pkgbuilds release/owners.json
 git -c user.name=check -c user.email=check@invalid commit -qm "agterm-omarchy-bin draft"
 run release-owners-check bin/release-owners --check --base HEAD^1
 
-# BLOCKED, not failed, until #462 publishes a non-prerelease omarchy-v
-# release: the watch ignores prereleases. Gate it once that release exists.
 if python helpers/upstream-watch.py check "pkgbuilds/$package" >"$out/upstream-watch.txt" 2>&1 \
   && grep -q '"already current"' "$out/upstream-watch.txt"; then
   record PASS upstream-watch "$(tail -1 "$out/upstream-watch.txt")"
 else
-  printf 'BLOCKED\tupstream-watch\t%s\n' "$(tail -1 "$out/upstream-watch.txt")" | tee -a "$results"
+  record FAIL upstream-watch "$(tail -1 "$out/upstream-watch.txt")"
 fi
 exit "$failed"

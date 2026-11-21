@@ -3,8 +3,7 @@
 # port is melonamin's (https://github.com/melonamin/agterm-linux). This
 # repackages the Omarchy fork's CI archives for both architectures.
 pkgname=agterm-omarchy-bin
-# DRAFT: placeholder below the first omarchy-v0.43.0.1 release (#478).
-pkgver=0.41.1.0
+pkgver=0.43.0.1
 pkgrel=1
 pkgdesc="Native terminal with a workspace and session sidebar, built on libghostty (Omarchy build)"
 arch=(x86_64 aarch64)
@@ -20,22 +19,16 @@ provides=(agterm-linux)
 conflicts=(agterm-linux agterm-linux-bin)
 # The Swift runtime, libghostty and zmx ship as built and tested by CI.
 options=(!strip !debug)
-# DRAFT: the prerelease asset names carry no version. Once omarchy-v releases
-# exist, drop _tag and use the commented lines, which the upstream watch can
-# rewrite from pkgver alone.
-_tag=omarchy-dev-b1356f0ad7ae-run43761095738
-source_x86_64=("agterm-omarchy-$pkgver-x86_64.tar.gz::$url/releases/download/$_tag/agterm-omarchy-x86_64.tar.gz")
-source_aarch64=("agterm-omarchy-$pkgver-aarch64.tar.gz::$url/releases/download/$_tag/agterm-omarchy-aarch64.tar.gz")
-#source_x86_64=("$url/releases/download/omarchy-v$pkgver/agterm-omarchy-$pkgver-x86_64.tar.gz")
-#source_aarch64=("$url/releases/download/omarchy-v$pkgver/agterm-omarchy-$pkgver-aarch64.tar.gz")
+source_x86_64=("$url/releases/download/omarchy-v$pkgver/agterm-omarchy-$pkgver-x86_64.tar.gz")
+source_aarch64=("$url/releases/download/omarchy-v$pkgver/agterm-omarchy-$pkgver-aarch64.tar.gz")
 noextract=("agterm-omarchy-$pkgver-$CARCH.tar.gz")
-sha256sums_x86_64=('e59abe924b7d768c1cd35bccc8f464000bd06de994b01e02a53daacce1ded464')
-sha256sums_aarch64=('38b004cdf02234a1fc804ab8a06cbd06e1a15ee0773d77b884154126b2488b41')
+sha256sums_x86_64=('fc1580e9a4cdd4efe305c7284d917c7c092f2ceac5388966e5ccbaa1344d42bf')
+sha256sums_aarch64=('cf17c40ee60d2d28c005a530ba9402467553f9e3aa2678b0d118b8d273542e94')
 
 package() {
   local lib="$pkgdir/usr/lib/agterm" share="$pkgdir/usr/lib/agterm/share"
 
-  # The archive records its CI builder's uid.
+  # Root-owned whatever the archive records.
   install -d "$lib"
   bsdtar --no-same-owner --strip-components=1 -xf "agterm-omarchy-$pkgver-$CARCH.tar.gz" -C "$lib"
 
