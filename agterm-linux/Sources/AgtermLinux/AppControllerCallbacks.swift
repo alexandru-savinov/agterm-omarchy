@@ -25,6 +25,7 @@ let onWindowActive: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, g
             ctl.becameFrontmost()
             ctl.applyInactiveWindowSidebarHidingIfEnabled()
         } else {
+            LinuxHtmlOverlayRegistry.shared.cancelPendingPastes(in: ctl)
             // The Ctrl release lands in whichever window took over, so the cycle can never commit here.
             ctl.cancelSessionSwitch()
             ctl.leaderFocusLeft()

@@ -41,10 +41,15 @@ Each entry separates a demonstrated cause from one that is only consistent with 
   with empty GDK formats. Both DOM type reads were empty at +1486.8 ms. GDK reported the URI list at
   +1487.4 ms, then WebKit emitted `insertFromPaste` at +1494.9 ms. The test showed the mixed offer's
   text fallback reaching the document. [Main run 44864094283, ARM64 attempt 1](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44864094283/job/136723830745)
-- **Fix.** Hold the paste key while GDK's format set is empty. A classified non-file offer may complete
-  the pending request once in its still-focused page. A file offer, invalidation, or timeout drops it.
-  The DOM guard also refuses a paste if it observes no transfer types. The plain-text positive control
-  and mixed-offer refusal assertion remain in the normal scenario.
+- **Fix.** On X11, hold the keyboard paste while GDK discovers the format set. A classified non-file
+  offer may complete the request once in its still-focused page, after the clipboard change signal
+  returns. File offers, focus loss, page changes, and timeout cancel it. Further empty notifications
+  share the original deadline, including when X11 TARGETS arrives in chunks.
+- **Backend and input limits.** Wayland delivers the offer's formats at claim time, so an empty
+  offer is refused immediately. The middle button checks PRIMARY separately at press and release.
+  Empty and file PRIMARY offers consume the click because keyboard replay would lose the pointer
+  target. Context-menu paste checks CLIPBOARD again on activation. The DOM guard also refuses a
+  paste if it observes no transfer types. Hosted smoke exercises GTK under Xvfb.
 
 ## Core tests (`swift test` in `agtermCore`)
 
