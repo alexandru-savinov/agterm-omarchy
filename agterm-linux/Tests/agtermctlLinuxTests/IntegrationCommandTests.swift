@@ -5,6 +5,40 @@ import Testing
 
 @Suite("agtermctl integration command")
 struct IntegrationCommandTests {
+    @Test(arguments: ["enable", "status", "disable"])
+    func omarchyActionsParse(action: String) throws {
+        let command = try AgtermctlLinux.parseAsRoot(["integration", "omarchy", action, "--json"])
+        let omarchy = try #require(command as? Integration.Omarchy)
+        #expect(omarchy.action.rawValue == action)
+        #expect(omarchy.json)
+    }
+
+    @Test func omarchyTextReportsConfigAndRefreshRecovery() throws {
+        let fixture = try CLIFixture(copyResources: false)
+        let config = fixture.home.appendingPathComponent(".config/hypr/hyprland.lua")
+        let command = ["integration", "omarchy"]
+        let missing = try fixture.run(command + ["status"])
+        #expect(missing.status == 0)
+        #expect(missing.output.contains("Omarchy terminal tag: unavailable"))
+        #expect(missing.output.contains("Hyprland Lua config is missing: \(config.path)"))
+        #expect(missing.error.isEmpty)
+
+        let configText = "-- default config\n"
+        try fixture.write(configText, to: config)
+        let enabled = try fixture.run(command + ["enable"])
+        #expect(enabled.status == 0)
+        #expect(enabled.output.contains("Omarchy terminal tag: enabled"))
+        #expect(enabled.output.contains("Hyprland config: \(config.path)"))
+        let module = config.deletingLastPathComponent().appendingPathComponent("agterm-omarchy.lua")
+        #expect(enabled.output.contains("Rule module: \(module.path)"))
+
+        try fixture.write(configText, to: config)
+        let refreshed = try fixture.run(command + ["status"])
+        #expect(refreshed.status == 0)
+        #expect(refreshed.output.contains("Omarchy terminal tag: incomplete"))
+        #expect(try fixture.run(command + ["enable"]).output.contains("Omarchy terminal tag: enabled"))
+    }
+
     @Test("status accepts the control socket compatibility option")
     func statusParsing() throws {
         let command = try AgtermctlLinux.parseAsRoot([
@@ -154,6 +188,7 @@ private final class CLIFixture {
         process.arguments = arguments
         var environment = ProcessInfo.processInfo.environment
         environment["HOME"] = (selectedHome ?? home).path
+        environment["XDG_CONFIG_HOME"] = nil
         environment["PATH"] = ""
         environment["AGTERM_RESOURCE_ROOT"] = resources.path
         environment["AGTERM_STATE_DIR"] = root.appendingPathComponent("state").path
