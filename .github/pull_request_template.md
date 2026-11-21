@@ -1,19 +1,11 @@
-Task: #
-Agent:
-Reviewed head:
-Review:
+## What changes for users
 
-<!-- Machine fields: keep these four lines first in the body, one per line, with a space after each colon. Task: the issue number. Agent: your name.
-Reviewed head: the full 40-character sha the review covered; update it after every push.
-Review: link to the review comment. Advisory check by the "PR fields" workflow on non-draft pull requests; see docs/PR_FIELDS.md. -->
+Describe the problem and what a user of the Omarchy build sees differently after this change.
+Link the issue it fixes.
 
-## Problem and resulting behavior
+## How it was tested
 
-Describe the concrete problem and what changes for the user.
-
-## Validation
-
-List the checks actually run, with architecture and display backend. Link CI or attach sanitized VM evidence.
+List the checks you actually ran, with architecture and display backend. Link CI or attach sanitized VM evidence.
 Explain any failed, skipped, or unavailable check.
 
 - [ ] Installer/script tests for packaging changes
@@ -24,3 +16,14 @@ Explain any failed, skipped, or unavailable check.
 ## Compatibility
 
 Describe changes to dependencies, persisted state, terminal defaults, or upstream compatibility; write “none” if none.
+
+Fill in the review record below; [docs/PR_FIELDS.md](https://github.com/alexandru-savinov/agterm-omarchy/blob/main/docs/PR_FIELDS.md) explains each field.
+
+<details><summary>Review record</summary>
+
+Task: #
+Agent:
+Reviewed head:
+Review:
+
+</details>

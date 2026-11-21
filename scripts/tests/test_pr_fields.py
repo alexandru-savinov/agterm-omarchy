@@ -87,11 +87,111 @@ class LeadingBlockTests(unittest.TestCase):
         body = f"I reviewed {HEAD} myself.\nTask: #1\nAgent: x\nReview: https://github.com/o/r/pull/1\n"
         self.assertTrue(any("Reviewed head" in item for item in pr_fields.problems(body, HEAD)))
 
+
+
+def fold(fields=FIELD_LINES, opener=pr_fields.FOLD_OPEN, close=pr_fields.FOLD_CLOSE):
+    return f"{opener}\n\n{fields}\n{close}\n"
+
+
+class ReviewRecordFoldTests(unittest.TestCase):
+    """The fields may instead sit in one closed `Review record` fold, anywhere after the human sections."""
+
+    BODY = "## What changes for users\nText\n\n"
+
+    def test_a_filled_fold_at_the_bottom_passes(self):
+        self.assertEqual(pr_fields.problems(self.BODY + fold(), HEAD), [])
+        self.assertEqual(pr_fields.problems((self.BODY + fold()).replace("\n", "\r\n"), HEAD), [])
+        self.assertEqual(pr_fields.problems(self.BODY + fold() + "\nGenerated footer\n", HEAD), [])
+
+    def test_a_stale_head_in_the_fold_fails(self):
+        found = pr_fields.problems(self.BODY + fold(FIELD_LINES.replace(HEAD, OTHER)), HEAD)
+        self.assertEqual(len(found), 1)
+        self.assertIn("stale", found[0])
+
+    def test_an_unclosed_misnamed_or_indented_fold_reads_as_missing(self):
+        for body in (self.BODY + fold(close=""), self.BODY + fold(close="</detail>"),
+                     self.BODY + fold(opener="<details><summary>Agent record</summary>"),
+                     self.BODY + fold(opener="  " + pr_fields.FOLD_OPEN),
+                     self.BODY + fold(fields="Note\n" + FIELD_LINES)):
+            self.assertEqual(len(pr_fields.problems(body, HEAD)), 4, body)
+
+    def test_two_folds_fail(self):
+        found = pr_fields.problems(self.BODY + fold() + fold(), HEAD)
+        self.assertTrue(any("appears 2 times; keep exactly one" in item and "Review record" in item
+                            for item in found), found)
+
+    def test_a_field_in_both_places_is_repeated(self):
+        found = pr_fields.problems(FIELD_LINES + "\n" + self.BODY + fold(), HEAD)
+        self.assertEqual(len(found), 5)
+        self.assertTrue(any("in one place" in item for item in found), found)
+        self.assertEqual(sum("appears 2 times" in item for item in found), 4, found)
+
+    def test_a_record_split_between_the_two_places_fails(self):
+        lines = FIELD_LINES.strip().split("\n")
+        body = "\n".join(lines[:2]) + "\n\n" + self.BODY + fold("\n".join(lines[2:]) + "\n")
+        found = pr_fields.problems(body, HEAD)
+        self.assertEqual(len(found), 1)
+        self.assertIn("in one place", found[0])
+
+    def test_a_bare_template_line_ends_the_fold_block(self):
+        body = self.BODY + fold(FIELD_LINES.replace("Agent: sancta_ghmanager", "Agent:"))
+        found = pr_fields.problems(body, HEAD)
+        self.assertEqual(len(found), 4)
+        self.assertTrue(all("missing field" in item for item in found), found)
+
+    def test_a_fold_inside_a_code_fence_is_an_example_not_a_record(self):
+        for fence in ("```", "~~~", "````markdown"):
+            close = fence.rstrip("markdown")
+            body = self.BODY + f"{fence}\n" + fold() + f"{close}\n"
+            self.assertEqual(len(pr_fields.problems(body, HEAD)), 4, fence)
+
+    def test_fenced_fold_examples_do_not_break_a_legacy_body(self):
+        example = "```\n" + fold() + "```\n"
+        self.assertEqual(pr_fields.problems(GOOD + example + example, HEAD), [])
+
+    def test_a_real_fold_after_a_fenced_example_counts(self):
+        example = "```\n" + fold(FIELD_LINES.replace(HEAD, OTHER)) + "```\n"
+        self.assertEqual(pr_fields.problems(self.BODY + example + "\n" + fold(), HEAD), [])
+
+    COMMENTED_FENCE = "<!--\n```\n-->\n"
+
+    def test_a_fence_marker_inside_an_html_comment_does_not_expose_a_fenced_example(self):
+        body = self.BODY + self.COMMENTED_FENCE + "```\n" + fold() + "```\n"
+        self.assertEqual(len(pr_fields.problems(body, HEAD)), 4)
+
+    def test_a_legacy_body_with_a_commented_fence_and_a_fenced_example_passes(self):
+        body = GOOD + self.COMMENTED_FENCE + "```\n" + fold() + "```\n"
+        self.assertEqual(pr_fields.problems(body, HEAD), [])
+
+    def test_a_fold_inside_an_html_comment_does_not_count(self):
+        self.assertEqual(len(pr_fields.problems(self.BODY + "<!--\n" + fold() + "-->\n", HEAD)), 4)
+
+    def test_a_fold_inside_a_comment_opened_after_prose_does_not_count(self):
+        self.assertEqual(len(pr_fields.problems(self.BODY + "Notes <!--\n" + fold() + "-->\n", HEAD)), 4)
+
+    def test_a_fence_marker_in_a_comment_opened_after_prose_does_not_hide_a_real_fold(self):
+        self.assertEqual(pr_fields.problems(self.BODY + "Notes <!--\n```\n-->\n" + fold(), HEAD), [])
+
+    def test_a_second_comment_opened_on_the_same_line_hides_its_fold(self):
+        self.assertEqual(len(pr_fields.problems(self.BODY + "<!-- a --> <!--\n" + fold() + "-->\n", HEAD)), 4)
+
+    def test_an_unterminated_comment_runs_to_the_end_of_the_body(self):
+        self.assertEqual(len(pr_fields.problems(self.BODY + "<!--\n" + fold(), HEAD)), 4)
+
+    def test_the_leading_block_still_passes_with_no_fold(self):
+        self.assertEqual(pr_fields.problems(GOOD, HEAD), [])
+
     def test_the_real_template_fails_until_filled_in_and_passes_once_it_is(self):
         template = (ROOT / ".github/pull_request_template.md").read_text()
         self.assertTrue(pr_fields.problems(template, HEAD))
-        rest = template.split("\n", 4)[4]
-        self.assertEqual(pr_fields.problems(FIELD_LINES + rest, HEAD), [])
+        self.assertNotIn("<!--", template)
+        self.assertTrue(template.startswith("## What changes for users\n"), template[:80])
+        lines = template.split("\n")
+        opener = lines.index(pr_fields.FOLD_OPEN)
+        self.assertGreater(opener, max(index for index, line in enumerate(lines) if line.startswith("## ")))
+        empty = "Task: #\nAgent:\nReviewed head:\nReview:\n"
+        self.assertEqual(template.count(empty), 1)
+        self.assertEqual(pr_fields.problems(template.replace(empty, FIELD_LINES), HEAD), [])
 
 
 class GrandfatherTests(unittest.TestCase):

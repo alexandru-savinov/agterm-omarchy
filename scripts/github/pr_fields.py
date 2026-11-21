@@ -6,9 +6,13 @@ An agent that merges on a review needs to know the review was of the code that w
 review makes the check fail until the review is redone and the field updated.
 Reads the pull_request event payload; the body is data and is never run or interpolated.
 
-The four fields must be the leading block of the body: the first non-blank lines, one
-`Name: value` per line, in any order. Everything after the block is ignored, so the checker
-never has to guess what Markdown would hide or render (fences, comments, HTML).
+The four fields are one `Name: value` per line, in any order, in one of two places:
+the leading block (the first non-blank lines of the body, as upstream-sync.py writes them), or
+the block that directly follows a line that is exactly `<details><summary>Review record</summary>`
+and is closed by `</details>` (the pull request template puts it at the bottom);
+a fold inside a fenced code block or an HTML comment does not count.
+Everything else is ignored, so the checker never has to guess what Markdown would hide or
+render (fences, comments, HTML). Fields in both places fail.
 
 Advisory only. A pull request can edit the workflow that runs this checker, so a green
 "PR fields" is never evidence that a review is current: read the review itself.
@@ -38,19 +42,65 @@ MESSAGES = {
     "Review": "Review: <https://github.com/... link to the review>",
 }
 LINE = re.compile(r"(" + "|".join(re.escape(name) for name in FIELDS) + r"): (.*)", re.DOTALL)
+FOLD_OPEN = "<details><summary>Review record</summary>"
+FOLD_CLOSE = "</details>"
+FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
+COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
+
+
+def fenced(lines):
+    """Indexes of lines inside or delimiting a fenced code block, so a fold shown as an example never counts."""
+    inside, fence = set(), None
+    for index, line in enumerate(lines):
+        match = FENCE.match(line)
+        if fence:
+            inside.add(index)
+            if match and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence) \
+                    and not line[match.end():].strip():
+                fence = None
+        elif match and not (match.group(1)[0] == "`" and "`" in line[match.end():]):
+            inside.add(index)
+            fence = match.group(1)
+    return inside
+
+
+def block(lines, start):
+    """The `Name: value` matches from the first non-blank line at or after `start`, and the index after them."""
+    while start < len(lines) and not lines[start].strip():
+        start += 1
+    matches = []
+    while start < len(lines) and (match := LINE.fullmatch(lines[start])):
+        matches.append(match)
+        start += 1
+    return matches, start
+
+
+def split(body):
+    return body.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
+
+def blocks(body):
+    """(leading-block matches, Review record fold matches, number of fold openers)."""
+    leading, _ = block(split(body), 0)
+    # HTML comments go first, wherever they open; an unterminated one runs to the end of the body.
+    lines = split(COMMENT.sub("", body))
+    code = fenced(lines)
+    folds = [index for index, line in enumerate(lines) if line == FOLD_OPEN and index not in code]
+    inner = []
+    if len(folds) == 1:
+        inner, end = block(lines, folds[0] + 1)
+        while end < len(lines) and not lines[end].strip():
+            end += 1
+        if end >= len(lines) or lines[end] != FOLD_CLOSE:
+            inner = []
+    return leading, inner, len(folds)
 
 
 def values(body):
-    """Each field's values from the leading block: first non-blank lines, each `Name: value`."""
+    """Each field's values from the leading block and from a single closed Review record fold."""
     found = {name: [] for name in FIELDS}
-    lines = body.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    start = 0
-    while start < len(lines) and not lines[start].strip():
-        start += 1
-    for line in lines[start:]:
-        match = LINE.fullmatch(line)
-        if not match:
-            break
+    leading, inner, _ = blocks(body)
+    for match in leading + inner:
         found[match.group(1)].append(match.group(2).rstrip(" "))
     return found
 
@@ -58,11 +108,14 @@ def values(body):
 def problems(body, head_sha):
     """Human-readable problems; empty means the body passes."""
     found = values(body or "")
-    out = []
+    leading, inner, folds = blocks(body or "")
+    out = [f"`{FOLD_OPEN}` appears {folds} times; keep exactly one"] if folds > 1 else []
+    if leading and inner:
+        out.append("fields appear both in the first lines and in the Review record fold; keep them in one place")
     for name in FIELDS:
         got = found[name]
         if not got:
-            out.append(f"missing field, put it in the first lines of the body: {MESSAGES[name]}")
+            out.append(f"missing field, put it in the Review record fold or the first lines of the body: {MESSAGES[name]}")
         elif len(got) > 1:
             out.append(f"`{name}:` appears {len(got)} times; keep exactly one")
         elif not PATTERNS[name].fullmatch(got[0]):
