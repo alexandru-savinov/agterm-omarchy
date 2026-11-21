@@ -59,7 +59,7 @@ struct OmarchyThemeTests {
     }
 
     @Test func scopedColorsOverrideOmarchyAndItsGlobalInclude() throws {
-        _ = ghostty_init(0, nil)
+        _ = GhosttyTestRuntime.initialized
         let root = try makeFixture()
         defer { try? FileManager.default.removeItem(at: root) }
         let storage = try GhosttyGeneratedConfigStorage(runtimeRoot: root.path)

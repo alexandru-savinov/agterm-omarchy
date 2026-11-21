@@ -162,9 +162,7 @@ struct LinuxPolicyTests {
 
     @Test("bundled libghostty defaults parse clean and bind physical C/V/A on any layout")
     func bundledDefaultsParserCoverage() throws {
-        // libghostty's config API allocates through process-global state that is undefined
-        // until ghostty_init; the app calls it in GhosttyApp.init, tests must call it themselves.
-        _ = ghostty_init(0, nil)
+        _ = GhosttyTestRuntime.initialized
         let fm = FileManager.default
 
         func writeConf(_ contents: String) throws -> String {
