@@ -15,7 +15,7 @@ struct LinuxHtmlTransferGuardTests {
     ])
     func guardChecksFakeDataTransfer(_ name: String, _ types: String, _ refused: Bool) throws {
         let context = try #require(jsc_context_new())
-        defer { g_object_unref(RAW(OpaquePointer(context))) }
+        defer { g_object_unref(UnsafeMutableRawPointer(context)) }
         let script = """
             const listeners = {};
             const window = { addEventListener(name, listener) { listeners[name] = listener; } };
@@ -33,14 +33,14 @@ struct LinuxHtmlTransferGuardTests {
                 data.dropEffect === 'copy';
             """
         let result = try #require(script.withCString { jsc_context_evaluate(context, $0, -1) })
-        defer { g_object_unref(RAW(OpaquePointer(result))) }
+        defer { g_object_unref(UnsafeMutableRawPointer(result)) }
         #expect(jsc_context_get_exception(context) == nil)
         #expect(jsc_value_to_boolean(result) != 0)
     }
 
     @Test func menuRechecksTheOfferAtActivationForBothCommands() throws {
         let menu = try #require(webkit_context_menu_new())
-        defer { g_object_unref(RAW(OpaquePointer(menu))) }
+        defer { g_object_unref(UnsafeMutableRawPointer(menu)) }
         for stock in [WEBKIT_CONTEXT_MENU_ACTION_PASTE, WEBKIT_CONTEXT_MENU_ACTION_PASTE_AS_PLAIN_TEXT] {
             webkit_context_menu_append(menu, webkit_context_menu_item_new_from_stock_action(stock))
         }
