@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline tests for the automatic release workflow and incident actions."""
 
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import io
@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -33,6 +34,60 @@ EVENT = {"workflow_run": {"event": "push", "head_branch": "main", "conclusion": 
 RELEASE = {"id": 456, "tag_name": TAG, "draft": False, "prerelease": False,
            "published_at": "2026-11-19T17:00:00Z"}
 OPEN_INCIDENTS = "issues?labels=release-incident&state=open&per_page=100"
+# Job names and conclusions of the real Omarchy CI runs on main: 44894615770 (#505, workflow-only, path
+# filters skipped every build) and 44880156678 (built and attested both architectures).
+FILTERED_JOBS = [
+    ("Upstream workflow guard", "success"), ("Installer and scripts", "success"), ("Detect changes", "success"),
+    ("SwiftLint (Linux)", "skipped"), ("Cookbook checks", "skipped"), ("zmx patch tests", "skipped"),
+    ("libghostty patch Zig tests (${{ matrix.arch }})", "skipped"), ("Core tests (${{ matrix.arch }})", "skipped"),
+    ("GTK build and tests (${{ matrix.arch }})", "skipped"), ("Attest CI archive (${{ matrix.arch }})", "skipped"),
+    ("CI", "success"),
+]
+BUILT_JOBS = [
+    ("Upstream workflow guard", "success"), ("Installer and scripts", "success"), ("Detect changes", "success"),
+    ("libghostty patch Zig tests (aarch64)", "success"), ("zmx patch tests", "success"),
+    ("Core tests (x86_64)", "success"), ("GTK build and tests (x86_64)", "success"),
+    ("Core tests (aarch64)", "success"), ("libghostty patch Zig tests (x86_64)", "success"),
+    ("SwiftLint (Linux)", "success"), ("GTK build and tests (aarch64)", "success"), ("Cookbook checks", "skipped"),
+    ("Attest CI archive (aarch64)", "success"), ("Attest CI archive (x86_64)", "success"), ("CI", "success"),
+]
+# Attempt 1 of run 44864094283: it built, then failed; attempt 2 re-ran it green.
+FAILED_BUILD_ATTEMPT = [
+    ("Detect changes", "success"), ("Installer and scripts", "success"), ("Upstream workflow guard", "success"),
+    ("libghostty patch Zig tests (aarch64)", "success"), ("zmx patch tests", "success"),
+    ("GTK build and tests (aarch64)", "failure"), ("libghostty patch Zig tests (x86_64)", "success"),
+    ("Core tests (x86_64)", "success"), ("GTK build and tests (x86_64)", "success"),
+    ("Core tests (aarch64)", "success"), ("SwiftLint (Linux)", "success"), ("Cookbook checks", "skipped"),
+    ("CI", "failure"), ("Attest CI archive (${{ matrix.arch }})", "skipped"),
+]
+SCOPE_RUN = {"id": 123, "run_attempt": 1, "conclusion": "success"}
+RERUN = SCOPE_RUN | {"run_attempt": 2}
+GTK = "GTK build and tests (${{ matrix.arch }})"
+
+
+def replaced(rows, name, *new_rows):
+    """rows with the job called name swapped for new_rows."""
+    index = [job for job, _ in rows].index(name)
+    return rows[:index] + list(new_rows) + rows[index + 1:]
+
+
+def ci_jobs(rows):
+    """Jobs with the steps the release gate reads; a skipped job has none."""
+    steps = {"GTK build and tests": promotion_steps(auto.promotion.REQUIRED_GTK_STEPS
+                                                    + auto.promotion.RELEASE_GTK_STEPS[:-1]),
+             "Attest CI archive": promotion_steps((auto.promotion.ATTEST_STEP,))}
+    return [{"name": name, "conclusion": conclusion,
+             "steps": steps.get(name.split(" (")[0], []) if conclusion == "success" else []}
+            for name, conclusion in rows]
+
+
+def job_pages(rows, total=None):
+    """One jobs API page as gh --paginate --slurp returns it."""
+    return [{"total_count": len(rows) if total is None else total, "jobs": ci_jobs(rows)}]
+
+
+def promotion_steps(names):
+    return [{"name": name, "conclusion": "success"} for name in names]
 
 
 class PlanTests(unittest.TestCase):
@@ -154,6 +209,201 @@ class PlanTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     auto.dispatch(CANDIDATE, NATIVE_GATE | change)
                 gh.assert_not_called()
+
+
+class ScopeTests(unittest.TestCase):
+    def setUp(self):
+        # A runner exports its own command files; a test must never write to them.
+        env = patch.dict(os.environ, {"GITHUB_OUTPUT": "", "GITHUB_STEP_SUMMARY": ""})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def test_path_filtered_run_is_skipped_although_the_release_gate_would_reject_it(self):
+        jobs = ci_jobs(FILTERED_JOBS)
+        scope, reason = auto.ci_scope(SCOPE_RUN, jobs)
+        self.assertEqual(scope, "skip")
+        self.assertIn("built nothing", reason)
+        # The native gate's own check is unchanged: without this skip it fails exactly as run 44895187539 did.
+        with self.assertRaisesRegex(ValueError, r"Missing successful SwiftLint \(Linux\)"):
+            auto.promotion.validate_jobs(jobs, release=True)
+
+    def test_complete_built_run_proceeds_and_passes_the_release_gate(self):
+        jobs = ci_jobs(BUILT_JOBS)
+        self.assertEqual(auto.ci_scope(SCOPE_RUN, jobs)[0], "proceed")
+        auto.promotion.validate_jobs(jobs, release=True)
+
+    def test_built_run_missing_a_required_job_proceeds_to_fail_in_the_release_gate(self):
+        build_names = [name for name, _ in BUILT_JOBS if name.startswith(("SwiftLint", "Core", "GTK", "Attest"))]
+        self.assertEqual(len(build_names), 7)
+        variants = {}
+        for name in build_names:
+            variants[f"without {name}"] = [row for row in BUILT_JOBS if row[0] != name]
+            variants[f"{name} skipped"] = [(job, "skipped" if job == name else result) for job, result in BUILT_JOBS]
+        # A native-probe-only change lints but builds nothing; it is not proof of an empty run.
+        variants["only SwiftLint ran"] = [(job, "success" if job == "SwiftLint (Linux)" else result)
+                                          for job, result in FILTERED_JOBS]
+        variants["one family absent"] = [row for row in FILTERED_JOBS if not row[0].startswith("Attest")]
+        for variant, rows in variants.items():
+            with self.subTest(variant=variant):
+                jobs = ci_jobs(rows)
+                self.assertEqual(auto.ci_scope(SCOPE_RUN, jobs)[0], "proceed")
+                with self.assertRaisesRegex(ValueError, "Missing successful"):
+                    auto.promotion.validate_jobs(jobs, release=True)
+
+    def test_only_positive_proof_skips(self):
+        def changed(name, result):
+            return [(job, result if job == name else value) for job, value in FILTERED_JOBS]
+
+        variants = {"no jobs": [], "Detect changes failed": changed("Detect changes", "failure"),
+                    "CI skipped": changed("CI", "skipped"),
+                    "Detect changes absent": [row for row in FILTERED_JOBS if row[0] != "Detect changes"],
+                    "CI absent": [row for row in FILTERED_JOBS if row[0] != "CI"],
+                    "CI repeated": FILTERED_JOBS + [("CI", "success")],
+                    "build cancelled": [(job, "cancelled" if job.startswith("GTK") else result)
+                                        for job, result in FILTERED_JOBS]}
+        for variant, rows in variants.items():
+            with self.subTest(variant=variant):
+                self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(rows))[0], "proceed")
+
+    def test_an_incomplete_or_relabelled_matrix_is_not_proof_of_an_empty_run(self):
+        x86, arm = "GTK build and tests (x86_64)", "GTK build and tests (aarch64)"
+        variants = {
+            "one architecture skipped, the other absent": replaced(FILTERED_JOBS, GTK, (x86, "skipped")),
+            "sibling ran under another label": replaced(FILTERED_JOBS, GTK, (x86, "skipped"),
+                                                       ("GTK build and tests (arm64)", "success")),
+            "sibling skipped under another label": replaced(FILTERED_JOBS, GTK, (x86, "skipped"),
+                                                           ("GTK build and tests (arm64)", "skipped")),
+            "unexpanded and expanded forms mixed": replaced(FILTERED_JOBS, GTK, (GTK, "skipped"), (x86, "skipped")),
+            "unexpanded form repeated": replaced(FILTERED_JOBS, GTK, (GTK, "skipped"), (GTK, "skipped")),
+            "unknown job ran": FILTERED_JOBS + [("Renamed build", "success")],
+            "unknown job failed": FILTERED_JOBS + [("Renamed build", "failure")],
+            "patch tests ran": replaced(FILTERED_JOBS, "zmx patch tests", ("zmx patch tests", "success")),
+        }
+        for variant, rows in variants.items():
+            with self.subTest(variant=variant):
+                self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(rows))[0], "proceed")
+        # Both architectures listed by name and both skipped is still a complete, empty family.
+        complete = replaced(FILTERED_JOBS, GTK, (x86, "skipped"), (arm, "skipped"))
+        self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(complete))[0], "skip")
+        # The cookbook check builds nothing, so a cookbook change alongside still skips.
+        cookbook = replaced(FILTERED_JOBS, "Cookbook checks", ("Cookbook checks", "success"))
+        self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(cookbook))[0], "skip")
+
+    def test_an_earlier_attempt_that_built_is_not_hidden_by_an_empty_rerun(self):
+        scope, reason = auto.ci_scope(RERUN, ci_jobs(FILTERED_JOBS), [ci_jobs(FAILED_BUILD_ATTEMPT)])
+        self.assertEqual(scope, "proceed")
+        self.assertIn("attempt 1 ran", reason)
+        cancelled = [(job, "cancelled" if job.startswith("Core") else "skipped" if job != "Detect changes" else result)
+                     for job, result in FAILED_BUILD_ATTEMPT]
+        self.assertEqual(auto.ci_scope(RERUN, ci_jobs(FILTERED_JOBS), [ci_jobs(cancelled)])[0], "proceed")
+        self.assertEqual(auto.ci_scope(RERUN, ci_jobs(FILTERED_JOBS), [ci_jobs(FILTERED_JOBS)])[0], "skip")
+
+    def test_unreadable_empty_or_partial_history_is_not_proof_of_an_empty_run(self):
+        partial = [row for row in FILTERED_JOBS if not row[0].startswith(("Core", "GTK", "Attest"))]
+        histories = {"earlier attempt empty": [[]], "earlier attempt partial": [ci_jobs(partial)],
+                     "earlier attempt unreadable": [None], "earlier attempts not listed": [],
+                     "one of two earlier attempts empty": [ci_jobs(FILTERED_JOBS), []]}
+        for history, earlier in histories.items():
+            run = SCOPE_RUN | {"run_attempt": max(len(earlier), 1) + 1}
+            with self.subTest(history=history):
+                self.assertEqual(auto.ci_scope(run, ci_jobs(FILTERED_JOBS), earlier)[0], "proceed")
+        run = SCOPE_RUN | {"run_attempt": 3}
+        self.assertEqual(auto.ci_scope(run, ci_jobs(FILTERED_JOBS), [ci_jobs(FILTERED_JOBS)] * 2)[0], "skip")
+
+    def test_an_earlier_attempt_that_cannot_be_fetched_proceeds(self):
+        def api(path, **kwargs):
+            if "/attempts/1/" in path:
+                raise subprocess.CalledProcessError(1, "gh", stderr="HTTP 502")
+            return job_pages(FILTERED_JOBS)
+
+        with tempfile.TemporaryDirectory() as directory:
+            event, output = Path(directory) / "event.json", Path(directory) / "output"
+            event.write_text(json.dumps(EVENT))
+            with patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output)}), \
+                 patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
+                 patch.object(auto.promotion, "api", side_effect=api), \
+                 redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                auto.main()
+            self.assertEqual(output.read_text(), "scope=proceed\n")
+
+    def test_a_truncated_listing_is_unreadable(self):
+        # Attempt 1 really had 12 jobs, the twelfth a successful extra GTK build, but only 11 came back.
+        truncated = job_pages(FILTERED_JOBS, total=len(FILTERED_JOBS) + 1)
+
+        def api(path, **kwargs):
+            return truncated if "/attempts/1/" in path else job_pages(FILTERED_JOBS)
+
+        with patch.object(auto.promotion, "api", side_effect=api), redirect_stderr(io.StringIO()):
+            self.assertIsNone(auto.attempt_jobs(RERUN, 1))
+            self.assertEqual(len(auto.attempt_jobs(RERUN, 2)), len(FILTERED_JOBS))
+            earlier = [auto.attempt_jobs(RERUN, 1)]
+            self.assertEqual(auto.ci_scope(RERUN, auto.attempt_jobs(RERUN, 2), earlier)[0], "proceed")
+            self.assertEqual(auto.ci_scope(RERUN, None, [auto.attempt_jobs(RERUN, 2)])[0], "proceed")
+        with patch.object(auto.promotion, "api", return_value=job_pages(FILTERED_JOBS) * 2), \
+             redirect_stderr(io.StringIO()):
+            self.assertIsNone(auto.attempt_jobs(RERUN, 1))
+        with patch.object(auto.promotion, "api", return_value=[{"jobs": ci_jobs(FILTERED_JOBS)}]), \
+             redirect_stderr(io.StringIO()):
+            self.assertIsNone(auto.attempt_jobs(RERUN, 1))
+
+    def test_the_whole_ci_inventory_must_be_present_once(self):
+        variants = {"unknown skipped job": FILTERED_JOBS + [("Unknown job", "skipped")],
+                    "zmx patch tests removed": [row for row in FILTERED_JOBS if row[0] != "zmx patch tests"],
+                    "libghostty patch tests removed": [row for row in FILTERED_JOBS
+                                                       if not row[0].startswith("libghostty")],
+                    "upstream guard removed": [row for row in FILTERED_JOBS if row[0] != "Upstream workflow guard"],
+                    "installer repeated": FILTERED_JOBS + [("Installer and scripts", "success")]}
+        for variant, rows in variants.items():
+            with self.subTest(variant=variant):
+                self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(rows))[0], "proceed")
+
+    def test_failed_ci_never_proceeds_or_skips(self):
+        for conclusion in ("failure", "cancelled", "skipped", "timed_out", None):
+            for rows in (FILTERED_JOBS, BUILT_JOBS):
+                with self.subTest(conclusion=conclusion, built=rows is BUILT_JOBS), \
+                     self.assertRaisesRegex(ValueError, "did not succeed"):
+                    auto.ci_scope(SCOPE_RUN | {"conclusion": conclusion}, ci_jobs(rows))
+
+    def test_command_reads_the_triggering_attempt_and_records_the_reason(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            event, output, summary = root / "event.json", root / "output", root / "summary"
+            for rows, expected in ((FILTERED_JOBS, "skip"), (BUILT_JOBS, "proceed")):
+                event.write_text(json.dumps(EVENT))
+                output.write_text("")
+                summary.write_text("")
+                env = {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output),
+                       "GITHUB_STEP_SUMMARY": str(summary)}
+                with self.subTest(expected=expected), patch.dict(os.environ, env), \
+                     patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
+                     patch.object(auto.promotion, "api", side_effect=[job_pages(FILTERED_JOBS),
+                                                                      job_pages(rows)]) as api, \
+                     redirect_stdout(io.StringIO()):
+                    auto.main()
+                    self.assertEqual([call.args for call in api.call_args_list],
+                                     [(f"actions/runs/123/attempts/{number}/jobs?per_page=100",) for number in (1, 2)])
+                    self.assertTrue(all(call.kwargs == {"pages": True} for call in api.call_args_list))
+                    self.assertEqual(output.read_text(), f"scope={expected}\n")
+                    self.assertIn("Skipped: " if expected == "skip" else "Proceeding: ", summary.read_text())
+            for attempt in ("2", 0, 51, True, None):
+                event.write_text(json.dumps({"workflow_run": EVENT["workflow_run"] | {"run_attempt": attempt}}))
+                output.write_text("")
+                with self.subTest(attempt=attempt), \
+                     patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output)}), \
+                     patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
+                     patch.object(auto.promotion, "api") as api, \
+                     self.assertRaisesRegex(ValueError, "Unexpected Omarchy CI run attempt"):
+                    auto.main()
+                api.assert_not_called()
+                self.assertEqual(output.read_text(), "")
+            event.write_text(json.dumps({"workflow_run": EVENT["workflow_run"] | {"conclusion": "failure"}}))
+            output.write_text("")
+            with patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output)}), \
+                 patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
+                 patch.object(auto.promotion, "api", return_value=job_pages(FILTERED_JOBS)), \
+                 self.assertRaisesRegex(ValueError, "did not succeed"):
+                auto.main()
+            self.assertEqual(output.read_text(), "")
 
 
 class WatchTests(unittest.TestCase):

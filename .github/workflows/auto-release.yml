@@ -18,8 +18,41 @@ permissions:
   contents: read
 
 jobs:
-  candidate:
+  # Decide first: a green CI run whose path filters skipped every build and attestation job has nothing to
+  # release and ends here as a green skip. Any other run proceeds to the unchanged candidate and gates.
+  scope:
     if: >-
+      github.repository == 'alexandru-savinov/agterm-omarchy' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Skip a CI run that built nothing
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I scripts/omarchy-auto-release.py ci-scope
+
+  candidate:
+    needs: scope
+    if: >-
+      !cancelled() &&
+      needs.scope.result == 'success' &&
+      needs.scope.outputs.scope == 'proceed' &&
       github.repository == 'alexandru-savinov/agterm-omarchy' &&
       github.ref == 'refs/heads/main' &&
       github.event_name == 'workflow_run' &&

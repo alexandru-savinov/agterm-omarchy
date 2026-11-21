@@ -25,6 +25,18 @@ WATCH_UNAVAILABLE = "release-watch-unavailable"
 RELEASES_PATH = "releases?per_page=100"
 PROMOTION_RUNS = "actions/workflows/prerelease-omarchy.yml/runs"
 ACTIVE_PROMOTION_STATUSES = ("queued", "in_progress", "requested", "waiting", "pending")
+# Every job omarchy-ci.yml defines, with {arch} for a matrix over ARCHITECTURES; a test pins this to the file.
+CI_JOBS = ("Installer and scripts", "Detect changes", "Core tests ({arch})", "SwiftLint (Linux)",
+           "GTK build and tests ({arch})", "Attest CI archive ({arch})", "libghostty patch Zig tests ({arch})",
+           "zmx patch tests", "Upstream workflow guard", "CI", "Cookbook checks")
+# Omarchy CI path-filters every job except these when a change touches no product input. "Detect changes"
+# applies the filter, "CI" aggregates every result, and the cookbook check builds nothing.
+UNFILTERED_JOBS = ("Upstream workflow guard", "Installer and scripts", "Detect changes", "CI", "Cookbook checks")
+SCOPE_GATES = ("Detect changes", "CI")
+BUILD_JOBS = ("SwiftLint (Linux)",) + promotion.REQUIRED_ARCH_JOBS + (promotion.ATTEST_JOB,)
+MATRIX = "${{ matrix.arch }}"
+# GitHub allows a workflow run at most 50 attempts.
+MAX_ATTEMPTS = 50
 
 
 def gh(path, *, method="GET", data=None):
@@ -60,6 +72,83 @@ def next_version(base, tags):
     serials = [int(match["serial"]) for tag in tags
                if (match := TAG.fullmatch(tag)) and match["base"] == base]
     return f"{base}.{max(serials, default=0) + 1}"
+
+
+def filtered_forms(template):
+    """The names a job can take: one unexpanded matrix job when skipped, or every architecture."""
+    if "{arch}" not in template:
+        return [{template}]
+    return [{template.format(arch=MATRIX)}, {template.format(arch=arch) for arch in promotion.ARCHITECTURES}]
+
+
+def inventory_gap(jobs):
+    """Why jobs is not exactly one complete Omarchy CI job list, or '' when it is."""
+    names = [job["name"] for job in jobs]
+    if len(names) != len(set(names)):
+        return "a job is listed twice"
+    known = set()
+    for template in CI_JOBS:
+        forms = filtered_forms(template)
+        present = {name for name in names if any(name in form for form in forms)}
+        if present not in forms:
+            return f"{template.format(arch='*')} is incomplete"
+        known |= present
+    if unknown := sorted(set(names) - known):
+        return f"unrecognized {', '.join(unknown)}"
+    return ""
+
+
+def jobs_that_ran(jobs):
+    return sorted(job["name"] for job in jobs if job["name"] not in UNFILTERED_JOBS and job["conclusion"] != "skipped")
+
+
+def ci_scope(run, jobs, earlier=()):
+    """Skip only on proof that a green CI run built nothing; anything else proceeds to the full checks.
+
+    jobs is the triggering attempt and earlier the run's previous attempts, each None if it could not be read."""
+    promotion.require(run.get("conclusion") == "success", "Omarchy CI did not succeed; nothing can be released")
+    label = f"Omarchy CI run {run['id']} attempt {run['run_attempt']}"
+    if jobs is None:
+        return "proceed", f"{label}: the jobs could not be read in full; the release checks decide"
+    if gap := inventory_gap(jobs):
+        return "proceed", f"{label}: {gap}; the release checks decide"
+    for name in SCOPE_GATES:
+        if next(job for job in jobs if job["name"] == name)["conclusion"] != "success":
+            return "proceed", f"{label}: {name} did not succeed; the release checks decide"
+    if ran := jobs_that_ran(jobs):
+        return "proceed", f"{label}: {', '.join(ran)} ran; the release checks decide"
+    # Each attempt lists its own results, so a later empty attempt must not hide an earlier one that built.
+    # An earlier attempt that cannot be read in full is no proof either.
+    if len(earlier) != run["run_attempt"] - 1:
+        return "proceed", f"{label}: earlier attempts are missing; the release checks decide"
+    for number, attempt in enumerate(earlier, start=1):
+        if attempt is None:
+            return "proceed", f"{label}: attempt {number} could not be read; the release checks decide"
+        if gap := inventory_gap(attempt):
+            return "proceed", f"{label}: attempt {number}: {gap}; the release checks decide"
+        if ran := jobs_that_ran(attempt):
+            return "proceed", f"{label}: attempt {number} ran {', '.join(ran)}; the release checks decide"
+    names = ", ".join(template.format(arch="*") for template in BUILD_JOBS)
+    return "skip", f"{label} built nothing to release: path filters skipped {names}"
+
+
+def attempt_jobs(run, number):
+    """One attempt's complete job list, or None when it cannot be read or is shorter than total_count."""
+    try:
+        pages = promotion.api(f"actions/runs/{run['id']}/attempts/{number}/jobs?per_page=100", pages=True)
+        jobs = [job for page in pages for job in page["jobs"]]
+        if {page["total_count"] for page in pages} == {len(jobs)}:
+            return jobs
+        print(f"Attempt {number} listed {len(jobs)} jobs, not its total_count", file=sys.stderr)
+    except (subprocess.CalledProcessError, ValueError, KeyError, TypeError) as error:
+        report_error(error)
+    return None
+
+
+def write_summary(text):
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+            summary.write(f"### Automatic release scope\n{text}\n")
 
 
 def plan(event):
@@ -265,6 +354,7 @@ def read_event():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("ci-scope")
     commands.add_parser("plan")
     commands.add_parser("promote")
     commands.add_parser("check-pause")
@@ -279,7 +369,17 @@ def main():
     failure.add_argument("--reason", required=True)
     failure.add_argument("--evidence", required=True)
     args = parser.parse_args()
-    if args.command in ("plan", "promote"):
+    if args.command == "ci-scope":
+        run = read_event()["workflow_run"]
+        attempt = run["run_attempt"]
+        if type(attempt) is not int or not 0 < attempt <= MAX_ATTEMPTS:
+            raise ValueError(f"Unexpected Omarchy CI run attempt {attempt!r}")
+        earlier = [attempt_jobs(run, number) for number in range(1, attempt)]
+        scope, reason = ci_scope(run, attempt_jobs(run, attempt), earlier)
+        promotion.write_outputs({"scope": scope})
+        write_summary(f"{'Skipped' if scope == 'skip' else 'Proceeding'}: {reason}.")
+        print(f"{scope}: {reason}")
+    elif args.command in ("plan", "promote"):
         candidate, message = plan(read_event())
         print(message, flush=True)
         if args.command == "plan":
