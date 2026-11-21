@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Check that the automatic release graph can handle failed and skipped ancestors."""
 
+import importlib.util
 from pathlib import Path
 import re
 import unittest
 
 WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
+SCRIPTS = WORKFLOWS.parents[1] / "scripts"
 JOB = re.compile(r"^  ([a-zA-Z0-9_-]+):\s*$", re.MULTILINE)
 FIELD = re.compile(r"^    ([a-zA-Z0-9_-]+):([^\n]*)", re.MULTILINE)
 STATUS_CHECK = re.compile(r"(?:!\s*cancelled|\balways)\(\)")
@@ -73,6 +75,24 @@ class WorkflowTests(unittest.TestCase):
             with self.subTest(job=job):
                 self.assertIn("needs.candidate.result == 'success'"
                               if job != "watch_promotion" else "needs.promote.result == 'success'", jobs[job]["if"])
+
+    def test_scope_inventory_is_every_omarchy_ci_job(self):
+        spec = importlib.util.spec_from_file_location("auto_release", SCRIPTS / "omarchy-auto-release.py")
+        auto = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(auto)
+        text = (WORKFLOWS / "omarchy-ci.yml").read_text().split("\njobs:\n", 1)[1]
+        names, matrices = [], {}
+        for job in re.finditer(r"^  [a-zA-Z0-9_-]+:\n((?:    .*\n|\n)*)", text, re.MULTILINE):
+            name = re.search(r"^    name: (.+)$", job[1], re.MULTILINE)[1]
+            names.append(name.replace(auto.MATRIX, "{arch}"))
+            if auto.MATRIX in name:
+                matrices[name] = set(re.findall(r"arch: (?:\[([^]]+)\]|(\S+))", job[1]))
+        self.assertEqual(sorted(names), sorted(auto.CI_JOBS))
+        for name, found in matrices.items():
+            with self.subTest(matrix=name):
+                arches = {arch.strip() for listed, single in found for arch in (listed or single).split(",")}
+                self.assertEqual(arches, set(auto.promotion.ARCHITECTURES))
+        self.assertLessEqual(set(auto.UNFILTERED_JOBS) | set(auto.BUILD_JOBS), set(auto.CI_JOBS))
 
     def test_dry_run_routes_a_synthetic_verdict_through_the_shared_retract_job(self):
         release = read_jobs(WORKFLOWS / "auto-release.yml")

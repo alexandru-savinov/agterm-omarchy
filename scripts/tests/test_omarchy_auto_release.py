@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline tests for the automatic release workflow and incident actions."""
 
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import io
@@ -60,7 +60,8 @@ FAILED_BUILD_ATTEMPT = [
     ("Core tests (aarch64)", "success"), ("SwiftLint (Linux)", "success"), ("Cookbook checks", "skipped"),
     ("CI", "failure"), ("Attest CI archive (${{ matrix.arch }})", "skipped"),
 ]
-SCOPE_RUN = {"id": 123, "run_attempt": 2, "conclusion": "success"}
+SCOPE_RUN = {"id": 123, "run_attempt": 1, "conclusion": "success"}
+RERUN = SCOPE_RUN | {"run_attempt": 2}
 GTK = "GTK build and tests (${{ matrix.arch }})"
 
 
@@ -278,13 +279,52 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(cookbook))[0], "skip")
 
     def test_an_earlier_attempt_that_built_is_not_hidden_by_an_empty_rerun(self):
-        scope, reason = auto.ci_scope(SCOPE_RUN, ci_jobs(FILTERED_JOBS), [ci_jobs(FAILED_BUILD_ATTEMPT)])
+        scope, reason = auto.ci_scope(RERUN, ci_jobs(FILTERED_JOBS), [ci_jobs(FAILED_BUILD_ATTEMPT)])
         self.assertEqual(scope, "proceed")
         self.assertIn("attempt 1 ran", reason)
         cancelled = [(job, "cancelled" if job.startswith("Core") else "skipped" if job != "Detect changes" else result)
                      for job, result in FAILED_BUILD_ATTEMPT]
-        self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(FILTERED_JOBS), [ci_jobs(cancelled)])[0], "proceed")
-        self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(FILTERED_JOBS), [ci_jobs(FILTERED_JOBS)])[0], "skip")
+        self.assertEqual(auto.ci_scope(RERUN, ci_jobs(FILTERED_JOBS), [ci_jobs(cancelled)])[0], "proceed")
+        self.assertEqual(auto.ci_scope(RERUN, ci_jobs(FILTERED_JOBS), [ci_jobs(FILTERED_JOBS)])[0], "skip")
+
+    def test_unreadable_empty_or_partial_history_is_not_proof_of_an_empty_run(self):
+        partial = [row for row in FILTERED_JOBS if not row[0].startswith(("Core", "GTK", "Attest"))]
+        histories = {"earlier attempt empty": [[]], "earlier attempt partial": [ci_jobs(partial)],
+                     "earlier attempt unreadable": [None], "earlier attempts not listed": [],
+                     "one of two earlier attempts empty": [ci_jobs(FILTERED_JOBS), []]}
+        for history, earlier in histories.items():
+            run = SCOPE_RUN | {"run_attempt": max(len(earlier), 1) + 1}
+            with self.subTest(history=history):
+                self.assertEqual(auto.ci_scope(run, ci_jobs(FILTERED_JOBS), earlier)[0], "proceed")
+        run = SCOPE_RUN | {"run_attempt": 3}
+        self.assertEqual(auto.ci_scope(run, ci_jobs(FILTERED_JOBS), [ci_jobs(FILTERED_JOBS)] * 2)[0], "skip")
+
+    def test_an_earlier_attempt_that_cannot_be_fetched_proceeds(self):
+        def api(path, **kwargs):
+            if "/attempts/1/" in path:
+                raise subprocess.CalledProcessError(1, "gh", stderr="HTTP 502")
+            return [{"jobs": ci_jobs(FILTERED_JOBS)}]
+
+        with tempfile.TemporaryDirectory() as directory:
+            event, output = Path(directory) / "event.json", Path(directory) / "output"
+            event.write_text(json.dumps(EVENT))
+            with patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output)}), \
+                 patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
+                 patch.object(auto.promotion, "api", side_effect=api), \
+                 redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                auto.main()
+            self.assertEqual(output.read_text(), "scope=proceed\n")
+
+    def test_the_whole_ci_inventory_must_be_present_once(self):
+        variants = {"unknown skipped job": FILTERED_JOBS + [("Unknown job", "skipped")],
+                    "zmx patch tests removed": [row for row in FILTERED_JOBS if row[0] != "zmx patch tests"],
+                    "libghostty patch tests removed": [row for row in FILTERED_JOBS
+                                                       if not row[0].startswith("libghostty")],
+                    "upstream guard removed": [row for row in FILTERED_JOBS if row[0] != "Upstream workflow guard"],
+                    "installer repeated": FILTERED_JOBS + [("Installer and scripts", "success")]}
+        for variant, rows in variants.items():
+            with self.subTest(variant=variant):
+                self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(rows))[0], "proceed")
 
     def test_failed_ci_never_proceeds_or_skips(self):
         for conclusion in ("failure", "cancelled", "skipped", "timed_out", None):
