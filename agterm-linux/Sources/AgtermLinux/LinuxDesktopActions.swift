@@ -71,6 +71,7 @@ enum LinuxApplicationInvocation: Equatable, Sendable {
         if let option = arguments.first(where: { $0.hasPrefix("-") }) {
             return .invalid("unknown option: \(option)")
         }
+        if arguments.count == 1, !URL(fileURLWithPath: arguments[0]).pathExtension.isEmpty { return .activate }
         return .open(arguments)
     }
 }

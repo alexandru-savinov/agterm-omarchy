@@ -66,7 +66,6 @@ private let onEphemeralActivate: @MainActor @convention(c) (OpaquePointer?, gpoi
 }
 
 private let onEphemeralShutdown: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { _, _ in
-    MainActor.assumeIsolated { GhosttyApp.shared.shutdown() }
 }
 
 private let onEphemeralQuitSignal: @MainActor @convention(c) (gpointer?) -> gboolean = { data in

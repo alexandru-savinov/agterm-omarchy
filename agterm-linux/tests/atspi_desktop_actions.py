@@ -127,12 +127,15 @@ def verify_application_command_line_paths(env):
     relative_directory = os.path.join(secondary_cwd, "relative-directory")
     file_directory = os.path.join(root, "file-parent")
     file_path = os.path.join(file_directory, "launch.txt")
+    bare_directory = os.path.join(root, "bare-file-parent")
+    bare_path = os.path.join(bare_directory, "bare.txt")
     for directory in (
-        cold_directory, warm_directory, relative_directory, file_directory,
+        cold_directory, warm_directory, relative_directory, file_directory, bare_directory,
     ):
         os.makedirs(directory)
-    with open(file_path, "w", encoding="utf-8") as target:
-        target.write("path adapter probe\n")
+    for filename in (file_path, bare_path):
+        with open(filename, "w", encoding="utf-8") as target:
+            target.write("path adapter probe\n")
 
     process, _ = launch(path_env, [cold_directory])
     try:
@@ -160,7 +163,12 @@ def verify_application_command_line_paths(env):
         invoke_arguments(path_env, "--", file_path)
         wait_for(
             lambda: active_session_cwd(path_env, window_id) == file_directory,
-            "file path did not resolve to its parent session cwd",
+            "-- file path did not resolve to its parent session cwd",
+        )
+        invoke_arguments(path_env, bare_path)
+        wait_for(
+            lambda: active_session_cwd(path_env, window_id) == bare_directory,
+            "bare file path did not resolve to its parent session cwd",
         )
         print("OK: GApplication command-line paths preserve cold/warm cwd semantics")
     finally:
@@ -194,11 +202,16 @@ def verify_desktop_entry():
 
 
 def verify_desktop_actions(env):
-    from atspi_terminal_launcher import verify_terminal_launcher
+    from atspi_terminal_launcher import verify_launcher_review, verify_terminal_launcher
 
     verify_desktop_entry()
-    verify_application_command_line_paths(env)
-    verify_terminal_launcher(env)
+    failures = []
+    for check in (verify_application_command_line_paths, verify_terminal_launcher, verify_launcher_review):
+        try:
+            check(env)
+        except AssertionError as error:
+            failures.append(str(error))
+    assert not failures, "\n".join(failures)
     # The first action starts the primary process itself. This is the path an unpinned launcher takes when
     # agterm is not running; every later invocation is a short-lived secondary process forwarded over D-Bus.
     process, app = launch(env, ["--desktop-action=new-session"])
