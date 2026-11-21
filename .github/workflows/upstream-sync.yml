@@ -209,6 +209,7 @@ jobs:
           path: ${{ runner.temp }}/out/
           retention-days: 1
           if-no-files-found: error
+          overwrite: true # Re-running all jobs uploads this name again within the run.
       - name: Hand the blocked sync to the report job
         # The issue text only: a blocked branch leaves the runner in no form.
         if: steps.plan.outputs.action == 'sync' && env.DRY_RUN != 'true' && steps.merge.outputs.blocked == 'true'
@@ -280,6 +281,7 @@ jobs:
           path: ${{ runner.temp }}/out/
           retention-days: 1
           if-no-files-found: error
+          overwrite: true # Re-running all jobs uploads this name again within the run.
 
   publish:
     name: Push the branch and open the sync PR

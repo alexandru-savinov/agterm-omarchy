@@ -23,9 +23,16 @@ if [[ -e "$name" || -L "$name" ]]; then
   echo "::error::fixture file already exists on main" >&2
   exit 1
 fi
+workflow=.github/workflows/upstream-sync.yml
+if [[ ! -f "$workflow" || -L "$workflow" ]]; then
+  echo "::error::the fixed rehearsal workflow file is unavailable" >&2
+  exit 1
+fi
 git switch --quiet --create "$fixture"
 printf '%s\n' 'Synthetic upstream sync publish rehearsal. Never merge.' > "$name"
-git add -- "$name"
+# Exercise the PAT's Workflows permission without changing a trigger or job.
+printf '\n# Synthetic upstream sync publish rehearsal. Never merge.\n' >> "$workflow"
+git add -- "$name" "$workflow"
 git -c user.name='Upstream sync rehearsal' -c user.email='upstream-sync-rehearsal@users.noreply.github.com' \
   commit --quiet -m 'Synthetic upstream sync publish rehearsal'
 head="$(git rev-parse "refs/heads/$fixture")"

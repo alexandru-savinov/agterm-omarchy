@@ -751,6 +751,15 @@ class WorkflowOrderTests(unittest.TestCase):
         self.assertIn("inputs.rehearsal && !inputs.dry_run", publish)
         self.assertIn("if: always() && needs.rehearsal.result == 'success'", publish)
 
+    def test_reruns_can_replace_each_publish_bundle(self):
+        for job, artifact in (("sync", "upstream-sync-branch"), ("rehearsal", "upstream-sync-rehearsal")):
+            with self.subTest(job=job):
+                self.assertIn(f"          name: {artifact}\n"
+                              "          path: ${{ runner.temp }}/out/\n"
+                              "          retention-days: 1\n"
+                              "          if-no-files-found: error\n"
+                              "          overwrite: true", self.job(job))
+
     def test_labels_exist_before_the_publish_script_runs(self):
         self.assertLess(self.position("name: Create the sync labels if missing"),
                         self.position("run: scripts/upstream-sync-publish.sh"))
@@ -768,8 +777,13 @@ class RehearsalFixtureTests(unittest.TestCase):
                 return subprocess.check_output(["git", "-C", str(repo), *args], text=True).strip()
 
             git("init", "--quiet", "-b", "main")
+            workflow = Path(".github/workflows/upstream-sync.yml")
+            (repo / workflow).parent.mkdir(parents=True)
+            original_workflow = "name: Upstream sync\n"
+            (repo / workflow).write_text(original_workflow, encoding="utf-8")
+            git("add", str(workflow))
             git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
-                "commit", "--allow-empty", "--quiet", "-m", "main")
+                "commit", "--quiet", "-m", "main")
             main = git("rev-parse", "HEAD")
             first_seen = root / "first-seen.json"
             first_seen.write_text('{"sentinel":"keep"}', encoding="utf-8")
@@ -783,7 +797,10 @@ class RehearsalFixtureTests(unittest.TestCase):
             subprocess.run(["bash", str(REHEARSAL)], cwd=repo, env=env, check=True, capture_output=True)
             head = git("rev-parse", "refs/heads/rehearsal/linux-port-fixture")
             self.assertEqual(git("rev-parse", head + "^"), main)
-            self.assertEqual(git("diff", "--name-only", main, head), "upstream-sync-rehearsal.txt")
+            self.assertEqual(git("diff", "--name-only", main, head).splitlines(),
+                             [str(workflow), "upstream-sync-rehearsal.txt"])
+            self.assertEqual((repo / workflow).read_text(encoding="utf-8"),
+                             original_workflow + "\n# Synthetic upstream sync publish rehearsal. Never merge.\n")
             self.assertEqual(git("bundle", "list-heads", str(root / "out/sync.bundle")),
                              f"{head} refs/heads/{REHEARSAL_BRANCH}")
             body = (root / "out/body.md").read_text(encoding="utf-8")
