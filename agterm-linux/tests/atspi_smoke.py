@@ -17,6 +17,8 @@ import traceback
 
 import gi
 
+from atspi_retry import report_retry, run_scenario
+
 gi.require_version("Atspi", "2.0")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Atspi, Gtk  # noqa: E402
@@ -7720,6 +7722,7 @@ def main():
     scenario = os.environ.get("AGTERM_ATSPI_SCENARIO")
     if scenario is None:
         failures = []
+        retries = recovered = 0
         scenarios = (
             "normal", "upstream-controls", "upstream-v0391", "upstream-v0400", "upstream-v0411", "upstream-v0430", "sidebar-v0400", "links-v0400", "remote-v0391", "html-overlay", "overlay-visual", "live-restart", "live-fish-restart", "live-command-restart",
             "v0430-gui", "v0430-input", "v0430-sidebar", "live-wait-output", "live-scratch", "startup-environment",
@@ -7768,9 +7771,14 @@ def main():
             return 2
         for child_scenario in scenarios[shard_index::shard_count]:
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
-            result = subprocess.run([sys.executable, __file__], env=child_env)
-            if result.returncode != 0:
-                failures.append((child_scenario, result.returncode))
+            status, extra = run_scenario([sys.executable, __file__], child_env)
+            retries += extra
+            if status != 0:
+                failures.append((child_scenario, status))
+            elif extra:
+                recovered += 1
+        report_retry(f"AT-SPI retry summary: shard={shard_index} extra_attempts={retries} "
+                     f"recovered={recovered} exhausted={retries - recovered}", os.environ)
         if failures:
             print("FAILED: " + ", ".join(f"{name} ({code})" for name, code in failures))
             return failures[0][1]
