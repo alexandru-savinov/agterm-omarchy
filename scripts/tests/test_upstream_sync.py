@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import base64
 import contextlib
+from datetime import datetime, timedelta, timezone
 import importlib.util
 import io
 import json
@@ -15,6 +16,10 @@ from unittest import mock
 SPEC = importlib.util.spec_from_file_location("upstream_sync", Path(__file__).resolve().parents[1] / "upstream-sync.py")
 sync = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(sync)
+LIVENESS_SPEC = importlib.util.spec_from_file_location(
+    "upstream_sync_liveness", Path(__file__).resolve().parents[1] / "upstream-sync-liveness.py")
+liveness = importlib.util.module_from_spec(LIVENESS_SPEC)
+LIVENESS_SPEC.loader.exec_module(liveness)
 FIELDS_SPEC = importlib.util.spec_from_file_location("pr_fields", Path(__file__).resolve().parents[1] / "github/pr_fields.py")
 pr_fields = importlib.util.module_from_spec(FIELDS_SPEC)
 FIELDS_SPEC.loader.exec_module(pr_fields)
@@ -1065,6 +1070,106 @@ class BlockedScriptTests(unittest.TestCase):
             with self.subTest(stub=stub):
                 result, calls, _, _ = self.run_blocked(**stub)
                 self.assertEqual((result.returncode, calls), (1, []))
+
+
+class ScheduleLivenessTests(unittest.TestCase):
+    NOW = datetime(2026, 11, 21, 12, tzinfo=timezone.utc)
+
+    def history(self, age=None):
+        if age is None:
+            return {"total_count": 0, "workflow_runs": []}
+        created = self.NOW - age
+        return {"total_count": 1, "workflow_runs": [{
+            "id": 3, "event": "schedule", "head_branch": "main",
+            "created_at": created.isoformat().replace("+00:00", "Z"),
+            "run_started_at": self.NOW.isoformat(), "conclusion": "failure",
+        }]}
+
+    def issue(self, state):
+        return {"number": 26, "title": liveness.TITLE, "state": state}
+
+    def reconcile(self, age=None, issues=(), responses=()):
+        client = mock.Mock(side_effect=[json.dumps(self.history(age)), json.dumps(issues), *responses])
+        message = liveness.reconcile(client, self.NOW)
+        queries = [call.args for call in client.call_args_list]
+        self.assertEqual(queries[0], (
+            "api", f"repos/{liveness.REPOSITORY}/actions/workflows/upstream-sync.yml/runs"
+                   "?branch=main&event=schedule&per_page=1"))
+        self.assertEqual(queries[1][:6], ("issue", "list", "--state", "all", "--label", liveness.LABEL))
+        return message, queries[2:]
+
+    def test_no_schedule_history_is_stale(self):
+        self.assertEqual(liveness.schedule_status(self.history(), self.NOW), (True, None))
+
+    def test_uses_created_at_and_is_stale_at_exactly_twelve_hours(self):
+        for seconds, stale in ((43199, False), (43200, True), (43201, True)):
+            with self.subTest(seconds=seconds):
+                result, run = liveness.schedule_status(self.history(timedelta(seconds=seconds)), self.NOW)
+                self.assertEqual(result, stale)
+                self.assertEqual(run, (3, self.NOW - timedelta(seconds=seconds)))
+
+    def test_wrong_event_branch_or_future_creation_is_rejected(self):
+        for changes in ({"event": "push"}, {"head_branch": "feature"},
+                        {"created_at": (self.NOW + timedelta(seconds=1)).isoformat()}):
+            with self.subTest(changes=changes):
+                history = self.history(timedelta(seconds=1))
+                history["workflow_runs"][0].update(changes)
+                with self.assertRaises(ValueError):
+                    liveness.schedule_status(history, self.NOW)
+
+    def test_api_failure_never_changes_an_issue(self):
+        client = mock.Mock(side_effect=subprocess.CalledProcessError(1, ["gh", "api"]))
+        with self.assertRaises(subprocess.CalledProcessError):
+            liveness.reconcile(client, self.NOW)
+        client.assert_called_once()
+
+    def test_first_alarm_creates_one_labelled_issue(self):
+        existing = subprocess.CalledProcessError(1, ["gh", "api"], stderr="already_exists")
+        message, writes = self.reconcile(responses=(existing, "https://github.com/example/issues/26"))
+        self.assertIn("Schedule is stale", message)
+        self.assertEqual(len(writes), 2)
+        self.assertEqual(writes[1][:6], ("issue", "create", "--title", liveness.TITLE, "--label", liveness.LABEL))
+
+    def test_later_alarm_edits_or_reopens_the_same_issue(self):
+        for state, expected, responses in (("OPEN", ("edit",), ("",)),
+                                            ("CLOSED", ("edit", "reopen"), ("", ""))):
+            with self.subTest(state=state):
+                _, writes = self.reconcile(issues=[self.issue(state)], responses=responses)
+                self.assertEqual(tuple(query[1] for query in writes), expected)
+                self.assertTrue(all(query[2] == "26" for query in writes))
+
+    def test_a_renamed_labelled_issue_is_reused(self):
+        _, writes = self.reconcile(issues=[self.issue("OPEN") | {"title": "Renamed"}], responses=("",))
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(writes[0][:5], ("issue", "edit", "26", "--title", liveness.TITLE))
+
+    def test_recent_scheduled_run_closes_the_alarm_even_if_the_run_failed(self):
+        message, writes = self.reconcile(timedelta(hours=2), [self.issue("OPEN")], ("",))
+        self.assertIn("Schedule is live", message)
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(writes[0][:4], ("issue", "close", "26", "--comment"))
+        self.assertIn("/actions/runs/3", writes[0][4])
+
+    def test_healthy_checks_leave_closed_or_absent_issues_alone(self):
+        for issues in ([], [self.issue("CLOSED")]):
+            with self.subTest(issues=issues):
+                _, writes = self.reconcile(timedelta(hours=1), issues)
+                self.assertEqual(writes, [])
+
+    def test_duplicate_alarm_records_are_left_alone(self):
+        client = mock.Mock(side_effect=[json.dumps(self.history()),
+                                       json.dumps([self.issue("OPEN"), self.issue("CLOSED")])])
+        with self.assertRaisesRegex(ValueError, "multiple schedule alarm issues"):
+            liveness.reconcile(client, self.NOW)
+        self.assertEqual(client.call_count, 2)
+
+    def test_workflow_checks_pushes_even_when_no_schedule_is_delivered(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/upstream-sync-liveness.yml").read_text()
+        self.assertIn("  push:\n    branches: [main]\n", workflow)
+        self.assertIn("  group: upstream-sync-liveness\n  cancel-in-progress: false", workflow)
+        self.assertIn("github.ref == 'refs/heads/main'", workflow)
+        self.assertNotIn("pull_request", workflow)
+        self.assertNotIn("secrets.", workflow)
 
 
 class GitRepoTests(unittest.TestCase):
