@@ -164,7 +164,9 @@ jobs:
           path: ${{ runner.temp }}/artifacts
       - name: Select the built package
         run: |
-          dir="$(find "$RUNNER_TEMP/artifacts" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          # One matching artifact is extracted into the path itself, several into one directory each.
+          dir="$(find "$RUNNER_TEMP/artifacts" -name SHA256SUMS -printf '%h\n' | sort -V | tail -1)"
+          [[ -n "$dir" ]] || { echo "::error::no built package artifact"; exit 1; }
           (cd "$dir" && sha256sum --check --strict SHA256SUMS) | tee "$RUNNER_TEMP/out/package-check.txt"
           pkg="$(find "$dir" -maxdepth 1 -name "$PACKAGE-*-x86_64.pkg.tar.zst")"
           cp "$pkg" "$RUNNER_TEMP/pkg/"
