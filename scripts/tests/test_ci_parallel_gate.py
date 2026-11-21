@@ -12,8 +12,8 @@ import unittest
 class ParallelGateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/omarchy-ci.yml").read_text()
-        cls.gate = workflow.split("  ci:\n", 1)[1].split("\n  cookbook:\n", 1)[0]
+        cls.workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/omarchy-ci.yml").read_text()
+        cls.gate = cls.workflow.split("  ci:\n", 1)[1].split("\n  cookbook:\n", 1)[0]
         cls.script = textwrap.dedent(cls.gate.split("        run: |\n", 1)[1])
         cls.jobs = {"upstream-ci-disabled", "scripts", "changes", "test-linux", "lint-linux", "build-linux", "attest-linux",
                     "ghostty-patch-tests", "zmx-patch-tests", "cookbook"}
@@ -31,6 +31,14 @@ class ParallelGateTests(unittest.TestCase):
         self.assertIsNotNone(needs)
         self.assertEqual(set(needs.group(1).split(", ")), self.jobs)
         self.assertIn("    if: ${{ !cancelled() }}\n", self.gate)
+
+    def test_main_ci_queues_while_non_main_runs_cancel(self):
+        self.assertIn(
+            "\nconcurrency:\n"
+            "  group: ${{ github.workflow }}-${{ github.ref }}\n"
+            "  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}\n",
+            self.workflow,
+        )
 
     def test_success_and_legitimate_path_skips_pass(self):
         for skipped in ({}, {job: "skipped" for job in ("test-linux", "lint-linux", "build-linux", "ghostty-patch-tests",
