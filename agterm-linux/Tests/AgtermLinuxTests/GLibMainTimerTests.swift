@@ -121,6 +121,7 @@ struct GLibMainTimerTests {
             _ = g_main_context_iteration(nil, 0)
             g_usleep(1_000)
         }
+        _ = g_main_context_iteration(nil, 0)
     }
 
     /// Installs the GLib seam for the duration of `body` and restores the previous one. Synchronous by

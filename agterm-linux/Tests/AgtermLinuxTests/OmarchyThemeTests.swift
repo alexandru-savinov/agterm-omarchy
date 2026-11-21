@@ -73,7 +73,7 @@ struct OmarchyThemeTests {
         let scoped = root.appendingPathComponent("ghostty.conf")
         try "background = #778899\npalette = 1=#667788\nfont-size = 11\nconfig-file = child.conf".write(
             to: scoped, atomically: true, encoding: .utf8)
-        try "selection-background = #ABCDEF".write(
+        try "split-divider-color = #ABCDEF".write(
             to: root.appendingPathComponent("child.conf"), atomically: true, encoding: .utf8)
 
         for follows in [true, false] {
@@ -89,7 +89,7 @@ struct OmarchyThemeTests {
             let colors = GhosttyConfigTheme.colors(from: config)
             #expect(colors.background == (follows ? "#778899" : "#112233"))
             #expect(colors.foreground == (follows ? "#A1B2C3" : "#FFFFFF"))
-            #expect(colors.selectionBackground == "#ABCDEF")
+            #expect(colors.splitDivider == "#ABCDEF")
             #expect(GhosttyConfigTheme.palette(from: config).dropFirst().first == "#667788")
             #expect(GhosttyConfigTheme.fontSize(from: config) == 15)
         }
