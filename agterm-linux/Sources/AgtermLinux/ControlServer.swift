@@ -592,8 +592,14 @@ final class ControlServer: @unchecked Sendable {
             return .controller(controller)
         }
         switch req.cmd {
+        case .sessionUndo:
+            if let target = req.target, let id = UUID(uuidString: target),
+               let owner = gWindows.values.first(where: { $0.store.hasPendingClose(id) }) {
+                return .controller(owner)
+            }
+            return .controller(gController)
         case .sessionCompanionNew, .sessionCompanionPage, .sessionCompanionDuplicate, .sessionCompanionPageAttach,
-             .sessionPage, .sessionCompanionConvert, .sessionCompanionMove, .sessionTerminate, .sessionUndo, .sessionRemoteNew,
+             .sessionPage, .sessionCompanionConvert, .sessionCompanionMove, .sessionTerminate, .sessionRemoteNew,
              .sessionCollapse, .sessionExpand, .sessionTint,
              .sessionOverlayHide, .sessionOverlayShow, .sessionOverlayToggle,
              .sessionRestart, .sessionOverlaySubmit, .keymapRun, .sessionClose, .sessionDuplicate, .sessionSelect, .sessionGo, .sessionRename, .sessionReveal,
