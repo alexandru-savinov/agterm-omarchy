@@ -2,7 +2,7 @@ name: actionlint
 
 # Lints GitHub Actions workflows (syntax, expressions, runner labels, inline shell via
 # the runner's shellcheck). MIT, no account or key. The binary is downloaded and
-# verified against a pinned sha256, as ci.yml does for SwiftLint, so no allowlist change.
+# verified against a pinned sha256, as omarchy-ci.yml does for SwiftLint.
 on:
   pull_request:
     paths: ['.github/workflows/**']
@@ -52,4 +52,9 @@ jobs:
             exit 1
           fi
       - name: Run actionlint
-        run: /tmp/actionlint -color
+        shell: bash
+        run: |
+          # The CI guard checks the byte-identical, disabled upstream workflows.
+          git ls-files -z -- ':(glob).github/workflows/*.yml' ':(glob).github/workflows/*.yaml' \
+            ':(exclude).github/workflows/ci.yml' ':(exclude).github/workflows/release-linux.yml' \
+            ':(exclude).github/workflows/publish-aur.yml' | xargs -0 /tmp/actionlint -color

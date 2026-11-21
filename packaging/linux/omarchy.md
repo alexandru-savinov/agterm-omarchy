@@ -32,7 +32,7 @@ review pacman's transaction before accepting it.
 `--skip-packages` skips that transaction when dependencies are already provisioned.
 Use `scripts/setup-omarchy.sh --with-ui-tests` during setup if you plan to run the test commands below.
 It adds Xvfb, xauth, Openbox, xdotool, Python GObject/AT-SPI and `grim`.
-Python and ImageMagick (`magick`) are in the base dependency list; the Hyprland test desktop must supply `hyprctl`.
+Python, jq (Codex status hooks) and ImageMagick (`magick`) are in the base dependency list; the Hyprland test desktop must supply `hyprctl`.
 
 Setup installs Swift 6.3.2 from the official Ubuntu 24.04 toolchain through mise and ensures Zig 0.17.0
 is available, then builds pinned libghostty and zmx with `scripts/setup-linux.sh`.
@@ -112,6 +112,16 @@ such as window placement and blur.
 
 ## Rendering
 
+On Mesa 26.3.1 with affected GTK builds, the packaged launcher retries GTK's failed
+EGL window-config query for desktop OpenGL. To check whether the system GTK or Mesa
+fix works, start a fresh app process with the compatibility retry disabled:
+
+```bash
+AGTERM_DISABLE_EGL_COMPAT=1 "$HOME/.local/bin/agterm-linux"
+```
+
+Track the removal of this retry in [#485](https://github.com/alexandru-savinov/agterm-omarchy/issues/485).
+
 If a VM reports an OpenGL context error, including `No EGL configuration available`, you can try
 Mesa software rendering for agterm.
 Save work and quit agterm completely through its normal quit flow; quitting can end ordinary shells
@@ -146,6 +156,8 @@ the caller's value untouched, including an explicit one-shot override.
 For child processes, the packaged wrapper's software override is replaced with the caller's previous
 value, or removed if the caller had none.
 A caller-supplied one-shot value can therefore reach those children.
+A root-owned system package, such as the Omarchy package, has no writable marker: set
+`LIBGL_ALWAYS_SOFTWARE=1` in the session environment (for example in `~/.config/uwsm/env`) instead.
 The opt-in addresses the tested VM's EGL limitation; it is not enabled automatically for other Linux machines.
 Hardware rendering remains dependent on each machine's Mesa/driver configuration.
 

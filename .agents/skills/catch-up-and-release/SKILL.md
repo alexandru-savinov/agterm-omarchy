@@ -206,6 +206,8 @@ git push origin linux-vX.Y.Z
 ```
 
 The tag push must trigger `.github/workflows/release-linux.yml`; do not use the inherited macOS `scripts/release.sh`.
+In alexandru-savinov/agterm-omarchy that workflow is retired (every job is skipped);
+Omarchy releases are dispatched through `packaging/linux/prerelease-omarchy.md`.
 
 ## Phase 9: Monitor and Verify Publication
 

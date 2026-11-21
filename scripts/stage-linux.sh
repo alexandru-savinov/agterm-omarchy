@@ -33,6 +33,16 @@ else
   }
 fi
 
+# `agtermctl server install` needs the agterm-server release this core came from. An unversioned (dev) payload,
+# such as the Omarchy CI archive, names it with AGTERM_UPSTREAM_VERSION and must then find its checksums.
+UPSTREAM_VERSION="${AGTERM_UPSTREAM_VERSION:-${AGTERM_PACKAGE_VERSION:-dev}}"
+UPSTREAM_VERSION="${UPSTREAM_VERSION%%+linux.*}"
+SERVER_CHECKSUMS="$ROOT/packaging/linux/server/v$UPSTREAM_VERSION.sha256"
+if [[ -n "${AGTERM_UPSTREAM_VERSION:-}" && ! -s "$SERVER_CHECKSUMS" ]]; then
+  echo "no agterm-server checksums for AGTERM_UPSTREAM_VERSION $UPSTREAM_VERSION: $SERVER_CHECKSUMS" >&2
+  exit 1
+fi
+
 if [[ -d "$DEST" ]] && find "$DEST" -mindepth 1 -print -quit | grep -q .; then
   echo "staging destination is not empty: $DEST" >&2
   exit 1
@@ -62,7 +72,17 @@ mkdir -p "$DEST/bin" "$DEST/lib" "$DEST/share/applications" "$DEST/share/pixmaps
 install -m755 "$BIN" "$DEST/bin/agterm-linux.bin"
 install -m755 "$CTL" "$DEST/bin/agtermctl.bin"
 install -m755 "$APP/vendor/zmx/zmx" "$DEST/bin/zmx"
+# The linker records the toolchain and build-tree library paths; the payload resolves from its own lib/.
+# shellcheck disable=SC2016 # $ORIGIN is the literal dynamic-loader token.
+python3 "$ROOT/scripts/linux-runpath.py" set '$ORIGIN/../lib' "$DEST/bin/agterm-linux.bin" "$DEST/bin/agtermctl.bin"
 cp -R "$APP_RESOURCES" "$DEST/bin/"
+# Build the app-only EGL compatibility library on the payload's target architecture.
+# Compiler and linker flags are whitespace-delimited, as in standard C build tools.
+IFS=$' \t\n' read -r -d '' -a cflags <<< "${CFLAGS:-}" || true
+IFS=$' \t\n' read -r -d '' -a ldflags <<< "${LDFLAGS:-}" || true
+"${CC:-cc}" -std=c11 -O2 "${cflags[@]}" -fPIC -fvisibility=hidden -Wall -Wextra -Werror \
+  -fstack-protector-strong -shared "${ldflags[@]}" -Wl,-z,defs,-z,relro,-z,now \
+  -o "$DEST/lib/libagterm-egl-compat.so" "$ROOT/linux/egl-compat.c"
 
 # Bundle the non-system libraries that make the Swift app portable. GTK, libadwaita, and glibc remain
 # host dependencies in tar/DEB/RPM.
@@ -91,25 +111,36 @@ cp -R "$ROOT/plugins/agterm/skills/agterm" "$DEST/share/agterm/agent-skill"
 install -m644 "$APP/vendor/zmx/LICENSE" "$DEST/share/agterm/ZMX-LICENSE"
 python3 "$ROOT/scripts/linux-notices.py" stage "$DEST"
 printf '%s\n' "${AGTERM_PACKAGE_VERSION:-dev}" > "$DEST/share/agterm/VERSION"
+if [[ -r "$SERVER_CHECKSUMS" ]]; then
+  install -m644 "$SERVER_CHECKSUMS" "$DEST/share/agterm/agterm-server.sha256"
+  printf '%s\n' "$UPSTREAM_VERSION" > "$DEST/share/agterm/UPSTREAM_VERSION"
+fi
 printf '%s\n' "$COMMIT" > "$DEST/share/agterm/COMMIT"
 
 DESKTOP="$ROOT/packaging/linux/io.github.melonamin.agterm.desktop"
 install -m644 "$DESKTOP" "$DEST/share/applications/io.github.melonamin.agterm.desktop"
-# Keep the historical root copy consumed by the local Flatpak manifest and convenient for tar users.
-install -m644 "$DESKTOP" "$DEST/io.github.melonamin.agterm.desktop"
 
 ICON_SRC="$(find "$ROOT/agterm/AppIcon.icon/Assets" -maxdepth 1 -type f -name '*.png' -print -quit)"
-if [[ -n "$ICON_SRC" ]]; then
+IMAGE_CONVERTER="$(command -v magick || command -v convert || true)"
+# macOS masks the icon's corners at display time, while a Linux shell shows a PNG as drawn.
+rounded_icon() {
+  local size="$1" out="$2" radius
+  radius=$(( (size * 224 + 500) / 1000 ))
+  "$IMAGE_CONVERTER" "$ICON_SRC" -resize "${size}x${size}!" -alpha set \
+    \( -size "${size}x${size}" xc:none -fill white \
+       -draw "roundrectangle 0,0,$((size - 1)),$((size - 1)),${radius},${radius}" \) \
+    -compose DstIn -composite "$out"
+}
+if [[ -n "$ICON_SRC" && -n "$IMAGE_CONVERTER" ]]; then
+  for size in 16 32 48 64 128 256 512; do
+    ICON_DIR="$DEST/share/icons/hicolor/${size}x${size}/apps"
+    mkdir -p "$ICON_DIR"
+    rounded_icon "$size" "$ICON_DIR/io.github.melonamin.agterm.png"
+  done
+  install -m644 "$DEST/share/icons/hicolor/256x256/apps/io.github.melonamin.agterm.png" \
+    "$DEST/share/pixmaps/io.github.melonamin.agterm.png"
+elif [[ -n "$ICON_SRC" ]]; then
   install -m644 "$ICON_SRC" "$DEST/share/pixmaps/io.github.melonamin.agterm.png"
-  IMAGE_CONVERTER="$(command -v magick || command -v convert || true)"
-  if [[ -n "$IMAGE_CONVERTER" ]]; then
-    for size in 16 32 48 64 128 256 512; do
-      ICON_DIR="$DEST/share/icons/hicolor/${size}x${size}/apps"
-      mkdir -p "$ICON_DIR"
-      "$IMAGE_CONVERTER" "$ICON_SRC" -resize "${size}x${size}" \
-        "$ICON_DIR/io.github.melonamin.agterm.png"
-    done
-  fi
 fi
 
 cat > "$DEST/bin/agterm-linux" <<'LAUNCH'
@@ -137,6 +168,12 @@ agterm_set AGTERM_ZMX_PATH "$HERE/bin/zmx"
 if [[ -f "$HERE/share/agterm/RENDERER" ]] && [[ "$(cat "$HERE/share/agterm/RENDERER")" == software ]]; then
   agterm_set LIBGL_ALWAYS_SOFTWARE 1
 fi
+# $ORIGIN is expanded by the loader after it parses LD_PRELOAD, including in prefixes with spaces.
+# LD_PRELOAD must remain the last assignment before exec.
+# shellcheck disable=SC2016
+if [[ "${AGTERM_DISABLE_EGL_COMPAT:-}" != 1 && -r "$HERE/lib/libagterm-egl-compat.so" ]]; then
+  agterm_set LD_PRELOAD '$ORIGIN/../lib/libagterm-egl-compat.so'"${LD_PRELOAD:+:$LD_PRELOAD}"
+fi
 export AGTERM_ORIG_UNSET
 exec "$HERE/bin/agterm-linux.bin" "$@"
 LAUNCH
@@ -149,5 +186,7 @@ export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec "$HERE/bin/agtermctl.bin" "$@"
 LAUNCH
 chmod 0755 "$DEST/bin/agtermctl"
+
+python3 "$ROOT/scripts/linux-runpath.py" check "$DEST"/bin/* "$DEST"/lib/*
 
 echo "→ staged agterm-linux payload at $DEST"

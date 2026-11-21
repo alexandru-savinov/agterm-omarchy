@@ -33,7 +33,7 @@ modules:
       - cp -r bin /app/
       - cp -r lib /app/
       - 'if [ -d share/ghostty ]; then cp -r share /app/; fi'
-      - install -Dm644 io.github.melonamin.agterm.desktop /app/share/applications/io.github.melonamin.agterm.desktop
+      - install -Dm644 share/applications/io.github.melonamin.agterm.desktop /app/share/applications/io.github.melonamin.agterm.desktop
     sources:
       - type: archive
         path: ../../../agterm-linux-dist.tar.gz   # produced by scripts/dist-linux.sh

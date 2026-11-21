@@ -4,6 +4,7 @@ scripts/zmx-patches-macos/*.patch whitespace=-blank-at-eol
 docs/evidence/**/*.patch whitespace=-blank-at-eol
 # Preserve the exact upstream license bytes recorded in the notice provenance manifest.
 packaging/linux/notices/*/LICENSE whitespace=-blank-at-eol
+packaging/linux/notices/theme-*/* -text whitespace=-blank-at-eol,-blank-at-eof,cr-at-eol
 packaging/linux/notices/jetbrains-mono/AUTHORS.txt whitespace=-blank-at-eol
 packaging/linux/notices/jetbrains-mono/OFL.txt whitespace=-blank-at-eol
 packaging/linux/notices/z2d/COPYING whitespace=-blank-at-eof
@@ -15,3 +16,5 @@ packaging/linux/notices/nerd-fonts-glyphs/powerline-symbols-LICENSE.txt whitespa
 docs/evidence/mac-vm-validation-2026-11-11/native-diagnostic-2-threads.txt whitespace=-blank-at-eof
 docs/evidence/mac-vm-validation-2026-11-11/native-source77-appendix/appendix_support.py whitespace=-blank-at-eof
 linux/patches/*.patch whitespace=-blank-at-eol
+# Preserve the vendored Arch Linux ARM builder key byte for byte (its armor header ends in a space).
+.github/omarchy-x86-native/archlinuxarm-builder.asc whitespace=-blank-at-eol

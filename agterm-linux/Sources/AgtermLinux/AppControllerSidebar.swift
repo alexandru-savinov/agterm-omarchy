@@ -52,7 +52,7 @@ extension AppController {
 
     func newSession(in workspaceID: UUID) {
         noteUserActivity()
-        guard store.addSession(toWorkspace: workspaceID, cwd: newSessionCwd(), at: newSessionIndex(in: workspaceID)) != nil else { return }
+        createSessionFromGUI(in: workspaceID)
         reconcile()
     }
 
@@ -511,10 +511,11 @@ extension AppController {
             syncSidebar(preferMoving: Set(move.ids))
             return
         }
+        let ids = LinuxSidebarPolicy.draggedSessionBlock(source: source, selection: store.sidebarSelectionIDs)
+        if handleCompanionDrop(ids, onto: target, y: y, targetHeight: targetHeight) { return }
         guard let tgt = store.sessionLocation(ofSession: target) else { return }
         let dropTarget = SidebarDrop.SessionDropTarget.sessionRow(workspace: tgt.workspace, sessionIndex: tgt.index, sessionCount: tgt.count)
         let slot = LinuxSidebarPolicy.dropInsertionSlot(targetIndex: tgt.index, y: y, height: targetHeight)
-        let ids = LinuxSidebarPolicy.draggedSessionBlock(source: source, selection: store.sidebarSelectionIDs)
         let sources = ids.compactMap { id -> SidebarDrop.SessionSource? in
             guard let location = store.sessionLocation(ofSession: id) else { return nil }
             return SidebarDrop.SessionSource(workspace: location.workspace, index: location.index)
@@ -522,7 +523,7 @@ extension AppController {
         guard let resolution = SidebarDrop.resolveSessions(sources: sources, target: dropTarget,
                                                            childIndex: slot) else { return }
         guard store.canMoveSessions(ids, toWorkspace: resolution.workspace, at: resolution.destination) else { return }
-        store.moveSessions(ids, toWorkspace: resolution.workspace, at: resolution.destination)
+        moveSessionsRespectingHost(ids, toWorkspace: resolution.workspace, at: resolution.destination)
         // The dragged block breaks the planner's LIS ties: without the hint an equally minimal plan
         // may move the rows the block passed over instead of the rows the user dragged.
         reconcile(preferMoving: Set(ids))
@@ -623,6 +624,11 @@ extension AppController {
             y: y, height: targetHeight)
         guard let res = SidebarDrop.resolveWorkspace(sourceIndex: s, count: store.workspaces.count,
                                                      childIndex: childIndex) else { return }
+        if LinuxRemoteCatalogs.windows[windowID] != nil {
+            guard let step = RemoteOperation.workspaceStep(from: s, to: res.destination, count: store.workspaces.count) else { return }
+            _ = sendRemoteGUI(ControlRequest(cmd: .workspaceMove, target: source.uuidString, args: ControlArgs(to: step)))
+            return
+        }
         store.moveWorkspace(source, at: res.destination)
         syncSidebar(preferMoving: [source])
     }
@@ -642,7 +648,7 @@ extension AppController {
             target: .workspaceRow(id: workspace, sessionCount: target.sessions.count),
             childIndex: SidebarDrop.onItemIndex) else { return }
         guard store.canMoveSessions(ids, toWorkspace: resolution.workspace, at: resolution.destination) else { return }
-        store.moveSessions(ids, toWorkspace: resolution.workspace, at: resolution.destination)
+        moveSessionsRespectingHost(ids, toWorkspace: resolution.workspace, at: resolution.destination)
         reconcile(preferMoving: Set(ids))
     }
 

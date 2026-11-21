@@ -1,19 +1,20 @@
-"""Observe presence as well as values in real ordinary and freshly created zmx panes."""
+"""Verify the packaged launcher's environment at each real child launch boundary."""
 
 import json
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import tempfile
 
-from atspi_smoke import (ROOT, control_json, launch, raw_control_json, run_palette_action,
-                         stop, wait_for, window_list, window_tree)
+from atspi_smoke import (BIN, REPO, ROOT, control_json, launch, raw_control_json,
+                         run_palette_action, stop, wait_for, window_list, window_tree)
 
 
 PROBE = r'''
 import json,os,pathlib,sys
-names=("LD_LIBRARY_PATH","LIBGL_ALWAYS_SOFTWARE","AGTERM_COMMIT","AGTERM_VERSION",
+names=("LD_PRELOAD","LD_LIBRARY_PATH","LIBGL_ALWAYS_SOFTWARE","AGTERM_COMMIT","AGTERM_VERSION",
        "AGTERM_ZMX_PATH","AGTERM_GHOSTTY_RESOURCES","GSK_RENDERER")
 result={"values":{name:os.environ.get(name) for name in names},
         "bookkeeping":sorted(name for name in os.environ if name.startswith("AGTERM_ORIG_"))}
@@ -24,6 +25,36 @@ print("launcher270-probe-complete",flush=True)
 '''
 
 
+def make_debug_payload(root, ghostty_resources):
+    # Use the staged launcher around the Debug app so GIO callback instrumentation is
+    # available. Copy the executable so $ORIGIN resolves to this fixture.
+    bin_dir = root / "bin"
+    lib = root / "lib"
+    share = root / "share"
+    for directory in (bin_dir, lib, share / "agterm"):
+        directory.mkdir(parents=True)
+    stage = (Path(REPO) / "scripts/stage-linux.sh").read_text()
+    launcher_text = stage.split("<<'LAUNCH'\n", 1)[1].split("\nLAUNCH\n", 1)[0]
+    launcher = bin_dir / "agterm-linux"
+    launcher.write_text(launcher_text + "\n")
+    launcher.chmod(0o755)
+    binary = Path(BIN).resolve()
+    shutil.copy2(binary, bin_dir / "agterm-linux.bin")
+    bundle = "agterm-linux_AgtermLinux.resources"
+    (bin_dir / bundle).symlink_to(binary.parent / bundle, target_is_directory=True)
+    (bin_dir / "zmx").symlink_to(Path(ROOT) / "vendor/zmx/zmx")
+    resources = Path(ghostty_resources)
+    (share / "ghostty").symlink_to(resources, target_is_directory=True)
+    # Live mode verifies the sibling terminfo before it accepts the Ghostty resources.
+    (share / "terminfo").symlink_to(resources.parent / "terminfo", target_is_directory=True)
+    for name, value in (("COMMIT", "launcher-app-commit"), ("VERSION", "270.0"), ("RENDERER", "software")):
+        (share / "agterm" / name).write_text(value + "\n")
+    subprocess.run(["cc", "-shared", "-fPIC", "-fvisibility=hidden", "-Wl,-z,defs",
+                    "-o", str(lib / "libagterm-egl-compat.so"),
+                    str(Path(REPO) / "linux/egl-compat.c")], check=True)
+    return launcher
+
+
 def verify_exact_launcher_environment(env):
     base = Path(env["AGTERM_STATE_DIR"])
     fixture = base / "launcher-login-shell.so"
@@ -31,6 +62,8 @@ def verify_exact_launcher_environment(env):
                     os.path.join(ROOT, "tests/login_shell_zsh_fixture.c"), "-ldl"], check=True)
     artifacts = Path(os.environ.get("AGTERM_UI_ARTIFACT_DIR", base)) / "launcher-environment"
     artifacts.mkdir(parents=True, exist_ok=True)
+    payload = base / "launcher-payload"
+    launcher = make_debug_payload(payload, env["AGTERM_GHOSTTY_RESOURCES"])
     names = ("LD_LIBRARY_PATH", "LIBGL_ALWAYS_SOFTWARE", "AGTERM_COMMIT", "AGTERM_VERSION",
              "AGTERM_ZMX_PATH", "AGTERM_GHOSTTY_RESOURCES")
     for mode in ("none", "live"):
@@ -38,17 +71,17 @@ def verify_exact_launcher_environment(env):
             temporary = tempfile.TemporaryDirectory(prefix="env270-", dir="/tmp")
             state = Path(temporary.name)
             (state / "settings.json").write_text(json.dumps({"restoreMode": mode, "closeGraceUndoEnabled": False}))
-            local = {key: value for key, value in env.items() if not key.startswith("AGTERM_ORIG_")}
+            local = {key: value for key, value in env.items()
+                     if not key.startswith("AGTERM_ORIG_") and key not in
+                     (*names, "LD_PRELOAD", "AGTERM_DISABLE_EGL_COMPAT")}
             local.update(AGTERM_STATE_DIR=str(state), AGTERM_CONTROL_SOCKET=str(state / "agterm.sock"),
-                         LD_PRELOAD=str(fixture), LD_LIBRARY_PATH="/nonexistent/agterm-bundle/lib",
-                         LIBGL_ALWAYS_SOFTWARE="1", AGTERM_COMMIT="launcher-app-commit",
-                         AGTERM_VERSION="270.0", AGTERM_ZMX_PATH=os.path.join(ROOT, "vendor/zmx/zmx"),
-                         AGTERM_GHOSTTY_RESOURCES=env["AGTERM_GHOSTTY_RESOURCES"],
-                         AGTERM_ORIG_SET="1", GSK_RENDERER="cairo")
-            local["AGTERM_ORIG_UNSET"] = " ".join(names) if original is None else ""
+                         GSK_RENDERER="cairo")
             if original is not None:
-                for name in names:
-                    local["AGTERM_ORIG_" + name] = original
+                local.update({name: original for name in names})
+            # The Live fixture selects zsh even if the test account uses another shell.
+            preload = str(fixture) if mode == "live" or label == "value" else original
+            if preload is not None:
+                local["LD_PRELOAD"] = preload
             output = artifacts / f"{mode}-{label}.json"
             output.unlink(missing_ok=True)
             probe = state / "probe.py"
@@ -80,9 +113,12 @@ def verify_exact_launcher_environment(env):
             process = None
             window = None
             try:
-                process, app = launch(local)
+                process, app = launch(local, binary=launcher)
                 window = wait_for(lambda: next((item["id"] for item in window_list(local) if item["open"]), None),
                                   "launcher matrix window missing")
+                if mode == "live":
+                    restore = control_json(local, "restore", "mode", "--json")
+                    assert restore.get("result", {}).get("restore", {}).get("active") == "live", restore
                 created = control_json(local, "session", "new", "--name", "launcher270", "--window", window, "--json")
                 assert created["ok"], created
                 session = created["result"]["id"]
@@ -96,7 +132,7 @@ def verify_exact_launcher_environment(env):
                 assert output.exists(), f"{mode}/{label}: real pane never reported its environment"
                 actual = json.loads(output.read_text())
                 expected = {name: original for name in names}
-                expected["GSK_RENDERER"] = "cairo"
+                expected.update(LD_PRELOAD=preload, GSK_RENDERER="cairo")
                 assert actual == {"values": expected, "bookkeeping": []}, (mode, label, actual, expected)
                 if route_outputs:
                     hook = shlex.join(["/usr/bin/python3", str(probe), str(route_outputs["hook"])])
@@ -117,11 +153,25 @@ def verify_exact_launcher_environment(env):
                             expected_child["uri"] = uri
                         assert actual_child == expected_child, (label, route, actual_child, expected_child)
                         print(f"OK: exact {label}/{route} child environment and absent bookkeeping", flush=True)
-                # Read only the selected app variables, not arbitrary inherited process data.
+                # /proc/environ captures exec-time values. Require a mapped copy as
+                # well, since the loader can leave the variable set on load failure.
                 app_env = dict(entry.split(b"=", 1) for entry in Path(f"/proc/{process.pid}/environ").read_bytes().split(b"\0")
                                if b"=" in entry)
-                for name in (*names, "AGTERM_ORIG_SET", "GSK_RENDERER"):
-                    assert app_env[name.encode()] == local[name].encode(), f"app environment changed: {name}"
+                shim = "$ORIGIN/../lib/libagterm-egl-compat.so"
+                assert app_env[b"LD_PRELOAD"].decode() == (f"{shim}:{preload}" if preload else shim)
+                assert "libagterm-egl-compat.so" in Path(f"/proc/{process.pid}/maps").read_text()
+                app_values = {
+                    "LD_LIBRARY_PATH": str(payload / "lib") + (f":{original}" if original else ""),
+                    "LIBGL_ALWAYS_SOFTWARE": "1",
+                    "AGTERM_COMMIT": "launcher-app-commit",
+                    "AGTERM_VERSION": "270.0",
+                    "AGTERM_ZMX_PATH": str(payload / "bin/zmx"),
+                    "AGTERM_GHOSTTY_RESOURCES": str(payload / "share/ghostty"),
+                    "GSK_RENDERER": "cairo",
+                    "AGTERM_ORIG_SET": "1",
+                }
+                for name, value in app_values.items():
+                    assert app_env[name.encode()] == value.encode(), f"unexpected app environment: {name}"
                 if mode == "live":
                     rows = [row for workspace in window_tree(local, window)["workspaces"] for row in workspace["sessions"]]
                     row = next(row for row in rows if row["id"] == session)

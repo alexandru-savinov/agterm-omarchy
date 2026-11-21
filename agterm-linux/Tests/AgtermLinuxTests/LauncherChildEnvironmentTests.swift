@@ -165,3 +165,33 @@ struct LauncherChildEnvironmentTests {
         #expect(captured.childEnvironment(merging: ["LD_LIBRARY_PATH": "/caller/lib"])["LD_LIBRARY_PATH"] == "/caller/lib")
     }
 }
+
+@Suite("Process preload restoration")
+struct LauncherProcessEnvironmentTests {
+    @Test("restores an absent, empty, or set caller preload", arguments: [nil, "", "/tmp/caller.so"] as [String?])
+    func restoresCallerPreload(original: String?) {
+        let preload = "$ORIGIN/../lib/libagterm-egl-compat.so"
+        var environment = ["AGTERM_ORIG_SET": "1", "LD_PRELOAD": preload]
+        if let original {
+            environment["AGTERM_ORIG_LD_PRELOAD"] = original
+        } else {
+            environment["AGTERM_ORIG_UNSET"] = "LD_PRELOAD"
+        }
+        var updates: [String: String?] = [:]
+        LauncherChildEnvironment.sanitizeCurrentProcess(environment: environment) { name, value in
+            updates.updateValue(value, forKey: name)
+        }
+
+        #expect(updates == ["LD_PRELOAD": original])
+    }
+
+    @Test("preserves a preload without launcher bookkeeping")
+    func preservesUnrecordedPreload() {
+        var updates: [String: String?] = [:]
+        LauncherChildEnvironment.sanitizeCurrentProcess(environment: ["LD_PRELOAD": "/tmp/caller.so"]) { name, value in
+            updates.updateValue(value, forKey: name)
+        }
+
+        #expect(updates.isEmpty)
+    }
+}

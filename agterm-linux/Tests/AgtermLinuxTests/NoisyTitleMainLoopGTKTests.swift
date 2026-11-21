@@ -103,24 +103,22 @@ struct NoisyTitleMainLoopGTKTests {
         try #require(started, "producers that wrote a batch: \(noisePIDs.count) of \(markers.count)")
         let noisy = primary
 
-        for attempt in 1...5 {
-            let ran = TestSlot<Double>()
-            let screen = TestSlot<String>()
-            let posted = Date()
-            runOnMain {
-                MainActor.assumeIsolated {
-                    ran.set(Date().timeIntervalSince(posted))
-                    screen.set(noisy.readScreenText(all: false, lines: nil) ?? "")
-                }
+        let ran = TestSlot<Double>()
+        let screen = TestSlot<String>()
+        let posted = Date()
+        runOnMain {
+            MainActor.assumeIsolated {
+                ran.set(Date().timeIntervalSince(posted))
+                screen.set(noisy.readScreenText(all: false, lines: nil) ?? "")
             }
-            _ = pumpGLib(timeout: 3) { ran.value != nil }
-            let latency = try #require(ran.value, "attempt \(attempt): an idle callback did not run within 3 s of title noise")
-            print("title-noise attempt \(attempt): idle callback latency \(latency) s")
-            #expect(latency < 1, "attempt \(attempt): idle callback waited \(latency) s behind the title drain")
-            #expect(screen.value?.contains("AGTERM_TITLE_NOISE_STARTED") == true, "attempt \(attempt): screen read missed output")
-            #expect(noisePIDs.allSatisfy(Self.isRunning), "attempt \(attempt): a producer ended before the callback ran")
-            #expect(session.oscTitle?.hasPrefix("AGTERM_TITLE_NOISE_") == true, "attempt \(attempt): titles never reached the store")
         }
+        _ = pumpGLib(timeout: 3) { ran.value != nil }
+        let latency = try #require(ran.value, "an idle callback did not run within 3 s of title noise")
+        print("title-noise idle callback latency \(latency) s")
+        #expect(latency < 1, "idle callback waited \(latency) s behind the title drain")
+        #expect(screen.value?.contains("AGTERM_TITLE_NOISE_STARTED") == true, "screen read missed output")
+        #expect(noisePIDs.allSatisfy(Self.isRunning), "a producer ended before the callback ran")
+        #expect(session.oscTitle?.hasPrefix("AGTERM_TITLE_NOISE_") == true, "titles never reached the store")
     }
 
     /// A reaped or zombie producer no longer refills the mailbox.

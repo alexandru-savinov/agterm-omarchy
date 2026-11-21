@@ -1,8 +1,13 @@
-# libghostty teardown patch
+# libghostty patches
 
-`setup.sh` applies these patches to `GHOSTTY_REV` before building GhosttyKit. The revision and patch
-digest form `.ghostty-build-stamp`; CI keys its GhosttyKit cache on both. A changed patch rebuilds the
+`setup.sh` applies these patches in name order to `GHOSTTY_REV` before building GhosttyKit. The revision and
+patch digest form `.ghostty-build-stamp`; CI keys its GhosttyKit cache on both. A changed patch rebuilds the
 framework and resources. Never link a staged framework whose full stamp differs.
+
+Each patch is generated against `GHOSTTY_REV` with every lower-numbered patch applied, and is checked with
+`git apply --check` on a second pristine checkout carrying those same patches.
+
+## 0001: teardown mailbox drain
 
 `0001` backports the mailbox drain from [ghostty PR 14444](https://github.com/ghostty-org/ghostty/pull/14444)
 to `83fb956` (v1.4.0). During surface teardown the main thread joins workers and waits for in-flight Metal
@@ -13,18 +18,59 @@ closes as well as the queue, and releases owned payloads for discarded messages.
 
 Remove the patch when `GHOSTTY_REV` includes an equivalent upstream fix whose drain also stays active
 through `renderer.deinit()`. Upstream PR 14444's current ordering does not yet meet that condition.
-When removing the final patch, remove `GHOSTTY_PATCH_DIR`, the digest calculation and apply loop in
-`setup.sh`, and either set `GHOSTTY_STAMP="$GHOSTTY_REV"` or restore both the stamp comparison and stamp write to use
-`GHOSTTY_REV` directly. Remove the patch digest from the CI cache key too. Preserve the three shutdown
-regressions in `scripts/test-surface-teardown.py`: one title producer, eight title producers with one
-closed, and eight idle surfaces with one closed. CI runs them against the Release app.
+The patch's own Zig tests pin both regressions it fixes: a worker blocked on the full mailbox during teardown,
+and the deferred backlog that a quadratic drain once stalled on. `setup.sh` runs
+`zig build test -Dtest-filter=teardown -Demit-macos-app=false` after every libghostty build and stages nothing
+when one fails. `scripts/test-surface-teardown.py` closes surfaces in the Release app in CI, one busy title
+producer and one of eight idle surfaces, as a smoke of the built framework, failing only on a call unanswered
+in 60 s. It has no eight-producer case: on the 3-vCPU runner that case met severe contention and its calls
+stalled for seconds to minutes, so the Zig tests are what pin teardown under pressure.
 
-Apply the patch to a `GHOSTTY_REV` checkout before editing. Run `zig fmt --check src/App.zig src/Surface.zig`
-and `zig build test -Dtest-filter=teardown -Demit-macos-app=false` there. Regenerate the patch with
-`git diff -- src/App.zig src/Surface.zig` and verify `git apply --check` against a second pristine
-checkout. Do not change queue capacity or move `ghostty_surface_free` off the app thread.
+Run `zig fmt --check src/App.zig src/Surface.zig` in the patched checkout when regenerating the patch.
+Do not change queue capacity or move `ghostty_surface_free` off the app thread.
 
-`0002` keeps a child's last output when its pty hangs up (#447). `ReadThread.gatherMainPosix` returned as
+## 0002: color scheme report follows the system appearance
+
+`0002` backports the non-GTK part of [ghostty PR 13605](https://github.com/ghostty-org/ghostty/pull/13605)
+(issue #939). The pinned core answers `CSI ?996n` and mode 2031 from the config's conditional theme state,
+which is tracked only when the light and dark theme names differ, so a single theme always reports light.
+The patch keeps the scheme `ghostty_app_set_color_scheme` delivers in an app-level atomic, reports from it,
+and pushes the live mode 2031 report through a surface binding action, `system_color_scheme_changed`.
+Keep the `App`, `Surface`, `apprt/structs`, `input/Binding`, `input/command` and `termio` hunks together.
+
+Remove the patch when `GHOSTTY_REV` includes PR 13605 or an equivalent upstream fix. The regressions are
+`AppearanceFlipUITests.testColorSchemeQueryReportsDarkWithOneThemeForBothAppearances` and
+`testColorSchemeSubscriptionReportsAppearanceFlipWithPlainTheme`.
+
+## 0003: free a surface once its threads have exited
+
+`0003` adds `ghostty_surface_try_free`. It asks the renderer and io threads to stop without joining them, and
+frees the surface only when both have returned from their thread functions, else answers false and leaves it
+valid. `ghostty_surface_free` joins those threads, and their exit polls with short sleeps (the io thread's
+`killPid` 10 ms, `0001`'s drain 1 ms) that App Nap stretches to seconds while the app is hidden, so a pane
+replaced then froze the whole app (#1005). `agtermApp.replacePane` and `reattachScratch` retire the old view
+through `SurfaceRetirement`, which keeps calling it from the main thread, so the free itself stays on the app
+thread.
+The patch also lets `TeardownDrain.finish` wake the drain through an event rather than wait out its pause.
+
+Remove the patch when `GHOSTTY_REV` offers a non-blocking surface teardown with the same guarantee: the surface
+stays allocated until its threads are gone, since agterm keeps its address from being reused
+(`replacePane(spawnFirst:)`). Its Zig tests are named `teardown` and run with `0001`'s; the app side is pinned
+by `SurfaceRetirementTests`.
+
+## 0004: plain-text session links
+
+`0004` adds `agterm://session/` to the URL schemes in `src/config/url.zig`, so a session link printed as plain
+text is clickable. Codex renders an `agterm://` Markdown link as plain `label (url)` text, and
+ghostty's `link` setting, the configurable alternative, returns `NotImplemented`. Only the session form is
+added: `LinkPolicy.sessionLink` ignores every other `agterm://` URL, which should not show a link pointer.
+Its Zig test is `agterm session link regex`, run with the `url regex` test it extends.
+
+Remove the patch when `GHOSTTY_REV` lets the embedder add a link pattern, and add the pattern there.
+
+## 0005: keep a hung-up pty's last output (Linux)
+
+`0005` keeps a child's last output when its pty hangs up (#447). `ReadThread.gatherMainPosix` returned as
 soon as its poll reported `POLLHUP` on the pty master, without reading. A Linux master reports `POLLHUP`
 as soon as the last replica fd closes, with what the child wrote before closing still queued, so a child
 that wrote and exited before the gather thread woke lost that output; a Live `--wait` pane lost its final
@@ -32,24 +78,39 @@ line under the exit hold. On a hangup the gather stage now reads and publishes w
 `read()` returns 0, `EAGAIN`, `EIO` or another error, bounded by 4 MiB (`hangup_drain_max`), then exits.
 On macOS the patch is harmless but recovers nothing: Darwin discards what is queued when the replica
 closes (`revents` IN|HUP with `read()` returning 0), so the drain costs one `read()`; #449 tracks the
-macOS side. The Linux-only Zig tests poll a real pty whose replica closed with output queued and feed
-those revents to the gather stage's decision after its poll (`hungUp`), which must end the stage with
-all of the output delivered; the same with nothing queued; and the drain on `/dev/zero`, which never runs
-dry, so it must stop at its cap. `scripts/test-ghostty-patches-linux.sh` runs them. Remove the patch when
-`GHOSTTY_REV` reads a hung-up pty to the end.
+macOS side.
+`gatherMainPosix` takes an outer poller. Production passes `std.posix`, and the test uses a poller
+that writes and closes the pty replica before reading `POLLIN|POLLHUP` from the kernel.
+The Linux-only tests also check a full pty queue, an empty queue, and the drain cap with `/dev/zero`.
+The cap test has a five-second watchdog.
+Remove `0005` once the pinned Ghostty drains queued pty output on hangup.
 
-`0003` orders the exit message after the child's last output (#447). The process watcher can report the
+## 0006: exit message after the final output (Linux)
+
+`0006` orders the exit message after the child's last output (#447). The process watcher can report the
 exit while what the child wrote just before it is still queued in the pty or in the gather/parse ring, and
 the surface writes `Process exited. Press any key to close the terminal.` into the terminal on the
 `child_exited` notice, so under load the final line landed after the message (in 140 of 512 CPU-load
-runs of the #447 trace with `0002` alone). The parse stage, now `ReadThread.parseMainPosix`, sets
+runs of the #447 trace with `0005` alone). The parse stage, now `ReadThread.parseMainPosix`, sets
 `Exec.read_done` once the gather stage is done and the ring is empty; `processExitCommon` records the exit
 and `ExitHold` sends the notice once `read_done` is set, re-checking on a 2 ms `xev.Timer` so the IO
-thread never blocks, or after `ExitHold.max_ms` (1 s) when the read thread never finishes, as it does
-not while a background process keeps the pty open; then the notice goes as before and a warning is
-logged. `threadMainPosix` also sets `read_done` when it returns, so an early return releases the hold
-at once. Windows sends it at once. The Linux-only Zig tests run the real gather and parse stages on a pty whose replica closed with
-output queued, with parsing held until the exit is reported, and assert on a real terminal that the
-exit message follows the output and was released by the read thread, not the bound; two more cover the
-at-once path and the bound. Do not use `FIONREAD` as a drained signal: it does not count the tty flip
-buffer. Remove the patch when `GHOSTTY_REV` orders the exit notice after the final output.
+thread never blocks. `threadMainPosix` also sets `read_done` when it returns early.
+The Linux-only order and mailbox tests exercise the real gather and parse stages and the real
+surface mailbox. The headless runtime in `src/apprt/none.zig` provides a no-op `wakeup` so the
+mailbox test can enqueue notices without a GUI. The hold tests also check immediate release and the
+bound, with a five-second watchdog on the bound test.
+Do not use `FIONREAD` as a drained signal because it does not count the tty flip buffer.
+Remove `0006` once the pinned Ghostty defers the exit notice until the reader has parsed the last output.
+
+On POSIX, if a background process keeps the pty open past `ExitHold.max_ms`, the exit notice waits
+one second and libghostty logs a warning when it delivers the notice. Windows sends it immediately.
+
+Linux CI runs the patch-added Zig tests, including the embedded-runtime tests, with
+`scripts/test-ghostty-patches-linux.sh`.
+New patch tests must be named declarations at file scope so the runner can verify each result.
+
+## Removing the last patch
+
+Remove `GHOSTTY_PATCH_DIR`, the digest calculation and apply loop in `setup.sh`, and either set
+`GHOSTTY_STAMP="$GHOSTTY_REV"` or restore both the stamp comparison and stamp write to use `GHOSTTY_REV`
+directly. Remove the patch digest from the CI cache key too.

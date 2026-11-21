@@ -1,5 +1,5 @@
 diff --git a/include/ghostty.h b/include/ghostty.h
-index 6492ec6..b96c6fd 100644
+index c15b399..1f75c9b 100644
 --- a/include/ghostty.h
 +++ b/include/ghostty.h
 @@ -1185,6 +1185,10 @@ GHOSTTY_API ghostty_surface_config_s ghostty_surface_config_new();
@@ -11,13 +11,13 @@ index 6492ec6..b96c6fd 100644
 +GHOSTTY_API ghostty_surface_t ghostty_surface_new_with_env_unset(
 +    ghostty_app_t, const ghostty_surface_config_s*, const char* const*, size_t);
  GHOSTTY_API void ghostty_surface_free(ghostty_surface_t);
+ GHOSTTY_API bool ghostty_surface_try_free(ghostty_surface_t);
  GHOSTTY_API void* ghostty_surface_userdata(ghostty_surface_t);
- GHOSTTY_API ghostty_app_t ghostty_surface_app(ghostty_surface_t);
 diff --git a/src/Surface.zig b/src/Surface.zig
-index 62e67a0..233c004 100644
+index 3204643..bb374bc 100644
 --- a/src/Surface.zig
 +++ b/src/Surface.zig
-@@ -689,6 +689,7 @@ pub fn init(
+@@ -697,6 +697,7 @@ pub fn init(
              .command = command,
              .env = env,
              .env_override = config.env,
@@ -26,7 +26,7 @@ index 62e67a0..233c004 100644
              .shell_integration_features = config.@"shell-integration-features",
              .cursor_blink = config.@"cursor-style-blink",
 diff --git a/src/apprt/embedded.zig b/src/apprt/embedded.zig
-index 7e7f3b4..e32e2c6 100644
+index 324fc66..c2a1db1 100644
 --- a/src/apprt/embedded.zig
 +++ b/src/apprt/embedded.zig
 @@ -285,12 +285,16 @@ pub const App = struct {
@@ -181,10 +181,10 @@ index 7e7f3b4..e32e2c6 100644
          app: *App,
          opts: *const apprt.Surface.Options,
 diff --git a/src/termio/Exec.zig b/src/termio/Exec.zig
-index df57e0f..d2f73cf 100644
+index 1fa2a3e..9f24648 100644
 --- a/src/termio/Exec.zig
 +++ b/src/termio/Exec.zig
-@@ -573,6 +573,7 @@ pub const Config = struct {
+@@ -670,6 +670,7 @@ pub const Config = struct {
      /// calling init.
      env: EnvMap,
      env_override: configpkg.RepeatableStringMap = .{},
@@ -192,7 +192,7 @@ index df57e0f..d2f73cf 100644
      shell_integration: configpkg.Config.ShellIntegration = .detect,
      shell_integration_features: configpkg.Config.ShellIntegrationFeatures = .{},
      cursor_blink: ?bool = null,
-@@ -826,6 +827,9 @@ const Subprocess = struct {
+@@ -923,6 +924,9 @@ const Subprocess = struct {
              );
          }
  

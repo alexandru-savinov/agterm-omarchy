@@ -1,55 +1,264 @@
-name: x86_64 Omarchy native gates
+name: Omarchy native gates
 
-# Runs the native Omarchy acceptance gates (#437) on x86_64 hardware: an Arch container with Omarchy's
-# official-repository desktop packages and Hyprland 0.5x on the host's vkms KMS device with Mesa software
-# rendering. It installs a published prerelease's x86_64 archive, never a build from the checked-out ref.
-# This is Arch plus Omarchy's packages on a cloud runner, not an Omarchy ISO install on a physical machine.
-# Not a required check. The pull_request trigger runs only when this workflow or its script changes.
+# Runs the native Omarchy acceptance gates (#437, #475) on x86_64 and aarch64 cloud hardware: an Arch container
+# with Omarchy's official-repository desktop packages, installed from Omarchy's own snapshot mirror for the
+# chosen channel, and Hyprland 0.5x on the host's vkms KMS device with Mesa software rendering.
+# It installs an archive that CI already built, never a build from this ref:
+# - ci-run: one successful main Omarchy CI run's artifacts, under the versioned promotion's own checks, so
+#   a release can be gated before it is published. An empty run id takes the newest such run.
+# - release: a published omarchy-dev-* or omarchy-v* release's assets, resolved once to asset IDs and digests.
+# Either way the source job resolves the bytes once, and no leg executes an archive before its build or
+# promotion attestation verifies and its embedded commit matches (attestation: required).
+# This is Arch (or Arch Linux ARM) plus Omarchy's packages on a cloud runner, not an Omarchy ISO install.
+# Not a required check. Dispatch always requires attestation. Only omarchy-native-gates-self-test.yml, on a
+# pull request, may pass attestation: report-only, and passed is then always false.
+# Callers grant contents: read, actions: read and attestations: read, and gate on `passed`, which
+# verdict.py defines. The call fails whenever `passed` is false, except for that self-test.
 
 on:
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: Prerelease tag whose agterm-omarchy-x86_64.tar.gz is tested
+      source:
+        description: What to test
         required: true
+        type: choice
+        options: [ci-run, release]
+        default: ci-run
+      run_id:
+        description: "ci-run: Omarchy CI run ID on main (empty: the newest run a versioned release accepts)"
+        required: false
         type: string
-        default: omarchy-dev-b1356f0ad7ae-run43761095738
-  pull_request:
-    paths:
-      - .github/workflows/omarchy-x86-native.yml
-      - .github/omarchy-x86-native/**
+        default: ""
+      release_tag:
+        description: "release: omarchy-dev-<sha12>-run<id> or omarchy-v<version> tag"
+        required: false
+        type: string
+        default: ""
+      arch:
+        description: Architectures to gate
+        required: true
+        type: choice
+        options: [both, x86_64, aarch64]
+        default: both
+      channel:
+        description: Omarchy package channel the container installs from
+        required: true
+        type: choice
+        options: [stable, rc, edge]
+        default: stable
+  workflow_call:
+    inputs:
+      source:
+        description: ci-run or release
+        required: false
+        type: string
+        default: ci-run
+      run_id:
+        description: "ci-run: Omarchy CI run ID on main (empty: the newest run a versioned release accepts)"
+        required: false
+        type: string
+        default: ""
+      release_tag:
+        description: "release: omarchy-dev-<sha12>-run<id> or omarchy-v<version> tag"
+        required: false
+        type: string
+        default: ""
+      arch:
+        description: both, x86_64 or aarch64
+        required: false
+        type: string
+        default: both
+      channel:
+        description: "Omarchy package channel: stable (an install's default), rc or edge"
+        required: false
+        type: string
+        default: stable
+      attestation:
+        description: "required; report-only is accepted only from omarchy-native-gates-self-test.yml, and passed is then false"
+        required: false
+        type: string
+        default: required
+      evidence_suffix:
+        description: Distinct evidence suffix for multiple calls in one workflow attempt
+        required: false
+        type: string
+        default: ""
+    outputs:
+      passed:
+        description: "'true' only for complete, attested evidence of the resolved bytes passing all four gates on every arch"
+        value: ${{ jobs.verdict.outputs.passed }}
+      attested:
+        description: "'true' when every tested archive's attestation verified"
+        value: ${{ jobs.verdict.outputs.attested }}
+      gate_failed:
+        description: "'true' for complete, attested evidence of an actual failed gate"
+        value: ${{ jobs.verdict.outputs.gate_failed }}
+      source_commit:
+        description: Commit the tested archives were built from
+        value: ${{ jobs.source.outputs.sha }}
+      source_run_id:
+        description: "ci-run: the Omarchy CI run whose artifacts were tested"
+        value: ${{ jobs.source.outputs.run_id }}
+      source_run_attempt:
+        description: "ci-run: that run's attempt; a later attempt's artifacts were not tested"
+        value: ${{ jobs.source.outputs.attempt }}
+      release_tag:
+        description: "release: the tested tag"
+        value: ${{ jobs.source.outputs.tag }}
+      archives:
+        description: "JSON by arch: the tested artifact or asset (id, name, transport_digest or sha256), its sha256 and attestation"
+        value: ${{ jobs.verdict.outputs.archives }}
+      results:
+        description: "JSON by arch of that leg's gates.tsv rows"
+        value: ${{ jobs.verdict.outputs.results }}
 
 permissions:
   contents: read
 
+# Never shared between sources, so a release gate is not cancelled by another one; called runs keep their
+# caller's event, so only pull requests cancel an older run.
 concurrency:
-  group: omarchy-x86-native-${{ github.ref }}
-  cancel-in-progress: true
+  group: omarchy-native-gates-${{ github.ref }}-${{ inputs.source || 'ci-run' }}-${{ inputs.run_id || inputs.release_tag || 'newest' }}-${{ inputs.arch || 'both' }}-${{ inputs.channel || 'stable' }}-${{ inputs.attestation || 'required' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  gates:
-    name: x86_64 Omarchy gates (Arch container, vkms)
+  source:
+    name: Resolve and validate the source
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
-    env:
-      RELEASE_TAG: ${{ inputs.release_tag || 'omarchy-dev-b1356f0ad7ae-run43761095738' }}
-      ARCH_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      matrix: ${{ steps.resolve.outputs.matrix }}
+      plan: ${{ steps.resolve.outputs.plan }}
+      source: ${{ steps.resolve.outputs.source }}
+      run_id: ${{ steps.resolve.outputs.run_id }}
+      attempt: ${{ steps.resolve.outputs.attempt }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      label: ${{ steps.resolve.outputs.label }}
+      channel: ${{ steps.resolve.outputs.channel }}
+      attestation: ${{ steps.resolve.outputs.attestation }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
         with:
           persist-credentials: false
-      - name: Lint the gate script
+      - name: Lint and test the gate scripts
         run: |
           bash -n .github/omarchy-x86-native/gates.sh
           shellcheck -x -P SCRIPTDIR .github/omarchy-x86-native/gates.sh
+          for test in .github/omarchy-x86-native/test_*.py; do python3 -I "$test"; done
+      - name: Resolve the source
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE: ${{ inputs.source || 'ci-run' }}
+          RUN_ID: ${{ inputs.run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          ARCH: ${{ inputs.arch || 'both' }}
+          CHANNEL: ${{ inputs.channel || 'stable' }}
+          ATTESTATION: ${{ inputs.attestation }}
+          EVIDENCE_SUFFIX: ${{ inputs.evidence_suffix }}
+          EVENT: ${{ github.event_name }}
+          # In a called workflow this names the top-level caller.
+          CALLER: ${{ github.workflow_ref }}
+        run: |
+          [[ "$CHANNEL" =~ ^(stable|rc|edge)$ ]] || { echo "unknown channel: $CHANNEL"; exit 1; }
+          [[ "$EVIDENCE_SUFFIX" =~ ^[a-z0-9-]{0,32}$ ]] || { echo "invalid evidence suffix"; exit 1; }
+          # Fail closed: a blank value is required, and report-only only for the dedicated pull_request self-test.
+          ATTESTATION="${ATTESTATION:-required}"
+          [[ "$ATTESTATION" =~ ^(required|report-only)$ ]] || { echo "unknown attestation policy: '$ATTESTATION'"; exit 1; }
+          if [[ "$ATTESTATION" == report-only ]]; then
+            [[ "$EVENT" == pull_request && "$CALLER" == "$GITHUB_REPOSITORY/.github/workflows/omarchy-native-gates-self-test.yml@"* ]] ||
+              { echo "attestation: report-only is only for omarchy-native-gates-self-test.yml on a pull request, not $CALLER ($EVENT)"; exit 1; }
+          fi
+          case "$ARCH" in
+            both) arches=(x86_64 aarch64) ;;
+            x86_64 | aarch64) arches=("$ARCH") ;;
+            *) echo "unknown arch: $ARCH"; exit 1 ;;
+          esac
+          matrix="$(printf '%s\n' "${arches[@]}" | jq -cR '{arch: ., runner: (if . == "x86_64" then "ubuntu-24.04" else "ubuntu-24.04-arm" end)}' | jq -cs '{include: .}')"
+          arch_args=()
+          for arch in "${arches[@]}"; do arch_args+=(--arch "$arch"); done
+          case "$SOURCE" in
+            ci-run)
+              [[ -z "$RELEASE_TAG" ]] || { echo "release_tag is for source=release"; exit 1; }
+              python3 -I .github/omarchy-x86-native/ci-artifact.py resolve --run-id "$RUN_ID" > "$RUNNER_TEMP/resolved.json"
+              plan="$(jq -c --argjson arches "$(printf '%s\n' "${arches[@]}" | jq -cR . | jq -cs .)" '{
+                run_id: (.run_id | tostring), attempt: (.attempt | tostring), sha, tag: "",
+                label: "run\(.run_id)-\(.attempt)",
+                identities: (.artifacts | with_entries(select(.key as $arch | $arches | index($arch))))}' "$RUNNER_TEMP/resolved.json")"
+              ;;
+            release)
+              [[ -z "$RUN_ID" ]] || { echo "run_id is for source=ci-run"; exit 1; }
+              python3 -I .github/omarchy-x86-native/release-assets.py resolve --tag "$RELEASE_TAG" "${arch_args[@]}" \
+                > "$RUNNER_TEMP/resolved.json"
+              plan="$(jq -c '{run_id: "", attempt: "", sha, tag, label: .tag, identities: .archives,
+                release: {sums, promotion}}' "$RUNNER_TEMP/resolved.json")"
+              ;;
+            *) echo "unknown source: $SOURCE"; exit 1 ;;
+          esac
+          plan="$(jq -c --arg source "$SOURCE" --arg channel "$CHANNEL" --arg attestation "$ATTESTATION" \
+            --arg evidence_suffix "${EVIDENCE_SUFFIX:+-$EVIDENCE_SUFFIX}" \
+            --argjson arches "$(printf '%s\n' "${arches[@]}" | jq -cR . | jq -cs .)" \
+            '.label += $evidence_suffix |
+             . + {source: $source, channel: $channel, attestation: $attestation, arches: $arches}' <<< "$plan")"
+          jq -e '(.sha | test("^[0-9a-f]{40}$")) and (.identities | length) == (.arches | length)' <<< "$plan" > /dev/null
+          {
+            echo "matrix=$matrix"
+            echo "plan=$plan"
+            jq -r '"source=\(.source)", "run_id=\(.run_id)", "attempt=\(.attempt)", "sha=\(.sha)", "tag=\(.tag)",
+              "label=\(.label)", "channel=\(.channel)", "attestation=\(.attestation)"' <<< "$plan"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  gates:
+    name: Omarchy gates (${{ matrix.arch }}, Arch container, vkms)
+    needs: source
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.source.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    # Setup and session deadlines inside the container (15 + 50 min) and the step caps below leave the
+    # always() staging and upload steps time inside this cap.
+    # Budget: checkout 5 + vkms 5 + download 10 + image 10 + gates 70 (container setup 15 + session 50 + kill
+    # grace) + staging 5 + upload 5 = 110, inside this cap.
+    timeout-minutes: 115
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    env:
+      ARCH: ${{ matrix.arch }}
+      PLAN: ${{ needs.source.outputs.plan }}
+      SOURCE: ${{ needs.source.outputs.source }}
+      SHA: ${{ needs.source.outputs.sha }}
+      LABEL: ${{ needs.source.outputs.label }}
+      OMARCHY_CHANNEL: ${{ needs.source.outputs.channel }}
+      ATTESTATION: ${{ needs.source.outputs.attestation }}
+      X86_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+      # Arch Linux ARM's own aarch64 rootfs: Docker's official archlinux image is x86_64 only, and a
+      # community multi-arch image would make a third party's build the trust root for the keyring.
+      # os.archlinuxarm.org serves no valid HTTPS certificate and rebuilds this URL in place, so the bytes are
+      # pinned twice: the build system's signature, and a reviewed digest that blocks replaying an older pair.
+      ALARM_ROOTFS: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+      ALARM_ROOTFS_SHA256: 42a4eeaa038994ffd31fa173256ef2f0ef511358eeb41b9ea1f8626391b9b319
+      ALARM_KEY: 68B3537F39A313B3E574D06777193F152BDBE6A6
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          persist-credentials: false
       - name: Load vkms
+        timeout-minutes: 5
         run: |
           uname -m -r
-          [[ "$(uname -m)" == x86_64 ]]
+          [[ "$(uname -m)" == "$ARCH" ]]
           if ! sudo modprobe vkms; then
             sudo apt-get update
             sudo apt-get install -y "linux-modules-extra-$(uname -r)"
@@ -58,45 +267,196 @@ jobs:
           mkdir -p "$RUNNER_TEMP/out"
           {
             uname -srm
-            grep -m1 'model name' /proc/cpuinfo
+            grep -m1 -E 'model name|CPU part' /proc/cpuinfo || true
             nproc
+            echo "lsm: $(sudo cat /sys/kernel/security/lsm)"
             ls -l /dev/dri
             for card in /sys/class/drm/card[0-9]; do echo "$card -> $(readlink -f "$card/device")"; done
           } | tee "$RUNNER_TEMP/out/host.txt"
-      - name: Download and verify the release archive
+      - name: Download the resolved archive and verify it before anything runs
+        timeout-minutes: 10
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          [[ "$RELEASE_TAG" =~ ^omarchy-dev-[0-9a-f]{12}-run[0-9]+$ ]] || { echo "unexpected tag: $RELEASE_TAG"; exit 1; }
-          mkdir -p "$RUNNER_TEMP/release" "$RUNNER_TEMP/out"
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/release" \
-            --pattern agterm-omarchy-x86_64.tar.gz --pattern SHA256SUMS --pattern promotion.json
-          cd "$RUNNER_TEMP/release"
-          sha256sum --check --strict --ignore-missing SHA256SUMS
-          jq -r '.source_commit, .source_run, (.artifacts[] | select(.filename == "agterm-omarchy-x86_64.tar.gz") | "\(.id) \(.sha256)")' promotion.json
+          identity="$(jq -ce --arg arch "$ARCH" '.identities[$arch]' <<< "$PLAN")"
+          release="$RUNNER_TEMP/release"
+          if [[ "$SOURCE" == ci-run ]]; then
+            python3 -I .github/omarchy-x86-native/ci-artifact.py download \
+              --run-id "$(jq -r .run_id <<< "$PLAN")" --attempt "$(jq -r .attempt <<< "$PLAN")" --arch "$ARCH" \
+              --artifact-id "$(jq -r .id <<< "$identity")" --transport-digest "$(jq -r .transport_digest <<< "$identity")" \
+              --output "$release"
+            archive="agterm-omarchy-$ARCH.tar.gz"
+            cp "$release/source.json" "$RUNNER_TEMP/out/"
+          else
+            mkdir "$release"
+            archive="$(jq -r .name <<< "$identity")"
+            for asset in "$identity" "$(jq -c .release.sums <<< "$PLAN")" "$(jq -c .release.promotion <<< "$PLAN")"; do
+              python3 -I .github/omarchy-x86-native/release-assets.py download --asset-id "$(jq -r .id <<< "$asset")" \
+                --sha256 "$(jq -r .sha256 <<< "$asset")" --output "$release/$(jq -r .name <<< "$asset")"
+            done
+            (cd "$release" && sha256sum --check --strict --ignore-missing SHA256SUMS) > "$RUNNER_TEMP/check.txt"
+            grep -qx "$archive: OK" "$RUNNER_TEMP/check.txt"
+            grep -qx 'promotion.json: OK' "$RUNNER_TEMP/check.txt"
+            cp "$release/promotion.json" "$RUNNER_TEMP/out/"
+          fi
+          sha256="$(sha256sum "$release/$archive" | cut -d' ' -f1)"
+          commit="$(tar -xzOf "$release/$archive" agterm-stage/share/agterm/COMMIT | tr -d '[:space:]')"
+          [[ "$commit" == "$SHA" ]] || { echo "embedded commit $commit is not the resolved $SHA"; exit 1; }
+          attested=verified
+          if [[ "$SOURCE" == ci-run ]]; then
+            gh attestation verify "$release/$archive" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/omarchy-ci.yml" --source-ref refs/heads/main \
+              --source-digest "$SHA" --deny-self-hosted-runners > "$RUNNER_TEMP/out/attestation.txt" 2>&1 || attested=unverified
+          else
+            for predicate in https://slsa.dev/provenance/v1 "https://github.com/$GITHUB_REPOSITORY/attestations/promotion/v1"; do
+              gh attestation verify "$release/$archive" --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/prerelease-omarchy.yml" --source-ref refs/heads/main \
+                --deny-self-hosted-runners --predicate-type "$predicate" --format json > "$RUNNER_TEMP/attestation.json" \
+                2>> "$RUNNER_TEMP/out/attestation.txt" || { attested=unverified; continue; }
+              # The signed promotion predicate must name the commit this run resolved.
+              [[ "$predicate" == https://slsa.dev/* ]] || jq -e --arg sha "$SHA" \
+                'length > 0 and all(.[]; .verificationResult.statement.predicate.source_commit == $sha)' \
+                "$RUNNER_TEMP/attestation.json" >> "$RUNNER_TEMP/out/attestation.txt" || attested=unverified
+            done
+          fi
+          echo "attestation: $attested" | tee -a "$RUNNER_TEMP/out/attestation.txt"
+          # Written by the host outside /out, so nothing the container writes can stand in for it.
+          jq -n --arg arch "$ARCH" --arg source "$SOURCE" --argjson identity "$identity" --arg archive "$archive" \
+            --arg sha256 "$sha256" --arg commit "$commit" --arg attestation "$attested" \
+            '{arch: $arch, source: $source, identity: $identity, archive: $archive, sha256: $sha256, commit: $commit,
+              attestation: $attestation}' > "$RUNNER_TEMP/host-record.json"
+          echo "GATE_ARCHIVE=$archive" >> "$GITHUB_ENV"
+          if [[ "$attested" != verified && "$ATTESTATION" == required ]]; then
+            echo "::error::$archive has no verified attestation; it is not executed"
+            exit 1
+          fi
+      - name: Prepare the Arch base image
+        timeout-minutes: 10
+        env:
+          KEY_FILE: .github/omarchy-x86-native/archlinuxarm-builder.asc
+        run: |
+          if [[ "$ARCH" == x86_64 ]]; then
+            docker pull "$X86_IMAGE"
+            echo "BASE_IMAGE=$X86_IMAGE" >> "$GITHUB_ENV"
+            echo "base $X86_IMAGE" > "$RUNNER_TEMP/out/base-image.txt"
+            exit 0
+          fi
+          rootfs="$RUNNER_TEMP/alarm"
+          mkdir -p "$rootfs"
+          curl -fsSL --retry 5 --retry-all-errors -o "$rootfs/rootfs.tar.gz" "$ALARM_ROOTFS"
+          curl -fsSL --retry 5 --retry-all-errors -o "$rootfs/rootfs.tar.gz.sig" "$ALARM_ROOTFS.sig"
+          export GNUPGHOME="$rootfs/gnupg"
+          install -d -m 0700 "$GNUPGHOME"
+          [[ "$(gpg --show-keys --with-colons "$KEY_FILE" | awk -F: '$1 == "fpr" { print $10; exit }')" == "$ALARM_KEY" ]]
+          gpg --dearmor < "$KEY_FILE" > "$rootfs/builder.gpg"
+          gpgv --keyring "$rootfs/builder.gpg" "$rootfs/rootfs.tar.gz.sig" "$rootfs/rootfs.tar.gz" 2>&1 | tee "$rootfs/gpgv.txt"
+          grep -q "using RSA key $ALARM_KEY" "$rootfs/gpgv.txt"
+          digest="$(sha256sum "$rootfs/rootfs.tar.gz" | cut -d' ' -f1)"
+          # A rebuilt rootfs fails here until its signature-verified digest is reviewed and pinned above.
+          [[ "$digest" == "$ALARM_ROOTFS_SHA256" ]] || { echo "::error::ALARM rootfs sha256 $digest is not the pinned $ALARM_ROOTFS_SHA256"; exit 1; }
+          docker import --platform linux/arm64 "$rootfs/rootfs.tar.gz" "alarm-rootfs:$digest"
+          rm "$rootfs/rootfs.tar.gz"
+          echo "BASE_IMAGE=alarm-rootfs:$digest" >> "$GITHUB_ENV"
+          { echo "base $ALARM_ROOTFS sha256 $digest"; cat "$rootfs/gpgv.txt"; } > "$RUNNER_TEMP/out/base-image.txt"
       - name: Run the gates
+        timeout-minutes: 70
         # WebKitGTK sandboxes its helpers with bwrap, which needs unprivileged user namespaces and a mountable
         # /proc, as on a native Arch host. Ubuntu's AppArmor userns restriction and Docker's seccomp profile and
         # masked /proc paths forbid them, so the test container lifts those; the WebKit sandbox stays enabled.
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          docker run --rm --device /dev/dri -v /run/udev:/run/udev:ro \
+          docker run --rm --name omarchy-gates --device /dev/dri -v /run/udev:/run/udev:ro \
             --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
-            -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/release:/release:ro" -v "$RUNNER_TEMP/out:/out" \
-            "$ARCH_IMAGE" bash /repo/.github/omarchy-x86-native/gates.sh
-      - name: Summary
+            -e GATE_ARCHIVE -e OMARCHY_CHANNEL -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/release:/release:ro" -v "$RUNNER_TEMP/out:/out" \
+            "$BASE_IMAGE" bash /repo/.github/omarchy-x86-native/gates.sh
+      - name: Stage the evidence
+        id: stage
         if: always()
+        timeout-minutes: 5
         run: |
+          # The container writes /out as the tested payload's account: confirm through Docker that it is gone or
+          # stopped, then copy only regular files and directories into a fresh host-owned directory, which is all
+          # the uploader sees. Unconfirmed means no upload, so the verdict finds no evidence and fails.
+          docker rm -f omarchy-gates > /dev/null 2>&1 || true
+          if state="$(docker inspect --format '{{.State.Status}}' omarchy-gates 2>&1)"; then
+            [[ "$state" == exited || "$state" == dead ]] || { echo "::error::the gates container is still $state; evidence not uploaded"; exit 1; }
+          elif ! grep -qiE 'no such (object|container)' <<< "$state"; then
+            echo "::error::cannot confirm the gates container stopped ($state); evidence not uploaded"
+            exit 1
+          fi
+          status=0
+          python3 -I .github/omarchy-x86-native/stage-evidence.py "$RUNNER_TEMP/out" "$RUNNER_TEMP/evidence" || status=$?
+          rm -f "$RUNNER_TEMP/evidence/host-record.json"
+          [[ ! -f "$RUNNER_TEMP/host-record.json" ]] || cp "$RUNNER_TEMP/host-record.json" "$RUNNER_TEMP/evidence/"
           {
-            printf '### x86_64 Omarchy gates\nRelease: %s\n\n<pre>\n' "$RELEASE_TAG"
-            cat "$RUNNER_TEMP/out/gates.tsv" 2>/dev/null || echo 'no gate results'
-            cat "$RUNNER_TEMP/out/probe-timings.tsv" 2>/dev/null || true
+            printf '### %s Omarchy gates (%s channel)\nSource: %s %s\n\n<pre>\n' "$ARCH" "$OMARCHY_CHANNEL" "$SOURCE" "$LABEL"
+            cat "$RUNNER_TEMP/evidence/gates.tsv" 2>/dev/null || echo 'no gate results'
+            cat "$RUNNER_TEMP/evidence/probe-timings.tsv" 2>/dev/null || true
             printf '</pre>\n'
           } >> "$GITHUB_STEP_SUMMARY"
+          echo "staged=true" >> "$GITHUB_OUTPUT"
+          exit "$status"
       - name: Upload evidence
-        if: always()
+        if: always() && steps.stage.outputs.staged == 'true'
+        timeout-minutes: 5
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: omarchy-x86-native-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/out
+          name: omarchy-native-gates-${{ matrix.arch }}-${{ needs.source.outputs.channel }}-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/evidence
           retention-days: 30
+
+  verdict:
+    name: Native gates verdict
+    needs: [source, gates]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      passed: ${{ steps.verdict.outputs.passed }}
+      attested: ${{ steps.verdict.outputs.attested }}
+      gate_failed: ${{ steps.verdict.outputs.gate_failed }}
+      archives: ${{ steps.verdict.outputs.archives }}
+      results: ${{ steps.verdict.outputs.results }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          persist-credentials: false
+      - name: Fetch this attempt's evidence
+        if: needs.source.result == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREFIX: omarchy-native-gates-
+          SUFFIX: -${{ needs.source.outputs.channel }}-${{ needs.source.outputs.label }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          # One directory per artifact, by name; verdict.py decides what is missing.
+          mkdir -p evidence
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired | not) | "\(.id) \(.name)"' |
+          while read -r id name; do
+            [[ "$name" == "$PREFIX"*"$SUFFIX" ]] || continue
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "evidence/$name.zip"
+            unzip -q -d "evidence/$name" "evidence/$name.zip"
+          done
+          ls evidence
+      - name: Decide
+        id: verdict
+        env:
+          PLAN: ${{ needs.source.outputs.plan }}
+          SOURCE_RESULT: ${{ needs.source.result }}
+          GATES_RESULT: ${{ needs.gates.result }}
+          ATTESTATION: ${{ needs.source.outputs.attestation || 'required' }}
+        run: |
+          # Without a resolved plan nothing can pass; verdict.py still reports what is missing.
+          if [[ -n "$PLAN" ]]; then printf '%s' "$PLAN" > plan.json
+          else echo '{"arches": ["x86_64", "aarch64"], "identities": {}, "channel": "", "label": "", "sha": "", "source": ""}' > plan.json; fi
+          mkdir -p evidence
+          status=0
+          python3 -I .github/omarchy-x86-native/verdict.py --evidence evidence --expected plan.json \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --source-result "$SOURCE_RESULT" \
+            --gates-result "$GATES_RESULT" --attestation "$ATTESTATION" | tee verdict.txt || status=$?
+          { printf '### Native gates verdict\n<pre>\n'; cat verdict.txt; printf '</pre>\n'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

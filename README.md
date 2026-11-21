@@ -24,6 +24,8 @@ and [renderer acceptance](https://github.com/alexandru-savinov/agterm-omarchy/pu
 
 [![Build Status](https://github.com/melonamin/agterm-linux/workflows/build/badge.svg)](https://github.com/melonamin/agterm-linux/actions)
 
+[![Omarchy CI](https://github.com/alexandru-savinov/agterm-omarchy/actions/workflows/omarchy-ci.yml/badge.svg?branch=main)](https://github.com/alexandru-savinov/agterm-omarchy/actions/workflows/omarchy-ci.yml)
+
 **[agterm.com](https://agterm.com)** · [Documentation](https://agterm.com/docs) · [Command reference](https://agterm.com/commands) · [Cookbook](cookbook/)
 
 `agterm-linux` is a Linux-maintained fork of [agterm](https://github.com/umputun/agterm).
@@ -65,7 +67,7 @@ Code layout:
 
 ### Linux feature parity and platform differences
 
-The inherited Linux frontend carries the upstream v0.41.1 terminal model and control protocol, including
+The inherited Linux frontend carries the upstream v0.43.0 terminal model and control protocol, including
 split/scratch/overlay terminals, Quick terminal input and read-back, terminal zoom, fullscreen,
 recently closed sessions with grouped undo, light/dark themes, configurable toolbar and sidebar text,
 recent-session and attention popovers, agent status in the multi-session dashboard, stable pane status
@@ -103,8 +105,18 @@ The per-pane message bus supports send, read, acknowledgement, and waiting, with
 Runtime session info supports one-line Markdown, timed expiry, and Always, Flagged, or Off sidebar display.
 Preferences also controls workspace and session icon visibility, workspace chevrons, and compact sidebar density.
 Source/text pages, path:line links, bounded log following, page search, diff highlighting and change navigation,
-and inert HTML documents follow upstream v0.41.1.
-Generated content pages also work on a session's remote viewer; remote text stays static.
+and inert HTML documents follow upstream v0.43.0.
+Generated content pages also work on a session's remote viewer, including text search, wrapping, JSONL expansion,
+log following, and diff file navigation through the origin.
+Remote windows mirror a headless `agterm-server` or a Live-mode desktop origin through catalog snapshots,
+updates, and operation receipts.
+The palette offers New Remote Session, Open Remote Window, and Detached Sessions.
+Structural edits run on the origin; closing an ordinary attached row detaches it, while Terminate on Origin ends it there.
+Attached terminals and top-level page rows reconnect after relaunch.
+Companions can be converted and moved under another parent through GTK and the control API.
+Session-bound asks and pickers follow the presenting pane and retain their deadlines.
+Markdown links navigate within the granted folder, and remote loopback HTTP links use SSH port forwarding.
+`agtermctl server install` installs the exact matching upstream server archive after checking its bundled SHA-256 pin.
 See [Linux file pages](agterm-linux/docs/file-pages.md) for controls, limits, and the renderer boundary.
 Session and workspace tints, plain or grouped flagged lists, membership editors, and flagged ordering are
 available through GTK actions and the control socket.
@@ -122,14 +134,14 @@ The Linux command palette offers **Clear Recent Items** whenever recently closed
 The same app-wide cleanup is available as `agtermctl recent clear`.
 Preferences exposes Quick Terminal sizing, cursor shape and blink, and Fresh shells, Re-run commands, or
 experimental Live sessions restore.
-Live mode uses the bundled pinned zmx runtime for primary and split panes; scratch, overlay, and Quick
-terminals remain temporary.
+Live mode uses the bundled pinned zmx runtime for primary, split, and scratch panes.
+Scratch processes survive hiding and application relaunch; overlay and Quick terminals remain temporary.
 It requires zsh or fish as the password-database login shell or as the absolute shell path in Ghostty’s `command` setting,
 with the matching bundled Ghostty integration.
 The mode is latched at process startup, and a missing daemon after reboot falls back to a new login shell
 with its last cleanly captured command pre-filled at the prompt, waiting for Enter.
 Re-run commands pre-fills the captured command the same way instead of running it.
-The libghostty pin matches upstream v0.41.1 (Ghostty v1.4.0).
+The libghostty pin matches upstream v0.43.0 (Ghostty v1.4.0).
 Kitty clipboard (OSC 5522) text reads and multi-representation writes are supported.
 Kitty image reads are not: reads serve text only.
 Kitty writes to PRIMARY are unsupported; copy-on-select to PRIMARY still works.
@@ -319,7 +331,7 @@ Requirements:
 
 - Swift 6.3.2.
 - GTK4, libadwaita, WebKitGTK 6.0, libepoxy, pkg-config, git, curl, ca-certificates, and xz.
-- Python 3 at runtime for the bundled Codex status hooks; DEB and RPM installs include this dependency.
+- Python 3 and jq at runtime for agent status hooks; DEB, RPM and Arch installs include these dependencies.
 - SVG image loading at runtime for toolbar and sidebar icons (`librsvg2-common` on Ubuntu/Debian).
 - WebP image loading at runtime for image and Markdown pages (`webp-pixbuf-loader`).
 - zsh, required by the shared `agtermCore` tests.
@@ -485,7 +497,7 @@ agterm arranges terminals into a small hierarchy. These are the only terms you n
 
 **Panes.** A session can split into two shells side by side. Both panes are part of the same session and share one sidebar row; a split is one session with two terminals, not two sessions. One pane is focused at a time, and the divider position is remembered.
 
-**Scratch terminal.** Every session has an extra shell, the scratch terminal, that you toggle on over the session and hide again without killing it. It opens in the session's directory and is for a quick aside next to your main work. It belongs to that one session and is not restored across launches.
+**Scratch terminal.** Every session has an extra shell, the scratch terminal, that you toggle on over the session and hide again without killing it. It opens in the session's directory and is for a quick aside next to your main work. It belongs to that one session; Live sessions mode restores its running process across launches.
 
 **Quick terminal.** The quick terminal is a single throwaway shell per window, not tied to any session. It drops over whatever session is active, for a command unrelated to what you are working on, and hiding it keeps the shell alive. It is not restored across launches.
 
@@ -537,7 +549,7 @@ Dropping more than 20 folders at once is rejected.
 **Reveal in Finder** on macOS or **Reveal in Files** on Linux opens the focused pane's current directory (and is disabled if that directory no longer exists).
 Folder-picking panels also start in the focused pane's directory when it is available.
 
-**Notifications.** A program in any session can raise a desktop notification (via OSC 9 / 777, or the control API). It shows as a banner and a count badge on the session's row unless that exact terminal surface is already focused in the active window; an explicit `agtermctl notify` request always delivers. Clicking the banner jumps to the exact pane that raised it and reopens its encoded window if it was closed in the meantime. Upstream macOS can optionally bounce its Dock icon while the app is in the background; Linux omits that setting because desktop shells provide no portable equivalent. The badge clears when you visit the session, or headlessly with `agtermctl session seen` — so an orchestrator driving a session over the socket can acknowledge its notifications without pulling focus to it (`agtermctl tree --json` reports each session's `unseen` count). For a coding agent that just needs to say it is waiting on you, [Agent status](#agent-status) is usually the better fit.
+**Notifications.** A program in any session can raise a desktop notification (via OSC 9 / 777, or the control API). It shows as a banner and a count badge on the session's row unless that exact terminal surface is already focused in the active window; an explicit `agtermctl notify` request always delivers. Clicking the banner jumps to the exact pane that raised it and reopens its encoded window if it was closed in the meantime. Upstream macOS can optionally bounce its Dock icon while the app is in the background; Linux omits that setting because desktop shells provide no portable equivalent. The badge clears on selection or physical input according to the Badge Reset preference, or headlessly with `agtermctl session seen` — so an orchestrator driving a session over the socket can acknowledge its notifications without pulling focus to it (`agtermctl tree --json` reports each session's `unseen` count). For a coding agent that just needs to say it is waiting on you, [Agent status](#agent-status) is usually the better fit.
 
 **Agent status.** A coding agent in a session can report its state (active, blocked, completed) onto that session's row, so a screen of concurrent agents shows which one needs you. See [Agent status](#agent-status) for wiring it up.
 
@@ -626,12 +638,16 @@ Claude Code and Codex share the same skill format, so it installs to detected `~
 
 The same skill is also published as a plugin from this repository, which is the better route if you keep your agent's config somewhere other than `~/.claude` or `~/.codex` — the agent does the installing, so the skill lands wherever that agent actually looks, and updates through the agent's own plugin commands:
 
+### Claude Code
+
 ```sh
-# Claude Code
 claude plugin marketplace add umputun/agterm
 claude plugin install agterm@agterm
+```
 
-# Codex
+### Codex
+
+```sh
 codex plugin marketplace add umputun/agterm
 codex plugin add agterm@agterm
 ```
@@ -772,7 +788,7 @@ agtermctl dashboard "$a" "$b" "$c" --auto-size   # view-only grid; a split sessi
 agtermctl dashboard --mru --auto-size            # ...or fill it from the window's most-recently-used sessions (no ids)
 agtermctl font inc                               # increase the session's (main pane's) font size
 agtermctl font dec --pane right                   # shrink just the split pane's font (--pane left|right|scratch)
-agtermctl theme set --light "Builtin Light" --dark Dracula  # set the light/dark theme slots (--dark none turns following off)
+agtermctl theme set --light "Catppuccin Latte" --dark "Catppuccin Mocha"  # set the light/dark theme slots (--dark none turns following off)
 ```
 
 `session type` types the text as real keystrokes, and every newline is a real Return press — so a trailing newline submits the command, and a multi-line payload runs line by line (a multi-line shell construct like a `for` loop is entered across the shell's continuation prompts and runs as one command). Note the `$'…\n'` quoting: a literal `\n` inside plain single quotes reaches the CLI as two characters, not a newline; use `$'…\n'` or pipe a real newline via `--stdin`. Typing goes to the session's left (main) pane by default; `--pane right` types into the split pane instead (an error when the session has no split), and `--pane scratch` reaches the session's scratch terminal even while it is hidden. `session text` takes the same `--pane`, so an agent can read a hidden scratch's output (e.g. a deploy you ran there) without leaving it open. `font inc|dec|reset` also takes `--pane left|right|scratch`, so you can resize just the split pane's font (an error when there is no split); only the main pane's size is remembered across a restart.

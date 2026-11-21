@@ -33,7 +33,7 @@ for artifact in "$TAR" "$DEB" "$RPM" "$CHECKSUMS"; do
   [[ -f "$artifact" ]] || { echo "missing release artifact: $artifact" >&2; exit 1; }
 done
 
-for command in dpkg-deb rpm rpm2cpio cpio desktop-file-validate file ldd; do
+for command in dpkg-deb rpm rpm2cpio cpio desktop-file-validate file ldd infocmp python3; do
   command -v "$command" >/dev/null || { echo "$command is required to verify Linux packages" >&2; exit 1; }
 done
 
@@ -63,6 +63,15 @@ verify_opencode_plugin() {
   grep -Fq 'export const AgtermStatusPlugin' "$plugin"
 }
 
+verify_app_icons() {
+  local share="$1" size
+  for size in 16 32 48 64 128 256 512; do
+    file "$share/icons/hicolor/${size}x${size}/apps/io.github.melonamin.agterm.png" \
+      | grep -Fq "PNG image data, $size x $size,"
+  done
+  file "$share/pixmaps/io.github.melonamin.agterm.png" | grep -Fq 'PNG image data, 256 x 256,'
+}
+
 verify_payload() {
   local payload="$1"
   test -x "$payload/bin/agterm-linux"
@@ -73,7 +82,11 @@ verify_payload() {
   test -r "$payload/bin/agterm-linux_AgtermLinux.resources/hud/hud.sh"
   test -s "$payload/bin/agterm-linux_AgtermLinux.resources/live-prefill/.zshenv"
   test -f "$payload/lib/libghostty.so"
-  "$ROOT/scripts/verify-linux-resources.sh" "$payload/share"
+  # The full catalog is checked in the vendor cache; a payload carries only the licensed themes.
+  test -s "$payload/share/ghostty/shell-integration/bash/ghostty.bash"
+  test -s "$payload/share/ghostty/shell-integration/zsh/ghostty-integration"
+  infocmp -A "$payload/share/terminfo" xterm-ghostty >/dev/null
+  python3 "$ROOT/scripts/linux-notices.py" verify-staged-themes "$payload"
   test -x "$payload/share/agterm/agent-status/agterm-agent-status.sh"
   test -x "$payload/share/agterm/agent-status/agterm-codex-status.sh"
   verify_pi_extension "$payload/share/agterm/agent-status/pi/agterm-status.ts"
@@ -91,6 +104,7 @@ verify_payload() {
   test -s "$payload/share/agterm/COMMIT"
   test -f "$payload/share/applications/io.github.melonamin.agterm.desktop"
   desktop-file-validate "$payload/share/applications/io.github.melonamin.agterm.desktop"
+  verify_app_icons "$payload/share"
   "$VERIFY_ARCH" "$payload/bin/agterm-linux.bin"
   for binary in agterm-linux.bin agtermctl.bin; do
     LD_LIBRARY_PATH="$payload/lib" ldd "$payload/bin/$binary" > "$WORK/$binary.ldd"
@@ -113,6 +127,8 @@ verify_payload "$WORK/tar/agterm-linux"
 [[ "$(dpkg-deb -f "$DEB" Version)" == "$PACKAGE_VERSION-1" ]]
 dpkg-deb -f "$DEB" Depends | grep -Fq 'libwebkitgtk-6.0-4'
 dpkg-deb -f "$DEB" Depends | grep -Fq 'python3'
+dpkg-deb -f "$DEB" Depends | tr ',' '\n' | grep -Eq '^[[:space:]]*jq[[:space:]]*$'
+dpkg-deb -f "$DEB" Depends | grep -Fq 'libcurl4t64'
 dpkg-deb -f "$DEB" Depends | grep -Fq 'librsvg2-common'
 dpkg-deb -f "$DEB" Depends | grep -Fq 'webp-pixbuf-loader'
 dpkg-deb -x "$DEB" "$WORK/deb"
@@ -124,7 +140,9 @@ verify_payload "$WORK/deb/opt/agterm-linux"
 [[ "$(rpm --dbpath "$WORK/rpmdb" -qp --queryformat '%{ARCH}' "$RPM")" == "$HOST_ARCH" ]]
 [[ "$(rpm --dbpath "$WORK/rpmdb" -qp --queryformat '%{VERSION}-%{RELEASE}' "$RPM")" == "$PACKAGE_VERSION-1" ]]
 rpm --dbpath "$WORK/rpmdb" -qp --requires "$RPM" | grep -Fq 'webkitgtk6.0'
+rpm --dbpath "$WORK/rpmdb" -qp --requires "$RPM" | grep -Fxq 'libcurl'
 rpm --dbpath "$WORK/rpmdb" -qp --requires "$RPM" | grep -Fq 'python3'
+rpm --dbpath "$WORK/rpmdb" -qp --requires "$RPM" | grep -Fxq 'jq'
 rpm --dbpath "$WORK/rpmdb" -qp --requires "$RPM" | grep -Fq 'webp-pixbuf-loader'
 (
   cd "$WORK/rpm"
@@ -141,13 +159,14 @@ verify_payload "$WORK/rpm/opt/agterm-linux"
 [[ "$(readlink "$WORK/rpm/usr/bin/agtermctl")" == '/opt/agterm-linux/bin/agtermctl' ]]
 
 if [[ -f "$ARCH" ]]; then
+  command -v zstd >/dev/null || { echo "zstd is required to verify the Arch package" >&2; exit 1; }
   [[ "$(awk -v name="$(basename "$ARCH")" '$2 == name { count++ } END { print count+0 }' "$CHECKSUMS")" == 1 ]]
   mkdir -p "$WORK/arch"
   tar -xf "$ARCH" -C "$WORK/arch"
   grep -Fxq 'pkgname = agterm-linux-bin' "$WORK/arch/.PKGINFO"
   grep -Fxq "pkgver = $VERSION-1" "$WORK/arch/.PKGINFO"
   grep -Fxq "arch = $HOST_ARCH" "$WORK/arch/.PKGINFO"
-  for dependency in bash glibc gtk4 libadwaita libepoxy webkitgtk-6.0 python librsvg webp-pixbuf-loader; do
+  for dependency in bash glibc gtk4 libadwaita libepoxy webkitgtk-6.0 python jq curl librsvg webp-pixbuf-loader; do
     grep -Fxq "depend = $dependency" "$WORK/arch/.PKGINFO"
   done
   verify_payload "$WORK/arch/usr/lib/agterm-linux"

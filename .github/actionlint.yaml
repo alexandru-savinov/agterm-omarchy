@@ -4,6 +4,18 @@
 # Scoped to the one workflow that sets it and to that one message; remove once the pinned actionlint
 # supports the key.
 paths:
+  # Actionlint 1.7.12 does not recognize GitHub's $/ syntax (rhysd/actionlint#760).
+  .github/workflows/auto-release.yml:
+    ignore:
+      - 'is not following the format "owner/repo/path/to/workflow.yml@ref"'
+  .github/workflows/auto-release-watch.yml:
+    ignore:
+      - 'is not following the format "owner/repo/path/to/workflow.yml@ref"'
   .github/workflows/atspi-targeted.yml:
     ignore:
       - 'unexpected key "cache-mode" for "workflow" section'
+  # GitHub's self-repository `uses: $/...` call (zizmor self-repository) is not parsed by actionlint 1.7.12
+  # (https://github.com/rhysd/actionlint/issues/760); remove once the pinned actionlint supports it.
+  .github/workflows/omarchy-native-gates-self-test.yml:
+    ignore:
+      - 'is not following the format "owner/repo/path/to/workflow.yml@ref"'

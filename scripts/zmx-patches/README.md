@@ -96,3 +96,8 @@ longer apply, and re-running `check.py`.
 `check.py <zmx>` drives managed clients on ptys of different sizes against one daemon in a throwaway
 `ZMX_DIR`, prints one line per rule, and exits nonzero when any of them is broken. Linux CI runs it
 against the vendored zmx, beside `scripts/tests/test_zmx_tty_restore.py`.
+- `0009-detached-create.patch` adds `attach --detached NAME [command...]`, which creates the session through
+  v1's own `create` and returns, exiting 1 when the session already answers. agterm-linux starts a hidden
+  pane's daemon this way when a remote viewer reaches a session it never drew (`LinuxOriginLaunch`). It is
+  the v1 form of the macOS set's `0008-detached-create` without that patch's `ZMX_EXIT_FILE` record, which
+  only agterm-server reads. `check.py` covers both outcomes; a Zig test covers the parser.
