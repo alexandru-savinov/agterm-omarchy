@@ -10,9 +10,9 @@ arch=(x86_64 aarch64)
 url="https://github.com/alexandru-savinov/agterm-omarchy"
 license=(MIT)
 # The archive's ELF NEEDED entries outside its own lib/, by owning package.
-depends=(bash cairo gdk-pixbuf2 glib2 glibc graphene gtk4 harfbuzz libadwaita
-         libepoxy libgcc libsoup3 libstdc++ pango python vulkan-icd-loader
-         webkitgtk-6.0)
+depends=(bash cairo curl gdk-pixbuf2 glib2 glibc graphene gtk4 harfbuzz
+         libadwaita libepoxy libgcc libsoup3 libstdc++ pango python
+         vulkan-icd-loader webkitgtk-6.0)
 optdepends=('zsh: Live session restore with zsh'
             'fish: Live session restore with fish')
 provides=(agterm-linux)
