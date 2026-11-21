@@ -37,7 +37,10 @@ class SuitePartitionTests(unittest.TestCase):
             self.calls.append(scenario)
             return (7 if scenario == self.failed else 0), int(scenario in self.retried)
 
-        namespace = dict(os=os, sys=sys, run_scenario=run_scenario,
+        def report_retry(message, env):
+            print(message)
+
+        namespace = dict(os=os, sys=sys, run_scenario=run_scenario, report_retry=report_retry,
                          BIN=__file__, CTL=__file__, __file__=str(source))
         exec(compile(ast.Module(body=[main], type_ignores=[]), str(source), 'exec'), namespace)
         self.main = namespace['main']

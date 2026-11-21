@@ -17,7 +17,7 @@ import traceback
 
 import gi
 
-from atspi_retry import run_scenario
+from atspi_retry import report_retry, run_scenario
 
 gi.require_version("Atspi", "2.0")
 gi.require_version("Gtk", "4.0")
@@ -7776,8 +7776,8 @@ def main():
                 failures.append((child_scenario, status))
             elif extra:
                 recovered += 1
-        print(f"AT-SPI retry summary: shard={shard_index} extra_attempts={retries} "
-              f"recovered={recovered} exhausted={retries - recovered}", flush=True)
+        report_retry(f"AT-SPI retry summary: shard={shard_index} extra_attempts={retries} "
+                     f"recovered={recovered} exhausted={retries - recovered}", os.environ)
         if failures:
             print("FAILED: " + ", ".join(f"{name} ({code})" for name, code in failures))
             return failures[0][1]
