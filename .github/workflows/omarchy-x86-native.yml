@@ -244,9 +244,9 @@ jobs:
       X86_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
       # Arch Linux ARM's own aarch64 rootfs: Docker's official archlinux image is x86_64 only, and a
       # community multi-arch image would make a third party's build the trust root for the keyring.
-      # os.archlinuxarm.org serves no valid HTTPS certificate and rebuilds this URL in place, so the bytes are
-      # pinned twice: the build system's signature, and a reviewed digest that blocks replaying an older pair.
-      ALARM_ROOTFS: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+      # The official California mirror serves the rootfs over HTTPS. Keep the builder signature and reviewed
+      # digest pinned because Arch Linux ARM can replace the bytes at this URL.
+      ALARM_ROOTFS: https://ca.us.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
       ALARM_ROOTFS_SHA256: 42a4eeaa038994ffd31fa173256ef2f0ef511358eeb41b9ea1f8626391b9b319
       ALARM_KEY: 68B3537F39A313B3E574D06777193F152BDBE6A6
     steps:
@@ -343,8 +343,10 @@ jobs:
           fi
           rootfs="$RUNNER_TEMP/alarm"
           mkdir -p "$rootfs"
-          curl -fsSL --retry 5 --retry-all-errors -o "$rootfs/rootfs.tar.gz" "$ALARM_ROOTFS"
-          curl -fsSL --retry 5 --retry-all-errors -o "$rootfs/rootfs.tar.gz.sig" "$ALARM_ROOTFS.sig"
+          curl --disable -fsSL --proto '=https' --proto-redir '=https' \
+            --retry 5 --retry-all-errors -o "$rootfs/rootfs.tar.gz" "$ALARM_ROOTFS"
+          curl --disable -fsSL --proto '=https' --proto-redir '=https' \
+            --retry 5 --retry-all-errors -o "$rootfs/rootfs.tar.gz.sig" "$ALARM_ROOTFS.sig"
           export GNUPGHOME="$rootfs/gnupg"
           install -d -m 0700 "$GNUPGHOME"
           [[ "$(gpg --show-keys --with-colons "$KEY_FILE" | awk -F: '$1 == "fpr" { print $10; exit }')" == "$ALARM_KEY" ]]
