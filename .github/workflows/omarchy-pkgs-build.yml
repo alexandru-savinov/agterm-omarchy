@@ -102,8 +102,12 @@ jobs:
         # check-shadowed compares against Arch's x86_64 repositories; the other checks read recipes only.
         # They run even when the package inspection fails, so one run reports both.
         if: ${{ !cancelled() && steps.build.outcome == 'success' && matrix.arch == 'x86_64' }}
+        env:
+          # As omarchy-pkgs' sync-upstream.yml does: unauthenticated release-list calls from shared runners
+          # hit GitHub's API limit (curl exit 22), and upstream-watch sends this only to api.github.com.
+          UPSTREAM_GITHUB_TOKEN: ${{ github.token }}
         run: |
-          docker run --rm -v "$PWD/.github/omarchy-pkgs-build:/scripts:ro" \
+          docker run --rm -e UPSTREAM_GITHUB_TOKEN -v "$PWD/.github/omarchy-pkgs-build:/scripts:ro" \
             -v "$PWD/packaging/omarchy-pkgs/owners.json.line:/owners.json.line:ro" \
             -v "$PWD/omarchy-pkgs:/src:ro" -v "$RUNNER_TEMP/out:/out" \
             "$ARCH_IMAGE" bash -lc '
