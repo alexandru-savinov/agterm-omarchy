@@ -65,7 +65,7 @@ which records the source commit, the CI run and the archive digests.
 
 Releases are normally cut automatically from `main`:
 
-1. Omarchy CI builds and tests both architectures only when a push to `main` changes a path its `swift` path filter covers (see the `changes` job in `.github/workflows/omarchy-ci.yml`); other pushes skip those jobs and cut no release.
+1. Omarchy CI builds and tests both architectures only when the `changes` job in `.github/workflows/omarchy-ci.yml` marks a push to `main` as a product change (its `product` output); other pushes skip those jobs and cut no release.
 2. The native gates install those CI archives and test them on x86_64 and aarch64.
 3. Only if both architectures pass, promotion checks that the downloaded CI archives match the SHA-256 digests
    that passed the gates, then writes version-stamped release archives (the same files with `share/agterm/VERSION` set,
