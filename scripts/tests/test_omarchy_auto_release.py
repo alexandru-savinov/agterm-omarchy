@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline tests for the automatic release workflow and incident actions."""
 
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import chdir, redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import io
@@ -90,6 +90,46 @@ def promotion_steps(names):
     return [{"name": name, "conclusion": "success"} for name in names]
 
 
+class ReleaseBaseTests(unittest.TestCase):
+    def resolve(self, *response, head=SHA):
+        with patch.object(auto.promotion, "api", side_effect=response) as api, \
+             patch.object(auto.promotion, "write_outputs") as outputs, \
+             patch.object(sys, "argv", ["auto-release", "ci-release-base", head]), \
+             redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            auto.main()
+        return api.call_args_list, outputs.call_args.args[0]
+
+    def test_compares_the_newest_stable_omarchy_tag_with_the_exact_push_sha(self):
+        rows = [[RELEASE | {"tag_name": "omarchy-v0.43.0.9"}, RELEASE | {"tag_name": "other-v2.0"}],
+                [RELEASE | {"tag_name": "omarchy-v0.43.0.10"},
+                 RELEASE | {"tag_name": "omarchy-v0.43.0.11", "prerelease": True},
+                 RELEASE | {"tag_name": "omarchy-v0.43.0.12", "draft": True},
+                 RELEASE | {"tag_name": "omarchy-v0.43.0.13", "published_at": None}]]
+        for status, base in (("ahead", "b" * 40), ("identical", SHA)):
+            with self.subTest(status=status):
+                comparison = {"status": status, "base_commit": {"sha": base}, "merge_base_commit": {"sha": base}}
+                calls, outputs = self.resolve(rows, comparison)
+                self.assertEqual(calls[0].args, (auto.RELEASES_PATH,))
+                self.assertEqual(calls[0].kwargs, {"pages": True})
+                self.assertEqual(calls[1].args, (f"compare/refs/tags/omarchy-v0.43.0.10...{SHA}?per_page=1",))
+                self.assertEqual(outputs, {"sha": base, "full_build": "false"})
+
+    def test_missing_or_unusable_release_bases_require_a_full_build(self):
+        good_base = {"sha": "b" * 40}
+        cases = (([[]],), (subprocess.CalledProcessError(1, ["gh", "api"]),),
+                 ([[RELEASE]], subprocess.CalledProcessError(1, ["gh", "api"])),
+                 ([[RELEASE]], {"status": "behind", "base_commit": good_base, "merge_base_commit": {"sha": SHA}}),
+                 ([[RELEASE]], {"status": "ahead", "base_commit": good_base, "merge_base_commit": {"sha": SHA}}),
+                 ([[RELEASE]], {"status": "ahead", "base_commit": {"sha": "bad"}, "merge_base_commit": good_base}))
+        for response in cases:
+            with self.subTest(response=response):
+                _, outputs = self.resolve(*response)
+                self.assertEqual(outputs, {"sha": "", "full_build": "true"})
+        calls, outputs = self.resolve(head="main")
+        self.assertEqual(calls, [])
+        self.assertEqual(outputs, {"sha": "", "full_build": "true"})
+
+
 class PlanTests(unittest.TestCase):
     def setUp(self):
         env = patch.dict(os.environ, {"SYNC_PAUSED": "", "GITHUB_RUN_ID": "456"})
@@ -130,6 +170,113 @@ class PlanTests(unittest.TestCase):
         ]):
             self.assertIsNone(auto.plan(EVENT)[0])
 
+    def test_same_product_as_the_latest_stable_or_demoted_release_skips_with_a_summary(self):
+        with tempfile.TemporaryDirectory() as directory, chdir(directory):
+            def git(*args):
+                return subprocess.check_output(['git', *args], text=True).strip()
+
+            def commit(message):
+                git('add', '.')
+                git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', message)
+                return git('rev-parse', 'HEAD')
+
+            git('init', '-q')
+            product = Path('agterm-linux/Sources/Example.swift')
+            product.parent.mkdir(parents=True)
+            product.write_text('let version = 1\n')
+            workflow = Path(auto.promotion.WORKFLOW)
+            workflow.parent.mkdir(parents=True)
+            workflow.write_text((REPO / workflow).read_text())
+            released = commit('Product release')
+            Path('README.md').write_text('Updated documentation\n')
+            guide = Path('packaging/linux/omarchy.md')
+            guide.parent.mkdir(parents=True)
+            guide.write_text('Updated install guide\n')
+            workflow.write_text(workflow.read_text().replace('  cancel-in-progress: true', '  cancel-in-progress: false', 1))
+            metadata_only = commit('Documentation and CI routing changes')
+            product.write_text('let version = 2\n')
+            changed_product = commit('Product change')
+            product.write_text('let version = 1\n')
+            workflow.write_text(workflow.read_text().replace(
+                '    container: ${{ matrix.container }}', '    container: example.invalid/new-build-image', 1))
+            changed_recipe = commit('Build image change')
+
+            for sha, demoted, skips in ((metadata_only, False, True), (metadata_only, True, True),
+                                        (changed_product, True, False), (changed_recipe, True, False)):
+                with self.subTest(sha=sha, demoted=demoted, skips=skips):
+                    summary = Path(directory) / 'summary.md'
+                    summary.write_text('')
+                    event = {'workflow_run': EVENT['workflow_run'] | {'head_sha': sha}}
+                    run = event['workflow_run'] | {
+                        'status': 'completed', 'name': 'Omarchy CI', 'workflow_id': 4,
+                        'path': auto.promotion.WORKFLOW, 'repository': {'full_name': auto.promotion.REPOSITORY},
+                    }
+                    latest_tag = 'omarchy-v0.43.0.3'
+                    comparison = {'status': 'ahead', 'base_commit': {'sha': released},
+                                  'merge_base_commit': {'sha': released}}
+                    fixtures = {'git/ref/heads/main': {'object': {'sha': sha}}, 'actions/runs/123': run,
+                                OPEN_INCIDENTS: [[]], 'actions/workflows/omarchy-ci.yml': {'id': 4},
+                                auto.RELEASES_PATH: [[RELEASE, RELEASE | {'prerelease': demoted, 'tag_name': latest_tag}]],
+                                f'compare/refs/tags/{latest_tag}...{sha}?per_page=1': comparison,
+                                'git/matching-refs/tags/omarchy-v?per_page=100': [[]]}
+                    for status in auto.ACTIVE_PROMOTION_STATUSES:
+                        url = f'{auto.PROMOTION_RUNS}?branch=main&event=workflow_dispatch&status={status}&per_page=1'
+                        fixtures[url] = {'total_count': 0}
+                    with patch.object(auto.promotion, 'api', side_effect=lambda path, **kw: fixtures[path]), \
+                         patch.object(auto.promotion, 'source_base', return_value='0.43.0'), \
+                         patch.object(auto.promotion, 'write_outputs') as outputs, \
+                         patch.object(auto, 'read_event', return_value=event), \
+                         patch.object(sys, 'argv', ['auto-release', 'plan']), \
+                         patch.dict(os.environ, {'GITHUB_STEP_SUMMARY': str(summary)}), redirect_stdout(io.StringIO()):
+                        auto.main()
+                    if skips:
+                        outputs.assert_called_once_with({})
+                        self.assertIn(f'Skipped: Product tree matches {latest_tag}', summary.read_text())
+                    else:
+                        self.assertEqual(outputs.call_args.args[0]['sha'], sha)
+
+    def test_unavailable_product_comparison_proceeds_with_a_summary(self):
+        run = EVENT["workflow_run"] | {
+            "status": "completed", "name": "Omarchy CI", "workflow_id": 4,
+            "path": auto.promotion.WORKFLOW, "repository": {"full_name": auto.promotion.REPOSITORY},
+        }
+        compare_path = f"compare/refs/tags/{TAG}...{SHA}?per_page=1"
+        fixtures = {"git/ref/heads/main": {"object": {"sha": SHA}}, "actions/runs/123": run,
+                    OPEN_INCIDENTS: [[]], "actions/workflows/omarchy-ci.yml": {"id": 4},
+                    auto.RELEASES_PATH: [[RELEASE]], "git/matching-refs/tags/omarchy-v?per_page=100": [[]]}
+        for status in auto.ACTIVE_PROMOTION_STATUSES:
+            fixtures[f"{auto.PROMOTION_RUNS}?branch=main&event=workflow_dispatch&status={status}&per_page=1"] = {
+                "total_count": 0}
+        base_commit = {"sha": "b" * 40}
+        cases = (
+            ({"status": "ahead"}, None, "base_commit"),
+            ({"status": "ahead", "base_commit": None}, None, "TypeError"),
+            ({"status": "ahead", "base_commit": base_commit},
+             subprocess.CalledProcessError(128, ["git", "fetch"]), "fetch"),
+            ({"status": "ahead", "base_commit": base_commit},
+             subprocess.CalledProcessError(2, ["git", "diff"]), "diff"),
+            ({"status": "ahead", "base_commit": base_commit},
+             ValueError("Cannot identify the Omarchy build recipe"), "build recipe"),
+        )
+        for comparison, error, detail in cases:
+            with self.subTest(comparison=comparison, error=error), tempfile.TemporaryDirectory() as directory:
+                summary = Path(directory) / "summary.md"
+                fixtures[compare_path] = comparison
+                with patch.object(auto.promotion, "api", side_effect=lambda path, **kw: fixtures[path]), \
+                     patch.object(auto.promotion, "source_base", return_value="0.43.0"), \
+                     patch.object(auto.promotion, "write_outputs") as outputs, \
+                     patch.object(auto, "read_event", return_value=EVENT), \
+                     patch.object(auto, "same_product", side_effect=error) as same_product, \
+                     patch.object(sys, "argv", ["auto-release", "plan"]), \
+                     patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}), \
+                     redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    auto.main()
+                outputs.assert_called_once_with(CANDIDATE | {"version": "0.43.0.3"})
+                self.assertIn("Proceeding with release checks", summary.read_text())
+                self.assertIn(detail, summary.read_text())
+                if error is None:
+                    same_product.assert_not_called()
+
     def test_candidate_uses_source_base_and_all_reserved_versions(self):
         run = EVENT["workflow_run"] | {
             "status": "completed", "name": "Omarchy CI", "workflow_id": 4, "path": auto.promotion.WORKFLOW,
@@ -140,7 +287,8 @@ class PlanTests(unittest.TestCase):
                     OPEN_INCIDENTS: [[]],
                     "actions/workflows/omarchy-ci.yml": {"id": 4},
                     auto.RELEASES_PATH: [[RELEASE | {"prerelease": True}]],
-                    f"compare/{TAG}...{SHA}": {"status": "ahead"},
+                    f"compare/refs/tags/{TAG}...{SHA}?per_page=1": {
+                        "status": "ahead", "base_commit": {"sha": "b" * 40}},
                     "git/matching-refs/tags/omarchy-v?per_page=100": [[{"ref": "refs/tags/omarchy-v0.43.0.10"}]]}
         run_filters = f"{auto.PROMOTION_RUNS}?branch=main&event=workflow_dispatch"
         fixtures.update({f"{run_filters}&status={status}&per_page=1": {"total_count": 0}
@@ -149,7 +297,7 @@ class PlanTests(unittest.TestCase):
         def api(path, **kwargs):
             return fixtures[path]
 
-        with patch.object(auto.promotion, "api", side_effect=api), \
+        with patch.object(auto.promotion, "api", side_effect=api), patch.object(auto, "same_product", return_value=False), \
              patch.object(auto.promotion, "source_base", return_value="0.43.0") as source_base:
             self.assertEqual(auto.plan(EVENT)[0], CANDIDATE | {"version": "0.43.0.11"})
             self.assertEqual(source_base.call_args.args[1], SHA)
@@ -158,7 +306,7 @@ class PlanTests(unittest.TestCase):
                 self.assertEqual(auto.plan(EVENT), (None, "A promotion workflow is already active"))
                 serial.assert_not_called()
             fixtures[f"{run_filters}&status=queued&per_page=1"]["total_count"] = 0
-            fixtures[f"compare/{TAG}...{SHA}"]["status"] = "identical"
+            fixtures[f"compare/refs/tags/{TAG}...{SHA}?per_page=1"]["status"] = "identical"
             self.assertIsNone(auto.plan(EVENT)[0])
             source_base.return_value = "0.41.1"
             self.assertIsNone(auto.plan(EVENT)[0])
