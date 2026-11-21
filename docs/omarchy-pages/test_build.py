@@ -63,7 +63,9 @@ class PagesTests(unittest.TestCase):
                 self.assertIn("/issues/124", page)
                 self.assertIn("/issues/126", page)
                 self.assertIn("default-bash Live", page)
-                self.assertIn("native x86_64 acceptance remain unverified", page)
+                self.assertIn("native x86_64 acceptance were not verified", page)
+                self.assertNotIn("remain unverified", page)
+                self.assertNotIn("/issues/17", page)
                 self.assertIn("load state, not pixel rendering", page)
                 self.assertIn("seven ordinary Wayland checks and an actual desktop-entry launch", page)
                 self.assertIn("6560840863", page)
@@ -71,7 +73,7 @@ class PagesTests(unittest.TestCase):
                 self.assertIn("41243677540", page)
                 self.assertIn("355c82ef", page)
                 self.assertIn("no ARM64 runtime archive", page)
-                self.assertIn("Hardware rendering", page)
+                self.assertIn("hardware rendering", page)
                 self.assertIn("5e37cb75", page)
                 self.assertIn("8458e16d", page)
                 self.assertNotIn("compositor-focus timeout", page)
@@ -156,34 +158,35 @@ class PagesTests(unittest.TestCase):
             build.write_site(temporary, [], "0123456")
             root = Path(temporary)
             data = json.loads((root / "status.json").read_text())
-            self.assertEqual(data["readiness"], "work-in-progress")
-            self.assertEqual(data["upstream_baseline"], "v0.35.1")
+            self.assertEqual(data["readiness"], "released")
+            self.assertEqual(data["releases"], build.BASE + "/releases")
+            self.assertEqual(data["upstream_baseline"], "v0.43.0")
             self.assertEqual(data["commit"], "0123456")
             self.assertTrue((root / "style.css").stat().st_size > 0)
             self.assertTrue((root / ".nojekyll").exists())
-            self.assertIn("not a verified stable release", (root / "index.html").read_text())
+            index = (root / "index.html").read_text()
+            self.assertIn(build.BASE + "/releases/latest", index)
+            self.assertNotIn("v0.35.1", index)
 
-    def test_current_goal_is_visible_without_a_task_row_or_queue(self):
+    def test_release_status_leads_both_pages_without_a_task_row_or_queue(self):
         issues = [{"number": n, "title": str(n), "state": "open"} for n in range(1, 21)]
         with tempfile.TemporaryDirectory() as temporary:
             build.write_site(temporary, issues, "a" * 40, limit=10)
             root = Path(temporary)
             data = json.loads((root / "status.json").read_text())
-            self.assertNotIn(305, [task["number"] for task in data["tasks"]])
-            self.assertEqual(data["readiness"], "work-in-progress")
+            self.assertEqual(data["readiness"], "released")
             for name in ("index.html", "team.html"):
                 with self.subTest(page=name):
                     page = (root / name).read_text()
-                    current = page.split('id="current-validation"', 1)[1].split("</section>", 1)[0]
-                    for target in ("issues/305", "issues/199", "issues/310", "issues/320", "pull/317", "pull/322"):
-                        self.assertIn(build.BASE + "/" + target, current)
-                    self.assertIn("Current acceptance remains incomplete.", current)
-                    self.assertIn("bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d", current)
-                    self.assertIn("one changed library", current)
-                    self.assertIn("Full-source candidate:", current)
-                    self.assertIn("not bash Live support", current)
-                    self.assertIn("same-account review is not independent approval", current)
-                    self.assertLess(page.index('id="current-validation"'), page.index("6775c336"))
+                    current = page.split('id="releases"', 1)[1].split("</section>", 1)[0]
+                    for target in ("releases/latest", "releases", "#install", "blob/main/packaging/linux/prerelease-omarchy.md"):
+                        self.assertIn(build.BASE + ("" if target.startswith("#") else "/") + target, current)
+                    self.assertIn("both architectures", current)
+                    self.assertIn("build-provenance attestations", current)
+                    self.assertIn("marks the release as a prerelease", current)
+                    self.assertIn("hardware GPU rendering", current)
+                    self.assertNotIn("Current acceptance remains incomplete", page)
+                    self.assertLess(page.index('id="releases"'), page.index("6775c336"))
 
     def test_issues_only_sorted_open_first_and_limited(self):
         issues = [{"number": n, "title": str(n), "state": "closed" if n == 1 else "open"}

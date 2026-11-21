@@ -1,45 +1,124 @@
-# agterm-linux - Linux-maintained agterm fork
-
-> **The exact ARM64 candidate passed native checks; development release work remains.** This is the Omarchy fork of the v0.35.1 Linux frontend.
-> Candidate `6775c336` passed trusted hosted CI on both architectures and native Omarchy acceptance on ARM64. The port is integrated on `main` through [PR #6](https://github.com/alexandru-savinov/agterm-omarchy/pull/6); prerelease publication remains pending.
-> Visit the [public project hub](https://alexandru-savinov.github.io/agterm-omarchy/), claim work in the [orchestration issue](https://github.com/alexandru-savinov/agterm-omarchy/issues/1), and read the [agent collaboration protocol](docs/AGENT_PROTOCOL.md).
-
-| Area | Verified status and next step |
-|---|---|
-| Join and coordinate | Public repository, task claims, and reviews are ready in [hub #1](https://github.com/alexandru-savinov/agterm-omarchy/issues/1). |
-| Install from source | Start with the [Omarchy / Arch guide](packaging/linux/omarchy.md) for this fork's checkout, dependencies, renderer selection and test prerequisites. |
-| Native Omarchy ARM64 | The unchanged `6775c336` ARM64 archive (SHA256 prefix `2b629e40`) passed 7 ordinary and 9 Live checks, restart continuity, cleanup and preservation; inspect the [checksummed results and provenance](https://github.com/alexandru-savinov/agterm-omarchy/tree/48e70b33651ca8855f8cef5bd57f50afa67ed291/docs/evidence/omarchy-6775c336-2026-11-01). |
-| Hosted architectures | Trusted [run 41357189891](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/41357189891) passed for ARM64 and x86_64 at that source; both archives passed provenance, checksum and architecture validation. [PR #6](https://github.com/alexandru-savinov/agterm-omarchy/pull/6) integrated the accepted source on `main` at [`c88a5b64`](https://github.com/alexandru-savinov/agterm-omarchy/commit/c88a5b641795a75ebbc0c4e2da1f85f548fb059f). |
-| Application downloads | Prerelease publication remains tracked in [#17](https://github.com/alexandru-savinov/agterm-omarchy/issues/17); no application release has been published in this acceptance snapshot. |
-
-The exact-candidate UTM acceptance used software rendering, a process-local zsh login-shell fixture,
-and an external private-runtime adapter; the installed app, pre-existing processes and actual bash login shell were preserved.
-Hardware rendering, default-bash Live support and native x86_64 acceptance remain unverified.
-The WebKit check establishes load state, not pixel rendering.
-The separately reproduced generated-config path collision is tracked in [#124](https://github.com/alexandru-savinov/agterm-omarchy/issues/124)
-and the fix proposal in [#126](https://github.com/alexandru-savinov/agterm-omarchy/issues/126); test isolation did not change the application source.
-The [earlier fd85fc58 acceptance](https://github.com/alexandru-savinov/agterm-omarchy/tree/4d05d60c928c52b04df2ba51c1861cc1b90b8326/docs/evidence/omarchy-fd85fc58-2026-11-01) retains its own archive identity.
-Earlier installation/renderer evidence remains in the [older native bundle](docs/evidence/omarchy-arm64-2026-10-29/)
-and [renderer acceptance](https://github.com/alexandru-savinov/agterm-omarchy/pull/116).
-
-[![Build Status](https://github.com/melonamin/agterm-linux/workflows/build/badge.svg)](https://github.com/melonamin/agterm-linux/actions)
+# agterm for Omarchy
 
 [![Omarchy CI](https://github.com/alexandru-savinov/agterm-omarchy/actions/workflows/omarchy-ci.yml/badge.svg?branch=main)](https://github.com/alexandru-savinov/agterm-omarchy/actions/workflows/omarchy-ci.yml)
 
-**[agterm.com](https://agterm.com)** · [Documentation](https://agterm.com/docs) · [Command reference](https://agterm.com/commands) · [Cookbook](cookbook/)
+agterm is a terminal for running many shells and coding agents side by side.
+It groups sessions into named workspaces, shows which agent session needs you,
+and can be driven through a control API and the `agtermctl` CLI.
+This repository builds and releases the native GTK4/libadwaita Linux version of agterm
+for [Omarchy](https://github.com/basecamp/omarchy) and Arch Linux on x86_64 and aarch64.
+It is based on [umputun/agterm](https://github.com/umputun/agterm), the original macOS app,
+and [melonamin/agterm-linux](https://github.com/melonamin/agterm-linux), its Linux port.
 
-`agterm-linux` is a Linux-maintained fork of [agterm](https://github.com/umputun/agterm).
-It exists to maintain the GTK/libadwaita Linux frontend while tracking upstream agterm as closely
-as possible.
+## Install
 
-Fork goals:
+Download the [latest release](https://github.com/alexandru-savinov/agterm-omarchy/releases/latest)
+for your architecture, verify it, and install the extracted payload into `~/.local`.
+The block runs in a subshell with `set -eu`, so a failed checksum or attestation stops it before anything is extracted or installed:
 
-- Maintain 1:1 feature parity with upstream macOS agterm where the Linux platform allows it.
-- Keep shared controller/core behavior upstream-compatible and host-free.
-- Keep Linux-specific code isolated to the Linux UI, Linux packaging, and platform adapters.
-- Avoid product, protocol, or UX divergence unless required by Linux platform constraints.
+```sh
+(
+  set -eu
+  mkdir agterm-release
+  cd agterm-release
+  repo=alexandru-savinov/agterm-omarchy
+  arch=$(uname -m)  # x86_64 or aarch64
+  tag=$(gh release view --repo "$repo" --json tagName --jq .tagName)
+  gh release download "$tag" --repo "$repo" --pattern "agterm-omarchy-*-$arch.tar.gz" --pattern SHA256SUMS
+  sha256sum --check --ignore-missing SHA256SUMS
+  gh attestation verify agterm-omarchy-*-"$arch".tar.gz --repo "$repo" \
+    --signer-workflow "$repo/.github/workflows/prerelease-omarchy.yml" --source-ref refs/heads/main
+  tar -xzf agterm-omarchy-*-"$arch".tar.gz  # unpacks agterm-stage/
+  git clone --depth 1 --branch "$tag" "https://github.com/$repo.git"  # installer at the release's source commit
+  agterm-omarchy/scripts/install-linux.sh --payload agterm-stage
+)
+```
 
-For macOS builds, releases, and support, use [upstream agterm](https://github.com/umputun/agterm).
+The archive needs GTK4, libadwaita, WebKitGTK 6 and platform system libraries; the installer needs `python3`.
+The installer puts the runtime under `~/.local/lib/agterm`, commands under `~/.local/bin`,
+and an **agterm** entry in the application launcher.
+It does not change your Hyprland configuration or default terminal.
+Remove it from the same directory with `agterm-release/agterm-omarchy/scripts/install-linux.sh --uninstall`.
+
+If a VM reports `No EGL configuration available` or another OpenGL context error, start agterm with Mesa software rendering:
+`LIBGL_ALWAYS_SOFTWARE=1 ~/.local/bin/agterm-linux`.
+Add `--software-rendering` to the install command to keep that setting; see
+[Rendering](packaging/linux/omarchy.md#rendering).
+
+To build from source instead, follow the [Omarchy / Arch guide](packaging/linux/omarchy.md):
+
+```sh
+git clone --branch main https://github.com/alexandru-savinov/agterm-omarchy.git
+cd agterm-omarchy
+scripts/setup-omarchy.sh
+mise exec swift@6.3.2 -- scripts/install-linux.sh
+```
+
+A package for the Omarchy package repository is planned.
+
+## Releases and verification
+
+Releases are tagged `omarchy-v<upstream version>.<serial>`.
+For example, `omarchy-v0.43.0.2` is built from upstream agterm 0.43.0.
+Each release has one archive per architecture, a `SHA256SUMS` file, and `promotion.json`,
+which records the source commit, the CI run and the archive digests.
+
+Releases are normally cut automatically from `main`:
+
+1. Omarchy CI builds and tests both architectures only when the `changes` job in `.github/workflows/omarchy-ci.yml` marks a push to `main` as a product change (its `product` output); other pushes skip those jobs and cut no release.
+2. The native gates install those CI archives and test them on x86_64 and aarch64.
+3. Only if both architectures pass, promotion checks that the downloaded CI archives match the SHA-256 digests
+   that passed the gates, then writes version-stamped release archives (the same files with `share/agterm/VERSION` set,
+   numeric root ownership and a timestamp-free gzip header, so their digests differ) and publishes them with GitHub build-provenance attestations.
+   `promotion.json` records both the tested and the released digest of each archive.
+4. The native gates run again on the published release archives, right away and every two hours for 24 hours.
+   A confirmed failure marks the release as a prerelease and opens a `release-incident` issue,
+   which pauses automatic releases until it is closed.
+
+A release cut this way has an `auto_release_run_id` in its `promotion.json`.
+A maintainer can also publish a versioned release by dispatching the promotion workflow by hand.
+That path does not require native gate results, is not paused by a `release-incident` issue,
+and is not covered by the 24-hour watch.
+
+The native gates run an Arch Linux (x86_64) or Arch Linux ARM (aarch64) container with the Omarchy desktop packages
+that are in the official Arch repositories, installed from Omarchy's stable package mirror, and Hyprland on a virtual display with Mesa software rendering.
+They check ordinary sessions, Live session restore, generated configuration and uninstall.
+They do not test an Omarchy ISO installation or hardware GPU rendering.
+
+Releases tagged `omarchy-dev-*` are development prereleases.
+Release mechanics are documented in [packaging/linux/prerelease-omarchy.md](packaging/linux/prerelease-omarchy.md).
+
+## Supported systems
+
+- Omarchy or Arch Linux on x86_64, and Omarchy or Arch Linux ARM on aarch64.
+  Each architecture has its own archive.
+- Wayland under Hyprland; GTK selects native Wayland there.
+  See the [Wayland support matrix](agterm-linux/docs/x11-wayland.md) for compositor-owned behavior.
+- Live session restore needs zsh or fish as the login shell, or an absolute zsh or fish path in Ghostty's `command` setting;
+  see [Restore limitations](#restore-limitations).
+- This repository does not publish macOS builds.
+  Its macOS CI builds the app and runs the shared and app tests and lint (`make build`, `make test`, `make test-app`, `make lint`)
+  weekly and on demand, to keep shared changes compatible with upstream.
+  Use [upstream agterm](https://github.com/umputun/agterm) on macOS.
+
+## Relationship to upstreams
+
+- [umputun/agterm](https://github.com/umputun/agterm) is the original agterm: the macOS app and the
+  shared `agtermCore` library. It is MIT licensed.
+- [melonamin/agterm-linux](https://github.com/melonamin/agterm-linux) is the GTK4/libadwaita Linux port.
+  This repository merges its `linux-port` branch and keeps its application ID, `io.github.melonamin.agterm`.
+- This repository adds Omarchy setup, CI, native gates and release automation.
+
+User documentation for agterm itself is upstream: [agterm.com](https://agterm.com) ·
+[Documentation](https://agterm.com/docs) · [Command reference](https://agterm.com/commands) · [Cookbook](cookbook/).
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md). Ask questions as described in [SUPPORT.md](SUPPORT.md),
+and report vulnerabilities through [SECURITY.md](SECURITY.md).
+
+Development process: tasks are coordinated in GitHub issues; see the [collaboration protocol](docs/AGENT_PROTOCOL.md)
+and the [project hub](https://alexandru-savinov.github.io/agterm-omarchy/).
 
 ## Linux port
 
@@ -48,14 +127,9 @@ controller, control API, session model, keymap model, and `agtermctl` CLI used b
 The intent is not to create a separate product; it is to keep the Linux UI current with upstream
 features while preserving a small, reviewable downstream delta.
 
-Branches in this collaboration repository:
-
-- `main` is the default checkout for the integrated Omarchy port and ordinary contributions.
-- `omarchy` is the coordinated integration/candidate branch; a validation task may pin an exact SHA there.
-  Follow that task's source identity when reproducing its results.
-- The inherited `master` / `linux-port` names describe the source Linux fork's upstream-tracking model.
-  This repository promotes verified Omarchy CI artifacts from `main` or `omarchy`, as described in the
-  [prerelease guide](packaging/linux/prerelease-omarchy.md).
+`main` is this repository's default branch and the only source of versioned releases;
+development prereleases can also be promoted from `omarchy` branch CI runs.
+The inherited `master` / `linux-port` names belong to melonamin/agterm-linux's upstream-tracking model.
 
 Code layout:
 
@@ -213,6 +287,8 @@ You are not meant to write those lines by hand. Install the agent skill (Help �
 
 For the real terminal work, rendering, VT parsing, and shell I/O, `agterm` embeds [Ghostty](https://ghostty.org)'s engine (libghostty); everything above is `agterm`'s own.
 
+These screenshots show upstream agterm on macOS; the Linux version uses libadwaita window chrome.
+
 ![agterm](docs/screenshots/main.png)
 
 <details>
@@ -264,41 +340,7 @@ A file open in the quick terminal, the window's shared scratch overlay:
 
 </details>
 
-## Install
-
-### Linux
-
-For **Omarchy, Arch Linux or Arch Linux ARM**, follow the
-[source-install guide](packaging/linux/omarchy.md):
-
-```sh
-git clone --branch main https://github.com/alexandru-savinov/agterm-omarchy.git
-cd agterm-omarchy
-scripts/setup-omarchy.sh
-mise exec swift@6.3.2 -- scripts/install-linux.sh
-```
-
-Run setup as your desktop user and review its full `pacman -Syu` transaction.
-The installer builds Release and places the complete runtime under `~/.local/lib/agterm`.
-Launch `~/.local/bin/agterm-linux` or **agterm** from the desktop application menu.
-For VMs with the documented EGL failure, add `--software-rendering` to the install command;
-the [guide](packaging/linux/omarchy.md#rendering) explains persistence and the default-rendering option.
-
-Development downloads, when published, belong on
-[this repository's releases page](https://github.com/alexandru-savinov/agterm-omarchy/releases),
-with publication tracked in [#17](https://github.com/alexandru-savinov/agterm-omarchy/issues/17).
-Check each archive's architecture, source SHA, checksums and acceptance conditions.
-The [source Linux fork's releases](https://github.com/melonamin/agterm-linux/releases) are separate builds;
-its Debian/Fedora packages do not provide this Omarchy checkout's source or acceptance evidence.
-
-### macOS
-
-This fork does not publish macOS builds. Use [upstream agterm](https://github.com/umputun/agterm)
-for macOS releases and Homebrew installation.
-
-Pre-built upstream releases are for **Apple Silicon (arm64) Macs running macOS 14 or later**.
-
-### Optional integrations
+## Optional integrations
 
 None of these integrations is needed to use agterm as a terminal.
 On Linux, press **Ctrl+,** and open **Preferences ▸ Integrations**, or choose **Manage Integrations…** from the command palette.
@@ -322,7 +364,7 @@ The macOS upstream app exposes the equivalent one-time actions in its **Help** m
 
 ### Linux
 
-For Omarchy, Arch Linux, or Arch Linux ARM, start with the visible
+For Omarchy, Arch Linux, or Arch Linux ARM, start with the
 [installation steps above](#install) and the [Omarchy guide](packaging/linux/omarchy.md).
 It provisions the pinned toolchains and Arch compatibility libraries.
 The generic build steps below assume those prerequisites are already available.
@@ -372,19 +414,17 @@ It additionally requires nFPM, ImageMagick, RPM tools, and `cpio`.
 Choose a version for your package; this example labels a development build:
 
 ```sh
-scripts/package-linux.sh 0.35.1-dev.1
-scripts/verify-linux-packages.sh 0.35.1-dev.1
+scripts/package-linux.sh 0.43.0-dev.1
+scripts/verify-linux-packages.sh 0.43.0-dev.1
 ```
 
 The Arch build reuses `packaging/aur/PKGBUILD` with local, checksum-verified sources;
 it does not require the release to exist on GitHub or AUR credentials.
 It installs the package and exercises the installed GTK/WebKit/resources before exporting it.
-The release workflow attests and publishes the complete artifact set only after this check passes.
-Use `scripts/verify-published-linux-release.sh TAG --require-arch` to verify a new stable release;
-omit the option when checking historical releases that predate Arch artifacts.
-
-The GitHub release workflow pins and verifies nFPM before packaging.
-Branch and release CI compile the GTK package in Swift 6 language mode and run the complete real GTK
+These DEB/RPM/Arch packaging scripts come from melonamin/agterm-linux, whose `linux-v*` release workflow is
+disabled in this repository; this repository publishes tar archives, described in
+[Releases and verification](#releases-and-verification).
+Branch CI compiles the GTK package in Swift 6 language mode and runs the complete real GTK
 accessibility smoke suite in an isolated HOME, state directory, control socket, D-Bus session, and X display.
 
 Local helper scripts:
@@ -435,59 +475,18 @@ xcodebuild test -project agterm.xcodeproj -scheme agterm -destination 'platform=
 
 ## Fork maintenance
 
-The maintained Linux branch is updated by first syncing `master` from upstream, then merging it into
-`linux-port`:
-
-```sh
-git fetch upstream
-git switch master
-git merge --ff-only upstream/master
-git push origin master
-
-git switch linux-port
-git merge master
-```
+The `Upstream sync` workflow merges new commits from melonamin/agterm-linux's `linux-port` branch into `main`
+through pull requests; when `linux-port` lags an upstream agterm release, it can merge that release tag directly.
+The weekly `Upstream drift` workflow reports how far `main` is from `linux-port`.
 
 Shared `agtermCore` changes should stay portable, upstream-compatible, and acceptable to the macOS upstream.
 Linux-only behavior, including Glibc/socket portability and Linux CLI glue, belongs under `agterm-linux/`,
 `linux/`, `packaging/linux/`, or Linux-specific scripts.
 
-Linux releases use tags in the `linux-vX.Y.Z` namespace and are built from `linux-port` only.
-If Linux-only fixes must follow an already-published upstream-matched release, use an immutable
-`linux-vX.Y.Z+linux.N` revision tag instead of moving or replacing the published tag.
-The release workflow checks out the exact existing tag, reruns shared-core tests and strict SwiftLint,
-builds and validates the release formats, then publishes the x86_64 artifacts, consolidated SHA-256
-checksums, and GitHub build-provenance attestations.
-Release notes copy the matching upstream product notes, omit its macOS installation boilerplate, and
-append a separate Linux section with formats, compatibility, verification, and source details.
-
-Create and push the tag after the release commit is already on `linux-port`:
-
-```sh
-git switch linux-port
-git pull --ff-only origin linux-port
-git tag -a linux-v0.33.1 -m "agterm-linux v0.33.1"
-git push origin linux-v0.33.1
-```
-
-An existing tag can be rebuilt by running the workflow on that tag ref, so its provenance names the tag:
-
-```sh
-gh workflow run release-linux.yml --ref linux-v0.33.1 -f tag=linux-v0.33.1
-```
-
-Verify a downloaded release with either mechanism:
-
-```sh
-sha256sum --check agterm-linux-v0.33.1-SHA256SUMS
-gh attestation verify agterm-linux-v0.33.1-x86_64.tar.gz \
-  --repo melonamin/agterm-linux \
-  --signer-workflow melonamin/agterm-linux/.github/workflows/release-linux.yml \
-  --source-ref refs/tags/linux-v0.33.1
-```
-
+This repository publishes versioned `omarchy-v*` releases, described in [Releases and verification](#releases-and-verification),
+and `omarchy-dev-*` development prereleases.
+melonamin/agterm-linux publishes its own `linux-v*` tar, DEB and RPM releases; they are separate builds.
 The Flatpak manifest remains a local, experimental packaging path.
-It is not a release channel until host-shell execution is deliberately designed for the sandbox.
 
 ## Concepts
 
@@ -1064,7 +1063,7 @@ A generic bash/zsh/fish `shell/integration.sh` (or `.fish`) covers any agent lau
 
 ## Troubleshooting
 
-Where the logs and config live, how to read them, and the common problems (a keymap editor that will not open, a custom action that does nothing, missing notifications) are covered in [docs/troubleshooting.md](docs/troubleshooting.md). For a bug, open an [issue](https://github.com/umputun/agterm/issues/new); for a feature request or question, start a [Discussion](https://github.com/umputun/agterm/discussions/new).
+Where the logs and config live, how to read them, and the common problems (a keymap editor that will not open, a custom action that does nothing, missing notifications) are covered in [docs/troubleshooting.md](docs/troubleshooting.md). For bugs and questions about this Linux build, follow [SUPPORT.md](SUPPORT.md); macOS reports belong to [upstream agterm](https://github.com/umputun/agterm).
 
 ## Restore limitations
 
@@ -1076,7 +1075,8 @@ Restore always reconstructs the window/session structure. Three process-level li
    local primary and split processes in zmx daemons and reattaches on the next launch. A reboot removes those
    daemons, so the saved command is recreated instead. On Linux, neither mode runs a restored command by
    itself: it is pre-filled at the prompt and waits for Enter. Scratch, overlay, and Quick terminals never survive.
-   Live mode requires zsh or fish as the password-database login shell, plus bundled zmx and the matching shell integration.
+   Live mode requires zsh or fish as the password-database login shell or as an absolute shell path in Ghostty's `command` setting,
+   plus bundled zmx and the matching shell integration.
    Per-pane `session restore` overrides remain sticky and readable through `tree`; they are stored as shell
    code, so they must not contain secrets.
 2. The saved working directory depends on the `GHOSTTY_ACTION_PWD` callback, which only fires when the shell has Ghostty shell-integration / OSC 7 active (auto-injected for zsh, bash, fish, and nu when the shell-integration resources are present). If the working directory is never reported, a session restores to the directory it was created in.
@@ -1084,11 +1084,11 @@ Restore always reconstructs the window/session structure. Three process-level li
 
 ## Related projects
 
-A small ecosystem has grown around agterm. These are independent projects, not maintained here.
+A small ecosystem has grown around agterm. These are independent projects, not maintained in this repository.
 
 **Built on agterm**
 
-- [agterm-linux](https://github.com/melonamin/agterm-linux) by [@melonamin](https://github.com/melonamin) is a Linux port (GTK4/libadwaita) built on the shared, host-free `agtermCore`. The macOS app stays here; the Linux frontend lives in that fork.
+- [agterm-linux](https://github.com/melonamin/agterm-linux) by [@melonamin](https://github.com/melonamin) is the GTK4/libadwaita Linux port this repository is built from; see [Relationship to upstreams](#relationship-to-upstreams).
 - [Rook](https://github.com/jokius/rook) by [@jokius](https://github.com/jokius) is a native macOS terminal fork that takes agterm in a different direction, with features outside agterm's intended scope. Both projects are deliberately opinionated, with different ideas about where a focused agent terminal should stop.
 
 **Reimplementation**
