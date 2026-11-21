@@ -5,7 +5,7 @@ from pathlib import Path
 import signal
 import subprocess
 
-from atspi_smoke import launch, stop, wait_for
+from atspi_smoke import control_json, launch, stop, wait_for
 from x11_capture import capture
 
 
@@ -74,5 +74,17 @@ def verify_omarchy_theme(env):
         scoped.write_text(colors(scoped_color), encoding="utf-8")
         os.kill(process.pid, signal.SIGUSR2)
         expect(scoped_color, "SIGUSR2 reload of the scoped override")
+
+        scoped.unlink()
+        result = control_json(local, "theme", "set", "Dracula", "--json")
+        assert result["ok"], result
+        expect("282A36", "explicit agterm theme selection")
+        (directory / "ghostty.conf").write_text(colors(theme_a), encoding="utf-8")
+        generation.write_text("3\n", encoding="utf-8")
+        os.kill(process.pid, signal.SIGUSR2)
+        expect("282A36", "Omarchy generation bump with an explicit agterm theme")
+        scoped.write_text(colors(scoped_color), encoding="utf-8")
+        os.kill(process.pid, signal.SIGUSR2)
+        expect(scoped_color, "scoped override of an explicit agterm theme")
     finally:
         stop(process)

@@ -4,6 +4,7 @@ import CGtk
 struct LinuxGhosttyConfigLayers {
     let settings: [String]
     let omarchy: [String]
+    var prefersAgtermTheme = false
     var overlay: [String] = []
 
     func load(
@@ -23,7 +24,8 @@ struct LinuxGhosttyConfigLayers {
                 ghostty_config_load_recursive_files(config)
                 theme.insert("config-file =", at: 0)
             }
-            try storage.withConfigFile((theme + omarchy).joined(separator: "\n"), as: .theme) { path in
+            if !prefersAgtermTheme { theme += omarchy }
+            try storage.withConfigFile(theme.joined(separator: "\n"), as: .theme) { path in
                 path.withCString { ghostty_config_load_file(config, $0) }
             }
         }

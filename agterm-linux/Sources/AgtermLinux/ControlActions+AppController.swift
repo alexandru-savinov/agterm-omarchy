@@ -684,7 +684,7 @@ extension AppController: ControlActions {
                 settings.followSystemAppearance = nil
             }
         }
-        try? linuxSettingsStore().save(settings)
+        saveThemeSettings(settings)
         reloadConfig()
         return ControlResponse(ok: true, result: ControlResult(
             theme: currentTheme,

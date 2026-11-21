@@ -95,8 +95,11 @@ GTK selects native Wayland in a Hyprland session.
 agterm follows Omarchy’s terminal colors automatically when `~/.local/state/omarchy/current/theme/` exists.
 It loads the colors from `ghostty.conf` on startup and updates open terminals when you run `omarchy theme set`.
 Omarchy uses the same path under `$HOME` even when `XDG_STATE_HOME` is set.
-Your agterm-scoped `ghostty.conf` can override individual colors, and agterm’s own theme supplies the remaining defaults.
-Turn off **Follow the Omarchy theme** under **Settings ▸ General ▸ Ghostty Config** to use agterm’s own theme.
+An explicit agterm theme takes precedence over Omarchy, and your agterm-scoped `ghostty.conf`
+can override individual colors from either source.
+Select **Automatic (Omarchy)** under **Settings ▸ Appearance ▸ Terminal ▸ Theme** to resume following
+after choosing an agterm theme.
+Turn off **Follow the Omarchy theme** under **Settings ▸ General ▸ Ghostty Config** to disable the integration.
 Global Ghostty config inheritance is a separate preference.
 
 No Hyprland configuration or default terminal selection is changed by installation.

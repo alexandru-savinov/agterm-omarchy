@@ -129,6 +129,7 @@ final class GhosttyApp: @unchecked Sendable {
     private(set) var staticTitle: String?
 
     /// Build and finalize the base config and any per-surface overlay. The caller owns it.
+    @MainActor
     func buildConfig(settings: AppSettings, isDark: Bool, overlay: [String] = []) -> ghostty_config_t? {
         guard !isShutDown, let cfg = ghostty_config_new() else { return nil }
         var ready = false
@@ -140,9 +141,11 @@ final class GhosttyApp: @unchecked Sendable {
                 $0.withCString { ghostty_config_load_file(cfg, $0) }
             }
             let theme = OmarchyTheme()
+            let preference = OmarchyThemePreference()
             let layers = LinuxGhosttyConfigLayers(
                 settings: AppController.ghosttyLines(for: settings, isDark: isDark),
-                omarchy: OmarchyThemePreference().follows(theme) ? theme.colorLines() : [],
+                omarchy: preference.follows(theme) ? theme.colorLines() : [],
+                prefersAgtermTheme: preference.usesAgtermTheme(settings, previewing: AppController.themePreviewSettings != nil),
                 overlay: overlay)
             try layers.load(
                 into: cfg,

@@ -103,8 +103,17 @@ extension AppController {
     func applyTheme(_ name: String?) {
         Self.themePreviewSettings = nil
         let settings = Self.themeSettings(name, base: linuxSettingsStore().load())
-        try? linuxSettingsStore().save(settings)
+        saveThemeSettings(settings)
         applySettings(settings)
+    }
+
+    func saveThemeSettings(_ settings: AppSettings, explicitAgtermTheme: Bool = true) {
+        do {
+            try linuxSettingsStore().save(settings)
+            try OmarchyThemePreference().saveAgtermThemeChoice(explicit: explicitAgtermTheme)
+        } catch {
+            showToast("Could not save the terminal theme")
+        }
     }
 
     /// Rebuild the same finalized config used by the terminal when a chrome-only setting changes.

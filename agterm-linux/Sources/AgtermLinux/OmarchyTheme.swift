@@ -1,4 +1,5 @@
 import Foundation
+import agtermCore
 
 /// Omarchy publishes here even when XDG_STATE_HOME is set.
 struct OmarchyTheme {
@@ -69,23 +70,55 @@ struct OmarchyTheme {
     }
 }
 
-/// An explicit preference lives with Linux app state. Older profiles derive the default from Omarchy.
+/// The opt-in and any explicit selection of a default theme live with Linux app state.
 struct OmarchyThemePreference {
+    private struct Choices: Codable {
+        var follow: Bool?
+        var explicitAgtermTheme: Bool?
+    }
+
     let file: URL
 
     init(stateDirectory: URL = linuxStateDirectory()) {
         file = stateDirectory.appendingPathComponent("omarchy-theme.json")
     }
 
-    func load() -> Bool? {
-        guard let data = try? Data(contentsOf: file) else { return nil }
-        return try? JSONDecoder().decode(Bool.self, from: data)
-    }
+    func load() -> Bool? { loadChoices().follow }
 
     func follows(_ theme: OmarchyTheme) -> Bool { load() ?? theme.isInstalled }
 
+    func usesAgtermTheme(_ settings: AppSettings, previewing: Bool = false) -> Bool {
+        if previewing || settings.followSystemAppearance == true { return true }
+        // Named themes in existing settings are already explicit. The seeded name and Ghostty's
+        // built-in default need a marker to distinguish a deliberate choice from an old profile.
+        if let name = settings.theme ?? settings.darkTheme, !name.isEmpty, name != AppSettings.defaultTheme {
+            return true
+        }
+        return loadChoices().explicitAgtermTheme == true
+    }
+
     func save(_ follows: Bool) throws {
+        var choices = loadChoices()
+        choices.follow = follows
+        try saveChoices(choices)
+    }
+
+    func saveAgtermThemeChoice(explicit: Bool) throws {
+        var choices = loadChoices()
+        guard (choices.explicitAgtermTheme ?? false) != explicit else { return }
+        choices.explicitAgtermTheme = explicit ? true : nil
+        try saveChoices(choices)
+    }
+
+    private func loadChoices() -> Choices {
+        guard let data = try? Data(contentsOf: file) else { return Choices() }
+        let decoder = JSONDecoder()
+        return (try? decoder.decode(Choices.self, from: data))
+            ?? Choices(follow: try? decoder.decode(Bool.self, from: data))
+    }
+
+    private func saveChoices(_ choices: Choices) throws {
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try JSONEncoder().encode(follows).write(to: file, options: .atomic)
+        try JSONEncoder().encode(choices).write(to: file, options: .atomic)
     }
 }

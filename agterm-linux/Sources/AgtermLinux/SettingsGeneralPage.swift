@@ -106,7 +106,7 @@ extension AppController {
             cast(ghostty),
             W(preferencesSwitch(
                 "Follow the Omarchy theme",
-                subtitle: "Use Omarchy’s terminal colors and update them when the desktop theme changes",
+                subtitle: "Use Omarchy’s live terminal colors when Theme is set to Automatic",
                 active: OmarchyThemePreference().follows(OmarchyTheme()),
                 handler: unsafeBitCast(onSettingsFollowOmarchy, to: GCallback.self))))
         let edit = OpaquePointer(adw_action_row_new())
@@ -188,6 +188,7 @@ private let onSettingsFollowOmarchy: @MainActor @convention(c) (OpaquePointer?, 
         }
         if enabled { OmarchyThemeObserver.shared.start() } else { OmarchyThemeObserver.shared.stop() }
         reloadObservedGhosttyConfig()
+        controller.rebuildSettings(page: .general)
     }
 }
 private let onChooseSessionDirectory: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { button, _ in

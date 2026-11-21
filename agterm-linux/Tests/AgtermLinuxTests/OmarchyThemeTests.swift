@@ -58,6 +58,29 @@ struct OmarchyThemeTests {
         #expect(OmarchyThemePreference(stateDirectory: state).follows(theme))
     }
 
+    @Test func explicitThemeChoiceWinsEvenForTheSeededAndGhosttyDefaults() throws {
+        let root = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let preference = OmarchyThemePreference(stateDirectory: root)
+        let seeded = AppSettings(theme: AppSettings.defaultTheme)
+        #expect(!preference.usesAgtermTheme(seeded))
+        #expect(!preference.usesAgtermTheme(AppSettings()))
+        #expect(preference.usesAgtermTheme(AppSettings(theme: "Dracula")))
+        #expect(preference.usesAgtermTheme(seeded, previewing: true))
+        var paired = seeded
+        paired.followSystemAppearance = true
+        #expect(preference.usesAgtermTheme(paired))
+
+        try preference.save(true)
+        try preference.saveAgtermThemeChoice(explicit: true)
+        let reopened = OmarchyThemePreference(stateDirectory: root)
+        #expect(reopened.usesAgtermTheme(seeded))
+        #expect(reopened.usesAgtermTheme(AppSettings()))
+        try reopened.saveAgtermThemeChoice(explicit: false)
+        #expect(!preference.usesAgtermTheme(seeded))
+        #expect(preference.load() == true)
+    }
+
     @Test func scopedColorsOverrideOmarchyAndItsGlobalInclude() throws {
         _ = GhosttyTestRuntime.initialized
         let root = try makeFixture()
@@ -76,19 +99,20 @@ struct OmarchyThemeTests {
         try "split-divider-color = #ABCDEF".write(
             to: root.appendingPathComponent("child.conf"), atomically: true, encoding: .utf8)
 
-        for follows in [true, false] {
+        for (follows, explicit) in [(true, false), (true, true), (false, false)] {
             let config = try #require(ghostty_config_new())
             defer { ghostty_config_free(config) }
             let layers = LinuxGhosttyConfigLayers(
                 settings: ["background = #112233", "foreground = #FFFFFF", "font-size = 15"],
-                omarchy: follows ? theme.colorLines() : [])
+                omarchy: follows ? theme.colorLines() : [],
+                prefersAgtermTheme: explicit)
             try layers.load(into: config, storage: storage, scopedPath: scoped.path, loadGlobal: follows ? {
                 global.path.withCString { ghostty_config_load_file(config, $0) }
             } : nil)
             ghostty_config_finalize(config)
             let colors = GhosttyConfigTheme.colors(from: config)
             #expect(colors.background == (follows ? "#778899" : "#112233"))
-            #expect(colors.foreground == (follows ? "#A1B2C3" : "#FFFFFF"))
+            #expect(colors.foreground == (follows && !explicit ? "#A1B2C3" : "#FFFFFF"))
             #expect(colors.splitDivider == "#ABCDEF")
             #expect(GhosttyConfigTheme.palette(from: config).dropFirst().first == "#667788")
             #expect(GhosttyConfigTheme.fontSize(from: config) == 15)

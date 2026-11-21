@@ -42,9 +42,15 @@ extension AppController {
 
         let themes = Self.bundledThemes()
         let following = settings.followSystemAppearance == true
-        let activeTheme = settings.activeTheme(isDark: Self.systemIsDark)
-        let themeValues = following ? themes : ["default ghostty"] + themes
-        let themeIndex = activeTheme.flatMap(themes.firstIndex).map { following ? $0 : $0 + 1 } ?? 0
+        let omarchy = OmarchyTheme()
+        let preference = OmarchyThemePreference()
+        let offersAutomatic = omarchy.isInstalled && preference.follows(omarchy)
+        var themeValues = following ? themes : [Self.ghosttyDefaultThemeLabel] + themes
+        if offersAutomatic { themeValues.insert(Self.automaticOmarchyThemeLabel, at: 0) }
+        let themeSelection = offersAutomatic && !preference.usesAgtermTheme(settings)
+            ? Self.automaticOmarchyThemeLabel
+            : settings.activeTheme(isDark: Self.systemIsDark) ?? Self.ghosttyDefaultThemeLabel
+        let themeIndex = themeValues.firstIndex(of: themeSelection) ?? 0
         adw_preferences_group_add(
             cast(terminal),
             W(
@@ -197,7 +203,9 @@ private let onSettingsCursorBlink: @MainActor @convention(c) (OpaquePointer?, Op
 }
 private let onSettingsTheme: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { row, _, _ in
     MainActor.assumeIsolated {
-        controllerForWidget(row)?.applyThemeAtIndex(Int(adw_combo_row_get_selected(cast(row))))
+        guard let item = adw_combo_row_get_selected_item(cast(row)),
+              let value = gtk_string_object_get_string(OpaquePointer(item)) else { return }
+        controllerForWidget(row)?.applyThemeSetting(String(cString: value))
     }
 }
 private let onSettingsFollowAppearance: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { row, _, _ in

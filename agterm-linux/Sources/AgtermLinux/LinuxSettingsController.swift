@@ -72,7 +72,8 @@ extension AppController {
     /// Explicit config reload stays watermark-only.
     func reloadConfigForAppearanceChange(_ side: LinuxAppearanceSide) -> Bool {
         applySettings(
-            linuxSettingsStore().load(), preserveSessionConfig: true, appearanceSide: side)
+            Self.resolvedThemeSettings(persisted: linuxSettingsStore().load()),
+            preserveSessionConfig: true, appearanceSide: side)
     }
 
     func persist<V>(_ keyPath: WritableKeyPath<AppSettings, V>, _ value: V) {
@@ -236,22 +237,24 @@ extension AppController {
         reloadConfig()
     }
 
-    func applyThemeAtIndex(_ index: Int) {
-        let themes = Self.bundledThemes()
+    static let automaticOmarchyThemeLabel = "Automatic (Omarchy)"
+    static let ghosttyDefaultThemeLabel = "default ghostty"
+
+    func applyThemeSetting(_ selection: String) {
         var settings = linuxSettingsStore().load()
-        let following = settings.followSystemAppearance == true
-        let value = following
-            ? (themes.indices.contains(index) ? themes[index] : nil)
-            : (index == 0 ? nil : (themes.indices.contains(index - 1) ? themes[index - 1] : nil))
-        if following {
+        let automatic = selection == Self.automaticOmarchyThemeLabel
+        let wasFollowingAppearance = settings.followSystemAppearance == true
+        let value = selection == Self.ghosttyDefaultThemeLabel ? nil : selection
+        if wasFollowingAppearance && !automatic {
             if Self.systemIsDark { settings.darkTheme = value } else { settings.theme = value }
         } else {
-            settings.theme = value
+            settings.theme = automatic ? AppSettings.defaultTheme : value
             settings.darkTheme = nil
             settings.followSystemAppearance = nil
         }
-        try? linuxSettingsStore().save(settings)
+        saveThemeSettings(settings, explicitAgtermTheme: !automatic)
         applySettings(settings)
+        if automatic && wasFollowingAppearance { rebuildSettings(page: .appearance) }
     }
 
     func setAlternateThemeAtIndex(_ index: Int) {
@@ -264,7 +267,7 @@ extension AppController {
             settings.darkTheme = themes[index]
         }
         settings.followSystemAppearance = true
-        try? linuxSettingsStore().save(settings)
+        saveThemeSettings(settings)
         applySettings(settings)
     }
 
@@ -280,7 +283,7 @@ extension AppController {
             settings.darkTheme = nil
             settings.followSystemAppearance = nil
         }
-        try? linuxSettingsStore().save(settings)
+        saveThemeSettings(settings)
         applySettings(settings)
         rebuildSettings(page: .appearance)
     }
@@ -438,7 +441,7 @@ extension AppController {
         settings.theme = AppSettings.defaultTheme
         settings.darkTheme = nil
         settings.followSystemAppearance = nil
-        try? linuxSettingsStore().save(settings)
+        saveThemeSettings(settings, explicitAgtermTheme: false)
         reloadConfig()
         library.resetSessionFontSizesAllWindows()
         // The base config update leaves a live ⌘+/⌘− zoom in place, so clearing the pins alone would leave
