@@ -78,6 +78,12 @@ Amended 2026-11-20 (#493) to follow linux-port:
 - A dispatch may name a umputun tag. A live run then syncs only that tag, and only if an unattended run could:
   main has linux-port's head, the tag is above the newest release linux-port and main carry, and its lag is
   past. Only a dry run previews any tag main lacks.
+- **Publish rehearsal:** dispatch upstream sync on main with `rehearsal=true`, `dry_run=false`, and no tag.
+  The read-only job creates a local `rehearsal/linux-port-fixture` ref from the dispatched main commit plus one
+  synthetic file. The normal guarded publisher uses the `upstream-sync` environment to open a
+  `[rehearsal]` draft labelled `sync-rehearsal`, then closes it and deletes the per-attempt rehearsal branch.
+  The ordinary planner, pause, first-seen record and blocked-issue path are outside the rehearsal.
+  If the runner is lost before cleanup, use its summary and push log to identify the draft and exact rehearsal branch.
 - If linux-port or the release list can't be fetched, the run fails. It never falls back on its own.
 - If the merge conflicts, or changes anything under `.github/`, keep the conflicts as a commit and open a draft
   PR labelled `needs-adaptation`. Otherwise open a PR labelled `upstream-sync`. A merge that adds a new
