@@ -138,6 +138,21 @@ struct OmarchyTerminalIntegrationTests {
         #expect(try Data(contentsOf: fixture.config) == initial)
     }
 
+    @Test func disablePreservesUserCodeAppendedAfterAnUnterminatedHashHeader() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        try Data("# h".utf8).write(to: fixture.config)
+        _ = try fixture.integration.setEnabled(true)
+
+        let enabled = try Data(contentsOf: fixture.config)
+        let userCode = "require(\"user.config\")\n"
+        try (enabled + Data(userCode.utf8)).write(to: fixture.config)
+        _ = try fixture.integration.setEnabled(false)
+
+        let restored = try String(contentsOf: fixture.config, encoding: .utf8)
+        #expect(restored == "# h\n" + userCode)
+    }
+
     private struct Fixture {
         let root: URL
         let directory: URL

@@ -84,7 +84,13 @@ public struct OmarchyTerminalIntegration {
             } else {
                 if let range {
                     var updated = config.data
-                    updated.removeSubrange(range)
+                    var start = range.lowerBound
+                    // The EOF-header variant starts with a newline. It must still separate the
+                    // hash header from any user code appended after the managed block.
+                    if range.upperBound < updated.endIndex && updated[start] == 10 {
+                        start += 1
+                    }
+                    updated.removeSubrange(start..<range.upperBound)
                     try write(updated, named: Self.configName, replacing: config, in: fd)
                 }
                 if module != nil { try removeModule(in: fd) }
