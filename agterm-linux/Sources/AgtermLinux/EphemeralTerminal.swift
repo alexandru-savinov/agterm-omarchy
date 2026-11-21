@@ -3,6 +3,11 @@ import Foundation
 import Glibc
 import agtermCore
 
+/// Ephemeral terminals never use SettingsStore.load(), which can quarantine a malformed file.
+@MainActor func loadLinuxTerminalSettings() -> AppSettings {
+    EphemeralTerminal.readOnlySettings ?? linuxSettingsStore().load()
+}
+
 /// A single launcher terminal owns only its GTK window and surface. It never enters regular
 /// application activation, which owns persistence, restoration, hooks and the control socket.
 @MainActor func runEphemeralTerminal(_ launch: LinuxTerminalLaunch) -> Int32 {
@@ -27,12 +32,17 @@ import agtermCore
 }
 
 @MainActor private final class EphemeralTerminal {
+    static var readOnlySettings: AppSettings?
     let launch: LinuxTerminalLaunch
 
     init(_ launch: LinuxTerminalLaunch) { self.launch = launch }
 
     func show(in app: OpaquePointer?) {
         installGLibMainTimer()
+        let file = linuxStateDirectory().appendingPathComponent("settings.json")
+        let data = try? Data(contentsOf: file)
+        Self.readOnlySettings = data.flatMap { try? JSONDecoder().decode(AppSettings.self, from: $0) }
+            ?? AppSettings(theme: AppSettings.defaultTheme)
         let appearance = LinuxAppearanceSide(isDark: AppController.systemIsDark)
         GhosttyApp.shared.start(appearanceSide: appearance)
         let directory = launch.workingDirectory(callerCwd: FileManager.default.currentDirectoryPath,

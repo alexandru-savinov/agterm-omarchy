@@ -110,6 +110,17 @@ def verify_terminal_launcher(env):
             assert child.wait(timeout=12) == 0, "ephemeral process did not quit with its command"
         assert not cold_ephemeral_state.exists(), "ephemeral launcher wrote persistent app state"
         assert {window: session_ids(launch_env, window) for window in open_ids(launch_env)} == baseline
+
+        cold_ephemeral_state.mkdir()
+        settings = cold_ephemeral_state / "settings.json"
+        settings.write_bytes(b"{invalid")
+        marker, release = root / "corrupt-settings-result.json", root / "corrupt-settings-release"
+        release.touch()
+        child = ephemeral_process(cold_ephemeral_env, caller, sys.executable, [probe, marker, release], "Read-only settings")
+        children.append((child, release))
+        assert child.wait(timeout=12) == 0 and marker.exists(), "ephemeral launch failed with malformed settings"
+        assert list(cold_ephemeral_state.iterdir()) == [settings] and settings.read_bytes() == b"{invalid"
+
         btop = shutil.which("btop") if hyprland else None
         if btop:
             started = time.monotonic()
