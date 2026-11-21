@@ -142,7 +142,7 @@ extension LinuxControlDispatcher {
                 return ControlResponse(ok: false, error: "session.overlay.job.run requires a job id")
             }
             guard UUID(uuidString: job) != nil else { return ControlResponse(ok: false, error: "invalid job id") }
-            return actions.claimOverlayJob(job)
+            return actions.claimOverlayJob(job, token: request.args?.token)
         case .sessionOverlayPageServe:
             guard let token = request.target?.linuxTrimmedOrNil else {
                 return ControlResponse(ok: false, error: "session.overlay.page.serve requires a page token")

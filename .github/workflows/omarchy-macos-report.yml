@@ -1,0 +1,35 @@
+name: Omarchy macOS PR report
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] Only trusted main scripts read GitHub run metadata; no PR checkout or artifacts.
+    workflows: [Omarchy macOS validation]
+    types: [completed]
+
+permissions: {}
+
+concurrency:
+  group: omarchy-macos-report-${{ github.event.workflow_run.head_repository.id }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  report:
+    if: >-
+      github.repository == 'alexandru-savinov/agterm-omarchy' && github.ref == 'refs/heads/main' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.path == '.github/workflows/omarchy-macos.yml' &&
+      github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Update the current pull request's advisory macOS label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I scripts/github/macos_report.py

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Rerun a few named GTK AT-SPI scenarios, each in its own desktop session.
 
-This is a diagnosis aid, not acceptance: the complete suite in ci.yml (test-linux-ui-parallel.py) stays the
+This is a diagnosis aid, not acceptance: the complete suite in omarchy-ci.yml (test-linux-ui-parallel.py) stays the
 only AT-SPI result a merge may rely on. Names are checked against the `scenarios` tuple in the target
 checkout's atspi_smoke.py, read with `ast` so validation needs neither GTK nor a build.
 """

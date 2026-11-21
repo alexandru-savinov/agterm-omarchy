@@ -78,6 +78,11 @@ on:
         required: false
         type: string
         default: required
+      evidence_suffix:
+        description: Distinct evidence suffix for multiple calls in one workflow attempt
+        required: false
+        type: string
+        default: ""
     outputs:
       passed:
         description: "'true' only for complete, attested evidence of the resolved bytes passing all four gates on every arch"
@@ -85,6 +90,9 @@ on:
       attested:
         description: "'true' when every tested archive's attestation verified"
         value: ${{ jobs.verdict.outputs.attested }}
+      gate_failed:
+        description: "'true' for complete, attested evidence of an actual failed gate"
+        value: ${{ jobs.verdict.outputs.gate_failed }}
       source_commit:
         description: Commit the tested archives were built from
         value: ${{ jobs.source.outputs.sha }}
@@ -156,11 +164,13 @@ jobs:
           ARCH: ${{ inputs.arch || 'both' }}
           CHANNEL: ${{ inputs.channel || 'stable' }}
           ATTESTATION: ${{ inputs.attestation }}
+          EVIDENCE_SUFFIX: ${{ inputs.evidence_suffix }}
           EVENT: ${{ github.event_name }}
           # In a called workflow this names the top-level caller.
           CALLER: ${{ github.workflow_ref }}
         run: |
           [[ "$CHANNEL" =~ ^(stable|rc|edge)$ ]] || { echo "unknown channel: $CHANNEL"; exit 1; }
+          [[ "$EVIDENCE_SUFFIX" =~ ^[a-z0-9-]{0,32}$ ]] || { echo "invalid evidence suffix"; exit 1; }
           # Fail closed: a blank value is required, and report-only only for the dedicated pull_request self-test.
           ATTESTATION="${ATTESTATION:-required}"
           [[ "$ATTESTATION" =~ ^(required|report-only)$ ]] || { echo "unknown attestation policy: '$ATTESTATION'"; exit 1; }
@@ -195,8 +205,10 @@ jobs:
             *) echo "unknown source: $SOURCE"; exit 1 ;;
           esac
           plan="$(jq -c --arg source "$SOURCE" --arg channel "$CHANNEL" --arg attestation "$ATTESTATION" \
+            --arg evidence_suffix "${EVIDENCE_SUFFIX:+-$EVIDENCE_SUFFIX}" \
             --argjson arches "$(printf '%s\n' "${arches[@]}" | jq -cR . | jq -cs .)" \
-            '. + {source: $source, channel: $channel, attestation: $attestation, arches: $arches}' <<< "$plan")"
+            '.label += $evidence_suffix |
+             . + {source: $source, channel: $channel, attestation: $attestation, arches: $arches}' <<< "$plan")"
           jq -e '(.sha | test("^[0-9a-f]{40}$")) and (.identities | length) == (.arches | length)' <<< "$plan" > /dev/null
           {
             echo "matrix=$matrix"
@@ -293,7 +305,7 @@ jobs:
           attested=verified
           if [[ "$SOURCE" == ci-run ]]; then
             gh attestation verify "$release/$archive" --repo "$GITHUB_REPOSITORY" \
-              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" --source-ref refs/heads/main \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/omarchy-ci.yml" --source-ref refs/heads/main \
               --source-digest "$SHA" --deny-self-hosted-runners > "$RUNNER_TEMP/out/attestation.txt" 2>&1 || attested=unverified
           else
             for predicate in https://slsa.dev/provenance/v1 "https://github.com/$GITHUB_REPOSITORY/attestations/promotion/v1"; do
@@ -405,6 +417,7 @@ jobs:
     outputs:
       passed: ${{ steps.verdict.outputs.passed }}
       attested: ${{ steps.verdict.outputs.attested }}
+      gate_failed: ${{ steps.verdict.outputs.gate_failed }}
       archives: ${{ steps.verdict.outputs.archives }}
       results: ${{ steps.verdict.outputs.results }}
     steps:

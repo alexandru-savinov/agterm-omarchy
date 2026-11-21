@@ -12,17 +12,17 @@ import unittest
 class ParallelGateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml").read_text()
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/omarchy-ci.yml").read_text()
         cls.gate = workflow.split("  ci:\n", 1)[1].split("\n  cookbook:\n", 1)[0]
         cls.script = textwrap.dedent(cls.gate.split("        run: |\n", 1)[1])
-        cls.jobs = {"scripts", "changes", "test-linux", "lint-linux", "build-linux", "ghostty-patch-tests", "zmx-patch-tests",
-                    "cookbook"}
+        cls.jobs = {"upstream-ci-disabled", "scripts", "changes", "test-linux", "lint-linux", "build-linux", "attest-linux",
+                    "ghostty-patch-tests", "zmx-patch-tests", "cookbook"}
 
-    def run_gate(self, overrides):
+    def run_gate(self, overrides, *, attest=False):
         results = {job: {"result": overrides.get(job, "success")} for job in self.jobs}
         return subprocess.run(
             ["bash", "-eu", "-c", self.script],
-            env={**os.environ, "RESULTS": json.dumps(results)},
+            env={**os.environ, "RESULTS": json.dumps(results), "REQUIRE_ATTESTATION": str(attest).lower()},
             capture_output=True, text=True, timeout=5,
         )
 
@@ -46,6 +46,18 @@ class ParallelGateTests(unittest.TestCase):
                     result = self.run_gate({job: status})
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn(job, result.stderr)
+
+    def test_upstream_workflow_guard_cannot_be_skipped(self):
+        result = self.run_gate({"upstream-ci-disabled": "skipped"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("upstream-ci-disabled", result.stderr)
+
+    def test_only_a_main_build_requires_attestation_to_run(self):
+        skipped = {"attest-linux": "skipped"}
+        self.assertEqual(self.run_gate(skipped).returncode, 0)
+        missing = self.run_gate(skipped, attest=True)
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("attest-linux", missing.stderr)
 
 
 if __name__ == "__main__":

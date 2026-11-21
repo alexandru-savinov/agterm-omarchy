@@ -1,8 +1,8 @@
-Restructure fork CI so umputun syncs never conflict on CI: byte-identical, disabled upstream ci.yml, plus our own omarchy-ci.yml and advisory omarchy-macos.yml.
+Move fork CI out of the inherited path so future linux-port syncs can update the disabled upstream workflow.
 
 ## Context
 The design is `docs/plans/20261119-ci-layout-design.md` (owner-approved 2026-11-19). It lands after #474 merges and
-before #477/#478. Files: `.github/workflows/ci.yml`, `.github/workflows/macos-weekly.yml`,
+before #478. The merged #477 gate depends on these CI attestations. Files: `.github/workflows/ci.yml`, `.github/workflows/macos-weekly.yml`,
 the scanner workflows (`zizmor.yml`, `actionlint.yml`, `semgrep-osv.yml`, `trivy.yml`), `.claude/rules/ci.md`,
 `README.md`, `scripts/upstream-sync.py`, `.github/workflows/upstream-sync.yml`, `.github/workflows/auto-release.yml`, and
 `.github/workflows/prerelease-omarchy.yml`.
@@ -11,17 +11,19 @@ the scanner workflows (`zizmor.yml`, `actionlint.yml`, `semgrep-osv.yml`, `trivy
 
 ### Task 1: Split the pipelines
 - [ ] `git mv .github/workflows/ci.yml .github/workflows/omarchy-ci.yml`, keeping the aggregate job name `CI`.
-- [ ] Restore `.github/workflows/ci.yml` byte-identical from umputun tag `UPSTREAM_BASE_TAG`.
-- [ ] Exclude `.github/workflows/ci.yml` in actionlint, zizmor, semgrep and trivy.
+- [ ] Restore `ci.yml`, `release-linux.yml`, and `publish-aur.yml` byte-identical from `LINUX_PORT_BASE_COMMIT`.
+- [ ] Exclude the three inherited paths in Actionlint, Zizmor, Semgrep and Trivy.
+- [ ] Simulate an upstream change to all three. Require a clean merge and no new workflow paths.
 - [ ] Replay the v0.41.1→v0.43.0 merge on a scratch branch with the new layout, and record that ci.yml has no
   conflict.
 
 ### Task 2: Guard job
 - [ ] Add `upstream-ci-disabled` to `omarchy-ci.yml`, under the aggregate `CI`, with `actions: read` only. It
-  fails when an umputun-shipped workflow file (at `UPSTREAM_BASE_TAG`) is active, or differs from the tag.
+  checks the CI path's registry state and source blob, and fails on newly introduced upstream workflow paths.
 - [ ] Put the logic in a script under `scripts/`, with unit tests in `scripts/tests` covering: active, edited,
   new upstream file, and clean.
-- [ ] Make #476's sync branch bump `UPSTREAM_BASE_TAG` to the merged tag in the merge commit, with a test.
+- [ ] Make #476's sync branch advance `UPSTREAM_BASE_TAG` and `UPSTREAM_BASE_COMMIT` in `omarchy-ci.yml`
+  in the merge commit, with a test. #493 also advances the linux-port source pin.
 
 ### Task 3: Advisory macOS workflow
 - [ ] `git mv macos-weekly.yml omarchy-macos.yml`. Triggers: weekly, dispatch, and pull_request
@@ -36,11 +38,14 @@ the scanner workflows (`zizmor.yml`, `actionlint.yml`, `semgrep-osv.yml`, `trivy
 ### Task 4: References and enablement
 - [ ] Update every lookup of `ci.yml` and `macos-weekly.yml`: upstream-sync, auto-release,
   prerelease-omarchy, `.claude/rules/ci.md`, the README badge and PR-fields docs.
-- [ ] After merge, the lead runs `gh workflow disable ci.yml`. Show the guard red before and green after.
+- [ ] After #474 merges, the lead pauses sync and disables `ci.yml` and `release-linux.yml`.
+  Show the draft guard red before and green after the disable.
+- [ ] After merge, the lead disables `publish-aur.yml` when it registers and dispatches `omarchy-ci.yml` on main.
+  Verify both signed archives, require attestation in the native PR self-test, and unpause.
 - [ ] Merge a docs-only PR under the unchanged ruleset, with `CI` green.
 
 ## Constraints
-- Never change umputun's `ci.yml` content. Never change the required-check ruleset. Never make macOS
+- Preserve the linux-port workflow files byte for byte. Never change the required-check ruleset. Never make macOS
   required, except the `upstream-offer` verdict.
 - No self-hosted runners. Pin actions by SHA, use least-privilege permissions, and pass zizmor and actionlint.
 - PRs go to `main` on alexandru-savinov/agterm-omarchy only. Never push to melonamin or umputun.

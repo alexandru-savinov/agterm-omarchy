@@ -146,8 +146,15 @@ def main():
         pids.append(p5)
         tail = drain(f5, 3.0).rpartition(b"EXIT-MARK")[2]
         ok &= check("an unmanaged client whose session ends still resets the terminal", b"\x1bc" in tail, repr(tail))
+
+        # 0009: an origin starts a pane for a remote viewer with no terminal and no client
+        created = cli("attach", "--detached", "detached", "/bin/sh", "-c", "sleep 30", stdin=b"")
+        ok &= check("a detached create needs no tty",
+                    created.returncode == 0 and b"detached" in cli("list").stdout, repr(created.stderr))
+        again = cli("attach", "--detached", "detached", "/bin/sh", stdin=b"")
+        ok &= check("a detached create of a live session is refused", again.returncode == 1, repr(again.stderr))
     finally:
-        cli("kill", NAME, "--force")
+        cli("kill", NAME, "detached", "--force")
         for pid in pids:
             try:
                 os.kill(pid, 9)

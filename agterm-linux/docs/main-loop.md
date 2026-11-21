@@ -54,6 +54,11 @@ This is for callbacks that fire off-main (libghostty's C callbacks, worker-queue
 GTK or main-actor state.
 `GhosttyApp.scheduleTick` is the same pattern hand-rolled with a coalescing flag.
 `runOnMain` exists only in the Linux target.
+Terminal link opens also take this hop when the callback already runs on the main thread.
+libghostty can hold surface locks during `GHOSTTY_ACTION_OPEN_URL`; selecting a session inline can
+reconcile or free that surface and deadlock the UI and control socket.
+`GhosttyApp.queueTerminalLink` copies the URL and reveal modifier, then checks the weak surface again
+after the callback returns.
 Host-free `agtermCore` uses `MainActorHop.enqueue` for nonisolated observation callbacks such as pane focus.
 Its lock-protected scheduler defaults to Dispatch on macOS; `installGLibMainTimer()` installs the GLib hop
 before any store exists.
@@ -108,17 +113,9 @@ and their owners cancel them when the associated widget or window is torn down.
   than taking a grace argument, so it can neither drift from the core finalizer nor be handed a shorter grace
   that would reap a surface a pending undo still owns.
 
-**One deliberate exception**, so a grep of the rule does not look like an unreported violation: the
-`withObservationTracking` `onChange` in `agtermCore/Sources/agtermCore/AppStore+AutoFollow.swift` still uses
-`DispatchQueue.main.async`.
-That callback is nonisolated and can run off-main, so it is a thread hop.
-`MainActorHop` can express such a hop, but this inherited macOS observer remains unchanged because Linux
-does not register it.
-It is also unreachable under GTK: the observer is registered only on the off→on `setAutoFollow(timeout:)`
-edge, which the port never takes (`LinuxSettingsController.applyAutoFollowSettings` always passes
-`timeout: nil` and hands the runtime to `LinuxAutoFollowCoordinator`).
-Its deferred half, `scheduleAutoFollowRearm`, IS main-actor code and goes through
-`MainTimer.schedule(after: 0)`.
+The shared AutoFollow observer uses `MainActorHop` for its nonisolated observation callback.
+Its deferred rearm uses `MainTimer.schedule(after: 0)`.
+Linux still delegates the recurring attention timer to `LinuxAutoFollowCoordinator`.
 
 If a debounce, delay, or grace window "does nothing on Linux", check which mechanism scheduled it before
 suspecting the logic — that symptom is almost always this contract.
@@ -136,6 +133,9 @@ its own input writer and prevent EOF during shutdown.
 `waitid(WNOWAIT)` keeps an exited PID reserved until the status lock is held and `waitpid` reaps it.
 Cancellation therefore cannot signal a PID that has already been reused.
 The callers restore the pre-launch GDK environment before passing it to the adapter.
+Remote catalog operations also start hidden Live panes through this adapter and zmx's detached-create mode.
+They resolve the same launch seed as the eventual terminal widget, then refresh catalog evidence before answering the receipt.
+Widget realization attaches to the existing daemon; it does not run the creation command again.
 
 ## Testing through the seam
 

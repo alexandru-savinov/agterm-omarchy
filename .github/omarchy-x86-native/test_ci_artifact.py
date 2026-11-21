@@ -28,10 +28,7 @@ fixture = load("promotion_fixture", HERE.parents[1] / "scripts/tests/test_omarch
 
 def github(**changes):
     fake = fixture.FakeGitHub(**changes)
-    for job in fake.jobs:
-        if job["name"].startswith("GTK build"):
-            job["steps"] = job["steps"] + [{"name": name, "conclusion": "success"}
-                                           for name in ci.promotion.RELEASE_GTK_STEPS]
+    fake.add_release_gates()
     return fake
 
 
