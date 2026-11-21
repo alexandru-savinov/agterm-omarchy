@@ -42,7 +42,7 @@ PRODUCT_PATHS = (
     "scripts/zig-build-linux.sh", "scripts/ghostty-patches", "scripts/zmx-patches", "scripts/stage-linux.sh",
     "scripts/linux-notices.py", "scripts/linux-runpath.py", "scripts/omarchy-release.py",
     ":(exclude)agterm-linux/Tests", ":(exclude)agterm-linux/tests", ":(exclude)agterm-linux/docs",
-    ":(exclude)agtermCore/Tests",
+    ":(exclude)agtermCore/Tests", ":(exclude,glob)packaging/linux/*.md", ":(exclude)packaging/linux/release-notes",
 )
 # GitHub allows a workflow run at most 50 attempts.
 MAX_ATTEMPTS = 50
