@@ -1,0 +1,77 @@
+name: Omarchy native-feel feasibility probe
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Native-feel probe (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    env:
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve the gate's Omarchy pin
+        run: |
+          ref="$(sed -nE 's/^OMARCHY_REF=([0-9a-f]{40})$/\1/p' .github/omarchy-x86-native/gates.sh)"
+          [[ "$ref" =~ ^[0-9a-f]{40}$ ]]
+          printf 'OMARCHY_REF=%s\n' "$ref" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: basecamp/omarchy
+          ref: ${{ env.OMARCHY_REF }}
+          path: probe-omarchy
+          persist-credentials: false
+      - name: Prepare the native gate's host and base image
+        timeout-minutes: 15
+        env:
+          X86_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+          ALARM_ROOTFS: https://ca.us.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+          ALARM_ROOTFS_SHA256: 42a4eeaa038994ffd31fa173256ef2f0ef511358eeb41b9ea1f8626391b9b319
+          ALARM_KEY: 68B3537F39A313B3E574D06777193F152BDBE6A6
+        run: |
+          uname -srm
+          [[ "$(uname -m)" == "$ARCH" ]]
+          if ! sudo modprobe vkms; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+            sudo modprobe vkms
+          fi
+          sudo modprobe uinput || echo 'uinput modprobe failed; checking the device node in the probe'
+          if [[ "$ARCH" == x86_64 ]]; then
+            docker pull "$X86_IMAGE"
+            printf 'BASE_IMAGE=%s\n' "$X86_IMAGE" >> "$GITHUB_ENV"
+          else
+            rootfs="$RUNNER_TEMP/alarm"
+            key=.github/omarchy-x86-native/archlinuxarm-builder.asc
+            mkdir -p "$rootfs"
+            curl --disable -fsSL --proto '=https' --proto-redir '=https' --retry 5 \
+              -o "$rootfs/rootfs.tar.gz" "$ALARM_ROOTFS"
+            curl --disable -fsSL --proto '=https' --proto-redir '=https' --retry 5 \
+              -o "$rootfs/rootfs.tar.gz.sig" "$ALARM_ROOTFS.sig"
+            export GNUPGHOME="$rootfs/gnupg"
+            install -d -m 0700 "$GNUPGHOME"
+            [[ "$(gpg --show-keys --with-colons "$key" | awk -F: '$1 == "fpr" { print $10; exit }')" == "$ALARM_KEY" ]]
+            gpg --dearmor < "$key" > "$rootfs/builder.gpg"
+            gpgv --keyring "$rootfs/builder.gpg" "$rootfs/rootfs.tar.gz.sig" "$rootfs/rootfs.tar.gz" 2>&1 | tee "$rootfs/gpgv.txt"
+            grep -q "using RSA key $ALARM_KEY" "$rootfs/gpgv.txt"
+            printf '%s  %s\n' "$ALARM_ROOTFS_SHA256" "$rootfs/rootfs.tar.gz" | sha256sum --check --strict
+            docker import --platform linux/arm64 "$rootfs/rootfs.tar.gz" "alarm-rootfs:$ALARM_ROOTFS_SHA256"
+            printf 'BASE_IMAGE=alarm-rootfs:%s\n' "$ALARM_ROOTFS_SHA256" >> "$GITHUB_ENV"
+          fi
+      - name: Measure input and Omarchy behavior
+        timeout-minutes: 30
+        run: bash .github/omarchy-native-feel-probe/host.sh
