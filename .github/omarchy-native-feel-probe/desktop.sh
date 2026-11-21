@@ -81,7 +81,7 @@ user_manager_ready() { systemctl --user show-environment >/dev/null 2>&1; }
 try_uwsm_with_user_manager() {
   local manager status=0
   findmnt -n -o TARGET,FSTYPE,OPTIONS /sys/fs/cgroup
-  systemd --user > "$HOME/systemd-user.log" 2>&1 &
+  /usr/lib/systemd/systemd --user > "$HOME/systemd-user.log" 2>&1 &
   manager=$!
   if wait_for 8 user_manager_ready; then
     report systemd_user_manager PASS
