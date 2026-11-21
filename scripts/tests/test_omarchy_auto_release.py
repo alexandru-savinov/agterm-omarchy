@@ -51,7 +51,23 @@ BUILT_JOBS = [
     ("SwiftLint (Linux)", "success"), ("GTK build and tests (aarch64)", "success"), ("Cookbook checks", "skipped"),
     ("Attest CI archive (aarch64)", "success"), ("Attest CI archive (x86_64)", "success"), ("CI", "success"),
 ]
+# Attempt 1 of run 44864094283: it built, then failed; attempt 2 re-ran it green.
+FAILED_BUILD_ATTEMPT = [
+    ("Detect changes", "success"), ("Installer and scripts", "success"), ("Upstream workflow guard", "success"),
+    ("libghostty patch Zig tests (aarch64)", "success"), ("zmx patch tests", "success"),
+    ("GTK build and tests (aarch64)", "failure"), ("libghostty patch Zig tests (x86_64)", "success"),
+    ("Core tests (x86_64)", "success"), ("GTK build and tests (x86_64)", "success"),
+    ("Core tests (aarch64)", "success"), ("SwiftLint (Linux)", "success"), ("Cookbook checks", "skipped"),
+    ("CI", "failure"), ("Attest CI archive (${{ matrix.arch }})", "skipped"),
+]
 SCOPE_RUN = {"id": 123, "run_attempt": 2, "conclusion": "success"}
+GTK = "GTK build and tests (${{ matrix.arch }})"
+
+
+def replaced(rows, name, *new_rows):
+    """rows with the job called name swapped for new_rows."""
+    index = [job for job, _ in rows].index(name)
+    return rows[:index] + list(new_rows) + rows[index + 1:]
 
 
 def ci_jobs(rows):
@@ -205,8 +221,7 @@ class ScopeTests(unittest.TestCase):
         auto.promotion.validate_jobs(jobs, release=True)
 
     def test_built_run_missing_a_required_job_proceeds_to_fail_in_the_release_gate(self):
-        build_names = [name for name, _ in BUILT_JOBS
-                       if any(name in auto.build_family(template) for template in auto.BUILD_JOBS)]
+        build_names = [name for name, _ in BUILT_JOBS if name.startswith(("SwiftLint", "Core", "GTK", "Attest"))]
         self.assertEqual(len(build_names), 7)
         variants = {}
         for name in build_names:
@@ -238,6 +253,39 @@ class ScopeTests(unittest.TestCase):
             with self.subTest(variant=variant):
                 self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(rows))[0], "proceed")
 
+    def test_an_incomplete_or_relabelled_matrix_is_not_proof_of_an_empty_run(self):
+        x86, arm = "GTK build and tests (x86_64)", "GTK build and tests (aarch64)"
+        variants = {
+            "one architecture skipped, the other absent": replaced(FILTERED_JOBS, GTK, (x86, "skipped")),
+            "sibling ran under another label": replaced(FILTERED_JOBS, GTK, (x86, "skipped"),
+                                                       ("GTK build and tests (arm64)", "success")),
+            "sibling skipped under another label": replaced(FILTERED_JOBS, GTK, (x86, "skipped"),
+                                                           ("GTK build and tests (arm64)", "skipped")),
+            "unexpanded and expanded forms mixed": replaced(FILTERED_JOBS, GTK, (GTK, "skipped"), (x86, "skipped")),
+            "unexpanded form repeated": replaced(FILTERED_JOBS, GTK, (GTK, "skipped"), (GTK, "skipped")),
+            "unknown job ran": FILTERED_JOBS + [("Renamed build", "success")],
+            "unknown job failed": FILTERED_JOBS + [("Renamed build", "failure")],
+            "patch tests ran": replaced(FILTERED_JOBS, "zmx patch tests", ("zmx patch tests", "success")),
+        }
+        for variant, rows in variants.items():
+            with self.subTest(variant=variant):
+                self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(rows))[0], "proceed")
+        # Both architectures listed by name and both skipped is still a complete, empty family.
+        complete = replaced(FILTERED_JOBS, GTK, (x86, "skipped"), (arm, "skipped"))
+        self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(complete))[0], "skip")
+        # The cookbook check builds nothing, so a cookbook change alongside still skips.
+        cookbook = replaced(FILTERED_JOBS, "Cookbook checks", ("Cookbook checks", "success"))
+        self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(cookbook))[0], "skip")
+
+    def test_an_earlier_attempt_that_built_is_not_hidden_by_an_empty_rerun(self):
+        scope, reason = auto.ci_scope(SCOPE_RUN, ci_jobs(FILTERED_JOBS), [ci_jobs(FAILED_BUILD_ATTEMPT)])
+        self.assertEqual(scope, "proceed")
+        self.assertIn("attempt 1 ran", reason)
+        cancelled = [(job, "cancelled" if job.startswith("Core") else "skipped" if job != "Detect changes" else result)
+                     for job, result in FAILED_BUILD_ATTEMPT]
+        self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(FILTERED_JOBS), [ci_jobs(cancelled)])[0], "proceed")
+        self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(FILTERED_JOBS), [ci_jobs(FILTERED_JOBS)])[0], "skip")
+
     def test_failed_ci_never_proceeds_or_skips(self):
         for conclusion in ("failure", "cancelled", "skipped", "timed_out", None):
             for rows in (FILTERED_JOBS, BUILT_JOBS):
@@ -257,10 +305,13 @@ class ScopeTests(unittest.TestCase):
                        "GITHUB_STEP_SUMMARY": str(summary)}
                 with self.subTest(expected=expected), patch.dict(os.environ, env), \
                      patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
-                     patch.object(auto.promotion, "api", return_value=[{"jobs": ci_jobs(rows)}]) as api, \
+                     patch.object(auto.promotion, "api", side_effect=[[{"jobs": ci_jobs(FILTERED_JOBS)}],
+                                                                      [{"jobs": ci_jobs(rows)}]]) as api, \
                      redirect_stdout(io.StringIO()):
                     auto.main()
-                    api.assert_called_once_with("actions/runs/123/attempts/2/jobs?per_page=100", pages=True)
+                    self.assertEqual([call.args for call in api.call_args_list],
+                                     [(f"actions/runs/123/attempts/{number}/jobs?per_page=100",) for number in (1, 2)])
+                    self.assertTrue(all(call.kwargs == {"pages": True} for call in api.call_args_list))
                     self.assertEqual(output.read_text(), f"scope={expected}\n")
                     self.assertIn("Skipped: " if expected == "skip" else "Proceeding: ", summary.read_text())
             event.write_text(json.dumps({"workflow_run": EVENT["workflow_run"] | {"conclusion": "failure"}}))

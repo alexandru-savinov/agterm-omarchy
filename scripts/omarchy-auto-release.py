@@ -25,10 +25,12 @@ WATCH_UNAVAILABLE = "release-watch-unavailable"
 RELEASES_PATH = "releases?per_page=100"
 PROMOTION_RUNS = "actions/workflows/prerelease-omarchy.yml/runs"
 ACTIVE_PROMOTION_STATUSES = ("queued", "in_progress", "requested", "waiting", "pending")
-# Omarchy CI path-filters these out when a change touches no product input. A skipped matrix job keeps its
-# unexpanded name. "Detect changes" decides the filter and "CI" aggregates every result.
+# Omarchy CI path-filters every job except these when a change touches no product input. "Detect changes"
+# applies the filter, "CI" aggregates every result, and the cookbook check builds nothing.
+UNFILTERED_JOBS = ("Upstream workflow guard", "Installer and scripts", "Detect changes", "CI", "Cookbook checks")
 SCOPE_GATES = ("Detect changes", "CI")
 BUILD_JOBS = ("SwiftLint (Linux)",) + promotion.REQUIRED_ARCH_JOBS + (promotion.ATTEST_JOB,)
+MATRIX = "${{ matrix.arch }}"
 
 
 def gh(path, *, method="GET", data=None):
@@ -66,23 +68,37 @@ def next_version(base, tags):
     return f"{base}.{max(serials, default=0) + 1}"
 
 
-def build_family(template):
-    return {template.format(arch=arch) for arch in (*promotion.ARCHITECTURES, "${{ matrix.arch }}")}
+def filtered_forms(template):
+    """The names a skipped build family can take: one unexpanded matrix job, or every architecture."""
+    if "{arch}" not in template:
+        return [{template}]
+    return [{template.format(arch=MATRIX)}, {template.format(arch=arch) for arch in promotion.ARCHITECTURES}]
 
 
-def ci_scope(run, jobs):
-    """Skip only on proof that a green CI run built nothing; anything else proceeds to the full checks."""
+def jobs_that_ran(jobs):
+    return sorted(job["name"] for job in jobs if job["name"] not in UNFILTERED_JOBS and job["conclusion"] != "skipped")
+
+
+def ci_scope(run, jobs, earlier=()):
+    """Skip only on proof that a green CI run built nothing; anything else proceeds to the full checks.
+
+    jobs is the triggering attempt; earlier holds the job lists of the run's previous attempts."""
     promotion.require(run.get("conclusion") == "success", "Omarchy CI did not succeed; nothing can be released")
     label = f"Omarchy CI run {run['id']} attempt {run['run_attempt']}"
     for name in SCOPE_GATES:
         matches = [job for job in jobs if job["name"] == name]
         if len(matches) != 1 or matches[0]["conclusion"] != "success":
             return "proceed", f"{label}: {name} did not succeed once; the release checks decide"
+    if ran := jobs_that_ran(jobs):
+        return "proceed", f"{label}: {', '.join(ran)} ran; the release checks decide"
     for template in BUILD_JOBS:
-        family = build_family(template)
-        conclusions = {job["conclusion"] for job in jobs if job["name"] in family}
-        if conclusions != {"skipped"}:
-            return "proceed", f"{label}: {template.format(arch='*')} ran or is absent; the release checks decide"
+        names = [job["name"] for job in jobs if any(job["name"] in form for form in filtered_forms(template))]
+        if len(names) != len(set(names)) or set(names) not in filtered_forms(template):
+            return "proceed", f"{label}: {template.format(arch='*')} is incomplete; the release checks decide"
+    # Each attempt lists its own results, so a later empty attempt must not hide an earlier one that built.
+    for number, attempt in enumerate(earlier, start=1):
+        if ran := jobs_that_ran(attempt):
+            return "proceed", f"{label}: attempt {number} ran {', '.join(ran)}; the release checks decide"
     names = ", ".join(template.format(arch="*") for template in BUILD_JOBS)
     return "skip", f"{label} built nothing to release: path filters skipped {names}"
 
@@ -313,7 +329,9 @@ def main():
     args = parser.parse_args()
     if args.command == "ci-scope":
         run = read_event()["workflow_run"]
-        scope, reason = ci_scope(run, promotion.run_jobs(run))
+        earlier = [promotion.run_jobs({"id": run["id"], "run_attempt": number})
+                   for number in range(1, run["run_attempt"])]
+        scope, reason = ci_scope(run, promotion.run_jobs(run), earlier)
         promotion.write_outputs({"scope": scope})
         write_summary(f"{'Skipped' if scope == 'skip' else 'Proceeding'}: {reason}.")
         print(f"{scope}: {reason}")
