@@ -55,11 +55,18 @@ public final class AgtermServer {
         case .heldByAnother: throw Failure.stateDirectoryHeld(configuration.stateDirectory)
         case .unavailable(let reason): throw Failure.stateDirectoryUnavailable(reason)
         }
+        let verifiedRunner: any ZmxRunner
+        if let runner {
+            verifiedRunner = runner
+        } else {
+            let processRunner = ProcessZmxRunner(zmxPath: configuration.zmxPath, socketDirectory: configuration.zmxSocketDirectory,
+                                                 placement: ServerPlacement.detect(environment: environment),
+                                                 baseEnvironment: environment)
+            try processRunner.verifySocketDirectory()
+            verifiedRunner = processRunner
+        }
         let catalog = try CatalogRoot.load(directory: directory, name: configuration.catalogName)
-        let runner = runner ?? ProcessZmxRunner(zmxPath: configuration.zmxPath, socketDirectory: configuration.zmxSocketDirectory,
-                                                placement: ServerPlacement.detect(environment: environment),
-                                                baseEnvironment: environment)
-        let panes = ServerPanes(configuration: configuration, runner: runner, shellPath: configuration.loginShell,
+        let panes = ServerPanes(configuration: configuration, runner: verifiedRunner, shellPath: configuration.loginShell,
                                 catalogID: catalog.id, programVersion: identity.version, environment: environment)
         let persistence = PersistenceStore(directory: directory)
         let events = ServerEvents(window: catalog.id)
@@ -101,7 +108,7 @@ public final class AgtermServer {
                 server?.actions.streams.adopt(conn, request: request, response: response, written: written) ?? false
             }
         })
-        server.adopt(runner)
+        server.adopt(verifiedRunner)
         try socket.start()
         server.socket = socket
         server.observer.start()

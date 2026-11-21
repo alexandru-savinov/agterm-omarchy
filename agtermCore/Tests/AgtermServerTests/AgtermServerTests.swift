@@ -34,6 +34,24 @@ struct AgtermServerTests {
         #expect(reply == ControlResponse(ok: false, error: HeadlessCommandPolicy.physicalWindowRefusal(.windowNew)))
     }
 
+    @Test func startupRefusesTheSocketDirectoryBeforeInvokingZmx() throws {
+        let scratch = try ServerScratch()
+        defer { scratch.remove() }
+        var configuration = try scratch.configuration()
+        let marker = scratch.root + "/called"
+        configuration.zmxPath = scratch.bin + "/fake-zmx"
+        try writeExecutable(configuration.zmxPath, "#!/bin/sh\ntouch '\(marker)'\n")
+        let sockets = configuration.zmxSocketDirectory
+        try FileManager.default.createSymbolicLink(atPath: sockets, withDestinationPath: scratch.bin)
+        let refusal = ZmxSocketDirectory.Refusal(path: sockets, reason: .symbolicLink)
+        #expect(throws: ZmxRunnerError.failed(refusal.message)) {
+            let server = try AgtermServer.start(configuration: configuration, identity: identity, environment: scratch.environment)
+            server.stop()
+        }
+        #expect(!FileManager.default.fileExists(atPath: marker))
+        #expect(!FileManager.default.fileExists(atPath: configuration.socketPath))
+    }
+
     @Test func aSecondServerOnTheSameStateDirectoryIsRefused() throws {
         let scratch = try ServerScratch()
         defer { scratch.remove() }
