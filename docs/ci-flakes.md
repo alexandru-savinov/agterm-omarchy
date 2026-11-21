@@ -6,6 +6,23 @@ investigation. Most entries come from the investigation in PR #968.
 
 Each entry separates a demonstrated cause from one that is only consistent with the evidence.
 
+## Omarchy GTK AT-SPI smoke suite (#527)
+
+The full GitHub Actions suite permits one extra process per exact architecture, scenario and final assertion
+listed below. Every attempt must still pass the scenario's original assertions to count as a pass. The first
+failure and retry output stream to the job log. The GitHub step summary lists retries and each shard's extra
+attempts, recoveries and exhausted retries. Runs that retry or fail upload diagnostics, including the first
+attempt's output and any captures. The attempts have separate diagnostic directories and share the shard's
+GTK stderr/CSS guard. A second failure, a different assertion, or a process crash fails the suite.
+Targeted runs execute each scenario once so they can reproduce these failures directly.
+
+| Architecture | Scenario and assertion | Evidence and remaining investigation |
+| --- | --- | --- |
+| aarch64 | `leader-repeat` — `window switch reset the repeat prefix` | The test now waits for X11 keyboard focus to reach the destination before sending the tail. A delayed-focus fixture reproduces the old 100 ms assumption. Hosted attempts [one](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44911105237/job/136866965184) and [two](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44911105237/job/136876271215) show the missing tail. If the signature recurs after focus arrives, inspect GTK focus-out and leader cancellation. |
+| aarch64 | `v0430-gui` — `missing real GUI button: Move to…` | The companion and destination both existed, and the tree contained no popover. The traces cannot distinguish a click that missed its row from a popover that dismissed before observation. Capture the selected row's bounds and the popover lifecycle on recurrence. [#511](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44909256878/job/136861401358), [#513](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44911105237/job/136885887557). |
+| aarch64 | `window-close-cancel` — `session {session_id} never answered before` | One fixture shell did not write its marker before the quit prompt. The run passed on a rerun. This signature requires a UUID and applies only to the initial `before` probe. Capture shell readiness and command delivery if it recurs. [#520](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44922154376/job/136901728962). |
+| x86_64 | `remote-v0391` — `viewer did not reclaim the respawned pane` | The origin had a new running, realized pane while the viewer still lacked lead. Capture the origin respawn generation and viewer held-exit, reattach and lead acknowledgement on recurrence. [Failing trace](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44899076121/job/136831561165), [#517 comparison](https://github.com/alexandru-savinov/agterm-omarchy/issues/517#issuecomment-7062856643). |
+
 ## How these were found
 
 - **Raw job logs name the failing test.** Read them with
