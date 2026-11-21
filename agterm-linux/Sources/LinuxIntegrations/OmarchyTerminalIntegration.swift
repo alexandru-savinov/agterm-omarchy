@@ -8,19 +8,32 @@ import Darwin
 /// Owns a small Lua module and the exact include block inserted into the user's Hyprland entrypoint.
 public struct OmarchyTerminalIntegration {
     public enum State: String, Codable {
-        case enabled, disabled, incomplete
+        case enabled, disabled, incomplete, unavailable
     }
 
     public struct Status: Codable {
         public let state: State
         public let configPath: String
         public let modulePath: String
+        public let detail: String?
     }
 
     private struct Failure: LocalizedError {
         let message: String
         init(_ message: String) { self.message = message }
         var errorDescription: String? { message }
+    }
+
+    private enum EntryPointUnavailable: LocalizedError {
+        case missing(String)
+        case symlink(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .missing(let path): return "Hyprland Lua config is missing: \(path)"
+            case .symlink(let path): return "Hyprland Lua config is a symbolic link: \(path)"
+            }
+        }
     }
 
     private struct File: Equatable {
@@ -40,9 +53,13 @@ public struct OmarchyTerminalIntegration {
     }
 
     public func status() throws -> Status {
-        try withDirectory { fd in
-            let files = try inspect(fd)
-            return status(hasInclude: files.range != nil, hasModule: files.module != nil)
+        do {
+            return try withDirectory { fd in
+                let files = try inspect(fd)
+                return status(hasInclude: files.range != nil, hasModule: files.module != nil)
+            }
+        } catch let error as EntryPointUnavailable {
+            return status(.unavailable, detail: error.localizedDescription)
         }
     }
 
@@ -55,8 +72,8 @@ public struct OmarchyTerminalIntegration {
                 }
                 if range == nil {
                     var updated = config.data
-                    let index = Self.insertionPoint(in: updated)
-                    updated.insert(contentsOf: Self.include, at: index)
+                    let (index, include) = Self.insertion(in: updated)
+                    updated.insert(contentsOf: include, at: index)
                     do {
                         try write(updated, named: Self.configName, replacing: config, in: fd)
                     } catch {
@@ -89,6 +106,8 @@ public struct OmarchyTerminalIntegration {
         end
         -- <<< agterm Omarchy terminal tag <<<
         """ + "\n").utf8)
+    // Own the inserted line ending when the original hash line ended at EOF.
+    private static let includeAfterUnterminatedHeader = Data("\n-- agterm Omarchy terminal tag separator\n".utf8) + include
     private static let module = Data((#"""
         -- Managed by agtermctl integration omarchy.
         hl.window_rule({
@@ -100,16 +119,22 @@ public struct OmarchyTerminalIntegration {
 
     private func status(hasInclude: Bool, hasModule: Bool) -> Status {
         let state: State = hasInclude == hasModule ? (hasInclude ? .enabled : .disabled) : .incomplete
-        return Status(state: state, configPath: directory.appendingPathComponent(Self.configName).path,
-                      modulePath: directory.appendingPathComponent(Self.moduleName).path)
+        return status(state)
+    }
+
+    private var configPath: String { directory.appendingPathComponent(Self.configName).path }
+
+    private func status(_ state: State, detail: String? = nil) -> Status {
+        Status(state: state, configPath: configPath,
+               modulePath: directory.appendingPathComponent(Self.moduleName).path, detail: detail)
     }
 
     private func inspect(_ fd: Int32) throws -> (config: File, range: Range<Int>?, module: File?) {
         guard let config = try read(Self.configName, in: fd) else {
-            throw Failure("Hyprland Lua config is missing: \(directory.appendingPathComponent(Self.configName).path)")
+            throw EntryPointUnavailable.missing(configPath)
         }
         var unmanaged = config.data
-        let range = unmanaged.range(of: Self.include)
+        let range = unmanaged.range(of: Self.includeAfterUnterminatedHeader) ?? unmanaged.range(of: Self.include)
         if let range { unmanaged.removeSubrange(range) }
         guard let source = String(data: unmanaged, encoding: .utf8),
               !source.contains(Self.marker), !source.contains("hypr.agterm-omarchy"), !source.contains(Self.moduleName) else {
@@ -122,20 +147,23 @@ public struct OmarchyTerminalIntegration {
         return (config, range, module)
     }
 
-    private static func insertionPoint(in config: Data) -> Int {
+    private static func insertion(in config: Data) -> (Int, Data) {
         let beginning = config.starts(with: [0xef, 0xbb, 0xbf]) ? 3 : 0
-        // Keep a Lua hashbang at the beginning. The managed rule runs before Omarchy's tag-based rules
-        // and before any top-level return in a customized entrypoint.
-        if config.dropFirst(beginning).starts(with: [35, 33]),
-           let newline = config[beginning...].firstIndex(of: 10) {
-            return newline + 1
+        // Lua ignores the first line when it starts with #. Keep it ahead of the managed rule,
+        // which must run before Omarchy's tag-based rules or a top-level return.
+        guard config.dropFirst(beginning).first == 35 else { return (beginning, include) }
+        guard let newline = config[beginning...].firstIndex(of: 10) else {
+            return (config.count, includeAfterUnterminatedHeader)
         }
-        return beginning
+        return (newline + 1, include)
     }
 
     private func withDirectory<T>(_ action: (Int32) throws -> T) throws -> T {
         let fd = open(directory.path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
-        guard fd >= 0 else { throw failure("open \(directory.path)") }
+        guard fd >= 0 else {
+            if errno == ENOENT { throw EntryPointUnavailable.missing(configPath) }
+            throw failure("open \(directory.path)")
+        }
         defer { _ = close(fd) }
         guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { throw failure("lock \(directory.path)") }
         defer { _ = flock(fd, LOCK_UN) }
@@ -146,6 +174,7 @@ public struct OmarchyTerminalIntegration {
         let fd = openat(directory, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK)
         guard fd >= 0 else {
             if errno == ENOENT { return nil }
+            if errno == ELOOP && name == Self.configName { throw EntryPointUnavailable.symlink(configPath) }
             throw failure("open \(name)")
         }
         let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)

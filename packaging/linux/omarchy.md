@@ -95,7 +95,7 @@ GTK selects native Wayland in a Hyprland session.
 
 ### Omarchy clipboard shortcuts
 
-With Omarchy’s Lua-based Hyprland configuration, run this as your desktop user to give agterm the terminal rules for Super+C, Super+V, opacity, and touchpad scrolling.
+With Omarchy’s Lua-based Hyprland configuration, run this as your desktop user to give agterm terminal copy and paste on Super+C and Super+V, plus Omarchy’s default terminal opacity of 0.985 when active and 0.96 when inactive.
 
 ```bash
 agtermctl integration omarchy enable
@@ -107,6 +107,11 @@ Use `agtermctl integration omarchy disable` to remove the managed files and rest
 The command preserves existing edits outside its marked block and refuses symlinked or conflicting files.
 The terminal launcher preference stays under your control.
 
+If you run `omarchy refresh hyprland` (`omarchy-refresh-hyprland`), Omarchy overwrites `hyprland.lua` and saves the previous version as `hyprland.lua.bak.<timestamp>`.
+The refresh removes the marked include, so `status` reports `incomplete` and Super+C can interrupt a terminal command again.
+Run `agtermctl integration omarchy enable` again to restore the include.
+
+`status` checks the files on disk.
 After Hyprland reloads, `hyprctl clients -j` should show `terminal` or `terminal*` in the tags for `io.github.melonamin.agterm`.
 
 No Hyprland configuration or default terminal selection is changed by installation.

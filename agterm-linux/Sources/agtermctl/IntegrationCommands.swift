@@ -38,6 +38,7 @@ struct Integration: ParsableCommand {
                 print("Omarchy terminal tag: \(result.state.rawValue)")
                 print("Hyprland config: \(result.configPath)")
                 print("Rule module: \(result.modulePath)")
+                if let detail = result.detail { print(detail) }
             }
         }
     }

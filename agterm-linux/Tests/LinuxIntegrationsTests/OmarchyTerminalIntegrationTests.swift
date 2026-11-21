@@ -88,6 +88,56 @@ struct OmarchyTerminalIntegrationTests {
         #expect(try Data(contentsOf: fixture.module) == module)
     }
 
+    @Test func missingEntrypointReportsUnavailableWithoutCreatingIt() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        let status = try fixture.integration.status()
+        #expect(status.state == .unavailable)
+        #expect(status.detail?.contains("config is missing") == true)
+        #expect(throws: (any Error).self) { try fixture.integration.setEnabled(true) }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.path).isEmpty)
+
+        try FileManager.default.removeItem(at: fixture.directory)
+        #expect(try fixture.integration.status().state == .unavailable)
+        #expect(!FileManager.default.fileExists(atPath: fixture.directory.path))
+    }
+
+    @Test func symlinkedEntrypointReportsUnavailableAndPreservesTheTarget() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        let target = fixture.directory.appendingPathComponent("user.lua")
+        let initial = Data("-- user config\n".utf8)
+        try initial.write(to: target)
+        try FileManager.default.createSymbolicLink(at: fixture.config, withDestinationURL: target)
+
+        let status = try fixture.integration.status()
+        #expect(status.state == .unavailable)
+        #expect(status.detail?.contains("config is a symbolic link") == true)
+        #expect(throws: (any Error).self) { try fixture.integration.setEnabled(true) }
+        #expect(throws: (any Error).self) { try fixture.integration.setEnabled(false) }
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: fixture.config.path) == target.path)
+        #expect(try Data(contentsOf: target) == initial)
+        #expect(!FileManager.default.fileExists(atPath: fixture.module.path))
+    }
+
+    @Test(arguments: ["# first line\n", "# first line"])
+    func homeFallbackPreservesLuaHashHeader(header: String) throws {
+        let fixture = try Fixture(useXDG: false)
+        defer { fixture.clean() }
+        let initial = Data(header.utf8)
+        try initial.write(to: fixture.config)
+
+        let status = try fixture.integration.setEnabled(true)
+        #expect(status.state == .enabled)
+        #expect(status.configPath == fixture.root.appendingPathComponent(".config/hypr/hyprland.lua").path)
+        let config = try String(contentsOf: fixture.config, encoding: .utf8)
+        #expect(config.split(separator: "\n").first == "# first line")
+        #expect(config.contains("-- >>> agterm Omarchy terminal tag >>>"))
+        #expect(try fixture.integration.status().state == .enabled)
+        #expect(try fixture.integration.setEnabled(false).state == .disabled)
+        #expect(try Data(contentsOf: fixture.config) == initial)
+    }
+
     private struct Fixture {
         let root: URL
         let directory: URL
@@ -95,13 +145,13 @@ struct OmarchyTerminalIntegrationTests {
         var config: URL { directory.appendingPathComponent("hyprland.lua") }
         var module: URL { directory.appendingPathComponent("agterm-omarchy.lua") }
 
-        init() throws {
+        init(useXDG: Bool = true) throws {
             root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-            let customConfig = root.appendingPathComponent("xdg config", isDirectory: true)
-            directory = customConfig.appendingPathComponent("hypr", isDirectory: true)
+            let configRoot = root.appendingPathComponent(useXDG ? "xdg config" : ".config", isDirectory: true)
+            directory = configRoot.appendingPathComponent("hypr", isDirectory: true)
             integration = OmarchyTerminalIntegration(environment: IntegrationEnvironment(
                 homeDirectory: root, executableURL: root.appendingPathComponent("agtermctl"),
-                pathDirectories: [], resourceRoot: nil, xdgConfigHome: customConfig.path))
+                pathDirectories: [], resourceRoot: nil, xdgConfigHome: useXDG ? configRoot.path : nil))
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
 
