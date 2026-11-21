@@ -278,7 +278,7 @@ final class GhosttyApp: @unchecked Sendable {
             case GHOSTTY_ACTION_OPEN_URL:
                 let value = action.action.open_url
                 if let raw = GhosttyActionDecoder.utf8String(value.url, length: value.len) {
-                    if Self.wrapper(fromTarget: target)?.openLink(raw) != true { Self.openTerminalURL(raw) }
+                    Self.queueTerminalLink(raw, from: Self.wrapper(fromTarget: target))
                 }
                 return true
             case GHOSTTY_ACTION_MOUSE_OVER_LINK:
@@ -286,6 +286,8 @@ final class GhosttyApp: @unchecked Sendable {
                 // libghostty signals hover-clear with an EMPTY url (len == 0); the pointer is never NULL.
                 let action_ = action.action.mouse_over_link
                 Self.wrapper(fromTarget: target)?.setLinkHover(LinkHoverDecision.isActive(url: action_.url, len: action_.len))
+                let raw = GhosttyActionDecoder.utf8String(action_.url, length: UInt(max(0, action_.len)))
+                Self.wrapper(fromTarget: target)?.showLinkHover(raw?.isEmpty == false ? raw : nil)
                 return true
             case GHOSTTY_ACTION_MOUSE_SHAPE:
                 Self.wrapper(fromTarget: target)?.setMouseShape(action.action.mouse_shape)

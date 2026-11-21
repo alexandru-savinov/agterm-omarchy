@@ -93,7 +93,7 @@ struct SharedCommandProcessTests {
         }
     }
 
-    @Test("socket precedence is flag then state directory then Linux XDG application support")
+    @Test("socket precedence is flag then state directory then Linux XDG application support, not the server's")
     func socketPrecedence() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "agterm-cli-paths-\(UUID().uuidString)", isDirectory: true)
@@ -125,7 +125,10 @@ struct SharedCommandProcessTests {
         try FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
         let xdgServer = try OneShotControlServer(path: appSupport.appendingPathComponent("agterm.sock").path)
         xdgServer.start()
-        let xdgResult = try runCLI(["tree"], environment: ["XDG_DATA_HOME": xdg.path])
+        let xdgResult = try runCLI(["tree"], environment: [
+            "XDG_DATA_HOME": xdg.path,
+            "XDG_STATE_HOME": root.appendingPathComponent("ignored-server-state").path,
+        ])
         xdgServer.stop()
         #expect(xdgResult.status == 0)
     }

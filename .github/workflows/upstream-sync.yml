@@ -1,18 +1,28 @@
 name: Upstream sync
 
-# One sync PR per umputun/agterm release (#476): main merged with the newest vX.Y.Z tag main lacks, on
-# sync/umputun-<tag>. A clean merge opens a PR labelled upstream-sync; conflicts, or any change under .github/,
-# open a draft labelled needs-adaptation with the markers committed. Nothing runs while syncing is paused
+# One sync PR at a time (#476, #493). The primary source is melonamin/agterm-linux linux-port: when its head is
+# not in main, main merged with it on sync/linux-port-<sha8>. The fallback is a direct umputun/agterm release,
+# main merged with a vX.Y.Z tag on sync/umputun-<tag>, taken only for a release linux-port has lacked for more
+# than LINUX_PORT_LAG_DAYS (scripts/upstream-sync.py). The lag runs from the release's publication, or for a tag
+# with no release from the first live run that saw it, carried between runs in the upstream-sync-first-seen artifact.
+# A clean merge opens a PR labelled upstream-sync; conflicts, or any change under .github/,
+# open a draft labelled needs-adaptation with the markers committed. A merge that adds a workflow file at a
+# path main lacks is not pushed at all: the run rewrites one needs-adaptation issue and warns.
+# Nothing runs while syncing is paused
 # (repository variable SYNC_PAUSED is true, or an issue labelled release-incident is open) or while any sync PR
 # is open; a sync branch with no open PR fails the run until it is deleted. Gates and selection live in scripts/upstream-sync.py.
-# Merge sync PRs as merge commits only: a squash leaves the tag outside main's history and it syncs again.
+# The merge commit advances the fork's boundary pins in omarchy-ci.yml. Upstream workflow bytes follow their source.
+# Merge sync PRs as merge commits only: a squash leaves the source outside main's history and it syncs again.
 #
 # Token: the push and the PR use UPSTREAM_SYNC_TOKEN, never GITHUB_TOKEN, which cannot push upstream's
 # .github/workflows changes (no `workflows` permission) and cannot open PRs here (Actions PR creation is
 # disabled). It is a fine-grained PAT for this repository only, with Contents, Pull requests and Workflows
 # read/write. Store it as a secret of the `upstream-sync` environment, whose deployment branch policy allows
-# main only, never as a repository secret: the pushed branch runs upstream-authored workflows, which can read
-# every repository secret. A GitHub App instead needs a token-minting step in the publish job.
+# main only, never as a repository secret: the pushed branch runs the workflows it carries before any
+# review. A workflow can request a write token for itself, so a path main lacks blocks the push (above); what
+# an existing path may do, and why the settings guard in `publish` only warns with this PAT, is in
+# docs/plans/20261119-linux-home-design.md (C2, Trust).
+# A GitHub App instead needs a token-minting step in the publish job.
 # GITHUB_TOKEN only creates the labels; scripts/upstream-sync-publish.sh pushes, opens and labels as the PAT, so
 # the labeled event triggers workflows.
 on:
@@ -26,7 +36,7 @@ on:
         type: boolean
         default: true
       tag:
-        description: Sync this umputun vX.Y.Z tag instead of the newest one; the same gates apply
+        description: Narrow the direct sync to this umputun vX.Y.Z tag; a live run still needs linux-port merged and the lag passed, a dry run previews any tag
         required: false
         type: string
         default: ""
@@ -37,6 +47,7 @@ on:
       - .github/workflows/upstream-sync.yml
       - scripts/upstream-sync.py
       - scripts/upstream-sync-publish.sh
+      - scripts/upstream-sync-blocked.sh
       - scripts/tests/test_upstream_sync.py
       - scripts/github/pr_fields.py
 
@@ -68,11 +79,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
+      actions: read # the first-seen artifact of an earlier run
       contents: read
       issues: read
       pull-requests: read
     outputs:
       action: ${{ steps.plan.outputs.action }}
+      blocked: ${{ steps.merge.outputs.blocked }}
       branch: ${{ steps.plan.outputs.branch }}
       title: ${{ steps.merge.outputs.title }}
       label: ${{ steps.merge.outputs.label }}
@@ -98,7 +111,7 @@ jobs:
         id: pause
         env:
           GH_TOKEN: ${{ github.token }}
-        # Before anything is fetched from umputun: a paused run does nothing else. SYNC_PAUSED decides alone when
+        # Before anything is fetched from upstream: a paused run does nothing else. SYNC_PAUSED decides alone when
         # it pauses; otherwise the incident listing is required, and a failed listing fails the job.
         run: |
           status=0
@@ -106,13 +119,34 @@ jobs:
           (( status == 3 )) || exit "$status"
           gh issue list --state open --label release-incident --limit 100 --json number > "$RUNNER_TEMP/incidents.json"
           python3 scripts/upstream-sync.py pause --paused "$SYNC_PAUSED" --incidents "$RUNNER_TEMP/incidents.json"
-      - name: Fetch main and umputun release tags
+      - name: Fetch main, the linux-port head and umputun release tags
         if: steps.pause.outputs.paused == 'false'
         run: |
           git fetch --quiet --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
-          # A private namespace, so upstream tags never mix with this repository's own.
+          # Private namespaces, so upstream refs never mix with this repository's own.
+          git fetch --quiet --no-tags https://github.com/melonamin/agterm-linux.git \
+            '+refs/heads/linux-port:refs/upstream-heads/linux-port'
           git fetch --quiet --no-tags https://github.com/umputun/agterm.git '+refs/tags/v*:refs/upstream-tags/v*'
-          git ls-remote --heads origin 'refs/heads/sync/umputun-*' > "$RUNNER_TEMP/branches.txt"
+          git ls-remote --heads origin 'refs/heads/sync/linux-port-*' 'refs/heads/sync/umputun-*' \
+            > "$RUNNER_TEMP/branches.txt"
+      - name: List umputun releases and restore the first-seen record
+        if: steps.pause.outputs.paused == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # A failed listing fails the job: without it no lag can be measured.
+        run: |
+          gh api --paginate 'repos/umputun/agterm/releases?per_page=100' \
+            --jq '.[] | {tag_name, draft, published_at}' | jq -s . > "$RUNNER_TEMP/releases.json"
+          # Only a run on this repository's main may have written the record: a pull request's run can upload
+          # an artifact of any name. No record yet starts every clock now.
+          id="$(gh api --paginate "repos/$GH_REPO/actions/artifacts?name=upstream-sync-first-seen&per_page=100" \
+            --jq '.artifacts[] | select((.expired | not) and .workflow_run.head_branch == "main"
+              and .workflow_run.head_repository_id == .workflow_run.repository_id) | [.created_at, .id] | @tsv' \
+            | sort | tail -n 1 | cut -f 2)"
+          if [[ -n "$id" ]]; then
+            gh api "repos/$GH_REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/first-seen.zip"
+            unzip -q "$RUNNER_TEMP/first-seen.zip" first-seen.json -d "$RUNNER_TEMP/seen"
+          fi
       - name: List open pull requests
         if: steps.pause.outputs.paused == 'false'
         env:
@@ -127,12 +161,25 @@ jobs:
         run: |
           python3 scripts/upstream-sync.py plan --base refs/remotes/origin/main \
             --open-prs "$RUNNER_TEMP/prs.json" --remote-branches "$RUNNER_TEMP/branches.txt" \
-            --paused "$SYNC_PAUSED" --incidents "$RUNNER_TEMP/incidents.json" --tag "$TAG_OVERRIDE"
+            --paused "$SYNC_PAUSED" --incidents "$RUNNER_TEMP/incidents.json" \
+            --tag "$TAG_OVERRIDE" --dry-run "$DRY_RUN" --releases "$RUNNER_TEMP/releases.json" \
+            --first-seen "$RUNNER_TEMP/seen/first-seen.json" --first-seen-out "$RUNNER_TEMP/seen-out/first-seen.json"
+      - name: Keep the first-seen record for the next run
+        # Live runs only, and those run only from main, which is what the restore above trusts.
+        if: steps.plan.outcome == 'success' && env.DRY_RUN != 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: upstream-sync-first-seen
+          path: ${{ runner.temp }}/seen-out/first-seen.json
+          retention-days: 90
+          if-no-files-found: error
+          overwrite: true # a re-run attempt uploads the name again on the same run
       - name: Build the sync branch
         id: merge
         # A dry run builds the merge even when a gate skips, so its log shows what a live run would open.
-        if: steps.plan.outputs.action == 'sync' || (env.DRY_RUN == 'true' && steps.plan.outputs.tag != '')
+        if: steps.plan.outputs.action == 'sync' || (env.DRY_RUN == 'true' && steps.plan.outputs.branch != '')
         env:
+          SOURCE: ${{ steps.plan.outputs.source }}
           TAG: ${{ steps.plan.outputs.tag }}
           COMMIT: ${{ steps.plan.outputs.commit }}
           BRANCH: ${{ steps.plan.outputs.branch }}
@@ -140,35 +187,49 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/out"
           python3 scripts/upstream-sync.py merge --base refs/remotes/origin/main --branch "$BRANCH" \
-            --tag "$TAG" --commit "$COMMIT" --worktree "$RUNNER_TEMP/sync" --body "$RUNNER_TEMP/out/body.md" \
-            --run-url "$RUN_URL"
+            --source "$SOURCE" --tag "$TAG" --commit "$COMMIT" --worktree "$RUNNER_TEMP/sync" \
+            --body "$RUNNER_TEMP/out/body.md" --run-url "$RUN_URL"
           git -C "$RUNNER_TEMP/sync" bundle create "$RUNNER_TEMP/out/sync.bundle" "refs/heads/$BRANCH" \
             ^refs/remotes/origin/main
       - name: Hand the branch to the publish job
-        if: steps.plan.outputs.action == 'sync' && env.DRY_RUN != 'true'
+        if: steps.plan.outputs.action == 'sync' && env.DRY_RUN != 'true' && steps.merge.outputs.blocked == 'false'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: upstream-sync-branch
           path: ${{ runner.temp }}/out/
           retention-days: 1
           if-no-files-found: error
+      - name: Hand the blocked sync to the report job
+        # The issue text only: a blocked branch leaves the runner in no form.
+        if: steps.plan.outputs.action == 'sync' && env.DRY_RUN != 'true' && steps.merge.outputs.blocked == 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: upstream-sync-blocked
+          path: ${{ runner.temp }}/out/body.md
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
       - name: Summary
         if: always() && steps.pause.outcome == 'success'
         env:
           ACTION: ${{ steps.plan.outputs.action || 'skip' }}
           REASON: ${{ steps.plan.outputs.reason || steps.pause.outputs.reason }}
-          TAG: ${{ steps.plan.outputs.tag }}
+          BRANCH: ${{ steps.plan.outputs.branch }}
+          SELECTION: ${{ steps.plan.outputs.selection }}
           CONFLICTS: ${{ steps.merge.outputs.conflicts }}
           GITHUB_CHANGES: ${{ steps.merge.outputs.github_changes }}
+          NEW_WORKFLOWS: ${{ steps.merge.outputs.new_workflows }}
         run: |
           {
             echo "### Upstream sync ($([[ "$DRY_RUN" == true ]] && echo 'dry run' || echo live))"
             echo
             echo "- decision: \`$ACTION\` ($REASON)"
-            [[ -z "$TAG" ]] || echo "- tag: \`$TAG\`, conflicted paths: ${CONFLICTS:-not built}, changes under .github/: ${GITHUB_CHANGES:-not built}"
+            [[ -z "$SELECTION" || "$SELECTION" == "$REASON" ]] || echo "- selection: $SELECTION"
+            [[ -z "$BRANCH" ]] || echo "- branch: \`$BRANCH\`, conflicted paths: ${CONFLICTS:-not built}, changes under .github/: ${GITHUB_CHANGES:-not built}"
+            [[ "${NEW_WORKFLOWS:-0}" == 0 ]] || echo "- blocked: the merge adds $NEW_WORKFLOWS workflow file(s) at paths main lacks; a live run pushes nothing and rewrites the blocked issue"
             if [[ -f "$RUNNER_TEMP/out/body.md" ]]; then
               echo
-              echo '<details><summary>PR body</summary>'
+              echo '<details><summary>PR or issue body</summary>'
               echo
               cat "$RUNNER_TEMP/out/body.md"
               echo '</details>'
@@ -186,7 +247,8 @@ jobs:
     name: Push the branch and open the sync PR
     needs: sync
     if: >-
-      needs.sync.outputs.action == 'sync' && github.ref == 'refs/heads/main' &&
+      needs.sync.outputs.action == 'sync' && needs.sync.outputs.blocked == 'false' &&
+      github.ref == 'refs/heads/main' &&
       (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -211,6 +273,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Check the settings that make the push safe
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+        # A failed read is not fatal here: the script warns on 403 or 404 and fails on any other answer or none.
+        run: |
+          gh api --include "repos/$GH_REPO/actions/permissions/workflow" > "$RUNNER_TEMP/workflow-permissions.http" || true
+          gh api --include "repos/$GH_REPO/actions/secrets" > "$RUNNER_TEMP/secrets.http" || true
+          python3 scripts/upstream-sync.py guard --workflow-permissions "$RUNNER_TEMP/workflow-permissions.http" \
+            --secrets "$RUNNER_TEMP/secrets.http"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: upstream-sync-branch
@@ -230,8 +301,8 @@ jobs:
             out="$(gh api "repos/$GH_REPO/labels" -f "name=$1" -f "color=$2" -f "description=$3" 2>&1)" \
               || grep -q 'already_exists' <<< "$out" || { echo "$out" >&2; return 1; }
           }
-          create upstream-sync 0e8a16 'Automated umputun/agterm release sync that merged cleanly'
-          create needs-adaptation d93f0b 'Automated umputun/agterm sync with conflicts or .github/ changes to resolve'
+          create upstream-sync 0e8a16 'Automated linux-port or umputun/agterm sync that merged cleanly'
+          create needs-adaptation d93f0b 'Automated upstream sync with conflicts or .github/ changes to resolve'
       - name: Push the branch and open the PR
         id: pr
         env:
@@ -241,3 +312,38 @@ jobs:
           LABEL: ${{ needs.sync.outputs.label }}
           BODY_FILE: ${{ runner.temp }}/in/body.md
         run: scripts/upstream-sync-publish.sh
+
+  blocked:
+    name: Report a sync blocked by new workflow files
+    needs: sync
+    if: >-
+      needs.sync.outputs.action == 'sync' && needs.sync.outputs.blocked == 'true' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: upstream-sync-blocked
+          path: ${{ runner.temp }}/in
+      - name: Create the needs-adaptation label if missing
+        run: |
+          out="$(gh api "repos/$GH_REPO/labels" -f name=needs-adaptation -f color=d93f0b \
+            -f 'description=Automated upstream sync with conflicts or .github/ changes to resolve' 2>&1)" \
+            || grep -q 'already_exists' <<< "$out" || { echo "$out" >&2; exit 1; }
+      - name: Open or rewrite the blocked issue
+        env:
+          TITLE: ${{ needs.sync.outputs.title }}
+          LABEL: ${{ needs.sync.outputs.label }}
+          BODY_FILE: ${{ runner.temp }}/in/body.md
+        run: scripts/upstream-sync-blocked.sh

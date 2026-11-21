@@ -13,6 +13,10 @@ They must be the **first non-blank lines of the body**. A line belongs to the bl
 
 The `PR fields` workflow reports a problem when a field is missing, repeated or malformed, or when `Reviewed head` differs from the pull request's current head. Until the cutoff described below is set (issue #423) it only warns and the check stays green, so a green `PR fields` says nothing about whether a review is current. Once the cutoff is set, a push after a review makes the check fail until the review is redone and the field updated. It runs when a PR is opened, edited, pushed to, reopened, marked ready for review or converted back to draft.
 
+For a PR labelled `upstream-offer`, the lead also verifies a green `Hosted macOS checks` result from
+`.github/workflows/omarchy-macos.yml` on the same head before sending changes upstream.
+The required repository check `CI` comes from `.github/workflows/omarchy-ci.yml`.
+
 ## What the check is not
 
 - **Advisory.** It is not in the required-checks ruleset, and a pull request can edit the workflow that runs it (only the checker script is read from the base commit). A green `PR fields` is never evidence that a review is current; read the review.

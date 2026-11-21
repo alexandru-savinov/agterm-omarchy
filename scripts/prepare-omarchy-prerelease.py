@@ -15,7 +15,8 @@ import tarfile
 import zipfile
 
 REPOSITORY = "alexandru-savinov/agterm-omarchy"
-WORKFLOW = ".github/workflows/ci.yml"
+WORKFLOW = ".github/workflows/omarchy-ci.yml"
+WORKFLOW_API = f"actions/workflows/{Path(WORKFLOW).name}"
 ARCHITECTURES = {"x86_64": 62, "aarch64": 183}
 BRANCHES = ("main", "omarchy")
 TAG = re.compile(r"omarchy-dev-[0-9a-f]{12}-run[1-9][0-9]*")
@@ -23,8 +24,10 @@ REQUIRED_JOBS = ("Installer and scripts", "SwiftLint (Linux)", "CI")
 REQUIRED_ARCH_JOBS = ("Core tests ({arch})", "GTK build and tests ({arch})")
 REQUIRED_GTK_STEPS = ("swift test (agterm-linux)", "swift build Release/WMO (agterm-linux)",
                       "Validate staged Linux payload", "GTK AT-SPI smoke tests", "Upload tested runtime payload")
-# A versioned release also needs the native tar/readelf/ldd check its notes describe.
-RELEASE_GTK_STEPS = ("Rehearse versioned release archive", "Upload release rehearsal evidence")
+ATTEST_JOB = "Attest CI archive ({arch})"
+ATTEST_STEP = "Attest the exact tested CI archive"
+# A versioned release needs the rehearsal and a successful signature for each tested tarball.
+RELEASE_GTK_STEPS = ("Rehearse versioned release archive", "Upload release rehearsal evidence", ATTEST_STEP)
 
 
 def require(condition, message):
@@ -83,13 +86,34 @@ def select_artifacts(artifacts, run, sha):
     return selected
 
 
+def parse_native_archives(text, sha):
+    """Validate the native gate's ci-run archives output for both architectures."""
+    archives = json.loads(text)
+    require(isinstance(archives, dict) and archives.keys() == ARCHITECTURES.keys(),
+            "Native evidence must contain exactly x86_64 and aarch64 archives")
+    for arch, record in archives.items():
+        require(isinstance(record, dict), f"Invalid native archive record for {arch}")
+        artifact_id = record.get("id")
+        require(type(artifact_id) is int and artifact_id > 0, f"Invalid native artifact ID for {arch}")
+        require(record.get("name") == f"agterm-omarchy-{arch}-{sha}"
+                and record.get("filename") == f"agterm-omarchy-{arch}.tar.gz",
+                f"Native archive names differ from the expected CI archive for {arch}")
+        digest, transport = record.get("sha256"), record.get("transport_digest")
+        require(isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest),
+                f"Invalid native archive SHA-256 for {arch}")
+        require(isinstance(transport, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", transport),
+                f"Invalid native artifact transport digest for {arch}")
+        require(record.get("attestation") == "verified", f"Native archive attestation is not verified for {arch}")
+    return archives
+
+
 def discover():
     """Newest run at a current trusted branch head that main() would accept for an unpublished tag."""
-    workflow = api("actions/workflows/ci.yml")
+    workflow = api(WORKFLOW_API)
     candidates = []
     for branch in BRANCHES:
         head = api(f"git/ref/heads/{branch}")["object"]["sha"]
-        pages = api(f"actions/workflows/ci.yml/runs?branch={branch}&head_sha={head}&status=success&per_page=100",
+        pages = api(f"{WORKFLOW_API}/runs?branch={branch}&head_sha={head}&status=success&per_page=100",
                     pages=True)
         for run in (run for page in pages for run in page["workflow_runs"]):
             try:
@@ -117,16 +141,23 @@ def validate_run(run, workflow, sha, branch_sha):
 
 
 def validate_jobs(jobs, release=False):
-    required = set(REQUIRED_JOBS)
-    for arch in ARCHITECTURES:
-        required.update(name.format(arch=arch) for name in REQUIRED_ARCH_JOBS)
-    for name in required:
+    def successful_job(name):
         matches = [job for job in jobs if job["name"] == name]
         require(len(matches) == 1 and matches[0]["conclusion"] == "success", f"Missing successful {name}")
-        if name.startswith("GTK build"):
-            for step in REQUIRED_GTK_STEPS + (RELEASE_GTK_STEPS if release else ()):
-                steps = [item for item in matches[0]["steps"] if item["name"] == step]
-                require(len(steps) == 1 and steps[0]["conclusion"] == "success", f"Missing successful {step}")
+        return matches[0]
+
+    core_name, gtk_name = REQUIRED_ARCH_JOBS
+    for name in REQUIRED_JOBS:
+        successful_job(name)
+    for arch in ARCHITECTURES:
+        successful_job(core_name.format(arch=arch))
+        gtk = successful_job(gtk_name.format(arch=arch))
+        signer = successful_job(ATTEST_JOB.format(arch=arch)) if release else None
+        for step in REQUIRED_GTK_STEPS + (RELEASE_GTK_STEPS if release else ()):
+            job = signer if step == ATTEST_STEP else gtk
+            steps = [item for item in job["steps"] if item["name"] == step]
+            require(len(steps) == 1 and steps[0]["conclusion"] == "success",
+                    f"Missing successful {step} ({arch})")
 
 
 def resolve_member_path(parts, links, depth=0):
@@ -242,7 +273,7 @@ def source_base(release, sha):
     """The upstream base the source commit itself declares, not this checkout's."""
     import base64
     content = api(f"contents/{WORKFLOW}?ref={sha}")
-    require(content.get("encoding") == "base64", "Unreadable source ci.yml")
+    require(content.get("encoding") == "base64", "Unreadable source omarchy-ci.yml")
     return release.upstream_base(base64.b64decode(content["content"]).decode())
 
 
@@ -266,8 +297,9 @@ def is_latest(version, existing):
     return all(version_key(version) > version_key(other) for other in existing)
 
 
-def next_version(release):
-    base = release.upstream_base()
+def next_version(release, base=None):
+    """The next unpublished serial for BASE, by default this checkout's upstream base."""
+    base = release.upstream_base() if base is None else base
     serials = [int(version.rsplit(".", 1)[1]) for version in released_versions(release)
                if version.startswith(base + ".") and version.count(".") == base.count(".") + 1]
     return f"{base}.{max(serials, default=0) + 1}"
@@ -282,8 +314,8 @@ def write_outputs(values):
 def discover_commit(sha):
     """Newest successful main CI run at SHA, which must be on main, for a versioned release of that commit."""
     require(re.fullmatch(r"[0-9a-f]{40}", sha) and on_main(sha), f"{sha} is not a commit on main")
-    workflow = api("actions/workflows/ci.yml")
-    pages = api(f"actions/workflows/ci.yml/runs?branch=main&head_sha={sha}&status=success&per_page=100", pages=True)
+    workflow = api(WORKFLOW_API)
+    pages = api(f"{WORKFLOW_API}/runs?branch=main&head_sha={sha}&status=success&per_page=100", pages=True)
     candidates = []
     for run in (run for page in pages for run in page["workflow_runs"]):
         if run["head_branch"] != "main":
@@ -303,8 +335,8 @@ def discover_releasable(limit=20):
 
     A PR dry run uses it so an unfinished CI run at the main head falls back to the last releasable commit
     instead of checking nothing."""
-    workflow = api("actions/workflows/ci.yml")
-    runs = api(f"actions/workflows/ci.yml/runs?branch=main&status=success&per_page={limit}")["workflow_runs"]
+    workflow = api(WORKFLOW_API)
+    runs = api(f"{WORKFLOW_API}/runs?branch=main&status=success&per_page={limit}")["workflow_runs"]
     for run in sorted(runs, key=lambda run: run["created_at"], reverse=True):
         sha = run["head_sha"]
         if run["head_branch"] != "main" or not re.fullmatch(r"[0-9a-f]{40}", sha):
@@ -328,14 +360,29 @@ def main():
     parser.add_argument("--releasable", action="store_true",
                         help="with --discover: the newest main run release mode accepts, at any main commit")
     parser.add_argument("--next-version", action="store_true", help="print the next unpublished release version")
+    parser.add_argument("--base-of", metavar="SHA",
+                        help="with --next-version, use the upstream base commit SHA declares instead of this checkout's")
     parser.add_argument("--release", metavar="VERSION",
                         help="build versioned release assets for tag omarchy-vVERSION instead of a dev prerelease")
+    parser.add_argument("--source-attempt", type=int,
+                        help="require the exact CI attempt that passed the automatic release gates")
+    parser.add_argument("--native-archives", help="require the native gate's attested CI archives JSON")
+    parser.add_argument("--auto-release-run-id", type=int, help="record the automatic release orchestration run")
     parser.add_argument("run_id", type=int, nargs="?")
     parser.add_argument("sha", nargs="?")
     parser.add_argument("output", type=Path, nargs="?")
     args = parser.parse_args()
+    require(args.base_of is None or args.next_version, "--base-of needs --next-version")
+    require((args.source_attempt is None) == (args.native_archives is None),
+            "--source-attempt and --native-archives must be provided together")
+    if args.source_attempt is not None:
+        require(args.source_attempt > 0 and args.release and not (args.next_version or args.discover),
+                "--source-attempt requires a positive attempt and versioned release preparation")
+    require(args.auto_release_run_id is None or (args.auto_release_run_id > 0 and args.source_attempt is not None),
+            "--auto-release-run-id requires positive ID and gated release evidence")
     if args.next_version:
-        version = next_version(release_module())
+        release = release_module()
+        version = next_version(release, source_base(release, args.base_of) if args.base_of else None)
         write_outputs({"version": version})
         print(version)
         return
@@ -353,8 +400,11 @@ def main():
         release.check_version(args.release)
     else:
         tag = promotion_tag(args.sha, args.run_id)
+    gated = parse_native_archives(args.native_archives, args.sha) if args.native_archives is not None else {}
     run = api(f"actions/runs/{args.run_id}")
     require(run["id"] == args.run_id, "Requested run ID mismatch")
+    require(args.source_attempt is None or run["run_attempt"] == args.source_attempt,
+            "CI attempt differs from the attempt tested by the automatic release gates")
     if release:
         # A release names its commit explicitly, so main may have moved on; it must still contain it.
         require(run["head_branch"] == "main", "Releases are cut only from main CI runs")
@@ -363,11 +413,15 @@ def main():
     else:
         require(run["head_branch"] in BRANCHES, "Untrusted source branch")
         branch_sha = api(f"git/ref/heads/{run['head_branch']}")["object"]["sha"]
-    validate_run(run, api("actions/workflows/ci.yml"), args.sha, branch_sha)
+    validate_run(run, api(WORKFLOW_API), args.sha, branch_sha)
     validate_jobs(run_jobs(run), release=bool(release))
     if release:
         tag = release.release_tag(args.release, source_base(release, args.sha))
     artifacts = select_artifacts(run_artifacts(run), run, args.sha)
+    for arch, expected in gated.items():
+        require(artifacts[arch]["id"] == expected["id"], f"Selected artifact ID differs from native evidence for {arch}")
+        require(artifacts[arch].get("digest") == expected["transport_digest"],
+                f"Selected artifact transport digest differs from native evidence for {arch}")
     # A dry run must fail where publication would: tag creation refuses an existing ref.
     require(not published(tag), f"Tag or release {tag} already exists")
     latest = is_latest(args.release, released_versions(release)) if release else False
@@ -377,10 +431,14 @@ def main():
                 "source_workflow": WORKFLOW, "artifacts": []}
     if release:
         evidence.update(tag=tag, version=args.release, latest=latest, releases=[])
+    if args.auto_release_run_id is not None:
+        evidence["auto_release_run_id"] = args.auto_release_run_id
     checksums = []
     for arch, artifact in artifacts.items():
         name, data = download_artifact(artifact, arch, args.sha)
         digest = hashlib.sha256(data).hexdigest()
+        if gated:
+            require(digest == gated[arch]["sha256"], f"Archive SHA-256 differs from native evidence for {arch}")
         evidence["artifacts"].append({"id": artifact["id"], "name": artifact["name"],
                                       "transport_digest": artifact["digest"], "filename": name, "sha256": digest})
         if release:

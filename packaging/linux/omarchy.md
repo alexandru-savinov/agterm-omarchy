@@ -32,7 +32,7 @@ review pacman's transaction before accepting it.
 `--skip-packages` skips that transaction when dependencies are already provisioned.
 Use `scripts/setup-omarchy.sh --with-ui-tests` during setup if you plan to run the test commands below.
 It adds Xvfb, xauth, Openbox, xdotool, Python GObject/AT-SPI and `grim`.
-Python and ImageMagick (`magick`) are in the base dependency list; the Hyprland test desktop must supply `hyprctl`.
+Python, jq (Codex status hooks) and ImageMagick (`magick`) are in the base dependency list; the Hyprland test desktop must supply `hyprctl`.
 
 Setup installs Swift 6.3.2 from the official Ubuntu 24.04 toolchain through mise and ensures Zig 0.17.0
 is available, then builds pinned libghostty and zmx with `scripts/setup-linux.sh`.

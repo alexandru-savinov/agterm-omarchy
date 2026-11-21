@@ -38,7 +38,7 @@ class VerdictTests(unittest.TestCase):
         self.evidence = Path(tempfile.mkdtemp(dir=self.temp.name))
 
     def leg(self, arch, plan, attempt=1, gates=None, host=None, raw=None):
-        directory = self.evidence / f"omarchy-native-gates-{arch}-stable-run7-1-55-{attempt}"
+        directory = self.evidence / f"omarchy-native-gates-{arch}-{plan['channel']}-{plan['label']}-55-{attempt}"
         directory.mkdir()
         identity = plan["identities"][arch]
         sha256 = identity.get("sha256", "f" * 64)
@@ -65,6 +65,7 @@ class VerdictTests(unittest.TestCase):
                 result = self.decide(plan)
                 self.assertEqual(result["errors"], [])
                 self.assertTrue(result["passed"])
+                self.assertFalse(result["gate_failed"])
                 self.assertEqual(set(result["archives"]), set(ARCHES))
                 for arch in ARCHES:
                     self.assertEqual(result["archives"][arch]["id"], plan["identities"][arch]["id"])
@@ -95,6 +96,19 @@ class VerdictTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertEqual(len(result["errors"]), 1)
         self.assertIn("x86_64: no evidence from attempt 2", result["errors"][0])
+
+    def test_a_second_reusable_call_reuses_no_evidence_from_the_first(self):
+        first = expected("release") | {"label": "omarchy-v0.43.0.1-watch-initial"}
+        retry = first | {"label": "omarchy-v0.43.0.1-watch-retry-1"}
+        self.leg("x86_64", first, gates={"ordinary": "FAIL 6/7 exit=1"})
+        self.leg("aarch64", first)
+        self.assertTrue(self.decide(first, gates="failure")["gate_failed"])
+        self.leg("aarch64", retry)
+        missing = self.decide(retry)
+        self.assertFalse(missing["passed"])
+        self.assertFalse(missing["gate_failed"])
+        self.leg("x86_64", retry)
+        self.assertTrue(self.decide(retry)["passed"])
 
     def test_mixed_outcomes_fail(self):
         cases = {"ordinary": {"ordinary": "FAIL 0/7 exit=1"}, "live": {"live": "PASS 8/9 exit=0"},
@@ -146,6 +160,25 @@ class VerdictTests(unittest.TestCase):
                 result = self.decide(plan)
                 self.assertFalse(result["passed"])
                 self.assertIn("aarch64: unreadable evidence", result["errors"][0])
+
+    def test_gate_failure_requires_complete_attested_non_cancelled_evidence(self):
+        plan = expected("release")
+        for change in (
+            {"live": "PASS 9/9 exit=0"}, {"live": ""}, {"live": "FAIL exit=1 no result (FileNotFoundError)"},
+        ):
+            with self.subTest(change=change):
+                self.fresh()
+                self.leg("x86_64", plan, gates={"ordinary": "FAIL 6/7 exit=1"})
+                self.leg("aarch64", plan, gates=change)
+                result = self.decide(plan, gates="failure")
+                self.assertFalse(result["passed"])
+                self.assertEqual(result["gate_failed"], change["live"].startswith("PASS"))
+                self.assertFalse(self.decide(plan, gates="cancelled")["gate_failed"])
+        self.fresh()
+        self.leg("x86_64", plan, gates={"ordinary": "FAIL 6/7 exit=1"})
+        self.assertFalse(self.decide(plan, gates="failure")["gate_failed"])
+        self.leg("aarch64", plan, host={"attestation": "unverified"})
+        self.assertFalse(self.decide(plan, gates="failure")["gate_failed"])
 
     def test_an_unattested_archive_never_passes_and_fails_the_job_unless_report_only(self):
         plan = expected()

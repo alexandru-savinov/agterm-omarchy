@@ -2,7 +2,7 @@ name: AT-SPI targeted rerun
 
 # Diagnosis aid: rerun one or a few named GTK AT-SPI scenarios against a branch or SHA in minutes instead
 # of the whole suite. It is NOT a required check and NEVER replaces the full suite: a merge still needs the
-# complete "GTK build and tests" AT-SPI run in ci.yml. A green run here only says the named scenarios
+# complete "GTK build and tests" AT-SPI run in omarchy-ci.yml. A green run here only says the named scenarios
 # passed once on this ref.
 #
 # The selection tooling comes from this workflow's own revision; the app, the scenario list and
@@ -11,7 +11,7 @@ name: AT-SPI targeted rerun
 # every run, so nothing a dispatched ref produces is written to or read from a cache other workflows trust.
 # cache-mode: none also takes cache access away from the job's token, which workflow_dispatch would
 # otherwise grant with write access (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#cache-mode).
-# The two build images in the atspi-* jobs must stay equal to the build-linux matrix in ci.yml.
+# The two build images in the atspi-* jobs must stay equal to the build-linux matrix in omarchy-ci.yml.
 
 on:
   workflow_dispatch:
@@ -83,7 +83,7 @@ jobs:
           printf '### Targeted AT-SPI rerun (not a merge gate)\nref: %s\nscenarios: %s\n' \
             "$sha" "$SCENARIOS" >> "$GITHUB_STEP_SUMMARY"
 
-  # One job per architecture, each with its pinned image spelled out (as in ci.yml's build-linux matrix)
+  # One job per architecture, each with its pinned image spelled out (as in omarchy-ci.yml's build-linux matrix)
   # and skipped unless the arch input selects it; the two step lists are identical (a unit test checks). A matrix
   # cannot do this: GitHub applies `exclude` before `include`, so an excluded row comes back as a new one.
   atspi-x86_64:

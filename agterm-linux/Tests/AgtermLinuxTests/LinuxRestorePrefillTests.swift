@@ -113,6 +113,22 @@ struct LinuxRestorePrefillTests {
         #expect(seed.initialInput == nil)
     }
 
+    @Test("a detached start for a remote viewer pre-fills too, with no session host client")
+    func detachedRecoveryPrefills() {
+        let hosted = ZmxSupport.Configuration(
+            executablePath: "/usr/bin/zmx", environment: ["SHELL": "/bin/zsh", "ZDOTDIR": "/tmp/integration"],
+            daemonName: "agterm-pane", socketDirectory: "/tmp/zmx", paneID: "pane",
+            sessionHostExecutablePath: "/usr/lib/agterm/host")
+        let seed = LinuxRestoreSeed.wrappedSeed(hosted, replay: ["sleep", "100"], durable: nil, denylist: [],
+                                                daemonRunning: false, detached: true)
+        #expect(seed.command == LinuxZmxLaunch.prefillCommand(hosted, line: "'sleep' '100'", detached: true))
+        #expect(seed.command?.hasPrefix("'/usr/bin/zmx' 'attach' '--detached' 'agterm-pane'") == true)
+        #expect(seed.command?.contains("AGTERM_LIVE_PREFILL=") == true)
+        let fresh = LinuxRestoreSeed.wrappedSeed(hosted, replay: nil, durable: nil, denylist: [],
+                                                 daemonRunning: false, detached: true)
+        #expect(fresh.command?.hasPrefix("'/usr/bin/zmx' 'attach' '--detached' 'agterm-pane'") == true)
+    }
+
     @Test("reattaching to a live daemon types nothing", arguments: [true as Bool?, nil])
     func liveReattachTypesNothing(daemonRunning: Bool?) {
         let seed = LinuxRestoreSeed.wrappedSeed(configuration, replay: ["sleep", "100"], durable: nil,

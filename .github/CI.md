@@ -1,7 +1,14 @@
 # Omarchy CI
 
-`.github/workflows/ci.yml` validates pull requests targeting `main` or `omarchy`, pushes to `main`, and manual runs.
+`.github/workflows/omarchy-ci.yml` validates pull requests targeting `main` or `omarchy`, pushes to `main`, and manual runs.
 Pull request builds test GitHub's merge commit; trusted artifact promotion still requires a successful push or manual run at the exact branch head.
+The guard verifies the `ci.yml`, `release-linux.yml`, and `publish-aur.yml` blobs against the linux-port source and checks disabled registry states. An HTTP 404 is accepted only for a reusable-only workflow.
+A separate signing matrix downloads and attests both tested tarballs for pushes and manual dispatches on `refs/heads/main`.
+CI-native verification requires the signer `.github/workflows/omarchy-ci.yml` and the exact source commit.
+
+The advisory `omarchy-macos.yml` checks shared-core changes, sync and upstream-offer PRs, and changes to the workflow itself.
+Its report labels a current pull request `macos-broken` after a failure or timeout and clears the label after a green run.
+An upstream offer requires a green hosted macOS result on the exact head being sent upstream.
 
 Both GTK jobs use architecture-specific build images pinned by digest and run their compiler/dependency probe before building.
 The ARM image replaces repeated APT/Zig provisioning; core jobs retain their separate shell provisioning.

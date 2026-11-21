@@ -26,7 +26,13 @@ struct LinuxControlDispatchCoverageTests {
         "zmxReset",
         // Test-only hook that simulates a macOS light/dark flip for XCUITest; no CLI verb, absent from the skill.
         "debugAppearance",
+        // Linux has no in-app updater, and a local pane-pinned `zmx kill --pane-id` is not served (an attached
+        // row's is forwarded to its origin); SKILL.md's Linux section says so.
+        "updateCheck", "zmxKillPane",
     ]
+
+    /// `ControlServer` extensions outside the `ControlServer*` files that intercept a request before dispatch.
+    static let controlServerInterceptFiles = ["LinuxAttachedForward.swift", "LinuxOriginCatalog.swift"]
 
     /// The dispatcher's entry switches; every other command switch in the dispatcher files is a family switch,
     /// reached only through a route from one of these.
@@ -103,7 +109,7 @@ struct LinuxControlDispatchCoverageTests {
         #expect(inline.count == 1, "handleControl's command switch not found")
         for block in inline { handled.formUnion(block.handled) }
 
-        for file in try linuxFiles(prefix: "ControlServer") {
+        for file in try linuxFiles(prefix: "ControlServer") + Self.controlServerInterceptFiles.map(linuxSources.appendingPathComponent) {
             let source = try read(file)
             handled.formUnion(SourceScan.commandComparisons(in: source))
             for block in SourceScan.commandSwitches(in: source) where block.function != "route" {
@@ -149,6 +155,18 @@ struct LinuxControlDispatchCoverageTests {
         // The resolver must actually follow routes in the real sources, or the check above cannot fire.
         #expect(routing.followed.contains("dispatchWindowCommand"), "route into dispatchWindowCommand not followed")
         #expect(routing.followed.contains("dispatchHtmlOverlayCommand"), "two-level route not followed")
+    }
+
+    @Test("every command the core's synchronous route sends to a family switch has an arm there")
+    func sharedSynchronousRoutesReachAFamilyArm() throws {
+        let core = Self.repository.appendingPathComponent("agtermCore/Sources/agtermCore")
+        let files = try FileManager.default.contentsOfDirectory(atPath: core.path)
+            .filter { $0.hasPrefix("ControlDispatcher") && $0.hasSuffix(".swift") }
+        let switches = try files.flatMap { SourceScan.commandSwitches(in: try Self.read(core.appendingPathComponent($0))) }
+        let routing = SourceScan.resolve(entries: ["dispatchSynchronous"], switches: switches)
+        #expect(routing.missing.isEmpty,
+                "routed to a family switch with no arm for it (hits preconditionFailure): \(routing.missing.map(\.description))")
+        #expect(routing.followed.contains("dispatchSessionOverlayCommand"), "route into dispatchSessionOverlayCommand not followed")
     }
 
     @Test("the unsupported answer and the window.move refusal the docs quote still exist")

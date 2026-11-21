@@ -30,7 +30,7 @@ source "$ROOT/linux/arch.sh"
 if ! $skip_packages; then
   packages=(base-devel git curl ca-certificates xz pkgconf file ncurses libxml2-legacy
     libbsd libedit sqlite zlib gtk4 libadwaita webkitgtk-6.0 libepoxy mise
-    imagemagick desktop-file-utils python zsh)
+    imagemagick desktop-file-utils python jq zsh)
   if $ui_tests; then
     packages+=(xorg-server-xvfb xorg-xauth openbox xdotool python-gobject at-spi2-core grim)
   fi

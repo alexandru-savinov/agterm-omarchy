@@ -44,7 +44,7 @@ def validate(run):
     """The run's artifacts by architecture, or ValueError when release mode would reject the run."""
     require(run["head_branch"] == "main", "The gates take only main CI runs")
     sha = run["head_sha"]
-    promotion.validate_run(run, promotion.api("actions/workflows/ci.yml"), sha, sha)
+    promotion.validate_run(run, promotion.api(promotion.WORKFLOW_API), sha, sha)
     require(promotion.on_main(sha), f"{sha} is not a commit on main")
     promotion.validate_jobs(promotion.run_jobs(run), release=True)
     return promotion.select_artifacts(promotion.run_artifacts(run), run, sha)
