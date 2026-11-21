@@ -24,7 +24,7 @@ SPEC.loader.exec_module(promotion)
 SHA = "a" * 40
 REPO = Path(__file__).resolve().parents[2]
 PROMOTION_WORKFLOW = REPO / ".github/workflows/prerelease-omarchy.yml"
-CI_WORKFLOW = REPO / ".github/workflows/ci.yml"
+CI_WORKFLOW = REPO / ".github/workflows/omarchy-ci.yml"
 RELEASE_SPEC = importlib.util.spec_from_file_location("release_fixture", Path(__file__).resolve().parent / "test_omarchy_release.py")
 release_fixture = importlib.util.module_from_spec(RELEASE_SPEC)
 RELEASE_SPEC.loader.exec_module(release_fixture)
@@ -170,7 +170,7 @@ class PromotionTests(unittest.TestCase):
                 promotion.validate_payload(payload(extra=[self.link(*item) for item in links]), "aarch64", SHA)
 
     def ci_archive(self, links=()):
-        # Archive a real directory tree exactly as ci.yml does: tar -czf OUT -C PARENT agterm-stage.
+        # Archive a real directory tree exactly as omarchy-ci.yml does: tar -czf OUT -C PARENT agterm-stage.
         with tempfile.TemporaryDirectory() as temp:
             stage = Path(temp) / "agterm-stage"
             header = bytearray(b"\x7fELF\x02\x01" + b"\0" * 14)
@@ -317,6 +317,15 @@ class FakeGitHub:
         self.runs = {run_id: (self.run, self.jobs, self.artifacts)}
         self.listed = [self.run]
 
+    def add_release_gates(self):
+        for job in self.jobs:
+            if job["name"].startswith("GTK build"):
+                job["steps"] = job["steps"] + [{"name": name, "conclusion": "success"}
+                                               for name in promotion.RELEASE_GTK_STEPS if name != promotion.ATTEST_STEP]
+        self.jobs.extend({"name": promotion.ATTEST_JOB.format(arch=arch), "conclusion": "success",
+                          "steps": [{"name": promotion.ATTEST_STEP, "conclusion": "success"}]}
+                         for arch in promotion.ARCHITECTURES)
+
     def add_run(self, run_id, created_at, jobs=None, artifacts=None, **changes):
         """Another run at the same head, listed newest first; its artifacts default to fresh copies of the base run's."""
         run = dict(self.run, id=run_id, created_at=created_at, run_started_at=created_at,
@@ -334,11 +343,11 @@ class FakeGitHub:
         if not path.startswith(base):
             raise AssertionError(f"Unexpected API call {path}")
         path = path[len(base):]
-        if path == "actions/workflows/ci.yml":
+        if path == "actions/workflows/omarchy-ci.yml":
             return {"id": 42}
         if path.startswith("git/ref/heads/"):
             return {"object": {"sha": self.sha}}
-        if path.startswith("actions/workflows/ci.yml/runs?"):
+        if path.startswith("actions/workflows/omarchy-ci.yml/runs?"):
             return [{"workflow_runs": self.listed if "branch=main&" in path else []}]
         for run_id, (run, jobs, artifacts) in self.runs.items():
             if path == f"actions/runs/{run_id}":
@@ -409,7 +418,7 @@ class DryRunTests(unittest.TestCase):
             self.assertEqual([item["filename"] for item in evidence["artifacts"]],
                              [f"agterm-omarchy-{arch}.tar.gz" for arch in promotion.ARCHITECTURES])
         paths = [call[2] for call in github.calls]
-        for expected in ("actions/workflows/ci.yml", "/jobs", "/artifacts", "/zip", f"git/ref/tags/{tag}",
+        for expected in ("actions/workflows/omarchy-ci.yml", "/jobs", "/artifacts", "/zip", f"git/ref/tags/{tag}",
                          f"releases/tags/{tag}"):
             self.assertTrue(any(expected in path for path in paths), f"{expected} was not checked")
 
@@ -554,15 +563,23 @@ class ReleaseGitHub(FakeGitHub):
 
     def __init__(self, releases=(), ahead=True, ci=None, **kwargs):
         super().__init__(**kwargs)
-        for job in self.jobs:
-            if job["name"].startswith("GTK build"):
-                job["steps"] = job["steps"] + [{"name": name, "conclusion": "success"}
-                                               for name in promotion.RELEASE_GTK_STEPS]
+        self.add_release_gates()
         self.zips = {arch: release_zip(arch, self.sha) for arch in promotion.ARCHITECTURES}
         for artifact, arch in zip(self.artifacts, promotion.ARCHITECTURES):
             artifact["digest"] = "sha256:" + hashlib.sha256(self.zips[arch]).hexdigest()
         self.releases, self.ahead = list(releases), ahead
         self.ci = CI_WORKFLOW.read_text() if ci is None else ci
+
+    def native_archives(self):
+        """Build the #481 archives output from the exact fixture ZIP contents."""
+        archives = {}
+        for arch, artifact in zip(promotion.ARCHITECTURES, self.artifacts):
+            name = f"agterm-omarchy-{arch}.tar.gz"
+            with zipfile.ZipFile(io.BytesIO(self.zips[arch])) as archive:
+                digest = hashlib.sha256(archive.read(name)).hexdigest()
+            archives[arch] = {"id": artifact["id"], "name": artifact["name"], "filename": name,
+                              "transport_digest": artifact["digest"], "sha256": digest, "attestation": "verified"}
+        return archives
 
     def answer(self, path):
         base = f"repos/{promotion.REPOSITORY}/"
@@ -592,56 +609,58 @@ class ReleaseDryRunTests(unittest.TestCase):
             promotion.main()
 
     def test_dispatch_dry_run_builds_both_versioned_assets(self):
-        github = ReleaseGitHub(releases=[published_release("0.41.1.1", prerelease=True)])
+        github = ReleaseGitHub(releases=[published_release("0.43.0.1", prerelease=True)])
         with tempfile.TemporaryDirectory() as temp:
             output, outputs = Path(temp) / "promotion", Path(temp) / "github-output"
-            self.prepare(github, output, "--release", "0.41.1.1", env={"GITHUB_OUTPUT": str(outputs)})
-            self.assertEqual(outputs.read_text(), f"tag=omarchy-v0.41.1.1\nsha={SHA}\nversion=0.41.1.1\nlatest=true\n")
+            self.prepare(github, output, "--release", "0.43.0.1", env={"GITHUB_OUTPUT": str(outputs)})
+            self.assertEqual(outputs.read_text(), f"tag=omarchy-v0.43.0.1\nsha={SHA}\nversion=0.43.0.1\nlatest=true\n")
             self.assertEqual(sorted(path.name for path in output.iterdir()),
-                             ["SHA256SUMS", "agterm-omarchy-0.41.1.1-aarch64.tar.gz",
-                              "agterm-omarchy-0.41.1.1-x86_64.tar.gz", "promotion.json", "release-notes.md"])
+                             ["SHA256SUMS", "agterm-omarchy-0.43.0.1-aarch64.tar.gz",
+                              "agterm-omarchy-0.43.0.1-x86_64.tar.gz", "promotion.json", "release-notes.md"])
             check = subprocess.run(["shasum", "-a", "256", "-c", "SHA256SUMS"] if shutil.which("shasum")
                                    else ["sha256sum", "--check", "SHA256SUMS"], cwd=output, capture_output=True)
             self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
             evidence = json.loads((output / "promotion.json").read_text())
-            self.assertEqual((evidence["tag"], evidence["version"], evidence["latest"]), ("omarchy-v0.41.1.1", "0.41.1.1", True))
+            self.assertEqual((evidence["tag"], evidence["version"], evidence["latest"]), ("omarchy-v0.43.0.1", "0.43.0.1", True))
             for item, artifact in zip(evidence["releases"], evidence["artifacts"]):
                 self.assertEqual(item["tested_archive_sha256"], artifact["sha256"])
                 self.assertEqual(item["changed_members"], ["agterm-stage/share/agterm/VERSION"])
             notes = (output / "release-notes.md").read_text()
             self.assertIn("--source-ref refs/heads/main", notes)
-            self.assertIn("agterm-omarchy-0.41.1.1-aarch64.tar.gz", notes)
+            self.assertIn("agterm-omarchy-0.43.0.1-aarch64.tar.gz", notes)
             self.assertIn("AGTERM_DISABLE_EGL_COMPAT=1", notes)
         paths = [call[2] for call in github.calls]
-        for expected in ("git/ref/tags/omarchy-v0.41.1.1", "releases/tags/omarchy-v0.41.1.1", "releases?"):
+        for expected in ("git/ref/tags/omarchy-v0.43.0.1", "releases/tags/omarchy-v0.43.0.1", "releases?"):
             self.assertTrue(any(expected in path for path in paths), f"{expected} was not checked")
 
     def test_latest_follows_the_highest_published_version(self):
-        self.assertTrue(promotion.is_latest("0.41.1.10", ["0.41.1.9", "0.41.1.2"]))
-        self.assertFalse(promotion.is_latest("0.41.1.3", ["0.41.1.5"]))
-        self.assertTrue(promotion.is_latest("0.41.1.1", []))
-        self.assertTrue(promotion.is_latest("0.42.0.1", ["0.41.1.12"]))
-        github = ReleaseGitHub(releases=[published_release("0.41.1.5"), published_release("0.41.1.9", draft=True)])
+        self.assertTrue(promotion.is_latest("0.43.0.10", ["0.43.0.9", "0.43.0.2"]))
+        self.assertFalse(promotion.is_latest("0.43.0.3", ["0.43.0.5"]))
+        self.assertTrue(promotion.is_latest("0.43.0.1", []))
+        self.assertTrue(promotion.is_latest("0.44.0.1", ["0.43.0.12"]))
+        github = ReleaseGitHub(releases=[published_release("0.43.0.5"), published_release("0.43.0.9", draft=True)])
         with tempfile.TemporaryDirectory() as temp:
             outputs = Path(temp) / "github-output"
-            self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.3", env={"GITHUB_OUTPUT": str(outputs)})
+            self.prepare(github, Path(temp) / "promotion", "--release", "0.43.0.3", env={"GITHUB_OUTPUT": str(outputs)})
             self.assertIn("latest=false\n", outputs.read_text())
 
     def test_next_version_skips_prereleases_drafts_and_dev_tags(self):
-        github = ReleaseGitHub(releases=[published_release("0.41.1.1"), published_release("0.41.1.2"),
-                                         published_release("0.41.1.9", prerelease=True),
-                                         published_release("0.41.1.8", draft=True),
+        github = ReleaseGitHub(releases=[published_release("0.43.0.1"), published_release("0.43.0.2"),
+                                         published_release("0.43.0.9", prerelease=True),
+                                         published_release("0.43.0.8", draft=True),
                                          {"tag_name": f"omarchy-dev-{SHA[:12]}-run7", "prerelease": True, "draft": False},
                                          published_release("0.40.0.4")])
         first, second = github.patches()
         with first, second:
-            self.assertEqual(promotion.next_version(promotion.release_module()), "0.41.1.3")
+            self.assertEqual(promotion.next_version(promotion.release_module()), "0.43.0.3")
+            self.assertEqual(promotion.next_version(promotion.release_module(), "0.40.0"), "0.40.0.5")
+            self.assertEqual(promotion.next_version(promotion.release_module(), "0.41.1"), "0.41.1.1")
 
     def test_dispatch_refuses_an_existing_tag_or_release(self):
-        for existing in ("git/ref/tags/omarchy-v0.41.1.1", "releases/tags/omarchy-v0.41.1.1"):
+        for existing in ("git/ref/tags/omarchy-v0.43.0.1", "releases/tags/omarchy-v0.43.0.1"):
             with self.subTest(existing=existing), tempfile.TemporaryDirectory() as temp:
                 with self.assertRaisesRegex(ValueError, "already exists"):
-                    self.prepare(ReleaseGitHub(existing=[existing]), Path(temp) / "promotion", "--release", "0.41.1.1")
+                    self.prepare(ReleaseGitHub(existing=[existing]), Path(temp) / "promotion", "--release", "0.43.0.1")
 
     def test_rejects_old_format_archives_untrusted_branches_and_foreign_commits(self):
         old_format = ReleaseGitHub()
@@ -653,7 +672,7 @@ class ReleaseDryRunTests(unittest.TestCase):
         for github, error in cases:
             with self.subTest(error=error), tempfile.TemporaryDirectory() as temp:
                 with self.assertRaisesRegex(ValueError, error):
-                    self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.1")
+                    self.prepare(github, Path(temp) / "promotion", "--release", "0.43.0.1")
                 self.assertFalse((Path(temp) / "promotion" / "SHA256SUMS").exists())
 
     def test_a_release_needs_the_native_release_rehearsal_on_both_arches(self):
@@ -663,11 +682,25 @@ class ReleaseDryRunTests(unittest.TestCase):
             gtk["steps"] = [step for step in gtk["steps"] if step["name"] != "Rehearse versioned release archive"]
             with self.subTest(arch=arch), tempfile.TemporaryDirectory() as temp:
                 with self.assertRaisesRegex(ValueError, "Rehearse versioned release archive"):
-                    self.prepare(github, Path(temp) / "promotion", "--release", "0.41.1.1")
+                    self.prepare(github, Path(temp) / "promotion", "--release", "0.43.0.1")
                 self.prepare(github, Path(temp) / "dev")
 
+    def test_manual_main_run_is_selectable_only_with_both_attestations(self):
+        for arch in promotion.ARCHITECTURES:
+            github = ReleaseGitHub()
+            github.run["event"] = "workflow_dispatch"
+            signer = next(job for job in github.jobs if job["name"] == promotion.ATTEST_JOB.format(arch=arch))
+            first, second = github.patches()
+            with self.subTest(arch=arch), first, second:
+                self.assertEqual(promotion.discover_releasable(), github.run)
+                signer["steps"][0]["conclusion"] = "skipped"
+                self.assertIsNone(promotion.discover_releasable())
+                signer["steps"][0]["conclusion"] = "success"
+                signer["conclusion"] = "skipped"
+                self.assertIsNone(promotion.discover_releasable())
+
     def test_rejects_malformed_versions_before_any_api_call(self):
-        for version in ("0.41.1.0", "0.41.1.1rc1", "0.41.1.01", "v0.41.1.1", "0.41.1.1-1"):
+        for version in ("0.43.0.0", "0.43.0.1rc1", "0.43.0.01", "v0.43.0.1", "0.43.0.1-1"):
             github = ReleaseGitHub()
             with self.subTest(version=version), tempfile.TemporaryDirectory() as temp:
                 with self.assertRaises(ValueError):
@@ -675,27 +708,88 @@ class ReleaseDryRunTests(unittest.TestCase):
                 self.assertEqual(github.calls, [])
 
     def test_the_upstream_base_comes_from_the_source_commit(self):
-        for version in ("0.41.1", "0.41.2.1"):
+        for version in ("0.43.1", "0.43.1.1"):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as temp:
-                with self.assertRaisesRegex(ValueError, "is not 0.41.1.N"):
+                with self.assertRaisesRegex(ValueError, "is not 0.43.0.N"):
                     self.prepare(ReleaseGitHub(), Path(temp) / "promotion", "--release", version)
-        moved = CI_WORKFLOW.read_text().replace('UPSTREAM_BASE_TAG: "v0.41.1"', 'UPSTREAM_BASE_TAG: "v0.42.0"')
+        moved = CI_WORKFLOW.read_text().replace('UPSTREAM_BASE_TAG: "v0.43.0"', 'UPSTREAM_BASE_TAG: "v0.44.0"')
         with tempfile.TemporaryDirectory() as temp:
-            self.prepare(ReleaseGitHub(ci=moved), Path(temp) / "next", "--release", "0.42.0.1")
-            with self.assertRaisesRegex(ValueError, "is not 0.42.0.N"):
-                self.prepare(ReleaseGitHub(ci=moved), Path(temp) / "old", "--release", "0.41.1.1")
+            self.prepare(ReleaseGitHub(ci=moved), Path(temp) / "next", "--release", "0.44.0.1")
+            with self.assertRaisesRegex(ValueError, "is not 0.44.0.N"):
+                self.prepare(ReleaseGitHub(ci=moved), Path(temp) / "old", "--release", "0.43.0.1")
 
     def test_the_requested_run_id_must_be_the_run_the_api_returns(self):
-        for extra in ((), ("--release", "0.41.1.1")):
+        for extra in ((), ("--release", "0.43.0.1")):
             github = ReleaseGitHub()
             github.runs[7] = (dict(github.run, id=8),) + github.runs[7][1:]
             with self.subTest(extra=extra), tempfile.TemporaryDirectory() as temp:
                 with self.assertRaisesRegex(ValueError, "Requested run ID mismatch"):
                     self.prepare(github, Path(temp) / "promotion", *extra)
 
+    def test_automatic_release_requires_the_gated_ci_attempt(self):
+        github = ReleaseGitHub()
+        gated = ("--native-archives", json.dumps(github.native_archives()))
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "promotion"
+            with self.assertRaisesRegex(ValueError, "CI attempt differs"):
+                self.prepare(github, output, "--release", "0.43.0.1", "--source-attempt", "2", *gated)
+            self.assertFalse(output.exists())
+            self.prepare(github, output, "--release", "0.43.0.1", "--source-attempt", "1",
+                         "--auto-release-run-id", "987", *gated)
+            evidence = json.loads((output / "promotion.json").read_text())
+            self.assertEqual(evidence["source_run_attempt"], 1)
+            self.assertEqual(evidence["auto_release_run_id"], 987)
+            self.assertEqual(
+                evidence["artifacts"],
+                [{key: value for key, value in archive.items() if key != "attestation"}
+                 for archive in github.native_archives().values()],
+            )
+
+    def test_automatic_release_requires_both_attested_archives_before_api_calls(self):
+        github = ReleaseGitHub()
+        archives = github.native_archives()
+        unattested = archives | {"aarch64": archives["aarch64"] | {"attestation": "unverified"}}
+        malformed = archives | {"aarch64": archives["aarch64"] | {"sha256": ""}}
+        cases = [
+            (("--source-attempt", "1"), "must be provided together"),
+            (("--native-archives", json.dumps(archives)), "must be provided together"),
+            (("--source-attempt", "1", "--native-archives", json.dumps({"x86_64": archives["x86_64"]})),
+             "exactly x86_64 and aarch64"),
+            (("--source-attempt", "1", "--native-archives", json.dumps(unattested)), "attestation is not verified"),
+            (("--source-attempt", "1", "--native-archives", json.dumps(malformed)), "Invalid native archive SHA-256"),
+        ]
+        for extra, message in cases:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as temp:
+                with self.assertRaisesRegex(ValueError, message):
+                    self.prepare(github, Path(temp) / "promotion", "--release", "0.43.0.1", *extra)
+        self.assertEqual(github.calls, [])
+
+    def test_automatic_release_rejects_replaced_artifact_even_when_bytes_are_identical(self):
+        github = ReleaseGitHub()
+        archives = github.native_archives()
+        github.artifacts[1]["id"] = 234
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "promotion"
+            with self.assertRaisesRegex(ValueError, "artifact ID differs.*aarch64"):
+                self.prepare(github, output, "--release", "0.43.0.1", "--source-attempt", "1",
+                             "--native-archives", json.dumps(archives))
+            self.assertFalse(output.exists())
+        self.assertFalse(any(call[2].endswith("/zip") for call in github.calls))
+
+    def test_automatic_release_rejects_different_archive_sha_even_with_a_valid_transport_digest(self):
+        github = ReleaseGitHub()
+        archives = github.native_archives()
+        archives["aarch64"]["sha256"] = "b" * 64
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "promotion"
+            with self.assertRaisesRegex(ValueError, "Archive SHA-256 differs.*aarch64"):
+                self.prepare(github, output, "--release", "0.43.0.1", "--source-attempt", "1",
+                             "--native-archives", json.dumps(archives))
+            self.assertFalse((output / "promotion.json").exists())
+
     def test_tagged_is_not_an_option(self):
         with tempfile.TemporaryDirectory() as temp, self.assertRaises(SystemExit):
-            self.prepare(ReleaseGitHub(), Path(temp) / "promotion", "--release", "0.41.1.1", "--tagged")
+            self.prepare(ReleaseGitHub(), Path(temp) / "promotion", "--release", "0.43.0.1", "--tagged")
 
     def test_releasable_discovery_falls_back_past_a_head_run_release_mode_rejects(self):
         github = ReleaseGitHub()
@@ -821,21 +915,6 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("sha256sum --check SHA256SUMS", job)
         self.assertIn("release-notes.md", job)
 
-    def test_legacy_linux_release_is_retired_here_and_shares_the_upstream_base(self):
-        legacy = (REPO / ".github/workflows/release-linux.yml").read_text()
-        triggers = legacy[legacy.index("\non:\n"):legacy.index("\nconcurrency:")]
-        self.assertNotIn("push:", triggers)
-        jobs = workflow_jobs(legacy)
-        self.assertEqual(set(jobs), {"sbom", "release-linux"})
-        for name, body in jobs.items():
-            with self.subTest(job=name):
-                self.assertIn("    if: github.repository != 'alexandru-savinov/agterm-omarchy'\n", body)
-        ci = CI_WORKFLOW.read_text()
-        for name in ("UPSTREAM_BASE_TAG", "UPSTREAM_BASE_COMMIT"):
-            pin = re.compile(rf'^  {name}: "([^"]+)"$', re.M)
-            with self.subTest(name=name):
-                self.assertEqual(pin.search(legacy)[1], pin.search(ci)[1])
-
     def test_required_gates_exist_in_ci(self):
         ci = CI_WORKFLOW.read_text()
         self.assertIn("name: Omarchy CI\n", ci)
@@ -849,7 +928,9 @@ class WorkflowTests(unittest.TestCase):
                 self.assertIn(name.format(arch="${{ matrix.arch }}"), names.values())
         for step in promotion.REQUIRED_GTK_STEPS + promotion.RELEASE_GTK_STEPS:
             with self.subTest(step=step):
-                self.assertEqual(build.count(f"      - name: {step}\n"), 1)
+                body = jobs["attest-linux"] if step == promotion.ATTEST_STEP else build
+                self.assertEqual(body.count(f"      - name: {step}\n"), 1)
+        self.assertEqual(names["attest-linux"], promotion.ATTEST_JOB.format(arch="${{ matrix.arch }}"))
 
 
 if __name__ == "__main__":

@@ -70,6 +70,8 @@ jobs:
         run: |
           set -euo pipefail
           "${RUNNER_TEMP}/trivy" fs --quiet --cache-dir "${RUNNER_TEMP}/trivy-cache" \
+            --skip-files .github/workflows/ci.yml --skip-files .github/workflows/release-linux.yml \
+            --skip-files .github/workflows/publish-aur.yml \
             --scanners vuln,misconfig --format sarif --output trivy.sarif \
             --exit-code 0 .
           echo "trivy results: $(jq '.runs[0].results|length' trivy.sarif)"

@@ -2,6 +2,8 @@
 
 Status: approved by the owner on 2026-11-19, in a brainstorming session.
 Milestone: M4. Parent design: `docs/plans/20261119-linux-home-design.md`.
+Source amendment on 2026-11-20: #474 and #493 track the `linux-port` branch of
+`melonamin/agterm-linux`. The three preserved workflows come from that source.
 
 ## Problem
 
@@ -19,36 +21,47 @@ Milestone: M4. Parent design: `docs/plans/20261119-linux-home-design.md`.
    `agtermCore/**`, and weekly.
 2. They are advisory: a failure or timeout labels the PR and never blocks a merge. The exception is a PR
    labelled `upstream-offer`, which needs a green macOS run before anything goes to umputun.
-3. Layout A: umputun's `ci.yml` stays byte-identical and is disabled through the API. The fork's pipeline
+3. Layout A: the sync source's three workflow files stay byte-identical and disabled through the API. The fork's pipeline
    moves to its own file.
 
 ## Components
 
 ### 1. `omarchy-ci.yml`, the fork pipeline
 
-- Rename the current `.github/workflows/ci.yml` with `git mv`. The jobs don't change.
+- Move the fork's Linux checks from `.github/workflows/ci.yml`.
 - Keep the aggregate job's name as `CI`, so the "Required CI on main branch" ruleset (`CI`, `Secret scan (full
   history)`, `Vulnerability and misconfig scan`, `Dependency review`) needs no change.
 
-### 2. umputun's `ci.yml`, byte-identical and disabled
+- `build-linux` uploads the tested tarballs with read-only permissions.
+  A separate `attest-linux` matrix downloads and signs both archives on main pushes and manual dispatches.
+  Release selection requires a successful signing step for each architecture.
+  Native gating verifies the `omarchy-ci.yml` signer, main ref and source commit against both artifacts.
 
-- Restore it from the umputun tag recorded in `UPSTREAM_BASE_TAG` (v0.43.0 after #474).
-- Disable it with `gh workflow disable ci.yml`. That's repository state, and it survives later file changes,
-  so sync merges apply his edits cleanly.
-- actionlint, zizmor, semgrep and trivy exclude `.github/workflows/ci.yml`, since it never runs here.
+### 2. linux-port workflows, byte-identical and disabled
+
+- Restore it from `LINUX_PORT_BASE_COMMIT` in `omarchy-ci.yml`. The #474 sync source is
+  `12e8b468f607ffa99254648c1b701fc7e673f617`, which includes umputun v0.43.0.
+- Preserve `ci.yml`, `release-linux.yml`, and `publish-aur.yml` exactly.
+  The lead disables each registered workflow. Their registry states persist across updates.
+  A reusable-only workflow may return HTTP 404 until GitHub registers its path.
+- Actionlint, Zizmor, Semgrep and Trivy exclude these three guarded paths.
+- The fork publishes through `prerelease-omarchy.yml` and `auto-release.yml`.
 
 ### 3. A guard job in `omarchy-ci.yml`
 
-`upstream-ci-disabled` is part of the aggregate `CI` job. It uses GITHUB_TOKEN with `actions: read` only. It
-fails when any of these hold:
+`upstream-ci-disabled` is part of the aggregate `CI` job. It uses the GitHub token with `actions: read` only.
+It fails when:
 
-- A workflow file that umputun ships at `UPSTREAM_BASE_TAG` is active in this repository.
-- A workflow file that umputun ships differs from its content at that tag.
+- A registered inherited workflow is in a state other than `disabled_manually`.
+- The registry returns HTTP 404 and the pinned workflow has a trigger other than `workflow_call`
+  or the sole trigger cannot be verified.
+- An inherited workflow differs from the corresponding pinned linux-port blob.
+- An upstream workflow appears outside the three reviewed paths.
 
-So a sync that adds a new upstream workflow, or a hand edit to his file, turns `CI` red.
-Every sync PR moves `UPSTREAM_BASE_TAG` (in `omarchy-ci.yml`) to the merged tag in the same commit, so the guard
-compares against the tag actually merged; #476's sync branch does this as part of the merge. A sync that changes
-`.github/` is already forced to `needs-adaptation` (#476).
+The guard compares the workflow inventories at both incorporated source commits.
+Sync merges advance `UPSTREAM_BASE_TAG` and `UPSTREAM_BASE_COMMIT` in `omarchy-ci.yml`.
+The linux-port sync in #493 also advances `LINUX_PORT_BASE_COMMIT` to the exact source merged.
+An upstream change under `.github/` is forced to `needs-adaptation` (#476).
 
 ### 4. `omarchy-macos.yml`, advisory macOS checks
 
@@ -60,29 +73,34 @@ compares against the tag actually merged; #476's sync branch does this as part o
   - `pull_request` for PRs labelled `upstream-sync` or `upstream-offer`, for PRs touching `agtermCore/**`, and
     for PRs touching the workflow itself. The `labeled` event is included so that adding a label starts a run.
 - It is not part of the required `CI` check.
-- On failure or timeout (90 minutes per job), it adds the label `macos-broken` and posts a one-line comment
-  linking the run. A later green run on the PR removes the label. A timeout counts as "not run", never as
-  a pass.
+- On failure or timeout (90 minutes), a separate trusted reporter adds the label `macos-broken` and posts
+  a one-line comment linking the run. A later green run on the current head removes the label.
+  The reporter uses the completed run and open PR metadata to handle fork PRs.
 - `upstream-offer` mode: the job's result is the real verdict. The lead sends nothing to umputun without a
   green run on that exact head.
 
 ## Rollout
 
-- This lands after #474 (the catch-up) merges, and before #477/#478, so the first automatic release ships
-  with this layout. It's a single PR.
+- The layout lands after #474 and supplies the attested archives required by the merged #477 gate and #478.
 - The PR updates every reference to the old names:
   - `.claude/rules/ci.md`, the README badge and PR-fields docs;
   - every workflow or script that looks up CI runs by file name: `upstream-sync`, `auto-release`, and the
     `prerelease-omarchy` artifact lookup.
-- After merge, the lead runs `gh workflow disable ci.yml`. The guard is red on main until then, by design.
+- After #474 lands, the lead keeps `SYNC_PAUSED=true` and disables `ci.yml` and `release-linux.yml`.
+  The lead reruns the failed checks before merging. The required-check ruleset stays intact.
+- After merge, the lead disables `publish-aur.yml` as soon as it registers, then dispatches `omarchy-ci.yml`
+  on main and verifies both signed archives before unpausing.
+  Switch the native self-test to required once the attestations have been verified.
 
 ## Verification
 
-- **No conflict:** replay the v0.41.1→v0.43.0 sync merge onto the new layout in a scratch branch. `ci.yml`
-  merges with no conflict. Then run a dry-run sync (#476) against the next umputun tag once one exists.
+- **No conflict:** replay the linux-port v0.41.1→v0.43.0 sync merge onto the new layout in a scratch branch. `ci.yml`
+  merges with no conflict. Simulate a linux-port bump touching all three paths and verify there are no
+  conflicts and no new workflow paths.
 - **Guard:**
-  - Red before `gh workflow disable`, green after.
-  - A scratch PR that edits umputun's `ci.yml` turns `CI` red.
+  - Red while any inherited workflow is active. An unregistered reusable-only workflow may return HTTP 404;
+    once registered it must be disabled before the guard passes.
+  - A scratch PR that edits the inherited `ci.yml` turns `CI` red.
   - A scratch PR that adds a workflow file under an upstream name turns `CI` red.
 - **Ruleset:** a docs-only PR merges with `CI` green under the unchanged ruleset.
 - **macOS:**

@@ -258,7 +258,7 @@ class NoticeTests(unittest.TestCase):
         inventory = json.loads(original)
         self.assertIn('swift', inventory['bundled_libraries']['libswiftCore.so'])
         self.assertEqual(inventory['bundled_libraries']['libagterm-egl-compat.so'], [])
-        self.assertEqual(len(inventory['bundled_libraries']), 17)
+        self.assertEqual(len(inventory['bundled_libraries']), 18)
         self.assertEqual(len(inventory['themes']['files']), 819)
         self.assertEqual({theme['attribution'] for theme in inventory['themes']['files']}, {'resolved', 'dropped'})
         guide = (self.destination / 'share/licenses/agterm/THEMES.md').read_text()

@@ -338,6 +338,8 @@ final class AppController {
         TerminalZoomRegistry.shared.register(windowID, controller: terminalZoom)
         DashboardControllerRegistry.shared.register(windowID, controller: dashboard)
         PickRegistry.shared.register(windowID, controller: pickController)
+        observeControlPick()
+
         // Become frontmost on activation (routes global shortcuts + control to this window);
         // tear down + deregister when the window closes.
         let me = Unmanaged.passUnretained(self).toOpaque()
@@ -364,7 +366,7 @@ final class AppController {
     func newSession() {
         guard let wsID = store.currentWorkspaceID else { return }
         noteUserActivity()
-        _ = store.addSession(toWorkspace: wsID, cwd: newSessionCwd(), at: newSessionIndex(in: wsID))
+        createSessionFromGUI(in: wsID)
         reconcile()
     }
     func newSessionCwd() -> String {
@@ -372,7 +374,7 @@ final class AppController {
     }
     func newWorkspace() {
         noteUserActivity()
-        _ = store.addSession(toWorkspace: store.addWorkspace(name: store.defaultWorkspaceName).id, cwd: Self.homeCwd)
+        createWorkspaceFromGUI()
         reconcile()
     }
     func selectSession(_ id: UUID, userInitiated: Bool = true) {
@@ -484,7 +486,7 @@ final class AppController {
                 return
             }
             if store.session(withID: id)?.scratchActive == true {
-                store.toggleScratch(id)
+                toggleScratchRespectingHost(id)
                 reconcile()
                 updateToggleIcons()
                 return
@@ -634,7 +636,7 @@ final class AppController {
 
     func toggleFlagActive() {
         guard let id = store.selectedSessionID, let session = store.session(withID: id) else { return }
-        store.setFlag(!session.flagged, forSession: id)
+        setFlagsFromGUI([id], on: !session.flagged)
         syncSidebar()
         syncSidebarSelection()
     }
@@ -675,24 +677,21 @@ final class AppController {
 
     /// Typing clears blocked/completed status; Escape or bare Ctrl-C also clears active status.
     func clearAttentionStatus(_ id: UUID, pane: StatusPane, keystroke: StatusKeystroke) {
-        guard let session = store.session(withID: id),
-              session.agentIndicator.clearedBy(pane: pane, keystroke: keystroke,
-                                               reset: linuxSettingsStore().load().effectiveStatusReset) else { return }
-        store.setAgentIndicator(AgentIndicator(), forSession: id)
+        physicalPaneInput(id, pane: pane, keystroke: keystroke)
         syncSidebar()
     }
     /// Reset the active session's agent status to idle (the palette "Clear Status", GUI half of
     /// `session.status idle`).
     func clearActiveStatus() {
         guard let id = store.selectedSessionID else { return }
-        store.setAgentIndicator(AgentIndicator(), forSession: id)
+        store.clearStatus(id)
         syncSidebar()
     }
 
     /// Move the active session to another workspace (the palette "Move Session to <ws>").
     func moveActiveSession(to workspaceID: UUID) {
         guard let id = store.selectedSessionID else { return }
-        store.moveSession(id, toWorkspace: workspaceID)
+        moveSessionRespectingHost(id, toWorkspace: workspaceID)
         reconcile()
     }
 
@@ -745,9 +744,11 @@ final class AppController {
         renameEntry = nil
         resumeAutoFollow()
         if !text.isEmpty {
-            let commit = target.isWorkspace
-                ? (onWorkspaceRename ?? store.renameWorkspace) : (onCommitRename ?? store.renameSession)
-            commit(target.id, text)
+            if let commit = target.isWorkspace ? onWorkspaceRename : onCommitRename {
+                commit(target.id, text)
+            } else {
+                renameRowFromGUI(target.id, isWorkspace: target.isWorkspace, to: text)
+            }
         }
         runOnMain { [weak self] in MainActor.assumeIsolated { self?.rebuildAfterRename() } }
     }
@@ -798,7 +799,7 @@ final class AppController {
 
     func reorderActiveSession(_ dir: ReorderDirection) {
         guard let id = store.selectedSessionID else { return }
-        store.reorderSession(id, dir)
+        reorderSessionRespectingHost(id, dir)
         syncSidebar(preferMoving: [id])
         syncSidebarSelection()
     }
@@ -806,7 +807,7 @@ final class AppController {
     /// Move the active workspace up/down in the sidebar (the GUI half of the `workspace.move` control arm).
     func reorderActiveWorkspace(_ dir: ReorderDirection) {
         guard let id = store.currentWorkspaceID else { return }
-        store.reorderWorkspace(id, dir)
+        reorderWorkspaceRespectingHost(id, dir)
         syncSidebar(preferMoving: [id])
         syncSidebarSelection()
     }
@@ -815,12 +816,12 @@ final class AppController {
         guard let id = store.selectedSessionID, let session = store.session(withID: id),
               !session.fullOverlayVisible else { return }
         if session.scratchActive {
-            store.toggleScratch(id)
+            toggleScratchRespectingHost(id)
             reconcile(); updateToggleIcons()
             sessionFocusTarget(for: id)?.grabFocus(supersedingPopoverCapture: true)
             return
         }
-        store.toggleSplit(id, axis: axis)
+        toggleSplitRespectingHost(id, axis: axis)
         reconcile(syncSidebar: false)
         updateToggleIcons()
         sessionFocusTarget(for: id)?.grabFocus(supersedingPopoverCapture: true)
@@ -839,7 +840,7 @@ final class AppController {
 
     func toggleScratch() {
         guard let id = store.selectedSessionID else { return }
-        store.toggleScratch(id)
+        toggleScratchRespectingHost(id)
         reconcile()
         updateToggleIcons()
     }

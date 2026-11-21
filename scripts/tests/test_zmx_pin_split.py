@@ -39,7 +39,7 @@ class ZmxPinSplitTests(unittest.TestCase):
         self.assertTrue((ROOT / "scripts/zmx-patches-macos/ghostty/0001-formatter-unstyled-blanks.patch").is_file())
 
     def test_macos_cache_key_follows_the_macos_patch_set(self):
-        weekly = (ROOT / ".github/workflows/macos-weekly.yml").read_text()
+        weekly = (ROOT / ".github/workflows/omarchy-macos.yml").read_text()
         self.assertIn("'scripts/zmx-patches-macos/**/*.patch'", weekly)
         self.assertNotIn("'scripts/zmx-patches/**/*.patch'", weekly)
 

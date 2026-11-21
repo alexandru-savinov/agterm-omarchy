@@ -15,7 +15,7 @@ import re
 import tarfile
 
 SCRIPTS = Path(__file__).resolve().parent
-CI_WORKFLOW = SCRIPTS.parent / ".github/workflows/ci.yml"
+CI_WORKFLOW = SCRIPTS.parent / ".github/workflows/omarchy-ci.yml"
 # omarchy-pkgs `upstream-watch` matches this against the WHOLE tag of non-prerelease GitHub releases.
 WATCH_TAG = re.compile(r"omarchy-v(?P<version>[0-9]+(?:\.[0-9]+)*)")
 # Stricter than the watch: no leading zeros, so pacman's vercmp and this repository order versions alike.
@@ -41,10 +41,10 @@ require = promotion.require
 
 
 def upstream_base(text=None):
-    """UPSTREAM_BASE_TAG from ci.yml TEXT, by default this checkout's."""
+    """UPSTREAM_BASE_TAG from omarchy-ci.yml TEXT, by default this checkout's."""
     text = CI_WORKFLOW.read_text() if text is None else text
     match = re.search(r'^  UPSTREAM_BASE_TAG: "v([0-9.]+)"$', text, re.MULTILINE)
-    require(match and VERSION.fullmatch(match[1]), "ci.yml has no UPSTREAM_BASE_TAG")
+    require(match and VERSION.fullmatch(match[1]), "omarchy-ci.yml has no UPSTREAM_BASE_TAG")
     return match[1]
 
 
