@@ -7,7 +7,7 @@ import agtermCore
 final class LinuxHtmlClipboardPaste {
     enum Offer: Equatable { case unresolved, fileTransfer, other }
 
-    private var pending: (clipboard: OpaquePointer, paste: @MainActor () -> Void)?
+    private var pending: (clipboard: OpaquePointer, handler: gulong, paste: @MainActor () -> Void)?
     private var cancelDeadline: (@MainActor () -> Void)?
 
     static func offer(_ formats: OpaquePointer?) -> Offer {
@@ -37,10 +37,12 @@ final class LinuxHtmlClipboardPaste {
         case .other: return false
         case .fileTransfer: return true
         case .unresolved:
-            pending = (clipboard, paste)
+            let handler = g_signal_connect_data(RAW(clipboard), "changed",
+                                                unsafeBitCast(onHtmlClipboardChanged, to: GCallback.self),
+                                                Unmanaged.passUnretained(self).toOpaque(), nil, GConnectFlags(rawValue: 0))
+            guard handler != 0 else { return true }
+            pending = (clipboard, handler, paste)
             g_object_ref(RAW(clipboard))
-            connect(clipboard, "changed", unsafeBitCast(onHtmlClipboardChanged, to: GCallback.self),
-                    Unmanaged.passUnretained(self).toOpaque())
             // Bound the owner wait even when TARGETS never arrives. Retain the observer until it disconnects.
             cancelDeadline = MainTimer.schedule(after: 2) { [self] in finish("expired") }
             trace("waiting")
@@ -67,7 +69,7 @@ final class LinuxHtmlClipboardPaste {
         self.pending = nil
         cancelDeadline?()
         cancelDeadline = nil
-        agterm_disconnect_signals(RAW(pending.clipboard), Unmanaged.passUnretained(self).toOpaque())
+        g_signal_handler_disconnect(RAW(pending.clipboard), pending.handler)
         g_object_unref(RAW(pending.clipboard))
     }
 
