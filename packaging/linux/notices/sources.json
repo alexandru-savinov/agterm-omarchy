@@ -1703,7 +1703,7 @@
       "sha256": "3def1a59166207852de0898a03b6546bc360ba14e238a9d830f3930dcf7f9a98"
     }
   ],
-  "inventory_sha256": "b57449275f914155c6175326a3991c1577a457078751240b40e09749c1ffe508",
+  "inventory_sha256": "23bdd2b70f3be6c46e5d090fbdb9e51d4e5f9d0903caa95bfcd35f4706866541",
   "ghostty_patch_inputs": {
     "linux/patches/ghostty-bounded-app-tick.patch": "20b33f136f8d897e0350133655ca11b6700887d8bea3179eabbc5dc9b630ea82",
     "linux/patches/ghostty-clipboard-request-kind.patch": "4468c6b761ba8a82a4da47ec731845d6792456e1da4b80f948051ea5f7f9c0f6",

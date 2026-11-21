@@ -78,11 +78,14 @@ def verify_input_v0430(env, state):
             wait_for(lambda: url in request("session.text", identity)["text"], "plain URI was not printed")
             return identity
 
+        link_row = {"top": 80}
+
         def pointer_link(identity, expected_preview=None, click=True):
             frame = collect(app, role="frame")[0]
             bounds = window_extents(frame)
             sidebar = sidebar_column(app)
-            for top in (80, 72, 88, 96, 64, 56, 48):
+            # the printed row's offset differs between runners; a click with no preview to find uses the last found one
+            for top in (link_row["top"], 80, 72, 88, 96, 64, 56, 48):
                 if expected_preview:
                     focus_window(process.pid)
                     geometry = dict(line.split("=", 1) for line in subprocess.check_output(
@@ -94,6 +97,7 @@ def verify_input_v0430(env, state):
                     subprocess.run(["xdotool", "keyup", "ctrl"], check=True)
                     if not found:
                         continue
+                    link_row["top"] = top
                     if artifacts := os.environ.get("AGTERM_UI_ARTIFACT_DIR"):
                         from x11_capture import capture
                         capture(str(Path(artifacts, "session-link-preview.png")))
@@ -110,7 +114,7 @@ def verify_input_v0430(env, state):
         wait_for(lambda: row(target)["active"], "plain-text session URI did not select its target")
         request("session.close", identity)
         identity = print_link("http://100.100.100.100:9999/acceptance")
-        pointer_link(identity)
+        pointer_link(identity, "http://100.100.100.100:9999/acceptance")
         wait_for(capture.exists, "public/Tailscale HTTP link did not route to desktop handler capture")
         assert "100.100.100.100:9999/acceptance" in capture.read_text(), capture.read_text()
         assert not row(identity).get("htmlOverlays"), "public HTTP IP opened a local overlay"

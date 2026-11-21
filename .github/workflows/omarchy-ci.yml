@@ -65,6 +65,7 @@ jobs:
             scripts/test-omarchy.sh
             scripts/test-zig-build-linux.sh
             scripts/test-zmx-patches-linux.sh
+            scripts/upstream-sync-blocked.sh
             scripts/upstream-sync-publish.sh
             scripts/verify-linux-packages.sh
             scripts/verify-omarchy-release-archive.sh
@@ -405,7 +406,13 @@ jobs:
         working-directory: agterm-linux
         run: swift build -c release
       - name: Validate staged Linux payload
-        run: scripts/stage-linux.sh "$RUNNER_TEMP/agterm-stage"
+        run: |
+          upstream="${UPSTREAM_BASE_TAG#v}"
+          AGTERM_UPSTREAM_VERSION="$upstream" scripts/stage-linux.sh "$RUNNER_TEMP/agterm-stage"
+          metadata="$RUNNER_TEMP/agterm-stage/share/agterm"
+          [[ "$(cat "$metadata/VERSION")" == dev ]]
+          [[ "$(cat "$metadata/UPSTREAM_VERSION")" == "$upstream" ]]
+          cmp "$metadata/agterm-server.sha256" "packaging/linux/server/v$upstream.sha256"
       - name: GTK inline rename effect tests
         working-directory: agterm-linux
         run: |

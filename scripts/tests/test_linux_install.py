@@ -536,6 +536,24 @@ pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_text('fixture EGL shim')
                          str(self.destination / 'lib/libagterm-egl-compat.so')} <= set(calls[1][1:]))
         self.assertEqual(len(calls), 2)
 
+    def test_named_upstream_version_stages_server_install_metadata(self):
+        shutil.copytree(ROOT / 'packaging/linux/server', self.repo / 'packaging/linux/server')
+        self.env['AGTERM_UPSTREAM_VERSION'] = '0.43.0'
+        result = self.stage()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        metadata = self.destination / 'share/agterm'
+        self.assertEqual((metadata / 'VERSION').read_text(), 'dev\n')
+        self.assertEqual((metadata / 'UPSTREAM_VERSION').read_text(), '0.43.0\n')
+        self.assertEqual((metadata / 'agterm-server.sha256').read_bytes(),
+                         (ROOT / 'packaging/linux/server/v0.43.0.sha256').read_bytes())
+
+    def test_named_upstream_version_without_checksums_fails_before_staging(self):
+        self.env['AGTERM_UPSTREAM_VERSION'] = '0.0.1'
+        result = self.stage()
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('no agterm-server checksums', result.stderr)
+        self.assertFalse(self.destination.exists())
+
     def test_desktop_entry_is_staged_once_under_share_applications(self):
         result = self.stage()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

@@ -28,6 +28,10 @@ public protocol PageServeHost: AnyObject, SendableMetatype {
     /// dispatchPageBridge runs one bridge request as a local page's would run; nil when control is unavailable.
     func dispatchPageBridge(_ request: ControlRequest) async -> ControlResponse?
     func dispatchPageBridge(_ request: ControlRequest, completion: @escaping @MainActor (ControlResponse?) -> Void)
+    /// bridgesByCallback is true for a host whose main loop runs no main-actor tasks (GTK): its bridge requests are
+    /// admitted and handed to the callback form at once. Otherwise admission and the async dispatch share one task
+    /// turn, so a request queued before its page closed or moved never runs against the old place.
+    var bridgesByCallback: Bool { get }
     /// pageMimeType names a served file's type, read off the main actor.
     nonisolated static func pageMimeType(_ path: String) -> String
 
@@ -56,6 +60,7 @@ extension PageServeHost {
     public func dispatchPageBridge(_ request: ControlRequest, completion: @escaping @MainActor (ControlResponse?) -> Void) {
         Task { completion(await dispatchPageBridge(request)) }
     }
+    public var bridgesByCallback: Bool { false }
     public func pageChannelLost(_ page: UUID) {
         guard !reofferLostPage(page) else { return }
         endRemotePage(page)
@@ -357,39 +362,54 @@ public final class PageServeStream {
     }
 
     private func relay(id: Int, request: String) {
-        answer(id: id, request: request) { [self] frame in
+        let send: @MainActor (PageServeFrame) -> Void = { [self] frame in
             let owner = owner, slots = bridgeSlots
             replies.async {
                 _ = Self.sendWaiting(frame, owner)
                 slots.release()
             }
         }
+        guard host?.bridgesByCallback == true else {
+            Task { send(await answer(id: id, request: request)) }
+            return
+        }
+        switch admit(id: id, request: request) {
+        case .failure(let refusal): send(refusal)
+        case .success(let (host, built)): host.dispatchPageBridge(built) { send(Self.reply(id: id, response: $0)) }
+        }
     }
 
-    /// Validate the page at its current place before handing the request to the host's transport.
-    private func answer(id: Int, request: String, completion: @escaping @MainActor (PageServeFrame) -> Void) {
-        if attachment != nil, case .url = source { return completion(.failure(id: id, error: "a URL page has no bridge")) }
+    private func answer(id: Int, request: String) async -> PageServeFrame {
+        switch admit(id: id, request: request) {
+        case .failure(let refusal): return refusal
+        case .success(let (host, built)): return Self.reply(id: id, response: await host.dispatchPageBridge(built))
+        }
+    }
+
+    private enum Admission { case success((any PageServeHost, ControlRequest)), failure(PageServeFrame) }
+
+    /// admit resolves the page where it sits now and builds the request for that place.
+    private func admit(id: Int, request: String) -> Admission {
+        if attachment != nil, case .url = source { return .failure(.failure(id: id, error: "a URL page has no bridge")) }
         if [.image, .markdown, .text, .document, .unreadable].contains(source.kind) {
-            return completion(.failure(id: id, error: "this page has no bridge"))
+            return .failure(.failure(id: id, error: "this page has no bridge"))
         }
         // a retired channel's queued request must not act on the page its replacement now serves
-        if attachment == nil, host?.pageServeStreams[page] !== self || ending { return completion(.failure(id: id, error: "page closed")) }
+        if attachment == nil, host?.pageServeStreams[page] !== self || ending { return .failure(.failure(id: id, error: "page closed")) }
         guard let host, let place = attachment.map({ host.pageAttachmentPlace($0, page: page) }) ?? host.remotePagePlace(page) else {
-            return completion(.failure(id: id, error: "page closed"))
+            return .failure(.failure(id: id, error: "page closed"))
         }
         let origin = HtmlBridgePage(window: place.window?.uuidString, session: place.session, pane: place.pane)
-        let built: ControlRequest
         switch HtmlBridge.request(from: Data(request.utf8), page: origin) {
-        case .success(let value): built = value
-        case .failure(let refusal): return completion(.failure(id: id, error: refusal.message))
+        case .success(let built): return .success((host, built))
+        case .failure(let refusal): return .failure(.failure(id: id, error: refusal.message))
         }
-        host.dispatchPageBridge(built) { response in
-            guard let response else { return completion(.failure(id: id, error: "control is unavailable")) }
-            guard let encoded = try? JSONEncoder().encode(response) else {
-                return completion(.failure(id: id, error: "reply could not be encoded"))
-            }
-            completion(.reply(id: id, response: String(decoding: encoded, as: UTF8.self)))
-        }
+    }
+
+    private static func reply(id: Int, response: ControlResponse?) -> PageServeFrame {
+        guard let response else { return .failure(id: id, error: "control is unavailable") }
+        guard let encoded = try? JSONEncoder().encode(response) else { return .failure(id: id, error: "reply could not be encoded") }
+        return .reply(id: id, response: String(decoding: encoded, as: UTF8.self))
     }
 
     nonisolated private static func sendWaiting(_ frame: PageServeFrame, _ owner: ControlStreamOwner) -> Bool {
