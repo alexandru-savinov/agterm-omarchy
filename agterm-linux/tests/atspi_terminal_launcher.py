@@ -110,52 +110,63 @@ def verify_inherited_pane_environment(env, fixture):
     assert not leaked, f"child inherited {', '.join(sorted(leaked))}"
 
 
-# A real foreground command observes libghostty's live background via OSC 11.
-COLOR_QUERY = r"""
-import os, re, select, sys, time, tty
-from pathlib import Path
-
-marker, release = map(Path, sys.argv[1:])
-tty.setraw(0)
-deadline = time.monotonic() + 25
-while time.monotonic() < deadline and not release.exists():
-    os.write(1, b"\x1b]11;?\x07")
-    if select.select([0], [], [], 0.2)[0]:
-        reply = os.read(0, 1024)
-        match = re.search(rb"rgb:([0-9a-f]+)/([0-9a-f]+)/([0-9a-f]+)", reply, re.IGNORECASE)
-        if match:
-            color = b"".join(channel[:2] for channel in match.groups()).decode().lower()
-            update = marker.with_suffix(".tmp")
-            update.write_text(color, encoding="utf-8")
-            update.replace(marker)
-    time.sleep(0.1)
-"""
-
-
 def verify_ephemeral_reload(env, fixture):
     state = Path(env["AGTERM_STATE_DIR"])
     config = state / "config" / "ghostty.conf"
     config.parent.mkdir(parents=True)
     config.write_text("background = #284c7a\n", encoding="utf-8")
-    marker, release = fixture / "color", fixture / "release"
-    process = ephemeral_process(env, fixture.parent, sys.executable,
-                                ["-c", COLOR_QUERY, marker, release], "Reload ephemeral launcher")
+    marker, release = fixture / "pid", fixture / "release"
+    probe = fixture / "command.py"
+    probe.write_text(
+        "import os, sys, time\nfrom pathlib import Path\n"
+        "Path(sys.argv[1]).write_text(str(os.getpid()))\n"
+        "for _ in range(300):\n"
+        "    if Path(sys.argv[2]).exists(): break\n"
+        "    time.sleep(0.1)\n", encoding="utf-8",
+    )
+    process = ephemeral_process(env, fixture.parent, sys.executable, [probe, marker, release],
+                                "Reload ephemeral launcher")
     try:
-        def shows_color(expected):
-            code = process.poll()
-            assert code is None, f"launcher exited with status {code} while waiting for #{expected}"
-            return marker.exists() and marker.read_text(encoding="utf-8") == expected
+        wait_for(lambda: marker.exists() and marker.stat().st_size, "foreground command did not start")
+        child = Path("/proc") / marker.read_text(encoding="utf-8")
+        pixel = launcher_background_pixel(process) if env.get("GDK_BACKEND") == "x11" else None
 
-        wait_for(lambda: shows_color("284c7a"), "foreground command did not see the initial color")
+        def survived():
+            code = process.poll()
+            assert code is None, f"launcher exited with status {code} after SIGUSR2"
+            assert process_is_running(child), "foreground command exited after SIGUSR2"
+
         config.write_text("background = #9a6541\n", encoding="utf-8")
         process.send_signal(signal.SIGUSR2)
-        wait_for(lambda: shows_color("9a6541"), "SIGUSR2 did not reload the foreground command's terminal")
+        if pixel:
+            def reloaded():
+                survived()
+                return pixel() == bytes.fromhex("9a6541")
+
+            wait_for(reloaded, "SIGUSR2 did not repaint the foreground command's terminal with #9a6541")
+        else:
+            time.sleep(0.5)
+        survived()
         release.touch()
         assert process.wait(timeout=12) == 0, "launcher did not quit normally after the same command finished"
         assert sorted(item.name for item in state.iterdir()) == ["config"], "ephemeral reload wrote persistent state"
     finally:
         if process.poll() is None:
             stop(process)
+
+
+def launcher_background_pixel(process):
+    from x11_capture import capture
+
+    window = subprocess.check_output(
+        ["xdotool", "search", "--sync", "--onlyvisible", "--pid", str(process.pid)],
+        text=True, timeout=8).splitlines()[-1]
+    raw_geometry = subprocess.check_output(
+        ["xdotool", "getwindowgeometry", "--shell", window], text=True, timeout=5)
+    geometry = dict(line.split("=", 1) for line in raw_geometry.splitlines())
+    x = int(geometry["X"]) + int(geometry["WIDTH"]) * 3 // 4
+    y = int(geometry["Y"]) + int(geometry["HEIGHT"]) * 3 // 4
+    return lambda: capture().new_subpixbuf(x, y, 1, 1).get_pixels()[:3]
 
 
 def verify_ephemeral_translucency(env, fixture):
