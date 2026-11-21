@@ -45,19 +45,15 @@ LINE = re.compile(r"(" + "|".join(re.escape(name) for name in FIELDS) + r"): (.*
 FOLD_OPEN = "<details><summary>Review record</summary>"
 FOLD_CLOSE = "</details>"
 FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
-COMMENT = re.compile(r" {0,3}<!--")
+COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 
 
-def hidden(lines):
-    """Indexes of lines in a fenced code block or an HTML comment, tracked together in one pass
-    (a fence marker inside a comment is not a fence), so a fold shown as an example never counts."""
-    inside, fence, comment = set(), None, False
+def fenced(lines):
+    """Indexes of lines inside or delimiting a fenced code block, so a fold shown as an example never counts."""
+    inside, fence = set(), None
     for index, line in enumerate(lines):
         match = FENCE.match(line)
-        if comment:
-            inside.add(index)
-            comment = "-->" not in line
-        elif fence:
+        if fence:
             inside.add(index)
             if match and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence) \
                     and not line[match.end():].strip():
@@ -65,9 +61,6 @@ def hidden(lines):
         elif match and not (match.group(1)[0] == "`" and "`" in line[match.end():]):
             inside.add(index)
             fence = match.group(1)
-        elif COMMENT.match(line):
-            inside.add(index)
-            comment = "-->" not in line[line.index("<!--") + 4:]
     return inside
 
 
@@ -88,9 +81,10 @@ def split(body):
 
 def blocks(body):
     """(leading-block matches, Review record fold matches, number of fold openers)."""
-    lines = split(body)
-    leading, _ = block(lines, 0)
-    code = hidden(lines)
+    leading, _ = block(split(body), 0)
+    # HTML comments go first, wherever they open; an unterminated one runs to the end of the body.
+    lines = split(COMMENT.sub("", body))
+    code = fenced(lines)
     folds = [index for index, line in enumerate(lines) if line == FOLD_OPEN and index not in code]
     inner = []
     if len(folds) == 1:

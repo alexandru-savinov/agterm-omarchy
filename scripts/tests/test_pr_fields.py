@@ -166,6 +166,18 @@ class ReviewRecordFoldTests(unittest.TestCase):
     def test_a_fold_inside_an_html_comment_does_not_count(self):
         self.assertEqual(len(pr_fields.problems(self.BODY + "<!--\n" + fold() + "-->\n", HEAD)), 4)
 
+    def test_a_fold_inside_a_comment_opened_after_prose_does_not_count(self):
+        self.assertEqual(len(pr_fields.problems(self.BODY + "Notes <!--\n" + fold() + "-->\n", HEAD)), 4)
+
+    def test_a_fence_marker_in_a_comment_opened_after_prose_does_not_hide_a_real_fold(self):
+        self.assertEqual(pr_fields.problems(self.BODY + "Notes <!--\n```\n-->\n" + fold(), HEAD), [])
+
+    def test_a_second_comment_opened_on_the_same_line_hides_its_fold(self):
+        self.assertEqual(len(pr_fields.problems(self.BODY + "<!-- a --> <!--\n" + fold() + "-->\n", HEAD)), 4)
+
+    def test_an_unterminated_comment_runs_to_the_end_of_the_body(self):
+        self.assertEqual(len(pr_fields.problems(self.BODY + "<!--\n" + fold(), HEAD)), 4)
+
     def test_the_leading_block_still_passes_with_no_fold(self):
         self.assertEqual(pr_fields.problems(GOOD, HEAD), [])
 
