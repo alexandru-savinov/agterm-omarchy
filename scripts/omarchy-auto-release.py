@@ -35,6 +35,15 @@ UNFILTERED_JOBS = ("Upstream workflow guard", "Installer and scripts", "Detect c
 SCOPE_GATES = ("Detect changes", "CI")
 BUILD_JOBS = ("SwiftLint (Linux)",) + promotion.REQUIRED_ARCH_JOBS + (promotion.ATTEST_JOB,)
 MATRIX = "${{ matrix.arch }}"
+# Tracked inputs to the packaged Linux payload. Commit and version stamps are generated at release time.
+PRODUCT_PATHS = (
+    "agterm-linux", "agtermCore", "agterm/AppIcon.icon", "agterm/Resources/agent-status", "agterm/Resources/markdown",
+    "linux", "packaging/linux", "plugins/agterm/skills/agterm", "LICENSE", "scripts/setup-linux.sh",
+    "scripts/zig-build-linux.sh", "scripts/ghostty-patches", "scripts/zmx-patches", "scripts/stage-linux.sh",
+    "scripts/linux-notices.py", "scripts/linux-runpath.py", "scripts/omarchy-release.py",
+    ":(exclude)agterm-linux/Tests", ":(exclude)agterm-linux/tests", ":(exclude)agterm-linux/docs",
+    ":(exclude)agtermCore/Tests", ":(exclude,glob)packaging/linux/*.md", ":(exclude)packaging/linux/release-notes",
+)
 # GitHub allows a workflow run at most 50 attempts.
 MAX_ATTEMPTS = 50
 
@@ -66,6 +75,62 @@ def pause_reason():
 def releases():
     return [item for page in promotion.api(RELEASES_PATH, pages=True) for item in page
             if TAG.fullmatch(item["tag_name"])]
+
+
+def compare_release(tag, head):
+    return promotion.api(f"compare/refs/tags/{tag}...{head}?per_page=1")
+
+
+def ci_release_base(head):
+    """Return the latest published stable Omarchy release's commit when it is an ancestor of HEAD."""
+    promotion.require(promotion.SOURCE_SHA.fullmatch(head), "Expected a full lowercase CI SHA")
+    latest = max((item["tag_name"] for item in releases()
+                  if not item["draft"] and not item["prerelease"] and item["published_at"]),
+                 key=lambda tag: promotion.version_key(tag.removeprefix("omarchy-v")), default=None)
+    if latest is None:
+        return ""
+    comparison = compare_release(latest, head)
+    base = comparison["base_commit"]["sha"]
+    promotion.require(promotion.SOURCE_SHA.fullmatch(base) and comparison["status"] in ("ahead", "identical")
+                      and comparison["merge_base_commit"]["sha"] == base,
+                      "The latest stable release is not an ancestor of the CI commit")
+    return base
+
+
+def build_recipe(commit):
+    # The pins and build job can change the payload. Trigger and routing edits cannot.
+    workflow = subprocess.check_output(["git", "show", f"{commit}:{promotion.WORKFLOW}"], text=True)
+    parts = [re.search(pattern, workflow, re.MULTILINE | re.DOTALL) for pattern in (
+        r"^env:\n.*?(?=^[\w-]+:|\Z)", r"^  build-linux:\n.*?(?=^  [\w-]+:|\Z)",
+    )]
+    promotion.require(all(parts), "Cannot identify the Omarchy build recipe")
+    return tuple(part[0] for part in parts)
+
+
+def same_product(base, head):
+    promotion.require(all(promotion.SOURCE_SHA.fullmatch(sha) for sha in (base, head)),
+                      "Expected full lowercase product SHAs")
+    missing = [sha for sha in (base, head) if subprocess.run(
+        ["git", "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True).returncode]
+    if missing:
+        subprocess.run(["git", "fetch", "--no-tags", "--depth=1", f"https://github.com/{promotion.REPOSITORY}.git",
+                        *missing], check=True)
+    result = subprocess.run(["git", "diff", "--quiet", "--no-ext-diff", "--no-textconv", "--ignore-submodules=none",
+                             base, head, "--", *PRODUCT_PATHS])
+    if result.returncode == 1:
+        return False
+    result.check_returncode()
+    return build_recipe(base) == build_recipe(head)
+
+
+def matches_released_product(tag, comparison, head):
+    try:
+        return same_product(comparison["base_commit"]["sha"], head)
+    except (subprocess.CalledProcessError, ValueError, KeyError, TypeError) as error:
+        report_error(error)
+        write_summary(f"Proceeding with release checks. Product comparison with {tag} was unavailable "
+                      f"due to {type(error).__name__} ({error}).")
+        return False
 
 
 def next_version(base, tags):
@@ -173,12 +238,15 @@ def plan(event):
     if promotion.version_key(base) < MINIMUM_BASE:
         return None, "Wait for the v0.43.0 catch-up sync before automatic releases"
     items = releases()
-    shipped = [item for item in items if not item["draft"]]
+    shipped = [item for item in items if not item["draft"] and item["published_at"]]
     if shipped:
-        # Include retracted releases so fixing forward requires a new main commit.
-        latest = max(shipped, key=lambda item: promotion.version_key(item["tag_name"].removeprefix("omarchy-v")))
-        if promotion.api(f"compare/{latest['tag_name']}...{sha}")["status"] != "ahead":
-            return None, f"No new main commit after {latest['tag_name']}"
+        # A demoted release still sets the baseline. A metadata-only commit cannot republish it.
+        latest = max((item["tag_name"] for item in shipped), key=lambda tag: promotion.version_key(tag.removeprefix("omarchy-v")))
+        comparison = compare_release(latest, sha)
+        if comparison["status"] != "ahead":
+            return None, f"No new main commit after {latest}"
+        if matches_released_product(latest, comparison, sha):
+            return None, f"Product tree matches {latest}"
     elif promotion.version_key(base) != MINIMUM_BASE:
         return None, "M4 starts the versioned release series at upstream v0.43.0"
     if any(promotion.api(f"{PROMOTION_RUNS}?branch=main&event=workflow_dispatch&status={status}&per_page=1")["total_count"]
@@ -354,6 +422,8 @@ def read_event():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    release_base = commands.add_parser("ci-release-base", help="choose the stable release base for a main push")
+    release_base.add_argument("head")
     commands.add_parser("ci-scope")
     commands.add_parser("plan")
     commands.add_parser("promote")
@@ -369,7 +439,16 @@ def main():
     failure.add_argument("--reason", required=True)
     failure.add_argument("--evidence", required=True)
     args = parser.parse_args()
-    if args.command == "ci-scope":
+    if args.command == "ci-release-base":
+        try:
+            base = ci_release_base(args.head)
+        except (KeyError, TypeError, ValueError, subprocess.CalledProcessError) as error:
+            report_error(error)
+            base = ""
+        promotion.write_outputs({"sha": base, "full_build": str(not base).lower()})
+        print(f"Comparing main changes with release commit {base}" if base else
+              "No usable stable release base. Running the full product build.")
+    elif args.command == "ci-scope":
         run = read_event()["workflow_run"]
         attempt = run["run_attempt"]
         if type(attempt) is not int or not 0 < attempt <= MAX_ATTEMPTS:
@@ -382,6 +461,8 @@ def main():
     elif args.command in ("plan", "promote"):
         candidate, message = plan(read_event())
         print(message, flush=True)
+        if candidate is None:
+            write_summary(f"Skipped: {message}.")
         if args.command == "plan":
             promotion.write_outputs(candidate or {})
         elif candidate:
