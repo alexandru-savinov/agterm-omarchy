@@ -38,10 +38,10 @@ the scanner workflows (`zizmor.yml`, `actionlint.yml`, `semgrep-osv.yml`, `trivy
 ### Task 4: References and enablement
 - [ ] Update every lookup of `ci.yml` and `macos-weekly.yml`: upstream-sync, auto-release,
   prerelease-omarchy, `.claude/rules/ci.md`, the README badge and PR-fields docs.
-- [ ] After #474 merges, the lead pauses sync and disables all three inherited workflows.
+- [ ] After #474 merges, the lead pauses sync and disables `ci.yml` and `release-linux.yml`.
   Show the draft guard red before and green after the disable.
-- [ ] Verify both archives signed by `omarchy-ci.yml` on the first qualifying main run. Then require
-  attestation in the native PR self-test and unpause.
+- [ ] After merge, the lead disables `publish-aur.yml` when it registers and dispatches `omarchy-ci.yml` on main.
+  Verify both signed archives, require attestation in the native PR self-test, and unpause.
 - [ ] Merge a docs-only PR under the unchanged ruleset, with `CI` green.
 
 ## Constraints

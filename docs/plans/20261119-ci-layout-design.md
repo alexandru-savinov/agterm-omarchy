@@ -43,6 +43,7 @@ Source amendment on 2026-11-20: #474 and #493 track the `linux-port` branch of
   `12e8b468f607ffa99254648c1b701fc7e673f617`, which includes umputun v0.43.0.
 - Preserve `ci.yml`, `release-linux.yml`, and `publish-aur.yml` exactly.
   The lead disables each registered workflow. Their registry states persist across updates.
+  A reusable-only workflow may return HTTP 404 until GitHub registers its path.
 - Actionlint, Zizmor, Semgrep and Trivy exclude these three guarded paths.
 - The fork publishes through `prerelease-omarchy.yml` and `auto-release.yml`.
 
@@ -51,7 +52,9 @@ Source amendment on 2026-11-20: #474 and #493 track the `linux-port` branch of
 `upstream-ci-disabled` is part of the aggregate `CI` job. It uses the GitHub token with `actions: read` only.
 It fails when:
 
-- An inherited workflow registration is missing or its state differs from `disabled_manually`.
+- A registered inherited workflow is in a state other than `disabled_manually`.
+- The registry returns HTTP 404 and the pinned workflow has a trigger other than `workflow_call`
+  or the sole trigger cannot be verified.
 - An inherited workflow differs from the corresponding pinned linux-port blob.
 - An upstream workflow appears outside the three reviewed paths.
 
@@ -83,9 +86,10 @@ An upstream change under `.github/` is forced to `needs-adaptation` (#476).
   - `.claude/rules/ci.md`, the README badge and PR-fields docs;
   - every workflow or script that looks up CI runs by file name: `upstream-sync`, `auto-release`, and the
     `prerelease-omarchy` artifact lookup.
-- After #474 lands, the lead keeps `SYNC_PAUSED=true`, disables all three inherited workflow IDs,
-  and reruns the failed checks before merging. The required-check ruleset stays intact.
-- The lead verifies both signed archives from the first qualifying main run before unpausing.
+- After #474 lands, the lead keeps `SYNC_PAUSED=true` and disables `ci.yml` and `release-linux.yml`.
+  The lead reruns the failed checks before merging. The required-check ruleset stays intact.
+- After merge, the lead disables `publish-aur.yml` as soon as it registers, then dispatches `omarchy-ci.yml`
+  on main and verifies both signed archives before unpausing.
   Switch the native self-test to required once the attestations have been verified.
 
 ## Verification
@@ -94,7 +98,8 @@ An upstream change under `.github/` is forced to `needs-adaptation` (#476).
   merges with no conflict. Simulate a linux-port bump touching all three paths and verify there are no
   conflicts and no new workflow paths.
 - **Guard:**
-  - Red while any inherited workflow is active, green after all three are disabled.
+  - Red while any inherited workflow is active. An unregistered reusable-only workflow may return HTTP 404;
+    once registered it must be disabled before the guard passes.
   - A scratch PR that edits the inherited `ci.yml` turns `CI` red.
   - A scratch PR that adds a workflow file under an upstream name turns `CI` red.
 - **Ruleset:** a docs-only PR merges with `CI` green under the unchanged ruleset.

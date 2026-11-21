@@ -594,10 +594,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/workflows?per_page=100" \
-            > "$RUNNER_TEMP/workflows.json"
-          python3 -I scripts/check-upstream-ci.py "$LINUX_PORT_BASE_COMMIT" "$UPSTREAM_BASE_COMMIT" \
-            "$RUNNER_TEMP/workflows.json"
+          python3 -I scripts/check-upstream-ci.py "$LINUX_PORT_BASE_COMMIT" "$UPSTREAM_BASE_COMMIT"
 
   ci:
     name: CI

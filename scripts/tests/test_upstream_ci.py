@@ -1,6 +1,9 @@
 import importlib.util
+import json
+import subprocess
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location("upstream_ci", Path(__file__).resolve().parents[1] / "check-upstream-ci.py")
 guard = importlib.util.module_from_spec(SPEC)
@@ -13,11 +16,11 @@ class WorkflowGuardTests(unittest.TestCase):
         self.umputun_ci = ".github/workflows/ci.yml"
         self.upstream = {self.umputun_ci: b"100644 blob umputun"}
         self.local = self.linux_port.copy()
+        self.aur = ".github/workflows/publish-aur.yml"
 
-    def errors(self, changed_path=None, state=None):
-        workflows = [{"path": path, "state": state if path == changed_path else "disabled_manually"}
-                     for path in guard.INHERITED if path != changed_path or state is not None]
-        return guard.check_layout(self.linux_port, self.upstream, self.local, [{"workflows": workflows}])
+    def errors(self, changed_path=None, state=None, source=""):
+        states = {path: state if path == changed_path else "disabled_manually" for path in guard.INHERITED}
+        return guard.check_layout(self.linux_port, self.upstream, self.local, states, {changed_path: source})
 
     def test_accepts_all_three_exact_disabled_linux_port_workflows(self):
         self.assertEqual(guard.INHERITED, {self.umputun_ci, ".github/workflows/release-linux.yml",
@@ -29,6 +32,21 @@ class WorkflowGuardTests(unittest.TestCase):
             for state in ("active", "disabled_inactivity", None):
                 with self.subTest(path=path, state=state):
                     self.assertIn(f"{path} must be disabled manually", self.errors(path, state)[0])
+
+    def test_unregistered_reusable_only_workflow_passes(self):
+        real_aur = (Path(__file__).resolve().parents[2] / self.aur).read_text()
+        self.assertEqual(self.errors(self.aur, None, real_aur), [])
+
+    def test_unregistered_workflow_with_an_additional_trigger_fails(self):
+        for source in ("on:\n  workflow_call:\n  push:\n", "on: [workflow_call, push]\n",
+                       "on:\n  push:\n  workflow_call:\n", '"on": workflow_call\non: push\n'):
+            with self.subTest(source=source):
+                self.assertIn("unregistered (HTTP 404)", self.errors(self.aur, None, source)[0])
+
+    def test_registered_reusable_workflow_must_be_disabled(self):
+        source = "on:\n  workflow_call:\n"
+        self.assertIn("registry state: active", self.errors(self.aur, "active", source)[0])
+        self.assertEqual(self.errors(self.aur, "disabled_manually", source), [])
 
     def test_rejects_each_edited_workflow_and_umputuns_ci(self):
         for path in guard.INHERITED:
@@ -78,6 +96,32 @@ class ArchiveSigningTests(unittest.TestCase):
         native = (workflows / "omarchy-x86-native.yml").read_text()
         self.assertIn('.github/workflows/omarchy-ci.yml" --source-ref refs/heads/main', native)
         self.assertIn('--source-digest "$SHA" --deny-self-hosted-runners', native)
+
+
+class RegistryLookupTests(unittest.TestCase):
+    def test_only_an_http_404_counts_as_unregistered(self):
+        path = ".github/workflows/publish-aur.yml"
+        for status in ("404", "403", "429", "500", None):
+            headers = f"HTTP/2.0 {status} error\n\n" if status else ""
+            response = subprocess.CompletedProcess([], 1, stdout=headers, stderr="gh: error")
+            with self.subTest(status=status), patch.object(guard.subprocess, "run", return_value=response):
+                if status == "404":
+                    self.assertIsNone(guard.registry_state("owner/repo", path))
+                else:
+                    with self.assertRaisesRegex(ValueError, "cannot verify registry state"):
+                        guard.registry_state("owner/repo", path)
+
+    def test_registered_lookup_requires_the_expected_path(self):
+        path = ".github/workflows/publish-aur.yml"
+        for subject in (path, ".github/workflows/ci.yml"):
+            body = json.dumps({"path": subject, "state": "disabled_manually"})
+            response = subprocess.CompletedProcess([], 0, stdout="HTTP/2.0 200 OK\n\n" + body, stderr="")
+            with self.subTest(subject=subject), patch.object(guard.subprocess, "run", return_value=response):
+                if subject == path:
+                    self.assertEqual(guard.registry_state("owner/repo", path), "disabled_manually")
+                else:
+                    with self.assertRaisesRegex(ValueError, "unexpected workflow"):
+                        guard.registry_state("owner/repo", path)
 
 
 if __name__ == "__main__":

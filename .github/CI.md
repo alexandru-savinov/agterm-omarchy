@@ -2,7 +2,7 @@
 
 `.github/workflows/omarchy-ci.yml` validates pull requests targeting `main` or `omarchy`, pushes to `main`, and manual runs.
 Pull request builds test GitHub's merge commit; trusted artifact promotion still requires a successful push or manual run at the exact branch head.
-The guard verifies the `ci.yml`, `release-linux.yml`, and `publish-aur.yml` blobs against the linux-port source and checks all three disabled registry states.
+The guard verifies the `ci.yml`, `release-linux.yml`, and `publish-aur.yml` blobs against the linux-port source and checks disabled registry states. An HTTP 404 is accepted only for a reusable-only workflow.
 A separate signing matrix downloads and attests both tested tarballs for pushes and manual dispatches on `refs/heads/main`.
 CI-native verification requires the signer `.github/workflows/omarchy-ci.yml` and the exact source commit.
 

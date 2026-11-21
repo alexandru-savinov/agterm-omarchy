@@ -97,7 +97,8 @@ follow linux-port:
   - **Existing workflow paths** keep the `needs-adaptation` draft, with the changed paths listed. A workflow
     that is disabled in this repository stays disabled when its content changes.
     At the #483 cutover, `ci.yml`, `release-linux.yml`, and `publish-aur.yml` take the exact linux-port
-    copies and all three registrations are disabled. The fork publishes via `prerelease-omarchy.yml`.
+    copies. Each registered workflow is disabled; the guard permits an unregistered reusable-only workflow
+    until GitHub registers it. The fork publishes via `prerelease-omarchy.yml`.
     A clean merge into an enabled workflow path can run upstream-authored steps when its triggers match.
   - **Settings this rests on,** verified on 2026-11-20: there are no repository secrets; the only credential
     is the PAT in the `upstream-sync` environment, which deploys from main only; allowed actions are a

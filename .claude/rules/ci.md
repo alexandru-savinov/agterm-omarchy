@@ -7,7 +7,8 @@ paths:
 
 - Fork CI runs in `.github/workflows/omarchy-ci.yml`. Keep the required aggregate job named `CI`.
 - `ci.yml`, `release-linux.yml`, and `publish-aur.yml` are byte-identical copies from the pinned
-  `melonamin/agterm-linux` source. The required guard checks their bytes and manually disabled registry states.
+  `melonamin/agterm-linux` source. The guard checks their bytes and requires each registered copy to be manually disabled.
+  An explicit HTTP 404 is accepted only when `workflow_call` is the sole trigger.
 - Advance `UPSTREAM_BASE_TAG` and `UPSTREAM_BASE_COMMIT` in `omarchy-ci.yml`.
   A linux-port sync also advances `LINUX_PORT_BASE_COMMIT` and carries the three upstream workflow files.
 - The read-only build matrix uploads both tested tarballs. A separate signer job attests both archives for
