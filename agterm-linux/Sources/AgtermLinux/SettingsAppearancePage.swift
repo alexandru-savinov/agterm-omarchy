@@ -42,9 +42,8 @@ extension AppController {
 
         let themes = Self.bundledThemes()
         let following = settings.followSystemAppearance == true
-        let omarchy = OmarchyTheme()
         let preference = OmarchyThemePreference()
-        let offersAutomatic = omarchy.isInstalled && preference.follows(omarchy)
+        let offersAutomatic = preference.offersAutomaticTheme
         var themeValues = following ? themes : [Self.ghosttyDefaultThemeLabel] + themes
         if offersAutomatic { themeValues.insert(Self.automaticOmarchyThemeLabel, at: 0) }
         let themeSelection = offersAutomatic && !preference.usesAgtermTheme(settings)

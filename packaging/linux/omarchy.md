@@ -100,6 +100,7 @@ An explicit agterm theme takes precedence over Omarchy, and your agterm-scoped `
 can override individual colors from either source when the Omarchy color layer is available.
 Select **Automatic (Omarchy)** under **Settings ▸ Appearance ▸ Terminal ▸ Theme** to resume following
 after choosing an agterm theme.
+The same choice is available through `agtermctl theme set "Automatic (Omarchy)"` and appears in `agtermctl theme list`.
 Turn off **Follow the Omarchy theme** under **Settings ▸ General ▸ Ghostty Config** to disable the integration.
 The color-only filter applies to the automatic Omarchy layer.
 With **Use my global Ghostty config** enabled, libghostty also parses the Omarchy include in full if your global config includes it.

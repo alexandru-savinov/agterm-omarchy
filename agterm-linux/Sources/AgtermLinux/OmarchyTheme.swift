@@ -104,6 +104,8 @@ struct OmarchyThemePreference {
 
     func follows(_ theme: OmarchyTheme) -> Bool { load() ?? theme.isInstalled }
 
+    var offersAutomaticTheme: Bool { OmarchyTheme().isInstalled && load() != false }
+
     func usesAgtermTheme(_ settings: AppSettings, previewing: Bool = false) -> Bool {
         if previewing || settings.followSystemAppearance == true { return true }
         // Named themes in existing settings are already explicit. The seeded name and Ghostty's

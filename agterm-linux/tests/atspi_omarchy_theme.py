@@ -125,5 +125,15 @@ def verify_omarchy_theme(env):
         wait_for(lambda: read_settings(local).get("theme") == "agterm", "Automatic theme was not saved")
         close_preferences(app, process.pid)
         expect(theme_a, "resuming Automatic (Omarchy) in Appearance")
+
+        paired = control_json(local, "theme", "set", "Dracula", "--dark", "Dracula", "--json")
+        assert paired["ok"] and paired["result"]["sync"], paired
+        expect("282A36", "explicit appearance pair selected by agtermctl")
+        resumed = control_json(local, "theme", "set", automatic, "--json")
+        assert resumed["ok"] and resumed["result"]["theme"] == automatic, resumed
+        assert not resumed["result"]["sync"] and "dark" not in resumed["result"], resumed
+        listed = control_json(local, "theme", "list", "--json")
+        assert listed["result"]["theme"] == automatic and automatic in listed["result"]["themes"], listed
+        expect(theme_a, "resuming Automatic (Omarchy) over the control socket")
     finally:
         stop(process)
