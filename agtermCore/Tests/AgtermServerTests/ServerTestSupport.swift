@@ -13,7 +13,8 @@ struct ServerScratch {
     init() throws {
         root = "/tmp/agts-\(UUID().uuidString.prefix(8))"
         for directory in [root, runtime, bin] {
-            try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
         }
         // a link, not a script: writeExecutable's subprocess would block the main actor in every @MainActor suite's setup
         try FileManager.default.createSymbolicLink(atPath: zmx, withDestinationPath: "/usr/bin/true")

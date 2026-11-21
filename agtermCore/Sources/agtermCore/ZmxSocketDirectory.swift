@@ -225,8 +225,8 @@ public enum ZmxSocketDirectory {
     }
 
     /// `XDG_RUNTIME_DIR` when it is a private directory of this user — what systemd-logind provides.
-    static func privateRuntimeDirectory(environment: [String: String], fileSystem: FileSystem) -> String? {
-        privateBaseDirectory(environment["XDG_RUNTIME_DIR"], fileSystem: fileSystem)
+    public static func privateRuntimeDirectory(_ path: String?, fileSystem: FileSystem = .live) -> String? {
+        privateBaseDirectory(path, fileSystem: fileSystem)
     }
 
     /// Whether an ancestor of the state directory keeps other users from renaming or replacing what is
@@ -293,7 +293,7 @@ public enum ZmxSocketDirectory {
     /// than trying a later location, so a tampered directory surfaces instead of being silently avoided.
     public static func resolveLinux(stateDirectory: String, environment: [String: String],
                                     fileSystem: FileSystem = .live) -> Result<String, Refusal> {
-        let base = privateRuntimeDirectory(environment: environment, fileSystem: fileSystem).map {
+        let base = privateRuntimeDirectory(environment["XDG_RUNTIME_DIR"], fileSystem: fileSystem).map {
             $0 + "/" + ZmxSupport.socketDirectoryLeaf(forStateDirectory: stateDirectory)
         }
         return resolve(stateDirectory: stateDirectory, privateCandidate: base,

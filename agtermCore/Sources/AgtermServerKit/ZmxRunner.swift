@@ -92,10 +92,11 @@ public struct ProcessZmxRunner: ZmxRunner {
     }
 
     public func create(_ launch: PaneLaunch) throws {
-        try FileManager.default.createDirectory(atPath: socketDirectory, withIntermediateDirectories: true,
-                                                attributes: [.posixPermissions: 0o700])
+        try Self.verifySocketDirectory(socketDirectory)
+        var environment = launch.environment
+        environment["ZMX_DIR"] = socketDirectory
         let argv = placement.prefix(for: launch.name) + [zmxPath, "attach", "--detached", launch.name] + launch.argv
-        let output = try ServerProcess.run(argv, environment: launch.environment, directory: launch.directory,
+        let output = try ServerProcess.run(argv, environment: environment, directory: launch.directory,
                                            timeout: Self.timeout)
         guard output.status == 0 else {
             throw ZmxRunnerError.failed((output.stderr + output.stdout).trimmingCharacters(in: .whitespacesAndNewlines))
@@ -134,10 +135,23 @@ public struct ProcessZmxRunner: ZmxRunner {
     }
 
     private func invoke(_ arguments: [String], input: Data? = nil) throws -> ServerProcess.Output {
+        try Self.verifySocketDirectory(socketDirectory)
         var environment = baseEnvironment
         environment["ZMX_DIR"] = socketDirectory
         environment["ZMX_SESSION"] = ""
         environment["ZMX_SESSION_PREFIX"] = ""
         return try ServerProcess.run([zmxPath] + arguments, environment: environment, input: input, timeout: Self.timeout)
+    }
+
+    static func verifySocketDirectory(_ socketDirectory: String) throws {
+        // The server's socket directory is a direct child of its private runtime directory.
+        let runtime = (socketDirectory as NSString).deletingLastPathComponent
+        guard ZmxSocketDirectory.privateRuntimeDirectory(runtime) != nil,
+              FileManager.default.isWritableFile(atPath: runtime) else {
+            throw ServerConfiguration.Failure.unusableRuntimeDirectory(runtime)
+        }
+        if case .failure(let refusal) = ZmxSocketDirectory.verify(socketDirectory) {
+            throw ZmxRunnerError.failed(refusal.message)
+        }
     }
 }

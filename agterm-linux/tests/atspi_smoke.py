@@ -2650,6 +2650,20 @@ def verify_window_callback_ownership(env):
         assert session_count(window_tree(env, secondary_id)) == before_secondary, (
             "background-window action mutated the frontmost window"
         )
+        undo_session = control_json(env, "session", "new", "--window", primary_id, "--no-select", "--json")["result"]["id"]
+        select_window(env, secondary_id)
+        wait_for(lambda: any(item["id"] == secondary_id and item["active"] for item in window_list(env)),
+                 "second window was not active for the undo routing test")
+        closed = raw_control_json(env, {"cmd": "session.close", "target": undo_session,
+                                        "args": {"window": primary_id, "undoable": True}})
+        undo = closed["result"]["undoID"]
+        assert undo != undo_session
+        assert all(row["id"] != undo_session for ws in window_tree(env, primary_id)["workspaces"] for row in ws["sessions"])
+        restored = raw_control_json(env, {"cmd": "session.undo", "target": undo})
+        assert restored["ok"] and restored["result"]["id"] == undo, restored
+        assert any(row["id"] == undo_session for ws in window_tree(env, primary_id)["workspaces"] for row in ws["sessions"])
+        assert session_count(window_tree(env, secondary_id)) == before_secondary
+        control_json(env, "session", "close", "--target", undo_session, "--window", primary_id, "--json")
         control_json(env, "session", "rename", "primary-session", "--window", primary_id, "--json")
         primary = wait_for(
             lambda: named(app, "primary-session", role="frame"),

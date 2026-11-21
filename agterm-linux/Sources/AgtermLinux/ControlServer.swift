@@ -573,7 +573,8 @@ final class ControlServer: @unchecked Sendable {
     }
 
     @MainActor static func route(for req: ControlRequest) -> ControllerRoute {
-        if let window = req.args?.window, !window.isEmpty {
+        let requestedWindow = req.cmd == .windowRemoteDismiss ? req.target ?? req.args?.window : req.args?.window
+        if let window = requestedWindow, !window.isEmpty {
             guard let library = gLibrary else {
                 return .failure("window not open")
             }
@@ -592,8 +593,14 @@ final class ControlServer: @unchecked Sendable {
             return .controller(controller)
         }
         switch req.cmd {
+        case .sessionUndo:
+            if let target = req.target, let id = UUID(uuidString: target),
+               let owner = gWindows.values.first(where: { $0.store.hasPendingClose(id) }) {
+                return .controller(owner)
+            }
+            return .controller(gController)
         case .sessionCompanionNew, .sessionCompanionPage, .sessionCompanionDuplicate, .sessionCompanionPageAttach,
-             .sessionPage, .sessionCompanionConvert, .sessionCompanionMove, .sessionTerminate, .sessionUndo, .sessionRemoteNew,
+             .sessionPage, .sessionCompanionConvert, .sessionCompanionMove, .sessionTerminate, .sessionRemoteNew,
              .sessionCollapse, .sessionExpand, .sessionTint,
              .sessionOverlayHide, .sessionOverlayShow, .sessionOverlayToggle,
              .sessionRestart, .sessionOverlaySubmit, .keymapRun, .sessionClose, .sessionDuplicate, .sessionSelect, .sessionGo, .sessionRename, .sessionReveal,

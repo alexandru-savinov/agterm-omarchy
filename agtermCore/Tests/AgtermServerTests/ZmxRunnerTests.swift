@@ -40,13 +40,41 @@ struct ZmxRunnerTests {
                                       baseEnvironment: [:])
 
         try runner.create(PaneLaunch(name: "agterm-p", argv: ["/bin/zsh", "-lic", "true"],
-                                     environment: ["ZMX_DIR": scratch.runtime + "/zmx", "MARK": "m"], directory: scratch.root))
+                                     environment: ["ZMX_DIR": scratch.root + "/wrong", "MARK": "m"], directory: scratch.root))
 
         let line = try String(contentsOfFile: log, encoding: .utf8).trimmingCharacters(in: .newlines)
         let fields = line.split(separator: "|").map(String.init)
         #expect(fields.count == 4)
         #expect(realPath(fields[0]) == realPath(scratch.root))
         #expect(fields.dropFirst() == ["\(scratch.runtime)/zmx", "attach --detached agterm-p /bin/zsh -lic true", "m"])
+    }
+
+    @Test func everyZmxCallRechecksTheDirectoryAfterStartup() throws {
+        let scratch = try ServerScratch()
+        defer { scratch.remove() }
+        let marker = scratch.root + "/called"
+        let fake = scratch.bin + "/fake-zmx"
+        let sockets = scratch.runtime + "/zmx"
+        try writeExecutable(fake, "#!/bin/sh\ntouch '\(marker)'\n")
+        let runner = ProcessZmxRunner(zmxPath: fake, socketDirectory: sockets, placement: .direct, baseEnvironment: [:])
+        try ProcessZmxRunner.verifySocketDirectory(sockets)
+        let attributes = try FileManager.default.attributesOfItem(atPath: sockets)
+        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
+        try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: sockets)
+
+        let refusal = ZmxSocketDirectory.Refusal(path: sockets, reason: .writableByOthers)
+        let launch = PaneLaunch(name: "agterm-p", argv: [], environment: [:], directory: scratch.root)
+        #expect(throws: ZmxRunnerError.failed(refusal.message)) { try runner.create(launch) }
+        #expect(throws: ZmxRunnerError.failed(refusal.message)) { try runner.list() }
+        #expect(!runner.kill("agterm-p"))
+        #expect(runner.killConfirmed("agterm-p", force: false) == .failed(refusal.message))
+        #expect(runner.screen("agterm-p", all: false) == nil)
+        #expect(!runner.type("agterm-p", bytes: [65]))
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: sockets)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scratch.runtime)
+        #expect(throws: ServerConfiguration.Failure.unusableRuntimeDirectory(scratch.runtime)) { try runner.list() }
+        #expect(!FileManager.default.fileExists(atPath: marker))
     }
 
     @Test func aFailedCreateCarriesZmxsMessage() throws {

@@ -55,8 +55,10 @@ public final class AgtermServer {
         case .heldByAnother: throw Failure.stateDirectoryHeld(configuration.stateDirectory)
         case .unavailable(let reason): throw Failure.stateDirectoryUnavailable(reason)
         }
+        let sockets = configuration.zmxSocketDirectory
+        try ProcessZmxRunner.verifySocketDirectory(sockets)
         let catalog = try CatalogRoot.load(directory: directory, name: configuration.catalogName)
-        let runner = runner ?? ProcessZmxRunner(zmxPath: configuration.zmxPath, socketDirectory: configuration.zmxSocketDirectory,
+        let runner = runner ?? ProcessZmxRunner(zmxPath: configuration.zmxPath, socketDirectory: sockets,
                                                 placement: ServerPlacement.detect(environment: environment),
                                                 baseEnvironment: environment)
         let panes = ServerPanes(configuration: configuration, runner: runner, shellPath: configuration.loginShell,

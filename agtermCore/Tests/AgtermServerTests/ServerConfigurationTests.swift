@@ -23,6 +23,20 @@ struct ServerConfigurationTests {
         }
     }
 
+    @Test func aSharedOrSymlinkedRuntimeDirectoryIsRefused() throws {
+        let scratch = try ServerScratch()
+        defer { scratch.remove() }
+        let link = scratch.root + "/link"
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: scratch.runtime)
+        #expect(throws: ServerConfiguration.Failure.unusableRuntimeDirectory(link)) {
+            try ServerConfiguration.resolve(environment: ["XDG_RUNTIME_DIR": link], executableDirectory: scratch.bin)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o750], ofItemAtPath: scratch.runtime)
+        #expect(throws: ServerConfiguration.Failure.unusableRuntimeDirectory(scratch.runtime)) {
+            try scratch.configuration()
+        }
+    }
+
     @Test func zmxAndResourcesDefaultBesideTheExecutable() throws {
         let scratch = try ServerScratch()
         defer { scratch.remove() }

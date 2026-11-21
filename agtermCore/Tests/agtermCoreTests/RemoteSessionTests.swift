@@ -299,6 +299,22 @@ struct RemoteSessionTests {
         #expect(try fake.calls() == [arguments + ["--json"]])
     }
 
+    @Test(arguments: ["/bin/sh", "/bin/tcsh", "/usr/bin/tcsh"].filter(FileManager.default.isExecutableFile))
+    func multilineControlCommandSurvivesTheAccountShell(shell: String) throws {
+        let fake = try FakeRemote()
+        defer { fake.cleanUp() }
+        try fake.installAgtermctlArgumentEcho()
+        let arguments = ["session", "new", "--command", "printf '\\n' \\$HOME\n123 café\r\nlast\n\n", "--name", "it's!"]
+        let operands = ["-x\n", ""]
+        let invocation = try RemoteSession.controlCommand(host: "buildbox", arguments: arguments, operands: operands)
+        #expect(try !#require(invocation.last).utf8.contains(0x0a))
+
+        let run = try fake.runRemote(invocation, shell: shell)
+
+        #expect(run.status == 0)
+        #expect(run.stdout == (arguments + ["--json", "--"] + operands).joined(separator: "\0") + "\0")
+    }
+
     @Test func operandsFollowADoubleDashAfterTheOptions() throws {
         let fake = try FakeRemote()
         defer { fake.cleanUp() }
@@ -729,6 +745,10 @@ private struct FakeRemote {
         esac
         exit 0
         """)
+    }
+
+    func installAgtermctlArgumentEcho() throws {
+        try write(name: "agtermctl", script: #"printf '%s\000' "$@""#)
     }
 
     /// Stands in for ssh by running its LAST argument through a shell, which is what the real one does
