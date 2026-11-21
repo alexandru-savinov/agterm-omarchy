@@ -135,11 +135,11 @@ jobs:
           if-no-files-found: warn
 
   atspi-aarch64:
-    name: AT-SPI targeted (aarch64)
+    name: Full GTK AT-SPI streak (aarch64)
     needs: select
     if: needs.select.outputs.aarch64 == 'true'
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 40
+    timeout-minutes: 320
     container: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:74b7758f3d862a23e2d343c721aa47bfd33fbbf2bc17fde62091aeb329927c4e
     env:
       BUILD_ARCH: aarch64
@@ -169,15 +169,25 @@ jobs:
       - name: swift build (agterm-linux)
         working-directory: agterm-linux
         run: swift build --disable-automatic-resolution
-      - name: GTK AT-SPI targeted scenarios
-        env:
-          SCENARIOS: ${{ inputs.scenarios }}
-          AGTERM_UI_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/linux-ui
-        run: python3 -I .atspi-targeted-tooling/scripts/test-linux-ui-targeted.py "$SCENARIOS" --root "$GITHUB_WORKSPACE"
+      - name: Ten consecutive full GTK AT-SPI suites
+        run: |
+          candidate=$(git rev-parse HEAD)
+          for trial in $(seq 1 10); do
+            echo "::group::Full aarch64 GTK AT-SPI suite ${trial}/10 at ${candidate}"
+            if AGTERM_UI_ARTIFACT_DIR="$GITHUB_WORKSPACE/artifacts/linux-ui/trial-$trial" \
+              python3 scripts/test-linux-ui-parallel.py; then
+              echo "::endgroup::"
+              printf 'PASS: full aarch64 GTK AT-SPI trial %s/10 at %s\n' "$trial" "$candidate" | tee -a "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::endgroup::"
+              printf 'FAIL: full aarch64 GTK AT-SPI trial %s/10 at %s\n' "$trial" "$candidate" | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+          done
       - name: Upload GTK diagnostics
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: linux-ui-targeted-${{ env.BUILD_ARCH }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: linux-ui-streak-${{ env.BUILD_ARCH }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/linux-ui
           if-no-files-found: warn
