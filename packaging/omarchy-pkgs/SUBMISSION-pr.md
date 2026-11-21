@@ -9,14 +9,14 @@ Open it as a draft: a non-draft PR that only touches packages merges itself once
 
 I maintain `agterm-omarchy-bin`, requested in #3184: a prebuilt x86_64 and aarch64 package of the agterm terminal (libghostty, a workspace and session sidebar, Live sessions, the `agtermctl` control CLI). Each release is cut and published automatically, only after native Omarchy gates under Hyprland pass on both architectures, and carries a build-provenance attestation. If a release breaks, OPR doesn't take it for 24 hours (`min_release_age`), while the same gates rerun on the published release; a failure demotes it to a prerelease, which the upstream watch skips.
 
-The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the GTK4/libadwaita Linux port is melonamin's [agterm-linux](https://github.com/melonamin/agterm-linux). The package builds from releases of my fork, [agterm-omarchy](https://github.com/alexandru-savinov/agterm-omarchy), which adds aarch64 and a launcher-scoped retry for GTK's EGL config request on Mesa 26.3.1 (Omarchy edge, [GNOME/gtk#8566](https://gitlab.gnome.org/GNOME/gtk/-/work_items/8566)).
+The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the GTK4/libadwaita Linux port is melonamin's [agterm-linux](https://github.com/melonamin/agterm-linux), whose releases ship x86_64 packages (Arch, .deb, .rpm). This package builds from releases of my fork, [agterm-omarchy](https://github.com/alexandru-savinov/agterm-omarchy). The fork adds aarch64 builds, the gated and attested releases described above, and two fixes: a launcher-scoped retry for GTK's EGL config request on Mesa 26.3.1 (Omarchy edge, [GNOME/gtk#8566](https://gitlab.gnome.org/GNOME/gtk/-/work_items/8566)), and HTML-overlay paste that holds a paste until the clipboard's formats are known and refuses mixed file and text offers.
 
 **Package**
 
 - Installs the [`omarchy-v0.43.0.2`](https://github.com/alexandru-savinov/agterm-omarchy/releases/tag/omarchy-v0.43.0.2) archives, with the sha256 values from its `SHA256SUMS`, to `/usr/lib/agterm`. It adds `/usr/bin/agterm-linux` and `/usr/bin/agtermctl` symlinks, the desktop entry, the icons and the license.
 - Extracts the archive with `bsdtar --no-same-owner`. The Swift runtime, libghostty and a private zmx ship as CI built and tested them (`!strip !debug`), and the bundled terminfo and Ghostty resources stay under `/usr/lib/agterm`.
 - `depends` are the owners of the binaries' `NEEDED` libraries outside the archive's own `lib/`.
-- `provides=(agterm-linux)` and `conflicts=(agterm-linux agterm-linux-bin)`, because AUR `agterm-linux-bin` installs the same commands. Neither name is in OPR, so there is no `approved` line.
+- `provides=(agterm-linux)` and `conflicts=(agterm-linux agterm-linux-bin)`, because `agterm-linux-bin` (melonamin's release package, and the AUR package of the same name) installs the same commands. Neither name is in OPR, so there is no `approved` line.
 - Upstream watch on `omarchy-v` GitHub Releases, with `min_release_age` set to `24h`.
 - The `release/owners.json` line was written by `bin/release-owners agterm-omarchy-bin`.
 
