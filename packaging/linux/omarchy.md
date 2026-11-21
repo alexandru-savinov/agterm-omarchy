@@ -103,7 +103,7 @@ can override individual colors from either source when the Omarchy color layer i
 Select **Automatic (Omarchy)** under **Settings ▸ Appearance ▸ Terminal ▸ Theme** to resume following
 after choosing an agterm theme.
 The same choice is available through `agtermctl theme set "Automatic (Omarchy)"` and appears in `agtermctl theme list`.
-**Follow Omarchy appearance** under **Settings ▸ General ▸ Ghostty Config** also follows Omarchy’s terminal fonts, padding, and cursor blink.
+**Follow Omarchy** under **Settings ▸ General ▸ Ghostty Config** also follows Omarchy’s terminal fonts, padding, and cursor blink.
 `omarchy font set` and `omarchy display text size` update open terminals through `~/.config/ghostty/config`.
 agterm reads only `font-family`, `font-size`, `window-padding-x`, `window-padding-y`, and `cursor-style-blink` from that file.
 It keeps the font fallback order and retains the last valid settings during an invalid rewrite.
@@ -111,7 +111,7 @@ Ghostty applies padding changes to new terminals.
 If the file is absent, terminals use agterm’s defaults, including 8 pt horizontal and 6 pt vertical padding and a blinking cursor.
 Explicit agterm and scoped Ghostty settings take precedence, and each pane keeps its zoom.
 Use **Reset** under **Settings ▸ Appearance ▸ Terminal** to return the terminal settings to automatic defaults.
-Turning off **Follow Omarchy appearance** disables the automatic integration.
+Turning off **Follow Omarchy** disables the automatic integration.
 With **Use my global Ghostty config** enabled, the usual full Ghostty import supplies these settings.
 On Linux, `SIGUSR2` reloads the Ghostty configuration, including on systems without Omarchy.
 

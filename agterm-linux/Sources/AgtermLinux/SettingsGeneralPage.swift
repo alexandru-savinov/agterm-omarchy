@@ -105,7 +105,7 @@ extension AppController {
         adw_preferences_group_add(
             cast(ghostty),
             W(preferencesSwitch(
-                "Follow Omarchy appearance",
+                "Follow Omarchy",
                 subtitle: "Follow Omarchy’s fonts, padding, and cursor blink. Follow colors with an Automatic theme.",
                 active: OmarchyThemePreference().follows(OmarchyTheme()),
                 handler: unsafeBitCast(onSettingsFollowOmarchy, to: GCallback.self))))
