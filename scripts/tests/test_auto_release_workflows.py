@@ -52,6 +52,28 @@ class WorkflowTests(unittest.TestCase):
                     self.assertTrue(set(RESULT_CHECK.findall(condition)) & direct,
                                     "condition must check a direct dependency result")
 
+    def test_scope_decides_before_any_candidate_gate_or_promotion(self):
+        jobs = read_jobs(WORKFLOWS / "auto-release.yml")
+        scope, candidate = jobs["scope"], jobs["candidate"]
+
+        def condition(job):
+            return " ".join(job["if"].removeprefix(">-").split())
+
+        self.assertNotIn("needs", scope)
+        self.assertIn("scripts/omarchy-auto-release.py ci-scope", scope["steps"])
+        self.assertEqual(scope["permissions"].split(), ["contents:", "read", "actions:", "read"])
+        # The scope job runs for exactly the events the candidate accepts, including a green CI conclusion.
+        self.assertIn("github.event.workflow_run.conclusion == 'success'", scope["if"])
+        self.assertTrue(condition(candidate).endswith(" && " + condition(scope)))
+        self.assertEqual(dependencies(candidate["needs"]), {"scope"})
+        # Only an explicit verdict proceeds; an empty or missing output can never start a release.
+        self.assertTrue(condition(candidate).startswith(
+            "!cancelled() && needs.scope.result == 'success' && needs.scope.outputs.scope == 'proceed' && "))
+        for job in ("native_candidate", "promote", "watch_promotion"):
+            with self.subTest(job=job):
+                self.assertIn("needs.candidate.result == 'success'"
+                              if job != "watch_promotion" else "needs.promote.result == 'success'", jobs[job]["if"])
+
     def test_dry_run_routes_a_synthetic_verdict_through_the_shared_retract_job(self):
         release = read_jobs(WORKFLOWS / "auto-release.yml")
         watch = read_jobs(WORKFLOWS / "auto-release-watch.yml")

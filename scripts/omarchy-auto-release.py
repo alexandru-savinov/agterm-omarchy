@@ -25,6 +25,10 @@ WATCH_UNAVAILABLE = "release-watch-unavailable"
 RELEASES_PATH = "releases?per_page=100"
 PROMOTION_RUNS = "actions/workflows/prerelease-omarchy.yml/runs"
 ACTIVE_PROMOTION_STATUSES = ("queued", "in_progress", "requested", "waiting", "pending")
+# Omarchy CI path-filters these out when a change touches no product input. A skipped matrix job keeps its
+# unexpanded name. "Detect changes" decides the filter and "CI" aggregates every result.
+SCOPE_GATES = ("Detect changes", "CI")
+BUILD_JOBS = ("SwiftLint (Linux)",) + promotion.REQUIRED_ARCH_JOBS + (promotion.ATTEST_JOB,)
 
 
 def gh(path, *, method="GET", data=None):
@@ -60,6 +64,33 @@ def next_version(base, tags):
     serials = [int(match["serial"]) for tag in tags
                if (match := TAG.fullmatch(tag)) and match["base"] == base]
     return f"{base}.{max(serials, default=0) + 1}"
+
+
+def build_family(template):
+    return {template.format(arch=arch) for arch in (*promotion.ARCHITECTURES, "${{ matrix.arch }}")}
+
+
+def ci_scope(run, jobs):
+    """Skip only on proof that a green CI run built nothing; anything else proceeds to the full checks."""
+    promotion.require(run.get("conclusion") == "success", "Omarchy CI did not succeed; nothing can be released")
+    label = f"Omarchy CI run {run['id']} attempt {run['run_attempt']}"
+    for name in SCOPE_GATES:
+        matches = [job for job in jobs if job["name"] == name]
+        if len(matches) != 1 or matches[0]["conclusion"] != "success":
+            return "proceed", f"{label}: {name} did not succeed once; the release checks decide"
+    for template in BUILD_JOBS:
+        family = build_family(template)
+        conclusions = {job["conclusion"] for job in jobs if job["name"] in family}
+        if conclusions != {"skipped"}:
+            return "proceed", f"{label}: {template.format(arch='*')} ran or is absent; the release checks decide"
+    names = ", ".join(template.format(arch="*") for template in BUILD_JOBS)
+    return "skip", f"{label} built nothing to release: path filters skipped {names}"
+
+
+def write_summary(text):
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+            summary.write(f"### Automatic release scope\n{text}\n")
 
 
 def plan(event):
@@ -265,6 +296,7 @@ def read_event():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("ci-scope")
     commands.add_parser("plan")
     commands.add_parser("promote")
     commands.add_parser("check-pause")
@@ -279,7 +311,13 @@ def main():
     failure.add_argument("--reason", required=True)
     failure.add_argument("--evidence", required=True)
     args = parser.parse_args()
-    if args.command in ("plan", "promote"):
+    if args.command == "ci-scope":
+        run = read_event()["workflow_run"]
+        scope, reason = ci_scope(run, promotion.run_jobs(run))
+        promotion.write_outputs({"scope": scope})
+        write_summary(f"{'Skipped' if scope == 'skip' else 'Proceeding'}: {reason}.")
+        print(f"{scope}: {reason}")
+    elif args.command in ("plan", "promote"):
         candidate, message = plan(read_event())
         print(message, flush=True)
         if args.command == "plan":
