@@ -20,7 +20,7 @@ The package repackages releases of my fork, [agterm-omarchy](https://github.com/
 
 ## Releases
 
-- A release is cut automatically from a green `main` push. CI builds both architectures natively, then native gates install the archive and run it under Hyprland on x86_64 and aarch64: an Arch container with Omarchy's packages, vkms, and Mesa software rendering. Each archive has a GitHub build-provenance attestation.
+- A release is cut automatically from a green `main` push. CI builds both architectures natively, then native gates install the archive and run it under Hyprland on x86_64 and aarch64: an Arch container with Omarchy's packages, vkms, and Mesa software rendering. Each archive has a GitHub build-provenance attestation. The 0.43.0.1 gates ran against Omarchy's stable channel; the EGL retry passed the same gates on edge at an earlier commit.
 - Tags are `omarchy-v<upstream version>.<serial>`; the first is [`omarchy-v0.43.0.1`](https://github.com/alexandru-savinov/agterm-omarchy/releases/tag/omarchy-v0.43.0.1), from agterm v0.43.0.
 - Each release is gated again for 24 hours after publishing, and a failure marks it a prerelease. The recipe's upstream watch skips prereleases and sets `min_release_age` to `24h`. There is no fixed cadence: each release is an update of about 78 MB per architecture.
 

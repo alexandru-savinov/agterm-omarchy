@@ -32,6 +32,7 @@ The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the 
   - through `/usr/bin`, the app passed 7/7 ordinary and 9/9 Live-session checks under Hyprland with software rendering;
   - `pacman -R` removed every file.
 - The release's own native gates passed on x86_64 and aarch64 against the stable channel (Mesa 26.2.5) ([run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44861341798)). The EGL retry passed the same gates on edge (Mesa 26.3.1) at an earlier commit with the same retry code ([run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44647147715)).
+- On the VM, default rendering fails with `No EGL configuration available` because the VM has no usable GL; it runs Mesa 26.2.7, not the 26.3.1 case the retry handles. The passing runs set `LIBGL_ALWAYS_SOFTWARE=1`.
 - Not tested: hardware GL rendering, and an x86_64 Omarchy install.
 
 It's a draft so you can look before it merges itself; I'll mark it ready when you're happy with it.
@@ -61,7 +62,11 @@ gh repo fork omacom/omarchy-pkgs --clone=false
 git clone https://github.com/alexandru-savinov/omarchy-pkgs.git && cd omarchy-pkgs
 git remote add upstream https://github.com/omacom/omarchy-pkgs.git && git fetch upstream
 git switch -c add-agterm-omarchy-bin upstream/master
-cp -R ../agterm-omarchy/packaging/omarchy-pkgs/agterm-omarchy-bin pkgbuilds/
+AGTERM=~/src/agterm-omarchy   # any checkout that has fetched claude/omarchy-pkg-465
+mkdir -p pkgbuilds/agterm-omarchy-bin/.omarchy
+for f in PKGBUILD .omarchy/package.json; do
+  git -C "$AGTERM" show 99616907:packaging/omarchy-pkgs/agterm-omarchy-bin/$f > pkgbuilds/agterm-omarchy-bin/$f
+done
 bin/release-owners agterm-omarchy-bin   # on Arch, non-root
 git diff release/owners.json            # exactly the line in owners.json.line
 tests/pinned-sources.sh && tests/pkgname-unique.sh
@@ -72,5 +77,8 @@ gh pr create --draft -R omacom/omarchy-pkgs --base master \
   --head alexandru-savinov:add-agterm-omarchy-bin --title "Add agterm-omarchy-bin" --body-file pr-body.md
 ```
 
+- **Recipe bytes:** the two recipe files last changed at `99616907`, which CI run 44862750827 and the VM tested; the commands copy them from that commit.
+- **PR body:** `pr-body.md` is everything between the two `---` rules above, with `#<issue>` filled in.
+- **A newer release:** if an `omarchy-v` release newer than 0.43.0.1 is out at post time, `upstream-watch` no longer reports "already current". Bump `pkgver`, take the sha256 values from that release's `SHA256SUMS`, and rerun the checks before posting.
 - **Build approval:** `alexandru-savinov` isn't in `.github/VOUCHED.td` or a collaborator, so the PR shows **Awaiting build approval** until a maintainer labels it `build-approved`.
 - **Auto-merge:** marking the PR ready for review, once it's trusted and green, arms auto-merge and publishes to `edge`.
