@@ -11,7 +11,7 @@ the leading block (the first non-blank lines of the body, as upstream-sync.py wr
 the block that directly follows a line that is exactly `<details><summary>Review record</summary>`
 and is closed by `</details>` (the pull request template puts it at the bottom).
 Everything else is ignored, so the checker never has to guess what Markdown would hide or
-render (fences, comments, HTML). A field found in both places counts as repeated.
+render (fences, comments, HTML). Fields in both places fail.
 
 Advisory only. A pull request can edit the workflow that runs this checker, so a green
 "PR fields" is never evidence that a review is current: read the review itself.
@@ -60,19 +60,26 @@ def split(body):
     return body.replace("\r\n", "\n").replace("\r", "\n").split("\n")
 
 
-def values(body):
-    """Each field's values from the leading block and from a single closed Review record fold."""
-    found = {name: [] for name in FIELDS}
+def blocks(body):
+    """(leading-block matches, Review record fold matches, number of fold openers)."""
     lines = split(body)
-    matches, _ = block(lines, 0)
+    leading, _ = block(lines, 0)
     folds = [index for index, line in enumerate(lines) if line == FOLD_OPEN]
+    inner = []
     if len(folds) == 1:
         inner, end = block(lines, folds[0] + 1)
         while end < len(lines) and not lines[end].strip():
             end += 1
-        if end < len(lines) and lines[end] == FOLD_CLOSE:
-            matches += inner
-    for match in matches:
+        if end >= len(lines) or lines[end] != FOLD_CLOSE:
+            inner = []
+    return leading, inner, len(folds)
+
+
+def values(body):
+    """Each field's values from the leading block and from a single closed Review record fold."""
+    found = {name: [] for name in FIELDS}
+    leading, inner, _ = blocks(body)
+    for match in leading + inner:
         found[match.group(1)].append(match.group(2).rstrip(" "))
     return found
 
@@ -80,8 +87,10 @@ def values(body):
 def problems(body, head_sha):
     """Human-readable problems; empty means the body passes."""
     found = values(body or "")
-    folds = split(body or "").count(FOLD_OPEN)
+    leading, inner, folds = blocks(body or "")
     out = [f"`{FOLD_OPEN}` appears {folds} times; keep exactly one"] if folds > 1 else []
+    if leading and inner:
+        out.append("fields appear both in the first lines and in the Review record fold; keep them in one place")
     for name in FIELDS:
         got = found[name]
         if not got:

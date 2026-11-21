@@ -122,8 +122,22 @@ class ReviewRecordFoldTests(unittest.TestCase):
 
     def test_a_field_in_both_places_is_repeated(self):
         found = pr_fields.problems(FIELD_LINES + "\n" + self.BODY + fold(), HEAD)
+        self.assertEqual(len(found), 5)
+        self.assertTrue(any("in one place" in item for item in found), found)
+        self.assertEqual(sum("appears 2 times" in item for item in found), 4, found)
+
+    def test_a_record_split_between_the_two_places_fails(self):
+        lines = FIELD_LINES.strip().split("\n")
+        body = "\n".join(lines[:2]) + "\n\n" + self.BODY + fold("\n".join(lines[2:]) + "\n")
+        found = pr_fields.problems(body, HEAD)
+        self.assertEqual(len(found), 1)
+        self.assertIn("in one place", found[0])
+
+    def test_a_bare_template_line_ends_the_fold_block(self):
+        body = self.BODY + fold(FIELD_LINES.replace("Agent: sancta_ghmanager", "Agent:"))
+        found = pr_fields.problems(body, HEAD)
         self.assertEqual(len(found), 4)
-        self.assertTrue(all("appears 2 times" in item for item in found), found)
+        self.assertTrue(all("missing field" in item for item in found), found)
 
     def test_the_leading_block_still_passes_with_no_fold(self):
         self.assertEqual(pr_fields.problems(GOOD, HEAD), [])

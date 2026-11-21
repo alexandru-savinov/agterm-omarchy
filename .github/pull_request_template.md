@@ -17,9 +17,7 @@ Explain any failed, skipped, or unavailable check.
 
 Describe changes to dependencies, persisted state, terminal defaults, or upstream compatibility; write “none” if none.
 
-Review record: fill in the four lines below, one space after each colon.
-Task is the issue number; Agent is the author's name; Reviewed head is the full 40-character sha the review covered,
-updated after every push; Review links the review. See [docs/PR_FIELDS.md](https://github.com/alexandru-savinov/agterm-omarchy/blob/main/docs/PR_FIELDS.md).
+Fill in the review record below; [docs/PR_FIELDS.md](https://github.com/alexandru-savinov/agterm-omarchy/blob/main/docs/PR_FIELDS.md) explains each field.
 
 <details><summary>Review record</summary>
 
