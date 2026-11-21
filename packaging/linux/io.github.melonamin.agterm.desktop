@@ -12,6 +12,10 @@ Categories=System;TerminalEmulator;
 Keywords=shell;command;ghostty;
 StartupNotify=true
 StartupWMClass=io.github.melonamin.agterm
+X-TerminalArgExec=-e
+X-TerminalArgDir=--working-directory=
+X-TerminalArgTitle=--title=
+X-TerminalArgAppId=--app-id=
 
 [Desktop Action NewSession]
 Name=New Session

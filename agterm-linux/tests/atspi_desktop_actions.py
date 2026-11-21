@@ -157,7 +157,7 @@ def verify_application_command_line_paths(env):
             "relative path did not resolve against the secondary process cwd",
         )
 
-        invoke_arguments(path_env, file_path)
+        invoke_arguments(path_env, "--", file_path)
         wait_for(
             lambda: active_session_cwd(path_env, window_id) == file_directory,
             "file path did not resolve to its parent session cwd",
@@ -187,11 +187,18 @@ def verify_desktop_entry():
         "New Session", "New Window", "Quick Terminal",
         "Dashboard", "Recent Sessions", "Sessions Needing Attention",
     ], "packaged desktop action labels drifted"
+    for key, value in {
+        "Exec": "-e", "Dir": "--working-directory=", "Title": "--title=", "AppId": "--app-id=",
+    }.items():
+        assert desktop.get_string(f"X-TerminalArg{key}") == value, key
 
 
 def verify_desktop_actions(env):
+    from atspi_terminal_launcher import verify_terminal_launcher
+
     verify_desktop_entry()
     verify_application_command_line_paths(env)
+    verify_terminal_launcher(env)
     # The first action starts the primary process itself. This is the path an unpinned launcher takes when
     # agterm is not running; every later invocation is a short-lived secondary process forwarded over D-Bus.
     process, app = launch(env, ["--desktop-action=new-session"])

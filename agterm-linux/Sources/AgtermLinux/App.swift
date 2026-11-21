@@ -20,7 +20,7 @@ let gdkEnvironment = LinuxGdkPolicy.PreLaunchEnvironment(
 
 @main
 struct AgtermApp {
-    static func main() {
+    @MainActor static func main() {
         // GDK parses these once, while GTK initializes, and ignores them afterwards — so this block stays
         // the FIRST thing `main()` does, and any future GTK-init call (an `adw_init()`, say) goes BELOW
         // it. Anything that opens a display above here turns the assignment into a silent no-op. The two
@@ -38,6 +38,10 @@ struct AgtermApp {
             setenv(DebugStateDirectory.environmentKey, state, 1)
         }
         #endif
+        if case .terminal(let launch) = LinuxApplicationInvocation.parse(arguments: Array(CommandLine.arguments.dropFirst())),
+           launch.isEphemeral {
+            exit(runEphemeralTerminal(launch))
+        }
         // Both resource environment writes and libghostty's locale setup must finish before GTK
         // starts worker threads that read the process environment.
         GhosttyApp.shared.initializeRuntime()
@@ -98,6 +102,18 @@ private let onCommandLine: @MainActor @convention(c) (OpaquePointer?, OpaquePoin
         }
     case .desktopAction(let action):
         dispatchDesktopAction(action, app: app)
+    case .terminal(let launch):
+        // Command and custom-ID launches are intercepted locally before GApplication registration.
+        guard !launch.isEphemeral else { return 2 }
+        let callerCwd = g_application_command_line_get_cwd(cmd).map { String(cString: $0) }
+        let directory = launch.workingDirectory(callerCwd: callerCwd, fallback: ConfigPaths.defaultNewSessionCwd())
+        if gLibrary == nil {
+            activateApplication(app, terminal: (directory, launch.title))
+        } else {
+            let id = gLibrary.newWindow().id
+            prepareLauncherSession(in: id, directory: directory)
+            openWindow(id, launcherTitle: launch.title)
+        }
     case .invalid(let message):
         (message + "\n").withCString { g_application_command_line_printerr_literal(cmd, $0) }
         return 2
@@ -173,7 +189,7 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
 /// Shared by `activate`+`open`.
 @MainActor var gStateDirectoryLock: StateDirectoryLock?
 
-@MainActor func activateApplication(_ app: OpaquePointer?) {
+@MainActor func activateApplication(_ app: OpaquePointer?, terminal: (directory: String, title: String?)? = nil) {
     // A second launch (or any re-activate) of the single-instance GApplication fires activate again:
     // raise the frontmost window instead of no-op'ing, so launching agterm while it runs focuses it.
     if gLibrary != nil {
@@ -198,9 +214,10 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
     }
     let settingsStore = linuxSettingsStore()
     let currentSettings = settingsStore.load()
+    let hasPriorState = FirstRunWelcome.hasPriorState(in: stateDirectory)
     let welcomeDue = FirstRunWelcome.isDue(
         welcomeShown: currentSettings.welcomeShown,
-        hasPriorState: FirstRunWelcome.hasPriorState(in: stateDirectory))
+        hasPriorState: hasPriorState)
     let appearanceSide = LinuxAppearanceSide(isDark: AppController.systemIsDark)
     if OmarchyThemePreference(stateDirectory: stateDirectory).load() != false {
         OmarchyThemeObserver.shared.start()
@@ -250,6 +267,12 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
     if restoreDecision.requested == .live, let zmxClient {
         gLaunchLiveReset = LinuxIncompatibleDaemons.reset(client: zmxClient, library: gLibrary)
     }
+    let launcherWindowID: UUID? = terminal.map { request in
+        let seededWindow = hasPriorState ? nil : gLibrary.activeWindowID
+        let id = seededWindow ?? gLibrary.newWindow().id
+        prepareLauncherSession(in: id, directory: request.directory)
+        return id
+    }
     let spawnPlan = gLibrary.launchSpawnPlan()
     gSpawnRegistry.pacer.arm(order: spawnPlan.order, burst: spawnPlan.burst)
     ensureStarterFiles()
@@ -291,7 +314,7 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
     }
     let ids = gLibrary.openIDs()
     let toOpen = ids.isEmpty ? [gLibrary.windows.first?.id].compactMap { $0 } : ids
-    for id in toOpen { openWindow(id) }
+    for id in toOpen { openWindow(id, launcherTitle: id == launcherWindowID ? terminal?.title : nil) }
     if let notice = gLaunchLiveReset.flatMap(ZmxIncompatibleReset.notice(outcome:)),
        let controller = toOpen.first.flatMap({ gWindows[$0] }) {
         controller.showToast(notice)

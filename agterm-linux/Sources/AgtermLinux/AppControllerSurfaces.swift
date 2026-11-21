@@ -861,7 +861,7 @@ extension AppController {
         if let id = store.selectedSessionID, let p = sessionProgress[id] {
             title = (p < 0 ? "⋯ " : "\(p)% ") + title
         }
-        title.withCString { gtk_window_set_title(WIN(window), $0) }
+        (launcherTitle ?? title).withCString { gtk_window_set_title(WIN(window), $0) }
         if let titleWidget {
             let hidden = settings.resolvedHiddenInterfaceElements
             let active = store.activeSession
