@@ -142,8 +142,9 @@ Where it disagrees with this repository, these notes win:
   `omarchy-dev-*` development prereleases can also come from `omarchy` branch CI runs.
   The `master` / `linux-port` branch model and the `linux-v*` release, DEB/RPM/Arch and AUR steps below describe melonamin/agterm-linux.
   Their release workflows are disabled here; this repository publishes the tar archives described in [Install](#install).
-- **Upstream sync.** The `Upstream sync` workflow merges new commits from melonamin/agterm-linux's `linux-port` into `main`
-  through pull requests, and the weekly `Upstream drift` workflow reports how far `main` is from it.
+- **Upstream sync.** New commits from melonamin/agterm-linux's `linux-port` arrive automatically as pull requests
+  opened by the `Upstream sync` workflow, and are merged into `main` after review.
+  The weekly `Upstream drift` workflow reports how far `main` is from `linux-port`.
 - **Restored commands are never run by themselves.** In Re-run commands mode, and in Live sessions mode when the daemon is gone,
   the captured command (or a pinned `session restore` line) is typed at the restored shell's prompt without Enter, and waits for you.
   A surviving Live daemon is reattached and nothing is typed. If the live daemons could not be listed at launch, nothing is typed.

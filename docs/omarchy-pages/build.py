@@ -124,18 +124,25 @@ def write_site(destination, commit, drift=None):
 {release_status()}
 <section id="help" class="readiness" aria-labelledby="help-title"><div><p class="eyebrow">Status and help</p><h2 id="help-title">Where to ask and what is next</h2></div><div><p>The pinned <a href="{BASE}/issues/{STATUS_ISSUE}">Status and roadmap</a> issue says what is being worked on. Ask questions and share ideas in <a href="{BASE}/discussions">Discussions</a>, report a bug through the <a href="{BASE}/issues/new?template=bug.yml">bug form</a>, and read <a href="{BASE}/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> to send a fix. Report suspected vulnerabilities privately through <a href="{BASE}/blob/main/SECURITY.md">SECURITY.md</a>.</p></div></section>
 {drift_section(drift)}
-<section class="evidence" aria-labelledby="evidence-title"><p class="eyebrow">Proof, not promises</p><h2 id="evidence-title">Inspect the builds</h2><div class="cards"><a href="{BASE}/actions/workflows/omarchy-ci.yml"><h3>Builds and checks ↗</h3><p>Hosted matrix results, logs, and downloadable build artifacts. Check the commit and architecture.</p></a><a href="{BASE}/releases"><h3>Releases ↗</h3><p>Every release with its archives, <code>SHA256SUMS</code> and <code>promotion.json</code>.</p></a></div></section>
+<section class="evidence" aria-labelledby="evidence-title"><p class="eyebrow">Proof, not promises</p><h2 id="evidence-title">Inspect the builds</h2><div class="cards"><a href="{BASE}/actions/workflows/omarchy-ci.yml"><h3>Builds and checks ↗</h3><p>Results of the automated tests on both architectures, with logs and downloadable builds. Check the commit and architecture.</p></a><a href="{BASE}/releases"><h3>Releases ↗</h3><p>Every release with its archives, <code>SHA256SUMS</code> and <code>promotion.json</code>.</p></a></div></section>
 </main><footer><p>Built from <a href="{BASE}/commit/{commit}">{commit[:8]}</a> · <a href="status.json">Machine-readable snapshot</a></p><p>Based on <a href="https://github.com/melonamin/agterm-linux">melonamin/agterm-linux</a> and <a href="https://github.com/umputun/agterm">upstream agterm</a>. This site documents the Omarchy port.</p></footer></body></html>
 '''
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     (destination / "index.html").write_text(content)
+    # The Team room was removed; keep its old URL working.
+    (destination / "team.html").write_text(
+        '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./">'
+        '<title>agterm for Omarchy</title><link rel="canonical" href="./"></head>'
+        '<body><p>This page has moved to <a href="./">agterm for Omarchy</a>.</p></body></html>\n')
     for asset in ("style.css", "favicon.svg"):
         shutil.copyfile(Path(__file__).with_name(asset), destination / asset)
     (destination / ".nojekyll").touch()
     (destination / "status.json").write_text(json.dumps({
         "repository": REPOSITORY, "readiness": "released", "releases": f"{BASE}/releases", "upstream_baseline": "v0.43.0",
         "status_issue": f"{BASE}/issues/{STATUS_ISSUE}", "commit": commit, "generated_at": generated,
+        # Kept empty for readers of the old snapshot; the task list, roster and queue overlay were removed.
+        "tasks": [], "roster": {"observed_at": None, "agents": []}, "queue": None, "queue_status": "not-requested",
         # "not-requested", "loaded", "stale" (older than DRIFT_MAX_AGE_DAYS; numbers kept, flagged) or "unavailable".
         "upstream_drift": drift,
         "upstream_drift_status": "not-requested" if drift is None else drift["status"],

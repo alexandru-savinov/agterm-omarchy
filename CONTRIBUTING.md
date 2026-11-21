@@ -27,22 +27,23 @@ Keep GUI and control API behavior aligned, update the bundled agent skill for pr
 
 The [Omarchy build guide](packaging/linux/omarchy.md) starts with the clone command and lists test prerequisites.
 Use `--with-ui-tests` during setup for the additional test tools and explicitly choose Debug or the installed Release executables.
-Run the checks that fit the change: installer/script fixtures for packaging, core and Linux frontend tests for Swift,
-and isolated native Hyprland acceptance for rendering or input.
-Native acceptance needs a dedicated test desktop or a reviewed operator that isolates generated runtime files:
-`AGTERM_STATE_DIR` alone leaves shared Ghostty configuration paths exposed to other instances (#124/#126).
-Never target a user's default control socket during tests.
-In the pull request, report the tested commit, architecture, display backend, the commands you ran and their results,
-and sanitized artifact links; say which checks you skipped or saw fail.
-Hosted X11 tests do not establish native Wayland acceptance, and CI artifacts do not establish a stable release.
+Run the tests that fit the change: the installer and script tests for packaging, the core and Linux app tests for Swift code,
+and, for anything that changes drawing or input, a test on a real Omarchy desktop.
+Use a separate test desktop or user for that, not your everyday one:
+setting `AGTERM_STATE_DIR` alone still shares Ghostty's configuration files with other running copies (#124/#126).
+Never point tests at the control socket of the agterm you are using.
+In the pull request, say which commit and architecture you tested, whether it ran on Wayland or X11, the commands you ran and what happened,
+and link any (sanitized) logs; say which tests you skipped or saw fail.
+The automated tests run under X11 on GitHub's servers, so they do not prove that something works on a real Omarchy desktop.
 
-The **Omarchy CI** workflow runs on pushes to `main`, pull requests targeting `main` or `omarchy`, and manual dispatches.
-It runs installer checks, SwiftLint, native x86_64/ARM64 core tests and GTK builds, and Xvfb accessibility tests.
-Failed GUI tests upload diagnostics, and job summaries distinguish hosted X11 tests from native Hyprland validation.
+The **Omarchy CI** workflow runs the automated tests on pushes to `main`, on pull requests to `main` or `omarchy`, and on demand:
+installer checks, SwiftLint, the core tests and app builds on x86_64 and ARM64, and accessibility tests on a virtual X11 display.
+Failed app tests upload diagnostics.
 The aggregate **CI** check is the required status check.
 Releases are cut from `main` as described in the [README](README.md#releases-and-verification).
 
-A maintainer reviews every pull request before merge; a review by an agent on the same account is not independent approval.
+A maintainer reviews every pull request before it merges.
+A review by another AI agent working on the same GitHub account does not count as independent approval.
 
 ## Before you start
 

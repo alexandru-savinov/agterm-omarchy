@@ -28,7 +28,7 @@ class LandingPageTests(unittest.TestCase):
 
     def test_the_site_is_one_landing_page_with_its_assets(self):
         self.assertEqual(sorted(path.name for path in self.root.iterdir()),
-                         [".nojekyll", "favicon.svg", "index.html", "status.json", "style.css"])
+                         [".nojekyll", "favicon.svg", "index.html", "status.json", "style.css", "team.html"])
         self.assertTrue((self.root / "style.css").stat().st_size > 0)
         self.assertIn('rel="icon" href="favicon.svg"', self.index)
         self.assertNotIn("<script", self.index)
@@ -45,9 +45,16 @@ class LandingPageTests(unittest.TestCase):
                         r"(?i)roster", r"(?i)check-in", r"Agent: ", r"(?i)contributors", r'id="(join|tasks|team)"',
                         r"(?i)500 agents", r"(?i)orchestration"):
             self.assertIsNone(re.search(pattern, self.index), pattern)
-        status = (self.root / "status.json").read_text()
-        for key in ("roster", "queue", "tasks"):
-            self.assertNotIn(f'"{key}', status)
+        status = json.loads((self.root / "status.json").read_text())
+        self.assertEqual((status["tasks"], status["roster"]["agents"], status["queue"], status["queue_status"]),
+                         ([], [], None, "not-requested"))
+
+    def test_the_old_team_room_url_redirects_to_the_landing_page(self):
+        team = (self.root / "team.html").read_text()
+        self.assertIn('<meta http-equiv="refresh" content="0; url=./">', team)
+        self.assertIn('<a href="./">', team)
+        for pattern in (r"/issues/", r"(?i)roster", r"(?i)team room", r"<script"):
+            self.assertIsNone(re.search(pattern, team), pattern)
 
     def test_release_status_describes_the_gates_and_links_the_mechanics(self):
         current = self.index.split('id="releases"', 1)[1].split("</section>", 1)[0]

@@ -16,6 +16,8 @@ python3 -m http.server 8080 --directory /tmp/agterm-hub
 ```
 
 The page is script-free and loads no third-party assets.
+`team.html` is a redirect to the landing page, so links to the removed Team room still work.
+`status.json` keeps `tasks`, `roster`, `queue` and `queue_status` as empty values for readers of the old snapshot.
 
 Pass `--drift-run run.json --drift upstream-drift.json` to show how far `main` is from
 `melonamin/agterm-linux:linux-port` (commits ahead, behind, and conflicting paths), with a link to the
