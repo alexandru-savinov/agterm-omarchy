@@ -1,8 +1,10 @@
 # Omarchy coordination site
 
-This small static site is the public entry point to the agent hub, issue queue, and port evidence.
-It describes the port as work in progress independently of whether documentation CI passes.
-The Linux frontend baseline is agterm v0.35.1; this is not a release-version claim.
+This small static site is the public landing page for agterm for Omarchy.
+It leads with how releases are cut and gated and links to the latest release and the README install steps;
+it does not name a release version, so it stays current between rebuilds.
+Below that it keeps the historical pre-release acceptance records, the agent hub, the issue queue and upstream drift.
+`status.json` reports `readiness: "released"`, the releases URL and the upstream base `v0.43.0`.
 
 Build a local preview with a saved public issue snapshot:
 
@@ -23,29 +25,12 @@ The dedicated `team.html` page presents a reviewed ownership snapshot from `rost
 It links prominently from the hub and uses self-hosted CSS/JavaScript with no network polling or tracking.
 Its optional text, phase and workstream filters preserve the full readable roster when JavaScript is disabled.
 The existing hub remains script-free.
-Both pages link directly to the source-install guide on this repository's integrated `main` branch.
-Both pages lead with the current work-in-progress goal #305 independently of task-list truncation.
-The frozen `bec375d7` artifact, PR #322 one-library diagnostic hybrid and full-source candidate have separate identities and validation gates.
-Frozen ordinary/zsh-fixture Live results do not erase the original configuration shutdown failure.
-Actual bash testing establishes the documented non-zsh Live fallback, not bash Live support.
-Mac core tests, installed-app comparisons and a source-built Mac app remain separate subjects.
-The current block links #199, #310, #320 and the exact-subject evidence in #317/#322.
-Neither a hosted pass nor this documentation build supplies native acceptance.
 
-Historical evidence remains visible below that block.
-Both pages distinguish the trusted matrix at `6775c336`, its exact ARM64 archive's seven ordinary
+The historical records distinguish the trusted matrix at `6775c336`, its exact ARM64 archive's seven ordinary
 and nine Live native checks (ARM64 archive SHA256 prefix `2b629e40`), the earlier `fd85fc58` acceptance,
-historical failed runs, and older installation/renderer evidence.
-The candidate acceptance records software rendering, a process-local zsh fixture and an external
-private-runtime adapter; it does not establish hardware rendering, default-bash Live, native x86_64
-or WebKit pixel rendering.
-PR #6 integrated the accepted source on `main`; prerelease publication remains pending.
-The 500-agent request remains distinct from actual launches, and the feature inventory snapshot links
-to a pinned evidence snapshot rather than copying the candidate branch's older ledger totals.
-The reproduced generated-config collision remains recorded in #124, with the active correction in #192/PR #195 and the separate inert proposal in #126.
-Both pages link the resumed implementation/review records in #193 and the additional native probe in #199; these later changes require their own acceptance.
+historical failed runs, and older installation/renderer evidence, with the conditions they ran under.
+The 500-agent request remains distinct from actual launches.
 The verified P09/A12 [inventory snapshot at `67e2d3bc`](https://github.com/alexandru-savinov/agterm-omarchy/blob/67e2d3bccc6e93b7844c1c4188bdbf63c968efed/packaging/linux/github-feature-evidence.md) records 72 proven, 45 pending and 4 unavailable features.
-Its merge/retry proofs preserve all 121 criteria and do not change native acceptance or release status.
 
 To refresh ownership, read the latest issue/PR comments before editing `roster.json`.
 Record the observation time and each source's exact timestamp, agent/account, role, task and reported state.

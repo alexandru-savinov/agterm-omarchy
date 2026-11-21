@@ -97,7 +97,7 @@ jobs:
       - name: Build summary
         run: |
           {
-            printf '### Omarchy hub preview\nSource: %s\n\nReadiness: **work in progress**.\n' "$GITHUB_SHA"
+            printf '### Omarchy hub preview\nSource: %s\n' "$GITHUB_SHA"
             echo 'The preview artifact contains index.html, style.css, and the task snapshot status.json.'
             echo 'This documentation build does not certify native terminal readiness.'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -134,7 +134,7 @@ jobs:
                       status = json.load(response)
                   assert status['repository'] == os.environ['GITHUB_REPOSITORY']
                   assert status['commit'] == os.environ['GITHUB_SHA']
-                  assert status['readiness'] == 'work-in-progress'
+                  assert status['readiness'] == 'released'
                   break
               except (OSError, ValueError, AssertionError):
                   if attempt == 11:
