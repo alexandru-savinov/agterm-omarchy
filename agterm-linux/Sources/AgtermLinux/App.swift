@@ -415,7 +415,7 @@ let appCSS = """
 
 /// Install the app-wide CSS once, at the application priority so it layers over the theme without
 /// overriding user CSS.
-@MainActor private func installAppCSS() {
+@MainActor func installAppCSS() {
     guard let display = gdk_display_get_default() else { return }
     let provider = OpaquePointer(gtk_css_provider_new())
     appCSS.withCString { gtk_css_provider_load_from_string(cast(provider), $0) }

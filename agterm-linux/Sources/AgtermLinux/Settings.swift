@@ -27,13 +27,14 @@ extension AppController {
     }
 
     func applyWindowTranslucency(settings: AppSettings? = nil) {
-        let translucent = ((settings ?? linuxSettingsStore().load()).backgroundOpacity ?? 1) < 1
-        "agterm-translucent".withCString {
-            if translucent {
-                gtk_widget_add_css_class(W(window), $0)
-            } else {
-                gtk_widget_remove_css_class(W(window), $0)
-            }
-        }
+        applyTerminalWindowTranslucency(window, opacity: (settings ?? linuxSettingsStore().load()).backgroundOpacity)
+    }
+}
+
+@MainActor func applyTerminalWindowTranslucency(_ window: OpaquePointer?, opacity: Double?) {
+    if (opacity ?? 1) < 1 {
+        gtk_widget_add_css_class(W(window), "agterm-translucent")
+    } else {
+        gtk_widget_remove_css_class(W(window), "agterm-translucent")
     }
 }
