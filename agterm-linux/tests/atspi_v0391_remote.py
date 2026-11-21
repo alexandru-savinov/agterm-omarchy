@@ -266,6 +266,7 @@ def verify_remote_v0391(env, state, catalog_only=False):
 
 def verify_gui_origin_catalog(origin_env, viewer_env, origin, request, row):
     origin_window = request(origin_env, "window.list")["windows"][0]["id"]
+    viewer_window = next(window["id"] for window in request(viewer_env, "window.list")["windows"] if window["active"])
     catalog = request(viewer_env, "window.remote.open", args={"host": "local-test", "originWindow": origin_window})["id"]
 
     def catalog_rows():
@@ -273,6 +274,20 @@ def verify_gui_origin_catalog(origin_env, viewer_env, origin, request, row):
                 for item in workspace["sessions"]]
 
     wait_for(lambda: any(item["id"] == origin for item in catalog_rows()), "GTK origin catalog did not arrive", timeout=30)
+    request(viewer_env, "window.select", viewer_window)
+    wait_for(lambda: any(window["id"] == viewer_window and window["active"]
+                         for window in request(viewer_env, "window.list")["windows"]),
+             "local window did not become active for the catalog-dismiss routing test")
+    request(viewer_env, "window.remote.dismiss", catalog[:8])
+    request(viewer_env, "window.select", catalog)
+    wait_for(lambda: any(window["id"] == catalog and window["active"]
+                         for window in request(viewer_env, "window.list")["windows"]),
+             "remote catalog did not become active for the catalog-dismiss routing test")
+    wrong_kind = raw_control_json(viewer_env, {"cmd": "window.remote.dismiss", "target": viewer_window})
+    assert not wrong_kind["ok"] and wrong_kind["error"] == "window.remote.dismiss acts only on a remote window", wrong_kind
+    missing = "00000000-0000-0000-0000-000000000000"
+    unknown = raw_control_json(viewer_env, {"cmd": "window.remote.dismiss", "target": missing})
+    assert not unknown["ok"] and unknown["error"] == "no such window: " + missing, unknown
     marker = os.path.join(origin_env["AGTERM_STATE_DIR"], "catalog-job.pid")
     command = "/bin/sh -c " + shlex.quote("echo $$ > " + shlex.quote(marker) + "; exec sleep 3600")
     selected = next(item["id"] for item in request(origin_env, "tree")["tree"]["workspaces"][0]["sessions"] if item["active"])

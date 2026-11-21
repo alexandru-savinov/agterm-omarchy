@@ -573,7 +573,8 @@ final class ControlServer: @unchecked Sendable {
     }
 
     @MainActor static func route(for req: ControlRequest) -> ControllerRoute {
-        if let window = req.args?.window, !window.isEmpty {
+        let requestedWindow = req.cmd == .windowRemoteDismiss ? req.target ?? req.args?.window : req.args?.window
+        if let window = requestedWindow, !window.isEmpty {
             guard let library = gLibrary else {
                 return .failure("window not open")
             }
