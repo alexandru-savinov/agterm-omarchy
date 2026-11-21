@@ -30,21 +30,23 @@ class SuitePartitionTests(unittest.TestCase):
         self.scenarios = ast.literal_eval(assignment.value)
         self.calls = []
         self.failed = None
+        self.retried = set()
 
-        def run(command, env):
+        def run_scenario(command, env):
             scenario = env['AGTERM_ATSPI_SCENARIO']
             self.calls.append(scenario)
-            return SimpleNamespace(returncode=7 if scenario == self.failed else 0)
+            return (7 if scenario == self.failed else 0), int(scenario in self.retried)
 
-        namespace = dict(os=os, sys=sys, subprocess=SimpleNamespace(run=run),
+        namespace = dict(os=os, sys=sys, run_scenario=run_scenario,
                          BIN=__file__, CTL=__file__, __file__=str(source))
         exec(compile(ast.Module(body=[main], type_ignores=[]), str(source), 'exec'), namespace)
         self.main = namespace['main']
 
     def execute(self, **env):
         self.calls.clear()
-        with patch.dict(os.environ, env, clear=True), contextlib.redirect_stdout(io.StringIO()):
+        with patch.dict(os.environ, env, clear=True), contextlib.redirect_stdout(io.StringIO()) as output:
             result = self.main()
+        self.output = output.getvalue()
         return result, list(self.calls)
 
     def test_two_shards_cover_every_scenario_once_in_original_order(self):
@@ -67,6 +69,14 @@ class SuitePartitionTests(unittest.TestCase):
         self.failed = self.scenarios[0]
         self.assertEqual(self.execute(AGTERM_ATSPI_SHARD_INDEX='0', AGTERM_ATSPI_SHARD_COUNT='2'),
                          (7, list(self.scenarios[::2])))
+
+    def test_retry_counts_keep_recoveries_and_final_failures_visible(self):
+        self.failed = self.scenarios[0]
+        self.retried = {self.failed, self.scenarios[2]}
+        self.assertEqual(self.execute(AGTERM_ATSPI_SHARD_INDEX='0', AGTERM_ATSPI_SHARD_COUNT='2'),
+                         (7, list(self.scenarios[::2])))
+        self.assertIn('shard=0 extra_attempts=2 recovered=1 exhausted=1', self.output)
+        self.assertIn(f'FAILED: {self.failed} (7)', self.output)
 
 
 class WorkerLifetimeTests(unittest.TestCase):

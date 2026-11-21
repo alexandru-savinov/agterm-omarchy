@@ -17,6 +17,8 @@ import traceback
 
 import gi
 
+from atspi_retry import run_scenario
+
 gi.require_version("Atspi", "2.0")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Atspi, Gtk  # noqa: E402
@@ -7719,8 +7721,6 @@ def main():
 
     scenario = os.environ.get("AGTERM_ATSPI_SCENARIO")
     if scenario is None:
-        from atspi_retry import run_scenario
-
         failures = []
         retries = recovered = 0
         scenarios = (
