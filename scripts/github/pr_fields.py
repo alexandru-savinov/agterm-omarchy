@@ -9,7 +9,8 @@ Reads the pull_request event payload; the body is data and is never run or inter
 The four fields are one `Name: value` per line, in any order, in one of two places:
 the leading block (the first non-blank lines of the body, as upstream-sync.py writes them), or
 the block that directly follows a line that is exactly `<details><summary>Review record</summary>`
-and is closed by `</details>` (the pull request template puts it at the bottom).
+and is closed by `</details>` (the pull request template puts it at the bottom);
+a fold inside a fenced code block is an example and does not count.
 Everything else is ignored, so the checker never has to guess what Markdown would hide or
 render (fences, comments, HTML). Fields in both places fail.
 
@@ -43,6 +44,24 @@ MESSAGES = {
 LINE = re.compile(r"(" + "|".join(re.escape(name) for name in FIELDS) + r"): (.*)", re.DOTALL)
 FOLD_OPEN = "<details><summary>Review record</summary>"
 FOLD_CLOSE = "</details>"
+FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
+
+
+def fenced(lines):
+    """Indexes of lines inside or delimiting a fenced code block, so a fold shown as an example never counts."""
+    inside, opener = set(), None
+    for index, line in enumerate(lines):
+        match = FENCE.match(line)
+        if opener is None:
+            if match and not (match.group(1)[0] == "`" and "`" in line[match.end():]):
+                opener = match.group(1)
+                inside.add(index)
+        else:
+            inside.add(index)
+            if match and match.group(1)[0] == opener[0] and len(match.group(1)) >= len(opener) \
+                    and not line[match.end():].strip():
+                opener = None
+    return inside
 
 
 def block(lines, start):
@@ -64,7 +83,8 @@ def blocks(body):
     """(leading-block matches, Review record fold matches, number of fold openers)."""
     lines = split(body)
     leading, _ = block(lines, 0)
-    folds = [index for index, line in enumerate(lines) if line == FOLD_OPEN]
+    code = fenced(lines)
+    folds = [index for index, line in enumerate(lines) if line == FOLD_OPEN and index not in code]
     inner = []
     if len(folds) == 1:
         inner, end = block(lines, folds[0] + 1)

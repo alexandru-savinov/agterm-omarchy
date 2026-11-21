@@ -139,6 +139,20 @@ class ReviewRecordFoldTests(unittest.TestCase):
         self.assertEqual(len(found), 4)
         self.assertTrue(all("missing field" in item for item in found), found)
 
+    def test_a_fold_inside_a_code_fence_is_an_example_not_a_record(self):
+        for fence in ("```", "~~~", "````markdown"):
+            close = fence.rstrip("markdown")
+            body = self.BODY + f"{fence}\n" + fold() + f"{close}\n"
+            self.assertEqual(len(pr_fields.problems(body, HEAD)), 4, fence)
+
+    def test_fenced_fold_examples_do_not_break_a_legacy_body(self):
+        example = "```\n" + fold() + "```\n"
+        self.assertEqual(pr_fields.problems(GOOD + example + example, HEAD), [])
+
+    def test_a_real_fold_after_a_fenced_example_counts(self):
+        example = "```\n" + fold(FIELD_LINES.replace(HEAD, OTHER)) + "```\n"
+        self.assertEqual(pr_fields.problems(self.BODY + example + "\n" + fold(), HEAD), [])
+
     def test_the_leading_block_still_passes_with_no_fold(self):
         self.assertEqual(pr_fields.problems(GOOD, HEAD), [])
 
