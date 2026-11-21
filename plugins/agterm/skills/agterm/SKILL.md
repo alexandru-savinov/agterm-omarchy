@@ -749,6 +749,7 @@ terminal theme app-wide, per slot: a NAME sets the light/single theme (a dark th
 `theme set --dark <name>` sets the dark theme, which makes the terminal track the macOS Light/Dark
 appearance automatically; `theme set --dark none` stops tracking. The app default is the bundled
 **agterm** theme; omit the name for ghostty's built-in default ("default ghostty"); an unknown name errors.
+On Linux with Omarchy theme following enabled, `theme set "Automatic (Omarchy)"` resumes following the desktop theme and clears the saved light/dark pair.
 
 **restore** - `restore capture` - capture every pane's running command now, into the slot the quit-time
 capture fills, so an exit that never reaches a clean quit (a force quit, a crash, a hard reset) still
