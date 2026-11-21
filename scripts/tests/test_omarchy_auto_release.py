@@ -207,6 +207,12 @@ class PlanTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def setUp(self):
+        # A runner exports its own command files; a test must never write to them.
+        env = patch.dict(os.environ, {"GITHUB_OUTPUT": "", "GITHUB_STEP_SUMMARY": ""})
+        env.start()
+        self.addCleanup(env.stop)
+
     def test_path_filtered_run_is_skipped_although_the_release_gate_would_reject_it(self):
         jobs = ci_jobs(FILTERED_JOBS)
         scope, reason = auto.ci_scope(SCOPE_RUN, jobs)
