@@ -17,10 +17,11 @@ This repository adds:
 
 - aarch64 builds, alongside x86_64;
 - automatic releases that publish only after native gates pass on both architectures:
-  Hyprland in an Arch Linux container with Omarchy's desktop packages.
-  Every release has GitHub build-provenance attestations;
+  Hyprland in an Arch Linux container with Omarchy's desktop packages;
 - Omarchy-specific fixes, such as the EGL retry for Mesa 26.3.1 ([Rendering](packaging/linux/omarchy.md#rendering))
   and the HTML overlay paste fix.
+
+Each `omarchy-v*` release carries GitHub build-provenance attestations; see [Releases and verification](#releases-and-verification).
 
 ## Install
 

@@ -28,10 +28,10 @@ Its comments should read as plain English to someone who has never seen the agen
   Posted by an AI agent for <lead>.
   ```
 
-- **Every agent comment ends with** "Posted by an AI agent for <lead>.", naming the person the agent works for.
+- **Every agent comment ends with** `Posted by an AI agent for <lead>.`, with `<lead>` replaced by the person the agent works for.
 - **No agent-name labels.** Do not create or apply `agent:*` labels, or `state:*` labels by hand; the
   issue's status comment says who is working on it.
-- **Claiming an issue** is one sentence on the issue ("Working on this for <lead>; draft PR to follow.").
+- **Claiming an issue** is one sentence on the issue, such as `Working on this for <lead>; draft PR to follow.`
   Everything else goes on the pull request.
 
 ## The pull request thread is the workbench
