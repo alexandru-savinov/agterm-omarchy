@@ -129,6 +129,27 @@ Choose a chord that is unused in your configuration.
 See the [Wayland support matrix](../../agterm-linux/docs/x11-wayland.md) for compositor-owned behavior
 such as window placement and blur.
 
+### Omarchy clipboard shortcuts
+
+With Omarchy’s Lua-based Hyprland configuration, run this as your desktop user to give agterm terminal copy and paste on Super+C and Super+V, plus Omarchy’s default terminal opacity of 0.985 when active and 0.96 when inactive.
+
+```bash
+agtermctl integration omarchy enable
+agtermctl integration omarchy status
+```
+
+The command installs a user-owned `hypr/agterm-omarchy.lua` module and adds a marked include to your existing `hypr/hyprland.lua`.
+Use `agtermctl integration omarchy disable` to remove the managed files and restore the original entrypoint content.
+The command preserves existing edits outside its marked block and refuses symlinked or conflicting files.
+The terminal launcher preference stays under your control.
+
+If you run `omarchy refresh hyprland` (`omarchy-refresh-hyprland`), Omarchy overwrites `hyprland.lua` and saves the previous version as `hyprland.lua.bak.<timestamp>`.
+The refresh removes the marked include, so `status` reports `incomplete` and Super+C can interrupt a terminal command again.
+Run `agtermctl integration omarchy enable` again to restore the include.
+
+`status` checks the files on disk.
+After Hyprland reloads, `hyprctl clients -j` should show `terminal` or `terminal*` in the tags for `io.github.melonamin.agterm`.
+
 ## Rendering
 
 On Mesa 26.3.1 with affected GTK builds, the packaged launcher retries GTK's failed

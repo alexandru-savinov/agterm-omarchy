@@ -1,0 +1,4 @@
+# shellcheck shell=bash
+post_install() {
+    echo 'For Omarchy’s Super+C and Super+V shortcuts, run agtermctl integration omarchy enable as your desktop user.'
+}

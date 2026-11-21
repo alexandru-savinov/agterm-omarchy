@@ -6,8 +6,42 @@ import agtermCore
 struct Integration: ParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Inspect or install local agterm integrations (no running app required).",
-        subcommands: [Status.self, Install.self]
+        subcommands: [Status.self, Install.self, Omarchy.self]
     )
+
+    struct Omarchy: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Manage agterm’s terminal tag in your Omarchy Hyprland configuration."
+        )
+
+        enum Action: String, ExpressibleByArgument {
+            case enable, status, disable
+        }
+
+        @Argument(help: "Enable, inspect, or remove the per-user terminal tag.")
+        var action: Action
+
+        @Flag(name: .long, help: "Print the configuration status as JSON.")
+        var json = false
+
+        func run() throws {
+            let integration = OmarchyTerminalIntegration()
+            let result: OmarchyTerminalIntegration.Status
+            switch action {
+            case .enable: result = try integration.setEnabled(true)
+            case .status: result = try integration.status()
+            case .disable: result = try integration.setEnabled(false)
+            }
+            if json {
+                try printJSON(result)
+            } else {
+                print("Omarchy terminal tag: \(result.state.rawValue)")
+                print("Hyprland config: \(result.configPath)")
+                print("Rule module: \(result.modulePath)")
+                if let detail = result.detail { print(detail) }
+            }
+        }
+    }
 
     struct Status: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Show CLI, hooks, and skill status.")
