@@ -235,6 +235,48 @@ class PlanTests(unittest.TestCase):
                     else:
                         self.assertEqual(outputs.call_args.args[0]['sha'], sha)
 
+    def test_unavailable_product_comparison_proceeds_with_a_summary(self):
+        run = EVENT["workflow_run"] | {
+            "status": "completed", "name": "Omarchy CI", "workflow_id": 4,
+            "path": auto.promotion.WORKFLOW, "repository": {"full_name": auto.promotion.REPOSITORY},
+        }
+        compare_path = f"compare/refs/tags/{TAG}...{SHA}?per_page=1"
+        fixtures = {"git/ref/heads/main": {"object": {"sha": SHA}}, "actions/runs/123": run,
+                    OPEN_INCIDENTS: [[]], "actions/workflows/omarchy-ci.yml": {"id": 4},
+                    auto.RELEASES_PATH: [[RELEASE]], "git/matching-refs/tags/omarchy-v?per_page=100": [[]]}
+        for status in auto.ACTIVE_PROMOTION_STATUSES:
+            fixtures[f"{auto.PROMOTION_RUNS}?branch=main&event=workflow_dispatch&status={status}&per_page=1"] = {
+                "total_count": 0}
+        base_commit = {"sha": "b" * 40}
+        cases = (
+            ({"status": "ahead"}, None, "base_commit"),
+            ({"status": "ahead", "base_commit": None}, None, "TypeError"),
+            ({"status": "ahead", "base_commit": base_commit},
+             subprocess.CalledProcessError(128, ["git", "fetch"]), "fetch"),
+            ({"status": "ahead", "base_commit": base_commit},
+             subprocess.CalledProcessError(2, ["git", "diff"]), "diff"),
+            ({"status": "ahead", "base_commit": base_commit},
+             ValueError("Cannot identify the Omarchy build recipe"), "build recipe"),
+        )
+        for comparison, error, detail in cases:
+            with self.subTest(comparison=comparison, error=error), tempfile.TemporaryDirectory() as directory:
+                summary = Path(directory) / "summary.md"
+                fixtures[compare_path] = comparison
+                with patch.object(auto.promotion, "api", side_effect=lambda path, **kw: fixtures[path]), \
+                     patch.object(auto.promotion, "source_base", return_value="0.43.0"), \
+                     patch.object(auto.promotion, "write_outputs") as outputs, \
+                     patch.object(auto, "read_event", return_value=EVENT), \
+                     patch.object(auto, "same_product", side_effect=error) as same_product, \
+                     patch.object(sys, "argv", ["auto-release", "plan"]), \
+                     patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}), \
+                     redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    auto.main()
+                outputs.assert_called_once_with(CANDIDATE | {"version": "0.43.0.3"})
+                self.assertIn("Proceeding with release checks", summary.read_text())
+                self.assertIn(detail, summary.read_text())
+                if error is None:
+                    same_product.assert_not_called()
+
     def test_candidate_uses_source_base_and_all_reserved_versions(self):
         run = EVENT["workflow_run"] | {
             "status": "completed", "name": "Omarchy CI", "workflow_id": 4, "path": auto.promotion.WORKFLOW,

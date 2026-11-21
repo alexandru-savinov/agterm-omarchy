@@ -123,6 +123,16 @@ def same_product(base, head):
     return build_recipe(base) == build_recipe(head)
 
 
+def matches_released_product(tag, comparison, head):
+    try:
+        return same_product(comparison["base_commit"]["sha"], head)
+    except (subprocess.CalledProcessError, ValueError, KeyError, TypeError) as error:
+        report_error(error)
+        write_summary(f"Proceeding with release checks. Product comparison with {tag} was unavailable "
+                      f"due to {type(error).__name__} ({error}).")
+        return False
+
+
 def next_version(base, tags):
     serials = [int(match["serial"]) for tag in tags
                if (match := TAG.fullmatch(tag)) and match["base"] == base]
@@ -235,7 +245,7 @@ def plan(event):
         comparison = compare_release(latest, sha)
         if comparison["status"] != "ahead":
             return None, f"No new main commit after {latest}"
-        if same_product(comparison["base_commit"]["sha"], sha):
+        if matches_released_product(latest, comparison, sha):
             return None, f"Product tree matches {latest}"
     elif promotion.version_key(base) != MINIMUM_BASE:
         return None, "M4 starts the versioned release series at upstream v0.43.0"
