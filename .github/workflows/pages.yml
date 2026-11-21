@@ -8,15 +8,10 @@ on:
     branches: [main]
     paths: ['docs/omarchy-pages/**', '.github/workflows/pages.yml']
   schedule:
-    # Refresh claim ages and stale flags on the team page (queue feeds Pages, #73).
+    # Hourly rebuild picks up a new upstream-drift measurement without a push.
     - cron: '47 * * * *'
   workflow_dispatch:
     inputs:
-      task_limit:
-        description: Number of tasks to show in the refreshed issue snapshot
-        type: choice
-        options: ['10', '25', '50', '100']
-        default: '100'
       deploy:
         description: Deploy after building (main branch only); otherwise upload a preview
         type: boolean
@@ -36,26 +31,14 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      issues: read
       # Download the upstream-drift artifact of another run (read-only).
       actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Test escaping, readiness, and issue selection
+      - name: Test the landing page, readiness, and drift snapshot
         run: python3 docs/omarchy-pages/test_build.py
-      - name: Snapshot the public task queue
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" > "$RUNNER_TEMP/issues.json"
-      - name: Snapshot agent claims with the queue parser
-        # Same parser as the Agent queue workflow. If it fails, the site still builds without the overlay
-        # and build.py marks the queue snapshot as unavailable on the page and in status.json.
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python3 scripts/github/queue.py --output "$RUNNER_TEMP/queue"
       - name: Snapshot upstream drift from the latest weekly run
         # If no run or artifact is found, build.py renders a visible "unavailable" notice and status.json says so;
         # older than 8 days renders a "stale" notice. Only scheduled/dispatched runs on main count, never PR runs
@@ -75,13 +58,10 @@ jobs:
           if [[ -z "$run_id" ]]; then echo 'No successful scheduled/dispatched upstream-drift run on main.'; exit 0; fi
           gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name upstream-drift --dir "$RUNNER_TEMP/drift/artifact"
       - name: Build static site
-        env:
-          TASK_LIMIT: ${{ inputs.task_limit || '100' }}
         run: |
-          python3 docs/omarchy-pages/build.py --issues "$RUNNER_TEMP/issues.json" \
-            --queue "$RUNNER_TEMP/queue/queue.json" \
+          python3 docs/omarchy-pages/build.py \
             --drift-run "$RUNNER_TEMP/drift/run.json" --drift "$RUNNER_TEMP/drift/artifact/upstream-drift.json" \
-            --output _site --commit "$GITHUB_SHA" --limit "$TASK_LIMIT"
+            --output _site --commit "$GITHUB_SHA"
       - name: Upload downloadable preview
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -98,7 +78,7 @@ jobs:
         run: |
           {
             printf '### Omarchy hub preview\nSource: %s\n' "$GITHUB_SHA"
-            echo 'The preview artifact contains index.html, style.css, and the task snapshot status.json.'
+            echo 'The preview artifact contains index.html, style.css, and status.json.'
             echo 'This documentation build does not certify native terminal readiness.'
           } >> "$GITHUB_STEP_SUMMARY"
 
