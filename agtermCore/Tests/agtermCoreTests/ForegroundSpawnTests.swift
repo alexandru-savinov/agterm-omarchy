@@ -66,4 +66,29 @@ final class ForegroundSpawnTests {
             try ForegroundSpawn.run(["/bin/cat"], input: .file(root.appendingPathComponent("absent").path), environment: [:])
         }
     }
+
+    @Test func missingExecutableAlsoFailsWithAPipe() {
+        let executable = root.appendingPathComponent("absent").path
+        let failure = ForegroundSpawn.Failure(operation: "posix_spawnp", errno: ENOENT)
+        #expect(throws: failure) {
+            try ForegroundSpawn.run([executable], input: .data(Data("payload".utf8)), environment: [:])
+        }
+        #expect(throws: failure) {
+            try ForegroundSpawn.capture([executable], environment: [:])
+        }
+    }
+
+    #if os(Linux)
+    @Test func bothPipeEndsAreCloseOnExec() throws {
+        let ends = try ForegroundSpawn.makePipe()
+        defer {
+            close(ends.read)
+            close(ends.write)
+        }
+        for fd in [ends.read, ends.write] {
+            let flags = fcntl(fd, F_GETFD)
+            #expect(flags >= 0 && flags & FD_CLOEXEC != 0)
+        }
+    }
+    #endif
 }

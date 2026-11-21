@@ -46,6 +46,18 @@ public enum ForegroundSpawn {
         defer { posix_spawn_file_actions_destroy(&actions) }
 
         var inputEnds: (read: Int32, write: Int32)?
+        var outputEnds: (read: Int32, write: Int32)?
+        defer {
+            // Until spawn succeeds, setup owns both ends, including on a file-action or attribute error.
+            if let inputEnds {
+                close(inputEnds.read)
+                close(inputEnds.write)
+            }
+            if let outputEnds {
+                close(outputEnds.read)
+                close(outputEnds.write)
+            }
+        }
         switch input {
         case .data:
             let ends = try makePipe()
@@ -57,7 +69,6 @@ public enum ForegroundSpawn {
             try check(posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0),
                       "posix_spawn_file_actions_addopen")
         }
-        var outputEnds: (read: Int32, write: Int32)?
         if capture {
             let ends = try makePipe()
             outputEnds = ends
@@ -73,8 +84,7 @@ public enum ForegroundSpawn {
         try check(posix_spawn_file_actions_addclosefrom_np(&actions, 3), "posix_spawn_file_actions_addclosefrom_np")
         #endif
 
-        // the child gets only the descriptors named above: another thread spawning between pipe() and close() would
-        // otherwise hand its child a write end, and the command would wait for an EOF that never arrives
+        // Give this child only the descriptors named above.
         #if canImport(Darwin)
         var attributes: posix_spawnattr_t?
         #else
@@ -108,21 +118,19 @@ public enum ForegroundSpawn {
                 }
             }
         }
-        if let inputEnds { close(inputEnds.read) }
-        if let outputEnds { close(outputEnds.write) }
-        do {
-            try check(spawned, "posix_spawnp")
-        } catch {
-            if let inputEnds { close(inputEnds.write) }
-            if let outputEnds { close(outputEnds.read) }
-            throw error
-        }
+        try check(spawned, "posix_spawnp")
 
-        if let inputEnds, case .data(let data) = input { feed(data, to: inputEnds.write) }
+        if let ends = inputEnds, case .data(let data) = input {
+            inputEnds = nil
+            close(ends.read)
+            feed(data, to: ends.write)
+        }
         var output = Data()
-        if let outputEnds {
-            output = drain(outputEnds.read)
-            close(outputEnds.read)
+        if let ends = outputEnds {
+            outputEnds = nil
+            close(ends.write)
+            output = drain(ends.read)
+            close(ends.read)
         }
 
         var status: Int32 = 0
@@ -133,10 +141,15 @@ public enum ForegroundSpawn {
         return (signal == 0 ? .exited((status >> 8) & 0xff) : .signaled(signal), output)
     }
 
-    private static func makePipe() throws -> (read: Int32, write: Int32) {
+    static func makePipe() throws -> (read: Int32, write: Int32) {
         var fds: [Int32] = [-1, -1]
         // pipe reports through errno, unlike the posix_spawn calls that return the code itself
+        #if os(Linux)
+        // A concurrent spawn must not inherit a pipe end and keep it alive after this caller closes it.
+        guard pipe2(&fds, O_CLOEXEC) == 0 else { throw Failure(operation: "pipe2", errno: errno) }
+        #else
         guard pipe(&fds) == 0 else { throw Failure(operation: "pipe", errno: errno) }
+        #endif
         return (fds[0], fds[1])
     }
 
