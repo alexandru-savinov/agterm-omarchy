@@ -23,6 +23,7 @@ struct OmarchyTheme {
     }
 
     func colorLines() -> [String] {
+        let config = config.resolvingSymlinksInPath()
         guard (try? config.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
               let contents = try? String(contentsOf: config, encoding: .utf8) else { return [] }
         return Self.colorLines(in: contents)

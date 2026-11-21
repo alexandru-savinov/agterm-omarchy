@@ -85,8 +85,8 @@ final class OmarchyThemeObserver {
             _, file, otherFile, _, data in
             guard let data else { return }
             let callback = Unmanaged<Callback>.fromOpaque(data).takeUnretainedValue()
-            let name = basename(file)
-            let otherName = basename(otherFile)
+            let name = OmarchyThemeObserver.basename(file)
+            let otherName = OmarchyThemeObserver.basename(otherFile)
             MainActor.assumeIsolated { callback.changed(name, otherName) }
         }
         _ = g_signal_connect_data(RAW(OpaquePointer(monitor)), "changed", unsafeBitCast(handler, to: GCallback.self), callback,
