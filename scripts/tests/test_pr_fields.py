@@ -87,11 +87,58 @@ class LeadingBlockTests(unittest.TestCase):
         body = f"I reviewed {HEAD} myself.\nTask: #1\nAgent: x\nReview: https://github.com/o/r/pull/1\n"
         self.assertTrue(any("Reviewed head" in item for item in pr_fields.problems(body, HEAD)))
 
+
+
+def fold(fields=FIELD_LINES, opener=pr_fields.FOLD_OPEN, close=pr_fields.FOLD_CLOSE):
+    return f"{opener}\n\n{fields}\n{close}\n"
+
+
+class ReviewRecordFoldTests(unittest.TestCase):
+    """The fields may instead sit in one closed `Review record` fold, anywhere after the human sections."""
+
+    BODY = "## What changes for users\nText\n\n"
+
+    def test_a_filled_fold_at_the_bottom_passes(self):
+        self.assertEqual(pr_fields.problems(self.BODY + fold(), HEAD), [])
+        self.assertEqual(pr_fields.problems((self.BODY + fold()).replace("\n", "\r\n"), HEAD), [])
+        self.assertEqual(pr_fields.problems(self.BODY + fold() + "\nGenerated footer\n", HEAD), [])
+
+    def test_a_stale_head_in_the_fold_fails(self):
+        found = pr_fields.problems(self.BODY + fold(FIELD_LINES.replace(HEAD, OTHER)), HEAD)
+        self.assertEqual(len(found), 1)
+        self.assertIn("stale", found[0])
+
+    def test_an_unclosed_misnamed_or_indented_fold_reads_as_missing(self):
+        for body in (self.BODY + fold(close=""), self.BODY + fold(close="</detail>"),
+                     self.BODY + fold(opener="<details><summary>Agent record</summary>"),
+                     self.BODY + fold(opener="  " + pr_fields.FOLD_OPEN),
+                     self.BODY + fold(fields="Note\n" + FIELD_LINES)):
+            self.assertEqual(len(pr_fields.problems(body, HEAD)), 4, body)
+
+    def test_two_folds_fail(self):
+        found = pr_fields.problems(self.BODY + fold() + fold(), HEAD)
+        self.assertTrue(any("appears 2 times; keep exactly one" in item and "Review record" in item
+                            for item in found), found)
+
+    def test_a_field_in_both_places_is_repeated(self):
+        found = pr_fields.problems(FIELD_LINES + "\n" + self.BODY + fold(), HEAD)
+        self.assertEqual(len(found), 4)
+        self.assertTrue(all("appears 2 times" in item for item in found), found)
+
+    def test_the_leading_block_still_passes_with_no_fold(self):
+        self.assertEqual(pr_fields.problems(GOOD, HEAD), [])
+
     def test_the_real_template_fails_until_filled_in_and_passes_once_it_is(self):
         template = (ROOT / ".github/pull_request_template.md").read_text()
         self.assertTrue(pr_fields.problems(template, HEAD))
-        rest = template.split("\n", 4)[4]
-        self.assertEqual(pr_fields.problems(FIELD_LINES + rest, HEAD), [])
+        self.assertNotIn("<!--", template)
+        self.assertTrue(template.startswith("## What changes for users\n"), template[:80])
+        lines = template.split("\n")
+        opener = lines.index(pr_fields.FOLD_OPEN)
+        self.assertGreater(opener, max(index for index, line in enumerate(lines) if line.startswith("## ")))
+        empty = "Task: #\nAgent:\nReviewed head:\nReview:\n"
+        self.assertEqual(template.count(empty), 1)
+        self.assertEqual(pr_fields.problems(template.replace(empty, FIELD_LINES), HEAD), [])
 
 
 class GrandfatherTests(unittest.TestCase):
