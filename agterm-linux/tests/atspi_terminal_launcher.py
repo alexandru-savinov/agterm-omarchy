@@ -111,8 +111,9 @@ def verify_inherited_pane_environment(env, fixture):
 
 
 def verify_ephemeral_reload(env, fixture):
-    state = Path(env["AGTERM_STATE_DIR"])
-    config = state / "config" / "ghostty.conf"
+    home = fixture / "home"
+    local = dict(env, HOME=str(home))
+    config = home / ".local/state/omarchy/current/theme/ghostty.conf"
     config.parent.mkdir(parents=True)
     config.write_text("background = #284c7a\n", encoding="utf-8")
     marker, release = fixture / "pid", fixture / "release"
@@ -124,7 +125,7 @@ def verify_ephemeral_reload(env, fixture):
         "    if Path(sys.argv[2]).exists(): break\n"
         "    time.sleep(0.1)\n", encoding="utf-8",
     )
-    process = ephemeral_process(env, fixture.parent, sys.executable, [probe, marker, release],
+    process = ephemeral_process(local, fixture.parent, sys.executable, [probe, marker, release],
                                 "Reload ephemeral launcher")
     try:
         wait_for(lambda: marker.exists() and marker.stat().st_size, "foreground command did not start")
@@ -136,20 +137,27 @@ def verify_ephemeral_reload(env, fixture):
             assert code is None, f"launcher exited with status {code} after SIGUSR2"
             assert process_is_running(child), "foreground command exited after SIGUSR2"
 
+        if pixel:
+            wait_for(lambda: pixel() == bytes.fromhex("284c7a"), "launcher did not paint the initial Omarchy colour")
         config.write_text("background = #9a6541\n", encoding="utf-8")
         process.send_signal(signal.SIGUSR2)
         if pixel:
-            def reloaded():
-                survived()
-                return pixel() == bytes.fromhex("9a6541")
+            last = b""
 
-            wait_for(reloaded, "SIGUSR2 did not repaint the foreground command's terminal with #9a6541")
+            def reloaded():
+                nonlocal last
+                survived()
+                last = pixel()
+                return last == bytes.fromhex("9a6541")
+
+            if not wait_for(reloaded, "", required=False):
+                raise AssertionError(f"SIGUSR2 painted #{last.hex()}, expected new Omarchy colour #9a6541")
         else:
             time.sleep(0.5)
         survived()
         release.touch()
         assert process.wait(timeout=12) == 0, "launcher did not quit normally after the same command finished"
-        assert sorted(item.name for item in state.iterdir()) == ["config"], "ephemeral reload wrote persistent state"
+        assert not Path(env["AGTERM_STATE_DIR"]).exists(), "ephemeral reload wrote persistent state"
     finally:
         if process.poll() is None:
             stop(process)
