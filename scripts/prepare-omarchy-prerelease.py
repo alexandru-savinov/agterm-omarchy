@@ -384,7 +384,8 @@ def main():
             "--auto-release-run-id requires positive ID and gated release evidence")
     if args.next_version:
         release = release_module()
-        version = next_version(release, source_base(release, args.base_of) if args.base_of else None)
+        base = source_base(release, args.base_of) if args.base_of is not None else None
+        version = next_version(release, base)
         write_outputs({"version": version})
         print(version)
         return
