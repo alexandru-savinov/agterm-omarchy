@@ -27,10 +27,25 @@ struct OmarchyAppearanceConfigTests {
     }
 
     @Test func malformedAppearanceValuesAreRejected() {
-        for line in ["window-padding-x = -1", "window-padding-y = 2.5", "window-padding-x = 14,", "window-padding-x = 129",
+        for line in ["window-padding-x = small", "window-padding-y = 2.5", "window-padding-x = 14,",
                      "window-padding-y = 2,4,6", "cursor-style-blink = 0", "cursor-style-blink = maybe", "cursor-style-blink"] {
             #expect(OmarchyAppearanceConfig.parse("font-size = 14\n" + line) == nil, "Malformed line: \(line)")
         }
+    }
+
+    @Test(arguments: ["font-size = 1e40", "font-size = -2", "window-padding-x = 129",
+                      "window-padding-y = 14,-1", "window-padding-y = 18446744073709551616"])
+    func outOfRangeAppearanceValuesLeaveOtherAssignmentsIntact(_ assignment: String) throws {
+        let config = try #require(OmarchyAppearanceConfig.parse("""
+            font-family = JetBrains Mono
+            font-size = 12
+            window-padding-y = 14
+            \(assignment)
+            cursor-style-blink = false
+            """))
+        #expect(config.lines() == [
+            "font-family = \"JetBrains Mono\"", "font-size = 12.0", "window-padding-y = 14", "cursor-style-blink = false",
+        ])
     }
 
     @Test func emptyAppearanceValuesRemoveTheFollowedOverrides() throws {
@@ -118,7 +133,7 @@ struct OmarchyAppearanceConfigTests {
         #expect(firstChanged)
         let accepted = OmarchyAppearanceConfig(families: ["JetBrains Mono"], size: 14)
         #expect(source.config == accepted)
-        for malformed in ["font-size = NaN", "font-size = -2", "font-size = 1e40", "font-size",
+        for malformed in ["font-size = NaN", "font-size = infinity", "font-size = huge", "font-size",
                           "font-family = \"unterminated", "font-family = bad\0value",
                           "font-size = 9\n#" + String(repeating: "a", count: 64 * 1024)] {
             try write(malformed)

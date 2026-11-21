@@ -21,6 +21,7 @@ final class OmarchyThemeObserver {
     private var cancelThemeWatch: Cancel?
     private var cancelConfigWatch: Cancel?
     private var needsThemeWatch = false
+    private var needsAppearanceWatch = false
     private var themeChanged = false
     private var appearanceConfigChanged = false
     private var appearanceSource = OmarchyAppearanceSource()
@@ -47,11 +48,7 @@ final class OmarchyThemeObserver {
         }
         watchThemeDirectory()
         if theme.isInstalled {
-            cancelConfigWatch = observe(theme.appearanceConfig.deletingLastPathComponent()) { [weak self] file, otherFile in
-                guard let self, file == "config" || otherFile == "config" else { return }
-                self.appearanceConfigChanged = true
-                self.scheduleReload()
-            }
+            watchAppearanceConfig()
             _ = appearanceSource.refresh(from: theme.appearanceConfig)
         }
     }
@@ -65,6 +62,7 @@ final class OmarchyThemeObserver {
         cancelParentWatch = nil
         cancelConfigWatch = nil
         needsThemeWatch = false
+        needsAppearanceWatch = false
         themeChanged = false
         appearanceConfigChanged = false
         appearanceSource = OmarchyAppearanceSource()
@@ -86,10 +84,31 @@ final class OmarchyThemeObserver {
         scheduleReload()
     }
 
+    private func watchAppearanceConfig() {
+        cancelConfigWatch?()
+        cancelConfigWatch = nil
+        needsAppearanceWatch = false
+        let ghostty = theme.appearanceConfig.deletingLastPathComponent()
+        let config = ghostty.deletingLastPathComponent()
+        // Watch the closest available directory. If a missing child is created or renamed into
+        // place, re-arm before reading the snapshot so the next file replacement is observed.
+        for (directory, child) in [(ghostty, "config"), (config, "ghostty"), (theme.home, ".config")] {
+            guard let cancel = observe(directory, { [weak self] file, otherFile in
+                guard let self, file == child || otherFile == child else { return }
+                if directory != ghostty { self.needsAppearanceWatch = true }
+                self.appearanceConfigChanged = true
+                self.scheduleReload()
+            }) else { continue }
+            cancelConfigWatch = cancel
+            break
+        }
+    }
+
     private func scheduleReload() {
         debounce.schedule(after: 0.25) { [weak self] in
             guard let self else { return }
             if self.needsThemeWatch { self.watchThemeDirectory() }
+            if self.needsAppearanceWatch { self.watchAppearanceConfig() }
             let appearanceChanged = self.appearanceConfigChanged && self.appearanceSource.refresh(from: self.theme.appearanceConfig)
             let reloadNeeded = self.themeChanged || appearanceChanged
             self.themeChanged = false

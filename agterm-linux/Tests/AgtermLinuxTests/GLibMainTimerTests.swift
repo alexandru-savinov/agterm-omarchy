@@ -199,6 +199,68 @@ struct GLibMainTimerTests {
         }
     }
 
+    @Test func omarchyAppearanceIgnoresGhosttyConfigWithoutAnOmarchyThemeDirectory() throws {
+        let home = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let theme = OmarchyTheme(home: home)
+        let directory = theme.appearanceConfig.deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: home) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try "font-size = 14".write(to: theme.appearanceConfig, atomically: true, encoding: .utf8)
+        #expect(!theme.isInstalled)
+
+        var watchedAppearance = false
+        let observer = OmarchyThemeObserver(theme: theme, observe: { url, _ in
+            if url.path == directory.path { watchedAppearance = true }
+            return {}
+        }, reload: { Issue.record("Unexpected reload on a non-Omarchy home") })
+        defer { observer.stop() }
+        observer.start()
+        #expect(observer.appearance.lines().isEmpty)
+        #expect(!watchedAppearance)
+    }
+
+    @Test(arguments: [true, false])
+    func omarchyAppearanceWatchRearmsWhenGhosttyDirectoryAppears(configDirectoryExists: Bool) throws {
+        try withGLibMainTimer {
+            let home = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+            let theme = OmarchyTheme(home: home)
+            let ghosttyDirectory = theme.appearanceConfig.deletingLastPathComponent()
+            let configDirectory = ghosttyDirectory.deletingLastPathComponent()
+            defer { try? FileManager.default.removeItem(at: home) }
+            try FileManager.default.createDirectory(at: theme.directory, withIntermediateDirectories: true)
+            if configDirectoryExists {
+                try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+            }
+
+            var watches: [String: OmarchyThemeObserver.Change] = [:]
+            var reloads = 0
+            let observer = OmarchyThemeObserver(theme: theme, observe: { url, change in
+                guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+                watches[url.path] = change
+                return { watches[url.path] = nil }
+            }, reload: { reloads += 1 })
+            defer { observer.stop() }
+            observer.start()
+            #expect(observer.appearance.lines().isEmpty)
+            let parent = configDirectoryExists ? configDirectory : home
+            let parentChanged = try #require(watches[parent.path])
+
+            try FileManager.default.createDirectory(at: ghosttyDirectory, withIntermediateDirectories: true)
+            try "font-size = 12".write(to: theme.appearanceConfig, atomically: true, encoding: .utf8)
+            parentChanged("staged", configDirectoryExists ? "ghostty" : ".config")
+            settleOmarchyDebounce()
+            #expect(observer.appearance.lines() == ["font-size = 12.0"])
+            #expect(reloads == 1)
+            let configChanged = try #require(watches[ghosttyDirectory.path])
+
+            try "font-size = 15".write(to: theme.appearanceConfig, atomically: true, encoding: .utf8)
+            configChanged("staged", "config")
+            settleOmarchyDebounce()
+            #expect(observer.appearance.lines() == ["font-size = 15.0"])
+            #expect(reloads == 2)
+        }
+    }
+
     private func settleOmarchyDebounce() {
         let deadline = g_get_monotonic_time() + 350_000
         while g_get_monotonic_time() < deadline {

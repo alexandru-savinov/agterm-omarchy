@@ -106,7 +106,8 @@ The same choice is available through `agtermctl theme set "Automatic (Omarchy)"`
 **Follow Omarchy** under **Settings ▸ General ▸ Ghostty Config** also follows Omarchy’s terminal fonts, padding, and cursor blink.
 `omarchy font set` and `omarchy display text size` update open terminals through `~/.config/ghostty/config`.
 agterm reads only `font-family`, `font-size`, `window-padding-x`, `window-padding-y`, and `cursor-style-blink` from that file.
-It keeps the font fallback order and retains the last valid settings during an invalid rewrite.
+It keeps the font fallback order and retains the last valid settings during a malformed or oversized rewrite.
+An out-of-range font size or padding assignment is skipped while the other valid settings still apply.
 Ghostty applies padding changes to new terminals.
 If the file is absent, terminals use agterm’s defaults, including 8 pt horizontal and 6 pt vertical padding and a blinking cursor.
 Explicit agterm and scoped Ghostty settings take precedence, and each pane keeps its zoom.

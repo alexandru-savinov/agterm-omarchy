@@ -10,6 +10,11 @@ struct OmarchyAppearanceConfig: Equatable {
         case cursorBlink = "cursor-style-blink"
     }
 
+    private enum PaddingAssignment {
+        case points(String?)
+        case outOfRange
+    }
+
     var families: [String]?
     var size: Double?
     var paddingX: String?
@@ -41,12 +46,16 @@ struct OmarchyAppearanceConfig: Equatable {
                 }
             case .fontSize:
                 // Bound the input before Ghostty scales it for the display and allocates glyphs.
-                let size = Double(value).flatMap { (1...128).contains($0) ? $0 : nil }
-                guard value.isEmpty || size != nil else { return nil }
-                config.size = size
+                if value.isEmpty {
+                    config.size = nil
+                } else {
+                    guard let size = Double(value), size.isFinite else { return nil }
+                    guard (1...128).contains(size) else { continue }
+                    config.size = size
+                }
             case .paddingX, .paddingY:
-                let padding = parsePadding(value)
-                guard value.isEmpty || padding != nil else { return nil }
+                guard let assignment = parsePadding(value) else { return nil }
+                guard case .points(let padding) = assignment else { continue }
                 if key == .paddingX { config.paddingX = padding } else { config.paddingY = padding }
             case .cursorBlink:
                 let blink = Bool(value)
@@ -57,13 +66,20 @@ struct OmarchyAppearanceConfig: Equatable {
         return config
     }
 
-    private static func parsePadding(_ value: String) -> String? {
+    private static func parsePadding(_ value: String) -> PaddingAssignment? {
         // Ghostty accepts one point value or a pair. Bound each edge on the automatic path.
-        let edges = value.split(separator: ",", omittingEmptySubsequences: false)
-        guard (1...2).contains(edges.count) else { return nil }
-        let points = edges.compactMap { UInt8($0.trimmingCharacters(in: .whitespaces)) }
-        guard points.count == edges.count, points.allSatisfy({ $0 <= 128 }) else { return nil }
-        return points.map(String.init).joined(separator: ",")
+        if value.isEmpty { return .points(nil) }
+        let edges = value.split(separator: ",", omittingEmptySubsequences: false).map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }
+        guard (1...2).contains(edges.count), edges.allSatisfy({ edge in
+            let digits = edge.hasPrefix("+") || edge.hasPrefix("-") ? edge.dropFirst() : edge[...]
+            return !digits.isEmpty && digits.utf8.allSatisfy { (48...57).contains($0) }
+        }) else { return nil }
+        // A decimal integer beyond Int's range is still an out-of-range assignment.
+        let points = edges.compactMap { Int($0) }
+        guard points.count == edges.count, points.allSatisfy({ (0...128).contains($0) }) else { return .outOfRange }
+        return .points(points.map(String.init).joined(separator: ","))
     }
 
     func lines(overriddenBy keys: Set<String> = []) -> [String] {
