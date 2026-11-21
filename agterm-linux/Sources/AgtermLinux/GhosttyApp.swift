@@ -115,15 +115,17 @@ final class GhosttyApp: @unchecked Sendable {
 
     func tick() { if let a = app { ghostty_app_tick(a) } }
 
-    func updateConfig(_ config: ghostty_config_t) {
+    @MainActor func updateConfig(_ config: ghostty_config_t) {
         guard let app else { return }
-        ghostty_app_update_config(app, config)
+        GhosttyConfigApplyPolicy.withConfigUpdate { ghostty_app_update_config(app, config) }
     }
 
     @MainActor func applyColorScheme(_ side: LinuxAppearanceSide) {
         guard let app else { return }
-        ghostty_app_set_color_scheme(
-            app, side.isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+        GhosttyConfigApplyPolicy.withConfigUpdate {
+            ghostty_app_set_color_scheme(
+                app, side.isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+        }
         appliedAppearanceSide = side
     }
 

@@ -422,7 +422,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
             oscLatch: oscBackgroundColorHex, watermark: watermark, resolvedImagePath: resolvedImagePath,
             fontSize: effectiveFontSize, windowOpacity: effectiveWindowOpacity)
         guard let config = GhosttyApp.shared.configWithOverlay(overlay, settings: settings) else { return false }
-        ghostty_surface_update_config(surface, config)
+        GhosttyConfigApplyPolicy.withConfigUpdate { ghostty_surface_update_config(surface, config) }
         ownedConfigs.forEach { ghostty_config_free($0) }
         ownedConfigs = [config]
         queueRender()
@@ -619,8 +619,10 @@ final class GhosttySurface: PaneRoleMutableSurface {
     /// Push the captured system light/dark scheme to the surface (at create + on style-manager change).
     func applyColorScheme(_ side: LinuxAppearanceSide) {
         guard let surface else { return }
-        ghostty_surface_set_color_scheme(
-            surface, side.isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+        GhosttyConfigApplyPolicy.withConfigUpdate {
+            ghostty_surface_set_color_scheme(
+                surface, side.isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+        }
     }
 
     func grabFocus(supersedingPopoverCapture: Bool = false) {
@@ -779,11 +781,15 @@ final class GhosttySurface: PaneRoleMutableSurface {
     }
 
     /// CELL_SIZE fired (a font-size change via Ctrl+/-, or a DPI change): read the live font size and
-    /// persist it on the session so a relaunch restores the zoom. setFontSize no-ops when unchanged,
-    /// so a pure DPI change doesn't write. Per-session (both panes share the size).
+    /// persist user zoom on the session so a relaunch restores it. A DPI-only resize at the
+    /// base size keeps an unzoomed session on the default. Both panes share the saved zoom.
     func reportFontSize() {
-        guard dashboardFontOverride == nil, !suppressFontSizePersistence, let size = currentFontSize(), size > 0 else { return }
-        controller?.sessionDidReportFontSize(sessionID, size)
+        guard dashboardFontOverride == nil, !suppressFontSizePersistence, !GhosttyConfigApplyPolicy.isApplyingConfig,
+              let size = currentFontSize(), let controller else { return }
+        if size == GhosttyApp.shared.currentBaseFontSize, controller.store.session(withID: sessionID)?.fontSize == nil {
+            return
+        }
+        controller.sessionDidReportFontSize(sessionID, size)
     }
 
     func currentFontSize() -> Double? {
