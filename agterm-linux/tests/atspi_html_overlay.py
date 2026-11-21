@@ -248,11 +248,17 @@ def verify_html_overlay(env, state):
         plain_set = time.monotonic()
         clipboard.set(plain)
         plain_send = time.monotonic()
-        send_into_page("key", "--clearmodifiers", "ctrl+v")
+        # The clipboard owner only answers TARGETS once wait_clipboard pumps GLib.
+        # Press a modifier in the meantime to exercise normal keyboard activity during the wait.
+        send_into_page("key", "--clearmodifiers", "ctrl+v", "key", "Shift_L")
         plain_sent = time.monotonic()
-        wait_clipboard(lambda: page() and page().get("title") == "pasted:plain")
-        paste_trace.report("plain", plain_mark, {"set": plain_set, "sendStart": plain_send, "sendEnd": plain_sent,
-                                                 "observed": time.monotonic(), "title": "pasted"})
+        try:
+            wait_clipboard(lambda: page() and page().get("title") == "pasted:plain")
+        finally:
+            plain_result = page() or {}
+            paste_trace.report("plain", plain_mark, {"set": plain_set, "sendStart": plain_send, "sendEnd": plain_sent,
+                                                     "observed": time.monotonic(),
+                                                     "title": title_class(plain_result.get("title"))})
 
         assert cli("session", "overlay", "reload", "--target", session,
                    "--window", window, "--json")["ok"]

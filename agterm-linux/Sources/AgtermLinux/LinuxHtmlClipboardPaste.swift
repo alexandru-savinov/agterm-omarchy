@@ -31,7 +31,7 @@ final class LinuxHtmlClipboardPaste {
 
     /// True consumes the current key. A fully classified, non-file offer takes WebKit's normal path.
     func intercept(_ clipboard: OpaquePointer?, paste: @escaping @MainActor () -> Void) -> Bool {
-        cancel()
+        cancel("superseded")
         guard let clipboard else { return true }
         switch Self.offer(gdk_clipboard_get_formats(clipboard)) {
         case .other: return false
@@ -44,7 +44,7 @@ final class LinuxHtmlClipboardPaste {
             pending = (clipboard, handler, paste)
             g_object_ref(RAW(clipboard))
             // Bound the owner wait even when TARGETS never arrives. Retain the observer until it disconnects.
-            cancelDeadline = MainTimer.schedule(after: 2) { [self] in finish("expired") }
+            cancelDeadline = MainTimer.schedule(after: 2) { [self] in cancel("expired") }
             trace("waiting")
             return true
         }
@@ -55,26 +55,32 @@ final class LinuxHtmlClipboardPaste {
         switch Self.offer(gdk_clipboard_get_formats(pending.clipboard)) {
         case .unresolved:
             // A second empty notification means the offer was invalidated before classification.
-            finish("invalidated")
+            cancel("invalidated")
         case .fileTransfer:
-            finish("blocked")
+            cancel("blocked")
         case .other:
-            finish("allowed")
+            cancel("allowed")
             pending.paste()
         }
     }
 
-    func cancel() {
+    func keyPressed(isModifier: Bool) {
+        guard pending != nil else { return }
+        // A modifier by itself leaves the paste target and selection intact.
+        if isModifier {
+            trace("modifier")
+        } else {
+            cancel("key")
+        }
+    }
+
+    func cancel(_ decision: String) {
         guard let pending else { return }
         self.pending = nil
         cancelDeadline?()
         cancelDeadline = nil
         g_signal_handler_disconnect(RAW(pending.clipboard), pending.handler)
         g_object_unref(RAW(pending.clipboard))
-    }
-
-    private func finish(_ decision: String) {
-        cancel()
         trace(decision)
     }
 

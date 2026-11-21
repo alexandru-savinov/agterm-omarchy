@@ -125,7 +125,7 @@ final class LinuxHtmlOverlayPage {
 
     func close() {
         closed = true
-        clipboardPaste.cancel()
+        clipboardPaste.cancel("closed")
         textPage?.stop()
         agterm_disconnect_signals(RAW(manager), Unmanaged.passUnretained(self).toOpaque())
         let data = Unmanaged.passUnretained(self).toOpaque()
@@ -147,7 +147,7 @@ final class LinuxHtmlOverlayPage {
 
     func setOnScreen(_ visible: Bool) {
         onScreen = visible
-        if !visible { clipboardPaste.cancel() }
+        if !visible { clipboardPaste.cancel("hidden") }
         textPage?.apply()
         guard !visible, let dialog = pendingDialog else { return }
         pendingDialog = nil
@@ -478,7 +478,7 @@ final class LinuxHtmlOverlayPage {
     func loadChanged(_ event: Int32) {
         switch event {
         case 0:
-            clipboardPaste.cancel()
+            clipboardPaste.cancel("load-started")
             loadFailed = false
             gtk_widget_set_visible(W(errorLabel), 0)
             store?.setHtmlLoadState(id, state: .loading, error: nil)
@@ -562,7 +562,12 @@ final class LinuxHtmlOverlayPage {
         guard !closed, onScreen, let controller,
               gtk_window_is_active(WIN(controller.windowPointer)) != 0,
               let focus = gtk_root_get_focus(controller.windowPointer),
-              focus == W(webView) || gtk_widget_is_ancestor(focus, W(webView)) != 0 else { return }
+              focus == W(webView) || gtk_widget_is_ancestor(focus, W(webView)) != 0 else {
+            #if DEBUG
+            LinuxHtmlPasteTrace.emit("native-paste", [("decision", "target-unavailable")])
+            #endif
+            return
+        }
         promptSilenced = false
         store?.noteUserActivity()
         webkit_web_view_execute_editing_command(cast(webView), "Paste")
@@ -579,8 +584,9 @@ final class LinuxHtmlOverlayPage {
         if type == GDK_KEY_RELEASE {
             controller?.leaderKeyReleased(gdk_key_event_get_keycode(event))
         }
-        if type == GDK_BUTTON_PRESS || type == GDK_KEY_PRESS { clipboardPaste.cancel() }
+        if type == GDK_BUTTON_PRESS { clipboardPaste.cancel("button") }
         if type == GDK_KEY_PRESS {
+            clipboardPaste.keyPressed(isModifier: gdk_key_event_is_modifier(event) != 0)
             if handleNativeKey(event) { return 1 }
             let key = gdk_keyval_to_lower(gdk_key_event_get_keyval(event))
             let modifiers = UInt32(gdk_event_get_modifier_state(event).rawValue)
