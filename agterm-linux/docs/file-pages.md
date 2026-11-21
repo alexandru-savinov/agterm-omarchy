@@ -2,6 +2,7 @@
 
 Ctrl-click a local image, Markdown, HTML, source, configuration, text, or log path to open it over its session.
 Paths under `/home`, relative paths against the pane's directory, and `path:line[:column]` locations are supported.
+Relative links in Scratch use Scratch's own reported directory.
 The literal filename wins when a file actually includes a colon or trailing punctuation.
 Ctrl+Shift-click reveals a local file in the desktop file manager.
 Remote-pane paths remain remote and are never read from the viewer's disk.
@@ -21,7 +22,8 @@ agtermctl session overlay changes --prev
 Text pages use the upstream bundled renderer for line numbers, syntax highlighting, and diff change navigation.
 Diff files color each file's code in its own language over the added and removed row bands.
 The find box, `/`, Ctrl+F, Return/Shift+Return, and `n`/`N` operate on the visible text page.
-Diff pages expose previous/next buttons and `[`/`]` shortcuts.
+Diff pages expose previous/next buttons and `[`/`]` shortcuts, plus file navigation.
+Text pages support wrapping; JSONL pages expose structured-record expansion.
 Control readback is `htmlOverlays[].text`, including the source, language, target line, search, and changes.
 Files must be regular, valid UTF-8, contain no NUL, and fit the 4 MiB whole-file cap.
 Files over 256 KiB remain readable without syntax highlighting.
@@ -51,7 +53,10 @@ The explicit `--html` command retains the existing HTML page API; upstream adds 
 
 Image, Markdown, text, and HTML documents opened on a session presented by another instance travel through its page channel.
 The origin validates every resource before sending it, and the viewer renders bounded bytes instead of reading the origin path locally.
-Remote text pages are static: log following and control-driven search are refused rather than silently changed.
+Remote text pages retain origin-owned search, wrap, diff file navigation, JSONL expansion, and log-follow state.
+GUI changes and control requests travel to the origin and return through page-state readback.
+Markdown links resolve within the origin folder grant and preserve back/forward history.
+Loopback HTTP links use a window-scoped SSH forward that is released when its last attached row closes.
 
 ## Renderer boundary
 

@@ -630,6 +630,9 @@
     "libFoundation.so": [
       "swift-corelibs-foundation"
     ],
+    "libFoundationNetworking.so": [
+      "swift-corelibs-foundation"
+    ],
     "libFoundationEssentials.so": [
       "swift-foundation"
     ],

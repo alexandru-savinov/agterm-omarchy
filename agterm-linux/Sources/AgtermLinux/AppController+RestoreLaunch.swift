@@ -18,7 +18,8 @@ enum LinuxRestoreSeed {
     /// not in rerun mode or `CommandRestore.shouldRestore` refuses it (denylisted, control character, invalid UTF-8).
     static func restoreLine(_ argv: [String]?, restoreEnabled: Bool, denylist: Set<String>) -> String? {
         guard restoreEnabled, let argv, CommandRestore.shouldRestore(argv: argv, denylist: denylist) else { return nil }
-        return CommandRestore.shellQuotedLine(argv)
+        // the line lands in the account's login shell, which may be fish, as macOS's LaunchSeed does
+        return argv.map(CommandRestore.accountShellQuoted).joined(separator: " ")
     }
 
     /// The ordinary (non-zmx) seed for a restore plan, with the pinned line's trailing newline removed.
@@ -33,19 +34,19 @@ enum LinuxRestoreSeed {
     /// the pane open after it exits (`waitAfterCommand`); a restored one only creates the daemon with it.
     static func wrappedSeed(_ configuration: ZmxSupport.Configuration, replay: [String]?, durable: String?,
                             denylist: Set<String>, daemonRunning: Bool?, endsWithCommand: Bool = false,
-                            waitAfterCommand: Bool = false) -> LinuxLaunchSeed {
+                            waitAfterCommand: Bool = false, detached: Bool = false) -> LinuxLaunchSeed {
         guard let replay else {
             return LinuxLaunchSeed(
                 command: ZmxSupport.attachCommand(configuration, replaying: nil,
                                                   creationCommand: endsWithCommand ? nil : durable,
                                                   paneCommand: endsWithCommand ? durable : nil,
-                                                  denylist: denylist),
+                                                  denylist: denylist, detached: detached),
                 initialInput: nil, waitAfterCommand: endsWithCommand && waitAfterCommand
             )
         }
         let line = daemonRunning == false ? restoreLine(replay, restoreEnabled: true, denylist: denylist) : nil
-        let command = line.flatMap { LinuxZmxLaunch.prefillCommand(configuration, line: $0) }
-            ?? ZmxSupport.attachCommand(configuration, replaying: nil, denylist: denylist)
+        let command = line.flatMap { LinuxZmxLaunch.prefillCommand(configuration, line: $0, detached: detached) }
+            ?? ZmxSupport.attachCommand(configuration, replaying: nil, denylist: denylist, detached: detached)
         return LinuxLaunchSeed(command: command, initialInput: nil, waitAfterCommand: false)
     }
 
@@ -59,6 +60,7 @@ struct LinuxPaneLaunchProvider {
     let backedByZmx: Bool
     let shouldPace: Bool
     let resolve: @MainActor (StatusPane) -> LinuxLaunchSeed
+    let resolveDetached: @MainActor (StatusPane) -> LinuxLaunchSeed
 }
 
 struct LinuxLaunchSeedPolicy {
@@ -109,27 +111,25 @@ extension AppController {
         } else {
             environment = baseEnvironment
         }
-        return LinuxPaneLaunchProvider(
-            environment: environment,
-            backedByZmx: disposition.backedByZmx,
-            shouldPace: shouldPace
-        ) { [weak self, weak session] livePane in
+        let resolve: @MainActor (StatusPane, Bool) -> LinuxLaunchSeed = { [weak self, weak session] livePane, detached in
             guard let self, let session else {
                 return Self.unownedSeed(disposition: disposition)
             }
             return self.launchSeed(
-                session: session, pane: livePane, disposition: disposition, policy: policy
+                session: session, pane: livePane, disposition: disposition, policy: policy, detached: detached
             )
         }
+        return LinuxPaneLaunchProvider(environment: environment, backedByZmx: disposition.backedByZmx, shouldPace: shouldPace,
+            resolve: { resolve($0, false) }, resolveDetached: { resolve($0, true) })
     }
 
     private func launchSeed(session: Session, pane: StatusPane,
                             disposition: ZmxSupport.LaunchDisposition,
-                            policy: LinuxLaunchSeedPolicy) -> LinuxLaunchSeed {
+                            policy: LinuxLaunchSeedPolicy, detached: Bool = false) -> LinuxLaunchSeed {
         switch disposition {
         case .wrapped(let configuration):
-            if let held = ZmxIncompatibleReset.unconfirmedPaneCommand(daemon: configuration.daemonName,
-                                                                      outcome: gLaunchLiveReset) {
+            if !detached, let held = ZmxIncompatibleReset.unconfirmedPaneCommand(daemon: configuration.daemonName,
+                                                                                 outcome: gLaunchLiveReset) {
                 return LinuxLaunchSeed(command: held, initialInput: nil, waitAfterCommand: true)
             }
             return LinuxRestoreSeed.wrappedSeed(
@@ -137,7 +137,8 @@ extension AppController {
                 durable: durableCommand(session: session, pane: pane), denylist: policy.denylist,
                 daemonRunning: policy.runningNames.map { $0.contains(configuration.daemonName) },
                 endsWithCommand: !session.wasRestored,
-                waitAfterCommand: !session.wasRestored && requestedWait(session: session, pane: pane)
+                waitAfterCommand: !session.wasRestored && requestedWait(session: session, pane: pane),
+                detached: detached
             )
         case .ordinary:
             let capture = session.takePendingForegroundCommand(pane: pane)

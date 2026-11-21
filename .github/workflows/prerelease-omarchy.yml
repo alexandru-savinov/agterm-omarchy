@@ -142,7 +142,9 @@ jobs:
             exit 0
           fi
           read -r source_run source_sha <<< "$source"
-          version="$(GITHUB_OUTPUT=/dev/null python3 scripts/prepare-omarchy-prerelease.py --next-version)"
+          # the source's own base: a pull request that moves UPSTREAM_BASE_TAG would otherwise ask an older main
+          # commit for a version of the new base, which release mode rightly refuses
+          version="$(GITHUB_OUTPUT=/dev/null python3 scripts/prepare-omarchy-prerelease.py --next-version --base-of "$source_sha")"
           GITHUB_OUTPUT=/dev/null python3 scripts/prepare-omarchy-prerelease.py "$source_run" "$source_sha" \
             "$RUNNER_TEMP/release" --release "$version"
           (cd "$RUNNER_TEMP/release" && sha256sum --check SHA256SUMS)

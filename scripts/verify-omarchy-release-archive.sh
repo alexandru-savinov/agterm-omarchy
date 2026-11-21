@@ -23,6 +23,12 @@ tar -xzf "$ARCHIVE" -C "$WORK"
 STAGE="$WORK/agterm-stage"
 [[ "$(cat "$STAGE/share/agterm/VERSION")" == "$VERSION" ]] || { echo "VERSION is not $VERSION" >&2; exit 1; }
 echo "VERSION: $VERSION"
+# `agtermctl server install` refuses a payload without the upstream release it fetches the server from.
+UPSTREAM="$(cat "$STAGE/share/agterm/UPSTREAM_VERSION" 2>/dev/null || true)"
+[[ -n "$UPSTREAM" && "$VERSION" == "$UPSTREAM".* ]] || { echo "UPSTREAM_VERSION '$UPSTREAM' does not match $VERSION" >&2; exit 1; }
+grep -qE '^[0-9a-f]{64}  agterm-server-' "$STAGE/share/agterm/agterm-server.sha256" \
+  || { echo "agterm-server.sha256 is missing or lists no agterm-server archive" >&2; exit 1; }
+echo "UPSTREAM_VERSION: $UPSTREAM"
 
 for binary in agterm-linux.bin agtermctl.bin; do
   paths="$(readelf -d "$STAGE/bin/$binary" | grep -E '\(R(UN)?PATH\)' || true)"

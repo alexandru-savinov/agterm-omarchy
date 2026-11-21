@@ -62,15 +62,15 @@ The local ARM64 archive from issue #15 is a different artifact and is not automa
 
 omarchy-pkgs' `upstream-watch` follows non-prerelease releases whose whole tag matches
 `omarchy-v(?P<version>[0-9]+(?:\.[0-9]+)*)`.
-A version is the `UPSTREAM_BASE_TAG` of `ci.yml` plus a serial, `0.41.1.N` with N ≥ 1 and no leading zeros,
-so pacman's vercmp orders it below upstream `0.41.2`; serial 0 is the CI rehearsal and is never published.
+A version is the `UPSTREAM_BASE_TAG` of `ci.yml` plus a serial, `0.43.0.N` with N ≥ 1 and no leading zeros,
+so pacman's vercmp orders it below upstream `0.43.1`; serial 0 is the CI rehearsal and is never published.
 Dispatch from main is the only publishing path. Dry-run first, then publish the same source:
 
 ```bash
 gh workflow run prerelease-omarchy.yml --repo alexandru-savinov/agterm-omarchy --ref main \
-  -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA -f version=0.41.1.1            # dry run
+  -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA -f version=0.43.0.1            # dry run
 gh workflow run prerelease-omarchy.yml --repo alexandru-savinov/agterm-omarchy --ref main \
-  -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA -f version=0.41.1.1 -f dry_run=false
+  -f source_run=RUN_ID -f source_sha=FULL_TESTED_COMMIT_SHA -f version=0.43.0.1 -f dry_run=false
 ```
 
 The workflow creates the tag itself, only after attestation verification; a hand-pushed `omarchy-v` tag triggers
