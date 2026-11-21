@@ -81,8 +81,7 @@ final class OmarchyThemeObserver {
         defer { g_object_unref(RAW(file)) }
         guard let monitor = g_file_monitor_directory(file, agterm_file_monitor_watch_moves(), nil, nil) else { return nil }
         let callback = Unmanaged.passRetained(Callback(changed)).toOpaque()
-        let handler: @convention(c) (OpaquePointer?, OpaquePointer?, OpaquePointer?, GFileMonitorEvent, gpointer?) -> Void = {
-            _, file, otherFile, _, data in
+        let handler: @convention(c) (OpaquePointer?, OpaquePointer?, OpaquePointer?, GFileMonitorEvent, gpointer?) -> Void = { _, file, otherFile, _, data in
             guard let data else { return }
             let callback = Unmanaged<Callback>.fromOpaque(data).takeUnretainedValue()
             let name = OmarchyThemeObserver.basename(file)
