@@ -64,7 +64,7 @@ let package = Package(
             name: "AgtermLinuxTests",
             // CGtk (+ the ghostty header path its umbrella pulls in) so the GLib timer seam can be pumped
             // headlessly with `g_main_context_iteration` — no display and no gtk_init needed.
-            dependencies: ["AgtermLinux", "CGtk", .product(name: "agtermCore", package: "agtermCore")],
+            dependencies: ["AgtermLinux", "CGtk", "CWebKit", .product(name: "agtermCore", package: "agtermCore")],
             swiftSettings: [ .unsafeFlags(["-Xcc", "-I\(vendor)/include"]) ]
         ),
     ],

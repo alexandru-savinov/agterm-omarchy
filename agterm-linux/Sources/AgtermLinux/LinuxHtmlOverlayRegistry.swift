@@ -49,6 +49,12 @@ final class LinuxHtmlOverlayRegistry {
         }
     }
 
+    func cancelPendingPastes(in controller: AppController) {
+        for page in pages.values where page.controller === controller {
+            page.cancelPendingPaste("window-inactive")
+        }
+    }
+
     func stepZoom(_ action: String) {
         let settingsStore = linuxSettingsStore()
         var settings = settingsStore.load()
