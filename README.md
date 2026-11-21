@@ -66,8 +66,8 @@ Releases are cut automatically from `main`:
 4. The native gates run again on the published assets, right away and every two hours for 24 hours.
    A confirmed failure marks the release as a prerelease and opens a `release-incident` issue that pauses new releases.
 
-The native gates run an Arch Linux (x86_64) or Arch Linux ARM (aarch64) container with Omarchy's desktop packages
-from Omarchy's stable package mirror, and Hyprland on a virtual display with Mesa software rendering.
+The native gates run an Arch Linux (x86_64) or Arch Linux ARM (aarch64) container with the Omarchy desktop packages
+that are in the official Arch repositories, installed from Omarchy's stable package mirror, and Hyprland on a virtual display with Mesa software rendering.
 They check ordinary sessions, Live session restore, generated configuration and uninstall.
 They do not test an Omarchy ISO installation or hardware GPU rendering.
 
@@ -402,12 +402,10 @@ scripts/verify-linux-packages.sh 0.43.0-dev.1
 The Arch build reuses `packaging/aur/PKGBUILD` with local, checksum-verified sources;
 it does not require the release to exist on GitHub or AUR credentials.
 It installs the package and exercises the installed GTK/WebKit/resources before exporting it.
-The release workflow attests and publishes the complete artifact set only after this check passes.
-Use `scripts/verify-published-linux-release.sh TAG --require-arch` to verify a new stable release;
-omit the option when checking historical releases that predate Arch artifacts.
-
-The GitHub release workflow pins and verifies nFPM before packaging.
-Branch and release CI compile the GTK package in Swift 6 language mode and run the complete real GTK
+These DEB/RPM/Arch packaging scripts come from melonamin/agterm-linux, whose `linux-v*` release workflow is
+disabled in this repository; this repository publishes only the tar archives described in
+[Releases and verification](#releases-and-verification).
+Branch CI compiles the GTK package in Swift 6 language mode and runs the complete real GTK
 accessibility smoke suite in an isolated HOME, state directory, control socket, D-Bus session, and X display.
 
 Local helper scripts:
@@ -1045,7 +1043,7 @@ A generic bash/zsh/fish `shell/integration.sh` (or `.fish`) covers any agent lau
 
 ## Troubleshooting
 
-Where the logs and config live, how to read them, and the common problems (a keymap editor that will not open, a custom action that does nothing, missing notifications) are covered in [docs/troubleshooting.md](docs/troubleshooting.md). For a bug, open an [issue](https://github.com/umputun/agterm/issues/new); for a feature request or question, start a [Discussion](https://github.com/umputun/agterm/discussions/new).
+Where the logs and config live, how to read them, and the common problems (a keymap editor that will not open, a custom action that does nothing, missing notifications) are covered in [docs/troubleshooting.md](docs/troubleshooting.md). For bugs and questions about this Linux build, follow [SUPPORT.md](SUPPORT.md); macOS reports belong to [upstream agterm](https://github.com/umputun/agterm).
 
 ## Restore limitations
 
@@ -1065,11 +1063,11 @@ Restore always reconstructs the window/session structure. Three process-level li
 
 ## Related projects
 
-A small ecosystem has grown around agterm. These are independent projects, not maintained here.
+A small ecosystem has grown around agterm. These are independent projects, not maintained in this repository.
 
 **Built on agterm**
 
-- [agterm-linux](https://github.com/melonamin/agterm-linux) by [@melonamin](https://github.com/melonamin) is a Linux port (GTK4/libadwaita) built on the shared, host-free `agtermCore`. The macOS app stays here; the Linux frontend lives in that fork.
+- [agterm-linux](https://github.com/melonamin/agterm-linux) by [@melonamin](https://github.com/melonamin) is the GTK4/libadwaita Linux port this repository is built from; see [Relationship to upstreams](#relationship-to-upstreams).
 - [Rook](https://github.com/jokius/rook) by [@jokius](https://github.com/jokius) is a native macOS terminal fork that takes agterm in a different direction, with features outside agterm's intended scope. Both projects are deliberately opinionated, with different ideas about where a focused agent terminal should stop.
 
 **Reimplementation**

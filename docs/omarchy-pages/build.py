@@ -161,7 +161,7 @@ def release_status():
     return f'''<section class="readiness" id="releases" aria-labelledby="releases-title">
 <div><p class="eyebrow">Releases</p><h2 id="releases-title">Released automatically from main.</h2><a class="button" href="{BASE}/releases/latest">Latest release →</a></div>
 <div><p>Each <code>omarchy-v</code> release carries an x86_64 and an aarch64 archive, <code>SHA256SUMS</code>, <code>promotion.json</code> and GitHub build-provenance attestations. A release is published only after Omarchy CI passes on a <code>main</code> push and the native gates pass on both architectures for those exact archives.</p>
-<p>The native gates install each archive in an Arch Linux (x86_64) or Arch Linux ARM (aarch64) container with Omarchy's desktop packages and run ordinary-session, Live-restore, configuration and uninstall checks under Hyprland with Mesa software rendering. They do not test an Omarchy ISO installation or hardware GPU rendering.</p>
+<p>The native gates install each archive in an Arch Linux (x86_64) or Arch Linux ARM (aarch64) container with the Omarchy desktop packages from the official Arch repositories and run ordinary-session, Live-restore, configuration and uninstall checks under Hyprland with Mesa software rendering. They do not test an Omarchy ISO installation or hardware GPU rendering.</p>
 <p>The gates run again on the published assets right away and every two hours for 24 hours. A confirmed failure marks the release as a prerelease and opens a <code>release-incident</code> issue that pauses new releases.</p>
 <p><a href="{BASE}#install">Install and verify</a> · <a href="{BASE}/releases">All releases</a> · <a href="{BASE}/blob/main/packaging/linux/prerelease-omarchy.md">Release mechanics</a></p></div></section>'''
 
