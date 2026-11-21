@@ -55,8 +55,8 @@ private final class HtmlPasteMenuActivation {
     init(_ run: @escaping LinuxHtmlClipboardPaste.Action) { self.run = run }
 }
 
-private let onHtmlPasteMenuActivate: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = {
-    action, _, _ in
+private let onHtmlPasteMenuActivate: @MainActor @convention(c)
+    (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { action, _, _ in
     guard let data = g_object_get_data(GOBJ(action), "agterm-html-paste") else { return }
     Unmanaged<HtmlPasteMenuActivation>.fromOpaque(data).takeUnretainedValue().run()
 }

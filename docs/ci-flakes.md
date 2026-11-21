@@ -44,7 +44,8 @@ Each entry separates a demonstrated cause from one that is only consistent with 
 - **Fix.** On X11, hold the keyboard paste while GDK discovers the format set. A classified non-file
   offer may complete the request once in its still-focused page, after the clipboard change signal
   returns. File offers, focus loss, page changes, and timeout cancel it. Further empty notifications
-  share the original deadline, including when X11 TARGETS arrives in chunks.
+  share the original deadline. GDK can publish partial sets for chunked TARGETS, and its signal
+  carries no end-of-list marker.
 - **Backend and input limits.** Wayland delivers the offer's formats at claim time, so an empty
   offer is refused immediately. The middle button checks PRIMARY separately at press and release.
   Empty and file PRIMARY offers consume the click because keyboard replay would lose the pointer

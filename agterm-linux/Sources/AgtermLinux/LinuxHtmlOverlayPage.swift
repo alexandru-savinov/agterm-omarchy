@@ -611,7 +611,7 @@ final class LinuxHtmlOverlayPage {
             controller?.leaderKeyReleased(gdk_key_event_get_keycode(event))
         }
         if type == GDK_BUTTON_PRESS { clipboardPaste.cancel("button") }
-        if (type == GDK_BUTTON_PRESS || type == GDK_BUTTON_RELEASE),
+        if type == GDK_BUTTON_PRESS || type == GDK_BUTTON_RELEASE,
            gdk_button_event_get_button(event) == 2, interceptPrimary(type) { return 1 }
         if type == GDK_KEY_PRESS {
             clipboardPaste.keyPressed(isModifier: gdk_key_event_is_modifier(event) != 0)
@@ -623,7 +623,8 @@ final class LinuxHtmlOverlayPage {
                     LinuxHtmlPasteTrace.key(event, insert: key == UInt32(GDK_KEY_Insert) || key == UInt32(GDK_KEY_KP_Insert))
                 }
                 #endif
-                if clipboardPaste.intercept(clipboard.map(LinuxHtmlClipboardPaste.Source.clipboard),
+                let source = clipboard.map { LinuxHtmlClipboardPaste.Source.clipboard($0) }
+                if clipboardPaste.intercept(source,
                                             holdUnresolved: display.map { agterm_display_is_x11($0) != 0 } ?? false,
                                             paste: { [weak self] in self?.finishDeferredPaste(command) }) { return 1 }
             }
@@ -668,8 +669,9 @@ private let onHtmlExternalResponse: @MainActor @convention(c) (OpaquePointer?, U
     { _, answer, data in htmlPage(data)?.externalResponse(answer) }
 private let onHtmlUserEvent: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> gboolean =
     { _, event, data in htmlPage(data)?.userEvent(event) ?? 0 }
-private let onHtmlFocusLeft: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = {
-    _, data in htmlPage(data)?.cancelPendingPaste("focus-left") }
+private let onHtmlFocusLeft: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { _, data in
+    htmlPage(data)?.cancelPendingPaste("focus-left")
+}
 private let onHtmlContextMenu: @MainActor @convention(c)
     (OpaquePointer?, OpaquePointer?, OpaquePointer?, gpointer?) -> gboolean =
     { _, menu, _, data in

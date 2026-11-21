@@ -15,6 +15,7 @@ final class LinuxHtmlClipboardPaste {
         let offer: @MainActor () -> Offer
         let observe: @MainActor (@escaping Action) -> Action?
 
+        @MainActor
         static func clipboard(_ clipboard: OpaquePointer) -> Self {
             Self(offer: { LinuxHtmlClipboardPaste.offer(gdk_clipboard_get_formats(clipboard)) },
                  observe: { observeHtmlClipboard(clipboard, changed: $0) })
@@ -113,7 +114,7 @@ final class LinuxHtmlClipboardPaste {
             cancel("blocked")
         case .other:
             guard request.resume == nil else { return }
-            // GDK publishes X11 TARGETS only after reading it, including chunked (INCR) replies.
+            // GDK can publish TARGETS in chunks. The next turn sees reported formats, with no end-of-list signal.
             request.resume = schedule(0) { [weak self, weak request] in
                 guard let self, let request, pending === request else { return }
                 request.resume = nil
