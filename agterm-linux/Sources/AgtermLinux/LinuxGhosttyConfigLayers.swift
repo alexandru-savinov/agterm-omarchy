@@ -25,7 +25,7 @@ struct LinuxGhosttyConfigLayers {
                 theme.insert("config-file =", at: 0)
             }
             if !prefersAgtermTheme { theme += omarchy }
-            try storage.withConfigFile(theme.joined(separator: "\n"), as: .theme) { path in
+            try storage.withConfigFile(theme.joined(separator: "\n"), as: .runtime) { path in
                 path.withCString { ghostty_config_load_file(config, $0) }
             }
         }
