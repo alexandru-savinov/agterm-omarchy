@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 import importlib.util
-import copy
-from html.parser import HTMLParser
 import json
 import re
 import subprocess
@@ -16,405 +14,80 @@ build = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(build)
 
 
-class PagesTests(unittest.TestCase):
-    def roster(self):
-        return json.loads(Path(__file__).with_name("roster.json").read_text())
+def built_site(commit="a" * 40, **kwargs):
+    temporary = tempfile.TemporaryDirectory()
+    build.write_site(temporary.name, commit, **kwargs)
+    return temporary, Path(temporary.name)
 
-    def test_roster_pages_and_json_preserve_sources_and_historical_states(self):
-        roster = self.roster()
-        with tempfile.TemporaryDirectory() as temporary:
-            build.write_site(temporary, [], "a" * 40, roster=roster)
-            root = Path(temporary)
-            data = json.loads((root / "status.json").read_text())
-            team = (root / "team.html").read_text()
-            self.assertEqual(data["roster"]["observed_at"], roster["observed_at"])
-            self.assertEqual(len(data["roster"]["agents"]), len(roster["agents"]))
-            self.assertEqual(team.count('<li class="roster-card"'), len(roster["agents"]))
-            for agent in data["roster"]["agents"]:
-                self.assertIn(agent["source_url"], team)
-                self.assertIn(agent["reported_at"], team)
-                self.assertEqual(agent["task_url"], f'{build.BASE}/{agent["task_kind"]}/{agent["task"]}')
-            self.assertIn('href="team.html"', (root / "index.html").read_text())
-            self.assertIn("different payload", team)
-            self.assertIn("SIGILL", team)
-            self.assertIn("not proof of present liveness", team)
-            self.assertIn("Completed report", team)
-            self.assertIn('class="filters" hidden', team)
-            self.assertIn('rel="icon" href="favicon.svg"', team)
-            self.assertNotIn("$ agterm team --evidence", team)
-            self.assertIn("Historical candidate passed.", team)
-            for page in (team, (root / "index.html").read_text()):
-                self.assertIn("7 ordinary and 9 Live checks passed", page)
-                self.assertIn("41357189891", page)
-                self.assertIn("6775c33626925adc8a17e9ed7700f296f38d7688", page)
-                self.assertIn("2b629e40", page)
-                self.assertIn("6565317571", page)
-                self.assertIn("48e70b33651ca8855f8cef5bd57f50afa67ed291", page)
-                self.assertIn("/pull/189", page)
-                self.assertIn("41335760930", page)
-                self.assertIn("fd85fc58", page)
-                self.assertIn("6562708234", page)
-                self.assertIn("4d05d60c928c52b04df2ba51c1861cc1b90b8326", page)
-                self.assertIn("500 agents have not been launched", page)
-                self.assertIn("72 proven, 45 pending and 4 unavailable", page)
-                self.assertIn("67e2d3bccc6e93b7844c1c4188bdbf63c968efed", page)
-                self.assertIn("process-local zsh fixture", page)
-                self.assertIn("private-runtime adapter", page)
-                self.assertIn("/issues/124", page)
-                self.assertIn("/issues/126", page)
-                self.assertIn("default-bash Live", page)
-                self.assertIn("native x86_64 acceptance remain unverified", page)
-                self.assertIn("load state, not pixel rendering", page)
-                self.assertIn("seven ordinary Wayland checks and an actual desktop-entry launch", page)
-                self.assertIn("6560840863", page)
-                self.assertIn("/pull/116", page)
-                self.assertIn("41243677540", page)
-                self.assertIn("355c82ef", page)
-                self.assertIn("no ARM64 runtime archive", page)
-                self.assertIn("Hardware rendering", page)
-                self.assertIn("5e37cb75", page)
-                self.assertIn("8458e16d", page)
-                self.assertNotIn("compositor-focus timeout", page)
-                self.assertNotIn("default-launch graphics compatibility", page)
-                self.assertNotIn("Exact hosted-artifact native acceptance remains pending", page)
-                self.assertNotIn("Failed / current hosted candidate", page)
-                self.assertNotIn("reported workflow-security findings", page)
-            self.assertIn("Historical / failed candidate", team)
-            self.assertIn("Historical / earlier hosted payload", team)
-            self.assertTrue((root / "favicon.svg").exists())
-            self.assertIn("script-src 'self'", team)
-            self.assertTrue((root / "team.js").exists())
-            self.assertTrue((root / "team.css").exists())
 
-    def test_roster_rejects_external_links_identity_collisions_and_bad_timestamps(self):
-        for changes in ({"source": "https://evil.test/issues/1"},
-                        {"source": "/issues/1#issuecomment-1\" onclick=\"x"},
-                        {"source": "/issues/1/../../elsewhere"},
-                        {"task": True}, {"reported_at": "2026-10-30"},
-                        {"reported_at": "2099-10-30T00:00:00Z"},
-                        {"phase": "online"}, {"phase": "assigned", "reported_state": "working"}):
-            with self.subTest(changes=changes):
-                data = self.roster()
-                data["agents"][0].update(changes)
-                with self.assertRaises(ValueError):
-                    build.roster_snapshot(data)
-        data = self.roster()
-        data["agents"].append(copy.deepcopy(data["agents"][0]))
-        with self.assertRaises(ValueError):
-            build.roster_snapshot(data)
+class LandingPageTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary, self.root = built_site()
+        self.addCleanup(self.temporary.cleanup)
+        self.index = (self.root / "index.html").read_text()
 
-    def test_roster_text_is_escaped_and_join_block_is_canonical(self):
-        data = self.roster()
-        data["agents"][0]["work"] = '<img src=x onerror="alert(1)"> & hostile'
-        data["agents"][0]["role"] = '<script>alert(1)</script>'
-        with tempfile.TemporaryDirectory() as temporary:
-            build.write_site(temporary, [], "a" * 40, roster=data)
-            team = (Path(temporary) / "team.html").read_text()
-            self.assertNotIn("<img src=x", team)
-            self.assertNotIn("<script>alert", team)
-            self.assertIn("&lt;img", team)
-            self.assertIn("&lt;script&gt;", team)
-            hub = (Path(temporary) / "index.html").read_text()
-            self.assertIn("Agent: &lt;name&gt;\nTask: #&lt;number&gt;\nOwned paths: &lt;paths&gt;\nState: working\nConnected:", hub)
-            self.assertNotIn("State: working /", hub)
+    def test_the_site_is_one_landing_page_with_its_assets(self):
+        self.assertEqual(sorted(path.name for path in self.root.iterdir()),
+                         [".nojekyll", "favicon.svg", "index.html", "status.json", "style.css", "team.html"])
+        self.assertTrue((self.root / "style.css").stat().st_size > 0)
+        self.assertIn('rel="icon" href="favicon.svg"', self.index)
+        self.assertNotIn("<script", self.index)
 
-    def test_team_landmarks_filters_and_asset_links_are_complete(self):
-        class Elements(HTMLParser):
-            def __init__(self):
-                super().__init__()
-                self.ids, self.refs, self.scripts = set(), [], []
-            def handle_starttag(self, tag, attrs):
-                attrs = dict(attrs)
-                if "id" in attrs:
-                    self.ids.add(attrs["id"])
-                if attrs.get("href", "").startswith("#"):
-                    self.refs.append(attrs["href"][1:])
-                if tag == "script":
-                    self.scripts.append(attrs.get("src"))
-        with tempfile.TemporaryDirectory() as temporary:
-            build.write_site(temporary, [], "a" * 40)
-            parser = Elements()
-            parser.feed((Path(temporary) / "team.html").read_text())
-            self.assertTrue(set(parser.refs) <= parser.ids)
-            self.assertTrue({"search", "phase", "stream", "reset", "result-count", "no-results"} <= parser.ids)
-            self.assertEqual(parser.scripts, ["team.js"])
+    def test_it_says_what_it_is_and_links_release_install_status_and_discussions(self):
+        self.assertIn("<h1>agterm for Omarchy</h1>", self.index)
+        for target in ("/releases/latest", "#install", "/issues/525", "/discussions",
+                       "/issues/new?template=bug.yml", "/blob/main/CONTRIBUTING.md", "/blob/main/SECURITY.md"):
+            self.assertIn(f'href="{build.BASE}{target}"', self.index, target)
+        self.assertIn("Status and roadmap", self.index)
 
-    def test_untrusted_issue_content_is_escaped_and_urls_are_constructed(self):
-        issue = {"number": 12, "title": '<script>alert("x")</script>&', "state": "open",
-                 "html_url": "javascript:alert(1)", "body": "<img src=x onerror=alert(1)>"}
-        with tempfile.TemporaryDirectory() as temporary:
-            build.write_site(temporary, [[issue]], "a" * 40)
-            html = (Path(temporary) / "index.html").read_text()
-            self.assertNotIn("<script>", html)
-            self.assertNotIn("javascript:", html)
-            self.assertNotIn("onerror", html)
-            self.assertIn("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;", html)
-            self.assertIn(build.BASE + "/issues/12", html)
+    def test_no_team_room_hub_or_agent_roster_remains(self):
+        for pattern in (r"/issues/1(?!\d)", r"/pull/6(?!\d)", r"team\.(html|css|js)", r"(?i)team room",
+                        r"(?i)roster", r"(?i)check-in", r"Agent: ", r"(?i)contributors", r'id="(join|tasks|team)"',
+                        r"(?i)500 agents", r"(?i)orchestration"):
+            self.assertIsNone(re.search(pattern, self.index), pattern)
+        status = json.loads((self.root / "status.json").read_text())
+        self.assertEqual((status["tasks"], status["roster"]["agents"], status["queue"], status["queue_status"]),
+                         ([], [], None, "not-requested"))
 
-    def test_snapshot_retains_readiness_and_source_identity(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            build.write_site(temporary, [], "0123456")
-            root = Path(temporary)
-            data = json.loads((root / "status.json").read_text())
-            self.assertEqual(data["readiness"], "work-in-progress")
-            self.assertEqual(data["upstream_baseline"], "v0.35.1")
-            self.assertEqual(data["commit"], "0123456")
-            self.assertTrue((root / "style.css").stat().st_size > 0)
-            self.assertTrue((root / ".nojekyll").exists())
-            self.assertIn("not a verified stable release", (root / "index.html").read_text())
+    def test_the_old_team_room_url_redirects_to_the_landing_page(self):
+        team = (self.root / "team.html").read_text()
+        self.assertIn('<meta http-equiv="refresh" content="0; url=./">', team)
+        self.assertIn('<a href="./">', team)
+        for pattern in (r"/issues/", r"(?i)roster", r"(?i)team room", r"<script"):
+            self.assertIsNone(re.search(pattern, team), pattern)
 
-    def test_current_goal_is_visible_without_a_task_row_or_queue(self):
-        issues = [{"number": n, "title": str(n), "state": "open"} for n in range(1, 21)]
-        with tempfile.TemporaryDirectory() as temporary:
-            build.write_site(temporary, issues, "a" * 40, limit=10)
-            root = Path(temporary)
-            data = json.loads((root / "status.json").read_text())
-            self.assertNotIn(305, [task["number"] for task in data["tasks"]])
-            self.assertEqual(data["readiness"], "work-in-progress")
-            for name in ("index.html", "team.html"):
-                with self.subTest(page=name):
-                    page = (root / name).read_text()
-                    current = page.split('id="current-validation"', 1)[1].split("</section>", 1)[0]
-                    for target in ("issues/305", "issues/199", "issues/310", "issues/320", "pull/317", "pull/322"):
-                        self.assertIn(build.BASE + "/" + target, current)
-                    self.assertIn("Current acceptance remains incomplete.", current)
-                    self.assertIn("bec375d70025ce3ec0e93fb9a0f3bb3be5ecae9d", current)
-                    self.assertIn("one changed library", current)
-                    self.assertIn("Full-source candidate:", current)
-                    self.assertIn("not bash Live support", current)
-                    self.assertIn("same-account review is not independent approval", current)
-                    self.assertLess(page.index('id="current-validation"'), page.index("6775c336"))
+    def test_release_status_describes_the_gates_and_links_the_mechanics(self):
+        current = self.index.split('id="releases"', 1)[1].split("</section>", 1)[0]
+        for target in ("releases/latest", "releases", "#install", "blob/main/packaging/linux/prerelease-omarchy.md"):
+            self.assertIn(build.BASE + ("" if target.startswith("#") else "/") + target, current)
+        for text in ("both architectures", "build-provenance attestations", "marks the release as a prerelease",
+                     "hardware GPU rendering"):
+            self.assertIn(text, current)
+        self.assertLess(self.index.index('id="releases"'), self.index.index('id="help"'))
 
-    def test_issues_only_sorted_open_first_and_limited(self):
-        issues = [{"number": n, "title": str(n), "state": "closed" if n == 1 else "open"}
-                  for n in range(1, 16)]
-        issues += [{"number": 16, "title": "PR", "state": "open", "pull_request": {}},
-                   {"number": '1" onclick="alert(1)', "state": "open"},
-                   {"number": True, "state": "open"}, {"number": 17, "state": "invalid"}]
-        tasks = build.tasks_from_pages([issues], 10)
-        self.assertEqual([task["number"] for task in tasks], list(range(2, 12)))
+    def test_snapshot_keeps_the_fields_the_deploy_step_asserts(self):
+        temporary, root = built_site("0123456")
+        self.addCleanup(temporary.cleanup)
+        data = json.loads((root / "status.json").read_text())
+        self.assertEqual((data["repository"], data["commit"], data["readiness"]),
+                         (build.REPOSITORY, "0123456", "released"))
+        self.assertEqual(data["releases"], build.BASE + "/releases")
+        self.assertEqual(data["status_issue"], build.BASE + "/issues/525")
+        self.assertEqual(data["upstream_baseline"], "v0.43.0")
+        self.assertNotIn("v0.35.1", (root / "index.html").read_text())
 
-    def test_rejects_invalid_build_inputs(self):
+    def test_rejects_invalid_commits(self):
         with tempfile.TemporaryDirectory() as temporary:
             for commit in ('"><script>', "not-a-sha", ""):
                 with self.assertRaises(ValueError):
-                    build.write_site(temporary, [], commit)
-            with self.assertRaises(ValueError):
-                build.write_site(temporary, [], "123abcd", limit=999)
-            with self.assertRaises(ValueError):
-                build.write_site(temporary, {}, "123abcd")
+                    build.write_site(temporary, commit)
 
-    def test_default_and_explicit_hundred_include_late_open_tasks(self):
-        numbers = [*range(1, 54), 305, 310, 313, 318, 320, 323]
-        issues = [{"number": n, "title": str(n), "state": "open"} for n in numbers]
-        issues += [{"number": n, "title": str(n), "state": "closed"} for n in range(400, 461)]
-        issues.append({"number": 330, "title": "PR", "state": "open", "pull_request": {}})
+    def test_cli_builds_the_site(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            snapshot = root / "issues.json"
-            snapshot.write_text(json.dumps([issues]))
-            for name, arguments in (("builder-default", None), ("cli-default", []),
-                                    ("cli-hundred", ["--limit", "100"])):
-                with self.subTest(entrypoint=name):
-                    output = root / name
-                    if arguments is None:
-                        build.write_site(output, [issues], "a" * 40)
-                    else:
-                        subprocess.run([sys.executable, "-B", build.__file__, "--issues", str(snapshot),
-                                        "--output", str(output), "--commit", "a" * 40, *arguments],
-                                       check=True, capture_output=True, text=True, timeout=10)
-                    tasks = json.loads((output / "status.json").read_text())["tasks"]
-                    self.assertEqual(len(tasks), 100)
-                    self.assertEqual([task["number"] for task in tasks[:59]], numbers)
-                    self.assertNotIn(330, [task["number"] for task in tasks])
-
-    def queue(self, roster, observed_at=None, extra=True):
-        from datetime import datetime, timezone
-        first = roster["agents"][0]
-        claims = [{"account": first["account"], "name": first["name"], "task": 999,
-                   "latest": {"author_association": "MEMBER", "state": "working", "url": build.BASE + "/issues/999#issuecomment-1",
-                              "created_at": "2026-10-30T01:00:00Z", "age_seconds": 36000, "stale": True}}]
-        if extra:
-            claims.append({"account": "shared", "name": "newcomer", "task": 7,
-                           "latest": {"author_association": "MEMBER", "state": "ready-for-review", "url": build.BASE + "/issues/7#issuecomment-2",
-                                      "created_at": "2026-10-30T02:00:00Z", "age_seconds": 100, "stale": False}})
-        claims.append({"account": "shared", "name": "evil", "task": 8,
-                       "latest": {"author_association": "MEMBER", "state": "working", "url": "https://evil.example/x",
-                                  "created_at": "2026-10-30T03:00:00Z", "age_seconds": 1, "stale": False}})
-        now = observed_at or datetime.now(timezone.utc).isoformat()
-        return {"observed_at": now, "claims": claims}
-
-    def build_team(self, queue):
-        with tempfile.TemporaryDirectory() as temporary:
-            build.write_site(temporary, [], "a" * 40, roster=self.roster(), queue=queue)
-            return (Path(temporary) / "team.html").read_text(), json.loads((Path(temporary) / "status.json").read_text())
-
-    def test_queue_overlays_newest_claim_and_marks_stale(self):
-        roster = self.roster()
-        team, data = self.build_team(self.queue(roster))
-        self.assertIn(build.BASE + "/issues/999#issuecomment-1", team)
-        self.assertIn("stale: no check-in for over 4h", team)
-        self.assertEqual(team.count('<li class="roster-card"'), len(roster["agents"]))
-
-    def test_queue_only_agent_is_listed_and_foreign_links_are_dropped(self):
-        team, data = self.build_team(self.queue(self.roster()))
-        self.assertIn('<li class="roster-card queue-only" data-phase="awaiting-review"', team)
-        self.assertIn("newcomer", team)
-        self.assertNotIn("evil", team)
-        self.assertEqual([entry["name"] for entry in data["queue"]["queue_only"]], ["newcomer"])
-
-    def test_older_stale_claim_stays_visible_behind_a_newer_claim(self):
-        roster = self.roster()
-        queue = self.queue(roster)
-        first = roster["agents"][0]
-        queue["claims"].append({"account": first["account"], "name": first["name"], "task": 1000,
-                                "latest": {"author_association": "MEMBER", "state": "working", "url": build.BASE + "/issues/1000#issuecomment-3",
-                                           "created_at": "2026-10-30T09:00:00Z", "age_seconds": 60, "stale": False}})
-        team, data = self.build_team(queue)
-        self.assertIn(build.BASE + "/issues/1000#issuecomment-3", team)
-        self.assertIn('Also stale:</strong> <a href="' + build.BASE + '/issues/999#issuecomment-1">#999</a> (10h00m)', team)
-
-    def test_newest_claim_uses_the_queue_ordering(self):
-        roster = self.roster()
-        queue = self.queue(roster)
-        first = roster["agents"][0]
-        # Older post, edited last: the queue's (updated_at, url) ordering makes it the latest.
-        queue["claims"].append({"account": first["account"], "name": first["name"], "task": 1001,
-                                "latest": {"author_association": "MEMBER", "state": "blocked", "url": build.BASE + "/issues/1001#issuecomment-4",
-                                           "created_at": "2026-10-29T00:00:00Z", "updated_at": "2026-10-30T11:00:00Z",
-                                           "age_seconds": 50000, "stale": False}})
-        team, data = self.build_team(queue)
-        self.assertIn('Queue: <a href="' + build.BASE + '/issues/1001#issuecomment-4">#1001</a>', team)
-
-    def test_old_queue_snapshot_is_flagged(self):
-        team, data = self.build_team(self.queue(self.roster(), observed_at="2026-01-01T00:00:00+00:00"))
-        self.assertIn("Queue snapshot is", team)
-        self.assertIsNotNone(data["queue"]["note"])
-
-    def test_without_queue_the_page_is_unchanged(self):
-        team, data = self.build_team(None)
-        self.assertNotIn('class="queue', team)
-        self.assertIsNone(data["queue"])
-        self.assertEqual(data["queue_status"], "not-requested")
-        self.assertIn("Markers use the latest available queue claim", team)
-
-    def test_only_collaborator_claims_become_cards(self):
-        roster = self.roster()
-        queue = self.queue(roster)
-        newcomer = next(claim for claim in queue["claims"] if claim["name"] == "newcomer")
-        for association in ("NONE", "CONTRIBUTOR", None):
-            with self.subTest(association=association):
-                if association is None:
-                    newcomer["latest"].pop("author_association", None)
-                else:
-                    newcomer["latest"]["author_association"] = association
-                queue["unverified_claims"] = [{"account": "drive-by", "name": "x", "task": 7, "latest": {}}]
-                team, data = self.build_team(queue)
-                self.assertNotIn("newcomer", team)
-                self.assertNotIn("queue-only", team)
-                self.assertEqual(data["queue"]["queue_only"], [])
-                self.assertEqual(data["queue"]["unverified_count"], 2)
-                self.assertIn("2 unverified check-in(s) (not a collaborator)", team)
-                self.assertEqual(team.count('<li class="roster-card"'), len(roster["agents"]))
-
-    def test_unverified_counter_is_capped_for_display(self):
-        for count, shown in ((99, "99"), (100, "99+"), (5000, "99+")):
-            with self.subTest(count=count):
-                queue = self.queue(self.roster())
-                queue["unverified_claims"] = [{"account": "a", "name": "x", "task": 7, "latest": {}}] * count
-                team, data = self.build_team(queue)
-                self.assertIn(f'<li class="queue-note">{shown} unverified check-in(s)', team)
-                self.assertEqual(data["queue"]["unverified_count"], count)
-
-    def run_main(self, queue_arg):
-        import contextlib, io, sys
-        from unittest import mock
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            (root / "issues.json").write_text("[]")
-            argv = ["build.py", "--issues", str(root / "issues.json"), "--output", str(root / "site"),
-                    "--commit", "a" * 40] + queue_arg(root)
-            with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
-                build.main()
-            return (root / "site" / "team.html").read_text(), json.loads((root / "site" / "status.json").read_text())
-
-    def test_requested_but_missing_or_unreadable_queue_is_visible(self):
-        def missing(root):
-            return ["--queue", str(root / "queue" / "queue.json")]
-        def unreadable(root):
-            (root / "queue.json").write_text("{not json")
-            return ["--queue", str(root / "queue.json")]
-        for case in (missing, unreadable):
-            with self.subTest(case=case.__name__):
-                team, data = self.run_main(case)
-                self.assertEqual(data["queue_status"], "unavailable")
-                self.assertIsNone(data["queue"])
-                self.assertIn("Queue snapshot unavailable; showing curated phases only.", team)
-                self.assertNotIn("Markers use the latest available queue claim", team)
-                self.assertNotIn("totals use the latest available queue claim", team)
-
-    def test_not_requested_and_loaded_queue_statuses(self):
-        team, data = self.run_main(lambda root: [])
-        self.assertEqual(data["queue_status"], "not-requested")
-        self.assertNotIn("Queue snapshot unavailable", team)
-        def loaded(root):
-            (root / "queue.json").write_text(json.dumps(self.queue(self.roster())))
-            return ["--queue", str(root / "queue.json")]
-        team, data = self.run_main(loaded)
-        self.assertEqual(data["queue_status"], "loaded")
-        self.assertNotIn("Queue snapshot unavailable", team)
-
-
-# Adopted from codex_team_pages' #81/#84 proposal after reproducing #79 on main.
-class QueueDisplayRegressionTests(unittest.TestCase):
-    def render(self, state='ready-for-review', queue=True):
-        roster = json.loads(Path(__file__).with_name('roster.json').read_text())
-        roster['agents'] = [next(a for a in roster['agents'] if a['phase'] == 'completed')]
-        agent = roster['agents'][0]
-        now = datetime.now(timezone.utc).isoformat()
-        def claim(account, name, task):
-            return {'account': account, 'name': name, 'task': task, 'latest': {'author_association': 'MEMBER',
-                'state': state, 'url': build.BASE + f'/issues/{task}#issuecomment-123',
-                'created_at': now, 'age_seconds': 0, 'stale': False}}
-        snapshot = {'observed_at': now, 'claims': [claim(agent['account'], agent['name'], 75),
-                    claim('external-contributor', 'external-review', 79)]} if queue else None
-        with tempfile.TemporaryDirectory() as tmp:
-            build.write_site(tmp, [], 'a' * 40, roster=roster, queue=snapshot)
-            root = Path(tmp)
-            return ((root/'team.html').read_text(), (root/'index.html').read_text(),
-                    json.loads((root/'status.json').read_text()), agent)
-
-    def test_existing_member_filter_tracks_each_queue_state(self):
-        for state, phase in {'working':'working', 'blocked':'awaiting-review',
-                             'ready-for-review':'awaiting-review', 'complete':'completed'}.items():
-            with self.subTest(state=state):
-                team, _, data, original = self.render(state)
-                self.assertEqual(re.search(r'<li class="roster-card" data-phase="([^"]+)"', team)[1], phase)
-                self.assertIn(f'<span class="phase">{build.PHASES[phase]}</span>', team)
-                self.assertEqual(data['roster']['agents'][0]['phase'], original['phase'])
-                self.assertEqual(data['roster']['agents'][0]['work'], original['work'])
-
-    def test_totals_include_queue_only_cards(self):
-        team, index, _, _ = self.render()
-        count = len(re.findall(r'<li class="roster-card(?: queue-only)?"', team))
-        self.assertEqual(count, 2)
-        self.assertIn(f'{count} contributors in this snapshot', team)
-        self.assertIn(f'<dt>named contributors</dt><dd>{count:02}</dd>', team)
-        self.assertIn(f'{count} named contributors.', index)
-        self.assertIn('<dt>review / decision handoffs</dt><dd>02</dd>', team)
-        self.assertIn('<dt>completed reports</dt><dd>00</dd>', team)
-
-    def test_external_account_does_not_contradict_footer(self):
-        team, _, _, _ = self.render()
-        self.assertIn('GitHub account: external-contributor', team)
-        self.assertNotIn('All listed names use the shared', team)
-        self.assertIn('independent approval', team)
-
-    def test_absent_queue_preserves_curated_phase(self):
-        team, _, data, original = self.render(queue=False)
-        self.assertIn(f'data-phase="{original["phase"]}"', team)
-        self.assertIsNone(data['queue'])
-        self.assertIn('1 contributors in this snapshot', team)
+            output = Path(temporary) / "site"
+            subprocess.run([sys.executable, "-B", build.__file__, "--output", str(output), "--commit", "a" * 40],
+                           check=True, capture_output=True, text=True, timeout=10)
+            self.assertEqual(json.loads((output / "status.json").read_text())["upstream_drift_status"], "not-requested")
 
 
 class UpstreamDriftTests(unittest.TestCase):
@@ -442,8 +115,7 @@ class UpstreamDriftTests(unittest.TestCase):
 
     def build_index(self, drift):
         with tempfile.TemporaryDirectory() as temporary:
-            build.write_site(temporary, [], "a" * 40, roster=json.loads(
-                Path(__file__).with_name("roster.json").read_text()), drift=drift)
+            build.write_site(temporary, "a" * 40, drift=drift)
             root = Path(temporary)
             return (root / "index.html").read_text(), json.loads((root / "status.json").read_text())
 
@@ -511,9 +183,7 @@ class UpstreamDriftTests(unittest.TestCase):
         from unittest import mock
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / "issues.json").write_text("[]")
-            argv = ["build.py", "--issues", str(root / "issues.json"), "--output", str(root / "site"),
-                    "--commit", "a" * 40]
+            argv = ["build.py", "--output", str(root / "site"), "--commit", "a" * 40]
             for flag, name, content in files:
                 if content is not None:
                     (root / name).write_text(content)

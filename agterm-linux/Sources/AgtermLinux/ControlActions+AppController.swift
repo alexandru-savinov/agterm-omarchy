@@ -663,6 +663,14 @@ extension AppController: ControlActions {
             return err("theme.set takes either a name or --light, not both")
         }
         let lightSlot = name ?? light
+        if lightSlot == Self.automaticOmarchyThemeLabel {
+            guard dark == nil else { return err("Automatic (Omarchy) cannot be combined with --dark") }
+            guard OmarchyThemePreference().offersAutomaticTheme else {
+                return err("Automatic (Omarchy) is unavailable. Enable Follow the Omarchy theme in Settings on Omarchy.")
+            }
+            applyThemeSetting(Self.automaticOmarchyThemeLabel)
+            return themeResponse()
+        }
         let clearDark = dark?.lowercased() == "none"
         let catalog = ThemeCatalog(names: Self.bundledThemes())
         for theme in [lightSlot, clearDark ? nil : dark].compactMap({ $0 }) where !catalog.contains(name: theme) {
@@ -684,21 +692,22 @@ extension AppController: ControlActions {
                 settings.followSystemAppearance = nil
             }
         }
-        try? linuxSettingsStore().save(settings)
+        saveThemeSettings(settings)
         reloadConfig()
-        return ControlResponse(ok: true, result: ControlResult(
-            theme: currentTheme,
-            sync: settings.followSystemAppearance == true,
-            light: settings.theme,
-            dark: settings.darkTheme
-        ))
+        return themeResponse()
     }
 
-    func listThemes() -> ControlResponse {
+    func listThemes() -> ControlResponse { themeResponse(includeChoices: true) }
+
+    private func themeResponse(includeChoices: Bool = false) -> ControlResponse {
         let settings = linuxSettingsStore().load()
+        let preference = OmarchyThemePreference()
+        let automatic = preference.offersAutomaticTheme ? Self.automaticOmarchyThemeLabel : nil
+        let selected = preference.usesAgtermTheme(settings) ? nil : automatic
+        let choices = includeChoices ? [automatic].compactMap { $0 } + Self.bundledThemes() : nil
         return ControlResponse(ok: true, result: ControlResult(
-            theme: currentTheme,
-            themes: Self.bundledThemes(),
+            theme: selected ?? settings.activeTheme(isDark: Self.systemIsDark),
+            themes: choices,
             sync: settings.followSystemAppearance == true,
             light: settings.theme,
             dark: settings.darkTheme

@@ -2426,6 +2426,9 @@ the light/dark pair and both sides are marked.
   the current theme, else `Builtin Light`, or `Tomorrow` on Linux). `--light <name>` is an alias for the positional name.
 - `theme set --dark none` clears the dark theme — tracking stops, the light theme stays as the single
   theme.
+- On Linux with Omarchy theme following enabled, `theme set "Automatic (Omarchy)"` clears the saved
+  light/dark pair and resumes following Omarchy. `theme list` includes the choice and reports it as
+  `result.theme` while selected. Pass the choice on its own to clear both appearance slots.
 The response always echoes the full state (`result.theme`/`sync`/`light`/`dark`). An unknown name
 returns `unknown theme: <name>`; a positional name combined with `--light` is a usage error. Human
 output prints `ok`. App-global (no `--window`). The GUI's live-preview picker (View ▸ Select Theme…)

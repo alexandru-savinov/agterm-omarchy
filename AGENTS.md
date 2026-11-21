@@ -28,7 +28,7 @@ The Linux goal is to carry that model to GTK4/libadwaita without creating a sepa
 
 ## Where to post
 
-Check-ins go on the task issue (see `docs/AGENT_PROTOCOL.md`). The hub (#1) takes a one-time join comment and carries one index comment, edited in place; do not add task check-ins to it.
+Follow `docs/AGENT_PROTOCOL.md`: one status comment per issue, edited in place, and evidence on the draft pull request.
 
 ## Branch and release model
 

@@ -2,10 +2,12 @@
 
 The build scripts select `x86_64` or `aarch64` from the machine running the GTK4 frontend build.
 An x86_64 archive cannot run in an ARM64 VM.
-[Native Omarchy evidence](https://github.com/alexandru-savinov/agterm-omarchy/tree/48e70b33651ca8855f8cef5bd57f50afa67ed291/docs/evidence/omarchy-6775c336-2026-11-01) is for the exact ARM64 payload
-and recorded conditions; x86_64 has hosted CI evidence, with native Omarchy acceptance still unverified.
-That record binds source `6775c336`, run `41357189891` and ARM64 archive SHA256 prefix `2b629e40`.
-The [earlier fd85fc58 acceptance](https://github.com/alexandru-savinov/agterm-omarchy/tree/4d05d60c928c52b04df2ba51c1861cc1b90b8326/docs/evidence/omarchy-fd85fc58-2026-11-01) remains separate.
+Automatic releases are published only after both architectures' archives pass the containerized Omarchy/Hyprland
+native gates; for example, [run 44882977083](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44882977083)
+gated x86_64 and aarch64 before publishing `omarchy-v0.43.0.2`.
+See [Releases and verification](../../README.md#releases-and-verification) for what the gates cover.
+Earlier hand-run ARM64 acceptance at [`6775c336`](https://github.com/alexandru-savinov/agterm-omarchy/tree/48e70b33651ca8855f8cef5bd57f50afa67ed291/docs/evidence/omarchy-6775c336-2026-11-01)
+and [`fd85fc58`](https://github.com/alexandru-savinov/agterm-omarchy/tree/4d05d60c928c52b04df2ba51c1861cc1b90b8326/docs/evidence/omarchy-fd85fc58-2026-11-01) is kept as history.
 A fresh source build needs its own validation.
 
 ## Install from source
@@ -22,8 +24,8 @@ mise exec swift@6.3.2 -- scripts/install-linux.sh
 `omarchy` is the coordinated candidate branch; use the task's exact branch/SHA when reproducing a
 candidate, and keep that identity with the resulting archive and test records.
 The inherited upstream `master` / `linux-port` names are not this fork's normal clone route.
-For download availability, check [this fork's releases](https://github.com/alexandru-savinov/agterm-omarchy/releases)
-and [publication task #17](https://github.com/alexandru-savinov/agterm-omarchy/issues/17).
+Prebuilt archives are on [this fork's releases](https://github.com/alexandru-savinov/agterm-omarchy/releases);
+the [README](../../README.md#install) shows how to verify and install one.
 The source Linux fork's DEB/RPM releases are separate builds, not Omarchy artifacts from this checkout.
 
 Run setup as the desktop user.
@@ -92,6 +94,23 @@ Launch **agterm** from Omarchy's application launcher, or run:
 ```
 
 GTK selects native Wayland in a Hyprland session.
+agterm follows Omarchy’s terminal colors automatically when `~/.local/state/omarchy/current/theme/` exists.
+It loads the colors from `ghostty.conf` on startup and updates open terminals when you run `omarchy theme set`.
+Running terminals keep the last valid Omarchy palette while the staged color file is unavailable.
+Omarchy uses the same path under `$HOME` even when `XDG_STATE_HOME` is set.
+An explicit agterm theme takes precedence over Omarchy, and your agterm-scoped `ghostty.conf`
+can override individual colors from either source when the Omarchy color layer is available.
+Select **Automatic (Omarchy)** under **Settings ▸ Appearance ▸ Terminal ▸ Theme** to resume following
+after choosing an agterm theme.
+The same choice is available through `agtermctl theme set "Automatic (Omarchy)"` and appears in `agtermctl theme list`.
+Turn off **Follow the Omarchy theme** under **Settings ▸ General ▸ Ghostty Config** to disable the integration.
+The color-only filter applies to the automatic Omarchy layer.
+With **Use my global Ghostty config** enabled, libghostty also parses the Omarchy include in full if your global config includes it.
+On Linux, `SIGUSR2` reloads the Ghostty configuration, including on systems without Omarchy.
+
+On upgrade, existing Omarchy profiles on the seeded agterm theme or Ghostty’s default start following Omarchy.
+If you picked the agterm theme on purpose, select it again in **Settings ▸ Appearance ▸ Terminal ▸ Theme**.
+
 No Hyprland configuration or default terminal selection is changed by installation.
 For an optional dedicated shortcut on Lua-based Hyprland (0.55 and later), add this to the user
 bindings file loaded by your configuration and reload Hyprland:
@@ -156,7 +175,7 @@ the caller's value untouched, including an explicit one-shot override.
 For child processes, the packaged wrapper's software override is replaced with the caller's previous
 value, or removed if the caller had none.
 A caller-supplied one-shot value can therefore reach those children.
-A root-owned system package, such as the Omarchy package, has no writable marker: set
+A root-owned system package, such as the planned Omarchy package, has no writable marker: set
 `LIBGL_ALWAYS_SOFTWARE=1` in the session environment (for example in `~/.config/uwsm/env`) instead.
 The opt-in addresses the tested VM's EGL limitation; it is not enabled automatically for other Linux machines.
 Hardware rendering remains dependent on each machine's Mesa/driver configuration.

@@ -202,6 +202,9 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
         welcomeShown: currentSettings.welcomeShown,
         hasPriorState: FirstRunWelcome.hasPriorState(in: stateDirectory))
     let appearanceSide = LinuxAppearanceSide(isDark: AppController.systemIsDark)
+    if OmarchyThemePreference(stateDirectory: stateDirectory).load() != false {
+        OmarchyThemeObserver.shared.start()
+    }
     GhosttyApp.shared.start(appearanceSide: appearanceSide)
     let restoreDecision = currentSettings.effectiveRestoreMode.launchDecision(
         liveUnavailableReason: LinuxZmxLaunch.liveUnavailableReason()
@@ -264,6 +267,7 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
     // (the macOS path runs through applicationWillTerminate). g_application_quit emits "shutdown".
     _ = g_unix_signal_add(SIGTERM, onQuitSignal, nil)
     _ = g_unix_signal_add(SIGINT, onQuitSignal, nil)
+    _ = g_unix_signal_add(SIGUSR2, onGhosttyReloadSignal, nil)
     // Re-push the system light/dark scheme to live surfaces whenever it changes.
     connect(adw_style_manager_get_default(), "notify::dark",
             unsafeBitCast(onColorSchemeChanged, to: GCallback.self), nil)
@@ -336,6 +340,7 @@ func linuxSettingsStore() -> SettingsStore {
 private let onShutdown: @MainActor @convention(c) (OpaquePointer?, gpointer?) -> Void = { _, _ in
     MainActor.assumeIsolated {
         colorSchemeChangeDebouncer.cancel()
+        OmarchyThemeObserver.shared.stop()
         gLibrary?.isTerminating = true
         flushOnQuit()
         for controller in gWindows.values { controller.stopRemotePresentations() }
@@ -485,6 +490,11 @@ private let onReducedMotionChanged: @MainActor @convention(c)
 private let onQuitSignal: @MainActor @convention(c) (gpointer?) -> gboolean = { _ in
     MainActor.assumeIsolated { if let app = gApp { g_application_quit(GAPP(app)) } }
     return 0
+}
+
+private let onGhosttyReloadSignal: @MainActor @convention(c) (gpointer?) -> gboolean = { _ in
+    MainActor.assumeIsolated { reloadObservedGhosttyConfig() }
+    return 1 // G_SOURCE_CONTINUE
 }
 
 /// The `app.reveal` action handler: a clicked notification fires this with the pane-qualified identity
