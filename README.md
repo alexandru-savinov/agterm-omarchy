@@ -10,6 +10,18 @@ for [Omarchy](https://github.com/basecamp/omarchy) and Arch Linux on x86_64 and 
 It is based on [umputun/agterm](https://github.com/umputun/agterm), the original macOS app,
 and [melonamin/agterm-linux](https://github.com/melonamin/agterm-linux), its Linux port.
 
+### Why this fork
+
+melonamin/agterm-linux publishes x86_64 packages (as of `linux-v0.43.0`: tar, DEB, RPM and an Arch package).
+This repository adds:
+
+- aarch64 builds, alongside x86_64;
+- automatic releases that publish only after native gates pass on both architectures:
+  Hyprland in an Arch Linux container with Omarchy's desktop packages.
+  Every release has GitHub build-provenance attestations;
+- Omarchy-specific fixes, such as the EGL retry for Mesa 26.3.1 ([Rendering](packaging/linux/omarchy.md#rendering))
+  and the HTML overlay paste fix.
+
 ## Install
 
 Download the [latest release](https://github.com/alexandru-savinov/agterm-omarchy/releases/latest)
@@ -116,9 +128,59 @@ User documentation for agterm itself is upstream: [agterm.com](https://agterm.co
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md). Ask questions as described in [SUPPORT.md](SUPPORT.md),
 and report vulnerabilities through [SECURITY.md](SECURITY.md).
+The pinned [Status and roadmap](https://github.com/alexandru-savinov/agterm-omarchy/issues/525) issue says what is being worked on,
+and [Discussions](https://github.com/alexandru-savinov/agterm-omarchy/discussions) is the place for questions and ideas.
+The [project page](https://alexandru-savinov.github.io/agterm-omarchy/) summarizes releases and status.
 
-Development process: tasks are coordinated in GitHub issues; see the [collaboration protocol](docs/AGENT_PROTOCOL.md)
-and the [project hub](https://alexandru-savinov.github.io/agterm-omarchy/).
+## Where this build differs from the text below
+
+The rest of this README is melonamin/agterm-linux's README, kept unchanged so that upstream syncs merge cleanly.
+Where it disagrees with this repository, these notes win:
+
+- **Branches and releases.** `main` is this repository's default branch and the only source of versioned `omarchy-v*` releases;
+  `omarchy-dev-*` development prereleases can also come from `omarchy` branch CI runs.
+  The `master` / `linux-port` branch model and the `linux-v*` release, DEB/RPM/Arch and AUR steps below describe melonamin/agterm-linux.
+  Their release workflows are disabled here; this repository publishes the tar archives described in [Install](#install).
+- **Upstream sync.** The `Upstream sync` workflow merges new commits from melonamin/agterm-linux's `linux-port` into `main`
+  through pull requests, and the weekly `Upstream drift` workflow reports how far `main` is from it.
+- **Restored commands are never run by themselves.** In Re-run commands mode, and in Live sessions mode when the daemon is gone,
+  the captured command (or a pinned `session restore` line) is typed at the restored shell's prompt without Enter, and waits for you.
+  A surviving Live daemon is reattached and nothing is typed. If the live daemons could not be listed at launch, nothing is typed.
+  A shell startup file that reads input can consume the pre-filled text.
+  Linux quits cleanly on SIGTERM and SIGINT, so a logout or reboot captures commands like a normal quit.
+  Live mode also accepts an absolute zsh or fish path in Ghostty's `command` setting.
+- **Building.** For Omarchy, Arch Linux or Arch Linux ARM, use the [Omarchy guide](packaging/linux/omarchy.md);
+  it provisions the pinned toolchains and Arch compatibility libraries.
+  Ghostty and zmx both use Zig 0.17.0. Build with `source linux/swift-env.sh` and then
+  `"${SWIFT_COMMAND[@]}" build --package-path agterm-linux` (add `-c release` for a release build).
+  `scripts/test-linux-ui-targeted.py <scenarios>` reruns named AT-SPI scenarios, each in its own desktop session;
+  in CI that is the manual `AT-SPI targeted rerun` workflow, a diagnosis aid rather than a required check.
+- **Themes.** This build ships only themes with a pinned author license, listed in `share/licenses/agterm/THEMES.md`.
+  "Builtin Light" and "Dracula" in the `theme set` example below are not included; try `--light "Catppuccin Latte" --dark "Catppuccin Mocha"`.
+- **Clipboard example.** On Linux, use `wl-copy` where the examples below use `pbcopy`.
+- **Screenshots** below show upstream agterm on macOS; the Linux version uses libadwaita window chrome.
+- **Bugs and questions** about this build go through [SUPPORT.md](SUPPORT.md); macOS reports belong to [upstream agterm](https://github.com/umputun/agterm).
+
+---
+
+# agterm-linux - Linux-maintained agterm fork
+
+[![Build Status](https://github.com/melonamin/agterm-linux/workflows/build/badge.svg)](https://github.com/melonamin/agterm-linux/actions)
+
+**[agterm.com](https://agterm.com)** · [Documentation](https://agterm.com/docs) · [Command reference](https://agterm.com/commands) · [Cookbook](cookbook/)
+
+`agterm-linux` is a Linux-maintained fork of [agterm](https://github.com/umputun/agterm).
+It exists to maintain the GTK/libadwaita Linux frontend while tracking upstream agterm as closely
+as possible.
+
+Fork goals:
+
+- Maintain 1:1 feature parity with upstream macOS agterm where the Linux platform allows it.
+- Keep shared controller/core behavior upstream-compatible and host-free.
+- Keep Linux-specific code isolated to the Linux UI, Linux packaging, and platform adapters.
+- Avoid product, protocol, or UX divergence unless required by Linux platform constraints.
+
+For macOS builds, releases, and support, use [upstream agterm](https://github.com/umputun/agterm).
 
 ## Linux port
 
@@ -127,9 +189,12 @@ controller, control API, session model, keymap model, and `agtermctl` CLI used b
 The intent is not to create a separate product; it is to keep the Linux UI current with upstream
 features while preserving a small, reviewable downstream delta.
 
-`main` is this repository's default branch and the only source of versioned releases;
-development prereleases can also be promoted from `omarchy` branch CI runs.
-The inherited `master` / `linux-port` names belong to melonamin/agterm-linux's upstream-tracking model.
+Branch model:
+
+- `master` tracks upstream `umputun/agterm:master`.
+- `linux-port` is the maintained downstream branch. It combines upstream `master` with the Linux UI,
+  Linux packaging, CI, release workflow, and any carried portable core fixes.
+- Linux releases are cut from `linux-port`.
 
 Code layout:
 
@@ -141,7 +206,7 @@ Code layout:
 
 ### Linux feature parity and platform differences
 
-The inherited Linux frontend carries the upstream v0.43.0 terminal model and control protocol, including
+The `linux-port` branch carries the exact upstream v0.43.0 terminal model and control protocol, including
 split/scratch/overlay terminals, Quick terminal input and read-back, terminal zoom, fullscreen,
 recently closed sessions with grouped undo, light/dark themes, configurable toolbar and sidebar text,
 recent-session and attention popovers, agent status in the multi-session dashboard, stable pane status
@@ -212,10 +277,9 @@ Live mode uses the bundled pinned zmx runtime for primary, split, and scratch pa
 Scratch processes survive hiding and application relaunch; overlay and Quick terminals remain temporary.
 It requires zsh or fish as the password-database login shell or as the absolute shell path in Ghostty’s `command` setting,
 with the matching bundled Ghostty integration.
-The mode is latched at process startup, and a missing daemon after reboot falls back to a new login shell
-with its last cleanly captured command pre-filled at the prompt, waiting for Enter.
-Re-run commands pre-fills the captured command the same way instead of running it.
-The libghostty pin matches upstream v0.43.0 (Ghostty v1.4.0).
+The mode is latched at process startup, and a missing daemon after reboot falls back to recreating the pane
+from its last cleanly captured command.
+The libghostty pin remains Ghostty v1.4.0 with the compatible upstream v0.43.0 patches.
 Kitty clipboard (OSC 5522) text reads and multi-representation writes are supported.
 Kitty image reads are not: reads serve text only.
 Kitty writes to PRIMARY are unsupported; copy-on-select to PRIMARY still works.
@@ -287,8 +351,6 @@ You are not meant to write those lines by hand. Install the agent skill (Help �
 
 For the real terminal work, rendering, VT parsing, and shell I/O, `agterm` embeds [Ghostty](https://ghostty.org)'s engine (libghostty); everything above is `agterm`'s own.
 
-These screenshots show upstream agterm on macOS; the Linux version uses libadwaita window chrome.
-
 ![agterm](docs/screenshots/main.png)
 
 <details>
@@ -340,7 +402,71 @@ A file open in the quick terminal, the window's shared scratch overlay:
 
 </details>
 
-## Optional integrations
+## Install
+
+### Linux
+
+Linux releases are published from this fork as DEB, RPM, Arch, and relocatable tar artifacts.
+Download them from the [agterm-linux releases page](https://github.com/melonamin/agterm-linux/releases).
+These formats use the host's WebKitGTK 6.0 package, including its web and network process helpers.
+
+Install the native package for Ubuntu 24.04 / Debian 13 or newer compatible systems:
+
+```sh
+sudo apt install ./agterm-linux-vX.Y.Z-x86_64.deb
+```
+
+On a modern Fedora-compatible system with glibc 2.39 or newer:
+
+```sh
+sudo dnf install ./agterm-linux-vX.Y.Z-x86_64.rpm
+```
+
+On Arch Linux, install the release package directly; no AUR account or helper is required:
+
+```sh
+sudo pacman -U ./agterm-linux-bin-X.Y.Z-1-x86_64.pkg.tar.zst
+```
+
+Arch packages are included for stable releases and `+linux.N` revisions, starting with the next release.
+Prereleases retain DEB, RPM, and tar formats.
+Download a new package and repeat `pacman -U` to upgrade; GitHub Releases is not a pacman repository.
+
+The tarball bundles the Swift runtime, libghostty, Ghostty resources, and zmx but expects GTK4,
+libadwaita, WebKitGTK 6.0, and libcurl from the host.
+Agent status hooks also require Python 3 and jq:
+
+```sh
+tar xzf agterm-linux-vX.Y.Z-x86_64.tar.gz
+./agterm-linux/bin/agterm-linux
+```
+
+All release binaries are built for x86_64 on Ubuntu 24.04.
+Each release includes consolidated SHA-256 checksums and GitHub build-provenance attestations,
+including the Arch package when present.
+
+```sh
+sha256sum --ignore-missing --check agterm-linux-vX.Y.Z-SHA256SUMS
+gh attestation verify agterm-linux-bin-X.Y.Z-1-x86_64.pkg.tar.zst --repo melonamin/agterm-linux
+```
+
+Arch users can build the binary package by running `makepkg -si` inside `packaging/aur/`.
+The `agterm-linux-bin` AUR package is maintained separately; automated updates require an SSH key
+authorized by its existing maintainer, configured as this repository's `AUR_SSH_PRIVATE_KEY` secret.
+Stable Linux releases and `+linux.N` revisions update AUR after GitHub publication.
+Prereleases are excluded, older release rebuilds cannot downgrade AUR, and an unconfigured key skips
+publication with a notice while preserving the GitHub release.
+The publisher uses the maintained workflow's package template, so older tags need not contain AUR files.
+CI builds and installs the current packaged release in clean Arch and exercises its GTK and WebKit paths.
+
+### macOS
+
+This fork does not publish macOS builds. Use [upstream agterm](https://github.com/umputun/agterm)
+for macOS releases and Homebrew installation.
+
+Pre-built upstream releases are for **Apple Silicon (arm64) Macs running macOS 14 or later**.
+
+### Optional integrations
 
 None of these integrations is needed to use agterm as a terminal.
 On Linux, press **Ctrl+,** and open **Preferences ▸ Integrations**, or choose **Manage Integrations…** from the command palette.
@@ -364,11 +490,6 @@ The macOS upstream app exposes the equivalent one-time actions in its **Help** m
 
 ### Linux
 
-For Omarchy, Arch Linux, or Arch Linux ARM, start with the
-[installation steps above](#install) and the [Omarchy guide](packaging/linux/omarchy.md).
-It provisions the pinned toolchains and Arch compatibility libraries.
-The generic build steps below assume those prerequisites are already available.
-
 Requirements:
 
 - Swift 6.3.2.
@@ -377,19 +498,18 @@ Requirements:
 - SVG image loading at runtime for toolbar and sidebar icons (`librsvg2-common` on Ubuntu/Debian).
 - WebP image loading at runtime for image and Markdown pages (`webp-pixbuf-loader`).
 - zsh, required by the shared `agtermCore` tests.
-- Zig 0.17.0 for Ghostty and zmx (install it with mise; set `GHOSTTY_ZIG` when not using mise).
+- Zig 0.17.0 for Ghostty and Zig 0.16.0 for zmx (install both with mise; set `GHOSTTY_ZIG` when not using mise).
 
-```bash
+```sh
 scripts/setup-linux.sh
-source linux/swift-env.sh
-"${SWIFT_COMMAND[@]}" build --package-path agterm-linux
+cd agterm-linux && swift build
 ```
 
 `scripts/setup-linux.sh` builds the pinned libghostty and zmx revisions and stages Ghostty's exact theme
 dependency, shell integration, and compiled `xterm-ghostty` terminfo.
-It reuses vendored caches only when libghostty matches the current architecture and was built from the current
-Ghostty revision and patches, the Ghostty resources are complete, and the zmx revision matches; release staging
-rejects a partial cache.
+It reuses vendored caches only when libghostty matches the current architecture, the Ghostty resources are
+complete, and the zmx revision matches; release staging rejects a partial cache.
+The libghostty cache stamp includes every applied patch.
 Both runtimes use explicit Linux targets with baseline CPUs; the zmx cache stamp includes its target and patches.
 Linux applies upstream's mailbox teardown patch at `83fb956` (Ghostty v1.4.0), before its renderer patches.
 At runtime Linux advertises `TERM=xterm-ghostty` only when both shell integration and the sibling terminfo database
@@ -401,30 +521,35 @@ upstream macOS-owned `agtermCore`.
 
 For a release build and relocatable tarball:
 
-```bash
+```sh
 scripts/setup-linux.sh
-source linux/swift-env.sh
-"${SWIFT_COMMAND[@]}" build --package-path agterm-linux -c release
+cd agterm-linux && swift build -c release
+cd ..
 scripts/dist-linux.sh
 ```
 
-The release set uses one staged payload for tar, DEB, and RPM.
-Staging records the checkout's full `HEAD` commit; outside a git checkout, set `AGTERM_PACKAGE_COMMIT` to record one.
-It additionally requires nFPM, ImageMagick, RPM tools, and `cpio`.
-Choose a version for your package; this example labels a development build:
+The release set uses one staged payload for tar, DEB, RPM, and Arch.
+It additionally requires nFPM, ImageMagick, RPM tools, `cpio`, and Docker for the Arch build
+(plus `zstd` to extract the resulting Arch package for local verification):
 
 ```sh
-scripts/package-linux.sh 0.43.0-dev.1
-scripts/verify-linux-packages.sh 0.43.0-dev.1
+scripts/package-linux.sh 0.33.1
+scripts/verify-linux-packages.sh 0.33.1
+# Stable releases/revisions: Docker builds and tests the same local payload in clean Arch,
+# exports the package to dist-linux, and updates its consolidated checksum manifest.
+scripts/test-aur-package.sh 0.33.1 dist-linux
+scripts/verify-linux-packages.sh 0.33.1
 ```
 
 The Arch build reuses `packaging/aur/PKGBUILD` with local, checksum-verified sources;
 it does not require the release to exist on GitHub or AUR credentials.
 It installs the package and exercises the installed GTK/WebKit/resources before exporting it.
-These DEB/RPM/Arch packaging scripts come from melonamin/agterm-linux, whose `linux-v*` release workflow is
-disabled in this repository; this repository publishes tar archives, described in
-[Releases and verification](#releases-and-verification).
-Branch CI compiles the GTK package in Swift 6 language mode and runs the complete real GTK
+The release workflow attests and publishes the complete artifact set only after this check passes.
+Use `scripts/verify-published-linux-release.sh TAG --require-arch` to verify a new stable release;
+omit the option when checking historical releases that predate Arch artifacts.
+
+The GitHub release workflow pins and verifies nFPM before packaging.
+Branch and release CI compile the GTK package in Swift 6 language mode and run the complete real GTK
 accessibility smoke suite in an isolated HOME, state directory, control socket, D-Bus session, and X display.
 
 Local helper scripts:
@@ -436,10 +561,6 @@ Local helper scripts:
   scenarios CI runs; works on dbus-broker hosts — the script pre-starts the AT-SPI registry).
   It also checks rendered forms and floating overlays; see [Linux visual validation](agterm-linux/docs/visual-validation.md).
   The input-method regression requires IBus and its GTK4 module (`ibus ibus-gtk4` on Ubuntu/Debian).
-- `scripts/test-linux-ui-targeted.py normal,context-menu` reruns only the named scenarios, each in its own
-  desktop session. In CI the same rerun is the manual `AT-SPI targeted rerun` workflow
-  (`gh workflow run atspi-targeted.yml -f ref=<branch-or-sha> -f arch=x86_64 -f scenarios=<names>`).
-  It is a diagnosis aid, not a required check: merges still need the full suite in Omarchy CI.
 
 ### macOS
 
@@ -475,18 +596,57 @@ xcodebuild test -project agterm.xcodeproj -scheme agterm -destination 'platform=
 
 ## Fork maintenance
 
-The `Upstream sync` workflow merges new commits from melonamin/agterm-linux's `linux-port` branch into `main`
-through pull requests; when `linux-port` lags an upstream agterm release, it can merge that release tag directly.
-The weekly `Upstream drift` workflow reports how far `main` is from `linux-port`.
+The maintained Linux branch is updated by first syncing `master` from upstream, then merging it into
+`linux-port`:
+
+```sh
+git fetch upstream
+git switch master
+git merge --ff-only upstream/master
+git push origin master
+
+git switch linux-port
+git merge master
+```
 
 Shared `agtermCore` changes should stay portable, upstream-compatible, and acceptable to the macOS upstream.
 Linux-only behavior, including Glibc/socket portability and Linux CLI glue, belongs under `agterm-linux/`,
 `linux/`, `packaging/linux/`, or Linux-specific scripts.
 
-This repository publishes versioned `omarchy-v*` releases, described in [Releases and verification](#releases-and-verification),
-and `omarchy-dev-*` development prereleases.
-melonamin/agterm-linux publishes its own `linux-v*` tar, DEB and RPM releases; they are separate builds.
+Linux releases use tags in the `linux-vX.Y.Z` namespace and are built from `linux-port` only.
+If Linux-only fixes must follow an already-published upstream-matched release, use an immutable
+`linux-vX.Y.Z+linux.N` revision tag instead of moving or replacing the published tag.
+The release workflow checks out the exact existing tag, reruns shared-core tests and strict SwiftLint,
+builds and validates the release formats, then publishes the x86_64 artifacts, consolidated SHA-256
+checksums, and GitHub build-provenance attestations.
+Release notes copy the matching upstream product notes, omit its macOS installation boilerplate, and
+append a separate Linux section with formats, compatibility, verification, and source details.
+
+Create and push the tag after the release commit is already on `linux-port`:
+
+```sh
+git switch linux-port
+git pull --ff-only origin linux-port
+git tag -a linux-v0.33.1 -m "agterm-linux v0.33.1"
+git push origin linux-v0.33.1
+```
+
+An existing tag can be rebuilt from the Actions UI or with:
+
+```sh
+gh workflow run release-linux.yml --ref linux-port -f tag=linux-v0.33.1
+```
+
+Verify a downloaded release with either mechanism:
+
+```sh
+sha256sum --check agterm-linux-v0.33.1-SHA256SUMS
+gh attestation verify agterm-linux-v0.33.1-x86_64.tar.gz \
+  --repo melonamin/agterm-linux
+```
+
 The Flatpak manifest remains a local, experimental packaging path.
+It is not a release channel until host-shell execution is deliberately designed for the sandbox.
 
 ## Concepts
 
@@ -701,9 +861,7 @@ Each command targets a session or workspace by its UUID, a unique prefix of that
 
 On macOS, sessions come back on the next launch with their directory, font size, and split state. **Settings ▸ General ▸ Restore sessions** chooses fresh shells, re-run commands, or live sessions. Live mode wraps every primary and split pane; scratch, overlay, and quick terminals remain temporary. A clean quit leaves each live process running and captures the foreground command as a fallback. The next launch reattaches when the daemon survived. If the daemon is missing after an orderly machine restart, zmx creates it with the captured command; the pane remains live and later launches reattach normally.
 
-On Linux, a restored command never runs by itself. In Re-run commands mode the captured command, or a pinned `session restore` line, is typed at the restored shell's prompt without Enter, so it waits for you to press Enter. In Live sessions mode a missing daemon is created with the normal login shell and the captured command is pre-filled at its prompt the same way; a surviving daemon is reattached and nothing is typed. If agterm could not list the live daemons at launch, it cannot tell a lost daemon from a surviving one, so it types nothing and that pane's capture is dropped. The pre-filled text is typed into the terminal, so it goes to whatever reads the terminal first: a shell startup file that reads input (a prompt, `read`, a plugin installer) can take it, in which case the prompt comes up empty. A session's own `--command` program still starts as that session's process. Linux quits cleanly on SIGTERM and SIGINT (for example at logout or reboot), so those signals capture the foreground commands like a normal quit.
-
-The fallback has three exclusions. A pane in a window closed before quit has no capture and starts a fresh shell if its daemon is missing. A hard power loss or force quit never reaches capture. A command refused by `restore-denylist.conf`, carrying a control character, or captured with invalid UTF-8 also starts a fresh shell. SIGTERM leaves live daemons running; on macOS it skips the clean-quit capture path, while Linux quits cleanly and captures. `agtermctl zmx list` shows every daemon and the pane that claims it, `agtermctl zmx prune` clears the detached ones no pane claims, and `agtermctl restore mode` reads or sets the policy without opening Settings. Switching away from Live sessions and restarting ends the detached live processes. A launch that still requests Live sessions but cannot use it preserves them for a later eligible launch.
+The fallback has three exclusions. A pane in a window closed before quit has no capture and starts a fresh shell if its daemon is missing. A hard power loss or force quit never reaches capture. A command refused by `restore-denylist.conf`, carrying a control character, or captured with invalid UTF-8 also starts a fresh shell. SIGTERM leaves live daemons running but skips the clean-quit capture path. `agtermctl zmx list` shows every daemon and the pane that claims it, `agtermctl zmx prune` clears the detached ones no pane claims, and `agtermctl restore mode` reads or sets the policy without opening Settings. Switching away from Live sessions and restarting ends the detached live processes. A launch that still requests Live sessions but cannot use it preserves them for a later eligible launch.
 
 Live restore keeps the running process, usable text and TUI state, and normal terminal colors. The reconstructed screen does not retain inline images, earlier OSC 133 prompt markers, program-changed palette entries, or hyperlink metadata already attached to cells. New output after reattach behaves normally.
 
@@ -787,7 +945,7 @@ agtermctl dashboard "$a" "$b" "$c" --auto-size   # view-only grid; a split sessi
 agtermctl dashboard --mru --auto-size            # ...or fill it from the window's most-recently-used sessions (no ids)
 agtermctl font inc                               # increase the session's (main pane's) font size
 agtermctl font dec --pane right                   # shrink just the split pane's font (--pane left|right|scratch)
-agtermctl theme set --light "Catppuccin Latte" --dark "Catppuccin Mocha"  # set the light/dark theme slots (--dark none turns following off)
+agtermctl theme set --light "Builtin Light" --dark Dracula  # set the light/dark theme slots (--dark none turns following off)
 ```
 
 `session type` types the text as real keystrokes, and every newline is a real Return press — so a trailing newline submits the command, and a multi-line payload runs line by line (a multi-line shell construct like a `for` loop is entered across the shell's continuation prompts and runs as one command). Note the `$'…\n'` quoting: a literal `\n` inside plain single quotes reaches the CLI as two characters, not a newline; use `$'…\n'` or pipe a real newline via `--stdin`. Typing goes to the session's left (main) pane by default; `--pane right` types into the split pane instead (an error when the session has no split), and `--pane scratch` reaches the session's scratch terminal even while it is hidden. `session text` takes the same `--pane`, so an agent can read a hidden scratch's output (e.g. a deploy you ran there) without leaving it open. `font inc|dec|reset` also takes `--pane left|right|scratch`, so you can resize just the split pane's font (an error when there is no split); only the main pane's size is remembered across a restart.
@@ -804,7 +962,7 @@ With no selection it exits non-zero with `no selection`. The selection must be m
 `session paste` pastes the system clipboard into a session (the socket analogue of ⌘V), and `session select-all` selects the session's entire buffer (the analogue of ⌘A) — pair `select-all` with `copy` to grab the whole buffer:
 
 ```sh
-printf 'deploy staging' | pbcopy                 # macOS; on Linux: printf 'deploy staging' | wl-copy
+printf 'deploy staging' | pbcopy
 agtermctl session paste --target work            # lands at the prompt, not submitted
 agtermctl session select-all --target 9f3c       # then read it all back
 agtermctl session copy --target 9f3c
@@ -1063,7 +1221,7 @@ A generic bash/zsh/fish `shell/integration.sh` (or `.fish`) covers any agent lau
 
 ## Troubleshooting
 
-Where the logs and config live, how to read them, and the common problems (a keymap editor that will not open, a custom action that does nothing, missing notifications) are covered in [docs/troubleshooting.md](docs/troubleshooting.md). For bugs and questions about this Linux build, follow [SUPPORT.md](SUPPORT.md); macOS reports belong to [upstream agterm](https://github.com/umputun/agterm).
+Where the logs and config live, how to read them, and the common problems (a keymap editor that will not open, a custom action that does nothing, missing notifications) are covered in [docs/troubleshooting.md](docs/troubleshooting.md). For a bug, open an [issue](https://github.com/umputun/agterm/issues/new); for a feature request or question, start a [Discussion](https://github.com/umputun/agterm/discussions/new).
 
 ## Restore limitations
 
@@ -1073,10 +1231,8 @@ Restore always reconstructs the window/session structure. Three process-level li
    clean quit and starts it again; pipelines and compound shell state cannot be reconstructed, force-quit or
    power loss captures nothing, and entries in `restore-denylist.conf` are skipped. **Live sessions** keeps
    local primary and split processes in zmx daemons and reattaches on the next launch. A reboot removes those
-   daemons, so the saved command is recreated instead. On Linux, neither mode runs a restored command by
-   itself: it is pre-filled at the prompt and waits for Enter. Scratch, overlay, and Quick terminals never survive.
-   Live mode requires zsh or fish as the password-database login shell or as an absolute shell path in Ghostty's `command` setting,
-   plus bundled zmx and the matching shell integration.
+   daemons, so the saved command is recreated instead. Scratch, overlay, and Quick terminals never survive.
+   Live mode requires zsh or fish as the password-database login shell, plus bundled zmx and the matching shell integration.
    Per-pane `session restore` overrides remain sticky and readable through `tree`; they are stored as shell
    code, so they must not contain secrets.
 2. The saved working directory depends on the `GHOSTTY_ACTION_PWD` callback, which only fires when the shell has Ghostty shell-integration / OSC 7 active (auto-injected for zsh, bash, fish, and nu when the shell-integration resources are present). If the working directory is never reported, a session restores to the directory it was created in.
@@ -1084,11 +1240,11 @@ Restore always reconstructs the window/session structure. Three process-level li
 
 ## Related projects
 
-A small ecosystem has grown around agterm. These are independent projects, not maintained in this repository.
+A small ecosystem has grown around agterm. These are independent projects, not maintained here.
 
 **Built on agterm**
 
-- [agterm-linux](https://github.com/melonamin/agterm-linux) by [@melonamin](https://github.com/melonamin) is the GTK4/libadwaita Linux port this repository is built from; see [Relationship to upstreams](#relationship-to-upstreams).
+- [agterm-linux](https://github.com/melonamin/agterm-linux) by [@melonamin](https://github.com/melonamin) is a Linux port (GTK4/libadwaita) built on the shared, host-free `agtermCore`. The macOS app stays here; the Linux frontend lives in that fork.
 - [Rook](https://github.com/jokius/rook) by [@jokius](https://github.com/jokius) is a native macOS terminal fork that takes agterm in a different direction, with features outside agterm's intended scope. Both projects are deliberately opinionated, with different ideas about where a focused agent terminal should stop.
 
 **Reimplementation**

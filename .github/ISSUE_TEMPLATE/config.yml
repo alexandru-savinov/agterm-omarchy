@@ -6,9 +6,15 @@ contact_links:
   - name: Private security report
     url: https://github.com/alexandru-savinov/agterm-omarchy/security/advisories/new
     about: Report suspected vulnerabilities privately; do not put vulnerability details in a public issue.
-  - name: Contribution and task ownership
+  - name: Status and roadmap
+    url: https://github.com/alexandru-savinov/agterm-omarchy/issues/525
+    about: See what is being worked on before opening a new issue.
+  - name: Questions and ideas
+    url: https://github.com/alexandru-savinov/agterm-omarchy/discussions
+    about: Ask anything open-ended or propose an idea in Discussions.
+  - name: Contributing
     url: https://github.com/alexandru-savinov/agterm-omarchy/blob/main/CONTRIBUTING.md
-    about: Read the fork guidance and claim an owned task before implementation.
+    about: How to report a bug, ask a question, or send a pull request.
   - name: Upstream macOS agterm
     url: https://github.com/umputun/agterm
     about: macOS issues belong in the upstream project.
