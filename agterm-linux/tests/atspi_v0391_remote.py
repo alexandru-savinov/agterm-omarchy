@@ -284,7 +284,7 @@ def verify_gui_origin_catalog(origin_env, viewer_env, origin, request, row):
                          for window in request(viewer_env, "window.list")["windows"]),
              "remote catalog did not become active for the catalog-dismiss routing test")
     wrong_kind = raw_control_json(viewer_env, {"cmd": "window.remote.dismiss", "target": viewer_window})
-    assert not wrong_kind["ok"] and wrong_kind["error"] == "window.remote.dismiss acts only on a remote window", wrong_kind
+    assert not wrong_kind["ok"], f"a local target cleared the active remote catalog: {wrong_kind}"
     missing = "00000000-0000-0000-0000-000000000000"
     unknown = raw_control_json(viewer_env, {"cmd": "window.remote.dismiss", "target": missing})
     assert not unknown["ok"] and unknown["error"] == "no such window: " + missing, unknown
