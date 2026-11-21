@@ -153,6 +153,19 @@ class ReviewRecordFoldTests(unittest.TestCase):
         example = "```\n" + fold(FIELD_LINES.replace(HEAD, OTHER)) + "```\n"
         self.assertEqual(pr_fields.problems(self.BODY + example + "\n" + fold(), HEAD), [])
 
+    COMMENTED_FENCE = "<!--\n```\n-->\n"
+
+    def test_a_fence_marker_inside_an_html_comment_does_not_expose_a_fenced_example(self):
+        body = self.BODY + self.COMMENTED_FENCE + "```\n" + fold() + "```\n"
+        self.assertEqual(len(pr_fields.problems(body, HEAD)), 4)
+
+    def test_a_legacy_body_with_a_commented_fence_and_a_fenced_example_passes(self):
+        body = GOOD + self.COMMENTED_FENCE + "```\n" + fold() + "```\n"
+        self.assertEqual(pr_fields.problems(body, HEAD), [])
+
+    def test_a_fold_inside_an_html_comment_does_not_count(self):
+        self.assertEqual(len(pr_fields.problems(self.BODY + "<!--\n" + fold() + "-->\n", HEAD)), 4)
+
     def test_the_leading_block_still_passes_with_no_fold(self):
         self.assertEqual(pr_fields.problems(GOOD, HEAD), [])
 
