@@ -60,8 +60,8 @@ being upstream-first.
 
 ### C2. Sync automation
 
-A scheduled workflow, `upstream-sync.yml`, runs daily and also on dispatch. Amended 2026-11-20 (#493) to
-follow linux-port:
+`upstream-sync.yml` is scheduled every six hours at 00:17, 06:17, 12:17 and 18:17 UTC and also runs on dispatch.
+Amended 2026-11-20 (#493) to follow linux-port:
 - **Primary source:** `melonamin/agterm-linux` `linux-port`. When its head isn't an ancestor of main, create the
   branch `sync/linux-port-<sha8>` as main merged with that head.
 - **Fallback:** a direct umputun sync, only when main already has linux-port's head. It takes the newest

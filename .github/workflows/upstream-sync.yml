@@ -27,7 +27,8 @@ name: Upstream sync
 # the labeled event triggers workflows.
 on:
   schedule:
-    - cron: '43 6 * * *'
+    # Four off-minute slots reduce the impact of a delayed or dropped schedule.
+    - cron: '17 */6 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
