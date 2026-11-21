@@ -60,6 +60,11 @@ class ProbeRoutingTests(unittest.TestCase):
         self.assertIn("swift: ${{ github.event_name == 'workflow_dispatch' || steps.release_base.outputs.full_build == 'true'",
                       changes)
 
+    def test_full_build_runs_cookbook_when_the_path_filter_would_skip_it(self):
+        self.assertIn("      cookbook: ${{ steps.release_base.outputs.full_build == 'true' || steps.filter.outputs.cookbook == 'true' }}",
+                      self.job('changes'))
+        self.assertIn("if: needs.changes.outputs.cookbook == 'true'", self.job('cookbook'))
+
     def test_actual_expression_routes_counts_and_manual_dispatch(self):
         expression = re.search(r'^      product: \$\{\{ (.*) \}\}$', self.text, re.M).group(1)
         replacements = {'github.event_name': 'event', 'steps.filter.outputs.swift_count': 'heavy',
