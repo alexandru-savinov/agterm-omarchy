@@ -4,7 +4,7 @@ import CGtk
 struct LinuxGhosttyConfigLayers {
     let settings: [String]
     let omarchy: [String]
-    var omarchyFonts: [String] = []
+    var omarchyAppearance: [String] = []
     var prefersAgtermTheme = false
     var overlay: [String] = []
 
@@ -16,7 +16,7 @@ struct LinuxGhosttyConfigLayers {
     ) throws {
         loadGlobal?()
         var runtime = settings
-        var defaults = omarchyFonts
+        var defaults = omarchyAppearance
         if !omarchy.isEmpty {
             var colors = settings.filter(OmarchyTheme.isColorLine)
             runtime.removeAll(where: OmarchyTheme.isColorLine)

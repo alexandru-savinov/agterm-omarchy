@@ -19,12 +19,12 @@ final class OmarchyThemeObserver {
     private var started = false
     private var cancelParentWatch: Cancel?
     private var cancelThemeWatch: Cancel?
-    private var cancelFontWatch: Cancel?
+    private var cancelConfigWatch: Cancel?
     private var needsThemeWatch = false
     private var themeChanged = false
-    private var fontConfigChanged = false
-    private var fontSource = OmarchyFontSource()
-    var fonts: OmarchyFonts { fontSource.fonts }
+    private var appearanceConfigChanged = false
+    private var appearanceSource = OmarchyAppearanceSource()
+    var appearance: OmarchyAppearanceConfig { appearanceSource.config }
 
     init(theme: OmarchyTheme, observe: @escaping Observe = watchDirectory, reload: @escaping @MainActor () -> Void) {
         self.theme = theme
@@ -47,27 +47,27 @@ final class OmarchyThemeObserver {
         }
         watchThemeDirectory()
         if theme.isInstalled {
-            cancelFontWatch = observe(theme.fontConfig.deletingLastPathComponent()) { [weak self] file, otherFile in
+            cancelConfigWatch = observe(theme.appearanceConfig.deletingLastPathComponent()) { [weak self] file, otherFile in
                 guard let self, file == "config" || otherFile == "config" else { return }
-                self.fontConfigChanged = true
+                self.appearanceConfigChanged = true
                 self.scheduleReload()
             }
-            _ = fontSource.refresh(from: theme.fontConfig)
+            _ = appearanceSource.refresh(from: theme.appearanceConfig)
         }
     }
 
     func stop() {
         debounce.cancel()
-        cancelFontWatch?()
+        cancelConfigWatch?()
         cancelThemeWatch?()
         cancelParentWatch?()
         cancelThemeWatch = nil
         cancelParentWatch = nil
-        cancelFontWatch = nil
+        cancelConfigWatch = nil
         needsThemeWatch = false
         themeChanged = false
-        fontConfigChanged = false
-        fontSource = OmarchyFontSource()
+        appearanceConfigChanged = false
+        appearanceSource = OmarchyAppearanceSource()
         started = false
     }
 
@@ -90,10 +90,10 @@ final class OmarchyThemeObserver {
         debounce.schedule(after: 0.25) { [weak self] in
             guard let self else { return }
             if self.needsThemeWatch { self.watchThemeDirectory() }
-            let fontsChanged = self.fontConfigChanged && self.fontSource.refresh(from: self.theme.fontConfig)
-            let reloadNeeded = self.themeChanged || fontsChanged
+            let appearanceChanged = self.appearanceConfigChanged && self.appearanceSource.refresh(from: self.theme.appearanceConfig)
+            let reloadNeeded = self.themeChanged || appearanceChanged
             self.themeChanged = false
-            self.fontConfigChanged = false
+            self.appearanceConfigChanged = false
             if reloadNeeded { self.reload() }
         }
     }

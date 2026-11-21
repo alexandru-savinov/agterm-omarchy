@@ -147,12 +147,12 @@ final class GhosttyApp: @unchecked Sendable {
             let runtime = AppController.ghosttyLines(for: settings, isDark: isDark)
             let scopedPath = Self.scopedGhosttyConfigPath(settings: settings)
             let loadsGlobal = settings.inheritGlobalGhosttyConfig == true
-            let fonts = loadsGlobal ? [] : OmarchyThemeObserver.shared.fonts.fallbackLines(
+            let appearance = loadsGlobal ? [] : OmarchyThemeObserver.shared.appearance.fallbackLines(
                 overriddenBy: runtime + overlay, scopedPath: scopedPath, home: OmarchyTheme().home.path)
             let layers = LinuxGhosttyConfigLayers(
                 settings: runtime,
                 omarchy: omarchyColorLayer(enabled: preference.load() != false),
-                omarchyFonts: fonts,
+                omarchyAppearance: appearance,
                 prefersAgtermTheme: preference.usesAgtermTheme(settings, previewing: AppController.themePreviewSettings != nil),
                 overlay: overlay)
             try layers.load(

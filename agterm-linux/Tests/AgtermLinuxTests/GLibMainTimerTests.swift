@@ -119,11 +119,11 @@ struct GLibMainTimerTests {
         try withGLibMainTimer {
             let home = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
             let theme = OmarchyTheme(home: home)
-            let directory = theme.fontConfig.deletingLastPathComponent()
+            let directory = theme.appearanceConfig.deletingLastPathComponent()
             defer { try? FileManager.default.removeItem(at: home) }
             try FileManager.default.createDirectory(at: theme.directory, withIntermediateDirectories: true)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try "font-size = 9".write(to: theme.fontConfig, atomically: true, encoding: .utf8)
+            try "font-size = 9".write(to: theme.appearanceConfig, atomically: true, encoding: .utf8)
 
             var watches: [URL: OmarchyThemeObserver.Change] = [:]
             var reloads = 0
@@ -135,7 +135,7 @@ struct GLibMainTimerTests {
             observer.start()
             let changed = try #require(watches[directory])
             @MainActor func replace(_ text: String) throws {
-                try text.write(to: theme.fontConfig, atomically: true, encoding: .utf8)
+                try text.write(to: theme.appearanceConfig, atomically: true, encoding: .utf8)
                 changed("config.tmp", "config")
                 changed("config", nil)
             }
@@ -156,6 +156,46 @@ struct GLibMainTimerTests {
             settleOmarchyDebounce()
             #expect(reloads == 1)
             #expect(watches.isEmpty)
+        }
+    }
+
+    @Test func omarchyConfigMonitorClearsMissingFileAndFollowsItsRecreation() throws {
+        try withGLibMainTimer {
+            let home = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+            let theme = OmarchyTheme(home: home)
+            let directory = theme.appearanceConfig.deletingLastPathComponent()
+            defer { try? FileManager.default.removeItem(at: home) }
+            try FileManager.default.createDirectory(at: theme.directory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+            var watchedConfig: OmarchyThemeObserver.Change?
+            var reloads = 0
+            let observer = OmarchyThemeObserver(theme: theme, observe: { url, change in
+                if url == directory { watchedConfig = change }
+                return {}
+            }, reload: { reloads += 1 })
+            defer { observer.stop() }
+            observer.start()
+            #expect(observer.appearance.lines().isEmpty)
+            let changed = try #require(watchedConfig)
+
+            try "font-size = 9".write(to: theme.appearanceConfig, atomically: true, encoding: .utf8)
+            changed("config", nil)
+            settleOmarchyDebounce()
+            #expect(observer.appearance.lines() == ["font-size = 9.0"])
+            #expect(reloads == 1)
+
+            try FileManager.default.removeItem(at: theme.appearanceConfig)
+            changed("config", nil)
+            settleOmarchyDebounce()
+            #expect(observer.appearance.lines().isEmpty)
+            #expect(reloads == 2)
+
+            try "font-size = 15".write(to: theme.appearanceConfig, atomically: true, encoding: .utf8)
+            changed("config.tmp", "config")
+            settleOmarchyDebounce()
+            #expect(observer.appearance.lines() == ["font-size = 15.0"])
+            #expect(reloads == 3)
         }
     }
 
