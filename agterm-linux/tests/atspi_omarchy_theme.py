@@ -6,8 +6,10 @@ import signal
 import subprocess
 import time
 
-from atspi_prefs_combo import choose_combo, close_preferences, open_preferences
-from atspi_smoke import control_json, launch, stop, wait_for
+from atspi_prefs_combo import (close_preferences, label_counts, open_preferences,
+                              preferences_row, read_settings)
+from atspi_smoke import (activate, control_json, launch, mouse_click, press_x11_key,
+                         stop, type_x11_text, wait_for)
 from x11_capture import capture
 
 
@@ -105,9 +107,22 @@ def verify_omarchy_theme(env):
         scoped.unlink()
         automatic = "Automatic (Omarchy)"
         open_preferences(app, process.pid, "Appearance")
-        choose_combo(local, app, process.pid, "Theme", [automatic, "Dracula"], 0,
-                     lambda settings: settings.get("theme") == "agterm",
-                     search=lambda _: automatic)
+        row = wait_for(lambda: preferences_row(app, "Theme"), "Theme preference is missing")
+        before = label_counts(app)
+        actions = row.get_action_iface()
+        if actions and actions.get_n_actions() > 0:
+            activate(row)
+        else:
+            mouse_click(lambda: preferences_row(app, "Theme"), process.pid, button="left")
+        wait_for(lambda: label_counts(app) != before, "Theme choice list did not open")
+        # The list may initially be scrolled to Dracula. Search like the appearance-follow test
+        # so Automatic can be selected even when its unfiltered row is off-screen.
+        type_x11_text(automatic, process.pid)
+        wait_for(lambda: label_counts(app).get(automatic, 0) > before.get(automatic, 0),
+                 "Theme search did not expose Automatic (Omarchy)")
+        press_x11_key("Down", process.pid)
+        press_x11_key("Return", process.pid)
+        wait_for(lambda: read_settings(local).get("theme") == "agterm", "Automatic theme was not saved")
         close_preferences(app, process.pid)
         expect(theme_a, "resuming Automatic (Omarchy) in Appearance")
     finally:
