@@ -7,7 +7,7 @@ Open it as a draft: a non-draft PR that only touches packages merges itself once
 
 ---
 
-Adds `agterm-omarchy-bin`, as asked in #3184: a prebuilt package of the agterm terminal (libghostty, a workspace and session sidebar, Live sessions, the `agtermctl` control CLI) for x86_64 and aarch64.
+I maintain `agterm-omarchy-bin`, requested in #3184: a prebuilt x86_64 and aarch64 package of the agterm terminal (libghostty, a workspace and session sidebar, Live sessions, the `agtermctl` control CLI). Each release is cut and published automatically, only after native Omarchy gates under Hyprland pass on both architectures, and carries a build-provenance attestation. If a release breaks, OPR doesn't take it for 24 hours (`min_release_age`), while the same gates rerun on the published release; a failure demotes it to a prerelease, which the upstream watch skips.
 
 The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the GTK4/libadwaita Linux port is melonamin's [agterm-linux](https://github.com/melonamin/agterm-linux). The package builds from releases of my fork, [agterm-omarchy](https://github.com/alexandru-savinov/agterm-omarchy), which adds aarch64 and a launcher-scoped retry for GTK's EGL config request on Mesa 26.3.1 (Omarchy edge, [GNOME/gtk#8566](https://gitlab.gnome.org/GNOME/gtk/-/work_items/8566)).
 
@@ -17,26 +17,32 @@ The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the 
 - Extracts the archive with `bsdtar --no-same-owner`. The Swift runtime, libghostty and a private zmx ship as CI built and tested them (`!strip !debug`), and the bundled terminfo and Ghostty resources stay under `/usr/lib/agterm`.
 - `depends` are the owners of the binaries' `NEEDED` libraries outside the archive's own `lib/`.
 - `provides=(agterm-linux)` and `conflicts=(agterm-linux agterm-linux-bin)`, because AUR `agterm-linux-bin` installs the same commands. Neither name is in OPR, so there is no `approved` line.
-- Upstream watch on `omarchy-v` GitHub Releases with `min_release_age` set to `24h`. Releases are cut automatically after native gates on both architectures, each with a build-provenance attestation. A release that fails its 24-hour re-gate becomes a prerelease, which the watch skips.
+- Upstream watch on `omarchy-v` GitHub Releases, with `min_release_age` set to `24h`.
 - The `release/owners.json` line was written by `bin/release-owners agterm-omarchy-bin`.
 
-**Tested** ([evidence](https://github.com/alexandru-savinov/agterm-omarchy/pull/468#issuecomment-7061198535))
+**Tested** ([evidence](https://github.com/alexandru-savinov/agterm-omarchy/pull/468#issuecomment-7061665070))
 
-- `bin/build` at `5c7d21d2` on `ubuntu-24.04` and `ubuntu-24.04-arm` ([run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44893403760)):
+- `bin/build` at `5c7d21d2` on `ubuntu-24.04` and `ubuntu-24.04-arm` ([run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44896694600)):
   - every file is owned by root;
   - namcap reports no errors on the package or the PKGBUILD;
   - `ldd -r` resolves everything, the highest glibc symbol is `GLIBC_2.38`, and `desktop-file-validate` passes.
 - `tests/pinned-sources.sh`, `tests/pkgname-unique.sh`, `bin/check-shadowed` and `bin/release-owners --check` pass, and `helpers/upstream-watch.py check` reports "already current".
+- x86_64, in the native gates' Arch container with Omarchy's stable packages and Hyprland 0.56.2 on vkms (Mesa 26.2.5), from the package `bin/build` made in the same [run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44896694600):
+  - `pacman -U` installed it without pulling in any new package, on top of Omarchy's base packages and the gates' GTK/WebKitGTK runtime;
+  - through `/usr/bin`, the app passed 7/7 ordinary and 9/9 Live-session checks under Hyprland with software rendering;
+  - `pacman -R` removed all 542 files.
 - On an aarch64 Omarchy VM (Arch Linux ARM, Hyprland 0.57.2, Mesa 26.2.7):
   - `pacman -U` installed it without pulling in any new package;
   - through `/usr/bin`, the app passed 7/7 ordinary and 9/9 Live-session checks under Hyprland with software rendering;
-  - `pacman -R` removed every file.
+  - `pacman -R` removed all 542 files.
 - The release's own native gates passed on x86_64 and aarch64 against the stable channel (Mesa 26.2.5) ([run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44882977083)). The EGL retry passed the same gates on edge (Mesa 26.3.1) at an earlier commit with the same retry code ([run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44647147715)).
-- Not tested: hardware GL rendering, and an x86_64 Omarchy install.
+- Not tested: hardware GL rendering.
+
+![agterm-omarchy-bin 0.43.0.2 on Hyprland, aarch64](https://raw.githubusercontent.com/alexandru-savinov/agterm-omarchy/895bef327304aa8477724e57cb3ca61b28da0bcf/packaging/omarchy-pkgs/screenshots/agterm-omarchy-bin-aarch64-hyprland.png)
 
 It's a draft so you can look before it merges itself; I'll mark it ready when you're happy with it.
 
-Prepared with AI assistance ([Claude Code](https://claude.com/claude-code)) and reviewed by me before posting.
+Prepared and posted with AI assistance (Claude Code) on my behalf.
 
 ---
 
@@ -51,8 +57,8 @@ The PR changes exactly three files on top of omarchy-pkgs `master`:
 | `release/owners.json` | one line added, between `aether` and `alsa-ucm-conf` | `packaging/omarchy-pkgs/owners.json.line` |
 
 - **Fork and branch:**
-  - fork `omacom/omarchy-pkgs` to `alexandru-savinov/omarchy-pkgs`, which doesn't exist yet;
-  - branch `add-agterm-omarchy-bin` from upstream `master` at post time.
+  - the fork `alexandru-savinov/omarchy-pkgs` exists, and branch `add-agterm-omarchy-bin` is pushed there, one commit on upstream `master` `76f5f253`;
+  - the commands below are how it was made; rebase it if `master` moves before posting.
 - **Base commits:** the checks ran at `5c7d21d2af2fa1bea38b5c0dffeda4dfe40a6ab6`, and `master` was `76f5f2533a0dc25efeaccefec8abcfed4ccf5967` on 2026-11-21. Nothing in `bin/`, `helpers/`, `tests/`, `build/` or `.github/` changed between them.
 - **`release/owners.json`:** omarchy-pkgs' `AGENTS.md` says never to edit the directory lines by hand. Run `bin/release-owners agterm-omarchy-bin` on Arch, as a non-root user, and check that it adds exactly `owners.json.line`. This repository's `omarchy-pkgs recipe build` workflow does this on every run.
 
@@ -76,7 +82,7 @@ gh pr create --draft -R omacom/omarchy-pkgs --base master \
   --head alexandru-savinov:add-agterm-omarchy-bin --title "Add agterm-omarchy-bin" --body-file pr-body.md
 ```
 
-- **Recipe bytes:** the two recipe files last changed at `56ee67ae` (0.43.0.2), which CI run 44893403760 and the VM tested; the commands copy them from that commit.
+- **Recipe bytes:** the two recipe files last changed at `56ee67ae` (0.43.0.2). CI runs 44893403760 and 44896694600 and the VM tested those bytes; the commands copy them from that commit.
 - **PR body:** `pr-body.md` is everything between the two `---` rules above.
 - **A newer release:** if an `omarchy-v` release newer than 0.43.0.2 is out at post time, `upstream-watch` no longer reports "already current". Bump `pkgver`, take the sha256 values from that release's `SHA256SUMS`, and rerun the checks before posting.
 - **Build approval:** `alexandru-savinov` isn't in `.github/VOUCHED.td` or a collaborator, so the PR shows **Awaiting build approval** until a maintainer labels it `build-approved`.
