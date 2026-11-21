@@ -1,4 +1,7 @@
 import Foundation
+#if os(Linux)
+import AgtermLinuxPOSIX
+#endif
 
 /// ForegroundSpawn runs a command, ssh in practice, in the caller's foreground process group with the caller's stderr, so a
 /// password or host-key prompt it reads from the controlling tty works. Foundation's `Process` puts its child in a
@@ -146,7 +149,7 @@ public enum ForegroundSpawn {
         // pipe reports through errno, unlike the posix_spawn calls that return the code itself
         #if os(Linux)
         // A concurrent spawn must not inherit a pipe end and keep it alive after this caller closes it.
-        guard pipe2(&fds, O_CLOEXEC) == 0 else { throw Failure(operation: "pipe2", errno: errno) }
+        guard agterm_pipe_cloexec(&fds) == 0 else { throw Failure(operation: "pipe2", errno: errno) }
         #else
         guard pipe(&fds) == 0 else { throw Failure(operation: "pipe", errno: errno) }
         #endif
