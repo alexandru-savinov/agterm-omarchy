@@ -105,10 +105,11 @@ def jobs_that_ran(jobs):
 def ci_scope(run, jobs, earlier=()):
     """Skip only on proof that a green CI run built nothing; anything else proceeds to the full checks.
 
-    jobs is the triggering attempt; earlier holds the job lists of the run's previous attempts, None for
-    one that could not be read."""
+    jobs is the triggering attempt and earlier the run's previous attempts, each None if it could not be read."""
     promotion.require(run.get("conclusion") == "success", "Omarchy CI did not succeed; nothing can be released")
     label = f"Omarchy CI run {run['id']} attempt {run['run_attempt']}"
+    if jobs is None:
+        return "proceed", f"{label}: the jobs could not be read in full; the release checks decide"
     if gap := inventory_gap(jobs):
         return "proceed", f"{label}: {gap}; the release checks decide"
     for name in SCOPE_GATES:
@@ -131,12 +132,17 @@ def ci_scope(run, jobs, earlier=()):
     return "skip", f"{label} built nothing to release: path filters skipped {names}"
 
 
-def earlier_attempt(run, number):
+def attempt_jobs(run, number):
+    """One attempt's complete job list, or None when it cannot be read or is shorter than total_count."""
     try:
-        return promotion.run_jobs({"id": run["id"], "run_attempt": number})
+        pages = promotion.api(f"actions/runs/{run['id']}/attempts/{number}/jobs?per_page=100", pages=True)
+        jobs = [job for page in pages for job in page["jobs"]]
+        if {page["total_count"] for page in pages} == {len(jobs)}:
+            return jobs
+        print(f"Attempt {number} listed {len(jobs)} jobs, not its total_count", file=sys.stderr)
     except (subprocess.CalledProcessError, ValueError, KeyError, TypeError) as error:
         report_error(error)
-        return None
+    return None
 
 
 def write_summary(text):
@@ -368,8 +374,8 @@ def main():
         attempt = run["run_attempt"]
         if type(attempt) is not int or not 0 < attempt <= MAX_ATTEMPTS:
             raise ValueError(f"Unexpected Omarchy CI run attempt {attempt!r}")
-        earlier = [earlier_attempt(run, number) for number in range(1, attempt)]
-        scope, reason = ci_scope(run, promotion.run_jobs(run), earlier)
+        earlier = [attempt_jobs(run, number) for number in range(1, attempt)]
+        scope, reason = ci_scope(run, attempt_jobs(run, attempt), earlier)
         promotion.write_outputs({"scope": scope})
         write_summary(f"{'Skipped' if scope == 'skip' else 'Proceeding'}: {reason}.")
         print(f"{scope}: {reason}")

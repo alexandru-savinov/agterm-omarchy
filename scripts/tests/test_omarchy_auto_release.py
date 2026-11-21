@@ -81,6 +81,11 @@ def ci_jobs(rows):
             for name, conclusion in rows]
 
 
+def job_pages(rows, total=None):
+    """One jobs API page as gh --paginate --slurp returns it."""
+    return [{"total_count": len(rows) if total is None else total, "jobs": ci_jobs(rows)}]
+
+
 def promotion_steps(names):
     return [{"name": name, "conclusion": "success"} for name in names]
 
@@ -309,7 +314,7 @@ class ScopeTests(unittest.TestCase):
         def api(path, **kwargs):
             if "/attempts/1/" in path:
                 raise subprocess.CalledProcessError(1, "gh", stderr="HTTP 502")
-            return [{"jobs": ci_jobs(FILTERED_JOBS)}]
+            return job_pages(FILTERED_JOBS)
 
         with tempfile.TemporaryDirectory() as directory:
             event, output = Path(directory) / "event.json", Path(directory) / "output"
@@ -320,6 +325,26 @@ class ScopeTests(unittest.TestCase):
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 auto.main()
             self.assertEqual(output.read_text(), "scope=proceed\n")
+
+    def test_a_truncated_listing_is_unreadable(self):
+        # Attempt 1 really had 12 jobs, the twelfth a successful extra GTK build, but only 11 came back.
+        truncated = job_pages(FILTERED_JOBS, total=len(FILTERED_JOBS) + 1)
+
+        def api(path, **kwargs):
+            return truncated if "/attempts/1/" in path else job_pages(FILTERED_JOBS)
+
+        with patch.object(auto.promotion, "api", side_effect=api), redirect_stderr(io.StringIO()):
+            self.assertIsNone(auto.attempt_jobs(RERUN, 1))
+            self.assertEqual(len(auto.attempt_jobs(RERUN, 2)), len(FILTERED_JOBS))
+            earlier = [auto.attempt_jobs(RERUN, 1)]
+            self.assertEqual(auto.ci_scope(RERUN, auto.attempt_jobs(RERUN, 2), earlier)[0], "proceed")
+            self.assertEqual(auto.ci_scope(RERUN, None, [auto.attempt_jobs(RERUN, 2)])[0], "proceed")
+        with patch.object(auto.promotion, "api", return_value=job_pages(FILTERED_JOBS) * 2), \
+             redirect_stderr(io.StringIO()):
+            self.assertIsNone(auto.attempt_jobs(RERUN, 1))
+        with patch.object(auto.promotion, "api", return_value=[{"jobs": ci_jobs(FILTERED_JOBS)}]), \
+             redirect_stderr(io.StringIO()):
+            self.assertIsNone(auto.attempt_jobs(RERUN, 1))
 
     def test_the_whole_ci_inventory_must_be_present_once(self):
         variants = {"unknown skipped job": FILTERED_JOBS + [("Unknown job", "skipped")],
@@ -351,8 +376,8 @@ class ScopeTests(unittest.TestCase):
                        "GITHUB_STEP_SUMMARY": str(summary)}
                 with self.subTest(expected=expected), patch.dict(os.environ, env), \
                      patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
-                     patch.object(auto.promotion, "api", side_effect=[[{"jobs": ci_jobs(FILTERED_JOBS)}],
-                                                                      [{"jobs": ci_jobs(rows)}]]) as api, \
+                     patch.object(auto.promotion, "api", side_effect=[job_pages(FILTERED_JOBS),
+                                                                      job_pages(rows)]) as api, \
                      redirect_stdout(io.StringIO()):
                     auto.main()
                     self.assertEqual([call.args for call in api.call_args_list],
@@ -375,7 +400,7 @@ class ScopeTests(unittest.TestCase):
             output.write_text("")
             with patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output)}), \
                  patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
-                 patch.object(auto.promotion, "api", return_value=[{"jobs": ci_jobs(FILTERED_JOBS)}]), \
+                 patch.object(auto.promotion, "api", return_value=job_pages(FILTERED_JOBS)), \
                  self.assertRaisesRegex(ValueError, "did not succeed"):
                 auto.main()
             self.assertEqual(output.read_text(), "")
