@@ -8,22 +8,24 @@ import agtermCore
 final class LinuxHtmlOverlayPage {
     static let transferGuard = """
         (() => {
-          const blocked = data => {
-            if (!data) return false;
+          const blocked = (data, paste) => {
+            if (!data) return paste;
+            let hasType = false;
             const hasURI = () => {
               for (const type of data.types) {
+                hasType = true;
                 if (type === 'text/uri-list' || type === 'x-special/gnome-copied-files' ||
                     type === 'application/vnd.portal.filetransfer') return true;
               }
               return false;
             };
             // On X11, WebKit can populate DataTransfer.types on its first read.
-            return hasURI() || hasURI() || data.files.length > 0;
+            return hasURI() || hasURI() || data.files.length > 0 || (paste && !hasType);
           };
           for (const name of ['paste', 'drop', 'dragover']) {
             window.addEventListener(name, event => {
               const transfer = event.clipboardData || event.dataTransfer;
-              if (!blocked(transfer)) return;
+              if (!blocked(transfer, name === 'paste')) return;
               event.preventDefault();
               event.stopImmediatePropagation();
               if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
@@ -50,6 +52,7 @@ final class LinuxHtmlOverlayPage {
     var textPage: LinuxTextPage?
     let manager: OpaquePointer
     private var inputController: OpaquePointer?
+    private let clipboardPaste = LinuxHtmlClipboardPaste()
     private var strip: OpaquePointer?
     let bridgeNonce = UUID().uuidString
     var closed = false
@@ -122,6 +125,7 @@ final class LinuxHtmlOverlayPage {
 
     func close() {
         closed = true
+        clipboardPaste.cancel()
         textPage?.stop()
         agterm_disconnect_signals(RAW(manager), Unmanaged.passUnretained(self).toOpaque())
         let data = Unmanaged.passUnretained(self).toOpaque()
@@ -143,6 +147,7 @@ final class LinuxHtmlOverlayPage {
 
     func setOnScreen(_ visible: Bool) {
         onScreen = visible
+        if !visible { clipboardPaste.cancel() }
         textPage?.apply()
         guard !visible, let dialog = pendingDialog else { return }
         pendingDialog = nil
@@ -473,6 +478,7 @@ final class LinuxHtmlOverlayPage {
     func loadChanged(_ event: Int32) {
         switch event {
         case 0:
+            clipboardPaste.cancel()
             loadFailed = false
             gtk_widget_set_visible(W(errorLabel), 0)
             store?.setHtmlLoadState(id, state: .loading, error: nil)
@@ -544,35 +550,36 @@ final class LinuxHtmlOverlayPage {
         }
     }
 
-    private func hasFileTransfer(_ formats: OpaquePointer?) -> Bool {
-        guard let formats else { return false }
-        if gdk_content_formats_contain_gtype(formats, gdk_file_list_get_type()) != 0 { return true }
-        return ["text/uri-list", "x-special/gnome-copied-files", "application/vnd.portal.filetransfer"]
-            .contains { mime in
-                mime.withCString { gdk_content_formats_contain_mime_type(formats, $0) != 0 }
-            }
+    private var clipboard: OpaquePointer? {
+        gdk_display_get_default().flatMap { gdk_display_get_clipboard($0) }
     }
 
-    private var clipboardHasFileTransfer: Bool {
-        guard let display = gdk_display_get_default(), let clipboard = gdk_display_get_clipboard(display) else {
-            return false
-        }
-        return hasFileTransfer(gdk_clipboard_get_formats(clipboard))
+    func blockFileContextMenu() -> gboolean {
+        LinuxHtmlClipboardPaste.hasFileTransfer(clipboard.flatMap { gdk_clipboard_get_formats($0) }) ? 1 : 0
     }
 
-    func blockFileContextMenu() -> gboolean { clipboardHasFileTransfer ? 1 : 0 }
+    private func finishDeferredPaste() {
+        guard !closed, onScreen, let controller,
+              gtk_window_is_active(WIN(controller.windowPointer)) != 0,
+              let focus = gtk_root_get_focus(controller.windowPointer),
+              focus == W(webView) || gtk_widget_is_ancestor(focus, W(webView)) != 0 else { return }
+        promptSilenced = false
+        store?.noteUserActivity()
+        webkit_web_view_execute_editing_command(cast(webView), "Paste")
+    }
 
     func userEvent(_ event: OpaquePointer?) -> gboolean {
         guard let event else { return 0 }
         let type = gdk_event_get_event_type(event)
         if type == GDK_DRAG_ENTER || type == GDK_DRAG_MOTION || type == GDK_DROP_START,
-           let drop = gdk_dnd_event_get_drop(event), hasFileTransfer(gdk_drop_get_formats(drop)) {
+           let drop = gdk_dnd_event_get_drop(event), LinuxHtmlClipboardPaste.hasFileTransfer(gdk_drop_get_formats(drop)) {
             if type == GDK_DROP_START { gdk_drop_finish(drop, GdkDragAction(rawValue: 0)) }
             return 1
         }
         if type == GDK_KEY_RELEASE {
             controller?.leaderKeyReleased(gdk_key_event_get_keycode(event))
         }
+        if type == GDK_BUTTON_PRESS || type == GDK_KEY_PRESS { clipboardPaste.cancel() }
         if type == GDK_KEY_PRESS {
             if handleNativeKey(event) { return 1 }
             let key = gdk_keyval_to_lower(gdk_key_event_get_keyval(event))
@@ -582,7 +589,9 @@ final class LinuxHtmlOverlayPage {
             #if DEBUG
             if paste, LinuxHtmlPasteTrace.enabled { LinuxHtmlPasteTrace.key(event, insert: key == UInt32(GDK_KEY_Insert)) }
             #endif
-            if paste && clipboardHasFileTransfer { return 1 }
+            if paste && clipboardPaste.intercept(clipboard, paste: { [weak self] in self?.finishDeferredPaste() }) {
+                return 1
+            }
         }
         if type == GDK_BUTTON_PRESS || type == GDK_KEY_PRESS {
             promptSilenced = false

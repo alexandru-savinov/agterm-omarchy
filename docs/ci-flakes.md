@@ -32,6 +32,20 @@ Each entry separates a demonstrated cause from one that is only consistent with 
 - **Local repetition with the suspected component swapped.** For example the DA test ran 24 times against the
   patched zmx and 24 times against the unpatched one.
 
+## Linux HTML overlay clipboard (#421)
+
+- **Symptom.** `html-overlay` reports `URI-list clipboard reached the page` and the textarea title is
+  `pasted:blocked`, the test's plain-text sentinel from a mixed-format clipboard offer.
+- **Demonstrated cause.** On X11, GDK clears the receiving clipboard's cached formats when ownership
+  changes and requests TARGETS asynchronously. In the failing ARM64 trace, Ctrl+V arrived at +1465.4 ms
+  with empty GDK formats. Both DOM type reads were empty at +1486.8 ms. GDK reported the URI list at
+  +1487.4 ms, then WebKit emitted `insertFromPaste` at +1494.9 ms. The test showed the mixed offer's
+  text fallback reaching the document. [Main run 44864094283, ARM64 attempt 1](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44864094283/job/136723830745)
+- **Fix.** Hold the paste key while GDK's format set is empty. A classified non-file offer may complete
+  the pending request once in its still-focused page. A file offer, invalidation, or timeout drops it.
+  The DOM guard also refuses a paste if it observes no transfer types. The plain-text positive control
+  and mixed-offer refusal assertion remain in the normal scenario.
+
 ## Core tests (`swift test` in `agtermCore`)
 
 ### `SessionHostServerTests.realHostStartupReplyAndClientlessControl`
