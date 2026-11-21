@@ -66,14 +66,19 @@ which records the source commit, the CI run and the archive digests.
 Releases are normally cut automatically from `main`:
 
 1. Omarchy CI builds and tests both architectures on a push to `main`.
-2. The native gates install those exact archives and test them on x86_64 and aarch64.
-3. Only if both architectures pass, the archives are published as a release with GitHub build-provenance attestations.
-4. The native gates run again on the published assets, right away and every two hours for 24 hours.
-   A confirmed failure marks the release as a prerelease and opens a `release-incident` issue that pauses new releases.
+2. The native gates install those CI archives and test them on x86_64 and aarch64.
+3. Only if both architectures pass, promotion checks that the downloaded CI archives match the SHA-256 digests
+   that passed the gates, then writes version-stamped release archives (the same files with `share/agterm/VERSION` set,
+   numeric root ownership and a timestamp-free gzip header, so their digests differ) and publishes them with GitHub build-provenance attestations.
+   `promotion.json` records both the tested and the released digest of each archive.
+4. The native gates run again on the published release archives, right away and every two hours for 24 hours.
+   A confirmed failure marks the release as a prerelease and opens a `release-incident` issue,
+   which pauses automatic releases until it is closed.
 
 A release cut this way has an `auto_release_run_id` in its `promotion.json`.
 A maintainer can also publish a versioned release by dispatching the promotion workflow by hand.
-That path does not require native gate results, and the 24-hour watch does not cover it.
+That path does not require native gate results, is not paused by a `release-incident` issue,
+and is not covered by the 24-hour watch.
 
 The native gates run an Arch Linux (x86_64) or Arch Linux ARM (aarch64) container with the Omarchy desktop packages
 that are in the official Arch repositories, installed from Omarchy's stable package mirror, and Hyprland on a virtual display with Mesa software rendering.
@@ -91,7 +96,9 @@ Release mechanics are documented in [packaging/linux/prerelease-omarchy.md](pack
   See the [Wayland support matrix](agterm-linux/docs/x11-wayland.md) for compositor-owned behavior.
 - Live session restore needs zsh or fish as the login shell, or an absolute zsh or fish path in Ghostty's `command` setting;
   see [Restore limitations](#restore-limitations).
-- This repository does not publish macOS builds; its macOS CI only checks that shared changes keep the macOS app building.
+- This repository does not publish macOS builds.
+  Its macOS CI builds the app and runs the shared and app tests and lint (`make build`, `make test`, `make test-app`, `make lint`)
+  weekly and on demand, to keep shared changes compatible with upstream.
   Use [upstream agterm](https://github.com/umputun/agterm) on macOS.
 
 ## Relationship to upstreams
@@ -120,7 +127,8 @@ controller, control API, session model, keymap model, and `agtermctl` CLI used b
 The intent is not to create a separate product; it is to keep the Linux UI current with upstream
 features while preserving a small, reviewable downstream delta.
 
-`main` is this repository's default branch and the only source of releases.
+`main` is this repository's default branch and the only source of versioned releases;
+development prereleases can also be promoted from `omarchy` branch CI runs.
 The inherited `master` / `linux-port` names belong to melonamin/agterm-linux's upstream-tracking model.
 
 Code layout:
@@ -1067,7 +1075,8 @@ Restore always reconstructs the window/session structure. Three process-level li
    local primary and split processes in zmx daemons and reattaches on the next launch. A reboot removes those
    daemons, so the saved command is recreated instead. On Linux, neither mode runs a restored command by
    itself: it is pre-filled at the prompt and waits for Enter. Scratch, overlay, and Quick terminals never survive.
-   Live mode requires zsh or fish as the password-database login shell, plus bundled zmx and the matching shell integration.
+   Live mode requires zsh or fish as the password-database login shell or as an absolute shell path in Ghostty's `command` setting,
+   plus bundled zmx and the matching shell integration.
    Per-pane `session restore` overrides remain sticky and readable through `tree`; they are stored as shell
    code, so they must not contain secrets.
 2. The saved working directory depends on the `GHOSTTY_ACTION_PWD` callback, which only fires when the shell has Ghostty shell-integration / OSC 7 active (auto-injected for zsh, bash, fish, and nu when the shell-integration resources are present). If the working directory is never reported, a session restores to the directory it was created in.
