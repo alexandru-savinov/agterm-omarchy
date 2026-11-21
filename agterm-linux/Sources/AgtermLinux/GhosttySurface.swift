@@ -416,7 +416,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
             let paneKey = pane.flatMap { session.paneBackgrounds[$0] == nil ? nil : session.backgroundFileKey(for: $0) }
             return WatermarkRenderer.materialize(watermark, sessionID: session.id, paneKey: paneKey)
         }
-        let effectiveWindowOpacity = windowOpacity ?? linuxSettingsStore().load().backgroundOpacity ?? 1
+        let effectiveWindowOpacity = windowOpacity ?? loadLinuxTerminalSettings().backgroundOpacity ?? 1
         let effectiveFontSize = fontSizeOverride ?? dashboardFontOverride ?? session?.fontSize ?? fontSize
         let overlay = LinuxBackgroundOverlayPolicy.overlayText(
             oscLatch: oscBackgroundColorHex, watermark: watermark, resolvedImagePath: resolvedImagePath,

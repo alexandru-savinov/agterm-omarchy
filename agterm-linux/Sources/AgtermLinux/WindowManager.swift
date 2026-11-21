@@ -156,17 +156,25 @@ extension WindowLibrary {
 }
 
 /// Open the window for `id` (raise it if already open).
-@MainActor func openWindow(_ id: UUID) {
+@MainActor func openWindow(_ id: UUID, launcherTitle: String? = nil) {
     if let existing = gWindows[id] {
         gtk_window_present(WIN(existing.windowPointer))
         return
     }
     _ = gLibrary.loadStore(for: id)
     gExitCapture.windowOpened(id)
-    gWindows[id] = AppController(app: gApp, windowID: id, library: gLibrary)
+    gWindows[id] = AppController(app: gApp, windowID: id, library: gLibrary, launcherTitle: launcherTitle)
     // Initial mapping can precede registry insertion, when map callbacks cannot resolve their owner.
     gWindows[id]?.resumeMappedSplitRatioRestores()
     LinuxRemoteCatalogs.opened(id)
     gControlServer.attachPresentationHub()
     for controller in gWindows.values { controller.updateAttentionButton(refocusOnDismiss: false) }
+}
+
+/// Set the seeded session's cwd before its surface exists. The snapshot records this cwd immediately.
+@MainActor func prepareLauncherSession(in id: UUID, directory: String) {
+    guard let store = gLibrary.store(for: id), let session = store.activeSession,
+          session.effectiveCwd != directory else { return }
+    session.currentCwd = directory
+    store.save()
 }
