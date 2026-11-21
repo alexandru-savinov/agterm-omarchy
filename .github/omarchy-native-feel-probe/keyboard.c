@@ -37,7 +37,7 @@ int main(void) {
     for (int key = KEY_ESC; key <= KEY_SPACE; key++) {
         checked(ioctl(fd, UI_SET_KEYBIT, key), "UI_SET_KEYBIT");
     }
-    checked(ioctl(fd, UI_SET_KEYBIT, KEY_F13), "UI_SET_KEYBIT F13");
+    checked(ioctl(fd, UI_SET_KEYBIT, KEY_F8), "UI_SET_KEYBIT F8");
     struct uinput_setup keyboard = {
         .id = {.bustype = BUS_USB, .vendor = 0x1, .product = 0x1},
         .name = "Omarchy native-feel probe keyboard",
@@ -51,11 +51,11 @@ int main(void) {
 
     int signal;
     while (sigwait(&signals, &signal) == 0 && signal == SIGUSR1) {
-        emit(fd, EV_KEY, KEY_F13, 1);
+        emit(fd, EV_KEY, KEY_F8, 1);
         emit(fd, EV_SYN, SYN_REPORT, 0);
-        emit(fd, EV_KEY, KEY_F13, 0);
+        emit(fd, EV_KEY, KEY_F8, 0);
         emit(fd, EV_SYN, SYN_REPORT, 0);
-        puts("uinput emitted F13 press and release");
+        puts("uinput emitted F8 press and release");
         fflush(stdout);
     }
     checked(ioctl(fd, UI_DEV_DESTROY), "UI_DEV_DESTROY");

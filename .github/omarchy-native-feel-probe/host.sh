@@ -28,7 +28,8 @@ elif docker run -d --name native-feel-keyboard --network none --device /dev/uinp
       for sys_event in /sys/devices/virtual/input/"$keyboard"/event[0-9]*; do
         event="/dev/input/${sys_event##*/}"
         if [[ -c "$event" ]] && udevadm info -q property -n "$event" | grep -x 'ID_INPUT_KEYBOARD=1'; then
-          input_args=(--device "$event:$event:r" -e "KEYBOARD_EVENT=$event")
+          # libinput opens keyboards O_RDWR. This grant covers only the fixture device.
+          input_args=(--device "$event:$event:rw" -e "KEYBOARD_EVENT=$event")
           break 2
         fi
       done
@@ -42,6 +43,8 @@ fi
 docker run -d --name native-feel-desktop --device /dev/dri "${input_args[@]}" \
   -v /run/udev:/run/udev:ro -v "$GITHUB_WORKSPACE:/repo:ro" --tmpfs /out \
   "$BASE_IMAGE" bash "/repo/$probe/desktop.sh"
+docker logs --follow native-feel-desktop &
+log_pid=$!
 if (( ${#input_args[@]} )); then
   # Wait until Hyprland sees the specific keyboard, then send one real event pair.
   for (( attempt=0; attempt<210; attempt++ )); do
@@ -54,6 +57,6 @@ if (( ${#input_args[@]} )); then
   done
 fi
 status="$(docker wait native-feel-desktop)"
-docker logs native-feel-desktop
+wait "$log_pid"
 if (( ${#input_args[@]} )); then docker logs native-feel-keyboard; fi
 exit "$status"

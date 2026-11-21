@@ -76,6 +76,31 @@ stop_hyprland() {
 
 compositor_gone() { ! kill -0 "$hyprland_pid" 2>/dev/null; }
 keyboard_seen() { hyprctl -j devices | jq -e '.keyboards[] | select(.name == "omarchy-native-feel-probe-keyboard")' >/dev/null; }
+user_manager_ready() { systemctl --user show-environment >/dev/null 2>&1; }
+
+try_uwsm_with_user_manager() {
+  local manager status=0
+  findmnt -n -o TARGET,FSTYPE,OPTIONS /sys/fs/cgroup
+  systemd --user > "$HOME/systemd-user.log" 2>&1 &
+  manager=$!
+  if wait_for 8 user_manager_ready; then
+    report systemd_user_manager PASS
+    systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE PATH
+    timeout 15s "$OMARCHY_PATH/bin/omarchy-launch-tui" touch /tmp/tui-with-user-manager || status=$?
+    if wait_for 5 test -f /tmp/tui-with-user-manager; then
+      report omarchy_launch_tui_with_manager PASS
+    else
+      report omarchy_launch_tui_with_manager "FAIL: exit=$status marker absent"
+      systemctl --user status wayland-wm-app-daemon.service 2>&1 || true
+    fi
+  else
+    report systemd_user_manager 'FAIL: no user manager in the existing container'
+    systemctl --user status 2>&1 || true
+  fi
+  kill "$manager" 2>/dev/null || true
+  wait "$manager" 2>/dev/null || true
+  cat "$HOME/systemd-user.log"
+}
 
 trap stop_hyprland EXIT
 export OMARCHY_PATH=/repo/probe-omarchy
@@ -83,7 +108,7 @@ mkdir -p "$HOME/.config" "$HOME/.local/state/omarchy/current" "$HOME/probe-bin"
 cat > "$HOME/minimal.lua" <<'LUA'
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
 hl.config({ animations = { enabled = false }, ecosystem = { no_update_news = true, no_donation_nag = true } })
-hl.bind("F13", hl.dsp.exec_cmd("touch /tmp/fired"))
+hl.bind("F8", hl.dsp.exec_cmd("touch /tmp/fired"))
 LUA
 if start_hyprland "$HOME/minimal.lua"; then
   hyprctl version
@@ -109,7 +134,7 @@ if start_hyprland "$HOME/minimal.lua"; then
     fi
     if wait_for 5 test -f "/tmp/$launcher"; then report "$launcher" PASS; else report "$launcher" "FAIL: exit=$status marker absent"; fi
   done
-  systemctl --user status 2>&1 || true
+  try_uwsm_with_user_manager
 else
   report minimal_hyprland 'FAIL: no ready vkms monitor'
 fi
