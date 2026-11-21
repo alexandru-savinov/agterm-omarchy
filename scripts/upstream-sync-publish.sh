@@ -4,7 +4,31 @@
 # without the labeled event that starts the sync's workflows.
 set -euo pipefail
 
-for name in SYNC_TOKEN GH_REPO BRANCH HEAD_SHA TITLE DRAFT LABEL BODY_FILE; do
+mode="${1:-publish}"
+rehearsal="${REHEARSAL:-false}"
+if [[ "$mode" != publish && "$mode" != --finish-rehearsal ]]; then
+  echo "::error::unknown publish mode" >&2
+  exit 1
+fi
+if [[ "$rehearsal" == true || "$mode" == --finish-rehearsal ]]; then
+  if [[ "$rehearsal" != true || "${GH_REPO:-}" != alexandru-savinov/agterm-omarchy ||
+        "${GITHUB_REF:-}" != refs/heads/main || "${GITHUB_EVENT_NAME:-}" != workflow_dispatch ||
+        ! "${GITHUB_RUN_ID:-}" =~ ^[0-9]+$ || ! "${GITHUB_RUN_ATTEMPT:-}" =~ ^[0-9]+$ ||
+        "${BRANCH:-}" != "rehearsal/linux-port-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" ||
+        ! "${HEAD_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "::error::invalid rehearsal identity" >&2
+    exit 1
+  fi
+  ownership="${RUNNER_TEMP:?}/upstream-sync-rehearsal-owned"
+  if [[ "$mode" == publish ]] &&
+     [[ "${DRAFT:-}" != true || "${LABEL:-}" != sync-rehearsal || "${TITLE:-}" != '[rehearsal]'* ]]; then
+    echo "::error::invalid rehearsal draft metadata" >&2
+    exit 1
+  fi
+fi
+required=(SYNC_TOKEN GH_REPO BRANCH HEAD_SHA)
+[[ "$mode" != publish ]] || required+=(TITLE DRAFT LABEL BODY_FILE)
+for name in "${required[@]}"; do
   [[ -n "${!name:-}" ]] || { echo "::error::$name is not set" >&2; exit 1; }
 done
 LABEL_ATTEMPTS="${LABEL_ATTEMPTS:-3}"
@@ -23,6 +47,54 @@ this_pr() {
   gh pr list --head "$BRANCH" --state open --json number,headRefOid,isCrossRepository \
     --jq "[.[] | select((.isCrossRepository | not) and .headRefOid == \"$HEAD_SHA\")][0].number // empty"
 }
+
+delete_branch() {
+  git push --force-with-lease="refs/heads/$BRANCH:$HEAD_SHA" origin ":refs/heads/$BRANCH"
+}
+
+finish_rehearsal() {
+  if [[ ! -f "$ownership" || "$(< "$ownership")" != "$HEAD_SHA" ]]; then
+    echo "::error::no ownership record for $BRANCH" >&2
+    return 1
+  fi
+  local status=0 pr="${REHEARSAL_PR:-}" snapshot refs
+  # Refuse to close a PR whose branch has already been moved by another actor.
+  refs="$(git ls-remote --refs origin "refs/heads/$BRANCH")" || return 1
+  if [[ -n "$refs" && "$refs" != "$(printf '%s\trefs/heads/%s' "$HEAD_SHA" "$BRANCH")" ]]; then
+    echo "::error::rehearsal branch $BRANCH changed; leaving it and the PR alone" >&2
+    return 1
+  fi
+  if [[ -z "$pr" ]]; then
+    pr="$(this_pr)" || status=1
+  fi
+  local pr_branch pr_head pr_cross pr_draft pr_state
+  if [[ "$pr" =~ ^[0-9]+$ ]] &&
+     snapshot="$(gh pr view "$pr" --json headRefName,headRefOid,isCrossRepository,isDraft,state \
+       --jq '[.headRefName, .headRefOid, .isCrossRepository, .isDraft, .state] | @tsv')" &&
+     IFS=$'\t' read -r pr_branch pr_head pr_cross pr_draft pr_state <<< "$snapshot" &&
+     [[ "$pr_branch" == "$BRANCH" && "$pr_head" == "$HEAD_SHA" && "$pr_cross" == false ]]; then
+    if [[ "$pr_draft" != true || ( "$pr_state" != OPEN && "$pr_state" != CLOSED ) ]]; then
+      echo "::error::rehearsal #$pr is not an open or closed draft" >&2
+      status=1
+    fi
+    if [[ "$pr_state" == OPEN ]]; then
+      gh pr close "$pr" --comment 'Publish rehearsal finished. This synthetic draft must never be merged.' || status=1
+    fi
+  else
+    echo "::error::could not confirm the rehearsal PR for $BRANCH" >&2
+    status=1
+  fi
+  # The regular failure handler may already have withdrawn the branch.
+  if [[ -n "$refs" ]]; then
+    delete_branch || status=1
+  fi
+  return "$status"
+}
+
+if [[ "$mode" == --finish-rehearsal ]]; then
+  finish_rehearsal
+  exit $?
+fi
 
 has_label() {
   gh api "repos/$GH_REPO/issues/$1/labels" --jq '.[].name' | grep -qxF "$LABEL"
@@ -47,8 +119,7 @@ withdraw() {
     echo "::error::could not close #$number; deleting $BRANCH closes it" >&2
   fi
   # GitHub closes an open PR whose head branch is deleted, so the delete stands in for a close that failed.
-  git push --force-with-lease="refs/heads/$BRANCH:$HEAD_SHA" origin ":refs/heads/$BRANCH" \
-    || echo "::error::could not delete $BRANCH; delete it and close any PR from it by hand" >&2
+  delete_branch || echo "::error::could not delete $BRANCH; delete it and close any PR from it by hand" >&2
   exit $(( status ? status : 1 ))
 }
 trap withdraw EXIT
@@ -62,6 +133,9 @@ printf '%s\n' "$pushout"
 grep -qxF "$(printf '*\t%s\t[new branch]' "$refspec")" <<< "$pushout" \
   || { echo "::error::$BRANCH already existed at $HEAD_SHA; this run created nothing and deletes nothing" >&2; exit 1; }
 pushed=1
+if [[ "$rehearsal" == true ]]; then
+  printf '%s\n' "$HEAD_SHA" > "$ownership"
+fi
 as_draft=()
 [[ "$DRAFT" != true ]] || as_draft=(--draft)
 # gh pr create applies --label in a second call once the PR exists, so its failure can leave the PR unlabelled.

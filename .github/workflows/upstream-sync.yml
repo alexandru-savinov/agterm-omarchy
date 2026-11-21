@@ -36,6 +36,11 @@ on:
         required: false
         type: boolean
         default: true
+      rehearsal:
+        description: Publish and withdraw a synthetic draft on main (also uncheck dry_run)
+        required: false
+        type: boolean
+        default: false
       tag:
         description: Narrow the direct sync to this umputun vX.Y.Z tag; a live run still needs linux-port merged and the lag passed, a dry run previews any tag
         required: false
@@ -48,6 +53,7 @@ on:
       - .github/workflows/upstream-sync.yml
       - scripts/upstream-sync.py
       - scripts/upstream-sync-publish.sh
+      - scripts/upstream-sync-rehearsal.sh
       - scripts/upstream-sync-blocked.sh
       - scripts/tests/test_upstream_sync.py
       - scripts/github/pr_fields.py
@@ -77,6 +83,7 @@ jobs:
   sync:
     name: Plan and build the sync branch
     needs: test
+    if: github.event_name != 'workflow_dispatch' || !inputs.rehearsal
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -244,13 +251,44 @@ jobs:
           echo "::error::$REASON" >&2
           exit 1
 
+  rehearsal:
+    name: Build the fixed local rehearsal fixture
+    needs: test
+    if: github.event_name == 'workflow_dispatch' && inputs.rehearsal
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      branch: ${{ steps.fixture.outputs.branch }}
+      head: ${{ steps.fixture.outputs.head }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the synthetic commit
+        id: fixture
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          TAG_OVERRIDE: ${{ inputs.tag }}
+        run: bash scripts/upstream-sync-rehearsal.sh
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: upstream-sync-rehearsal
+          path: ${{ runner.temp }}/out/
+          retention-days: 1
+          if-no-files-found: error
+
   publish:
     name: Push the branch and open the sync PR
-    needs: sync
+    needs: [sync, rehearsal]
     if: >-
-      needs.sync.outputs.action == 'sync' && needs.sync.outputs.blocked == 'false' &&
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run))
+      !cancelled() && github.ref == 'refs/heads/main' &&
+      ((needs.sync.result == 'success' &&
+        needs.sync.outputs.action == 'sync' && needs.sync.outputs.blocked == 'false' &&
+        (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run))) ||
+       (needs.rehearsal.result == 'success' && github.event_name == 'workflow_dispatch' &&
+        inputs.rehearsal && !inputs.dry_run))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: upstream-sync
@@ -259,8 +297,9 @@ jobs:
       issues: write
     env:
       GH_REPO: ${{ github.repository }}
-      BRANCH: ${{ needs.sync.outputs.branch }}
-      HEAD_SHA: ${{ needs.sync.outputs.head }}
+      BRANCH: ${{ needs.rehearsal.outputs.branch || needs.sync.outputs.branch }}
+      HEAD_SHA: ${{ needs.rehearsal.outputs.head || needs.sync.outputs.head }}
+      REHEARSAL: ${{ needs.rehearsal.result == 'success' }}
     steps:
       - name: Require the sync token
         env:
@@ -285,7 +324,7 @@ jobs:
             --secrets "$RUNNER_TEMP/secrets.http"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: upstream-sync-branch
+          name: ${{ env.REHEARSAL == 'true' && 'upstream-sync-rehearsal' || 'upstream-sync-branch' }}
           path: ${{ runner.temp }}/in
       - name: Load the branch exactly as built
         run: |
@@ -302,17 +341,41 @@ jobs:
             out="$(gh api "repos/$GH_REPO/labels" -f "name=$1" -f "color=$2" -f "description=$3" 2>&1)" \
               || grep -q 'already_exists' <<< "$out" || { echo "$out" >&2; return 1; }
           }
-          create upstream-sync 0e8a16 'Automated linux-port or umputun/agterm sync that merged cleanly'
-          create needs-adaptation d93f0b 'Automated upstream sync with conflicts or .github/ changes to resolve'
+          if [[ "$REHEARSAL" == true ]]; then
+            create sync-rehearsal 5319e7 'Synthetic upstream sync publish rehearsal; never merge'
+          else
+            create upstream-sync 0e8a16 'Automated linux-port or umputun/agterm sync that merged cleanly'
+            create needs-adaptation d93f0b 'Automated upstream sync with conflicts or .github/ changes to resolve'
+          fi
       - name: Push the branch and open the PR
         id: pr
         env:
           SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
-          TITLE: ${{ needs.sync.outputs.title }}
-          DRAFT: ${{ needs.sync.outputs.draft }}
-          LABEL: ${{ needs.sync.outputs.label }}
+          TITLE: ${{ env.REHEARSAL == 'true' && '[rehearsal] Upstream sync publish' || needs.sync.outputs.title }}
+          DRAFT: ${{ env.REHEARSAL == 'true' && 'true' || needs.sync.outputs.draft }}
+          LABEL: ${{ env.REHEARSAL == 'true' && 'sync-rehearsal' || needs.sync.outputs.label }}
           BODY_FILE: ${{ runner.temp }}/in/body.md
         run: scripts/upstream-sync-publish.sh
+      - name: Withdraw the rehearsal and record the result
+        if: always() && needs.rehearsal.result == 'success'
+        env:
+          SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+          REHEARSAL_PR: ${{ steps.pr.outputs.number }}
+          PUBLISH_OUTCOME: ${{ steps.pr.outcome }}
+        run: |
+          {
+            echo '### Upstream sync publish rehearsal'
+            printf -- '- Publish step: %s\n' "${PUBLISH_OUTCOME:-not reached}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ ! -f "$RUNNER_TEMP/upstream-sync-rehearsal-owned" ]]; then
+            echo '- Cleanup: no branch was confirmed as created by this run.' >> "$GITHUB_STEP_SUMMARY"
+            [[ "$PUBLISH_OUTCOME" != success ]]
+          elif scripts/upstream-sync-publish.sh --finish-rehearsal; then
+            echo '- Cleanup passed. The draft is closed and the rehearsal branch is absent.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '- Cleanup failed. Inspect the run log for the rehearsal branch and PR.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
   blocked:
     name: Report a sync blocked by new workflow files
