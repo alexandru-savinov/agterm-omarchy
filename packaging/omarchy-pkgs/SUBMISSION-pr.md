@@ -32,7 +32,6 @@ The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the 
   - through `/usr/bin`, the app passed 7/7 ordinary and 9/9 Live-session checks under Hyprland with software rendering;
   - `pacman -R` removed every file.
 - The release's own native gates passed on x86_64 and aarch64 against the stable channel (Mesa 26.2.5) ([run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44882977083)). The EGL retry passed the same gates on edge (Mesa 26.3.1) at an earlier commit with the same retry code ([run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44647147715)).
-- On the VM, default rendering fails with `No EGL configuration available` because the VM has no usable GL; it runs Mesa 26.2.7, not the 26.3.1 case the retry handles. The passing runs set `LIBGL_ALWAYS_SOFTWARE=1`.
 - Not tested: hardware GL rendering, and an x86_64 Omarchy install.
 
 It's a draft so you can look before it merges itself; I'll mark it ready when you're happy with it.
