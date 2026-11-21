@@ -92,7 +92,7 @@ public struct ProcessZmxRunner: ZmxRunner {
     }
 
     public func create(_ launch: PaneLaunch) throws {
-        try verifySocketDirectory()
+        try Self.verifySocketDirectory(socketDirectory)
         var environment = launch.environment
         environment["ZMX_DIR"] = socketDirectory
         let argv = placement.prefix(for: launch.name) + [zmxPath, "attach", "--detached", launch.name] + launch.argv
@@ -135,7 +135,7 @@ public struct ProcessZmxRunner: ZmxRunner {
     }
 
     private func invoke(_ arguments: [String], input: Data? = nil) throws -> ServerProcess.Output {
-        try verifySocketDirectory()
+        try Self.verifySocketDirectory(socketDirectory)
         var environment = baseEnvironment
         environment["ZMX_DIR"] = socketDirectory
         environment["ZMX_SESSION"] = ""
@@ -143,7 +143,7 @@ public struct ProcessZmxRunner: ZmxRunner {
         return try ServerProcess.run([zmxPath] + arguments, environment: environment, input: input, timeout: Self.timeout)
     }
 
-    func verifySocketDirectory() throws {
+    static func verifySocketDirectory(_ socketDirectory: String) throws {
         // The server's socket directory is a direct child of its private runtime directory.
         let runtime = (socketDirectory as NSString).deletingLastPathComponent
         guard ZmxSocketDirectory.privateRuntimeDirectory(runtime) != nil,

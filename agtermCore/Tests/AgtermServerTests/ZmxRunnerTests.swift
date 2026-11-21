@@ -57,7 +57,7 @@ struct ZmxRunnerTests {
         let sockets = scratch.runtime + "/zmx"
         try writeExecutable(fake, "#!/bin/sh\ntouch '\(marker)'\n")
         let runner = ProcessZmxRunner(zmxPath: fake, socketDirectory: sockets, placement: .direct, baseEnvironment: [:])
-        try runner.verifySocketDirectory()
+        try ProcessZmxRunner.verifySocketDirectory(sockets)
         let attributes = try FileManager.default.attributesOfItem(atPath: sockets)
         #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
         try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: sockets)
