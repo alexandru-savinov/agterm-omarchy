@@ -1,6 +1,12 @@
 name: Omarchy native-feel feasibility probe
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/omarchy-native-feel-probe.yml
+      - .github/omarchy-native-feel-probe/**
 
 permissions:
   contents: read
@@ -8,6 +14,13 @@ permissions:
 jobs:
   probe:
     name: Native-feel probe (${{ matrix.arch }})
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.repository == 'alexandru-savinov/agterm-omarchy' &&
+      github.event.pull_request.number == 536 &&
+      github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'codex/native-feel-ci-probe'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 50
     strategy:
