@@ -11,6 +11,7 @@ name: Upstream sync
 # Nothing runs while syncing is paused
 # (repository variable SYNC_PAUSED is true, or an issue labelled release-incident is open) or while any sync PR
 # is open; a sync branch with no open PR fails the run until it is deleted. Gates and selection live in scripts/upstream-sync.py.
+# The merge commit advances the fork's boundary pins in omarchy-ci.yml. Upstream workflow bytes follow their source.
 # Merge sync PRs as merge commits only: a squash leaves the source outside main's history and it syncs again.
 #
 # Token: the push and the PR use UPSTREAM_SYNC_TOKEN, never GITHUB_TOKEN, which cannot push upstream's

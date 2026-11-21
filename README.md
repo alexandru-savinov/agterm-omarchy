@@ -24,6 +24,8 @@ and [renderer acceptance](https://github.com/alexandru-savinov/agterm-omarchy/pu
 
 [![Build Status](https://github.com/melonamin/agterm-linux/workflows/build/badge.svg)](https://github.com/melonamin/agterm-linux/actions)
 
+[![Omarchy CI](https://github.com/alexandru-savinov/agterm-omarchy/actions/workflows/omarchy-ci.yml/badge.svg?branch=main)](https://github.com/alexandru-savinov/agterm-omarchy/actions/workflows/omarchy-ci.yml)
+
 **[agterm.com](https://agterm.com)** · [Documentation](https://agterm.com/docs) · [Command reference](https://agterm.com/commands) · [Cookbook](cookbook/)
 
 `agterm-linux` is a Linux-maintained fork of [agterm](https://github.com/umputun/agterm).

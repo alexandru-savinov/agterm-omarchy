@@ -1,19 +1,10 @@
-name: Omarchy CI
+name: build
 
 on:
   push:
-    branches: [main]
+    branches: [linux-port]
   pull_request:
-    branches: [main, omarchy]
-
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-defaults:
-  run:
-    shell: bash
+    branches: [linux-port]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,105 +16,23 @@ env:
   SWIFTLINT_VERSION: "0.65.0"
   SWIFTLINT_SHA256: "79306a34e5c7cc55a220cd108cbb861dcad5f10138dcdf261e2624ae8b0a486b"
   LINUX_SOURCEKIT_LIB_PATH: "/usr/lib/libsourcekitdInProc.so"
-  ZIG_SHA256: "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026"
+  ZIG_SHA256: "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00"
 
 jobs:
-  scripts:
-    name: Installer and scripts
-    runs-on: ubuntu-24.04
-    # The image runs as the non-root `builder` user (#206). This job alone creates its own unprivileged test
-    # user and runs steps through runuser, which both need root; the tests themselves still run unprivileged.
-    container:
-      image: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
-      options: --user root
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Prepare unprivileged regression user
-        run: |
-          useradd --create-home --user-group agterm-test
-          chown -R agterm-test:agterm-test "$GITHUB_WORKSPACE"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          for command in python3 rg shellcheck file; do command -v "$command"; done
-      - name: Shell syntax and lint
-        shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
-        run: |
-          scripts=(
-            scripts/ci-install-ubuntu-deps.sh
-            scripts/check-linux-core-boundary.sh
-            scripts/install-linux.sh
-            scripts/package-linux.sh
-            scripts/run-linux.sh
-            scripts/setup-linux.sh
-            scripts/setup-omarchy.sh
-            scripts/stage-linux.sh
-            scripts/test-ghostty-patches-linux.sh
-            scripts/test-linux-resources.sh
-            scripts/test-omarchy.sh
-            scripts/test-zig-build-linux.sh
-            scripts/test-zmx-patches-linux.sh
-            scripts/upstream-sync-blocked.sh
-            scripts/upstream-sync-publish.sh
-            scripts/verify-linux-packages.sh
-            scripts/verify-omarchy-release-archive.sh
-            scripts/verify-linux-zmx-cache.sh
-            scripts/zig-build-linux.sh
-            linux/swift-env.sh
-          )
-          for script in "${scripts[@]}"; do
-            bash -n "$script"
-            exclusions=()
-            if [[ "$script" == scripts/setup-linux.sh ]]; then
-              # Each build subshell explicitly sets all three cache paths; no value leaks between them.
-              exclusions=(-e "SC2030,SC2031")
-            fi
-            shellcheck -x -P SCRIPTDIR "${exclusions[@]}" "$script"
-          done
-      - name: Full Python helper regression suite
-        shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
-        # Discover new modules automatically. Real-zmx cases run after the matrix build below.
-        run: python3 -I -m unittest discover -s scripts/tests -p 'test_*.py' -v
-      - name: Zig transport fallback regression tests
-        shell: runuser --user agterm-test -- env HOME=/home/agterm-test bash --noprofile --norc -eo pipefail {0}
-        run: scripts/test-zig-build-linux.sh
-      - name: Whitespace
-        run: git diff --check
-      - name: Summary
-        if: always()
-        env:
-          RESULT: ${{ job.status }}
-        run: |
-          printf '### Installer and scripts\nResult: %s\n' "$RESULT" >> "$GITHUB_STEP_SUMMARY"
-
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions:
-      contents: read
-      pull-requests: read
     outputs:
-      swift: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.swift == 'true' }}
-      # Only the standalone probe and its Python tests are exempt from native builds.
-      product: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && steps.filter.outputs.all_changed_count >= 3000) || (steps.filter.outputs.swift == 'true' && steps.filter.outputs.swift_count != steps.filter.outputs.native_probe_count) }}
+      swift: ${{ steps.filter.outputs.swift }}
       cookbook: ${{ steps.filter.outputs.cookbook }}
-      # GitHub caps PR file lists at 3000; an incomplete list must retain full validation.
-      ui_python_only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.ui_python_count > 0 && steps.filter.outputs.all_changed_count < 3000 && steps.filter.outputs.ui_python_count == steps.filter.outputs.all_changed_count }}
+      aur: ${{ steps.filter.outputs.aur }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        if: github.event_name != 'workflow_dispatch'
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
-            all_changed:
-              - "**"
-            ui_python:
-              - "agterm-linux/tests/*.py"
             swift:
               - "**/*.swift"
               - "agtermCore/**"
@@ -142,53 +51,67 @@ jobs:
               - "agtermUITests/.swiftlint.yml"
               - ".github/workflows/ci.yml"
               - ".github/workflows/release-linux.yml"
-            native_probe:
-              - "scripts/omarchy-config-probe.py"
-              - "scripts/tests/test_omarchy_config_probe.py"
             cookbook:
               - "cookbook/**"
               - ".github/workflows/ci.yml"
+            aur:
+              - "packaging/aur/**"
+              - "scripts/*aur*"
+              - "scripts/verify-linux-packages.sh"
+              - "scripts/verify-published-linux-release.sh"
+              - "scripts/test-linux-ui.sh"
+              - "agterm-linux/tests/gl_teardown_exit_test.py"
+              - ".github/workflows/publish-aur.yml"
+              - ".github/workflows/release-linux.yml"
+              - ".github/workflows/ci.yml"
+
+  test-aur-package:
+    name: Validate AUR package in Arch
+    needs: changes
+    if: needs.changes.outputs.aur == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build, install, and exercise the release in clean Arch
+        run: scripts/test-aur-package.sh
+      - name: Build and test the direct-release Arch artifact from local sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(sed -n 's/^pkgver=//p' packaging/aur/PKGBUILD)"
+          gh release download "linux-v$version" --repo melonamin/agterm-linux \
+            --pattern "agterm-linux-v${version}-*" --dir dist-linux
+          scripts/test-aur-package.sh "$version" dist-linux
+      - name: Upload Arch diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: aur-ui-diagnostics
+          path: artifacts/aur
+          if-no-files-found: warn
 
   test-linux:
-    name: Core tests (${{ matrix.arch }})
+    name: Unit tests (Linux)
     needs: changes
-    if: needs.changes.outputs.product == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            runner: ubuntu-24.04
-          - arch: aarch64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
+    if: needs.changes.outputs.swift == 'true'
+    runs-on: ubuntu-24.04
     # Keep the shared, host-free controller package green on Linux because it backs the GTK frontend.
     container: swift:6.3.2-noble
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7
         with:
-          persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      # Reuses dependency checkouts and their compiled objects. Tests always run (no --skip-build), and
-      # SwiftPM rebuilds any module whose sources changed. Caches written by a pull_request run are scoped
-      # to that PR and are not readable by main; main's own cache is written only by runs on main.
-      - name: Restore SwiftPM build state
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: agtermCore/.build
-          key: swiftpm-core-${{ matrix.arch }}-swift-6.3.2-${{ hashFiles('agtermCore/Package.swift', 'agtermCore/Package.resolved') }}
       - name: Install test shells and hook dependencies
         run: |
-          scripts/ci-install-ubuntu-deps.sh jq ripgrep zsh fish csh tcsh
-      - name: Install Node for OpenCode hook tests
-        if: needs.changes.outputs.ui_python_only != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '22'
+          apt-get update
+          apt-get install -y --no-install-recommends jq ripgrep zsh fish csh tcsh
       - name: Materialize and verify upstream boundary tag
         run: |
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
@@ -197,19 +120,10 @@ jobs:
       # The official Swift container runs as root, which bypasses those permissions, so exercise the
       # package as an ordinary desktop user like the application itself.
       - name: swift test as an unprivileged user
-        if: needs.changes.outputs.ui_python_only != 'true'
         working-directory: agtermCore
         run: |
           useradd --create-home --user-group agterm-test
           chown -R agterm-test:agterm-test "$GITHUB_WORKSPACE"
-          runuser --user agterm-test -- env HOME=/home/agterm-test /usr/bin/env which node
-          runuser --user agterm-test -- env HOME=/home/agterm-test node -e '
-            const [major, minor] = process.versions.node.split(".").map(Number);
-            if (!(major > 22 || (major === 22 && minor >= 7) || (major === 20 && minor >= 19))) {
-              throw new Error("Core hook tests require Node 22.7+ or Node 20.19+");
-            }
-          '
-          runuser --user agterm-test -- env HOME=/home/agterm-test /usr/bin/fish --version
           runuser --user agterm-test -- env HOME=/home/agterm-test swift test --no-parallel
       - name: Enforce host-free core boundary
         run: scripts/check-linux-core-boundary.sh "$UPSTREAM_BASE_TAG"
@@ -221,21 +135,26 @@ jobs:
     needs: changes
     if: needs.changes.outputs.swift == 'true'
     runs-on: ubuntu-24.04
-    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
+    container: swift:6.3.2-noble
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7
         with:
-          persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      - name: Verify SwiftLint
+      - name: Install SwiftLint
         run: |
-          test "$(swiftlint version)" = "$SWIFTLINT_VERSION"
+          apt-get update
+          apt-get install -y --no-install-recommends curl ca-certificates unzip
+          curl -fsSLo /tmp/swiftlint.zip \
+            "https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/swiftlint_linux_amd64.zip"
+          echo "${SWIFTLINT_SHA256}  /tmp/swiftlint.zip" | sha256sum --check
+          unzip -q /tmp/swiftlint.zip -d /usr/local/bin
+          chmod +x /usr/local/bin/swiftlint
+          swiftlint --version
       - name: swiftlint (strict)
-        if: needs.changes.outputs.ui_python_only != 'true'
         run: swiftlint lint --strict --quiet
       - name: Materialize and verify upstream boundary tag
         run: |
@@ -246,38 +165,44 @@ jobs:
           git diff --check
           git diff --check "$UPSTREAM_BASE_TAG"...HEAD
 
-      # This historical release fixture deliberately asserts the upstream repository name.
       - name: Test published-release verifier
-        run: env -u GITHUB_REPOSITORY scripts/test-published-linux-release.sh
+        run: scripts/test-published-linux-release.sh
 
   build-linux:
-    name: GTK build and tests (${{ matrix.arch }})
-    # Independent checks run concurrently; the final CI gate still requires every result.
-    needs: changes
-    if: needs.changes.outputs.product == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            runner: ubuntu-24.04
-            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
-          - arch: aarch64
-            runner: ubuntu-24.04-arm
-            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:74b7758f3d862a23e2d343c721aa47bfd33fbbf2bc17fde62091aeb329927c4e
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
-    container: ${{ matrix.container }}
+    name: Build app (Linux GTK)
+    needs: [changes, test-linux, lint-linux]
+    if: needs.changes.outputs.swift == 'true'
+    runs-on: ubuntu-24.04
+    # A cold Ghostty/Swift build takes about 24 minutes before the 72-scenario UI suite.
+    # Keep headroom for both on a hosted runner, including runtime-cache misses.
+    timeout-minutes: 75
+    # The official Swift image carries the toolchain; apt adds GTK4, libadwaita and GL deps,
+    # and the independently pinned Zig versions build libghostty and zmx.
+    container: swift:6.3.2-noble
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7
         with:
-          persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      - name: Verify pinned GTK build image
-        run: /usr/local/bin/agterm-build-image-probe
+      - name: Install GTK4, accessibility, software GL, test shells, and zig
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev libepoxy-dev librsvg2-common webp-pixbuf-loader pkg-config git curl ca-certificates xz-utils ncurses-bin \
+            jq ripgrep zsh fish csh tcsh gcc file at-spi2-core dbus-x11 gir1.2-atspi-2.0 openbox python3-gi xdotool xvfb xauth x11-xkb-utils ibus ibus-gtk4 \
+            libatk-bridge2.0-0 libgl1-mesa-dri libegl-mesa0 mesa-utils
+          curl -fsSLo /tmp/zig.tar.xz \
+            https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz
+          echo "${ZIG_SHA256}  /tmp/zig.tar.xz" | sha256sum --check
+          tar -xJf /tmp/zig.tar.xz -C /opt
+          echo "/opt/zig-x86_64-linux-0.16.0" >> "$GITHUB_PATH"
+          curl -fsSLo /tmp/zig17.tar.xz \
+            https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz
+          echo "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026  /tmp/zig17.tar.xz" | sha256sum --check
+          tar -xJf /tmp/zig17.tar.xz -C /opt
+          echo "GHOSTTY_ZIG=/opt/zig-x86_64-linux-0.17.0/zig" >> "$GITHUB_ENV"
       - name: Materialize and verify upstream boundary tag
         run: |
           git tag --force "$UPSTREAM_BASE_TAG" "$UPSTREAM_BASE_COMMIT"
@@ -294,9 +219,9 @@ jobs:
         run: |
           source linux/arch.sh
           echo "host=$HOST_ARCH" >> "$GITHUB_OUTPUT"
-      - name: Restore vendored Linux runtimes
+      - name: Cache vendored Linux runtimes
         id: ghostty-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache@v6
         with:
           path: |
             agterm-linux/vendor/ghostty
@@ -316,84 +241,19 @@ jobs:
         run: scripts/verify-linux-vendor-cache.sh agterm-linux/vendor/ghostty
       - name: Verify built zmx cache
         run: scripts/verify-linux-zmx-cache.sh agterm-linux/vendor/zmx
-      - name: Save verified Linux runtimes
-        if: steps.ghostty-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            agterm-linux/vendor/ghostty
-            agterm-linux/vendor/zmx
-          key: ${{ steps.ghostty-cache.outputs.cache-primary-key }}
-      - name: Real zmx identity and cleanup controls
-        env:
-          AGTERM_IDENTITY_TEST_ZMX: ${{ github.workspace }}/agterm-linux/vendor/zmx/zmx
-        run: |
-          # Fail if unavailable rather than letting the integration cases silently skip.
-          test -x "$AGTERM_IDENTITY_TEST_ZMX"
-          python3 -I -m unittest discover -s scripts/tests -p 'test_omarchy_identity.py' -v
-          # Restore pre-fill: a line typed without a newline into a new daemon's shell waits for Enter.
-          command -v zsh
-          python3 -I -m unittest discover -s scripts/tests -p 'test_zmx_prefill.py' -v
-          # A client ended by SIGTERM/HUP/INT hands back its shared terminal; SIGKILL still needs #429's reopen.
-          python3 -I -m unittest discover -s scripts/tests -p 'test_zmx_tty_restore.py' -v
-          # A daemon from another zmx protocol is named in list and refused by attach, never attached blind.
-          python3 -I -m unittest discover -s scripts/tests -p 'test_zmx_incompatible_daemon.py' -v
-          # Explicit leadership, screen/type and managed exit, driven through real ptys.
-          python3 -I scripts/zmx-patches/check.py "$AGTERM_IDENTITY_TEST_ZMX"
 
+      - name: Exercise headless server lifecycle with bundled runtimes
+        working-directory: agtermCore
+        env:
+          AGTERM_REQUIRE_ZMX: "1"
+          AGTERM_REQUIRE_FISH: "1"
+        run: |
+          export AGTERM_ZMX_BIN="$GITHUB_WORKSPACE/agterm-linux/vendor/zmx/zmx"
+          export AGTERM_SHELL_INTEGRATION="$GITHUB_WORKSPACE/agterm-linux/vendor/ghostty/share/ghostty/shell-integration"
+          swift test --filter ServerLifecycleTests
       - name: swift test (agterm-linux)
         working-directory: agterm-linux
         run: swift test
-      - name: GTK clipboard dialog disposal
-        working-directory: agterm-linux
-        run: AGTERM_GTK_TESTS=1 xvfb-run -a swift test --skip-build --filter ClipboardPromptGTKTests
-      - name: GTK pending theme cancellation tests
-        working-directory: agterm-linux
-        run: |
-          fixture_root=$(mktemp -d)
-          trap 'rm -rf "$fixture_root"' EXIT
-          mkdir -p "$fixture_root"/{home,state,config,data,cache,runtime}
-          chmod 700 "$fixture_root/runtime"
-          xvfb-run -a dbus-run-session -- env AGTERM_THEME_GTK_TESTS=1 GDK_BACKEND=x11 \
-            HOME="$fixture_root/home" AGTERM_STATE_DIR="$fixture_root/state" \
-            XDG_CONFIG_HOME="$fixture_root/config" XDG_DATA_HOME="$fixture_root/data" \
-            XDG_CACHE_HOME="$fixture_root/cache" XDG_RUNTIME_DIR="$fixture_root/runtime" \
-            AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" \
-            swift test --skip-build --filter ThemePickerCancellationGTKTests
-      - name: GTK zoom restoration callback tests
-        working-directory: agterm-linux
-        run: |
-          fixture_root=$(mktemp -d)
-          trap 'rm -rf "$fixture_root"' EXIT
-          mkdir -p "$fixture_root"/{home,state,config,data,cache,runtime}
-          chmod 700 "$fixture_root/runtime"
-          xvfb-run -a dbus-run-session -- env AGTERM_GTK_TESTS=1 GDK_BACKEND=x11 \
-            HOME="$fixture_root/home" AGTERM_STATE_DIR="$fixture_root/state" \
-            XDG_CONFIG_HOME="$fixture_root/config" XDG_DATA_HOME="$fixture_root/data" \
-            XDG_CACHE_HOME="$fixture_root/cache" XDG_RUNTIME_DIR="$fixture_root/runtime" \
-            swift test --skip-build --filter ZoomExitRatioGTKTests
-      - name: GTK pending spawn teardown
-        working-directory: agterm-linux
-        run: |
-          fixture="$(mktemp -d)"
-          trap 'rm -rf "$fixture"' EXIT
-          HOME="$fixture" XDG_CONFIG_HOME="$fixture/config" AGTERM_STATE_DIR="$fixture/state" \
-            AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" AGTERM_GTK_TESTS=1 \
-            xvfb-run -a swift test --skip-build --filter LinuxSpawnRegistryGTKTests
-      - name: GTK main loop under title noise
-        timeout-minutes: 3
-        working-directory: agterm-linux
-        run: |
-          fixture="$(mktemp -d)"
-          trap 'rm -rf "$fixture"' EXIT
-          mkdir -p "$fixture"/{home,state,config,data,cache,runtime}
-          chmod 700 "$fixture/runtime"
-          xvfb-run -a dbus-run-session -- env AGTERM_TITLE_NOISE_GTK_TESTS=1 GDK_BACKEND=x11 \
-            HOME="$fixture/home" AGTERM_STATE_DIR="$fixture/state" \
-            XDG_CONFIG_HOME="$fixture/config" XDG_DATA_HOME="$fixture/data" \
-            XDG_CACHE_HOME="$fixture/cache" XDG_RUNTIME_DIR="$fixture/runtime" \
-            AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" \
-            swift test --skip-build --filter NoisyTitleMainLoopGTKTests
       - name: swift build (agterm-linux)
         working-directory: agterm-linux
         run: swift build
@@ -401,181 +261,27 @@ jobs:
         working-directory: agterm-linux
         run: swift build -c release
       - name: Validate staged Linux payload
-        run: |
-          upstream="${UPSTREAM_BASE_TAG#v}"
-          AGTERM_UPSTREAM_VERSION="$upstream" scripts/stage-linux.sh "$RUNNER_TEMP/agterm-stage"
-          metadata="$RUNNER_TEMP/agterm-stage/share/agterm"
-          [[ "$(cat "$metadata/VERSION")" == dev ]]
-          [[ "$(cat "$metadata/UPSTREAM_VERSION")" == "$upstream" ]]
-          cmp "$metadata/agterm-server.sha256" "packaging/linux/server/v$upstream.sha256"
-      - name: GTK inline rename effect tests
-        working-directory: agterm-linux
-        run: |
-          fixture_root=$(mktemp -d)
-          trap 'rm -rf "$fixture_root"' EXIT
-          mkdir -p "$fixture_root"/{home,state,config,data,cache,runtime}
-          chmod 700 "$fixture_root/runtime"
-          xvfb-run -a dbus-run-session -- env AGTERM_RENAME_GTK_TESTS=1 GDK_BACKEND=x11 \
-            HOME="$fixture_root/home" AGTERM_STATE_DIR="$fixture_root/state" \
-            XDG_CONFIG_HOME="$fixture_root/config" XDG_DATA_HOME="$fixture_root/data" \
-            XDG_CACHE_HOME="$fixture_root/cache" XDG_RUNTIME_DIR="$fixture_root/runtime" \
-            swift test --skip-build --filter InlineRenameGTKTests
-      - name: GTK session-switch release callbacks
-        working-directory: agterm-linux
-        run: |
-          fixture_root=$(mktemp -d)
-          trap 'rm -rf "$fixture_root"' EXIT
-          mkdir -p "$fixture_root"/{home,state,config,data,cache,runtime}
-          chmod 700 "$fixture_root/runtime"
-          xvfb-run -a dbus-run-session -- env AGTERM_SWITCH_GTK_TESTS=1 GDK_BACKEND=x11 \
-            HOME="$fixture_root/home" AGTERM_STATE_DIR="$fixture_root/state" \
-            XDG_CONFIG_HOME="$fixture_root/config" XDG_DATA_HOME="$fixture_root/data" \
-            XDG_CACHE_HOME="$fixture_root/cache" XDG_RUNTIME_DIR="$fixture_root/runtime" \
-            swift test --skip-build --filter SessionSwitchReleaseGTKTests
-      - name: GTK remote held-exit adapter tests
-        timeout-minutes: 3
-        working-directory: agterm-linux
-        run: |
-          fixture_root=$(mktemp -d)
-          trap 'rm -rf "$fixture_root"' EXIT
-          # Ghostty shutdown is terminal: each case needs a fresh process and state.
-          for test_case in exitBeforeTitle removedBeforeHeld retiredSlot; do
-            fixture="$fixture_root/$test_case"
-            mkdir -p "$fixture"/{home,state,config,data,cache,runtime}
-            chmod 700 "$fixture/runtime"
-            xvfb-run -a dbus-run-session -- env AGTERM_REMOTE_HELD_GTK_TESTS=1 \
-              GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 \
-              HOME="$fixture/home" AGTERM_STATE_DIR="$fixture/state" \
-              XDG_CONFIG_HOME="$fixture/config" XDG_DATA_HOME="$fixture/data" \
-              XDG_CACHE_HOME="$fixture/cache" XDG_RUNTIME_DIR="$fixture/runtime" \
-              AGTERM_GHOSTTY_RESOURCES="$PWD/vendor/ghostty/share/ghostty" \
-              swift test --skip-build --filter "RemoteHeldExitGTKTests/$test_case"
-          done
+        run: scripts/stage-linux.sh "$RUNNER_TEMP/agterm-stage"
       - name: GTK AT-SPI smoke tests
         env:
           AGTERM_UI_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/linux-ui
-        run: python3 scripts/test-linux-ui-parallel.py
+        run: scripts/test-linux-ui.sh
       - name: Upload GTK diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@v6
         with:
-          name: linux-ui-diagnostics-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: linux-ui-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/linux-ui
           if-no-files-found: warn
-      - name: Archive complete runtime payload
-        env:
-          BUILD_ARCH: ${{ matrix.arch }}
-        # Numeric root ownership: the container's builder uid means nothing on an installing host.
-        run: |
-          tar --owner=0 --group=0 --numeric-owner -czf "$RUNNER_TEMP/agterm-omarchy-${BUILD_ARCH}.tar.gz" \
-            -C "$RUNNER_TEMP" agterm-stage
-      - name: Upload tested runtime payload
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: agterm-omarchy-${{ matrix.arch }}-${{ github.sha }}
-          path: ${{ runner.temp }}/agterm-omarchy-${{ matrix.arch }}.tar.gz
-          if-no-files-found: error
-          retention-days: 14
-      # The versioned release path on the archive just uploaded, under the never-published serial 0.
-      - name: Rehearse versioned release archive
-        env:
-          BUILD_ARCH: ${{ matrix.arch }}
-        run: |
-          version="${UPSTREAM_BASE_TAG#v}.0"
-          rehearsal="$RUNNER_TEMP/release-rehearsal"
-          python3 scripts/omarchy-release.py "$RUNNER_TEMP/agterm-omarchy-${BUILD_ARCH}.tar.gz" \
-            --arch "$BUILD_ARCH" --sha "$(git rev-parse HEAD)" --output "$rehearsal"
-          asset="agterm-omarchy-${version}-${BUILD_ARCH}.tar.gz"
-          scripts/verify-omarchy-release-archive.sh "$rehearsal/$asset" "$version" | tee "$rehearsal/$asset.native.txt"
-          (cd "$rehearsal" && sha256sum "$asset" > "$asset.sha256")
-          cat "$rehearsal/$asset.sha256" >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload release rehearsal evidence
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: release-rehearsal-${{ matrix.arch }}-${{ github.sha }}
-          path: ${{ runner.temp }}/release-rehearsal
-          if-no-files-found: error
-          retention-days: 7
-      - name: Build summary
-        if: always()
-        env:
-          BUILD_ARCH: ${{ matrix.arch }}
-          RESULT: ${{ job.status }}
-        run: |
-          printf '### Linux %s\nResult: %s\n\nSwift 6.3.2; Zig 0.17.0. GTK tests use Xvfb.\n' "$BUILD_ARCH" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
-          echo 'Native Hyprland/Wayland validation remains a separate Omarchy VM check.' >> "$GITHUB_STEP_SUMMARY"
-
-  ghostty-patch-tests:
-    name: libghostty patch Zig tests (${{ matrix.arch }})
-    # The patches' own Zig tests; the GTK jobs only link the ReleaseFast library they produce. Both arches,
-    # as the GTK build: the pty hangup and exit-ordering races of #447 showed on aarch64.
-    needs: changes
-    if: needs.changes.outputs.product == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            runner: ubuntu-24.04
-            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
-          - arch: aarch64
-            runner: ubuntu-24.04-arm
-            container: ghcr.io/alexandru-savinov/agterm-omarchy-build-aarch64@sha256:74b7758f3d862a23e2d343c721aa47bfd33fbbf2bc17fde62091aeb329927c4e
-    runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.container }}
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Zig tests added by the Linux libghostty patches
-        run: scripts/test-ghostty-patches-linux.sh
-
-  zmx-patch-tests:
-    name: zmx patch tests
-    # The patched zmx under upstream's own gates; the GTK jobs only run the ReleaseSafe binary.
-    needs: changes
-    if: needs.changes.outputs.product == 'true'
-    runs-on: ubuntu-24.04
-    container: ghcr.io/alexandru-savinov/agterm-omarchy-build-x86_64@sha256:ec9531b315a437be617134cf796d5ab78bd234bc6b5ba8c8a0685254caa3a1dc
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: zig fmt, zig build test and bats over the patched zmx
-        run: scripts/test-zmx-patches-linux.sh
-
-  ci:
-    name: CI
-    # Superseded runs must not hold the concurrency slot while this job waits for a runner.
-    if: ${{ !cancelled() }}
-    needs: [scripts, changes, test-linux, lint-linux, build-linux, ghostty-patch-tests, zmx-patch-tests, cookbook]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Require successful checks
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          python3 - <<'PYTHON'
-          import json, os
-          results = json.loads(os.environ['RESULTS'])
-          failed = [name for name, value in results.items() if value['result'] not in ('success', 'skipped')]
-          if failed:
-              raise SystemExit('Failed or cancelled checks: ' + ', '.join(failed))
-          PYTHON
 
   cookbook:
     name: Cookbook checks
     needs: changes
     if: needs.changes.outputs.cookbook == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+      - uses: actions/checkout@v7
       - name: recipe layout, index and headings
         # bash explicitly: the block below uses process substitution, and pipefail
         # is what makes a failed find in a command substitution red the step
@@ -629,8 +335,8 @@ jobs:
         shell: bash
         run: find cookbook -type f -name '*.sh' -print0 | xargs -0 -r shellcheck
       - name: Install recipe shells
-        # fish runs a recipe regression test as well as syntax checks.
-        run: sudo scripts/ci-install-ubuntu-deps.sh zsh fish
+        # neither is on the ubuntu-latest image; fish runs a recipe regression test
+        run: sudo apt-get update && sudo apt-get install -y zsh fish
       - name: zsh syntax check
         # shellcheck cannot parse zsh, so a parse is the only gate .zsh recipes get.
         # -n1 because zsh -n reads one script and treats the rest as its arguments;
@@ -645,8 +351,9 @@ jobs:
         run: find cookbook -type f -name '*.fish' -print0 | xargs -0 -r -n1 fish --no-execute
       - name: Install ruff
         # not on the ubuntu-latest image, unlike shellcheck. pipx, because the runner's
-        # python is externally managed and a bare pip install into it fails
-        run: pipx install ruff==0.17.3
+        # python is externally managed and a bare pip install into it fails. Pinned because a
+        # new ruff release can add rules that fail recipes nobody touched
+        run: pipx install ruff==0.16.10
       - name: ruff
         # the .py counterpart of shellcheck, so a recipe is linted rather than only parsed.
         # EXE001 is ignored because it fails a shebang on a non-executable file, which
@@ -654,8 +361,7 @@ jobs:
         # would move executable-bit policy into CI where this repo deliberately keeps it
         # out. bash explicitly, for pipefail, same reason as the shellcheck step above
         shell: bash
-        # Recipes include Python 3.10 code and explicit 3.9 compatibility; do not require 3.11 APIs.
-        run: find cookbook -type f -name '*.py' -print0 | xargs -0 -r ruff check --target-version py310 --ignore EXE001
+        run: find cookbook -type f -name '*.py' -print0 | xargs -0 -r ruff check --ignore EXE001
       - name: Python recipe tests
         # one process per file keeps recipes independent and gives each test script its own argv.
         # bash explicitly, for pipefail, same reason as the ruff step above.

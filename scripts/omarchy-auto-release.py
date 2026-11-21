@@ -79,7 +79,7 @@ def plan(event):
         return None, "The triggering attempt is no longer current and completed"
     promotion.require(run["id"] == run_id and run["event"] == "push" and run["head_branch"] == "main",
                       "Not the requested main push run")
-    promotion.validate_run(run, promotion.api("actions/workflows/ci.yml"), sha, head)
+    promotion.validate_run(run, promotion.api(promotion.WORKFLOW_API), sha, head)
     base = promotion.source_base(promotion.release_module(), sha)
     if promotion.version_key(base) < MINIMUM_BASE:
         return None, "Wait for the v0.43.0 catch-up sync before automatic releases"

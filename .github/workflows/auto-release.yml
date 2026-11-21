@@ -67,7 +67,7 @@ jobs:
       contents: read
       actions: read
       attestations: read
-    # Required attestation keeps CI-artifact gates closed until #483 signs the archives.
+    # The gate verifies both CI archives against the omarchy-ci.yml signer on main.
     uses: $/.github/workflows/omarchy-x86-native.yml
     with:
       source: ci-run

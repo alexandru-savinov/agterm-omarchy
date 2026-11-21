@@ -20,11 +20,11 @@ artifact download and digests, archive and ELF checks, checksums and release not
 Its summary shows the tag and notes it would publish.
 It skips the publishing job, including that job's transfer-artifact download/digest check and second checksum verification.
 It therefore does not create or verify attestations, or create a tag or release.
-Pull requests touching the promotion or `ci.yml` dry-run the newest promotable source the same way, skipping
+Pull requests touching the promotion or `omarchy-ci.yml` dry-run the newest promotable source the same way, skipping
 a run whose tag or release already exists; with no promotable source they warn that nothing was checked.
 `python3 scripts/prepare-omarchy-prerelease.py --discover` prints that source locally.
 Publication needs `dry_run=false`, so review the exact source run and commit before passing it.
-The source must be a successful `Omarchy CI` run of `.github/workflows/ci.yml` in this repository,
+The source must be a successful `Omarchy CI` run of `.github/workflows/omarchy-ci.yml` in this repository,
 triggered by push or manual dispatch on the current `main` or `omarchy` branch head.
 PR runs are rejected because their tested merge commit can differ from the reported head commit.
 Do not substitute a PR head SHA for its merge SHA or reuse older green artifacts to claim validation of newer fixes.
@@ -62,7 +62,7 @@ The local ARM64 archive from issue #15 is a different artifact and is not automa
 
 omarchy-pkgs' `upstream-watch` follows non-prerelease releases whose whole tag matches
 `omarchy-v(?P<version>[0-9]+(?:\.[0-9]+)*)`.
-A version is the `UPSTREAM_BASE_TAG` of `ci.yml` plus a serial, `0.43.0.N` with N ≥ 1 and no leading zeros,
+A version is the `UPSTREAM_BASE_TAG` of `omarchy-ci.yml` plus a serial, `0.43.0.N` with N ≥ 1 and no leading zeros,
 so pacman's vercmp orders it below upstream `0.43.1`; serial 0 is the CI rehearsal and is never published.
 Dispatch from main is the only publishing path. Dry-run first, then publish the same source:
 
@@ -84,7 +84,9 @@ It rejects the archive unless both executables have RUNPATH `$ORIGIN/../lib`, no
 search path, `share/licenses/agterm/` carries the repository `LICENSE`, `payload.json` lists no unresolved
 library, and every shipped theme is resolved, byte for byte, in the archive's own notice inventory;
 `promotion.json` records the tested and released digest of each archive.
-The source run must also have passed both arches' "Rehearse versioned release archive" step.
+The source run must pass "Rehearse versioned release archive" and the separate "Attest CI archive" job
+on both architectures. The signing job downloads the tested CI artifacts and signs their original tarballs.
+Main pushes and manual dispatches on main are eligible for signing.
 CI rehearses this on both architectures under serial 0 and checks the result natively with tar, readelf and ldd
 (`release-rehearsal-<arch>-<sha>` artifacts).
 The release is created as a non-prerelease; it is marked latest only when no published `omarchy-v` release

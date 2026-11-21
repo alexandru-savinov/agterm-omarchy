@@ -14,8 +14,8 @@ on:
       - scripts/linux-runpath.py
       - scripts/tests/test_omarchy_release.py
       - packaging/linux/prerelease-omarchy.md
-      # The validator requires ci.yml job and step names.
-      - .github/workflows/ci.yml
+      # The validator requires omarchy-ci.yml job and step names.
+      - .github/workflows/omarchy-ci.yml
   workflow_dispatch:
     inputs:
       source_run:

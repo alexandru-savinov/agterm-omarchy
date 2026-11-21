@@ -83,7 +83,7 @@ class PlanTests(unittest.TestCase):
         }
         fixtures = {"git/ref/heads/main": {"object": {"sha": SHA}}, "actions/runs/123": run,
                     OPEN_INCIDENTS: [[]],
-                    "actions/workflows/ci.yml": {"id": 4},
+                    "actions/workflows/omarchy-ci.yml": {"id": 4},
                     auto.RELEASES_PATH: [[RELEASE | {"prerelease": True}]],
                     f"compare/{TAG}...{SHA}": {"status": "ahead"},
                     "git/matching-refs/tags/omarchy-v?per_page=100": [[{"ref": "refs/tags/omarchy-v0.43.0.10"}]]}

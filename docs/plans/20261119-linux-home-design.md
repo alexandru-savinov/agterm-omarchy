@@ -49,7 +49,8 @@ being upstream-first.
 
 - A plain merge of umputun tag `v0.43.0` into a branch `sync/umputun-v0.43.0`. Resolve the conflicts, adapt
   the Linux frontend to core API changes, and keep every fork fix that umputun doesn't have.
-- `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` in ci.yml move to v0.43.0, and the boundary checks follow.
+- The downstream CI and `release-linux.yml` move `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` to v0.43.0.
+  After the layout cutover, the downstream CI file is `omarchy-ci.yml`.
   Release versions then derive `0.43.0.N`.
 - Acceptance:
   - Omarchy CI is green on both arches.
@@ -81,9 +82,9 @@ follow linux-port:
 - If the merge conflicts, or changes anything under `.github/`, keep the conflicts as a commit and open a draft
   PR labelled `needs-adaptation`. Otherwise open a PR labelled `upstream-sync`. A merge that adds a new
   workflow path is not pushed at all (Trust, below).
-- The PR body says to bump `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` in `ci.yml` and `release-linux.yml` to
-  the newest umputun tag the merged source contains: for a linux-port sync, the tag linux-port contains. If main
-  already holds a newer tag from a fallback sync, it says to keep the pins there.
+- The merge commit pins the newest incorporated umputun release in `omarchy-ci.yml`.
+  A linux-port sync also advances `LINUX_PORT_BASE_COMMIT` and carries the three inherited workflow files.
+  The PR body lists the expected pins for conflict resolution.
 - **Trust:** the sync branch is pushed before anyone reviews it, and the workflows it carries run on that
   push. A workflow file can request a write token for itself (`permissions:`), whatever the repository
   default is, so an upstream-authored workflow could push branches or create tags and releases here.
@@ -94,12 +95,11 @@ follow linux-port:
     disables them; the next run then syncs. A workflow main deleted and upstream left alone stays deleted
     and does not block.
   - **Existing workflow paths** keep the `needs-adaptation` draft, with the changed paths listed. A workflow
-    that is disabled in this repository does not run, even when its content changes; #483 will hold
-    umputun's own workflows that way. Until #483 lands, that protection is not in place: `ci.yml` and
-    `release-linux.yml` are enabled here, linux-port changes both and umputun changes `ci.yml`. On
-    2026-11-20 each of those merges conflicted, and a workflow file holding conflict markers does not
-    parse, so it does not run. A later merge of either file that applies cleanly would run
-    upstream-authored steps on the push. That exposure stays open until #483 lands.
+    that is disabled in this repository stays disabled when its content changes.
+    At the #483 cutover, `ci.yml`, `release-linux.yml`, and `publish-aur.yml` take the exact linux-port
+    copies. Each registered workflow is disabled; the guard permits an unregistered reusable-only workflow
+    until GitHub registers it. The fork publishes via `prerelease-omarchy.yml`.
+    A clean merge into an enabled workflow path can run upstream-authored steps when its triggers match.
   - **Settings this rests on,** verified on 2026-11-20: there are no repository secrets; the only credential
     is the PAT in the `upstream-sync` environment, which deploys from main only; allowed actions are a
     selected list; Actions cannot approve pull requests. The default workflow permissions are read, but

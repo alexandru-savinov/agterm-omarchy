@@ -38,7 +38,7 @@ TASK = "#476"
 UNDECIDED = 3  # `pause` exit status: SYNC_PAUSED does not pause, so the incident listing decides
 STATUS_LINE = re.compile(r"HTTP/[0-9.]+ ([0-9]{3})\b", re.ASCII)
 UNREADABLE = (403, 404)  # how GitHub answers a token that lacks the permission to read a setting
-BASE_PIN_FILES = (".github/workflows/ci.yml", ".github/workflows/release-linux.yml")
+CI_WORKFLOW = f"{WORKFLOWS}/omarchy-ci.yml"
 LIST_BUDGET = 28000  # characters per list, so two lists stay below GitHub's 65536-character body limit
 UNMERGED = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
 CONFLICT_KINDS = {"DD": "both deleted", "AU": "added by us", "UD": "deleted by them", "UA": "added by them",
@@ -304,14 +304,16 @@ def pr_text(*, source, commit, release, pin, base_sha, head_sha, run_url, confli
     else:
         title = f"Sync {UPSTREAM} {tag}"
         merges = f"Merges {link} into main (`{base_sha}`)."
-    files = " and ".join(f"`{path}`" for path in BASE_PIN_FILES)
     if pin_tag == tag:
-        pins = (f"Before merging, bump `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` to `{tag}` / `{pin[1]}` in both "
-                f"{files}, unless main already pins them there.")
+        pins = (f"The merge commit sets `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` to `{tag}` / `{pin[1]}` "
+                f"in `{CI_WORKFLOW}` where resolved. Confirm the same pins when resolving workflow conflicts.")
     else:
         pins = (f"main already contains the newer {UPSTREAM} {pin_tag}: keep `UPSTREAM_BASE_TAG` / "
-                f"`UPSTREAM_BASE_COMMIT` at `{pin_tag}` / `{pin[1]}` in both {files}, and never move them back to "
+                f"`UPSTREAM_BASE_COMMIT` at `{pin_tag}` / `{pin[1]}` in `{CI_WORKFLOW}`, and never move them back to "
                 f"`{tag}`.")
+    if source == SOURCE_LINUX_PORT:
+        pins += (f" The merge also sets `LINUX_PORT_BASE_COMMIT` in `{CI_WORKFLOW}` to `{commit}` where resolved. "
+                 "Retain that source's exact `ci.yml`.")
     # The fields describe the run that built the branch; the reviewer replaces both with their own review.
     fields = [f"Task: {TASK}", "Agent: upstream-sync", f"Reviewed head: {head_sha}", f"Review: {run_url}", ""]
     body = fields + [
@@ -390,30 +392,61 @@ IDENTITY = ("-c", "user.name=github-actions[bot]",
             "-c", "user.email=41898283+github-actions[bot]@users.noreply.github.com")
 
 
-def build(worktree, base, branch, commit, what):
+def update_boundary(worktree, base, release_pin, linux_port_pin, conflicted_paths):
+    """Stage the fork's pins while preserving the inherited workflows."""
+    if (CI_WORKFLOW in conflicted_paths
+            or git("cat-file", "-e", f"{base}:{CI_WORKFLOW}", cwd=worktree, check=False).returncode):
+        return
+    path = worktree / CI_WORKFLOW
+    if path.is_symlink():
+        raise SyncError(f"cannot update boundary pins in symlink {CI_WORKFLOW}")
+    tag, commit = release_pin
+    pins = {"UPSTREAM_BASE_TAG": tag, "UPSTREAM_BASE_COMMIT": commit}
+    if linux_port_pin:
+        pins["LINUX_PORT_BASE_COMMIT"] = linux_port_pin
+    text = path.read_text(encoding="utf-8")
+    for key, value in pins.items():
+        text, count = re.subn(rf'^  {key}: "[^"\n]+"$', f'  {key}: "{value}"', text, flags=re.MULTILINE)
+        if count != 1:
+            raise SyncError(f"expected exactly one {key} in {CI_WORKFLOW}")
+    path.write_text(text, encoding="utf-8")
+    git("add", "--", CI_WORKFLOW, cwd=worktree)
+
+
+def build(worktree, base, branch, commit, what, *, release_pin=None, linux_port_pin=None):
     """Create `branch` in a new worktree as base merged with commit; conflicts are committed with markers.
 
     `what` names the merged source in the commit message.
     Returns (conflicts, paths the merge changes under .github/, workflow paths it adds that base lacks)."""
     git("worktree", "add", "-b", branch, str(worktree), base)
     message = f"Merge {what} into main"
-    merged = git(*IDENTITY, "merge", "--no-ff", "--no-edit", "-m", message, commit, cwd=worktree, check=False)
+    merged = git(*IDENTITY, "merge", "--no-ff", "--no-commit", commit, cwd=worktree, check=False)
     conflicts = conflicts_from_status(git("status", "--porcelain=v1", "-z", cwd=worktree).stdout)
     if merged.returncode and not conflicts:
         raise SyncError(f"git merge failed without conflicts: {merged.stderr.strip() or merged.stdout.strip()}")
+    if git("rev-parse", "--verify", "MERGE_HEAD", cwd=worktree, check=False).returncode:
+        raise SyncError("sync commit must have both main and upstream parents")
     if conflicts:
         git("add", "-A", cwd=worktree)
+    def changed(under, *options):
+        names = git("diff", "--cached", "--no-renames", "--name-only", "-z", *options, base, "--", under,
+                    cwd=worktree)
+        return sorted(path for path in names.stdout.split("\0") if path)
+    # Measure upstream changes before staging our own pins. A renamed workflow still counts as a new path.
+    github_changes = changed(".github")
+    new_workflows = changed(WORKFLOWS, "--diff-filter=A")
+    if release_pin:
+        update_boundary(worktree, base, release_pin, linux_port_pin, {path for path, _ in conflicts})
+    if conflicts:
         listing = "\n".join(path for path, _ in conflicts)
         git(*IDENTITY, "commit", "--no-verify", "-m", f"{message} (conflicts committed for adaptation)",
             "-m", f"Conflicted paths:\n{listing}", cwd=worktree)
+    else:
+        git(*IDENTITY, "commit", "--no-verify", "-m", message, cwd=worktree)
     parents = git("rev-list", "--parents", "-n", "1", "HEAD", cwd=worktree).stdout.split()[1:]
     if parents != [git("rev-parse", base).stdout.strip(), commit]:
         raise SyncError(f"sync commit parents are {parents}, expected base then {commit}")
-    def changed(under, *options):
-        names = git("diff", "--no-renames", "--name-only", "-z", *options, base, "HEAD", "--", under, cwd=worktree)
-        return sorted(path for path in names.stdout.split("\0") if path)
-    # Without rename detection a moved workflow counts as the new path it is.
-    return conflicts, changed(".github"), changed(WORKFLOWS, "--diff-filter=A")
+    return conflicts, github_changes, new_workflows
 
 
 def emit(values):
@@ -511,17 +544,20 @@ def main(argv=None):
                 if not tag:
                     raise SyncError(f"{LINUX_PORT_BRANCH} {args.commit[:8]} contains no {UPSTREAM} release")
                 what = f"{LINUX_PORT} {LINUX_PORT_BRANCH} {args.commit[:8]}"
+            in_base, in_source = ancestor_check(base), ancestor_check(args.commit)
+            pin = newest_contained(tags, lambda sha: in_base(sha) or in_source(sha))
+            release_pin = (pin, tags[pin])
+            linux_port_pin = args.commit if args.source == SOURCE_LINUX_PORT else None
             conflicts, github_changes, new_workflows = build(Path(args.worktree), base, args.branch, args.commit,
-                                                             what)
+                                                             what, release_pin=release_pin, linux_port_pin=linux_port_pin)
             head = git("rev-parse", "HEAD", cwd=args.worktree).stdout.strip()
-            pin = newest_contained(tags, ancestor_check(head))
             if new_workflows:
                 label, draft = LABEL_CONFLICT, True
                 title, body = blocked_text(source=args.source, commit=args.commit, release=(tag, tags[tag]),
                                            base_sha=base, run_url=args.run_url, new_workflows=new_workflows)
             else:
                 title, label, draft, body = pr_text(source=args.source, commit=args.commit, release=(tag, tags[tag]),
-                                                    pin=(pin, tags[pin]), base_sha=base, head_sha=head,
+                                                    pin=release_pin, base_sha=base, head_sha=head,
                                                     run_url=args.run_url, conflicts=conflicts,
                                                     github_changes=github_changes)
             Path(args.body).write_text(body, encoding="utf-8")

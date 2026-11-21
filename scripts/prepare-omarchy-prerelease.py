@@ -15,7 +15,8 @@ import tarfile
 import zipfile
 
 REPOSITORY = "alexandru-savinov/agterm-omarchy"
-WORKFLOW = ".github/workflows/ci.yml"
+WORKFLOW = ".github/workflows/omarchy-ci.yml"
+WORKFLOW_API = f"actions/workflows/{Path(WORKFLOW).name}"
 ARCHITECTURES = {"x86_64": 62, "aarch64": 183}
 BRANCHES = ("main", "omarchy")
 TAG = re.compile(r"omarchy-dev-[0-9a-f]{12}-run[1-9][0-9]*")
@@ -23,8 +24,10 @@ REQUIRED_JOBS = ("Installer and scripts", "SwiftLint (Linux)", "CI")
 REQUIRED_ARCH_JOBS = ("Core tests ({arch})", "GTK build and tests ({arch})")
 REQUIRED_GTK_STEPS = ("swift test (agterm-linux)", "swift build Release/WMO (agterm-linux)",
                       "Validate staged Linux payload", "GTK AT-SPI smoke tests", "Upload tested runtime payload")
-# A versioned release also needs the native tar/readelf/ldd check its notes describe.
-RELEASE_GTK_STEPS = ("Rehearse versioned release archive", "Upload release rehearsal evidence")
+ATTEST_JOB = "Attest CI archive ({arch})"
+ATTEST_STEP = "Attest the exact tested CI archive"
+# A versioned release needs the rehearsal and a successful signature for each tested tarball.
+RELEASE_GTK_STEPS = ("Rehearse versioned release archive", "Upload release rehearsal evidence", ATTEST_STEP)
 
 
 def require(condition, message):
@@ -106,11 +109,11 @@ def parse_native_archives(text, sha):
 
 def discover():
     """Newest run at a current trusted branch head that main() would accept for an unpublished tag."""
-    workflow = api("actions/workflows/ci.yml")
+    workflow = api(WORKFLOW_API)
     candidates = []
     for branch in BRANCHES:
         head = api(f"git/ref/heads/{branch}")["object"]["sha"]
-        pages = api(f"actions/workflows/ci.yml/runs?branch={branch}&head_sha={head}&status=success&per_page=100",
+        pages = api(f"{WORKFLOW_API}/runs?branch={branch}&head_sha={head}&status=success&per_page=100",
                     pages=True)
         for run in (run for page in pages for run in page["workflow_runs"]):
             try:
@@ -138,16 +141,23 @@ def validate_run(run, workflow, sha, branch_sha):
 
 
 def validate_jobs(jobs, release=False):
-    required = set(REQUIRED_JOBS)
-    for arch in ARCHITECTURES:
-        required.update(name.format(arch=arch) for name in REQUIRED_ARCH_JOBS)
-    for name in required:
+    def successful_job(name):
         matches = [job for job in jobs if job["name"] == name]
         require(len(matches) == 1 and matches[0]["conclusion"] == "success", f"Missing successful {name}")
-        if name.startswith("GTK build"):
-            for step in REQUIRED_GTK_STEPS + (RELEASE_GTK_STEPS if release else ()):
-                steps = [item for item in matches[0]["steps"] if item["name"] == step]
-                require(len(steps) == 1 and steps[0]["conclusion"] == "success", f"Missing successful {step}")
+        return matches[0]
+
+    core_name, gtk_name = REQUIRED_ARCH_JOBS
+    for name in REQUIRED_JOBS:
+        successful_job(name)
+    for arch in ARCHITECTURES:
+        successful_job(core_name.format(arch=arch))
+        gtk = successful_job(gtk_name.format(arch=arch))
+        signer = successful_job(ATTEST_JOB.format(arch=arch)) if release else None
+        for step in REQUIRED_GTK_STEPS + (RELEASE_GTK_STEPS if release else ()):
+            job = signer if step == ATTEST_STEP else gtk
+            steps = [item for item in job["steps"] if item["name"] == step]
+            require(len(steps) == 1 and steps[0]["conclusion"] == "success",
+                    f"Missing successful {step} ({arch})")
 
 
 def resolve_member_path(parts, links, depth=0):
@@ -263,7 +273,7 @@ def source_base(release, sha):
     """The upstream base the source commit itself declares, not this checkout's."""
     import base64
     content = api(f"contents/{WORKFLOW}?ref={sha}")
-    require(content.get("encoding") == "base64", "Unreadable source ci.yml")
+    require(content.get("encoding") == "base64", "Unreadable source omarchy-ci.yml")
     return release.upstream_base(base64.b64decode(content["content"]).decode())
 
 
@@ -304,8 +314,8 @@ def write_outputs(values):
 def discover_commit(sha):
     """Newest successful main CI run at SHA, which must be on main, for a versioned release of that commit."""
     require(re.fullmatch(r"[0-9a-f]{40}", sha) and on_main(sha), f"{sha} is not a commit on main")
-    workflow = api("actions/workflows/ci.yml")
-    pages = api(f"actions/workflows/ci.yml/runs?branch=main&head_sha={sha}&status=success&per_page=100", pages=True)
+    workflow = api(WORKFLOW_API)
+    pages = api(f"{WORKFLOW_API}/runs?branch=main&head_sha={sha}&status=success&per_page=100", pages=True)
     candidates = []
     for run in (run for page in pages for run in page["workflow_runs"]):
         if run["head_branch"] != "main":
@@ -325,8 +335,8 @@ def discover_releasable(limit=20):
 
     A PR dry run uses it so an unfinished CI run at the main head falls back to the last releasable commit
     instead of checking nothing."""
-    workflow = api("actions/workflows/ci.yml")
-    runs = api(f"actions/workflows/ci.yml/runs?branch=main&status=success&per_page={limit}")["workflow_runs"]
+    workflow = api(WORKFLOW_API)
+    runs = api(f"{WORKFLOW_API}/runs?branch=main&status=success&per_page={limit}")["workflow_runs"]
     for run in sorted(runs, key=lambda run: run["created_at"], reverse=True):
         sha = run["head_sha"]
         if run["head_branch"] != "main" or not re.fullmatch(r"[0-9a-f]{40}", sha):
@@ -403,7 +413,7 @@ def main():
     else:
         require(run["head_branch"] in BRANCHES, "Untrusted source branch")
         branch_sha = api(f"git/ref/heads/{run['head_branch']}")["object"]["sha"]
-    validate_run(run, api("actions/workflows/ci.yml"), args.sha, branch_sha)
+    validate_run(run, api(WORKFLOW_API), args.sha, branch_sha)
     validate_jobs(run_jobs(run), release=bool(release))
     if release:
         tag = release.release_tag(args.release, source_base(release, args.sha))

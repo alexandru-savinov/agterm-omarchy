@@ -22,7 +22,7 @@ RUN = "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/1"
 WORKFLOW = (Path(__file__).resolve().parents[2] / ".github/workflows/upstream-sync.yml").read_text(encoding="utf-8")
 PUBLISH = Path(__file__).resolve().parents[1] / "upstream-sync-publish.sh"
 BLOCKED = Path(__file__).resolve().parents[1] / "upstream-sync-blocked.sh"
-CI_WORKFLOW = (Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+CI_WORKFLOW = (Path(__file__).resolve().parents[2] / ".github/workflows/omarchy-ci.yml").read_text(encoding="utf-8")
 
 TAGS = {"v0.41.1": "a" * 40, "v0.42.3": "b" * 40, "v0.43.0": "c" * 40, "v0.9.9": "d" * 40}
 PORT = "e" * 40  # the linux-port head
@@ -544,23 +544,22 @@ class TextTests(unittest.TestCase):
                     self.assertEqual(pr_fields.problems(body, "2" * 40), [])
                     self.assertEqual(pr_fields.values(body)["Task"], ["#476"])
 
-    def test_every_body_says_to_bump_both_base_pin_files_to_the_contained_release(self):
+    def test_every_body_names_the_fork_ci_pin_and_the_contained_release(self):
         for source in ("umputun", "linux-port"):
             for conflicts in ((), [("a", "both modified")]):
                 with self.subTest(source=source, conflicts=conflicts):
                     body = text(conflicts, source=source)[3]
-                    self.assertIn("bump `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` to `v0.43.0` / "
-                                  f"`{'c' * 40}` in both `.github/workflows/ci.yml` and "
-                                  "`.github/workflows/release-linux.yml`", body)
+                    self.assertIn("sets `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` to `v0.43.0` / "
+                                  f"`{'c' * 40}` in `.github/workflows/omarchy-ci.yml`", body)
 
     def test_pins_never_move_back_when_main_holds_a_newer_release(self):
         for source in ("umputun", "linux-port"):
             with self.subTest(source=source):
                 body = text(source=source, pin=("v0.44.0", "f" * 40))[3]
-                self.assertIn(f"keep `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` at `v0.44.0` / `{'f' * 40}` in both "
-                              "`.github/workflows/ci.yml` and `.github/workflows/release-linux.yml`", body)
+                self.assertIn(f"keep `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` at `v0.44.0` / `{'f' * 40}` in "
+                              "`.github/workflows/omarchy-ci.yml`", body)
                 self.assertIn("never move them back to `v0.43.0`", body)
-                self.assertNotIn("bump `UPSTREAM_BASE_TAG`", body)
+                self.assertNotIn("sets `UPSTREAM_BASE_TAG`", body)
 
     def test_github_changes_force_a_draft_listing_them(self):
         _, label, draft, body = text(github_changes=[".github/workflows/ci.yml"])
@@ -1285,6 +1284,32 @@ class GitRepoTests(unittest.TestCase):
         self.assertIn(f"## Changes under .github/ (1)", body)
         self.assertEqual(pr_fields.problems(body, result["head"]), [])
 
+    def commit_boundary_pins(self):
+        release = f'env:\n  UPSTREAM_BASE_TAG: "v0.1.0"\n  UPSTREAM_BASE_COMMIT: "{self.base_tag}"\n'
+        linux = f'  LINUX_PORT_BASE_COMMIT: "{self.base_tag}"\n'
+        self.write(sync.CI_WORKFLOW, release + linux)
+        self.write(".github/workflows/release-linux.yml", release)
+        self.write(self.CI, "name: inherited upstream\n")
+        self.git("add", ".github/workflows")
+        self.git("commit", "-q", "-m", "add the fork and inherited CI layout")
+
+    def assert_boundary_pins(self, branch, linux_port):
+        content = self.git("show", f"{branch}:{sync.CI_WORKFLOW}")
+        self.assertIn('UPSTREAM_BASE_TAG: "v0.2.0"', content)
+        self.assertIn(f'UPSTREAM_BASE_COMMIT: "{self.upstream}"', content)
+        self.assertIn(f'LINUX_PORT_BASE_COMMIT: "{linux_port}"', content)
+        inherited_release = self.git("show", f"{branch}:.github/workflows/release-linux.yml")
+        self.assertIn(f'UPSTREAM_BASE_COMMIT: "{self.base_tag}"', inherited_release)
+        self.assertEqual(self.git("show", f"{branch}:{self.CI}"), "name: inherited upstream")
+
+    def test_automatic_fallback_advances_only_the_umputun_pins(self):
+        self.commit_boundary_pins()
+        branch = "sync/umputun-v0.2.0"
+        code, result, _ = self.merge("--source", "umputun", "--branch", branch, "--tag", "v0.2.0",
+                                     "--commit", self.upstream)
+        self.assertEqual((code, result["draft"], result["github_changes"]), (0, "false", 0))
+        self.assert_boundary_pins(branch, self.base_tag)
+
     def test_a_merge_that_records_no_upstream_parent_fails(self):
         with self.assertRaisesRegex(sync.SyncError, "parents"):
             sync.build(self.root / "wt", self.head(), "sync/umputun-v0.1.0", self.base_tag, "upstream v0.1.0")
@@ -1305,6 +1330,7 @@ class GitRepoTests(unittest.TestCase):
         self.assertEqual(self.git("branch", "--list", "sync/*"), "")
 
     def test_linux_port_merge_names_the_release_linux_port_contains_as_the_base_pin(self):
+        self.commit_boundary_pins()
         branch = f"sync/linux-port-{self.port[:8]}"
         code, result, body = self.merge("--source", "linux-port", "--branch", branch, "--commit", self.port)
         self.assertEqual(code, 0)
@@ -1315,20 +1341,24 @@ class GitRepoTests(unittest.TestCase):
                          f"Merge melonamin/agterm-linux linux-port {self.port[:8]} into main")
         self.assertEqual(self.git("show", f"{branch}:port-only.txt"), "port")
         self.assertEqual(pr_fields.problems(body, result["head"]), [])
-        self.assertIn(f"bump `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` to `v0.2.0` / `{self.upstream}`", body)
+        self.assertIn(f"sets `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` to `v0.2.0` / `{self.upstream}`", body)
+        self.assert_boundary_pins(branch, self.port)
 
     def test_linux_port_merge_keeps_the_pins_at_a_newer_release_main_already_has(self):
         self.git("merge", "-q", "--no-edit", self.upstream)
+        self.commit_boundary_pins()
         self.git("checkout", "-q", "-b", "old-port", self.base_tag)
         self.commit("port-only.txt", "port\n", "linux adaptation on the old release")
         port = self.head()
         self.git("checkout", "-q", "main")
-        code, result, body = self.merge("--source", "linux-port", "--branch", f"sync/linux-port-{port[:8]}",
+        branch = f"sync/linux-port-{port[:8]}"
+        code, result, body = self.merge("--source", "linux-port", "--branch", branch,
                                         "--commit", port)
         self.assertEqual(code, 0)
         self.assertIn("(umputun/agterm v0.1.0)", result["title"])
         self.assertIn(f"keep `UPSTREAM_BASE_TAG` / `UPSTREAM_BASE_COMMIT` at `v0.2.0` / `{self.upstream}`", body)
         self.assertIn("never move them back to `v0.1.0`", body)
+        self.assert_boundary_pins(branch, port)
 
     def test_linux_port_merge_fails_when_the_head_contains_no_release(self):
         self.git("checkout", "-q", "--orphan", "unrelated")
