@@ -3,7 +3,7 @@
 # port is melonamin's (https://github.com/melonamin/agterm-linux). This
 # repackages the Omarchy fork's CI archives for both architectures.
 pkgname=agterm-omarchy-bin
-pkgver=0.43.0.1
+pkgver=0.43.0.2
 pkgrel=1
 pkgdesc="Native terminal with a workspace and session sidebar, built on libghostty (Omarchy build)"
 arch=(x86_64 aarch64)
@@ -22,8 +22,8 @@ options=(!strip !debug)
 source_x86_64=("$url/releases/download/omarchy-v$pkgver/agterm-omarchy-$pkgver-x86_64.tar.gz")
 source_aarch64=("$url/releases/download/omarchy-v$pkgver/agterm-omarchy-$pkgver-aarch64.tar.gz")
 noextract=("agterm-omarchy-$pkgver-$CARCH.tar.gz")
-sha256sums_x86_64=('fc1580e9a4cdd4efe305c7284d917c7c092f2ceac5388966e5ccbaa1344d42bf')
-sha256sums_aarch64=('cf17c40ee60d2d28c005a530ba9402467553f9e3aa2678b0d118b8d273542e94')
+sha256sums_x86_64=('d9f9ae1467230af3045c17845f2cc717c081bdd155231583a3710234367840c7')
+sha256sums_aarch64=('9edd9535d32c9f0a89175248e1724c69748f8c2a75c89720b12545c934d59e60')
 
 package() {
   local lib="$pkgdir/usr/lib/agterm" share="$pkgdir/usr/lib/agterm/share"
