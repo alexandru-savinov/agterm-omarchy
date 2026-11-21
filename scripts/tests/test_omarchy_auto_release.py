@@ -90,6 +90,46 @@ def promotion_steps(names):
     return [{"name": name, "conclusion": "success"} for name in names]
 
 
+class ReleaseBaseTests(unittest.TestCase):
+    def resolve(self, *response, head=SHA):
+        with patch.object(auto.promotion, "api", side_effect=response) as api, \
+             patch.object(auto.promotion, "write_outputs") as outputs, \
+             patch.object(sys, "argv", ["auto-release", "ci-release-base", head]), \
+             redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            auto.main()
+        return api.call_args_list, outputs.call_args.args[0]
+
+    def test_compares_the_newest_stable_omarchy_tag_with_the_exact_push_sha(self):
+        rows = [[RELEASE | {"tag_name": "omarchy-v0.43.0.9"}, RELEASE | {"tag_name": "other-v2.0"}],
+                [RELEASE | {"tag_name": "omarchy-v0.43.0.10"},
+                 RELEASE | {"tag_name": "omarchy-v0.43.0.11", "prerelease": True},
+                 RELEASE | {"tag_name": "omarchy-v0.43.0.12", "draft": True},
+                 RELEASE | {"tag_name": "omarchy-v0.43.0.13", "published_at": None}]]
+        for status, base in (("ahead", "b" * 40), ("identical", SHA)):
+            with self.subTest(status=status):
+                comparison = {"status": status, "base_commit": {"sha": base}, "merge_base_commit": {"sha": base}}
+                calls, outputs = self.resolve(rows, comparison)
+                self.assertEqual(calls[0].args, (auto.RELEASES_PATH,))
+                self.assertEqual(calls[0].kwargs, {"pages": True})
+                self.assertEqual(calls[1].args, (f"compare/refs/tags/omarchy-v0.43.0.10...{SHA}?per_page=1",))
+                self.assertEqual(outputs, {"sha": base, "full_build": "false"})
+
+    def test_missing_or_unusable_release_bases_require_a_full_build(self):
+        good_base = {"sha": "b" * 40}
+        cases = (([[]],), (subprocess.CalledProcessError(1, ["gh", "api"]),),
+                 ([[RELEASE]], subprocess.CalledProcessError(1, ["gh", "api"])),
+                 ([[RELEASE]], {"status": "behind", "base_commit": good_base, "merge_base_commit": {"sha": SHA}}),
+                 ([[RELEASE]], {"status": "ahead", "base_commit": good_base, "merge_base_commit": {"sha": SHA}}),
+                 ([[RELEASE]], {"status": "ahead", "base_commit": {"sha": "bad"}, "merge_base_commit": good_base}))
+        for response in cases:
+            with self.subTest(response=response):
+                _, outputs = self.resolve(*response)
+                self.assertEqual(outputs, {"sha": "", "full_build": "true"})
+        calls, outputs = self.resolve(head="main")
+        self.assertEqual(calls, [])
+        self.assertEqual(outputs, {"sha": "", "full_build": "true"})
+
+
 class PlanTests(unittest.TestCase):
     def setUp(self):
         env = patch.dict(os.environ, {"SYNC_PAUSED": "", "GITHUB_RUN_ID": "456"})

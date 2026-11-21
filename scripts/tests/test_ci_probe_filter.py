@@ -49,29 +49,44 @@ class ProbeRoutingTests(unittest.TestCase):
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode == 0, status in ('success', 'skipped'), result.stderr)
 
+    def test_main_push_compares_the_exact_head_with_the_release_base(self):
+        changes = self.job('changes')
+        self.assertIn("github.event_name == 'push' && github.ref == 'refs/heads/main'", changes)
+        self.assertIn('id: release_base', changes)
+        self.assertIn('python3 -I scripts/omarchy-auto-release.py ci-release-base "$GITHUB_SHA"', changes)
+        self.assertIn('          base: ${{ steps.release_base.outputs.sha }}', changes)
+        self.assertIn("          ref: ${{ steps.release_base.outputs.sha != '' && github.sha || '' }}", changes)
+        self.assertIn("  cancel-in-progress: true\n", self.text.split('\nenv:', 1)[0])
+        self.assertIn("swift: ${{ github.event_name == 'workflow_dispatch' || steps.release_base.outputs.full_build == 'true'",
+                      changes)
+
     def test_actual_expression_routes_counts_and_manual_dispatch(self):
         expression = re.search(r'^      product: \$\{\{ (.*) \}\}$', self.text, re.M).group(1)
         replacements = {'github.event_name': 'event', 'steps.filter.outputs.swift_count': 'heavy',
                         'steps.filter.outputs.native_probe_count': 'probe',
                         'steps.filter.outputs.swift': 'swift',
+                        'steps.release_base.outputs.full_build': 'full_build',
                         'steps.filter.outputs.all_changed_count': 'total'}
         for source, target in replacements.items():
             expression = expression.replace(source, target)
         expression = expression.replace('||', 'or').replace('&&', 'and')
         # These operands are strings in Actions; the expression uses only equality and Boolean operators.
-        for event, swift, heavy, probe, total, expected in (
-            ('pull_request', 'true', '1', '1', 1, False),
-            ('push', 'true', '2', '2', 2, False),
-            ('pull_request', 'true', '2', '1', 2, True),
-            ('pull_request', 'true', '1', '0', 1, True),
-            ('pull_request', 'false', '0', '0', 0, False),
-            ('pull_request', 'true', '2', '2', 3000, True),
-            ('pull_request', 'true', '2', '2', 2999, False),
-            ('workflow_dispatch', '', '', '', 0, True),
+        for event, swift, heavy, probe, total, full_build, expected in (
+            ('pull_request', 'true', '1', '1', 1, '', False),
+            ('push', 'true', '2', '2', 2, 'false', False),
+            ('push', 'true', '1', '0', 2, 'false', True),
+            ('push', 'false', '0', '0', 1, 'false', False),
+            ('push', 'false', '0', '0', 1, 'true', True),
+            ('pull_request', 'true', '2', '1', 2, '', True),
+            ('pull_request', 'true', '1', '0', 1, '', True),
+            ('pull_request', 'false', '0', '0', 0, '', False),
+            ('pull_request', 'true', '2', '2', 3000, '', True),
+            ('pull_request', 'true', '2', '2', 2999, '', False),
+            ('workflow_dispatch', '', '', '', 0, '', True),
         ):
-            with self.subTest(event=event, heavy=heavy, probe=probe):
+            with self.subTest(event=event, heavy=heavy, probe=probe, full_build=full_build):
                 self.assertEqual(eval(expression, {'__builtins__': {}}, dict(
-                    event=event, swift=swift, heavy=heavy, probe=probe, total=total)), expected)
+                    event=event, swift=swift, heavy=heavy, probe=probe, total=total, full_build=full_build)), expected)
 
 
 if __name__ == '__main__':

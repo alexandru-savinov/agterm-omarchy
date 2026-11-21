@@ -68,6 +68,22 @@ def releases():
             if TAG.fullmatch(item["tag_name"])]
 
 
+def ci_release_base(head):
+    """Return the latest published stable Omarchy release's commit when it is an ancestor of HEAD."""
+    promotion.require(promotion.SOURCE_SHA.fullmatch(head), "Expected a full lowercase CI SHA")
+    latest = max((item["tag_name"] for item in releases()
+                  if not item["draft"] and not item["prerelease"] and item["published_at"]),
+                 key=lambda tag: promotion.version_key(tag.removeprefix("omarchy-v")), default=None)
+    if latest is None:
+        return ""
+    comparison = promotion.api(f"compare/refs/tags/{latest}...{head}?per_page=1")
+    base = comparison["base_commit"]["sha"]
+    promotion.require(promotion.SOURCE_SHA.fullmatch(base) and comparison["status"] in ("ahead", "identical")
+                      and comparison["merge_base_commit"]["sha"] == base,
+                      "The latest stable release is not an ancestor of the CI commit")
+    return base
+
+
 def next_version(base, tags):
     serials = [int(match["serial"]) for tag in tags
                if (match := TAG.fullmatch(tag)) and match["base"] == base]
@@ -354,6 +370,8 @@ def read_event():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    release_base = commands.add_parser("ci-release-base", help="choose the stable release base for a main push")
+    release_base.add_argument("head")
     commands.add_parser("ci-scope")
     commands.add_parser("plan")
     commands.add_parser("promote")
@@ -369,7 +387,16 @@ def main():
     failure.add_argument("--reason", required=True)
     failure.add_argument("--evidence", required=True)
     args = parser.parse_args()
-    if args.command == "ci-scope":
+    if args.command == "ci-release-base":
+        try:
+            base = ci_release_base(args.head)
+        except (KeyError, TypeError, ValueError, subprocess.CalledProcessError) as error:
+            report_error(error)
+            base = ""
+        promotion.write_outputs({"sha": base, "full_build": str(not base).lower()})
+        print(f"Comparing main changes with release commit {base}" if base else
+              "No usable stable release base. Running the full product build.")
+    elif args.command == "ci-scope":
         run = read_event()["workflow_run"]
         attempt = run["run_attempt"]
         if type(attempt) is not int or not 0 < attempt <= MAX_ATTEMPTS:
