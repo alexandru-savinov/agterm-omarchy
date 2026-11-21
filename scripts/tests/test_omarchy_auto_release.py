@@ -314,6 +314,17 @@ class ScopeTests(unittest.TestCase):
                     self.assertTrue(all(call.kwargs == {"pages": True} for call in api.call_args_list))
                     self.assertEqual(output.read_text(), f"scope={expected}\n")
                     self.assertIn("Skipped: " if expected == "skip" else "Proceeding: ", summary.read_text())
+            for attempt in ("2", 0, 51, True, None):
+                event.write_text(json.dumps({"workflow_run": EVENT["workflow_run"] | {"run_attempt": attempt}}))
+                output.write_text("")
+                with self.subTest(attempt=attempt), \
+                     patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output)}), \
+                     patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
+                     patch.object(auto.promotion, "api") as api, \
+                     self.assertRaisesRegex(ValueError, "Unexpected Omarchy CI run attempt"):
+                    auto.main()
+                api.assert_not_called()
+                self.assertEqual(output.read_text(), "")
             event.write_text(json.dumps({"workflow_run": EVENT["workflow_run"] | {"conclusion": "failure"}}))
             output.write_text("")
             with patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output)}), \

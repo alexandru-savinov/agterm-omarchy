@@ -31,6 +31,8 @@ UNFILTERED_JOBS = ("Upstream workflow guard", "Installer and scripts", "Detect c
 SCOPE_GATES = ("Detect changes", "CI")
 BUILD_JOBS = ("SwiftLint (Linux)",) + promotion.REQUIRED_ARCH_JOBS + (promotion.ATTEST_JOB,)
 MATRIX = "${{ matrix.arch }}"
+# GitHub allows a workflow run at most 50 attempts.
+MAX_ATTEMPTS = 50
 
 
 def gh(path, *, method="GET", data=None):
@@ -329,8 +331,10 @@ def main():
     args = parser.parse_args()
     if args.command == "ci-scope":
         run = read_event()["workflow_run"]
-        earlier = [promotion.run_jobs({"id": run["id"], "run_attempt": number})
-                   for number in range(1, run["run_attempt"])]
+        attempt = run["run_attempt"]
+        if type(attempt) is not int or not 0 < attempt <= MAX_ATTEMPTS:
+            raise ValueError(f"Unexpected Omarchy CI run attempt {attempt!r}")
+        earlier = [promotion.run_jobs({"id": run["id"], "run_attempt": number}) for number in range(1, attempt)]
         scope, reason = ci_scope(run, promotion.run_jobs(run), earlier)
         promotion.write_outputs({"scope": scope})
         write_summary(f"{'Skipped' if scope == 'skip' else 'Proceeding'}: {reason}.")
