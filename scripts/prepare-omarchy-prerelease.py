@@ -266,6 +266,7 @@ def release_module():
 
 def on_main(sha):
     """True when SHA is the current main head or one of its ancestors."""
+    require(SOURCE_SHA.fullmatch(sha), "Expected a full lowercase source SHA")
     head = api("git/ref/heads/main")["object"]["sha"]
     return sha == head or api(f"compare/{sha}...{head}")["status"] == "ahead"
 
