@@ -57,9 +57,9 @@ The PR changes exactly three files on top of omarchy-pkgs `master`:
 | `release/owners.json` | one line added, between `aether` and `alsa-ucm-conf` | `packaging/omarchy-pkgs/owners.json.line` |
 
 - **Fork and branch:**
-  - the fork `alexandru-savinov/omarchy-pkgs` exists, and branch `add-agterm-omarchy-bin` is pushed there, one commit on upstream `master` `76f5f253`;
+  - the fork `alexandru-savinov/omarchy-pkgs` exists, and branch `add-agterm-omarchy-bin` is pushed there: one commit, `2b7c0d23`, on upstream `master` `2723852d`;
   - the commands below are how it was made; rebase it if `master` moves before posting.
-- **Base commits:** the checks ran at `5c7d21d2af2fa1bea38b5c0dffeda4dfe40a6ab6`, and `master` was `76f5f2533a0dc25efeaccefec8abcfed4ccf5967` on 2026-11-21. Nothing in `bin/`, `helpers/`, `tests/`, `build/` or `.github/` changed between them.
+- **Base commits:** CI's checks ran at `5c7d21d2af2fa1bea38b5c0dffeda4dfe40a6ab6`. The branch is on `2723852d8b526e71c7cfc3c540d912138a1adb22` (2026-11-21), and nothing in `bin/`, `helpers/`, `tests/`, `build/`, `.github/` or the existing `release/owners.json` lines changed between them. At `2723852d`, on Arch, `bin/release-owners` reproduces the committed line, and `release-owners --check`, `package-metadata`, `package-owners`, `pgp-keys-vendored`, `pinned-sources` and `pkgname-unique` pass; `upstream-watch` reports "already current".
 - **`release/owners.json`:** omarchy-pkgs' `AGENTS.md` says never to edit the directory lines by hand. Run `bin/release-owners agterm-omarchy-bin` on Arch, as a non-root user, and check that it adds exactly `owners.json.line`. This repository's `omarchy-pkgs recipe build` workflow does this on every run.
 
 ```bash
