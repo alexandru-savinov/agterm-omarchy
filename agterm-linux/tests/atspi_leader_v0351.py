@@ -9,6 +9,20 @@ from atspi_smoke import (focus_window, launch, raw_control_json, stop, wait_for,
                          window_list)
 
 
+def focused_x11_window():
+    result = subprocess.run(["xdotool", "getwindowfocus"], capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def repeat_after_window_switch(keys, first_window):
+    keys("key", "w")
+    # window.go updates the model before Openbox completes the focus transfer. Sending the
+    # tail to the old window can race its focus-out and the leader's terminal focus check.
+    wait_for(lambda: focused_x11_window() == first_window,
+             "repeatable next_window did not move X11 keyboard focus")
+    keys("key", "b")
+
+
 def verify_leader_repeat(env):
     state = env["AGTERM_STATE_DIR"]
     config = os.path.join(state, "config")
@@ -36,6 +50,7 @@ def verify_leader_repeat(env):
             keys("key", "ctrl+x")
 
         focus_window(process.pid)
+        first_window = wait_for(focused_x11_window, "first window did not receive X11 keyboard focus")
         time.sleep(0.5)
         prefix()
         keys("keydown", "a", "sleep", "1.3", "keyup", "a", "key", "b")
@@ -60,9 +75,10 @@ def verify_leader_repeat(env):
                  "second window did not open")
         wait_for(lambda: any(row["active"] and row["id"] != first for row in window_list(env)),
                  "new window did not become active")
-        time.sleep(0.5)
+        wait_for(lambda: (focused := focused_x11_window()) and focused != first_window,
+                 "second window did not receive X11 keyboard focus")
         prefix()
-        keys("key", "w", "sleep", "0.1", "key", "b")
+        repeat_after_window_switch(keys, first_window)
         wait_for(lambda: len(read()) > len(before), "window switch reset the repeat prefix")
         wait_for(lambda: any(row["active"] and row["id"] == first for row in window_list(env)),
                  "repeatable next_window did not switch to the first window")
