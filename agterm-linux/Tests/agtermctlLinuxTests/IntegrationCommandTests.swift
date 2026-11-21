@@ -5,6 +5,14 @@ import Testing
 
 @Suite("agtermctl integration command")
 struct IntegrationCommandTests {
+    @Test(arguments: ["enable", "status", "disable"])
+    func omarchyActionsParse(action: String) throws {
+        let command = try AgtermctlLinux.parseAsRoot(["integration", "omarchy", action, "--json"])
+        let omarchy = try #require(command as? Integration.Omarchy)
+        #expect(omarchy.action.rawValue == action)
+        #expect(omarchy.json)
+    }
+
     @Test("status accepts the control socket compatibility option")
     func statusParsing() throws {
         let command = try AgtermctlLinux.parseAsRoot([

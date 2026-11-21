@@ -92,6 +92,23 @@ Launch **agterm** from Omarchy's application launcher, or run:
 ```
 
 GTK selects native Wayland in a Hyprland session.
+
+### Omarchy clipboard shortcuts
+
+With Omarchy’s Lua-based Hyprland configuration, run this as your desktop user to give agterm the terminal rules for Super+C, Super+V, opacity, and touchpad scrolling.
+
+```bash
+agtermctl integration omarchy enable
+agtermctl integration omarchy status
+```
+
+The command installs a user-owned `hypr/agterm-omarchy.lua` module and adds a marked include to your existing `hypr/hyprland.lua`.
+Use `agtermctl integration omarchy disable` to remove the managed files and restore the original entrypoint content.
+The command preserves existing edits outside its marked block and refuses symlinked or conflicting files.
+The terminal launcher preference stays under your control.
+
+After Hyprland reloads, `hyprctl clients -j` should show `terminal` or `terminal*` in the tags for `io.github.melonamin.agterm`.
+
 No Hyprland configuration or default terminal selection is changed by installation.
 For an optional dedicated shortcut on Lua-based Hyprland (0.55 and later), add this to the user
 bindings file loaded by your configuration and reload Hyprland:
