@@ -66,7 +66,7 @@ def verify_omarchy_font_family(env):
     binary = str(release) if release.is_file() else BIN
     failures = []
 
-    for index, source in enumerate(("Omarchy", "Settings", "scoped Ghostty config")):
+    for index, source in enumerate(("Omarchy", "Settings", "scoped Ghostty config", "Fontconfig alias")):
         home = root / f"h{index}"
         state = root / f"s{index}"
         state.mkdir()
@@ -75,7 +75,10 @@ def verify_omarchy_font_family(env):
         (theme / "ghostty.conf").write_text("background = #315286\n", encoding="utf-8")
         config = home / ".config/ghostty/config"
         config.parent.mkdir(parents=True)
-        config.write_text(f'font-family = "{FAMILIES[1]}"\n', encoding="utf-8")
+        family = "monospace" if source == "Fontconfig alias" else FAMILIES[1]
+        config.write_text(f'font-family = "{family}"\n', encoding="utf-8")
+        profile_fontconfig = state / "fonts.conf"
+        shutil.copyfile(fontconfig, profile_fontconfig)
         settings = {"restoreMode": "none", "welcomeShown": True}
         if source == "Settings":
             settings["fontFamily"] = FAMILIES[2]
@@ -86,7 +89,7 @@ def verify_omarchy_font_family(env):
         (state / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
         socket = state / "a.sock"
         local = dict(env, HOME=str(home), AGTERM_STATE_DIR=str(state),
-                     AGTERM_CONTROL_SOCKET=str(socket), FONTCONFIG_FILE=str(fontconfig))
+                     AGTERM_CONTROL_SOCKET=str(socket), FONTCONFIG_FILE=str(profile_fontconfig))
         process, _ = launch(local, binary=binary)
         try:
             wait_for(socket.is_socket, f"{source}: control socket did not start")
@@ -112,24 +115,37 @@ def verify_omarchy_font_family(env):
                     failures.append(failure)
 
             write_sample(session)
-            expect_face(f"{source} launch", FAMILIES[1 if index == 0 else 2])
-            if source != "Omarchy":
+            initial = {"Omarchy": FAMILIES[1], "Fontconfig alias": FAMILIES[0]}.get(source, FAMILIES[2])
+            expect_face(f"{source} launch", initial)
+            if source not in ("Omarchy", "Fontconfig alias"):
                 continue
 
             assert faces[FAMILIES[2]] not in mapped_faces(process, faces.values()), (
-                "the changed face was already mapped before the family edit")
-            replacement = config.with_name("config.next")
-            replacement.write_text(f'font-family = "{FAMILIES[2]}"\n', encoding="utf-8")
-            replacement.replace(config)
-            # Allow the observer's 250 ms debounce before opening a new session.
-            time.sleep(1)
+                f"{source}: the changed face was already mapped before the font edit")
+            if source == "Omarchy":
+                replacement = config.with_name("config.next")
+                replacement.write_text(f'font-family = "{FAMILIES[2]}"\n', encoding="utf-8")
+                replacement.replace(config)
+                time.sleep(1)  # Allow the observer's 250 ms debounce.
+                label = "Omarchy family-only rename and new session"
+            else:
+                # Fontconfig compares mtimes at seconds granularity against the time it loaded.
+                time.sleep(1.1)
+                replacement = profile_fontconfig.with_name("fonts.conf.next")
+                rule = profile_fontconfig.read_text(encoding="utf-8").replace(
+                    f"<string>{FAMILIES[0]}</string>", f"<string>{FAMILIES[2]}</string>")
+                replacement.write_text(rule, encoding="utf-8")
+                replacement.replace(profile_fontconfig)
+                response = control_json(local, "config", "reload", "--json")
+                assert response["ok"], response
+                label = "Fontconfig alias rename and config reload"
             if faces[FAMILIES[2]] in mapped_faces(process, faces.values()):
-                print("OK: the existing terminal mapped the changed face before opening a new session", flush=True)
+                print(f"OK: {source} existing terminal mapped the changed face before opening a new session", flush=True)
             response = control_json(local, "session", "new", "--name", "Changed family",
                                     "--window", window, "--json")
             assert response["ok"], response
             write_sample(response["result"]["id"])
-            expect_face("Omarchy family-only rename and new session", FAMILIES[2])
+            expect_face(label, FAMILIES[2])
         finally:
             stop(process)
     assert not failures, "\n".join(failures)
