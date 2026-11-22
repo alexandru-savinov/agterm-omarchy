@@ -35,6 +35,12 @@ def font_fixture(root):
 <fontconfig>
   <dir>{escape(str(directory))}</dir>
   <cachedir>{escape(str(root / "font-cache"))}</cachedir>
+  <!-- Fontconfig 2.18's 48-spacing and 49-sansserif rules add monospace
+       to Ghostty's spaced query, even when it names an explicit family. -->
+  <match target="pattern">
+    <test name="spacing" compare="eq"><int>100</int></test>
+    <edit name="family" mode="append"><string>monospace</string></edit>
+  </match>
   <match target="pattern">
     <test name="family" qual="any"><string>monospace</string></test>
     <edit name="family" mode="prepend_first" binding="strong">
