@@ -7,7 +7,7 @@ Open it as a draft: a non-draft PR that only touches packages merges itself once
 
 ---
 
-I maintain `agterm-omarchy-bin`, requested in #3184: a prebuilt x86_64 and aarch64 package of the agterm terminal (libghostty, a workspace and session sidebar, Live sessions, the `agtermctl` control CLI). Each release is cut and published automatically, only after native Omarchy gates under Hyprland pass on both architectures, and carries a build-provenance attestation. If a release breaks, OPR doesn't take it for 24 hours (`min_release_age`), while the same gates rerun on the published release; a failure demotes it to a prerelease, which the upstream watch skips.
+I maintain `agterm-omarchy-bin`, requested in #3184: a prebuilt x86_64 and aarch64 package of the agterm terminal (libghostty, a workspace and session sidebar, Live sessions, the `agtermctl` control CLI). Each release is cut and published automatically, only after automated gates pass on both architectures (Omarchy's packages and Hyprland in Arch containers, software rendering), and carries a build-provenance attestation. OPR's upstream watch waits 24 hours (`min_release_age`) before taking a release; in that window the same gates rerun on the published release, and a confirmed failure demotes it to a prerelease, which the watch skips.
 
 The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the GTK4/libadwaita Linux port is melonamin's [agterm-linux](https://github.com/melonamin/agterm-linux), whose releases ship x86_64 packages (Arch, .deb, .rpm). This package builds from releases of my fork, [agterm-omarchy](https://github.com/alexandru-savinov/agterm-omarchy). The fork adds aarch64 builds, the gated and attested releases described above, and two fixes: a launcher-scoped retry for GTK's EGL config request on Mesa 26.3.1 (Omarchy edge, [GNOME/gtk#8566](https://gitlab.gnome.org/GNOME/gtk/-/work_items/8566)), and HTML-overlay paste that holds a paste until the clipboard's formats are known and refuses mixed file and text offers.
 
@@ -24,7 +24,7 @@ The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the 
 **On Omarchy**
 
 <!-- Reviewer evidence. Strip every HTML comment from pr-body.md before posting.
-     VM = ops native-feel/results/omarchy-v0.43.0.13-20261122-183941.tsv: aarch64 Omarchy VM, LIBGL_ALWAYS_SOFTWARE=1,
+     VM = ops native-feel/results/omarchy-v0.43.0.13-20261122-200533.tsv: aarch64 Omarchy VM, LIBGL_ALWAYS_SOFTWARE=1,
      agterm 0.43.0.13 (76d0a19d) packaged by omarchy-pkgs bin/build (c00632a) and installed with pacman -U,
      `integration omarchy enable` on. 65 PASS, 0 FAIL in column 4. -->
 
@@ -34,11 +34,11 @@ The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the 
        "LOOK Touchpad scroll factor rule" PASS (scroll_touchpad 0.2, Omarchy's Ghostty value);
        "REMOVAL Shadowed install: status names the ~/.local entry, enable warns, ~/.local unchanged" PASS;
        "REMOVAL integration omarchy disable restores hyprland.lua" PASS (hyprland.lua and xdg-terminals.list identical). -->
-- Super+Return and Omarchy's launchers open agterm: Super+Return opens a new window in the running agterm, "new terminal in current directory" opens in the pane's folder, and `omarchy-launch-tui`, the floating launcher, the Install menu's Web App entry and the drop-down console's first command open with Omarchy's app ID.
+- Super+Return and Omarchy's launchers open agterm: Super+Return opens a new window in the running agterm, "new terminal in current directory" opens in the pane's folder, and `omarchy-launch-tui` (checked with btop), the floating launcher, the Install menu's Web App entry and the drop-down console's first command open with Omarchy's app ID.
 <!-- VM "LAUNCHING Super+Return cold" PASS (3/3); "Super+Return warm" PASS (windows 1 -> 2); "New terminal in current directory" PASS;
        "Symlinked working directory" PASS; "omarchy-launch-tui btop" PASS (org.omarchy.btop); "omarchy-launch-floating-terminal-with-presentation" PASS;
        "Omarchy menu installer entry (Install > Web App)" PASS; "AROUND Drop-down console first open (Super+`) runs its command" PASS. -->
-- With **Follow Omarchy**, on by default, agterm follows `omarchy theme set` and `omarchy font set` live, `omarchy display text size`, Omarchy's 14 pt padding and its non-blinking cursor; a btop window survives a theme change.
+- With **Follow Omarchy**, on by default, agterm follows `omarchy theme set` and `omarchy font set` without a restart, `omarchy display text size`, Omarchy's 14 pt padding and its non-blinking cursor; a btop window survives a theme change.
 <!-- VM "LOOK omarchy theme set follows live" PASS (111C18 -> 1A1B26); "LOOK omarchy font set follows" PASS (1007 glyph pixels changed, no restart);
        "LOOK Text size (omarchy-display-text-size 20)" PASS (15 pt -> fontSize 15); "LOOK Padding vs Omarchy Ghostty (14x14)" PASS;
        "LOOK Cursor does not blink" PASS; "AROUND btop window survives omarchy theme set and SIGUSR2" PASS.
@@ -63,6 +63,8 @@ The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the 
 <!-- VM "AROUND agterm quick terminal (Ctrl+`) in agterm" observed PASS; "... summoned from another workspace (Ctrl+`)" observed FAIL. -->
 - Native feel was measured on aarch64 (an Omarchy VM) with software rendering only. Hardware GL rendering and touchpad scroll feel are untested.
 <!-- VM "SETUP install" (LIBGL_ALWAYS_SOFTWARE=1); "LOOK Touchpad scroll feel" MANUAL (the VM has no working touchpad or wheel input). -->
+- Focusing agterm from the bar plugin can fail right after agterm has just started.
+<!-- VM "Window select raises agterm right after a fresh start" FEATURE, observed FAIL. -->
 - x86_64 is covered by the container install test below, not by the native-feel checks.
 <!-- run 45047570475, job "pacman -U and Hyprland x86_64 (Arch container, vkms)". -->
 
@@ -71,8 +73,8 @@ The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the 
 - This repo's recipe build ran omarchy-pkgs' `bin/build` at `5c7d21d2` on `ubuntu-24.04` and `ubuntu-24.04-arm` ([run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/45047570475)):
   - every file is owned by root, and `pacman -U` prints the install note;
   - namcap reports no errors on the package or the PKGBUILD;
-  - `ldd -r` resolves everything, the highest glibc symbol is `GLIBC_2.38`, and `desktop-file-validate` passes.
-- `tests/pinned-sources.sh`, `tests/pkgname-unique.sh`, `bin/check-shadowed` and `bin/release-owners --check` pass, and `helpers/upstream-watch.py check` reports "already current".
+  - `ldd -r` resolves the app, the CLI and zmx, the highest glibc symbol is `GLIBC_2.38`, and `desktop-file-validate` passes.
+- `tests/pinned-sources.sh`, `tests/pkgname-unique.sh`, `bin/check-shadowed` and `bin/release-owners --check` pass, and `helpers/upstream-watch.py check` reports "already current" (x86_64 runner).
 - x86_64, in the native gates' Arch container with Omarchy's stable packages and Hyprland 0.56.2 on vkms (Mesa 26.2.5), from the package `bin/build` made in the same run:
   - `pacman -U` installed it without pulling in any new package;
   - through `/usr/bin`, the app passed 7/7 ordinary and 9/9 Live-session checks under Hyprland with software rendering;
@@ -81,15 +83,13 @@ The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the 
   - `pacman -U`, then the "On Omarchy" checks above, under Hyprland with software rendering;
   - `agtermctl integration omarchy disable` restored `hyprland.lua` and `xdg-terminals.list`, and `pacman -R` removed all 769 packaged paths and left the package set as it was.
 <!-- VM "SETUP install" (769 paths), "REMOVAL pacman -R leaves no files" PASS (left behind: 0), "REMOVAL restored: pacman package set" PASS.
-       The VM built from recipe 3516ed79 with pkgver/sha256 substituted (vm-tools/nf-run.sh line 101): the same recipe
-       without install= and the .install file. The exact recipe bytes are covered by the CI run above on both architectures. -->
+       The VM built the exact recipe bytes at 159cdd4a (PKGBUILD, .install, package.json; native-feel.zsh RECIPE_REF). -->
 - The release's own native gates passed on x86_64 and aarch64 against Omarchy's stable channel before it was published, and again on the published release ([run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/45043865908)). The EGL retry passed the same gates on edge (Mesa 26.3.1) at an earlier commit with the same retry code ([run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44647147715)).
 <!-- run 45043865908 jobs native_candidate / Omarchy gates (x86_64, aarch64) success and watch_promotion / native_published success, CHANNEL: stable;
        promotion.json source_commit 76d0a19d. `git diff --stat 7b13b8df 76d0a19d -- linux/egl-compat.c LauncherChildEnvironment.swift` is empty. -->
 
-![agterm-omarchy-bin 0.43.0.2 on Hyprland, aarch64 (an earlier version)](https://raw.githubusercontent.com/alexandru-savinov/agterm-omarchy/895bef327304aa8477724e57cb3ca61b28da0bcf/packaging/omarchy-pkgs/screenshots/agterm-omarchy-bin-aarch64-hyprland.png)
 
-It's a draft so you can look before it merges itself; I'll mark it ready when you're happy with it.
+It's a draft so you can review it first; I'll mark it ready when you're happy with it.
 
 Prepared and posted with AI assistance (Claude Code) on my behalf.
 
@@ -132,7 +132,7 @@ gh pr create --draft -R omacom/omarchy-pkgs --base master \
   --head alexandru-savinov:add-agterm-omarchy-bin --title "Add agterm-omarchy-bin" --body-file pr-body.md
 ```
 
-- **Recipe bytes:** `07825e4f` bumps `pkgver` to 0.43.0.13; the commands copy the three recipe files from it. The recipe build ran on #468 at `1f4fed8e`, whose recipe files are identical. The VM tested the same recipe without `install=` and the `.install` file (see the Tested comment).
+- **Recipe bytes:** `07825e4f` bumps `pkgver` to 0.43.0.13; the commands copy the three recipe files from it. The recipe build ran on #468 at `1f4fed8e`, whose recipe files are identical. The VM run 20261122-200533 built these exact recipe files (159cdd4a).
 - **PR body:** `pr-body.md` is everything between the two `---` rules above, with every `<!-- -->` comment removed:
 
   ```bash
