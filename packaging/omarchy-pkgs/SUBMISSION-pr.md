@@ -1,6 +1,6 @@
 # Draft pull request for omacom/omarchy-pkgs
 
-Open it as a draft: a non-draft PR that only touches packages merges itself once green.
+Opened as omacom/omarchy-pkgs#3268 (draft) on 2026-11-22 from fork branch `agterm-omarchy-bin` (db75b0fe on upstream master 020a190b).
 `#3184` is the package request, already posted. Nothing in this file has been posted.
 
 **Title:** `Add agterm-omarchy-bin`
@@ -38,7 +38,7 @@ The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the 
 <!-- VM "LAUNCHING Super+Return cold" PASS (3/3); "Super+Return warm" PASS (windows 1 -> 2); "New terminal in current directory" PASS;
        "Symlinked working directory" PASS; "omarchy-launch-tui btop" PASS (org.omarchy.btop); "omarchy-launch-floating-terminal-with-presentation" PASS;
        "Omarchy menu installer entry (Install > Web App)" PASS; "AROUND Drop-down console first open (Super+`) runs its command" PASS. -->
-- With **Follow Omarchy**, on by default, agterm follows `omarchy theme set` and `omarchy font set` without a restart, `omarchy display text size`, Omarchy's 14 pt padding and its non-blinking cursor; a btop window survives a theme change.
+- With **Follow Omarchy**, on by default, agterm follows `omarchy theme set` and `omarchy font set` without a restart, the text size set with `omarchy-display-text-size`, Omarchy's 14 pt padding and its non-blinking cursor; a btop window survives a theme change.
 <!-- VM "LOOK omarchy theme set follows live" PASS (111C18 -> 1A1B26); "LOOK omarchy font set follows" PASS (1007 glyph pixels changed, no restart);
        "LOOK Text size (omarchy-display-text-size 20)" PASS (15 pt -> fontSize 15); "LOOK Padding vs Omarchy Ghostty (14x14)" PASS;
        "LOOK Cursor does not blink" PASS; "AROUND btop window survives omarchy theme set and SIGUSR2" PASS.
