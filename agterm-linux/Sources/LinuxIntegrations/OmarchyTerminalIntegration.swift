@@ -169,15 +169,19 @@ public struct OmarchyTerminalIntegration {
         let (config, range, module) = files
         if enabled {
             if module == nil { try write(Self.module, named: Self.moduleName, replacing: nil, in: fd) }
-            guard range == nil else { return }
-            var updated = config.data
-            let (index, include) = Self.insertion(in: updated)
-            updated.insert(contentsOf: include, at: index)
-            do {
-                try write(updated, named: Self.configName, replacing: config, in: fd)
-            } catch {
-                if module == nil { try removeModule(in: fd) }
-                throw error
+            if range == nil {
+                var updated = config.data
+                let (index, include) = Self.insertion(in: updated)
+                updated.insert(contentsOf: include, at: index)
+                do {
+                    try write(updated, named: Self.configName, replacing: config, in: fd)
+                } catch {
+                    if module == nil { try removeModule(in: fd) }
+                    throw error
+                }
+            }
+            if let module, module.data == Self.tagOnlyModule {
+                try write(Self.module, named: Self.moduleName, replacing: module, in: fd)
             }
         } else {
             if let range {
@@ -188,7 +192,7 @@ public struct OmarchyTerminalIntegration {
                 updated.removeSubrange(start..<range.upperBound)
                 try write(updated, named: Self.configName, replacing: config, in: fd)
             }
-            if module != nil { try removeModule(in: fd) }
+            if let module { try remove(Self.moduleName, matching: module, in: fd) }
         }
     }
 
@@ -212,12 +216,25 @@ public struct OmarchyTerminalIntegration {
         """ + "\n").utf8)
     // Own the inserted line ending when the original hash line ended at EOF.
     private static let includeAfterUnterminatedHeader = Data("\n-- agterm Omarchy terminal tag separator\n".utf8) + include
-    private static let module = Data((#"""
+    private static let tagOnlyModule = Data((#"""
         -- Managed by agtermctl integration omarchy.
         hl.window_rule({
           name = "agterm-omarchy-terminal",
           match = { class = [[^io\.github\.melonamin\.agterm$]] },
           tag = "+terminal",
+        })
+        """# + "\n").utf8)
+    // Register named defaults early so later named and anonymous personal rules can override them.
+    private static let module = tagOnlyModule + Data((#"""
+        hl.window_rule({
+          name = "agterm-omarchy-scroll",
+          match = { class = [[^io\.github\.melonamin\.agterm$]] },
+          scroll_touchpad = 0.2,
+        })
+        hl.window_rule({
+          name = "agterm-omarchy-tui-scroll",
+          match = { class = [[^(org\.omarchy\..*|TUI\..*)$]], initial_title = [[^agterm$]] },
+          scroll_touchpad = 0.2,
         })
         """# + "\n").utf8)
 
@@ -367,7 +384,7 @@ public struct OmarchyTerminalIntegration {
             throw Failure("The Hyprland entrypoint contains an invalid or conflicting agterm include.")
         }
         let module = try read(Self.moduleName, in: fd)
-        if let module, module.data != Self.module {
+        if let module, module.data != Self.module, module.data != Self.tagOnlyModule {
             throw Failure("The existing \(Self.moduleName) is different from the agterm-managed module.")
         }
         return (config, range, module)

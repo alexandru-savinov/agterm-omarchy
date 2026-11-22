@@ -171,6 +171,7 @@ agtermctl integration omarchy status
 ```
 
 The command installs a user-owned `hypr/agterm-omarchy.lua` module and adds a marked include to your existing `hypr/hyprland.lua`.
+The module defaults to Ghostty’s `0.2` touchpad scroll factor for agterm and its Omarchy TUI windows, with personal rules loaded afterward taking precedence.
 Enable also puts `io.github.melonamin.agterm.desktop` first in `$XDG_CONFIG_HOME/xdg-terminals.list` (default `~/.config/xdg-terminals.list`) and saves the original in a private restore record next to it.
 An existing first entry for agterm stays under your control.
 Use `agtermctl integration omarchy disable` to remove the marked Lua integration and restore the terminal list byte for byte, or remove the list if enable created it.

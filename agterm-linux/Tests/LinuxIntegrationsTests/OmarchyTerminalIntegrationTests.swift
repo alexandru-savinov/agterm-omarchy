@@ -204,6 +204,68 @@ struct OmarchyTerminalIntegrationTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.path) == ["hyprland.lua"])
     }
 
+    @Test func enableAddsTouchpadScrollDefaultsBeforePersonalRules() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        let initial = Data((#"""
+            require("default.hypr.omarchy")
+            require("hypr.input")
+            hl.window_rule({ match = { class = [[^io\.github\.melonamin\.agterm$]] }, scroll_touchpad = 0.5 })
+            """# + "\n").utf8)
+        try initial.write(to: fixture.config)
+
+        _ = try fixture.integration.setEnabled(true)
+        let generated = try String(contentsOf: fixture.module, encoding: .utf8)
+        #expect(generated.contains(#"""
+            hl.window_rule({
+              name = "agterm-omarchy-scroll",
+              match = { class = [[^io\.github\.melonamin\.agterm$]] },
+              scroll_touchpad = 0.2,
+            })
+            """#))
+        #expect(generated.contains(#"""
+            hl.window_rule({
+              name = "agterm-omarchy-tui-scroll",
+              match = { class = [[^(org\.omarchy\..*|TUI\..*)$]], initial_title = [[^agterm$]] },
+              scroll_touchpad = 0.2,
+            })
+            """#))
+        let enabled = try Data(contentsOf: fixture.config)
+        let include = try #require(enabled.range(of: Data("/hypr/agterm-omarchy.lua".utf8)))
+        let personalConfig = try #require(enabled.range(of: initial))
+        #expect(include.upperBound < personalConfig.lowerBound)
+        _ = try fixture.integration.setEnabled(false)
+        #expect(try Data(contentsOf: fixture.config) == initial)
+    }
+
+    @Test(arguments: [false, true])
+    func stillManagesTheOriginalTagOnlyModule(upgrade: Bool) throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        let initial = Data("-- personal config\n".utf8)
+        try initial.write(to: fixture.config)
+        _ = try fixture.integration.setEnabled(true)
+        let enabledConfig = try Data(contentsOf: fixture.config)
+        try Data((#"""
+            -- Managed by agtermctl integration omarchy.
+            hl.window_rule({
+              name = "agterm-omarchy-terminal",
+              match = { class = [[^io\.github\.melonamin\.agterm$]] },
+              tag = "+terminal",
+            })
+            """# + "\n").utf8).write(to: fixture.module)
+
+        #expect(try fixture.integration.status().state == .enabled)
+        if upgrade {
+            #expect(try fixture.integration.setEnabled(true).state == .enabled)
+            #expect(try Data(contentsOf: fixture.config) == enabledConfig)
+            #expect(try String(contentsOf: fixture.module, encoding: .utf8).contains("scroll_touchpad = 0.2"))
+        }
+        #expect(try fixture.integration.setEnabled(false).state == .disabled)
+        #expect(try Data(contentsOf: fixture.config) == initial)
+        #expect(!FileManager.default.fileExists(atPath: fixture.module.path))
+    }
+
     @Test func disableKeepsUserEditsAndCanCleanUpAnInterruptedEnable() throws {
         let fixture = try Fixture()
         defer { fixture.clean() }
