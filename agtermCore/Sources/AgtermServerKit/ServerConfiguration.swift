@@ -14,7 +14,7 @@ public struct ServerConfiguration: Sendable, Equatable {
                 "agterm-server needs XDG_RUNTIME_DIR for its zmx sockets; log in through a session manager, or run "
                     + "`loginctl enable-linger` for a service"
             case .unusableRuntimeDirectory(let path):
-                "XDG_RUNTIME_DIR \(path) is not a writable directory"
+                "XDG_RUNTIME_DIR \(path) must be a private, writable directory owned by the current user"
             case .missingZmx(let path):
                 "zmx is not executable at \(path)"
             }
@@ -55,9 +55,8 @@ public struct ServerConfiguration: Sendable, Equatable {
                                executableDirectory: String, workingDirectory: String? = nil,
                                fileManager: FileManager = .default) throws -> ServerConfiguration {
         guard let runtime = environment["XDG_RUNTIME_DIR"], !runtime.isEmpty else { throw Failure.missingRuntimeDirectory }
-        var isDirectory: ObjCBool = false
-        guard runtime.hasPrefix("/"), fileManager.fileExists(atPath: runtime, isDirectory: &isDirectory), isDirectory.boolValue,
-              fileManager.isWritableFile(atPath: runtime) else {
+        guard let privateRuntime = ZmxSocketDirectory.privateRuntimeDirectory(runtime),
+              fileManager.isWritableFile(atPath: privateRuntime) else {
             throw Failure.unusableRuntimeDirectory(runtime)
         }
         let named = stateDirectory ?? environment["AGTERM_STATE_DIR"].flatMap { $0.isEmpty ? nil : $0 }
@@ -69,7 +68,7 @@ public struct ServerConfiguration: Sendable, Equatable {
         guard fileManager.isExecutableFile(atPath: zmx) else { throw Failure.missingZmx(zmx) }
         let resources = resourcesDirectory ?? (executableDirectory as NSString).appendingPathComponent("resources")
         let name = catalogName ?? ProcessInfo.processInfo.hostName.split(separator: ".").first.map(String.init) ?? "server"
-        return ServerConfiguration(stateDirectory: state, runtimeDirectory: runtime, zmxPath: zmx,
+        return ServerConfiguration(stateDirectory: state, runtimeDirectory: privateRuntime, zmxPath: zmx,
                                    resourcesDirectory: resources, catalogName: name,
                                    loginShell: loginShell ?? passwordDatabaseShell() ?? environment["SHELL"] ?? "/bin/sh")
     }

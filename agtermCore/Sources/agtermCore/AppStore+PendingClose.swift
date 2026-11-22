@@ -103,6 +103,9 @@ extension AppStore {
         return nil
     }
 
+    /// Whether this store owns the undo token returned by a close.
+    public func hasPendingClose(_ id: UUID) -> Bool { pendingCloseRecords[id] != nil }
+
     /// pendingCloseID is the pending-close record hiding `sessionID`, the id `session.undo` takes.
     public func pendingCloseID(ofSession sessionID: UUID) -> UUID? {
         pendingCloseOrder.first { id in

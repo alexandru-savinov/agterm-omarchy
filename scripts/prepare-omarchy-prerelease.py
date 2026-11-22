@@ -19,6 +19,7 @@ WORKFLOW = ".github/workflows/omarchy-ci.yml"
 WORKFLOW_API = f"actions/workflows/{Path(WORKFLOW).name}"
 ARCHITECTURES = {"x86_64": 62, "aarch64": 183}
 BRANCHES = ("main", "omarchy")
+SOURCE_SHA = re.compile(r"[0-9a-f]{40}")
 TAG = re.compile(r"omarchy-dev-[0-9a-f]{12}-run[1-9][0-9]*")
 REQUIRED_JOBS = ("Installer and scripts", "SwiftLint (Linux)", "CI")
 REQUIRED_ARCH_JOBS = ("Core tests ({arch})", "GTK build and tests ({arch})")
@@ -129,7 +130,7 @@ def discover():
 
 
 def validate_run(run, workflow, sha, branch_sha):
-    require(re.fullmatch(r"[0-9a-f]{40}", sha), "Expected a full lowercase source SHA")
+    require(SOURCE_SHA.fullmatch(sha), "Expected a full lowercase source SHA")
     require(run["repository"]["full_name"] == REPOSITORY, "Wrong source repository")
     require(run["head_repository"]["full_name"] == REPOSITORY, "Fork head rejected")
     require(run["path"] == WORKFLOW and run["workflow_id"] == workflow["id"]
@@ -265,6 +266,7 @@ def release_module():
 
 def on_main(sha):
     """True when SHA is the current main head or one of its ancestors."""
+    require(SOURCE_SHA.fullmatch(sha), "Expected a full lowercase source SHA")
     head = api("git/ref/heads/main")["object"]["sha"]
     return sha == head or api(f"compare/{sha}...{head}")["status"] == "ahead"
 
@@ -272,6 +274,7 @@ def on_main(sha):
 def source_base(release, sha):
     """The upstream base the source commit itself declares, not this checkout's."""
     import base64
+    require(SOURCE_SHA.fullmatch(sha), "Expected a full lowercase source SHA")
     content = api(f"contents/{WORKFLOW}?ref={sha}")
     require(content.get("encoding") == "base64", "Unreadable source omarchy-ci.yml")
     return release.upstream_base(base64.b64decode(content["content"]).decode())
@@ -313,7 +316,7 @@ def write_outputs(values):
 
 def discover_commit(sha):
     """Newest successful main CI run at SHA, which must be on main, for a versioned release of that commit."""
-    require(re.fullmatch(r"[0-9a-f]{40}", sha) and on_main(sha), f"{sha} is not a commit on main")
+    require(SOURCE_SHA.fullmatch(sha) and on_main(sha), f"{sha} is not a commit on main")
     workflow = api(WORKFLOW_API)
     pages = api(f"{WORKFLOW_API}/runs?branch=main&head_sha={sha}&status=success&per_page=100", pages=True)
     candidates = []
@@ -339,7 +342,7 @@ def discover_releasable(limit=20):
     runs = api(f"{WORKFLOW_API}/runs?branch=main&status=success&per_page={limit}")["workflow_runs"]
     for run in sorted(runs, key=lambda run: run["created_at"], reverse=True):
         sha = run["head_sha"]
-        if run["head_branch"] != "main" or not re.fullmatch(r"[0-9a-f]{40}", sha):
+        if run["head_branch"] != "main" or not SOURCE_SHA.fullmatch(sha):
             continue
         try:
             validate_run(run, workflow, sha, sha)
@@ -382,7 +385,8 @@ def main():
             "--auto-release-run-id requires positive ID and gated release evidence")
     if args.next_version:
         release = release_module()
-        version = next_version(release, source_base(release, args.base_of) if args.base_of else None)
+        base = source_base(release, args.base_of) if args.base_of is not None else None
+        version = next_version(release, base)
         write_outputs({"version": version})
         print(version)
         return

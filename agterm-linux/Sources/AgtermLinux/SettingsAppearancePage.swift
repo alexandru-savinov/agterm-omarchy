@@ -18,9 +18,9 @@ extension AppController {
                     "Font", values: fontValues, selected: fontIndex,
                     handler: unsafeBitCast(onSettingsFontFamily, to: GCallback.self))))
 
-        let fontSize = OpaquePointer(adw_spin_row_new_with_range(8, 32, 1))
+        let fontSize = OpaquePointer(adw_spin_row_new_with_range(7, 32, 1))
         "Default font size".withCString { adw_preferences_row_set_title(cast(fontSize), $0) }
-        adw_spin_row_set_value(fontSize, settings.fontSize ?? 13)
+        adw_spin_row_set_value(fontSize, settings.fontSize ?? GhosttyApp.shared.currentBaseFontSize ?? 13)
         connect(fontSize, "notify::value", unsafeBitCast(onSettingsFontSize, to: GCallback.self))
         adw_preferences_group_add(cast(terminal), W(fontSize))
 
@@ -42,9 +42,14 @@ extension AppController {
 
         let themes = Self.bundledThemes()
         let following = settings.followSystemAppearance == true
-        let activeTheme = settings.activeTheme(isDark: Self.systemIsDark)
-        let themeValues = following ? themes : ["default ghostty"] + themes
-        let themeIndex = activeTheme.flatMap(themes.firstIndex).map { following ? $0 : $0 + 1 } ?? 0
+        let preference = OmarchyThemePreference()
+        let offersAutomatic = preference.offersAutomaticTheme
+        var themeValues = following ? themes : [Self.ghosttyDefaultThemeLabel] + themes
+        if offersAutomatic { themeValues.insert(Self.automaticOmarchyThemeLabel, at: 0) }
+        let themeSelection = offersAutomatic && !preference.usesAgtermTheme(settings)
+            ? Self.automaticOmarchyThemeLabel
+            : settings.activeTheme(isDark: Self.systemIsDark) ?? Self.ghosttyDefaultThemeLabel
+        let themeIndex = themeValues.firstIndex(of: themeSelection) ?? 0
         adw_preferences_group_add(
             cast(terminal),
             W(
@@ -197,7 +202,9 @@ private let onSettingsCursorBlink: @MainActor @convention(c) (OpaquePointer?, Op
 }
 private let onSettingsTheme: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { row, _, _ in
     MainActor.assumeIsolated {
-        controllerForWidget(row)?.applyThemeAtIndex(Int(adw_combo_row_get_selected(cast(row))))
+        guard let item = adw_combo_row_get_selected_item(cast(row)),
+              let value = gtk_string_object_get_string(OpaquePointer(item)) else { return }
+        controllerForWidget(row)?.applyThemeSetting(String(cString: value))
     }
 }
 private let onSettingsFollowAppearance: @MainActor @convention(c) (OpaquePointer?, OpaquePointer?, gpointer?) -> Void = { row, _, _ in

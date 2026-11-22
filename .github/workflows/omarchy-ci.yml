@@ -106,20 +106,28 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      swift: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.swift == 'true' }}
+      swift: ${{ github.event_name == 'workflow_dispatch' || steps.release_base.outputs.full_build == 'true' || steps.filter.outputs.swift == 'true' }}
       # Only the standalone probe and its Python tests are exempt from native builds.
-      product: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && steps.filter.outputs.all_changed_count >= 3000) || (steps.filter.outputs.swift == 'true' && steps.filter.outputs.swift_count != steps.filter.outputs.native_probe_count) }}
-      cookbook: ${{ steps.filter.outputs.cookbook }}
+      product: ${{ github.event_name == 'workflow_dispatch' || steps.release_base.outputs.full_build == 'true' || (github.event_name == 'pull_request' && steps.filter.outputs.all_changed_count >= 3000) || (steps.filter.outputs.swift == 'true' && steps.filter.outputs.swift_count != steps.filter.outputs.native_probe_count) }}
+      cookbook: ${{ steps.release_base.outputs.full_build == 'true' || steps.filter.outputs.cookbook == 'true' }}
       # GitHub caps PR file lists at 3000; an incomplete list must retain full validation.
       ui_python_only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.ui_python_count > 0 && steps.filter.outputs.all_changed_count < 3000 && steps.filter.outputs.ui_python_count == steps.filter.outputs.all_changed_count }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Find the stable release base for this main push
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'alexandru-savinov/agterm-omarchy'
+        id: release_base
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I scripts/omarchy-auto-release.py ci-release-base "$GITHUB_SHA"
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name != 'workflow_dispatch'
         id: filter
         with:
+          base: ${{ steps.release_base.outputs.sha }}
+          ref: ${{ steps.release_base.outputs.sha != '' && github.sha || '' }}
           filters: |
             all_changed:
               - "**"
@@ -453,11 +461,12 @@ jobs:
               swift test --skip-build --filter "RemoteHeldExitGTKTests/$test_case"
           done
       - name: GTK AT-SPI smoke tests
+        id: gtk-smoke
         env:
           AGTERM_UI_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/linux-ui
         run: python3 scripts/test-linux-ui-parallel.py
-      - name: Upload GTK diagnostics on failure
-        if: failure()
+      - name: Upload GTK diagnostics on failure or retry
+        if: failure() || steps.gtk-smoke.outputs.retried == 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: linux-ui-diagnostics-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}

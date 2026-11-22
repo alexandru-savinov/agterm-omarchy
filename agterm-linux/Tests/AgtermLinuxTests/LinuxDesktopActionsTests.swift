@@ -22,6 +22,60 @@ struct LinuxDesktopActionsTests {
         #expect(LinuxApplicationInvocation.parse(arguments: ["--"]) == .activate)
     }
 
+    @Test("the Omarchy TUI launcher is accepted")
+    func omarchyTUILaunch() {
+        let payload = ["btop", "a b", "", "--title=literal", "--desktop-action=new-window", "$HOME", "a'b"]
+        let parsed = LinuxApplicationInvocation.parse(arguments: [
+            "--app-id=org.omarchy.7z", "--title=Monitor", "--working-directory=tools", "-e",
+        ] + payload)
+        guard case .terminal(let launch) = parsed else {
+            Issue.record("Omarchy TUI rejected: \(parsed)")
+            return
+        }
+        #expect(launch == LinuxTerminalLaunch(directory: "tools", title: "Monitor", appID: "org.omarchy.7z", command: payload))
+        #expect(launch.isEphemeral)
+        #expect(LinuxApplicationInvocation.parse(arguments: ["-e", "btop"]) == .terminal(.init(command: ["btop"])))
+        #expect(LinuxApplicationInvocation.parse(arguments: ["--app-id=TUI.float"]) == .terminal(.init(appID: "TUI.float")))
+        #expect(LinuxApplicationInvocation.parse(arguments: ["-e"]) == .invalid("-e requires a program"))
+    }
+
+    @Test func appIDWithoutCommandIsEphemeral() {
+        let parsed = LinuxApplicationInvocation.parse(arguments: ["--app-id=TUI.float"])
+        guard case .terminal(let launch) = parsed else {
+            Issue.record("Missing app-ID launch: \(parsed)")
+            return
+        }
+        #expect(launch.isEphemeral)
+        #expect(launch.command == nil)
+    }
+
+    @Test func oddAppIDsKeepTheOmarchyPrefix() {
+        let parsed = LinuxApplicationInvocation.parse(arguments: ["--app-id=org.omarchy.g++"])
+        #expect(parsed == .terminal(.init(appID: "org.omarchy.g__")))
+    }
+
+    @Test func launcherDirectoryNormalizesParentComponents() {
+        let launch = LinuxTerminalLaunch(directory: "sub/../target")
+        let cwd = launch.workingDirectory(callerCwd: "/caller", fallback: "/home", isDirectory: { _ in true })
+        #expect(cwd == "/caller/target")
+    }
+
+    @Test func launcherDirectoryUsesTheCallerAndFallsBackForMissingPaths() {
+        let absolute = "/chosen"
+        let caller = "/forwarded"
+        let fallback = "/default"
+        let valid = Set([caller, absolute, "\(caller)/relative"])
+        let chosen = LinuxTerminalLaunch(directory: absolute)
+        let relative = LinuxTerminalLaunch(directory: "relative", title: "Project")
+        let missing = LinuxTerminalLaunch(directory: "/missing")
+        #expect(!relative.isEphemeral)
+        #expect(LinuxApplicationInvocation.parse(arguments: ["--working-directory=relative", "--title=Project"]) == .terminal(relative))
+        #expect(chosen.workingDirectory(callerCwd: caller, fallback: fallback, isDirectory: valid.contains) == absolute)
+        #expect(relative.workingDirectory(callerCwd: caller, fallback: fallback, isDirectory: valid.contains) == "\(caller)/relative")
+        #expect(missing.workingDirectory(callerCwd: caller, fallback: fallback, isDirectory: valid.contains) == caller)
+        #expect(missing.workingDirectory(callerCwd: nil, fallback: fallback, isDirectory: valid.contains) == fallback)
+    }
+
     @Test("invalid launcher actions and mixed invocations fail closed")
     func invalidInvocations() {
         #expect(LinuxApplicationInvocation.parse(arguments: ["--desktop-action=unknown"])

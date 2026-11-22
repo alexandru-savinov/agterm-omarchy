@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import base64
 import contextlib
+from datetime import datetime, timedelta, timezone
 import importlib.util
 import io
 import json
@@ -15,12 +16,19 @@ from unittest import mock
 SPEC = importlib.util.spec_from_file_location("upstream_sync", Path(__file__).resolve().parents[1] / "upstream-sync.py")
 sync = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(sync)
+LIVENESS_SPEC = importlib.util.spec_from_file_location(
+    "upstream_sync_liveness", Path(__file__).resolve().parents[1] / "upstream-sync-liveness.py")
+liveness = importlib.util.module_from_spec(LIVENESS_SPEC)
+LIVENESS_SPEC.loader.exec_module(liveness)
 FIELDS_SPEC = importlib.util.spec_from_file_location("pr_fields", Path(__file__).resolve().parents[1] / "github/pr_fields.py")
 pr_fields = importlib.util.module_from_spec(FIELDS_SPEC)
 FIELDS_SPEC.loader.exec_module(pr_fields)
 RUN = "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/1"
 WORKFLOW = (Path(__file__).resolve().parents[2] / ".github/workflows/upstream-sync.yml").read_text(encoding="utf-8")
 PUBLISH = Path(__file__).resolve().parents[1] / "upstream-sync-publish.sh"
+REHEARSAL = PUBLISH.with_name("upstream-sync-rehearsal.sh")
+REHEARSAL_REPO = "alexandru-savinov/agterm-omarchy"
+REHEARSAL_BRANCH = "rehearsal/linux-port-314-2"
 BLOCKED = Path(__file__).resolve().parents[1] / "upstream-sync-blocked.sh"
 CI_WORKFLOW = (Path(__file__).resolve().parents[2] / ".github/workflows/omarchy-ci.yml").read_text(encoding="utf-8")
 
@@ -478,6 +486,11 @@ class GateTests(unittest.TestCase):
                {**pr(2, head="upstream-sync-notes"), "labels": None}]
         self.assertEqual(decide(prs=prs)["action"], "sync")
 
+    def test_a_rehearsal_draft_and_branch_do_not_block_normal_sync(self):
+        plan = decide(prs=[pr(42, head=REHEARSAL_BRANCH, labels=["sync-rehearsal"])],
+                      remote_branches={REHEARSAL_BRANCH})
+        self.assertEqual((plan["action"], plan["branch"]), ("sync", PORT_BRANCH))
+
     def test_fork_pr_never_blocks_whatever_its_label_or_head(self):
         for label in ("upstream-sync", "needs-adaptation"):
             for head in ("x", PORT_BRANCH, "sync/umputun-v0.43.0"):
@@ -693,7 +706,7 @@ class WorkflowOrderTests(unittest.TestCase):
 
     def job(self, name):
         start = WORKFLOW.index(f"\n  {name}:\n")
-        following = [WORKFLOW.index(f"\n  {other}:\n") for other in ("test", "sync", "publish", "blocked")]
+        following = [WORKFLOW.index(f"\n  {other}:\n") for other in ("test", "sync", "rehearsal", "publish", "blocked")]
         return WORKFLOW[start:min([position for position in following if position > start], default=len(WORKFLOW))]
 
     def test_a_blocked_sync_reaches_the_issue_and_never_the_push(self):
@@ -726,19 +739,94 @@ class WorkflowOrderTests(unittest.TestCase):
         self.position("      - scripts/upstream-sync-blocked.sh\n")
         self.assertEqual(CI_WORKFLOW.count("            scripts/upstream-sync-blocked.sh\n"), 1)
 
+    def test_rehearsal_keeps_the_planner_and_first_seen_record_out_of_its_path(self):
+        rehearsal = self.job("rehearsal")
+        self.assertIn("if: github.event_name == 'workflow_dispatch' && inputs.rehearsal", rehearsal)
+        self.assertIn("if: github.event_name != 'workflow_dispatch' || !inputs.rehearsal", self.job("sync"))
+        for value in ("secrets.", "first-seen", "SYNC_PAUSED", "upstream-sync.py", "issues: write"):
+            self.assertNotIn(value, rehearsal)
+        publish = self.job("publish")
+        self.assertIn("needs.sync.result == 'success'", publish)
+        self.assertIn("needs.rehearsal.result == 'success' && github.event_name == 'workflow_dispatch'", publish)
+        self.assertIn("inputs.rehearsal && !inputs.dry_run", publish)
+        self.assertIn("if: always() && needs.rehearsal.result == 'success'", publish)
+
+    def test_reruns_can_replace_each_publish_bundle(self):
+        for job, artifact in (("sync", "upstream-sync-branch"), ("rehearsal", "upstream-sync-rehearsal")):
+            with self.subTest(job=job):
+                self.assertIn(f"          name: {artifact}\n"
+                              "          path: ${{ runner.temp }}/out/\n"
+                              "          retention-days: 1\n"
+                              "          if-no-files-found: error\n"
+                              "          overwrite: true", self.job(job))
+
     def test_labels_exist_before_the_publish_script_runs(self):
         self.assertLess(self.position("name: Create the sync labels if missing"),
                         self.position("run: scripts/upstream-sync-publish.sh"))
         self.assertNotIn("labels[]=", WORKFLOW)
 
 
+class RehearsalFixtureTests(unittest.TestCase):
+    def test_bundle_contains_only_the_synthetic_change_on_the_checked_out_main(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            repo.mkdir()
+
+            def git(*args):
+                return subprocess.check_output(["git", "-C", str(repo), *args], text=True).strip()
+
+            git("init", "--quiet", "-b", "main")
+            workflow = Path(".github/workflows/upstream-sync.yml")
+            (repo / workflow).parent.mkdir(parents=True)
+            original_workflow = "name: Upstream sync\n"
+            (repo / workflow).write_text(original_workflow, encoding="utf-8")
+            git("add", str(workflow))
+            git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                "commit", "--quiet", "-m", "main")
+            main = git("rev-parse", "HEAD")
+            first_seen = root / "first-seen.json"
+            first_seen.write_text('{"sentinel":"keep"}', encoding="utf-8")
+            env = dict(os.environ, GITHUB_REPOSITORY=REHEARSAL_REPO, GITHUB_EVENT_NAME="workflow_dispatch",
+                       GITHUB_REF="refs/heads/main", GITHUB_RUN_ID="314", GITHUB_RUN_ATTEMPT="2", GITHUB_SHA=main,
+                       RUNNER_TEMP=str(root), GITHUB_OUTPUT=str(root / "outputs"), DRY_RUN="false", TAG_OVERRIDE="")
+            for override in ({"TAG_OVERRIDE": "v1.2.3"}, {"GITHUB_REF": "refs/heads/feature"}, {"DRY_RUN": "true"}):
+                rejected = subprocess.run(["bash", str(REHEARSAL)], cwd=repo, env=env | override, capture_output=True)
+                self.assertNotEqual(rejected.returncode, 0)
+                self.assertEqual(git("rev-parse", "HEAD"), main)
+            subprocess.run(["bash", str(REHEARSAL)], cwd=repo, env=env, check=True, capture_output=True)
+            head = git("rev-parse", "refs/heads/rehearsal/linux-port-fixture")
+            self.assertEqual(git("rev-parse", head + "^"), main)
+            self.assertEqual(git("diff", "--name-only", main, head).splitlines(),
+                             [str(workflow), "upstream-sync-rehearsal.txt"])
+            self.assertEqual((repo / workflow).read_text(encoding="utf-8"),
+                             original_workflow + "\n# Synthetic upstream sync publish rehearsal. Never merge.\n")
+            self.assertEqual(git("bundle", "list-heads", str(root / "out/sync.bundle")),
+                             f"{head} refs/heads/{REHEARSAL_BRANCH}")
+            body = (root / "out/body.md").read_text(encoding="utf-8")
+            self.assertIn("Never merge", body)
+            self.assertIn("Task #476", body)
+            self.assertEqual(first_seen.read_text(encoding="utf-8"), '{"sentinel":"keep"}')
+
+
 STUB = r"""#!/usr/bin/env bash
 printf '%s\t%s\t%s\n' "$(basename "$0")" "${GH_TOKEN:-}|${GIT_CONFIG_VALUE_0:-}" "$*" >> "$STUB_LOG"
 if [[ "$(basename "$0")" == git ]]; then
   ref="refs/heads/$BRANCH"
+  if [[ "$1" == ls-remote ]]; then
+    if [[ -s "$STUB_STATE.remote" ]]; then
+      printf '%s\t%s\n' "$(< "$STUB_STATE.remote")" "$ref"
+    fi
+    exit 0
+  fi
+  if [[ "$*" == *"origin :$ref" ]]; then
+    [[ -z "${STUB_DELETE_FAILS:-}" ]] || exit 1
+    : > "$STUB_STATE.remote"
+    exit 0
+  fi
   [[ "$*" == *"$ref:$ref"* ]] || exit 0
   case "${STUB_PUSH:-new}" in
-    new) printf '*\t%s:%s\t[new branch]\n' "$ref" "$ref" ;;
+    new) printf '%s\n' "$HEAD_SHA" > "$STUB_STATE.remote"; printf '*\t%s:%s\t[new branch]\n' "$ref" "$ref" ;;
     same) printf '=\t%s:%s\t[up to date]\n' "$ref" "$ref" ;;
     *) printf '!\t%s:%s\t[rejected] (stale info)\n' "$ref" "$ref"; exit 1 ;;
   esac
@@ -747,6 +835,10 @@ fi
 case "$1 $2" in
   "pr create") [[ "$STUB_CREATE" == ok ]] && { echo "https://github.com/o/r/pull/12"; exit 0; }; exit 1 ;;
   "pr list") [[ -z "${STUB_LIST_FAILS:-}" ]] || exit 1; echo "${STUB_FOUND:-}" ;;
+  "pr view")
+    [[ "$*" == *" --jq "* ]] || exit 1
+    printf '%s\t%s\tfalse\t%s\t%s\n' \
+      "$BRANCH" "${STUB_VIEW_HEAD:-$HEAD_SHA}" "${STUB_VIEW_DRAFT:-true}" "${STUB_VIEW_STATE:-OPEN}" ;;
   "pr close") [[ -z "${STUB_CLOSE_FAILS:-}" ]] || exit 1 ;;
   "api "*)
     if [[ " $* " == *" -f "* ]]; then
@@ -762,13 +854,17 @@ esac
 class PublishScriptTests(unittest.TestCase):
     """The publish step against stubbed gh and git: what it calls, as whom, and how it recovers."""
 
-    def run_publish(self, **stub):
+    def run_publish(self, *, finish=False, finish_after_publish=False, **stub):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "bin").mkdir()
             for tool in ("gh", "git"):
                 (root / "bin" / tool).write_text(STUB, encoding="utf-8")
                 (root / "bin" / tool).chmod(0o755)
+            no_jq = root / "bin/jq"
+            no_jq.write_text("#!/usr/bin/env bash\necho 'standalone jq is unavailable' >&2\nexit 127\n",
+                             encoding="utf-8")
+            no_jq.chmod(0o755)
             (root / "body.md").write_text("body", encoding="utf-8")
             env = {"PATH": f"{root / 'bin'}:{os.environ['PATH']}", "STUB_LOG": str(root / "log"),
                    "STUB_STATE": str(root / "state"), "GITHUB_OUTPUT": str(root / "out"),
@@ -776,7 +872,17 @@ class PublishScriptTests(unittest.TestCase):
                    "HEAD_SHA": "2" * 40, "TITLE": "Sync umputun/agterm v0.43.0", "DRAFT": "true",
                    "LABEL": "needs-adaptation", "BODY_FILE": str(root / "body.md"), "LABEL_RETRY_DELAY": "0",
                    **stub}
-            result = subprocess.run(["bash", str(PUBLISH)], env=env, capture_output=True, text=True)
+            env["RUNNER_TEMP"] = str(root)
+            if finish:
+                (root / "upstream-sync-rehearsal-owned").write_text(stub.get("STUB_OWNERSHIP", "") + "\n")
+                (root / "state.remote").write_text(stub.get("STUB_REMOTE_HEAD", env["HEAD_SHA"]) + "\n")
+            command = ["bash", str(PUBLISH)]
+            result = subprocess.run(command + (["--finish-rehearsal"] if finish else []),
+                                    env=env, capture_output=True, text=True)
+            if finish_after_publish:
+                if result.returncode == 0:
+                    env["REHEARSAL_PR"] = (root / "out").read_text().strip().split("=", 1)[1]
+                result = subprocess.run(command + ["--finish-rehearsal"], env=env, capture_output=True, text=True)
             log = (root / "log").read_text(encoding="utf-8").splitlines() if (root / "log").exists() else []
             calls = [line.split("\t") for line in log]
             output = (root / "out").read_text(encoding="utf-8") if (root / "out").exists() else ""
@@ -859,6 +965,49 @@ class PublishScriptTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1)
                 self.assertIn("::error::", result.stderr)
                 self.assertEqual([name for name, _, _ in calls], ["git"])
+
+    REHEARSAL_ENV = {
+        "REHEARSAL": "true", "GH_REPO": REHEARSAL_REPO, "BRANCH": REHEARSAL_BRANCH, "GITHUB_RUN_ID": "314",
+        "GITHUB_RUN_ATTEMPT": "2", "GITHUB_REF": "refs/heads/main", "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "TITLE": "[rehearsal] Upstream sync publish", "LABEL": "sync-rehearsal",
+    }
+
+    def test_rehearsal_uses_the_same_publish_path_and_withdraws_its_own_draft(self):
+        result, calls, output = self.run_publish(STUB_CREATE="ok", finish_after_publish=True, **self.REHEARSAL_ENV)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_all_as_pat(calls)
+        create = self.args(calls, "gh", "pr create")
+        self.assertEqual(len(create), 1)
+        self.assertIn("--label sync-rehearsal", create[0])
+        self.assertIn("--draft", create[0])
+        self.assertEqual(len(self.args(calls, "gh", "pr close 12")), 1)
+        self.assertEqual(calls[-1][2], f"push --force-with-lease=refs/heads/{REHEARSAL_BRANCH}:{'2' * 40} "
+                                       f"origin :refs/heads/{REHEARSAL_BRANCH}")
+        self.assertEqual(output, "number=12\n")
+
+    def test_missing_or_wrong_ownership_prevents_rehearsal_cleanup(self):
+        result, calls, _ = self.run_publish(finish=True, STUB_OWNERSHIP="1" * 40, **self.REHEARSAL_ENV)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(calls, [])
+
+    def test_rehearsal_refuses_a_real_sync_branch_before_using_the_token(self):
+        env = self.REHEARSAL_ENV | {"BRANCH": PORT_BRANCH}
+        result, calls, _ = self.run_publish(**env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(calls, [])
+
+    def test_rehearsal_cleanup_leaves_a_moved_branch_and_pr_alone(self):
+        result, calls, _ = self.run_publish(finish=True, STUB_OWNERSHIP="2" * 40, STUB_REMOTE_HEAD="1" * 40,
+                                            **self.REHEARSAL_ENV)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual([(tool, args) for tool, _, args in calls],
+                         [("git", f"ls-remote --refs origin refs/heads/{REHEARSAL_BRANCH}")])
+
+    def test_failed_rehearsal_close_still_attempts_only_the_owned_branch_delete(self):
+        result, calls, _ = self.run_publish(STUB_CREATE="ok", finish_after_publish=True, STUB_CLOSE_FAILS="1",
+                                            **self.REHEARSAL_ENV)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"origin :refs/heads/{REHEARSAL_BRANCH}", calls[-1][2])
 
     def test_missing_inputs_fail_before_any_call(self):
         result, calls, _ = self.run_publish(STUB_CREATE="ok", SYNC_TOKEN="")
@@ -943,6 +1092,106 @@ class BlockedScriptTests(unittest.TestCase):
             with self.subTest(stub=stub):
                 result, calls, _, _ = self.run_blocked(**stub)
                 self.assertEqual((result.returncode, calls), (1, []))
+
+
+class ScheduleLivenessTests(unittest.TestCase):
+    NOW = datetime(2026, 11, 21, 12, tzinfo=timezone.utc)
+
+    def history(self, age=None):
+        if age is None:
+            return {"total_count": 0, "workflow_runs": []}
+        created = self.NOW - age
+        return {"total_count": 1, "workflow_runs": [{
+            "id": 3, "event": "schedule", "head_branch": "main",
+            "created_at": created.isoformat().replace("+00:00", "Z"),
+            "run_started_at": self.NOW.isoformat(), "conclusion": "failure",
+        }]}
+
+    def issue(self, state):
+        return {"number": 26, "title": liveness.TITLE, "state": state}
+
+    def reconcile(self, age=None, issues=(), responses=()):
+        client = mock.Mock(side_effect=[json.dumps(self.history(age)), json.dumps(issues), *responses])
+        message = liveness.reconcile(client, self.NOW)
+        queries = [call.args for call in client.call_args_list]
+        self.assertEqual(queries[0], (
+            "api", f"repos/{liveness.REPOSITORY}/actions/workflows/upstream-sync.yml/runs"
+                   "?branch=main&event=schedule&per_page=1"))
+        self.assertEqual(queries[1][:6], ("issue", "list", "--state", "all", "--label", liveness.LABEL))
+        return message, queries[2:]
+
+    def test_no_schedule_history_is_stale(self):
+        self.assertEqual(liveness.schedule_status(self.history(), self.NOW), (True, None))
+
+    def test_uses_created_at_and_is_stale_at_exactly_twelve_hours(self):
+        for seconds, stale in ((43199, False), (43200, True), (43201, True)):
+            with self.subTest(seconds=seconds):
+                result, run = liveness.schedule_status(self.history(timedelta(seconds=seconds)), self.NOW)
+                self.assertEqual(result, stale)
+                self.assertEqual(run, (3, self.NOW - timedelta(seconds=seconds)))
+
+    def test_wrong_event_branch_or_future_creation_is_rejected(self):
+        for changes in ({"event": "push"}, {"head_branch": "feature"},
+                        {"created_at": (self.NOW + timedelta(seconds=1)).isoformat()}):
+            with self.subTest(changes=changes):
+                history = self.history(timedelta(seconds=1))
+                history["workflow_runs"][0].update(changes)
+                with self.assertRaises(ValueError):
+                    liveness.schedule_status(history, self.NOW)
+
+    def test_api_failure_never_changes_an_issue(self):
+        client = mock.Mock(side_effect=subprocess.CalledProcessError(1, ["gh", "api"]))
+        with self.assertRaises(subprocess.CalledProcessError):
+            liveness.reconcile(client, self.NOW)
+        client.assert_called_once()
+
+    def test_first_alarm_creates_one_labelled_issue(self):
+        existing = subprocess.CalledProcessError(1, ["gh", "api"], stderr="already_exists")
+        message, writes = self.reconcile(responses=(existing, "https://github.com/example/issues/26"))
+        self.assertIn("Schedule is stale", message)
+        self.assertEqual(len(writes), 2)
+        self.assertEqual(writes[1][:6], ("issue", "create", "--title", liveness.TITLE, "--label", liveness.LABEL))
+
+    def test_later_alarm_edits_or_reopens_the_same_issue(self):
+        for state, expected, responses in (("OPEN", ("edit",), ("",)),
+                                            ("CLOSED", ("edit", "reopen"), ("", ""))):
+            with self.subTest(state=state):
+                _, writes = self.reconcile(issues=[self.issue(state)], responses=responses)
+                self.assertEqual(tuple(query[1] for query in writes), expected)
+                self.assertTrue(all(query[2] == "26" for query in writes))
+
+    def test_a_renamed_labelled_issue_is_reused(self):
+        _, writes = self.reconcile(issues=[self.issue("OPEN") | {"title": "Renamed"}], responses=("",))
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(writes[0][:5], ("issue", "edit", "26", "--title", liveness.TITLE))
+
+    def test_recent_scheduled_run_closes_the_alarm_even_if_the_run_failed(self):
+        message, writes = self.reconcile(timedelta(hours=2), [self.issue("OPEN")], ("",))
+        self.assertIn("Schedule is live", message)
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(writes[0][:4], ("issue", "close", "26", "--comment"))
+        self.assertIn("/actions/runs/3", writes[0][4])
+
+    def test_healthy_checks_leave_closed_or_absent_issues_alone(self):
+        for issues in ([], [self.issue("CLOSED")]):
+            with self.subTest(issues=issues):
+                _, writes = self.reconcile(timedelta(hours=1), issues)
+                self.assertEqual(writes, [])
+
+    def test_duplicate_alarm_records_are_left_alone(self):
+        client = mock.Mock(side_effect=[json.dumps(self.history()),
+                                       json.dumps([self.issue("OPEN"), self.issue("CLOSED")])])
+        with self.assertRaisesRegex(ValueError, "multiple schedule alarm issues"):
+            liveness.reconcile(client, self.NOW)
+        self.assertEqual(client.call_count, 2)
+
+    def test_workflow_checks_pushes_even_when_no_schedule_is_delivered(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/upstream-sync-liveness.yml").read_text()
+        self.assertIn("  push:\n    branches: [main]\n", workflow)
+        self.assertIn("  group: upstream-sync-liveness\n  cancel-in-progress: false", workflow)
+        self.assertIn("github.ref == 'refs/heads/main'", workflow)
+        self.assertNotIn("pull_request", workflow)
+        self.assertNotIn("secrets.", workflow)
 
 
 class GitRepoTests(unittest.TestCase):

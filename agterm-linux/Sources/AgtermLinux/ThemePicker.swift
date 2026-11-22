@@ -7,8 +7,6 @@ import agtermCore
 
 @MainActor
 extension AppController {
-    private static let defaultThemeLabel = "default ghostty"
-
     func showThemePicker() {
         if themeWindow != nil { return }
         themeCommitted = currentTheme
@@ -48,6 +46,9 @@ extension AppController {
         gtk_window_set_child(WIN(win), W(box))
 
         filterThemes("")
+        // The initial row represents the persisted selection. Opening the picker alone should
+        // leave an automatic Omarchy palette visible until the user navigates or commits.
+        themePreviewDebouncer.cancel()
         gtk_window_present(WIN(win))
         _ = gtk_widget_grab_focus(W(entry))
     }
@@ -55,7 +56,7 @@ extension AppController {
     func filterThemes(_ query: String) {
         guard let lb = themeList else { return }
         gtk_list_box_remove_all(lb)
-        let all = [Self.defaultThemeLabel] + Self.bundledThemes()
+        let all = [Self.ghosttyDefaultThemeLabel] + Self.bundledThemes()
         if query.isEmpty {
             themeItems = all
         } else {
@@ -64,7 +65,7 @@ extension AppController {
             // descending sort that surfaced the WORST match first).
             themeItems = fuzzyRank(query: query, items: all, keys: { [$0] })
         }
-        let selected = themeCommitted ?? Self.defaultThemeLabel
+        let selected = themeCommitted ?? Self.ghosttyDefaultThemeLabel
         for item in themeItems {
             guard let row = op(gtk_list_box_row_new()) else { continue }
             let label = op(gtk_label_new(item))
@@ -81,7 +82,7 @@ extension AppController {
     }
 
     /// Map a list label to a theme name (the "default ghostty" row means nil).
-    private func themeName(_ item: String) -> String? { item == Self.defaultThemeLabel ? nil : item }
+    private func themeName(_ item: String) -> String? { item == Self.ghosttyDefaultThemeLabel ? nil : item }
 
     func themePreviewSelected(_ row: OpaquePointer?) {
         guard let row else { return }
@@ -129,7 +130,7 @@ extension AppController {
         // so the invariant belongs here rather than in each caller.
         guard themeWindow != nil else { return }
         themePreviewDebouncer.cancel()   // drop a pending nav preview so it can't override the revert
-        previewTheme(themeCommitted)     // revert the live preview immediately (no persist)
+        restorePersistedTheme()
         closeThemePicker()
     }
 
@@ -142,8 +143,13 @@ extension AppController {
     /// Handles the window-manager close path, which is a cancellation rather than a commit.
     func themePickerWasDestroyed() {
         guard themeWindow != nil else { return }
-        previewTheme(themeCommitted)   // revert the live preview; the window is already going away
+        restorePersistedTheme()
         teardownThemePicker()
+    }
+
+    private func restorePersistedTheme() {
+        Self.themePreviewSettings = nil
+        applySettings(linuxSettingsStore().load())
     }
 
     /// The state every picker exit shares — ONE place, so preview state added later cannot be cleared on

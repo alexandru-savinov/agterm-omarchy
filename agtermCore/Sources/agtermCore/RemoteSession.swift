@@ -110,7 +110,17 @@ public enum RemoteSession {
         try validate(host: host)
         let tail = operands.isEmpty ? [] : ["--"] + operands
         let chain = cliPathPrefix + " && agtermctl " + CommandRestore.shellQuotedLine(arguments + ["--json"] + tail)
-        let remote = ["/bin/sh", "-c", chain].map(CommandRestore.accountShellQuoted).joined(separator: " ")
+        let command: [String]
+        if chain.utf8.contains(0x0a) {
+            // tcsh rejects quoted newlines. Decode the already-quoted script in sh, where its final quote
+            // also protects trailing newlines in any argument from command substitution's newline stripping.
+            let encoded = chain.replacingOccurrences(of: "\\", with: "\\\\", options: .literal)
+                .replacingOccurrences(of: "\n", with: "\\0012", options: .literal)
+            command = ["/bin/sh", "-c", #"exec /bin/sh -c "$(printf '%b' "$1")""#, "agtermctl", encoded]
+        } else {
+            command = ["/bin/sh", "-c", chain]
+        }
+        let remote = command.map(CommandRestore.accountShellQuoted).joined(separator: " ")
         return sshArguments(host: host, connectTimeout: connectTimeout, interactive: false, controlPath: controlPath) + [remote]
     }
 

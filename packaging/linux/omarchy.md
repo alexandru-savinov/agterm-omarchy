@@ -2,10 +2,12 @@
 
 The build scripts select `x86_64` or `aarch64` from the machine running the GTK4 frontend build.
 An x86_64 archive cannot run in an ARM64 VM.
-[Native Omarchy evidence](https://github.com/alexandru-savinov/agterm-omarchy/tree/48e70b33651ca8855f8cef5bd57f50afa67ed291/docs/evidence/omarchy-6775c336-2026-11-01) is for the exact ARM64 payload
-and recorded conditions; x86_64 has hosted CI evidence, with native Omarchy acceptance still unverified.
-That record binds source `6775c336`, run `41357189891` and ARM64 archive SHA256 prefix `2b629e40`.
-The [earlier fd85fc58 acceptance](https://github.com/alexandru-savinov/agterm-omarchy/tree/4d05d60c928c52b04df2ba51c1861cc1b90b8326/docs/evidence/omarchy-fd85fc58-2026-11-01) remains separate.
+Automatic releases are published only after both architectures' archives pass the containerized Omarchy/Hyprland
+native gates; for example, [run 44882977083](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/44882977083)
+gated x86_64 and aarch64 before publishing `omarchy-v0.43.0.2`.
+See [Releases and verification](../../README.md#releases-and-verification) for what the gates cover.
+Earlier hand-run ARM64 acceptance at [`6775c336`](https://github.com/alexandru-savinov/agterm-omarchy/tree/48e70b33651ca8855f8cef5bd57f50afa67ed291/docs/evidence/omarchy-6775c336-2026-11-01)
+and [`fd85fc58`](https://github.com/alexandru-savinov/agterm-omarchy/tree/4d05d60c928c52b04df2ba51c1861cc1b90b8326/docs/evidence/omarchy-fd85fc58-2026-11-01) is kept as history.
 A fresh source build needs its own validation.
 
 ## Install from source
@@ -22,8 +24,8 @@ mise exec swift@6.3.2 -- scripts/install-linux.sh
 `omarchy` is the coordinated candidate branch; use the task's exact branch/SHA when reproducing a
 candidate, and keep that identity with the resulting archive and test records.
 The inherited upstream `master` / `linux-port` names are not this fork's normal clone route.
-For download availability, check [this fork's releases](https://github.com/alexandru-savinov/agterm-omarchy/releases)
-and [publication task #17](https://github.com/alexandru-savinov/agterm-omarchy/issues/17).
+Prebuilt archives are on [this fork's releases](https://github.com/alexandru-savinov/agterm-omarchy/releases);
+the [README](../../README.md#install) shows how to verify and install one.
 The source Linux fork's DEB/RPM releases are separate builds, not Omarchy artifacts from this checkout.
 
 Run setup as the desktop user.
@@ -92,7 +94,53 @@ Launch **agterm** from Omarchy's application launcher, or run:
 ```
 
 GTK selects native Wayland in a Hyprland session.
+agterm follows Omarchy’s terminal colors automatically when `~/.local/state/omarchy/current/theme/` exists.
+It loads the colors from `ghostty.conf` on startup and updates open terminals when you run `omarchy theme set`.
+Running terminals keep the last valid Omarchy palette while the staged color file is unavailable.
+Omarchy uses the same path under `$HOME` even when `XDG_STATE_HOME` is set.
+An explicit agterm theme takes precedence over Omarchy, and your agterm-scoped `ghostty.conf`
+can override individual colors from either source when the Omarchy color layer is available.
+Select **Automatic (Omarchy)** under **Settings ▸ Appearance ▸ Terminal ▸ Theme** to resume following
+after choosing an agterm theme.
+The same choice is available through `agtermctl theme set "Automatic (Omarchy)"` and appears in `agtermctl theme list`.
+**Follow Omarchy** under **Settings ▸ General ▸ Ghostty Config** also follows Omarchy’s terminal fonts, padding, and cursor blink.
+`omarchy font set` and `omarchy display text size` update open terminals through `~/.config/ghostty/config`.
+agterm reads only `font-family`, `font-size`, `window-padding-x`, `window-padding-y`, and `cursor-style-blink` from that file.
+It keeps the font fallback order and retains the last valid settings during a malformed or oversized rewrite.
+An out-of-range font size or padding assignment is skipped while the other valid settings still apply.
+Ghostty applies padding changes to new terminals.
+If the file is absent, terminals use agterm’s defaults, including 8 pt horizontal and 6 pt vertical padding and a blinking cursor.
+Explicit agterm and scoped Ghostty settings take precedence, and each pane keeps its zoom.
+Use **Reset** under **Settings ▸ Appearance ▸ Terminal** to return the terminal settings to automatic defaults.
+Turning off **Follow Omarchy** disables the automatic integration.
+
+With **Follow Omarchy** enabled, Shift+Enter sends CSI-u (`ESC[13;2u`), Alt+Shift+Enter sends `ESC[13;4u`, and Shift+Insert pastes from the clipboard.
+These shortcuts also apply with an explicit agterm color theme.
+Bindings in your agterm-scoped or inherited Ghostty configuration take precedence over these defaults.
+
+With **Use my global Ghostty config** enabled, the usual full Ghostty import supplies these settings.
+On Linux, `SIGUSR2` reloads the Ghostty configuration, including on systems without Omarchy.
+
+On upgrade, existing Omarchy profiles on the seeded agterm theme or Ghostty’s default start following Omarchy.
+If you picked the agterm theme on purpose, select it again in **Settings ▸ Appearance ▸ Terminal ▸ Theme**.
+If you set the terminal to 13 pt on purpose, set it again in **Settings ▸ Appearance ▸ Terminal ▸ Default font size**.
+
 No Hyprland configuration or default terminal selection is changed by installation.
+
+### Omarchy terminal launches
+
+When you select agterm as the default terminal in Omarchy, Super+Return opens a new tiled window in the existing agterm process if it is running.
+The window uses the directory Omarchy passes to `xdg-terminal-exec`.
+Relative directories resolve against the launcher's working directory.
+If the requested directory is missing, agterm uses the launcher's working directory when available, then its normal default.
+Reading the actual cwd of a focused agterm pane after `cd` still requires an Omarchy-side integration.
+Omarchy's current cwd helper can query kitty or guess from child processes, which cannot reliably identify a focused agterm pane across windows and splits.
+
+Omarchy's TUI and presentation launchers use `--app-id` plus `-e` to open a separate ephemeral terminal.
+It reads agterm's terminal settings and config, runs the requested command with its arguments, and closes when the command exits or the window closes.
+Each invocation starts a GTK process. Its Wayland app ID lets Hyprland apply window rules and lets Omarchy find an existing TUI window.
+Ephemeral terminals have no saved workspaces, control socket, launch hooks, or zmx session.
+
 For an optional dedicated shortcut on Lua-based Hyprland (0.55 and later), add this to the user
 bindings file loaded by your configuration and reload Hyprland:
 
@@ -109,6 +157,27 @@ bind = SUPER SHIFT, Return, exec, ~/.local/bin/agterm-linux
 Choose a chord that is unused in your configuration.
 See the [Wayland support matrix](../../agterm-linux/docs/x11-wayland.md) for compositor-owned behavior
 such as window placement and blur.
+
+### Omarchy clipboard shortcuts
+
+With Omarchy’s Lua-based Hyprland configuration, run this as your desktop user to give agterm terminal copy and paste on Super+C and Super+V, plus Omarchy’s default terminal opacity of 0.985 when active and 0.96 when inactive.
+
+```bash
+agtermctl integration omarchy enable
+agtermctl integration omarchy status
+```
+
+The command installs a user-owned `hypr/agterm-omarchy.lua` module and adds a marked include to your existing `hypr/hyprland.lua`.
+Use `agtermctl integration omarchy disable` to remove the managed files and restore the original entrypoint content.
+The command preserves existing edits outside its marked block and refuses symlinked or conflicting files.
+The terminal launcher preference stays under your control.
+
+If you run `omarchy refresh hyprland` (`omarchy-refresh-hyprland`), Omarchy overwrites `hyprland.lua` and saves the previous version as `hyprland.lua.bak.<timestamp>`.
+The refresh removes the marked include, so `status` reports `incomplete` and Super+C can interrupt a terminal command again.
+Run `agtermctl integration omarchy enable` again to restore the include.
+
+`status` checks the files on disk.
+After Hyprland reloads, `hyprctl clients -j` should show `terminal` or `terminal*` in the tags for `io.github.melonamin.agterm`.
 
 ## Rendering
 

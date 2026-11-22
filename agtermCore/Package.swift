@@ -43,6 +43,9 @@ let package = Package(
 )
 
 #if os(Linux)
+package.targets.append(.target(name: "AgtermLinuxPOSIX"))
+coreTarget.dependencies.append("AgtermLinuxPOSIX")
+
 // Foundation's attributed Markdown APIs are absent on Linux. Keep the parser dependency local to the
 // hosts that need it so upstream Darwin builds retain their original dependency graph and behavior.
 package.dependencies.append(.package(url: "https://github.com/swiftlang/swift-markdown", exact: "0.8.0"))

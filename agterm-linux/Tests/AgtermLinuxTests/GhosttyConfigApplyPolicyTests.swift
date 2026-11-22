@@ -105,4 +105,19 @@ struct GhosttyConfigApplyPolicyTests {
         #expect(GhosttyConfigApplyPolicy.surfaceState(preserveSessionConfig: true) == .sessionOverlay)
         #expect(GhosttyConfigApplyPolicy.surfaceState(preserveSessionConfig: false) == .watermarkOnly)
     }
+
+    @MainActor @Test func configUpdatesDoNotReportPaneZoom() {
+        var persisted: [Double] = []
+        func reportCellSize(_ points: Double) {
+            if !GhosttyConfigApplyPolicy.isApplyingConfig { persisted.append(points) }
+        }
+
+        GhosttyConfigApplyPolicy.withConfigUpdate {
+            reportCellSize(9)
+            GhosttyConfigApplyPolicy.withConfigUpdate { reportCellSize(15) }
+            reportCellSize(7)
+        }
+        reportCellSize(8)
+        #expect(persisted == [8])
+    }
 }

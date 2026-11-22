@@ -13,7 +13,7 @@ extension GhosttySurface {
         // The effective base config, not the UI setting: with the setting cleared, a `font-size` from the
         // scoped or inherited Ghostty config is what new sessions use, so a reset must land there too.
         let target = GhosttyApp.shared.currentBaseFontSize
-            ?? linuxSettingsStore().load().fontSize ?? DashboardLayout.ghosttyDefaultFontSize
+            ?? loadLinuxTerminalSettings().fontSize ?? DashboardLayout.ghosttyDefaultFontSize
         // Reset uses the surface config's size, which may still carry its old session/creation size.
         // Keep its background overlay, replace that size, then clear libghostty's manual-adjustment flag
         // even when the current size already matches; later config changes must reach this surface.

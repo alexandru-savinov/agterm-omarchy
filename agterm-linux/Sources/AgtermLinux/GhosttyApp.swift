@@ -41,6 +41,7 @@ final class GhosttyApp: @unchecked Sendable {
     /// The finalized base config's `font-size`, refreshed with every base config build.
     var currentBaseFontSize: Double?
     @MainActor private var appliedAppearanceSide: LinuxAppearanceSide?
+    @MainActor private var lastOmarchyColors: [String] = []
 
     /// Process environment and locale initialization must precede GTK's worker threads.
     /// Called once from main(), after the GDK policy assignments and before GTK initializes.
@@ -53,9 +54,8 @@ final class GhosttyApp: @unchecked Sendable {
         guard !isShutDown else { return }
         // Persisted settings (font/size/theme/scroll) are layered on at launch so they survive
         // relaunch. Translucency is omitted: Linux has no window-level compositing yet.
-        let saved = linuxSettingsStore().load()
-        let lines = AppController.ghosttyLines(for: saved, isDark: appearanceSide.isDark)
-        guard let cfg = buildConfig(extraLines: lines) else { return }
+        let saved = loadLinuxTerminalSettings()
+        guard let cfg = buildConfig(settings: saved, isDark: appearanceSide.isDark) else { return }
         currentThemeBackgroundHex = GhosttyConfigTheme.colors(from: cfg).background
         currentBaseFontSize = GhosttyConfigTheme.fontSize(from: cfg)
 
@@ -115,50 +115,59 @@ final class GhosttyApp: @unchecked Sendable {
 
     func tick() { if let a = app { ghostty_app_tick(a) } }
 
-    func updateConfig(_ config: ghostty_config_t) {
+    @MainActor func updateConfig(_ config: ghostty_config_t) {
         guard let app else { return }
-        ghostty_app_update_config(app, config)
+        GhosttyConfigApplyPolicy.withConfigUpdate { ghostty_app_update_config(app, config) }
     }
 
     @MainActor func applyColorScheme(_ side: LinuxAppearanceSide) {
         guard let app else { return }
-        ghostty_app_set_color_scheme(
-            app, side.isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+        GhosttyConfigApplyPolicy.withConfigUpdate {
+            ghostty_app_set_color_scheme(
+                app, side.isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+        }
         appliedAppearanceSide = side
     }
 
-    /// Build a ghostty config (bundled defaults + the user's ~/.config/ghostty + the given
-    /// extra lines, e.g. `theme = <name>`), finalized and ready for ghostty_surface_update_config.
-    /// Caller owns it and must ghostty_config_free it after applying.
     private(set) var staticTitle: String?
 
-    func buildConfig(extraLines: [String]) -> ghostty_config_t? {
+    /// Build and finalize the base config and any per-surface overlay. The caller owns it.
+    @MainActor
+    func buildConfig(settings: AppSettings, isDark: Bool, overlay: [String] = []) -> ghostty_config_t? {
         guard !isShutDown, let cfg = ghostty_config_new() else { return nil }
         var ready = false
         defer { if !ready { ghostty_config_free(cfg) } }
         do {
             let storage = try generatedFiles.get()
             let term = GhosttyResourceResolver.terminalName(resolvedResources: resolvedResources)
-            try storage.withConfigFile("term = \(term)\n" + GhosttyDefaults.baseConfLines, as: .defaults) {
+            let preference = OmarchyThemePreference()
+            let follow = preference.load()
+            let theme = OmarchyTheme()
+            let colors = omarchyColorLayer(theme: theme, enabled: follow != false)
+            var defaults = "term = \(term)\n" + GhosttyDefaults.baseConfLines
+            // Keep the bindings during the same theme-directory replacement that retains the last palette.
+            if follow ?? (!colors.isEmpty || theme.isInstalled) {
+                defaults += "\n" + Self.omarchyKeyBindings
+            }
+            try storage.withConfigFile(defaults, as: .defaults) {
                 $0.withCString { ghostty_config_load_file(cfg, $0) }
             }
-            if linuxSettingsStore().load().inheritGlobalGhosttyConfig == true {
-                ghostty_config_load_default_files(cfg)
-            }
-            // The scoped layer overrides bundled/global defaults; UI settings still load last.
-            if let scoped = Self.scopedGhosttyConfigPath(), FileManager.default.fileExists(atPath: scoped) {
-                scoped.withCString { ghostty_config_load_file(cfg, $0) }
-            }
-            // Empty themes preserve conditional color-scheme reports with agterm's fixed palette.
-            // Only the immutable theme pair must survive conditional-state changes. Ordinary config
-            // arguments have already been copied when load_file returns (pinned Config.loadIter/replay).
-            let themes = try storage.appearanceThemes()
-            let lines = ["theme = light:\(themes.light),dark:\(themes.dark)"] + extraLines
-            try storage.withConfigFile(lines.joined(separator: "\n"), as: .runtime) {
-                $0.withCString { ghostty_config_load_file(cfg, $0) }
-            }
-            // Includes expand after all layers and before finalization, matching macOS ordering.
-            ghostty_config_load_recursive_files(cfg)
+            let runtime = AppController.ghosttyLines(for: settings, isDark: isDark)
+            let scopedPath = Self.scopedGhosttyConfigPath(settings: settings)
+            let loadsGlobal = settings.inheritGlobalGhosttyConfig == true
+            let appearance = loadsGlobal ? [] : OmarchyThemeObserver.shared.appearance.fallbackLines(
+                overriddenBy: runtime + overlay, scopedPath: scopedPath, home: theme.home.path)
+            let layers = LinuxGhosttyConfigLayers(
+                settings: runtime,
+                omarchy: colors,
+                omarchyAppearance: appearance,
+                prefersAgtermTheme: preference.usesAgtermTheme(settings, previewing: AppController.themePreviewSettings != nil),
+                overlay: overlay)
+            try layers.load(
+                into: cfg,
+                storage: storage,
+                scopedPath: scopedPath,
+                loadGlobal: loadsGlobal ? { ghostty_config_load_default_files(cfg) } : nil)
             let title = try clearStaticTitle(cfg, storage: storage)
             ghostty_config_finalize(cfg)
             staticTitle = title
@@ -168,6 +177,25 @@ final class GhosttyApp: @unchecked Sendable {
             Self.reportConfigFailure(error)
             return nil
         }
+    }
+
+    private static let omarchyKeyBindings = """
+    keybind = shift+enter=csi:13;2u
+    keybind = alt+shift+enter=csi:13;4u
+    keybind = shift+insert=paste_from_clipboard
+
+    """
+
+    @MainActor private func omarchyColorLayer(theme: OmarchyTheme, enabled: Bool) -> [String] {
+        if enabled {
+            // Omarchy deletes the old directory before publishing its replacement. Any reload
+            // in that gap must keep the last published colors, even a signal or appearance reload.
+            let current = theme.colorLines()
+            if !current.isEmpty { lastOmarchyColors = current }
+        } else {
+            lastOmarchyColors = []
+        }
+        return lastOmarchyColors
     }
 
     /// A Ghostty static title would suppress the OSC title reports managed zmx uses for pane leadership.
@@ -192,21 +220,22 @@ final class GhosttyApp: @unchecked Sendable {
     /// rebuild the surface with the OLD theme's palette mid-preview.
     @MainActor
     func configWithOverlay(_ overlayText: String, settings: AppSettings? = nil) -> ghostty_config_t? {
-        let base = AppController.ghosttyLines(
-            for: settings ?? AppController.resolvedThemeSettings(persisted: linuxSettingsStore().load()),
-            isDark: appliedAppearanceSide?.isDark ?? AppController.systemIsDark)
         let overlay = overlayText.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-        return buildConfig(extraLines: base + overlay)
+        return buildConfig(
+            settings: settings ?? AppController.resolvedThemeSettings(persisted: loadLinuxTerminalSettings()),
+            isDark: appliedAppearanceSide?.isDark ?? AppController.systemIsDark,
+            overlay: overlay)
     }
 
     /// `<configDir>/ghostty.conf` — the agterm-scoped ghostty config layer, resolved via the shared
     /// ConfigPaths (honors a custom config dir + AGTERM_STATE_DIR isolation).
-    private static func scopedGhosttyConfigPath() -> String? {
+    private static func scopedGhosttyConfigPath(settings: AppSettings) -> String? {
         let env = ProcessInfo.processInfo.environment
-        let dir = ConfigPaths.configDirectory(setting: linuxSettingsStore().load().configDirectory,
+        let dir = ConfigPaths.configDirectory(setting: settings.configDirectory,
                                                stateDir: env["AGTERM_STATE_DIR"],
                                                home: FileManager.default.homeDirectoryForCurrentUser)
-        return ConfigPaths.ghosttyConfigPath(configDirectory: dir).path
+        let path = ConfigPaths.ghosttyConfigPath(configDirectory: dir).path
+        return FileManager.default.fileExists(atPath: path) ? path : nil
     }
 
     private static func reportConfigFailure(_ error: Error) {

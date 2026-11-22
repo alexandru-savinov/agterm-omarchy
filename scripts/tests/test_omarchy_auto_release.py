@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline tests for the automatic release workflow and incident actions."""
 
-from contextlib import redirect_stdout
+from contextlib import chdir, redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import io
@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -33,6 +34,100 @@ EVENT = {"workflow_run": {"event": "push", "head_branch": "main", "conclusion": 
 RELEASE = {"id": 456, "tag_name": TAG, "draft": False, "prerelease": False,
            "published_at": "2026-11-19T17:00:00Z"}
 OPEN_INCIDENTS = "issues?labels=release-incident&state=open&per_page=100"
+# Job names and conclusions of the real Omarchy CI runs on main: 44894615770 (#505, workflow-only, path
+# filters skipped every build) and 44880156678 (built and attested both architectures).
+FILTERED_JOBS = [
+    ("Upstream workflow guard", "success"), ("Installer and scripts", "success"), ("Detect changes", "success"),
+    ("SwiftLint (Linux)", "skipped"), ("Cookbook checks", "skipped"), ("zmx patch tests", "skipped"),
+    ("libghostty patch Zig tests (${{ matrix.arch }})", "skipped"), ("Core tests (${{ matrix.arch }})", "skipped"),
+    ("GTK build and tests (${{ matrix.arch }})", "skipped"), ("Attest CI archive (${{ matrix.arch }})", "skipped"),
+    ("CI", "success"),
+]
+BUILT_JOBS = [
+    ("Upstream workflow guard", "success"), ("Installer and scripts", "success"), ("Detect changes", "success"),
+    ("libghostty patch Zig tests (aarch64)", "success"), ("zmx patch tests", "success"),
+    ("Core tests (x86_64)", "success"), ("GTK build and tests (x86_64)", "success"),
+    ("Core tests (aarch64)", "success"), ("libghostty patch Zig tests (x86_64)", "success"),
+    ("SwiftLint (Linux)", "success"), ("GTK build and tests (aarch64)", "success"), ("Cookbook checks", "skipped"),
+    ("Attest CI archive (aarch64)", "success"), ("Attest CI archive (x86_64)", "success"), ("CI", "success"),
+]
+# Attempt 1 of run 44864094283: it built, then failed; attempt 2 re-ran it green.
+FAILED_BUILD_ATTEMPT = [
+    ("Detect changes", "success"), ("Installer and scripts", "success"), ("Upstream workflow guard", "success"),
+    ("libghostty patch Zig tests (aarch64)", "success"), ("zmx patch tests", "success"),
+    ("GTK build and tests (aarch64)", "failure"), ("libghostty patch Zig tests (x86_64)", "success"),
+    ("Core tests (x86_64)", "success"), ("GTK build and tests (x86_64)", "success"),
+    ("Core tests (aarch64)", "success"), ("SwiftLint (Linux)", "success"), ("Cookbook checks", "skipped"),
+    ("CI", "failure"), ("Attest CI archive (${{ matrix.arch }})", "skipped"),
+]
+SCOPE_RUN = {"id": 123, "run_attempt": 1, "conclusion": "success"}
+RERUN = SCOPE_RUN | {"run_attempt": 2}
+GTK = "GTK build and tests (${{ matrix.arch }})"
+
+
+def replaced(rows, name, *new_rows):
+    """rows with the job called name swapped for new_rows."""
+    index = [job for job, _ in rows].index(name)
+    return rows[:index] + list(new_rows) + rows[index + 1:]
+
+
+def ci_jobs(rows):
+    """Jobs with the steps the release gate reads; a skipped job has none."""
+    steps = {"GTK build and tests": promotion_steps(auto.promotion.REQUIRED_GTK_STEPS
+                                                    + auto.promotion.RELEASE_GTK_STEPS[:-1]),
+             "Attest CI archive": promotion_steps((auto.promotion.ATTEST_STEP,))}
+    return [{"name": name, "conclusion": conclusion,
+             "steps": steps.get(name.split(" (")[0], []) if conclusion == "success" else []}
+            for name, conclusion in rows]
+
+
+def job_pages(rows, total=None):
+    """One jobs API page as gh --paginate --slurp returns it."""
+    return [{"total_count": len(rows) if total is None else total, "jobs": ci_jobs(rows)}]
+
+
+def promotion_steps(names):
+    return [{"name": name, "conclusion": "success"} for name in names]
+
+
+class ReleaseBaseTests(unittest.TestCase):
+    def resolve(self, *response, head=SHA):
+        with patch.object(auto.promotion, "api", side_effect=response) as api, \
+             patch.object(auto.promotion, "write_outputs") as outputs, \
+             patch.object(sys, "argv", ["auto-release", "ci-release-base", head]), \
+             redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            auto.main()
+        return api.call_args_list, outputs.call_args.args[0]
+
+    def test_compares_the_newest_stable_omarchy_tag_with_the_exact_push_sha(self):
+        rows = [[RELEASE | {"tag_name": "omarchy-v0.43.0.9"}, RELEASE | {"tag_name": "other-v2.0"}],
+                [RELEASE | {"tag_name": "omarchy-v0.43.0.10"},
+                 RELEASE | {"tag_name": "omarchy-v0.43.0.11", "prerelease": True},
+                 RELEASE | {"tag_name": "omarchy-v0.43.0.12", "draft": True},
+                 RELEASE | {"tag_name": "omarchy-v0.43.0.13", "published_at": None}]]
+        for status, base in (("ahead", "b" * 40), ("identical", SHA)):
+            with self.subTest(status=status):
+                comparison = {"status": status, "base_commit": {"sha": base}, "merge_base_commit": {"sha": base}}
+                calls, outputs = self.resolve(rows, comparison)
+                self.assertEqual(calls[0].args, (auto.RELEASES_PATH,))
+                self.assertEqual(calls[0].kwargs, {"pages": True})
+                self.assertEqual(calls[1].args, (f"compare/refs/tags/omarchy-v0.43.0.10...{SHA}?per_page=1",))
+                self.assertEqual(outputs, {"sha": base, "full_build": "false"})
+
+    def test_missing_or_unusable_release_bases_require_a_full_build(self):
+        good_base = {"sha": "b" * 40}
+        cases = (([[]],), (subprocess.CalledProcessError(1, ["gh", "api"]),),
+                 ([[RELEASE]], subprocess.CalledProcessError(1, ["gh", "api"])),
+                 ([[RELEASE]], {"status": "behind", "base_commit": good_base, "merge_base_commit": {"sha": SHA}}),
+                 ([[RELEASE]], {"status": "ahead", "base_commit": good_base, "merge_base_commit": {"sha": SHA}}),
+                 ([[RELEASE]], {"status": "ahead", "base_commit": {"sha": "bad"}, "merge_base_commit": good_base}))
+        for response in cases:
+            with self.subTest(response=response):
+                _, outputs = self.resolve(*response)
+                self.assertEqual(outputs, {"sha": "", "full_build": "true"})
+        calls, outputs = self.resolve(head="main")
+        self.assertEqual(calls, [])
+        self.assertEqual(outputs, {"sha": "", "full_build": "true"})
 
 
 class PlanTests(unittest.TestCase):
@@ -75,6 +170,113 @@ class PlanTests(unittest.TestCase):
         ]):
             self.assertIsNone(auto.plan(EVENT)[0])
 
+    def test_same_product_as_the_latest_stable_or_demoted_release_skips_with_a_summary(self):
+        with tempfile.TemporaryDirectory() as directory, chdir(directory):
+            def git(*args):
+                return subprocess.check_output(['git', *args], text=True).strip()
+
+            def commit(message):
+                git('add', '.')
+                git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', message)
+                return git('rev-parse', 'HEAD')
+
+            git('init', '-q')
+            product = Path('agterm-linux/Sources/Example.swift')
+            product.parent.mkdir(parents=True)
+            product.write_text('let version = 1\n')
+            workflow = Path(auto.promotion.WORKFLOW)
+            workflow.parent.mkdir(parents=True)
+            workflow.write_text((REPO / workflow).read_text())
+            released = commit('Product release')
+            Path('README.md').write_text('Updated documentation\n')
+            guide = Path('packaging/linux/omarchy.md')
+            guide.parent.mkdir(parents=True)
+            guide.write_text('Updated install guide\n')
+            workflow.write_text(workflow.read_text().replace('  cancel-in-progress: true', '  cancel-in-progress: false', 1))
+            metadata_only = commit('Documentation and CI routing changes')
+            product.write_text('let version = 2\n')
+            changed_product = commit('Product change')
+            product.write_text('let version = 1\n')
+            workflow.write_text(workflow.read_text().replace(
+                '    container: ${{ matrix.container }}', '    container: example.invalid/new-build-image', 1))
+            changed_recipe = commit('Build image change')
+
+            for sha, demoted, skips in ((metadata_only, False, True), (metadata_only, True, True),
+                                        (changed_product, True, False), (changed_recipe, True, False)):
+                with self.subTest(sha=sha, demoted=demoted, skips=skips):
+                    summary = Path(directory) / 'summary.md'
+                    summary.write_text('')
+                    event = {'workflow_run': EVENT['workflow_run'] | {'head_sha': sha}}
+                    run = event['workflow_run'] | {
+                        'status': 'completed', 'name': 'Omarchy CI', 'workflow_id': 4,
+                        'path': auto.promotion.WORKFLOW, 'repository': {'full_name': auto.promotion.REPOSITORY},
+                    }
+                    latest_tag = 'omarchy-v0.43.0.3'
+                    comparison = {'status': 'ahead', 'base_commit': {'sha': released},
+                                  'merge_base_commit': {'sha': released}}
+                    fixtures = {'git/ref/heads/main': {'object': {'sha': sha}}, 'actions/runs/123': run,
+                                OPEN_INCIDENTS: [[]], 'actions/workflows/omarchy-ci.yml': {'id': 4},
+                                auto.RELEASES_PATH: [[RELEASE, RELEASE | {'prerelease': demoted, 'tag_name': latest_tag}]],
+                                f'compare/refs/tags/{latest_tag}...{sha}?per_page=1': comparison,
+                                'git/matching-refs/tags/omarchy-v?per_page=100': [[]]}
+                    for status in auto.ACTIVE_PROMOTION_STATUSES:
+                        url = f'{auto.PROMOTION_RUNS}?branch=main&event=workflow_dispatch&status={status}&per_page=1'
+                        fixtures[url] = {'total_count': 0}
+                    with patch.object(auto.promotion, 'api', side_effect=lambda path, **kw: fixtures[path]), \
+                         patch.object(auto.promotion, 'source_base', return_value='0.43.0'), \
+                         patch.object(auto.promotion, 'write_outputs') as outputs, \
+                         patch.object(auto, 'read_event', return_value=event), \
+                         patch.object(sys, 'argv', ['auto-release', 'plan']), \
+                         patch.dict(os.environ, {'GITHUB_STEP_SUMMARY': str(summary)}), redirect_stdout(io.StringIO()):
+                        auto.main()
+                    if skips:
+                        outputs.assert_called_once_with({})
+                        self.assertIn(f'Skipped: Product tree matches {latest_tag}', summary.read_text())
+                    else:
+                        self.assertEqual(outputs.call_args.args[0]['sha'], sha)
+
+    def test_unavailable_product_comparison_proceeds_with_a_summary(self):
+        run = EVENT["workflow_run"] | {
+            "status": "completed", "name": "Omarchy CI", "workflow_id": 4,
+            "path": auto.promotion.WORKFLOW, "repository": {"full_name": auto.promotion.REPOSITORY},
+        }
+        compare_path = f"compare/refs/tags/{TAG}...{SHA}?per_page=1"
+        fixtures = {"git/ref/heads/main": {"object": {"sha": SHA}}, "actions/runs/123": run,
+                    OPEN_INCIDENTS: [[]], "actions/workflows/omarchy-ci.yml": {"id": 4},
+                    auto.RELEASES_PATH: [[RELEASE]], "git/matching-refs/tags/omarchy-v?per_page=100": [[]]}
+        for status in auto.ACTIVE_PROMOTION_STATUSES:
+            fixtures[f"{auto.PROMOTION_RUNS}?branch=main&event=workflow_dispatch&status={status}&per_page=1"] = {
+                "total_count": 0}
+        base_commit = {"sha": "b" * 40}
+        cases = (
+            ({"status": "ahead"}, None, "base_commit"),
+            ({"status": "ahead", "base_commit": None}, None, "TypeError"),
+            ({"status": "ahead", "base_commit": base_commit},
+             subprocess.CalledProcessError(128, ["git", "fetch"]), "fetch"),
+            ({"status": "ahead", "base_commit": base_commit},
+             subprocess.CalledProcessError(2, ["git", "diff"]), "diff"),
+            ({"status": "ahead", "base_commit": base_commit},
+             ValueError("Cannot identify the Omarchy build recipe"), "build recipe"),
+        )
+        for comparison, error, detail in cases:
+            with self.subTest(comparison=comparison, error=error), tempfile.TemporaryDirectory() as directory:
+                summary = Path(directory) / "summary.md"
+                fixtures[compare_path] = comparison
+                with patch.object(auto.promotion, "api", side_effect=lambda path, **kw: fixtures[path]), \
+                     patch.object(auto.promotion, "source_base", return_value="0.43.0"), \
+                     patch.object(auto.promotion, "write_outputs") as outputs, \
+                     patch.object(auto, "read_event", return_value=EVENT), \
+                     patch.object(auto, "same_product", side_effect=error) as same_product, \
+                     patch.object(sys, "argv", ["auto-release", "plan"]), \
+                     patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}), \
+                     redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    auto.main()
+                outputs.assert_called_once_with(CANDIDATE | {"version": "0.43.0.3"})
+                self.assertIn("Proceeding with release checks", summary.read_text())
+                self.assertIn(detail, summary.read_text())
+                if error is None:
+                    same_product.assert_not_called()
+
     def test_candidate_uses_source_base_and_all_reserved_versions(self):
         run = EVENT["workflow_run"] | {
             "status": "completed", "name": "Omarchy CI", "workflow_id": 4, "path": auto.promotion.WORKFLOW,
@@ -85,7 +287,8 @@ class PlanTests(unittest.TestCase):
                     OPEN_INCIDENTS: [[]],
                     "actions/workflows/omarchy-ci.yml": {"id": 4},
                     auto.RELEASES_PATH: [[RELEASE | {"prerelease": True}]],
-                    f"compare/{TAG}...{SHA}": {"status": "ahead"},
+                    f"compare/refs/tags/{TAG}...{SHA}?per_page=1": {
+                        "status": "ahead", "base_commit": {"sha": "b" * 40}},
                     "git/matching-refs/tags/omarchy-v?per_page=100": [[{"ref": "refs/tags/omarchy-v0.43.0.10"}]]}
         run_filters = f"{auto.PROMOTION_RUNS}?branch=main&event=workflow_dispatch"
         fixtures.update({f"{run_filters}&status={status}&per_page=1": {"total_count": 0}
@@ -94,7 +297,7 @@ class PlanTests(unittest.TestCase):
         def api(path, **kwargs):
             return fixtures[path]
 
-        with patch.object(auto.promotion, "api", side_effect=api), \
+        with patch.object(auto.promotion, "api", side_effect=api), patch.object(auto, "same_product", return_value=False), \
              patch.object(auto.promotion, "source_base", return_value="0.43.0") as source_base:
             self.assertEqual(auto.plan(EVENT)[0], CANDIDATE | {"version": "0.43.0.11"})
             self.assertEqual(source_base.call_args.args[1], SHA)
@@ -103,7 +306,7 @@ class PlanTests(unittest.TestCase):
                 self.assertEqual(auto.plan(EVENT), (None, "A promotion workflow is already active"))
                 serial.assert_not_called()
             fixtures[f"{run_filters}&status=queued&per_page=1"]["total_count"] = 0
-            fixtures[f"compare/{TAG}...{SHA}"]["status"] = "identical"
+            fixtures[f"compare/refs/tags/{TAG}...{SHA}?per_page=1"]["status"] = "identical"
             self.assertIsNone(auto.plan(EVENT)[0])
             source_base.return_value = "0.41.1"
             self.assertIsNone(auto.plan(EVENT)[0])
@@ -154,6 +357,201 @@ class PlanTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     auto.dispatch(CANDIDATE, NATIVE_GATE | change)
                 gh.assert_not_called()
+
+
+class ScopeTests(unittest.TestCase):
+    def setUp(self):
+        # A runner exports its own command files; a test must never write to them.
+        env = patch.dict(os.environ, {"GITHUB_OUTPUT": "", "GITHUB_STEP_SUMMARY": ""})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def test_path_filtered_run_is_skipped_although_the_release_gate_would_reject_it(self):
+        jobs = ci_jobs(FILTERED_JOBS)
+        scope, reason = auto.ci_scope(SCOPE_RUN, jobs)
+        self.assertEqual(scope, "skip")
+        self.assertIn("built nothing", reason)
+        # The native gate's own check is unchanged: without this skip it fails exactly as run 44895187539 did.
+        with self.assertRaisesRegex(ValueError, r"Missing successful SwiftLint \(Linux\)"):
+            auto.promotion.validate_jobs(jobs, release=True)
+
+    def test_complete_built_run_proceeds_and_passes_the_release_gate(self):
+        jobs = ci_jobs(BUILT_JOBS)
+        self.assertEqual(auto.ci_scope(SCOPE_RUN, jobs)[0], "proceed")
+        auto.promotion.validate_jobs(jobs, release=True)
+
+    def test_built_run_missing_a_required_job_proceeds_to_fail_in_the_release_gate(self):
+        build_names = [name for name, _ in BUILT_JOBS if name.startswith(("SwiftLint", "Core", "GTK", "Attest"))]
+        self.assertEqual(len(build_names), 7)
+        variants = {}
+        for name in build_names:
+            variants[f"without {name}"] = [row for row in BUILT_JOBS if row[0] != name]
+            variants[f"{name} skipped"] = [(job, "skipped" if job == name else result) for job, result in BUILT_JOBS]
+        # A native-probe-only change lints but builds nothing; it is not proof of an empty run.
+        variants["only SwiftLint ran"] = [(job, "success" if job == "SwiftLint (Linux)" else result)
+                                          for job, result in FILTERED_JOBS]
+        variants["one family absent"] = [row for row in FILTERED_JOBS if not row[0].startswith("Attest")]
+        for variant, rows in variants.items():
+            with self.subTest(variant=variant):
+                jobs = ci_jobs(rows)
+                self.assertEqual(auto.ci_scope(SCOPE_RUN, jobs)[0], "proceed")
+                with self.assertRaisesRegex(ValueError, "Missing successful"):
+                    auto.promotion.validate_jobs(jobs, release=True)
+
+    def test_only_positive_proof_skips(self):
+        def changed(name, result):
+            return [(job, result if job == name else value) for job, value in FILTERED_JOBS]
+
+        variants = {"no jobs": [], "Detect changes failed": changed("Detect changes", "failure"),
+                    "CI skipped": changed("CI", "skipped"),
+                    "Detect changes absent": [row for row in FILTERED_JOBS if row[0] != "Detect changes"],
+                    "CI absent": [row for row in FILTERED_JOBS if row[0] != "CI"],
+                    "CI repeated": FILTERED_JOBS + [("CI", "success")],
+                    "build cancelled": [(job, "cancelled" if job.startswith("GTK") else result)
+                                        for job, result in FILTERED_JOBS]}
+        for variant, rows in variants.items():
+            with self.subTest(variant=variant):
+                self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(rows))[0], "proceed")
+
+    def test_an_incomplete_or_relabelled_matrix_is_not_proof_of_an_empty_run(self):
+        x86, arm = "GTK build and tests (x86_64)", "GTK build and tests (aarch64)"
+        variants = {
+            "one architecture skipped, the other absent": replaced(FILTERED_JOBS, GTK, (x86, "skipped")),
+            "sibling ran under another label": replaced(FILTERED_JOBS, GTK, (x86, "skipped"),
+                                                       ("GTK build and tests (arm64)", "success")),
+            "sibling skipped under another label": replaced(FILTERED_JOBS, GTK, (x86, "skipped"),
+                                                           ("GTK build and tests (arm64)", "skipped")),
+            "unexpanded and expanded forms mixed": replaced(FILTERED_JOBS, GTK, (GTK, "skipped"), (x86, "skipped")),
+            "unexpanded form repeated": replaced(FILTERED_JOBS, GTK, (GTK, "skipped"), (GTK, "skipped")),
+            "unknown job ran": FILTERED_JOBS + [("Renamed build", "success")],
+            "unknown job failed": FILTERED_JOBS + [("Renamed build", "failure")],
+            "patch tests ran": replaced(FILTERED_JOBS, "zmx patch tests", ("zmx patch tests", "success")),
+        }
+        for variant, rows in variants.items():
+            with self.subTest(variant=variant):
+                self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(rows))[0], "proceed")
+        # Both architectures listed by name and both skipped is still a complete, empty family.
+        complete = replaced(FILTERED_JOBS, GTK, (x86, "skipped"), (arm, "skipped"))
+        self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(complete))[0], "skip")
+        # The cookbook check builds nothing, so a cookbook change alongside still skips.
+        cookbook = replaced(FILTERED_JOBS, "Cookbook checks", ("Cookbook checks", "success"))
+        self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(cookbook))[0], "skip")
+
+    def test_an_earlier_attempt_that_built_is_not_hidden_by_an_empty_rerun(self):
+        scope, reason = auto.ci_scope(RERUN, ci_jobs(FILTERED_JOBS), [ci_jobs(FAILED_BUILD_ATTEMPT)])
+        self.assertEqual(scope, "proceed")
+        self.assertIn("attempt 1 ran", reason)
+        cancelled = [(job, "cancelled" if job.startswith("Core") else "skipped" if job != "Detect changes" else result)
+                     for job, result in FAILED_BUILD_ATTEMPT]
+        self.assertEqual(auto.ci_scope(RERUN, ci_jobs(FILTERED_JOBS), [ci_jobs(cancelled)])[0], "proceed")
+        self.assertEqual(auto.ci_scope(RERUN, ci_jobs(FILTERED_JOBS), [ci_jobs(FILTERED_JOBS)])[0], "skip")
+
+    def test_unreadable_empty_or_partial_history_is_not_proof_of_an_empty_run(self):
+        partial = [row for row in FILTERED_JOBS if not row[0].startswith(("Core", "GTK", "Attest"))]
+        histories = {"earlier attempt empty": [[]], "earlier attempt partial": [ci_jobs(partial)],
+                     "earlier attempt unreadable": [None], "earlier attempts not listed": [],
+                     "one of two earlier attempts empty": [ci_jobs(FILTERED_JOBS), []]}
+        for history, earlier in histories.items():
+            run = SCOPE_RUN | {"run_attempt": max(len(earlier), 1) + 1}
+            with self.subTest(history=history):
+                self.assertEqual(auto.ci_scope(run, ci_jobs(FILTERED_JOBS), earlier)[0], "proceed")
+        run = SCOPE_RUN | {"run_attempt": 3}
+        self.assertEqual(auto.ci_scope(run, ci_jobs(FILTERED_JOBS), [ci_jobs(FILTERED_JOBS)] * 2)[0], "skip")
+
+    def test_an_earlier_attempt_that_cannot_be_fetched_proceeds(self):
+        def api(path, **kwargs):
+            if "/attempts/1/" in path:
+                raise subprocess.CalledProcessError(1, "gh", stderr="HTTP 502")
+            return job_pages(FILTERED_JOBS)
+
+        with tempfile.TemporaryDirectory() as directory:
+            event, output = Path(directory) / "event.json", Path(directory) / "output"
+            event.write_text(json.dumps(EVENT))
+            with patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output)}), \
+                 patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
+                 patch.object(auto.promotion, "api", side_effect=api), \
+                 redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                auto.main()
+            self.assertEqual(output.read_text(), "scope=proceed\n")
+
+    def test_a_truncated_listing_is_unreadable(self):
+        # Attempt 1 really had 12 jobs, the twelfth a successful extra GTK build, but only 11 came back.
+        truncated = job_pages(FILTERED_JOBS, total=len(FILTERED_JOBS) + 1)
+
+        def api(path, **kwargs):
+            return truncated if "/attempts/1/" in path else job_pages(FILTERED_JOBS)
+
+        with patch.object(auto.promotion, "api", side_effect=api), redirect_stderr(io.StringIO()):
+            self.assertIsNone(auto.attempt_jobs(RERUN, 1))
+            self.assertEqual(len(auto.attempt_jobs(RERUN, 2)), len(FILTERED_JOBS))
+            earlier = [auto.attempt_jobs(RERUN, 1)]
+            self.assertEqual(auto.ci_scope(RERUN, auto.attempt_jobs(RERUN, 2), earlier)[0], "proceed")
+            self.assertEqual(auto.ci_scope(RERUN, None, [auto.attempt_jobs(RERUN, 2)])[0], "proceed")
+        with patch.object(auto.promotion, "api", return_value=job_pages(FILTERED_JOBS) * 2), \
+             redirect_stderr(io.StringIO()):
+            self.assertIsNone(auto.attempt_jobs(RERUN, 1))
+        with patch.object(auto.promotion, "api", return_value=[{"jobs": ci_jobs(FILTERED_JOBS)}]), \
+             redirect_stderr(io.StringIO()):
+            self.assertIsNone(auto.attempt_jobs(RERUN, 1))
+
+    def test_the_whole_ci_inventory_must_be_present_once(self):
+        variants = {"unknown skipped job": FILTERED_JOBS + [("Unknown job", "skipped")],
+                    "zmx patch tests removed": [row for row in FILTERED_JOBS if row[0] != "zmx patch tests"],
+                    "libghostty patch tests removed": [row for row in FILTERED_JOBS
+                                                       if not row[0].startswith("libghostty")],
+                    "upstream guard removed": [row for row in FILTERED_JOBS if row[0] != "Upstream workflow guard"],
+                    "installer repeated": FILTERED_JOBS + [("Installer and scripts", "success")]}
+        for variant, rows in variants.items():
+            with self.subTest(variant=variant):
+                self.assertEqual(auto.ci_scope(SCOPE_RUN, ci_jobs(rows))[0], "proceed")
+
+    def test_failed_ci_never_proceeds_or_skips(self):
+        for conclusion in ("failure", "cancelled", "skipped", "timed_out", None):
+            for rows in (FILTERED_JOBS, BUILT_JOBS):
+                with self.subTest(conclusion=conclusion, built=rows is BUILT_JOBS), \
+                     self.assertRaisesRegex(ValueError, "did not succeed"):
+                    auto.ci_scope(SCOPE_RUN | {"conclusion": conclusion}, ci_jobs(rows))
+
+    def test_command_reads_the_triggering_attempt_and_records_the_reason(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            event, output, summary = root / "event.json", root / "output", root / "summary"
+            for rows, expected in ((FILTERED_JOBS, "skip"), (BUILT_JOBS, "proceed")):
+                event.write_text(json.dumps(EVENT))
+                output.write_text("")
+                summary.write_text("")
+                env = {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output),
+                       "GITHUB_STEP_SUMMARY": str(summary)}
+                with self.subTest(expected=expected), patch.dict(os.environ, env), \
+                     patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
+                     patch.object(auto.promotion, "api", side_effect=[job_pages(FILTERED_JOBS),
+                                                                      job_pages(rows)]) as api, \
+                     redirect_stdout(io.StringIO()):
+                    auto.main()
+                    self.assertEqual([call.args for call in api.call_args_list],
+                                     [(f"actions/runs/123/attempts/{number}/jobs?per_page=100",) for number in (1, 2)])
+                    self.assertTrue(all(call.kwargs == {"pages": True} for call in api.call_args_list))
+                    self.assertEqual(output.read_text(), f"scope={expected}\n")
+                    self.assertIn("Skipped: " if expected == "skip" else "Proceeding: ", summary.read_text())
+            for attempt in ("2", 0, 51, True, None):
+                event.write_text(json.dumps({"workflow_run": EVENT["workflow_run"] | {"run_attempt": attempt}}))
+                output.write_text("")
+                with self.subTest(attempt=attempt), \
+                     patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output)}), \
+                     patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
+                     patch.object(auto.promotion, "api") as api, \
+                     self.assertRaisesRegex(ValueError, "Unexpected Omarchy CI run attempt"):
+                    auto.main()
+                api.assert_not_called()
+                self.assertEqual(output.read_text(), "")
+            event.write_text(json.dumps({"workflow_run": EVENT["workflow_run"] | {"conclusion": "failure"}}))
+            output.write_text("")
+            with patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(event), "GITHUB_OUTPUT": str(output)}), \
+                 patch.object(sys, "argv", ["auto-release", "ci-scope"]), \
+                 patch.object(auto.promotion, "api", return_value=job_pages(FILTERED_JOBS)), \
+                 self.assertRaisesRegex(ValueError, "did not succeed"):
+                auto.main()
+            self.assertEqual(output.read_text(), "")
 
 
 class WatchTests(unittest.TestCase):
