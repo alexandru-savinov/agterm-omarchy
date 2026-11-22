@@ -133,6 +133,6 @@ gh pr create --draft -R omacom/omarchy-pkgs --base master \
 - **Recipe bytes:** `<RECIPE-COMMIT>` is the #468 commit that bumps `pkgver` to `<PIN>` and that CI and the VM test; the commands copy the three recipe files from it. The 0.43.0.2 bytes were `56ee67ae`, tested by CI runs 44893403760 and 44896694600 and the VM.
 - **PR body:** `pr-body.md` is everything between the two `---` rules above, with every `<!-- -->` comment removed and no `<PIN>` left.
 - **On the day:** bump `pkgver` to `<PIN>` with that release's `SHA256SUMS`, run this repo's recipe build and the native-feel run on it, then settle each `RE-RUN AT <PIN>` comment.
-- **A newer release:** if an `omarchy-v` release newer than 0.43.0.2 is out at post time, `upstream-watch` no longer reports "already current". Bump `pkgver`, take the sha256 values from that release's `SHA256SUMS`, and rerun the checks before posting.
+- **Interim pin:** the recipe is at 0.43.0.10 (`28925988`) so `upstream-watch` keeps reporting "already current" until `<PIN>`; the screenshot and the Tested runs are still 0.43.0.2's.
 - **Build approval:** `alexandru-savinov` isn't in `.github/VOUCHED.td` or a collaborator, so the PR shows **Awaiting build approval** until a maintainer labels it `build-approved`.
 - **Auto-merge:** marking the PR ready for review, once it's trusted and green, arms auto-merge and publishes to `edge`.
