@@ -18,9 +18,9 @@ extension AppController {
                     "Font", values: fontValues, selected: fontIndex,
                     handler: unsafeBitCast(onSettingsFontFamily, to: GCallback.self))))
 
-        let fontSize = OpaquePointer(adw_spin_row_new_with_range(8, 32, 1))
+        let fontSize = OpaquePointer(adw_spin_row_new_with_range(7, 32, 1))
         "Default font size".withCString { adw_preferences_row_set_title(cast(fontSize), $0) }
-        adw_spin_row_set_value(fontSize, settings.fontSize ?? 13)
+        adw_spin_row_set_value(fontSize, settings.fontSize ?? GhosttyApp.shared.currentBaseFontSize ?? 13)
         connect(fontSize, "notify::value", unsafeBitCast(onSettingsFontSize, to: GCallback.self))
         adw_preferences_group_add(cast(terminal), W(fontSize))
 

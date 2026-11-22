@@ -5,6 +5,17 @@
 /// state (session background/watermark overlays and per-pane font sizes). A second per-surface pass
 /// over the same base config would double the underlying update for every terminal on GTK's main path.
 enum GhosttyConfigApplyPolicy {
+    @MainActor private(set) static var isApplyingConfig = false
+
+    /// libghostty reports cell metrics synchronously during config updates. Those metrics
+    /// describe the configured font, so they must not be saved as a pane zoom.
+    @MainActor static func withConfigUpdate(_ update: () -> Void) {
+        let previous = isApplyingConfig
+        isApplyingConfig = true
+        defer { isApplyingConfig = previous }
+        update()
+    }
+
     enum SurfaceState: Equatable {
         /// Automatic appearance reconciliation restores complete per-session overlays.
         case sessionOverlay

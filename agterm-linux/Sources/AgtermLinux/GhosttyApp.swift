@@ -115,15 +115,17 @@ final class GhosttyApp: @unchecked Sendable {
 
     func tick() { if let a = app { ghostty_app_tick(a) } }
 
-    func updateConfig(_ config: ghostty_config_t) {
+    @MainActor func updateConfig(_ config: ghostty_config_t) {
         guard let app else { return }
-        ghostty_app_update_config(app, config)
+        GhosttyConfigApplyPolicy.withConfigUpdate { ghostty_app_update_config(app, config) }
     }
 
     @MainActor func applyColorScheme(_ side: LinuxAppearanceSide) {
         guard let app else { return }
-        ghostty_app_set_color_scheme(
-            app, side.isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+        GhosttyConfigApplyPolicy.withConfigUpdate {
+            ghostty_app_set_color_scheme(
+                app, side.isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+        }
         appliedAppearanceSide = side
     }
 
@@ -142,16 +144,22 @@ final class GhosttyApp: @unchecked Sendable {
                 $0.withCString { ghostty_config_load_file(cfg, $0) }
             }
             let preference = OmarchyThemePreference()
+            let runtime = AppController.ghosttyLines(for: settings, isDark: isDark)
+            let scopedPath = Self.scopedGhosttyConfigPath(settings: settings)
+            let loadsGlobal = settings.inheritGlobalGhosttyConfig == true
+            let appearance = loadsGlobal ? [] : OmarchyThemeObserver.shared.appearance.fallbackLines(
+                overriddenBy: runtime + overlay, scopedPath: scopedPath, home: OmarchyTheme().home.path)
             let layers = LinuxGhosttyConfigLayers(
-                settings: AppController.ghosttyLines(for: settings, isDark: isDark),
+                settings: runtime,
                 omarchy: omarchyColorLayer(enabled: preference.load() != false),
+                omarchyAppearance: appearance,
                 prefersAgtermTheme: preference.usesAgtermTheme(settings, previewing: AppController.themePreviewSettings != nil),
                 overlay: overlay)
             try layers.load(
                 into: cfg,
                 storage: storage,
-                scopedPath: Self.scopedGhosttyConfigPath(settings: settings),
-                loadGlobal: settings.inheritGlobalGhosttyConfig == true ? { ghostty_config_load_default_files(cfg) } : nil)
+                scopedPath: scopedPath,
+                loadGlobal: loadsGlobal ? { ghostty_config_load_default_files(cfg) } : nil)
             let title = try clearStaticTitle(cfg, storage: storage)
             ghostty_config_finalize(cfg)
             staticTitle = title

@@ -223,6 +223,34 @@ struct OmarchyThemeTests {
         }
     }
 
+    @Test func scopedConfigOverridesOmarchyAppearance() throws {
+        _ = GhosttyTestRuntime.initialized
+        let root = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = try GhosttyGeneratedConfigStorage(runtimeRoot: root.path)
+        defer { try? storage.cleanup() }
+        let scoped = root.appendingPathComponent("ghostty.conf")
+        try "font-size = 11\nwindow-padding-x = 3\nwindow-padding-y = 4\ncursor-style-blink = true".write(
+            to: scoped, atomically: true, encoding: .utf8)
+        let layers = LinuxGhosttyConfigLayers(settings: [], omarchy: [], omarchyAppearance: [
+            "font-size = 15", "window-padding-x = 14", "window-padding-y = 14", "cursor-style-blink = false",
+        ])
+
+        for scopedPath in [nil, scoped.path] {
+            let config = try #require(ghostty_config_new())
+            defer { ghostty_config_free(config) }
+            try layers.load(into: config, storage: storage, scopedPath: scopedPath, loadGlobal: nil)
+            ghostty_config_finalize(config)
+            // The pinned C API exposes the size and blink scalars, but not WindowPadding.
+            #expect(GhosttyConfigTheme.fontSize(from: config) == (scopedPath == nil ? 15 : 11))
+            let key = "cursor-style-blink"
+            var blink = false
+            let found = key.withCString { ghostty_config_get(config, &blink, $0, UInt(key.utf8.count)) }
+            #expect(found)
+            #expect(blink == (scopedPath != nil))
+        }
+    }
+
     private func makeFixture() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

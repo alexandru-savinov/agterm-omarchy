@@ -16,9 +16,16 @@ final class OmarchyThemeObserver {
     private let observe: Observe
     private let reload: @MainActor () -> Void
     private let debounce = Debouncer()
+    private var started = false
     private var cancelParentWatch: Cancel?
     private var cancelThemeWatch: Cancel?
+    private var cancelConfigWatch: Cancel?
     private var needsThemeWatch = false
+    private var needsAppearanceWatch = false
+    private var themeChanged = false
+    private var appearanceConfigChanged = false
+    private var appearanceSource = OmarchyAppearanceSource()
+    var appearance: OmarchyAppearanceConfig { appearanceSource.config }
 
     init(theme: OmarchyTheme, observe: @escaping Observe = watchDirectory, reload: @escaping @MainActor () -> Void) {
         self.theme = theme
@@ -27,7 +34,8 @@ final class OmarchyThemeObserver {
     }
 
     func start() {
-        guard cancelParentWatch == nil else { return }
+        guard !started else { return }
+        started = true
         // Omarchy swaps out the theme directory. The stable parent sees that swap and the
         // generation marker. The inner watch also handles direct saves to ghostty.conf.
         cancelParentWatch = observe(theme.current) { [weak self] file, otherFile in
@@ -36,35 +44,76 @@ final class OmarchyThemeObserver {
             } else if file != "theme.generation" && otherFile != "theme.generation" {
                 return
             }
-            self?.scheduleReload()
+            self?.scheduleThemeReload()
         }
         watchThemeDirectory()
+        if theme.isInstalled {
+            watchAppearanceConfig()
+            _ = appearanceSource.refresh(from: theme.appearanceConfig)
+        }
     }
 
     func stop() {
         debounce.cancel()
+        cancelConfigWatch?()
         cancelThemeWatch?()
         cancelParentWatch?()
         cancelThemeWatch = nil
         cancelParentWatch = nil
+        cancelConfigWatch = nil
         needsThemeWatch = false
+        needsAppearanceWatch = false
+        themeChanged = false
+        appearanceConfigChanged = false
+        appearanceSource = OmarchyAppearanceSource()
+        started = false
     }
 
     private func watchThemeDirectory() {
         cancelThemeWatch?()
         cancelThemeWatch = observe(theme.directory) { [weak self] file, otherFile in
             if file == "ghostty.conf" || otherFile == "ghostty.conf" {
-                self?.scheduleReload()
+                self?.scheduleThemeReload()
             }
         }
         needsThemeWatch = false
+    }
+
+    private func scheduleThemeReload() {
+        themeChanged = true
+        scheduleReload()
+    }
+
+    private func watchAppearanceConfig() {
+        cancelConfigWatch?()
+        cancelConfigWatch = nil
+        needsAppearanceWatch = false
+        let ghostty = theme.appearanceConfig.deletingLastPathComponent()
+        let config = ghostty.deletingLastPathComponent()
+        // Watch the closest available directory. If a missing child is created or renamed into
+        // place, re-arm before reading the snapshot so the next file replacement is observed.
+        for (directory, child) in [(ghostty, "config"), (config, "ghostty"), (theme.home, ".config")] {
+            guard let cancel = observe(directory, { [weak self] file, otherFile in
+                guard let self, file == child || otherFile == child else { return }
+                if directory != ghostty { self.needsAppearanceWatch = true }
+                self.appearanceConfigChanged = true
+                self.scheduleReload()
+            }) else { continue }
+            cancelConfigWatch = cancel
+            break
+        }
     }
 
     private func scheduleReload() {
         debounce.schedule(after: 0.25) { [weak self] in
             guard let self else { return }
             if self.needsThemeWatch { self.watchThemeDirectory() }
-            self.reload()
+            if self.needsAppearanceWatch { self.watchAppearanceConfig() }
+            let appearanceChanged = self.appearanceConfigChanged && self.appearanceSource.refresh(from: self.theme.appearanceConfig)
+            let reloadNeeded = self.themeChanged || appearanceChanged
+            self.themeChanged = false
+            self.appearanceConfigChanged = false
+            if reloadNeeded { self.reload() }
         }
     }
 

@@ -666,7 +666,7 @@ extension AppController: ControlActions {
         if lightSlot == Self.automaticOmarchyThemeLabel {
             guard dark == nil else { return err("Automatic (Omarchy) cannot be combined with --dark") }
             guard OmarchyThemePreference().offersAutomaticTheme else {
-                return err("Automatic (Omarchy) is unavailable. Enable Follow the Omarchy theme in Settings on Omarchy.")
+                return err("Automatic (Omarchy) is unavailable. Enable Follow Omarchy in Settings on Omarchy.")
             }
             applyThemeSetting(Self.automaticOmarchyThemeLabel)
             return themeResponse()

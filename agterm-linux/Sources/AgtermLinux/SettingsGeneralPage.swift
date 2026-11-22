@@ -105,8 +105,8 @@ extension AppController {
         adw_preferences_group_add(
             cast(ghostty),
             W(preferencesSwitch(
-                "Follow the Omarchy theme",
-                subtitle: "Use Omarchy’s live terminal colors when Theme is set to Automatic",
+                "Follow Omarchy",
+                subtitle: "Follow Omarchy’s fonts, padding, and cursor blink. Follow colors with an Automatic theme.",
                 active: OmarchyThemePreference().follows(OmarchyTheme()),
                 handler: unsafeBitCast(onSettingsFollowOmarchy, to: GCallback.self))))
         let edit = OpaquePointer(adw_action_row_new())
@@ -183,7 +183,7 @@ private let onSettingsFollowOmarchy: @MainActor @convention(c) (OpaquePointer?, 
         do {
             try OmarchyThemePreference().save(enabled)
         } catch {
-            controller.showToast("Could not save the Omarchy theme preference")
+            controller.showToast("Could not save the Omarchy appearance preference")
             return
         }
         if enabled { OmarchyThemeObserver.shared.start() } else { OmarchyThemeObserver.shared.stop() }

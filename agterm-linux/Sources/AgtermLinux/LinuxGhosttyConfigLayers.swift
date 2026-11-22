@@ -1,9 +1,10 @@
 import CGtk
 
-/// Load the theme colors before the scoped file while keeping ordinary Settings overrides after it.
+/// Load Omarchy defaults before the scoped file while keeping ordinary Settings overrides after it.
 struct LinuxGhosttyConfigLayers {
     let settings: [String]
     let omarchy: [String]
+    var omarchyAppearance: [String] = []
     var prefersAgtermTheme = false
     var overlay: [String] = []
 
@@ -15,17 +16,21 @@ struct LinuxGhosttyConfigLayers {
     ) throws {
         loadGlobal?()
         var runtime = settings
+        var defaults = omarchyAppearance
         if !omarchy.isEmpty {
-            var theme = settings.filter(OmarchyTheme.isColorLine)
+            var colors = settings.filter(OmarchyTheme.isColorLine)
             runtime.removeAll(where: OmarchyTheme.isColorLine)
             if loadGlobal != nil {
                 // The global Ghostty file on Omarchy includes its theme. Expand global includes before
                 // the color layer, then clear the queue so they can't replay above the user's scoped file.
                 ghostty_config_load_recursive_files(config)
-                theme.insert("config-file =", at: 0)
+                colors.insert("config-file =", at: 0)
             }
-            if !prefersAgtermTheme { theme += omarchy }
-            try storage.withConfigFile(theme.joined(separator: "\n"), as: .runtime) { path in
+            if !prefersAgtermTheme { colors += omarchy }
+            defaults += colors
+        }
+        if !defaults.isEmpty {
+            try storage.withConfigFile(defaults.joined(separator: "\n"), as: .runtime) { path in
                 path.withCString { ghostty_config_load_file(config, $0) }
             }
         }
