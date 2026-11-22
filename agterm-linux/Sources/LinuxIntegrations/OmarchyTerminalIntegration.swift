@@ -378,7 +378,7 @@ public struct OmarchyTerminalIntegration {
         return try withLockedDirectory(terminalDirectory, whenMissing: {
             if create { throw failure("open \(terminalDirectory.path)") }
             return try action(nil)
-        }) { try action($0) }
+        }, { try action($0) })
     }
 
     private func withLockedDirectory<T>(_ directory: URL, whenMissing: () throws -> T, _ action: (Int32) throws -> T) throws -> T {
