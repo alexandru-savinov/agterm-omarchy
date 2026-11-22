@@ -158,9 +158,10 @@ Choose a chord that is unused in your configuration.
 See the [Wayland support matrix](../../agterm-linux/docs/x11-wayland.md) for compositor-owned behavior
 such as window placement and blur.
 
-### Omarchy clipboard shortcuts
+### Enable agterm as the Omarchy default terminal
 
-With Omarchy’s Lua-based Hyprland configuration, run this as your desktop user to give agterm terminal copy and paste on Super+C and Super+V, plus Omarchy’s default terminal opacity of 0.985 when active and 0.96 when inactive.
+With Omarchy’s Lua-based Hyprland configuration, run this as your desktop user to make agterm the default terminal.
+It also gives agterm terminal copy and paste on Super+C and Super+V and Omarchy’s terminal opacity of 0.985 when active and 0.96 when inactive.
 
 ```bash
 agtermctl integration omarchy enable
@@ -168,9 +169,15 @@ agtermctl integration omarchy status
 ```
 
 The command installs a user-owned `hypr/agterm-omarchy.lua` module and adds a marked include to your existing `hypr/hyprland.lua`.
-Use `agtermctl integration omarchy disable` to remove the managed files and restore the original entrypoint content.
-The command preserves existing edits outside its marked block and refuses symlinked or conflicting files.
-The terminal launcher preference stays under your control.
+Enable also puts `io.github.melonamin.agterm.desktop` first in `$XDG_CONFIG_HOME/xdg-terminals.list` (default `~/.config/xdg-terminals.list`) and saves the original in a private restore record next to it.
+An existing first entry for agterm stays under your control.
+Use `agtermctl integration omarchy disable` to remove the marked Lua integration and restore the terminal list byte for byte, or remove the list if enable created it.
+Edits outside the Lua block are preserved. If you changed the list while enabled, disable keeps your edits and reports where it archived the restore record. You can then enable again using your edited list as the starting point.
+Symlinked and conflicting managed files are protected from replacement.
+
+Upgrades preserve your existing selection until you explicitly run enable.
+Status reports when an older desktop entry or a different `agtermctl` on PATH shadows the package, and enable prints a warning.
+On the system package, `/usr/bin/agtermctl integration omarchy status` lets you check this even when a local CLI comes first on PATH.
 
 If you run `omarchy refresh hyprland` (`omarchy-refresh-hyprland`), Omarchy overwrites `hyprland.lua` and saves the previous version as `hyprland.lua.bak.<timestamp>`.
 The refresh removes the marked include, so `status` reports `incomplete` and Super+C can interrupt a terminal command again.
