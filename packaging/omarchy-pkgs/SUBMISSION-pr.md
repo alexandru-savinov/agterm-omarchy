@@ -64,6 +64,9 @@ The app is umputun's [agterm](https://github.com/umputun/agterm) (MIT), and the 
 - Native feel was measured on aarch64 (an Omarchy VM) with software rendering only. Hardware GL rendering and touchpad scroll feel are untested, and no Hyprland rule sets agterm's touchpad scroll factor yet.
   <!-- VM "SETUP install" (LIBGL_ALWAYS_SOFTWARE=1), "LOOK Touchpad scroll feel" MANUAL (no touchpad),
        "LOOK Touchpad scroll factor rule" FAIL (0.8 vs Ghostty's 0.2). -->
+- agterm's quick terminal (Ctrl+\`) works inside an agterm window; there is no global hotkey under Hyprland.
+  <!-- VM "AROUND agterm quick terminal (Ctrl+`) in agterm" PASS and "AROUND agterm quick terminal summoned from another
+       workspace (Ctrl+`)" FAIL (focused 'none none' on workspace 8); checklist Table 1 AROUND row. -->
 - x86_64 is covered by the container install test below, not by the native-feel checks.
   <!-- run 44896694600, job "pacman -U and Hyprland x86_64 (Arch container, vkms)". -->
 
