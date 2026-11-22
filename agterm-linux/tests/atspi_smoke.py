@@ -7761,6 +7761,7 @@ def main():
             "quick-card-rendering",
             "omarchy-theme",
             "omarchy-keys",
+            "omarchy-font-family",
         )
         try:
             shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
@@ -8076,6 +8077,9 @@ def main():
         elif scenario == "omarchy-keys":
             from atspi_omarchy_keys import verify_omarchy_keys
             verify_omarchy_keys(env)
+        elif scenario == "omarchy-font-family":
+            from atspi_omarchy_font_family import verify_omarchy_font_family
+            verify_omarchy_font_family(env)
         elif scenario == "clipboard-lifetime":
             from atspi_clipboard_lifetime import verify_clipboard_lifetime
             verify_clipboard_lifetime(env)

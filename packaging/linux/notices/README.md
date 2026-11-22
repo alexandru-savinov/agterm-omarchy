@@ -54,7 +54,7 @@ The Linux build does not patch z2d.
 ## Provenance and validation
 
 The Ghostty profile records SHA256 identities of every `scripts/ghostty-patches/*.patch` and `linux/patches/*.patch` input, sorted by repository-relative path.
-All six recorded patches are selected by the current `linux/ghostty-build.sh`.
+The Linux build selects these inputs in `linux/ghostty-build.sh`.
 The profile verifier checks those bytes, and the vendored Ghostty provenance includes the same map.
 A cache lacking the map or carrying an earlier patch identity is rejected, so a new C API/header cannot
 silently link against an older local runtime. `setup-linux.sh` applies the selected patches before building;
