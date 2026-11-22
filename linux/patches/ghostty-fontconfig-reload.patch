@@ -1,7 +1,7 @@
 diff --git a/pkg/fontconfig/config.zig b/pkg/fontconfig/config.zig
 --- a/pkg/fontconfig/config.zig
 +++ b/pkg/fontconfig/config.zig
-@@ -11,6 +11,16 @@
+@@ -11,6 +11,38 @@
  pub const Config = opaque {
      pub fn destroy(self: *Config) void {
          c.FcConfigDestroy(@ptrCast(self));
@@ -11,44 +11,96 @@ diff --git a/pkg/fontconfig/config.zig b/pkg/fontconfig/config.zig
 +        return @ptrCast(c.FcConfigReference(self.cval()));
 +    }
 +
-+    /// Return a new private snapshot when this configuration is out of date.
-+    pub fn reloadIfStale(self: *Config) Error!?*Config {
-+        if (c.FcConfigUptoDate(self.cval()) == c.FcTrue) return null;
++    pub fn load() Error!*Config {
 +        return @as(?*Config, @ptrCast(c.FcInitLoadConfigAndFonts())) orelse Error.FontconfigFailed;
++    }
++
++    pub fn isUpToDate(self: *Config) bool {
++        return c.FcConfigUptoDate(self.cval()) == c.FcTrue;
++    }
++
++    /// Fontconfig's freshness check uses whole seconds. Include the configuration
++    /// files' full modification times to detect a rewrite within that second.
++    pub fn fileModificationFingerprint(self: *Config, io: std.Io) ?u64 {
++        const files = c.FcConfigGetConfigFiles(self.cval()) orelse return null;
++        defer c.FcStrListDone(files);
++        var hash = std.hash.Wyhash.init(0);
++        while (c.FcStrListNext(files)) |file| {
++            const path = std.mem.span(file);
++            std.hash.autoHash(&hash, path.len);
++            hash.update(path);
++            const stat = std.Io.Dir.cwd().statFile(io, path, .{}) catch {
++                std.hash.autoHash(&hash, false);
++                continue;
++            };
++            std.hash.autoHash(&hash, true);
++            std.hash.autoHash(&hash, stat.mtime.toNanoseconds());
++        }
++        return hash.final();
      }
  
      pub fn fontList(self: *Config, pat: *Pattern, os: *ObjectSet) *FontSet {
 diff --git a/src/font/discovery.zig b/src/font/discovery.zig
 --- a/src/font/discovery.zig
 +++ b/src/font/discovery.zig
-@@ -247,6 +247,7 @@
+@@ -246,32 +246,73 @@
+ };
  
  pub const Fontconfig = struct {
-     fc_config: *fontconfig.Config,
+-    fc_config: *fontconfig.Config,
++    snapshot: ConfigSnapshot,
 +    config_mutex: std.Io.Mutex = .init,
++
++    pub const ConfigSnapshot = struct {
++        config: *fontconfig.Config,
++        files: ?u64,
++    };
  
      pub fn init(lib: Library) Fontconfig {
          _ = lib;
-@@ -259,19 +260,38 @@
-         self.fc_config.destroy();
+         // safe to call multiple times and concurrently
+         _ = fontconfig.init();
+-        return .{ .fc_config = fontconfig.initLoadConfigAndFonts() };
++        const config = fontconfig.initLoadConfigAndFonts();
++        return .{ .snapshot = .{
++            .config = config,
++            .files = config.fileModificationFingerprint(global.io()),
++        } };
      }
  
-+    /// Replace the private snapshot without invalidating in-flight discovery iterators.
-+    pub fn reloadIfStale(self: *Fontconfig) fontconfig.Error!bool {
-+        self.config_mutex.lockUncancelable(global.io());
-+        defer self.config_mutex.unlock(global.io());
-+        const next = try self.fc_config.reloadIfStale() orelse return false;
-+        self.fc_config.destroy();
-+        self.fc_config = next;
-+        return true;
+     pub fn deinit(self: *Fontconfig) void {
+-        self.fc_config.destroy();
++        self.snapshot.config.destroy();
 +    }
 +
-+    fn referenceConfig(self: *Fontconfig) *fontconfig.Config {
-+        self.config_mutex.lockUncancelable(global.io());
-+        defer self.config_mutex.unlock(global.io());
-+        return self.fc_config.reference();
++    /// Load a replacement while existing discovery iterators can use the old configuration.
++    /// Called serially by the app thread.
++    pub fn prepareConfigReload(self: *Fontconfig) fontconfig.Error!?ConfigSnapshot {
++        const previous = self.referenceSnapshot();
++        defer previous.config.destroy();
++        const files = previous.config.fileModificationFingerprint(global.io());
++        if (files == previous.files and previous.config.isUpToDate()) return null;
++        // Record the fingerprint from before loading so a file edit that races the
++        // load remains visible at the next reload. A changed include list is also
++        // detected at the next reload using the newly loaded configuration.
++        return .{ .config = try fontconfig.Config.load(), .files = files };
 +    }
 +
++    /// Install the prepared snapshot and transfer ownership of the old one to the caller.
++    pub fn replaceConfig(self: *Fontconfig, next: ConfigSnapshot) *fontconfig.Config {
++        self.config_mutex.lockUncancelable(global.io());
++        defer self.config_mutex.unlock(global.io());
++        const previous = self.snapshot.config;
++        self.snapshot = next;
++        return previous;
++    }
++
++    fn referenceSnapshot(self: *Fontconfig) ConfigSnapshot {
++        self.config_mutex.lockUncancelable(global.io());
++        defer self.config_mutex.unlock(global.io());
++        return .{ .config = self.snapshot.config.reference(), .files = self.snapshot.files };
+     }
+ 
      /// Discover fonts from a descriptor. This returns an iterator that can
      /// be used to build up the deferred fonts.
      pub fn discover(
@@ -59,7 +111,7 @@ diff --git a/src/font/discovery.zig b/src/font/discovery.zig
      ) !DiscoverIterator {
          _ = alloc;
  
-+        const config = self.referenceConfig();
++        const config = self.referenceSnapshot().config;
 +        errdefer config.destroy();
 +
          // Build our pattern that we'll search for
@@ -70,7 +122,7 @@ diff --git a/src/font/discovery.zig b/src/font/discovery.zig
          pat.defaultSubstitute();
  
          // Fontconfig may add the generic monospace fallback for our spacing
-@@ -284,12 +304,12 @@
+@@ -284,12 +325,12 @@
          }
  
          // Search
@@ -85,7 +137,7 @@ diff --git a/src/font/discovery.zig b/src/font/discovery.zig
              .pattern = pat,
              .set = res.fs,
              .fonts = res.fs.fonts(),
-@@ -299,7 +319,7 @@
+@@ -299,7 +340,7 @@
      }
  
      pub fn discoverFallback(
@@ -94,7 +146,7 @@ diff --git a/src/font/discovery.zig b/src/font/discovery.zig
          alloc: Allocator,
          collection: *Collection,
          desc: Descriptor,
-@@ -319,6 +339,7 @@
+@@ -319,6 +360,7 @@
          pub fn deinit(self: *DiscoverIterator) void {
              self.set.destroy();
              self.pattern.destroy();
@@ -115,30 +167,39 @@ diff --git a/src/font/SharedGridSet.zig b/src/font/SharedGridSet.zig
  /// Lock to protect multi-threaded access to the map.
  lock: std.Io.Mutex = .init,
  
-@@ -83,6 +86,22 @@
+@@ -83,6 +86,31 @@
      self.lock.lockUncancelable(global.io());
      defer self.lock.unlock(global.io());
      return self.map.count();
 +}
 +
-+/// Refresh Fontconfig before an application config reload rebuilds its surfaces.
++/// Refresh Fontconfig on the app thread before rebuilding its surfaces.
 +pub fn reloadFontconfigIfStale(self: *SharedGridSet) void {
 +    if (comptime Discover == discovery.Fontconfig) {
-+        self.lock.lockUncancelable(global.io());
-+        defer self.lock.unlock(global.io());
-+        const disco = if (self.font_discover) |*value| value else return;
-+        const changed = disco.reloadIfStale() catch |err| {
++        // Once initialized, discovery remains alive until this app is destroyed.
++        const disco = disco: {
++            self.lock.lockUncancelable(global.io());
++            defer self.lock.unlock(global.io());
++            break :disco if (self.font_discover) |*value| value else return;
++        };
++        const prepared = disco.prepareConfigReload() catch |err| {
 +            log.warn("failed to reload Fontconfig err={}", .{err});
 +            return;
 +        };
-+        // New lookups must bypass the old grids. Renderers still using them
-+        // release them through their existing reference-counted lifetime.
-+        if (changed) self.discovery_generation +%= 1;
++        const next = prepared orelse return;
++        const previous = previous: {
++            self.lock.lockUncancelable(global.io());
++            defer self.lock.unlock(global.io());
++            // Install the new snapshot and invalidate old grid keys together.
++            self.discovery_generation +%= 1;
++            break :previous disco.replaceConfig(next);
++        };
++        previous.destroy();
 +    }
  }
  
  /// Initialize a SharedGrid for the given font configuration. If the
-@@ -103,6 +122,7 @@
+@@ -103,6 +131,7 @@
  
      self.lock.lockUncancelable(global.io());
      defer self.lock.unlock(global.io());
@@ -146,7 +207,7 @@ diff --git a/src/font/SharedGridSet.zig b/src/font/SharedGridSet.zig
  
      const gop = try self.map.getOrPut(self.alloc, key);
      if (gop.found_existing) {
-@@ -559,6 +579,7 @@
+@@ -559,6 +588,7 @@
  /// The key used to uniquely identify a font configuration.
  pub const Key = struct {
      arena: ArenaAllocator,
@@ -154,7 +215,7 @@ diff --git a/src/font/SharedGridSet.zig b/src/font/SharedGridSet.zig
  
      /// The descriptors used for all the fonts added to the
      /// initial group, including all styles. This is hashed
-@@ -736,6 +757,7 @@
+@@ -736,6 +766,7 @@
      /// Hash the key with the given hasher.
      pub fn hash(self: Key, hasher: anytype) void {
          const autoHash = std.hash.autoHash;
@@ -165,7 +226,7 @@ diff --git a/src/font/SharedGridSet.zig b/src/font/SharedGridSet.zig
 diff --git a/src/App.zig b/src/App.zig
 --- a/src/App.zig
 +++ b/src/App.zig
-@@ -170,6 +170,8 @@
+@@ -183,6 +183,8 @@
  /// called from the main thread. The caller owns the config memory. The
  /// memory can be freed immediately when this returns.
  pub fn updateConfig(self: *App, rt_app: *apprt.App, config: *const Config) !void {
