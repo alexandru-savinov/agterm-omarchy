@@ -119,7 +119,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
          controller: AppController? = nil, waitAfterCommand: Bool = false,
          role: LinuxSurfaceRole = .main, reportsPaneState: Bool = true,
          fontSize: Double? = nil, initialInput: String? = nil, backgroundColor: String? = nil,
-         usesSessionWatermark: Bool = true, backedByZmx: Bool = false) {
+         usesSessionWatermark: Bool = true, backedByZmx: Bool = false, unsettingEnvironment: [String] = []) {
         self.sessionID = sessionID
         self.controller = controller
         self.role = role
@@ -133,7 +133,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
         self.fontSize = fontSize
         self.initialInput = initialInput
         self.env = gdkEnvironment.childEnvironment(merging: env)
-        environmentUnsets = gdkEnvironment.childEnvironmentUnsets(merging: env)
+        environmentUnsets = gdkEnvironment.childEnvironmentUnsets(merging: env) + unsettingEnvironment
         rootWidget = OpaquePointer(gtk_overlay_new())
         glArea = OpaquePointer(gtk_gl_area_new())
         gtk_overlay_set_child(rootWidget, W(glArea))
@@ -416,7 +416,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
             let paneKey = pane.flatMap { session.paneBackgrounds[$0] == nil ? nil : session.backgroundFileKey(for: $0) }
             return WatermarkRenderer.materialize(watermark, sessionID: session.id, paneKey: paneKey)
         }
-        let effectiveWindowOpacity = windowOpacity ?? linuxSettingsStore().load().backgroundOpacity ?? 1
+        let effectiveWindowOpacity = windowOpacity ?? loadLinuxTerminalSettings().backgroundOpacity ?? 1
         let effectiveFontSize = fontSizeOverride ?? dashboardFontOverride ?? session?.fontSize ?? fontSize
         let overlay = LinuxBackgroundOverlayPolicy.overlayText(
             oscLatch: oscBackgroundColorHex, watermark: watermark, resolvedImagePath: resolvedImagePath,

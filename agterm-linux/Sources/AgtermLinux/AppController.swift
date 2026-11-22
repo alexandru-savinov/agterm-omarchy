@@ -23,6 +23,7 @@ final class AppController {
     var remoteClients: [UUID: RemotePresentationClient] = [:]
     var remoteTickCancel: (@MainActor () -> Void)?
     let window: OpaquePointer        // AdwApplicationWindow
+    let launcherTitle: String?
     let deck: OpaquePointer          // GtkOverlay (one stable overlay child per session)
     var contentBox: OpaquePointer?   // vertical box [search + deck-overlay]
     var deckOverlay: OpaquePointer?  // window GtkOverlay over the whole split (sidebar + deck)
@@ -209,12 +210,13 @@ final class AppController {
     var windowPointer: OpaquePointer { window }
     /// The primary surface for a session, exposed to the search extension (different file).
     func surface(for id: UUID?) -> GhosttySurface? { id.flatMap { surfaces[$0] } }
-    init(app: OpaquePointer?, windowID: UUID, library: WindowLibrary,
+    init(app: OpaquePointer?, windowID: UUID, library: WindowLibrary, launcherTitle: String? = nil,
          commandProcessLauncher: any LinuxProcessLaunching = SpawnLinuxProcessLauncher()) {
         // This window's tree comes from the shared WindowLibrary (which loaded/seeded/
         // migrated it from windows/<id>.json). AppStore.save() targets that per-window file.
         self.windowID = windowID
         self.library = library
+        self.launcherTitle = launcherTitle
         customCommandOrigin = LinuxCustomCommandOrigin(launcher: commandProcessLauncher)
         let store = library.store(for: windowID) ?? AppStore()
         self.store = store
@@ -351,6 +353,7 @@ final class AppController {
 
         applyWindowTranslucency()
         applyAutoFollowSettings()
+        if let launcherTitle { launcherTitle.withCString { gtk_window_set_title(WIN(window), $0) } }
         gtk_window_present(WIN(window))
         // GTK keeps a minimized window's widgets MAPPED (`surface_state_changed` in gtkwindow.c only
         // restyles), so `unmap` never fires on iconify; the blink timer reads the surface's state instead.

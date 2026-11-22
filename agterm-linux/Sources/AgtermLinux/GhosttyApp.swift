@@ -54,7 +54,7 @@ final class GhosttyApp: @unchecked Sendable {
         guard !isShutDown else { return }
         // Persisted settings (font/size/theme/scroll) are layered on at launch so they survive
         // relaunch. Translucency is omitted: Linux has no window-level compositing yet.
-        let saved = linuxSettingsStore().load()
+        let saved = loadLinuxTerminalSettings()
         guard let cfg = buildConfig(settings: saved, isDark: appearanceSide.isDark) else { return }
         currentThemeBackgroundHex = GhosttyConfigTheme.colors(from: cfg).background
         currentBaseFontSize = GhosttyConfigTheme.fontSize(from: cfg)
@@ -207,7 +207,7 @@ final class GhosttyApp: @unchecked Sendable {
     func configWithOverlay(_ overlayText: String, settings: AppSettings? = nil) -> ghostty_config_t? {
         let overlay = overlayText.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
         return buildConfig(
-            settings: settings ?? AppController.resolvedThemeSettings(persisted: linuxSettingsStore().load()),
+            settings: settings ?? AppController.resolvedThemeSettings(persisted: loadLinuxTerminalSettings()),
             isDark: appliedAppearanceSide?.isDark ?? AppController.systemIsDark,
             overlay: overlay)
     }

@@ -121,6 +121,21 @@ If you picked the agterm theme on purpose, select it again in **Settings ▸ App
 If you set the terminal to 13 pt on purpose, set it again in **Settings ▸ Appearance ▸ Terminal ▸ Default font size**.
 
 No Hyprland configuration or default terminal selection is changed by installation.
+
+### Omarchy terminal launches
+
+When you select agterm as the default terminal in Omarchy, Super+Return opens a new tiled window in the existing agterm process if it is running.
+The window uses the directory Omarchy passes to `xdg-terminal-exec`.
+Relative directories resolve against the launcher's working directory.
+If the requested directory is missing, agterm uses the launcher's working directory when available, then its normal default.
+Reading the actual cwd of a focused agterm pane after `cd` still requires an Omarchy-side integration.
+Omarchy's current cwd helper can query kitty or guess from child processes, which cannot reliably identify a focused agterm pane across windows and splits.
+
+Omarchy's TUI and presentation launchers use `--app-id` plus `-e` to open a separate ephemeral terminal.
+It reads agterm's terminal settings and config, runs the requested command with its arguments, and closes when the command exits or the window closes.
+Each invocation starts a GTK process. Its Wayland app ID lets Hyprland apply window rules and lets Omarchy find an existing TUI window.
+Ephemeral terminals have no saved workspaces, control socket, launch hooks, or zmx session.
+
 For an optional dedicated shortcut on Lua-based Hyprland (0.55 and later), add this to the user
 bindings file loaded by your configuration and reload Hyprland:
 
