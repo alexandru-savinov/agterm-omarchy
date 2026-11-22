@@ -112,6 +112,7 @@ Ghostty applies padding changes to new terminals.
 If the file is absent, terminals use agterm’s defaults, including 8 pt horizontal and 6 pt vertical padding and a blinking cursor.
 Explicit agterm and scoped Ghostty settings take precedence, and each pane keeps its zoom.
 An installed font family named in the terminal configuration takes precedence over Omarchy’s system monospace fallback.
+Configuration reload also checks for changes to Fontconfig, including the system monospace alias.
 Use **Reset** under **Settings ▸ Appearance ▸ Terminal** to return the terminal settings to automatic defaults.
 Turning off **Follow Omarchy** disables the automatic integration.
 

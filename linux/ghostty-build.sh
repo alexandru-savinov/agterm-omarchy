@@ -12,6 +12,7 @@ GHOSTTY_PATCHES=(
   "$GHOSTTY_BUILD_ROOT/linux/patches/ghostty-clipboard-request-kind.patch"
   "$GHOSTTY_BUILD_ROOT/linux/patches/ghostty-bounded-app-tick.patch"
   "$GHOSTTY_BUILD_ROOT/linux/patches/ghostty-fontconfig-explicit-family.patch"
+  "$GHOSTTY_BUILD_ROOT/linux/patches/ghostty-fontconfig-reload.patch"
 )
 GHOSTTY_PATCH_DIGEST="$(cat "${GHOSTTY_PATCHES[@]}" | sha256sum | cut -c1-16)"
 GHOSTTY_STAMP="$GHOSTTY_REV $GHOSTTY_PATCH_DIGEST"
