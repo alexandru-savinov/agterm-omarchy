@@ -1,8 +1,183 @@
 import Foundation
 import Testing
 @testable import LinuxIntegrations
+#if canImport(Glibc)
+import Glibc
+#else
+import Darwin
+#endif
 
 struct OmarchyTerminalIntegrationTests {
+    @Test func repeatedEnableRestoresTheOriginalTerminalListAndMode() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        try Data("-- user config\n".utf8).write(to: fixture.config)
+        let original = Data([0xef, 0xbb, 0xbf]) + Data("# preferred terminal\r\nfoot.desktop\r\nkitty.desktop".utf8)
+        try original.write(to: fixture.terminalList)
+        try FileManager.default.setAttributes([.posixPermissions: 0o640], ofItemAtPath: fixture.terminalList.path)
+
+        _ = try fixture.integration.setEnabled(true)
+        let enabled = try Data(contentsOf: fixture.terminalList)
+        #expect(enabled.starts(with: Data("io.github.melonamin.agterm.desktop\n".utf8)))
+        #expect(enabled.suffix(original.count) == original)
+        #expect(try fixture.mode(of: fixture.terminalList) == 0o640)
+        _ = try fixture.integration.setEnabled(true)
+        #expect(try Data(contentsOf: fixture.terminalList) == enabled)
+
+        _ = try fixture.integration.setEnabled(false)
+        _ = try fixture.integration.setEnabled(false)
+        #expect(try Data(contentsOf: fixture.terminalList) == original)
+        #expect(try fixture.mode(of: fixture.terminalList) == 0o640)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.omarchyConfig.path).sorted() == ["hypr", "xdg-terminals.list"])
+    }
+
+    @Test func disableRemovesOnlyATerminalListThatEnableCreated() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        try Data("-- user config\n".utf8).write(to: fixture.config)
+        let fm = FileManager.default
+        #expect(!fm.fileExists(atPath: fixture.terminalList.path))
+
+        _ = try fixture.integration.setEnabled(true)
+        #expect(fm.fileExists(atPath: fixture.terminalList.path))
+        _ = try fixture.integration.setEnabled(false)
+        #expect(!fm.fileExists(atPath: fixture.terminalList.path))
+        #expect(try fm.contentsOfDirectory(atPath: fixture.omarchyConfig.path) == ["hypr"])
+    }
+
+    @Test func enableLeavesAnAlreadySelectedAgtermListUnchanged() throws {
+        let fixture = try Fixture(useXDG: false)
+        defer { fixture.clean() }
+        try Data("-- user config\n".utf8).write(to: fixture.config)
+        let alreadySelected = Data("io.github.melonamin.agterm.desktop\nfoot.desktop".utf8)
+        try alreadySelected.write(to: fixture.terminalList)
+        _ = try fixture.integration.setEnabled(true)
+        #expect(try Data(contentsOf: fixture.terminalList) == alreadySelected)
+        #expect(!FileManager.default.fileExists(atPath: fixture.restoreRecord.path))
+        _ = try fixture.integration.setEnabled(false)
+        #expect(try Data(contentsOf: fixture.terminalList) == alreadySelected)
+    }
+
+    @Test func enableStoresTheRestoreRecordWithMode0600() throws {
+        let fixture = try Fixture(useXDG: false)
+        defer { fixture.clean() }
+        try Data("-- user config\n".utf8).write(to: fixture.config)
+        try Data("foot.desktop\n".utf8).write(to: fixture.terminalList)
+        _ = try fixture.integration.setEnabled(true)
+        #expect(try fixture.mode(of: fixture.restoreRecord) == 0o600)
+    }
+
+    @Test(arguments: [false, true])
+    func disableArchivesTheRestoreRecordAndLetsTheEditedListWin(keepMarker: Bool) throws {
+        let fixture = try Fixture(useXDG: false)
+        defer { fixture.clean() }
+        let lua = Data("-- user config\n".utf8)
+        try lua.write(to: fixture.config)
+        try Data("foot.desktop\n".utf8).write(to: fixture.terminalList)
+        _ = try fixture.integration.setEnabled(true)
+        let saved = try Data(contentsOf: fixture.restoreRecord)
+        let edited = try (keepMarker ? Data(contentsOf: fixture.terminalList) : Data()) + Data("kitty.desktop\n".utf8)
+        try edited.write(to: fixture.terminalList)
+
+        let disabled = try fixture.integration.setEnabled(false)
+        #expect(disabled.terminalSelection.state == .conflict)
+        #expect(try Data(contentsOf: fixture.terminalList) == edited)
+        #expect(try Data(contentsOf: fixture.config) == lua)
+        #expect(!FileManager.default.fileExists(atPath: fixture.module.path))
+        #expect(!FileManager.default.fileExists(atPath: fixture.restoreRecord.path))
+        let archived = try #require(FileManager.default.contentsOfDirectory(at: fixture.omarchyConfig, includingPropertiesForKeys: nil)
+            .first { $0.lastPathComponent.hasPrefix(".agterm-omarchy-terminal-list-v1.json.conflict-") })
+        let reportedArchive = fixture.omarchyConfig.appendingPathComponent(archived.lastPathComponent)
+        #expect(disabled.terminalSelection.detail?.contains(reportedArchive.path) == true)
+        #expect(try Data(contentsOf: archived) == saved)
+        #expect(try fixture.mode(of: archived) == 0o600)
+
+        #expect(try fixture.integration.setEnabled(true).state == .enabled)
+        #expect(try fixture.integration.setEnabled(false).terminalSelection.state == .unmanaged)
+        #expect(try Data(contentsOf: fixture.terminalList) == edited)
+        #expect(try Data(contentsOf: archived) == saved)
+    }
+
+    @Test func terminalListUsesXDGConfigHomeAndLeavesTheHomeFallbackAlone() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        try Data("-- user config\n".utf8).write(to: fixture.config)
+        let fallback = fixture.root.appendingPathComponent(".config/xdg-terminals.list")
+        try FileManager.default.createDirectory(at: fallback.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let fallbackBytes = Data("foot.desktop\n".utf8)
+        try fallbackBytes.write(to: fallback)
+        let original = Data("kitty.desktop".utf8)
+        try original.write(to: fixture.terminalList)
+        let status = try fixture.integration.setEnabled(true)
+        #expect(status.terminalSelection.path == fixture.terminalList.path)
+        #expect(try Data(contentsOf: fixture.terminalList).starts(with: Data("io.github.melonamin.agterm.desktop\n".utf8)))
+        #expect(try Data(contentsOf: fallback) == fallbackBytes)
+        _ = try fixture.integration.setEnabled(false)
+        #expect(try Data(contentsOf: fixture.terminalList) == original)
+        #expect(try Data(contentsOf: fallback) == fallbackBytes)
+    }
+
+    @Test(.enabled(if: geteuid() != 0, "Requires filesystem permissions to be enforced"))
+    func aFailedRestoreRecordWriteLeavesHyprlandUntouched() throws {
+        let fixture = try Fixture(useXDG: false)
+        defer { fixture.clean() }
+        let original = Data("-- user config\n".utf8)
+        try original.write(to: fixture.config)
+        let fm = FileManager.default
+        try fm.setAttributes([.posixPermissions: 0o500], ofItemAtPath: fixture.omarchyConfig.path)
+        defer { try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fixture.omarchyConfig.path) }
+
+        #expect(throws: (any Error).self) { try fixture.integration.setEnabled(true) }
+        #expect(try Data(contentsOf: fixture.config) == original)
+        #expect(!fm.fileExists(atPath: fixture.module.path))
+        #expect(!fm.fileExists(atPath: fixture.terminalList.path))
+    }
+
+    @Test func processEnvironmentSkipsEmptyPathElements() {
+        let environment = IntegrationEnvironment.process(environment: ["PATH": ":/usr/local/bin::/usr/bin:"],
+                                                         arguments: ["/usr/bin/agtermctl"])
+        #expect(environment.pathDirectories.map(\.path) == ["/usr/local/bin", "/usr/bin"])
+    }
+
+    @Test func statusAndEnableReportEarlierDesktopAndCLIWithoutEditingThem() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        try Data("-- user config\n".utf8).write(to: fixture.config)
+        let packageRoot = fixture.root.appendingPathComponent("usr")
+        let oldRoot = fixture.root.appendingPathComponent("old")
+        let desktopName = "applications/io.github.melonamin.agterm.desktop"
+        let packageDesktop = packageRoot.appendingPathComponent("share/\(desktopName)")
+        let oldDesktop = oldRoot.appendingPathComponent("share/\(desktopName)")
+        let packageCLI = packageRoot.appendingPathComponent("bin/agtermctl")
+        let oldCLI = oldRoot.appendingPathComponent("bin/agtermctl")
+        let oldBytes = Data("older build".utf8)
+        let fm = FileManager.default
+        for file in [packageDesktop, oldDesktop, packageCLI, oldCLI] {
+            try fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try oldBytes.write(to: file)
+            try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: file.path)
+        }
+        let directoryOnPATH = fixture.root.appendingPathComponent("not-a-cli").appendingPathComponent("agtermctl")
+        try fm.createDirectory(at: directoryOnPATH, withIntermediateDirectories: true)
+        let dataDirs = [oldRoot, packageRoot].map { $0.appendingPathComponent("share").path }.joined(separator: ":")
+        let integration = OmarchyTerminalIntegration(environment: IntegrationEnvironment(
+            homeDirectory: fixture.root, executableURL: packageCLI,
+            pathDirectories: [directoryOnPATH.deletingLastPathComponent(), oldCLI.deletingLastPathComponent(), packageCLI.deletingLastPathComponent()],
+            resourceRoot: nil, knownCommandLineTools: [packageCLI], xdgConfigHome: fixture.directory.deletingLastPathComponent().path,
+            probeEnvironment: ["XDG_DATA_DIRS": dataDirs]))
+
+        for status in [try integration.status(), try integration.setEnabled(true)] {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.withoutEscapingSlashes]
+            let report = String(decoding: try encoder.encode(status), as: UTF8.self)
+            #expect(report.contains("shadows"))
+            #expect(report.contains(oldDesktop.path))
+            #expect(report.contains(oldCLI.path))
+        }
+        #expect(try Data(contentsOf: oldDesktop) == oldBytes)
+        #expect(try Data(contentsOf: oldCLI) == oldBytes)
+    }
+
     @Test func enableAndDisableAreIdempotentAndRestoreExactUserBytes() throws {
         let fixture = try Fixture()
         defer { fixture.clean() }
@@ -27,6 +202,68 @@ struct OmarchyTerminalIntegrationTests {
         #expect(try Data(contentsOf: fixture.config) == initial)
         #expect(try fixture.mode(of: fixture.config) == 0o640)
         #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.path) == ["hyprland.lua"])
+    }
+
+    @Test func enableAddsTouchpadScrollDefaultsBeforePersonalRules() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        let initial = Data((#"""
+            require("default.hypr.omarchy")
+            require("hypr.input")
+            hl.window_rule({ match = { class = [[^io\.github\.melonamin\.agterm$]] }, scroll_touchpad = 0.5 })
+            """# + "\n").utf8)
+        try initial.write(to: fixture.config)
+
+        _ = try fixture.integration.setEnabled(true)
+        let generated = try String(contentsOf: fixture.module, encoding: .utf8)
+        #expect(generated.contains(#"""
+            hl.window_rule({
+              name = "agterm-omarchy-scroll",
+              match = { class = [[^io\.github\.melonamin\.agterm$]] },
+              scroll_touchpad = 0.2,
+            })
+            """#))
+        #expect(generated.contains(#"""
+            hl.window_rule({
+              name = "agterm-omarchy-tui-scroll",
+              match = { class = [[^(org\.omarchy\..*|TUI\..*)$]], initial_title = [[^agterm$]] },
+              scroll_touchpad = 0.2,
+            })
+            """#))
+        let enabled = try Data(contentsOf: fixture.config)
+        let include = try #require(enabled.range(of: Data("/hypr/agterm-omarchy.lua".utf8)))
+        let personalConfig = try #require(enabled.range(of: initial))
+        #expect(include.upperBound < personalConfig.lowerBound)
+        _ = try fixture.integration.setEnabled(false)
+        #expect(try Data(contentsOf: fixture.config) == initial)
+    }
+
+    @Test(arguments: [false, true])
+    func stillManagesTheOriginalTagOnlyModule(upgrade: Bool) throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        let initial = Data("-- personal config\n".utf8)
+        try initial.write(to: fixture.config)
+        _ = try fixture.integration.setEnabled(true)
+        let enabledConfig = try Data(contentsOf: fixture.config)
+        try Data((#"""
+            -- Managed by agtermctl integration omarchy.
+            hl.window_rule({
+              name = "agterm-omarchy-terminal",
+              match = { class = [[^io\.github\.melonamin\.agterm$]] },
+              tag = "+terminal",
+            })
+            """# + "\n").utf8).write(to: fixture.module)
+
+        #expect(try fixture.integration.status().state == .enabled)
+        if upgrade {
+            #expect(try fixture.integration.setEnabled(true).state == .enabled)
+            #expect(try Data(contentsOf: fixture.config) == enabledConfig)
+            #expect(try String(contentsOf: fixture.module, encoding: .utf8).contains("scroll_touchpad = 0.2"))
+        }
+        #expect(try fixture.integration.setEnabled(false).state == .disabled)
+        #expect(try Data(contentsOf: fixture.config) == initial)
+        #expect(!FileManager.default.fileExists(atPath: fixture.module.path))
     }
 
     @Test func disableKeepsUserEditsAndCanCleanUpAnInterruptedEnable() throws {
@@ -159,6 +396,9 @@ struct OmarchyTerminalIntegrationTests {
         let integration: OmarchyTerminalIntegration
         var config: URL { directory.appendingPathComponent("hyprland.lua") }
         var module: URL { directory.appendingPathComponent("agterm-omarchy.lua") }
+        var omarchyConfig: URL { directory.deletingLastPathComponent() }
+        var terminalList: URL { omarchyConfig.appendingPathComponent("xdg-terminals.list") }
+        var restoreRecord: URL { omarchyConfig.appendingPathComponent(".agterm-omarchy-terminal-list-v1.json") }
 
         init(useXDG: Bool = true) throws {
             root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

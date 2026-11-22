@@ -11,14 +11,14 @@ struct Integration: ParsableCommand {
 
     struct Omarchy: ParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Manage agterm’s terminal tag in your Omarchy Hyprland configuration."
+            abstract: "Manage agterm’s terminal tag and default terminal selection on Omarchy."
         )
 
         enum Action: String, ExpressibleByArgument {
             case enable, status, disable
         }
 
-        @Argument(help: "Enable, inspect, or remove the per-user terminal tag.")
+        @Argument(help: "Enable, inspect, or remove the per-user Omarchy terminal integration.")
         var action: Action
 
         @Flag(name: .long, help: "Print the configuration status as JSON.")
@@ -39,6 +39,14 @@ struct Integration: ParsableCommand {
                 print("Hyprland config: \(result.configPath)")
                 print("Rule module: \(result.modulePath)")
                 if let detail = result.detail { print(detail) }
+                let selection = result.terminalSelection
+                print("Default terminal list: \(selection.path)")
+                print("Default terminal selection: \(selection.state.rawValue)")
+                if let first = selection.firstEntry { print("First entry: \(first)") }
+                if let detail = selection.detail { print(detail) }
+                for warning in result.warnings {
+                    if action == .enable { writeError("Warning: \(warning)") } else { print("Warning: \(warning)") }
+                }
             }
         }
     }

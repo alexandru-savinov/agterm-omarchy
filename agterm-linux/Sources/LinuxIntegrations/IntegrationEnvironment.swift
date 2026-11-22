@@ -33,16 +33,16 @@ public struct IntegrationEnvironment: Sendable {
     ) -> IntegrationEnvironment {
         let home = environment["HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
             ?? FileManager.default.homeDirectoryForCurrentUser
-        let paths = (environment["PATH"] ?? "").split(separator: ":").map {
-            URL(fileURLWithPath: String($0), isDirectory: true)
-        }
-        let rawExecutable = arguments.first ?? ""
         let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        let paths = environment["PATH"]?.split(separator: ":").map {
+            URL(fileURLWithPath: String($0), isDirectory: true, relativeTo: cwd).standardizedFileURL
+        } ?? []
+        let rawExecutable = arguments.first ?? ""
         let executable: URL
         if rawExecutable.contains("/") {
             executable = URL(fileURLWithPath: rawExecutable, relativeTo: cwd).standardizedFileURL
         } else if let onPath = paths.lazy.map({ $0.appendingPathComponent(rawExecutable) })
-            .first(where: { FileManager.default.isExecutableFile(atPath: $0.path) }) {
+            .first(where: Self.isExecutableCLI) {
             executable = onPath.standardizedFileURL
         } else {
             executable = cwd.appendingPathComponent(rawExecutable).standardizedFileURL
@@ -113,11 +113,10 @@ public struct IntegrationEnvironment: Sendable {
     }
 
     func pathCLI() -> URL? {
-        let fm = FileManager.default
         let transientBundleTarget = portableLauncherAllowed ? nil : bundledCLI()?.resolvingSymlinksInPath()
         for directory in pathDirectories {
             let candidate = directory.appendingPathComponent("agtermctl")
-            guard fm.isExecutableFile(atPath: candidate.path) else { continue }
+            guard Self.isExecutableCLI(candidate) else { continue }
             // linuxdeploy may prepend the mounted AppImage's usr/bin to PATH. That executable disappears
             // after exit, so keep scanning for a persistent host installation in sandboxed builds.
             if candidate.resolvingSymlinksInPath() == transientBundleTarget { continue }
@@ -127,7 +126,12 @@ public struct IntegrationEnvironment: Sendable {
     }
 
     func packageCLI() -> URL? {
-        knownCommandLineTools.first { FileManager.default.isExecutableFile(atPath: $0.path) }
+        knownCommandLineTools.first(where: Self.isExecutableCLI)
+    }
+
+    private static func isExecutableCLI(_ url: URL) -> Bool {
+        FileManager.default.isExecutableFile(atPath: url.path)
+            && (try? url.resolvingSymlinksInPath().resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
     }
 
     func version(for cli: URL) -> String? {

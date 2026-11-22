@@ -1,0 +1,19 @@
+diff --git a/src/font/discovery.zig b/src/font/discovery.zig
+--- a/src/font/discovery.zig
++++ b/src/font/discovery.zig
+@@ -273,6 +273,15 @@
+         errdefer pat.destroy();
+         assert(self.fc_config.substituteWithPat(pat, .pattern));
+         pat.defaultSubstitute();
++
++        // Fontconfig may add the generic monospace fallback for our spacing
++        // request, then prepend a preferred face ahead of the named family.
++        // Give the configured family first choice while retaining the
++        // substituted aliases for generic names and unavailable faces.
++        if (desc.family) |family| {
++            if (!pat.add(.family, .{ .string = family }, false))
++                return error.FontConfigFailed;
++        }
+ 
+         // Search
+         const res = self.fc_config.fontSort(pat, false, null);
