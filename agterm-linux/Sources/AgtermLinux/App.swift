@@ -32,6 +32,7 @@ struct AgtermApp {
             FileHandle.standardError.write(Data((line + "\n").utf8))
         }
         LauncherChildEnvironment.sanitizeCurrentProcess()
+        g_set_application_name("agterm")
         #if DEBUG
         if let state = DebugStateDirectory.adopted(environment: ProcessInfo.processInfo.environment,
                                                     liveDirectory: PersistenceStore.defaultDirectory) {

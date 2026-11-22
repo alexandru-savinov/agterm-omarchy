@@ -79,12 +79,15 @@ def verify_omarchy_keys(env):
             print(f"FAIL: {message}", flush=True)
             failures.append(message)
 
-    for profile, expected_shift, expected_alt in (
-            ("follow", SHIFT_ENTER, ALT_SHIFT_ENTER),
-            ("explicit-theme-and-override", b"\x1b[99~", ALT_SHIFT_ENTER),
-            ("switch-off", LEGACY_SHIFT_ENTER, LEGACY_ALT_SHIFT_ENTER),
-            ("without-omarchy", LEGACY_SHIFT_ENTER, LEGACY_ALT_SHIFT_ENTER)):
-        root = Path(env["AGTERM_STATE_DIR"]) / profile
+    profiles = (
+        ("follow", SHIFT_ENTER, ALT_SHIFT_ENTER),
+        ("explicit-theme-and-override", b"\x1b[99~", ALT_SHIFT_ENTER),
+        ("switch-off", LEGACY_SHIFT_ENTER, LEGACY_ALT_SHIFT_ENTER),
+        ("without-omarchy", LEGACY_SHIFT_ENTER, LEGACY_ALT_SHIFT_ENTER),
+    )
+    for index, (profile, expected_shift, expected_alt) in enumerate(profiles):
+        # Keep the private UNIX socket path short even on a runner with a deep temp directory.
+        root = Path(env["AGTERM_STATE_DIR"]) / str(index)
         home = root / "home"
         home.mkdir(parents=True)
         if profile != "without-omarchy":
@@ -108,7 +111,9 @@ def verify_omarchy_keys(env):
         with notifications() as received:
             process, _ = launch(local)
             try:
-                window = next(row["id"] for row in window_list(local) if row["open"])
+                wait_for(Path(local["AGTERM_CONTROL_SOCKET"]).is_socket, f"{profile}: control socket did not start")
+                window = wait_for(lambda: next((row["id"] for row in window_list(local) if row["open"]), None),
+                                  f"{profile}: no window opened")
                 session = window_tree(local, window)["workspaces"][0]["sessions"][0]["id"]
 
                 def session_ctl(*arguments):

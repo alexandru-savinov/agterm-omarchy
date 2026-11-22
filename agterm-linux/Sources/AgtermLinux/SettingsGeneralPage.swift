@@ -106,7 +106,7 @@ extension AppController {
             cast(ghostty),
             W(preferencesSwitch(
                 "Follow Omarchy",
-                subtitle: "Follow Omarchy’s fonts, padding, and cursor blink. Follow colors with an Automatic theme.",
+                subtitle: "Follow Omarchy’s fonts, padding, cursor blink, and terminal keys. Follow colors with an Automatic theme.",
                 active: OmarchyThemePreference().follows(OmarchyTheme()),
                 handler: unsafeBitCast(onSettingsFollowOmarchy, to: GCallback.self))))
         let edit = OpaquePointer(adw_action_row_new())

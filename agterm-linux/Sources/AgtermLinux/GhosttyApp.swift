@@ -140,18 +140,26 @@ final class GhosttyApp: @unchecked Sendable {
         do {
             let storage = try generatedFiles.get()
             let term = GhosttyResourceResolver.terminalName(resolvedResources: resolvedResources)
-            try storage.withConfigFile("term = \(term)\n" + GhosttyDefaults.baseConfLines, as: .defaults) {
+            let preference = OmarchyThemePreference()
+            let follow = preference.load()
+            let theme = OmarchyTheme()
+            let colors = omarchyColorLayer(theme: theme, enabled: follow != false)
+            var defaults = "term = \(term)\n" + GhosttyDefaults.baseConfLines
+            // Keep the bindings during the same theme-directory replacement that retains the last palette.
+            if follow ?? (!colors.isEmpty || theme.isInstalled) {
+                defaults += "\n" + Self.omarchyKeyBindings
+            }
+            try storage.withConfigFile(defaults, as: .defaults) {
                 $0.withCString { ghostty_config_load_file(cfg, $0) }
             }
-            let preference = OmarchyThemePreference()
             let runtime = AppController.ghosttyLines(for: settings, isDark: isDark)
             let scopedPath = Self.scopedGhosttyConfigPath(settings: settings)
             let loadsGlobal = settings.inheritGlobalGhosttyConfig == true
             let appearance = loadsGlobal ? [] : OmarchyThemeObserver.shared.appearance.fallbackLines(
-                overriddenBy: runtime + overlay, scopedPath: scopedPath, home: OmarchyTheme().home.path)
+                overriddenBy: runtime + overlay, scopedPath: scopedPath, home: theme.home.path)
             let layers = LinuxGhosttyConfigLayers(
                 settings: runtime,
-                omarchy: omarchyColorLayer(enabled: preference.load() != false),
+                omarchy: colors,
                 omarchyAppearance: appearance,
                 prefersAgtermTheme: preference.usesAgtermTheme(settings, previewing: AppController.themePreviewSettings != nil),
                 overlay: overlay)
@@ -171,11 +179,18 @@ final class GhosttyApp: @unchecked Sendable {
         }
     }
 
-    @MainActor private func omarchyColorLayer(enabled: Bool) -> [String] {
+    private static let omarchyKeyBindings = """
+    keybind = shift+enter=csi:13;2u
+    keybind = alt+shift+enter=csi:13;4u
+    keybind = shift+insert=paste_from_clipboard
+
+    """
+
+    @MainActor private func omarchyColorLayer(theme: OmarchyTheme, enabled: Bool) -> [String] {
         if enabled {
             // Omarchy deletes the old directory before publishing its replacement. Any reload
             // in that gap must keep the last published colors, even a signal or appearance reload.
-            let current = OmarchyTheme().colorLines()
+            let current = theme.colorLines()
             if !current.isEmpty { lastOmarchyColors = current }
         } else {
             lastOmarchyColors = []

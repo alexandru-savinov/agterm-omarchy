@@ -113,6 +113,11 @@ If the file is absent, terminals use agterm’s defaults, including 8 pt horizon
 Explicit agterm and scoped Ghostty settings take precedence, and each pane keeps its zoom.
 Use **Reset** under **Settings ▸ Appearance ▸ Terminal** to return the terminal settings to automatic defaults.
 Turning off **Follow Omarchy** disables the automatic integration.
+
+With **Follow Omarchy** enabled, Shift+Enter sends CSI-u (`ESC[13;2u`), Alt+Shift+Enter sends `ESC[13;4u`, and Shift+Insert pastes from the clipboard.
+These shortcuts also apply with an explicit agterm color theme.
+Bindings in your agterm-scoped or inherited Ghostty configuration take precedence over these defaults.
+
 With **Use my global Ghostty config** enabled, the usual full Ghostty import supplies these settings.
 On Linux, `SIGUSR2` reloads the Ghostty configuration, including on systems without Omarchy.
 
