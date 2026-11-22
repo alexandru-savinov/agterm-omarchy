@@ -34,8 +34,8 @@ public struct IntegrationEnvironment: Sendable {
         let home = environment["HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
             ?? FileManager.default.homeDirectoryForCurrentUser
         let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
-        let paths = environment["PATH"]?.split(separator: ":", omittingEmptySubsequences: false).map {
-            $0.isEmpty ? cwd : URL(fileURLWithPath: String($0), isDirectory: true, relativeTo: cwd).standardizedFileURL
+        let paths = environment["PATH"]?.split(separator: ":").map {
+            URL(fileURLWithPath: String($0), isDirectory: true, relativeTo: cwd).standardizedFileURL
         } ?? []
         let rawExecutable = arguments.first ?? ""
         let executable: URL

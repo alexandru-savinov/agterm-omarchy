@@ -101,9 +101,8 @@ public struct OmarchyTerminalIntegration {
         }
 
         var state: TerminalSelection.State {
-            guard let record else {
-                return list?.data.starts(with: OmarchyTerminalIntegration.selectionPrefix) == true ? .conflict : .unmanaged
-            }
+            // Only an active restore record gives the integration ownership of the list.
+            guard let record else { return .unmanaged }
             if record.matchesManaged(list) { return .managed }
             if record.matchesOriginal(list) { return .pending }
             return .conflict
@@ -117,18 +116,17 @@ public struct OmarchyTerminalIntegration {
 
     public init(environment: IntegrationEnvironment = .process()) {
         self.environment = environment
-        // Omarchy's own selector writes to the literal home path, even with XDG_CONFIG_HOME set.
-        terminalDirectory = environment.homeDirectory.appendingPathComponent(".config", isDirectory: true)
         let configRoot = environment.xdgConfigHome.flatMap { path in
             path.hasPrefix("/") ? URL(fileURLWithPath: path, isDirectory: true) : nil
-        } ?? terminalDirectory
+        } ?? environment.homeDirectory.appendingPathComponent(".config", isDirectory: true)
+        terminalDirectory = configRoot
         directory = configRoot.appendingPathComponent("hypr", isDirectory: true)
     }
 
     public func status() throws -> Status {
         let selection: TerminalSelection
         do {
-            selection = try withTerminalDirectory(create: false) { fd in
+            selection = try withTerminalDirectory { fd in
                 try describeSelection(inspectTerminalFiles(fd))
             }
         } catch {
@@ -148,18 +146,21 @@ public struct OmarchyTerminalIntegration {
     public func setEnabled(_ enabled: Bool) throws -> Status {
         try withDirectory { hyprFD in
             let tag = try inspect(hyprFD)
-            return try withTerminalDirectory(create: enabled) { terminalFD in
+            return try withTerminalDirectory(requirePresent: enabled) { terminalFD in
                 let files = try inspectTerminalFiles(terminalFD)
-                if enabled, files.state == .conflict {
-                    throw Failure(describeSelection(files).detail ?? "Conflicting Omarchy terminal list.")
+                if enabled {
+                    guard let terminalFD else { throw Failure("The Omarchy config directory is unavailable.") }
+                    let record = try prepareTerminalSelection(files, in: terminalFD)
+                    try setTagEnabled(true, files: tag, in: hyprFD)
+                    if let record {
+                        try write(record.managedBytes, named: Self.terminalListName, replacing: files.list, in: terminalFD)
+                    }
+                    return status(.enabled, selection: try describeSelection(inspectTerminalFiles(terminalFD)))
                 }
-                if enabled, files.record == nil, !files.isUserSelection,
-                   (files.list?.data.count ?? 0) + Self.selectionPrefix.count > Self.terminalListLimit {
-                    throw Failure("The terminal list is too large to manage.")
-                }
-                try setTagEnabled(enabled, files: tag, in: hyprFD)
-                if let terminalFD { try setTerminalSelection(enabled, files: files, in: terminalFD) }
-                return status(enabled ? .enabled : .disabled, selection: try describeSelection(inspectTerminalFiles(terminalFD)))
+                try setTagEnabled(false, files: tag, in: hyprFD)
+                let archive = try terminalFD.flatMap { try disableTerminalSelection(files, in: $0) }
+                let selection = try describeSelection(inspectTerminalFiles(terminalFD), archivedRecord: archive)
+                return status(.disabled, selection: selection)
             }
         }
     }
@@ -234,18 +235,21 @@ public struct OmarchyTerminalIntegration {
 
     private var terminalListPath: String { terminalDirectory.appendingPathComponent(Self.terminalListName).path }
 
-    private func describeSelection(_ files: TerminalFiles) -> TerminalSelection {
+    private func describeSelection(_ files: TerminalFiles, archivedRecord: String? = nil) -> TerminalSelection {
         let firstEntry = files.list?.data.split(separator: 10).lazy.compactMap {
             String(data: $0, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         }.first { entry in
             !entry.isEmpty && !entry.hasPrefix("#") && !entry.hasPrefix("-") && !entry.hasPrefix("+") && !entry.hasPrefix("/")
         }
+        if let archivedRecord {
+            return TerminalSelection(state: .conflict, path: terminalListPath, firstEntry: firstEntry,
+                                     detail: "Kept the edited terminal list and moved the original restore record to \(archivedRecord).")
+        }
         let detail: String?
         switch files.state {
-        case .conflict where files.backup != nil:
-            detail = "The terminal list changed while enabled. Its edits and the original restore record are preserved."
         case .conflict:
-            detail = "The terminal list has an agterm marker but its restore record is missing. The list is preserved."
+            let restorePath = terminalDirectory.appendingPathComponent(Self.restoreName).path
+            detail = "The terminal list changed while enabled. Disable to keep the edits and archive the restore record at \(restorePath)."
         case .pending:
             detail = "A restore record exists and the original terminal list is in place. Retry enable or disable."
         default:
@@ -268,27 +272,40 @@ public struct OmarchyTerminalIntegration {
         return TerminalFiles(list: list, backup: backup, record: record)
     }
 
-    private func setTerminalSelection(_ enabled: Bool, files: TerminalFiles, in fd: Int32) throws {
-        if enabled {
-            // A selection that the user already made belongs to the user.
-            guard files.state != .managed, !files.isUserSelection else { return }
-            let record = files.record ?? RestoreRecord(version: 1, original: files.list.map(RestoreRecord.Original.init))
-            let managedBytes = record.managedBytes
-            // Persist the original before publishing the marked file. A retry can resume from either state.
-            if files.backup == nil {
-                try write(JSONEncoder().encode(record), named: Self.restoreName, replacing: nil, in: fd)
-            }
-            try write(managedBytes, named: Self.terminalListName, replacing: files.list, in: fd)
-        } else if let backup = files.backup, files.state != .conflict {
-            if files.state == .managed, let list = files.list {
-                if let original = files.record?.original {
-                    try write(original.data, named: Self.terminalListName, replacing: list, in: fd)
-                } else {
-                    try remove(Self.terminalListName, matching: list, in: fd)
-                }
-            }
-            try remove(Self.restoreName, matching: backup, in: fd)
+    private func prepareTerminalSelection(_ files: TerminalFiles, in fd: Int32) throws -> RestoreRecord? {
+        if files.state == .conflict {
+            throw Failure(describeSelection(files).detail ?? "Conflicting Omarchy terminal list.")
         }
+        // A selection that the user already made belongs to the user.
+        guard files.state != .managed, !files.isUserSelection else { return nil }
+        if let record = files.record { return record }
+        let record = RestoreRecord(version: 1, original: files.list.map(RestoreRecord.Original.init))
+        guard record.managedBytes.count <= Self.terminalListLimit else { throw Failure("The terminal list is too large to manage.") }
+        // Publish the original before any Lua or terminal-list edits. If a later write fails,
+        // the pending record lets the next enable or disable resume safely.
+        try write(JSONEncoder().encode(record), named: Self.restoreName, replacing: nil, in: fd)
+        return record
+    }
+
+    private func disableTerminalSelection(_ files: TerminalFiles, in fd: Int32) throws -> String? {
+        guard let backup = files.backup else { return nil }
+        if files.state == .conflict {
+            let name = "\(Self.restoreName).conflict-\(UUID().uuidString)"
+            // Publish without replacement before removing the active record, so a failed archive write
+            // leaves the original in place and a later disable can retry.
+            try write(backup.data, named: name, replacing: nil, in: fd)
+            try remove(Self.restoreName, matching: backup, in: fd)
+            return terminalDirectory.appendingPathComponent(name).path
+        }
+        if files.state == .managed, let list = files.list {
+            if let original = files.record?.original {
+                try write(original.data, named: Self.terminalListName, replacing: list, in: fd)
+            } else {
+                try remove(Self.terminalListName, matching: list, in: fd)
+            }
+        }
+        try remove(Self.restoreName, matching: backup, in: fd)
+        return nil
     }
 
     private func shadowingWarnings() -> [String] {
@@ -371,12 +388,9 @@ public struct OmarchyTerminalIntegration {
         try withLockedDirectory(directory, whenMissing: { throw EntryPointUnavailable.missing(configPath) }, action)
     }
 
-    private func withTerminalDirectory<T>(create: Bool, _ action: (Int32?) throws -> T) throws -> T {
-        if create {
-            try FileManager.default.createDirectory(at: terminalDirectory, withIntermediateDirectories: true)
-        }
+    private func withTerminalDirectory<T>(requirePresent: Bool = false, _ action: (Int32?) throws -> T) throws -> T {
         return try withLockedDirectory(terminalDirectory, whenMissing: {
-            if create { throw failure("open \(terminalDirectory.path)") }
+            if requirePresent { throw failure("open \(terminalDirectory.path)") }
             return try action(nil)
         }, { try action($0) })
     }
@@ -434,6 +448,8 @@ public struct OmarchyTerminalIntegration {
             guard fchown(fd, uid_t.max, original.group) == 0, fchmod(fd, original.mode) == 0 else {
                 throw failure("preserve permissions for \(name)")
             }
+        } else {
+            guard fchmod(fd, 0o600) == 0 else { throw failure("set private permissions for \(name)") }
         }
         try handle.synchronize()
         guard try read(name, in: directory) == original else {

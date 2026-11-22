@@ -164,10 +164,10 @@ agtermctl integration omarchy status
 ```
 
 The command installs a user-owned `hypr/agterm-omarchy.lua` module and adds a marked include to your existing `hypr/hyprland.lua`.
-Enable also puts `io.github.melonamin.agterm.desktop` first in `~/.config/xdg-terminals.list` and saves the original in a private restore record next to it.
+Enable also puts `io.github.melonamin.agterm.desktop` first in `$XDG_CONFIG_HOME/xdg-terminals.list` (default `~/.config/xdg-terminals.list`) and saves the original in a private restore record next to it.
 An existing first entry for agterm stays under your control.
 Use `agtermctl integration omarchy disable` to remove the marked Lua integration and restore the terminal list byte for byte, or remove the list if enable created it.
-Edits outside the Lua block are preserved. If you changed the list while enabled, disable reports the conflict and preserves your edits and the saved original.
+Edits outside the Lua block are preserved. If you changed the list while enabled, disable keeps your edits and reports where it archived the restore record. You can then enable again using your edited list as the starting point.
 Symlinked and conflicting managed files are protected from replacement.
 
 Upgrades preserve your existing selection until you explicitly run enable.
