@@ -5,7 +5,7 @@ import Glibc
 import Darwin
 #endif
 
-/// Owns a small Lua module and the exact include block inserted into the user's Hyprland entrypoint.
+/// Owns the marked Hyprland terminal tag and the reversible Omarchy terminal preference.
 public struct OmarchyTerminalIntegration {
     public enum State: String, Codable {
         case enabled, disabled, incomplete, unavailable
@@ -15,6 +15,19 @@ public struct OmarchyTerminalIntegration {
         public let state: State
         public let configPath: String
         public let modulePath: String
+        public let detail: String?
+        public let terminalSelection: TerminalSelection
+        public let warnings: [String]
+    }
+
+    public struct TerminalSelection: Codable {
+        public enum State: String, Codable {
+            case unmanaged, managed, pending, conflict, unavailable
+        }
+
+        public let state: State
+        public let path: String
+        public let firstEntry: String?
         public let detail: String?
     }
 
@@ -43,64 +56,148 @@ public struct OmarchyTerminalIntegration {
         let group: gid_t
     }
 
+    private struct RestoreRecord: Codable {
+        struct Original: Codable {
+            let data: Data
+            let mode: mode_t
+            let group: gid_t
+
+            init(_ file: File) {
+                data = file.data
+                mode = file.mode
+                group = file.group
+            }
+
+            func matches(_ file: File) -> Bool {
+                file.data == data && file.mode == mode && file.group == group
+            }
+        }
+
+        let version: Int
+        let original: Original?
+
+        var managedBytes: Data { OmarchyTerminalIntegration.selectionPrefix + (original?.data ?? Data()) }
+
+        func matchesOriginal(_ file: File?) -> Bool {
+            guard let file else { return original == nil }
+            return original?.matches(file) == true
+        }
+
+        func matchesManaged(_ file: File?) -> Bool {
+            guard let file, file.data == managedBytes else { return false }
+            guard let original else { return file.mode == 0o600 }
+            return file.mode == original.mode && file.group == original.group
+        }
+    }
+
+    private struct TerminalFiles {
+        let list: File?
+        let backup: File?
+        let record: RestoreRecord?
+
+        var isUserSelection: Bool {
+            guard record == nil, let list else { return false }
+            return list.data.prefix(while: { $0 != 10 && $0 != 13 }) == Data(OmarchyTerminalIntegration.desktopID.utf8)
+        }
+
+        var state: TerminalSelection.State {
+            guard let record else {
+                return list?.data.starts(with: OmarchyTerminalIntegration.selectionPrefix) == true ? .conflict : .unmanaged
+            }
+            if record.matchesManaged(list) { return .managed }
+            if record.matchesOriginal(list) { return .pending }
+            return .conflict
+        }
+    }
+
+    private typealias TagFiles = (config: File, range: Range<Int>?, module: File?)
+    private let environment: IntegrationEnvironment
     private let directory: URL
+    private let terminalDirectory: URL
 
     public init(environment: IntegrationEnvironment = .process()) {
+        self.environment = environment
+        // Omarchy's own selector writes to the literal home path, even with XDG_CONFIG_HOME set.
+        terminalDirectory = environment.homeDirectory.appendingPathComponent(".config", isDirectory: true)
         let configRoot = environment.xdgConfigHome.flatMap { path in
             path.hasPrefix("/") ? URL(fileURLWithPath: path, isDirectory: true) : nil
-        } ?? environment.homeDirectory.appendingPathComponent(".config", isDirectory: true)
+        } ?? terminalDirectory
         directory = configRoot.appendingPathComponent("hypr", isDirectory: true)
     }
 
     public func status() throws -> Status {
+        let selection: TerminalSelection
+        do {
+            selection = try withTerminalDirectory(create: false) { fd in
+                try describeSelection(inspectTerminalFiles(fd))
+            }
+        } catch {
+            selection = TerminalSelection(state: .unavailable, path: terminalListPath, firstEntry: nil,
+                                          detail: error.localizedDescription)
+        }
         do {
             return try withDirectory { fd in
                 let files = try inspect(fd)
-                return status(hasInclude: files.range != nil, hasModule: files.module != nil)
+                return status(tagState(hasInclude: files.range != nil, hasModule: files.module != nil), selection: selection)
             }
         } catch let error as EntryPointUnavailable {
-            return status(.unavailable, detail: error.localizedDescription)
+            return status(.unavailable, selection: selection, detail: error.localizedDescription)
         }
     }
 
     public func setEnabled(_ enabled: Bool) throws -> Status {
-        try withDirectory { fd in
-            let (config, range, module) = try inspect(fd)
-            if enabled {
-                if module == nil {
-                    try write(Self.module, named: Self.moduleName, replacing: nil, in: fd)
+        try withDirectory { hyprFD in
+            let tag = try inspect(hyprFD)
+            return try withTerminalDirectory(create: enabled) { terminalFD in
+                let files = try inspectTerminalFiles(terminalFD)
+                if enabled, files.state == .conflict {
+                    throw Failure(describeSelection(files).detail ?? "Conflicting Omarchy terminal list.")
                 }
-                if range == nil {
-                    var updated = config.data
-                    let (index, include) = Self.insertion(in: updated)
-                    updated.insert(contentsOf: include, at: index)
-                    do {
-                        try write(updated, named: Self.configName, replacing: config, in: fd)
-                    } catch {
-                        if module == nil { try removeModule(in: fd) }
-                        throw error
-                    }
+                if enabled, files.record == nil, !files.isUserSelection,
+                   (files.list?.data.count ?? 0) + Self.selectionPrefix.count > Self.terminalListLimit {
+                    throw Failure("The terminal list is too large to manage.")
                 }
-            } else {
-                if let range {
-                    var updated = config.data
-                    var start = range.lowerBound
-                    // The EOF-header variant starts with a newline. It must still separate the
-                    // hash header from any user code appended after the managed block.
-                    if range.upperBound < updated.endIndex && updated[start] == 10 {
-                        start += 1
-                    }
-                    updated.removeSubrange(start..<range.upperBound)
-                    try write(updated, named: Self.configName, replacing: config, in: fd)
-                }
-                if module != nil { try removeModule(in: fd) }
+                try setTagEnabled(enabled, files: tag, in: hyprFD)
+                if let terminalFD { try setTerminalSelection(enabled, files: files, in: terminalFD) }
+                return status(enabled ? .enabled : .disabled, selection: try describeSelection(inspectTerminalFiles(terminalFD)))
             }
-            return status(hasInclude: enabled, hasModule: enabled)
+        }
+    }
+
+    private func setTagEnabled(_ enabled: Bool, files: TagFiles, in fd: Int32) throws {
+        let (config, range, module) = files
+        if enabled {
+            if module == nil { try write(Self.module, named: Self.moduleName, replacing: nil, in: fd) }
+            guard range == nil else { return }
+            var updated = config.data
+            let (index, include) = Self.insertion(in: updated)
+            updated.insert(contentsOf: include, at: index)
+            do {
+                try write(updated, named: Self.configName, replacing: config, in: fd)
+            } catch {
+                if module == nil { try removeModule(in: fd) }
+                throw error
+            }
+        } else {
+            if let range {
+                var updated = config.data
+                var start = range.lowerBound
+                // Preserve the separator if the user appended code after an unterminated hash header.
+                if range.upperBound < updated.endIndex && updated[start] == 10 { start += 1 }
+                updated.removeSubrange(start..<range.upperBound)
+                try write(updated, named: Self.configName, replacing: config, in: fd)
+            }
+            if module != nil { try removeModule(in: fd) }
         }
     }
 
     private static let configName = "hyprland.lua"
     private static let moduleName = "agterm-omarchy.lua"
+    private static let desktopID = "io.github.melonamin.agterm.desktop"
+    private static let terminalListName = "xdg-terminals.list"
+    private static let restoreName = ".agterm-omarchy-terminal-list-v1.json"
+    private static let selectionPrefix = Data("\(desktopID)\n# Managed by agtermctl integration omarchy\n".utf8)
+    private static let terminalListLimit = 1024 * 1024
     private static let marker = "agterm Omarchy terminal tag"
     private static let include = Data(("""
         -- >>> agterm Omarchy terminal tag >>>
@@ -123,19 +220,125 @@ public struct OmarchyTerminalIntegration {
         })
         """# + "\n").utf8)
 
-    private func status(hasInclude: Bool, hasModule: Bool) -> Status {
-        let state: State = hasInclude == hasModule ? (hasInclude ? .enabled : .disabled) : .incomplete
-        return status(state)
+    private func tagState(hasInclude: Bool, hasModule: Bool) -> State {
+        hasInclude == hasModule ? (hasInclude ? .enabled : .disabled) : .incomplete
     }
 
     private var configPath: String { directory.appendingPathComponent(Self.configName).path }
 
-    private func status(_ state: State, detail: String? = nil) -> Status {
+    private func status(_ state: State, selection: TerminalSelection, detail: String? = nil) -> Status {
         Status(state: state, configPath: configPath,
-               modulePath: directory.appendingPathComponent(Self.moduleName).path, detail: detail)
+               modulePath: directory.appendingPathComponent(Self.moduleName).path, detail: detail,
+               terminalSelection: selection, warnings: shadowingWarnings())
     }
 
-    private func inspect(_ fd: Int32) throws -> (config: File, range: Range<Int>?, module: File?) {
+    private var terminalListPath: String { terminalDirectory.appendingPathComponent(Self.terminalListName).path }
+
+    private func describeSelection(_ files: TerminalFiles) -> TerminalSelection {
+        let firstEntry = files.list?.data.split(separator: 10).lazy.compactMap {
+            String(data: $0, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.first { entry in
+            !entry.isEmpty && !entry.hasPrefix("#") && !entry.hasPrefix("-") && !entry.hasPrefix("+") && !entry.hasPrefix("/")
+        }
+        let detail: String?
+        switch files.state {
+        case .conflict where files.backup != nil:
+            detail = "The terminal list changed while enabled. Its edits and the original restore record are preserved."
+        case .conflict:
+            detail = "The terminal list has an agterm marker but its restore record is missing. The list is preserved."
+        case .pending:
+            detail = "A restore record exists and the original terminal list is in place. Retry enable or disable."
+        default:
+            detail = nil
+        }
+        return TerminalSelection(state: files.state, path: terminalListPath, firstEntry: firstEntry, detail: detail)
+    }
+
+    private func inspectTerminalFiles(_ fd: Int32?) throws -> TerminalFiles {
+        guard let fd else { return TerminalFiles(list: nil, backup: nil, record: nil) }
+        let list = try read(Self.terminalListName, in: fd)
+        let backup = try read(Self.restoreName, in: fd)
+        let record = try backup.map { file in
+            guard let record = try? JSONDecoder().decode(RestoreRecord.self, from: file.data),
+                  record.version == 1, record.managedBytes.count <= Self.terminalListLimit else {
+                throw Failure("The agterm terminal-list restore record is invalid: \(Self.restoreName)")
+            }
+            return record
+        }
+        return TerminalFiles(list: list, backup: backup, record: record)
+    }
+
+    private func setTerminalSelection(_ enabled: Bool, files: TerminalFiles, in fd: Int32) throws {
+        if enabled {
+            // A selection that the user already made belongs to the user.
+            guard files.state != .managed, !files.isUserSelection else { return }
+            let record = files.record ?? RestoreRecord(version: 1, original: files.list.map(RestoreRecord.Original.init))
+            let managedBytes = record.managedBytes
+            // Persist the original before publishing the marked file. A retry can resume from either state.
+            if files.backup == nil {
+                try write(JSONEncoder().encode(record), named: Self.restoreName, replacing: nil, in: fd)
+            }
+            try write(managedBytes, named: Self.terminalListName, replacing: files.list, in: fd)
+        } else if let backup = files.backup, files.state != .conflict {
+            if files.state == .managed, let list = files.list {
+                if let original = files.record?.original {
+                    try write(original.data, named: Self.terminalListName, replacing: list, in: fd)
+                } else {
+                    try remove(Self.terminalListName, matching: list, in: fd)
+                }
+            }
+            try remove(Self.restoreName, matching: backup, in: fd)
+        }
+    }
+
+    private func shadowingWarnings() -> [String] {
+        let packageCLI = environment.packageCLI()
+        let systemCLI = packageCLI ?? URL(fileURLWithPath: "/usr/bin/agtermctl")
+        let packageDesktop = systemCLI.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("share/applications/\(Self.desktopID)")
+        var warnings: [String] = []
+        if let desktop = desktopOnXDGPath(), Self.fileInfo(packageDesktop) != nil, !Self.sameFile(desktop, packageDesktop) {
+            warnings.append("Desktop entry \(desktop.path) shadows \(packageDesktop.path).")
+        }
+        if let cli = environment.pathCLI() {
+            let intended = packageCLI ?? environment.executableURL
+            let launcher = (packageCLI ?? cli).resolvingSymlinksInPath()
+            let wrapperBinary = launcher.appendingPathExtension("bin")
+            // The system package's shell launcher execs its sibling agtermctl.bin.
+            let matchesWrapper = packageCLI == nil
+                ? Self.sameFile(wrapperBinary, intended)
+                : Self.sameFile(wrapperBinary, cli)
+            if !Self.sameFile(cli, intended), !matchesWrapper {
+                warnings.append("PATH entry \(cli.path) shadows \(intended.path). Run \(intended.path) explicitly.")
+            }
+        }
+        return warnings
+    }
+
+    private func desktopOnXDGPath() -> URL? {
+        let variables = environment.probeEnvironment
+        let userData = variables["XDG_DATA_HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0) : nil }
+            ?? environment.homeDirectory.appendingPathComponent(".local/share", isDirectory: true)
+        let systemData = variables["XDG_DATA_DIRS"].flatMap { $0.isEmpty ? nil : $0 } ?? "/usr/local/share:/usr/share"
+        let directories = [userData] + systemData.split(separator: ":").filter { $0.hasPrefix("/") }.map {
+            URL(fileURLWithPath: String($0), isDirectory: true)
+        }
+        return directories.lazy.map { $0.appendingPathComponent("applications/\(Self.desktopID)") }
+            .first { Self.fileInfo($0) != nil }
+    }
+
+    private static func fileInfo(_ url: URL) -> stat? {
+        var info = stat()
+        guard fstatat(AT_FDCWD, url.path, &info, 0) == 0, info.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG) else { return nil }
+        return info
+    }
+
+    private static func sameFile(_ first: URL, _ second: URL) -> Bool {
+        guard let left = fileInfo(first), let right = fileInfo(second) else { return false }
+        return left.st_dev == right.st_dev && left.st_ino == right.st_ino
+    }
+
+    private func inspect(_ fd: Int32) throws -> TagFiles {
         guard let config = try read(Self.configName, in: fd) else {
             throw EntryPointUnavailable.missing(configPath)
         }
@@ -165,9 +368,23 @@ public struct OmarchyTerminalIntegration {
     }
 
     private func withDirectory<T>(_ action: (Int32) throws -> T) throws -> T {
+        try withLockedDirectory(directory, whenMissing: { throw EntryPointUnavailable.missing(configPath) }, action)
+    }
+
+    private func withTerminalDirectory<T>(create: Bool, _ action: (Int32?) throws -> T) throws -> T {
+        if create {
+            try FileManager.default.createDirectory(at: terminalDirectory, withIntermediateDirectories: true)
+        }
+        return try withLockedDirectory(terminalDirectory, whenMissing: {
+            if create { throw failure("open \(terminalDirectory.path)") }
+            return try action(nil)
+        }) { try action($0) }
+    }
+
+    private func withLockedDirectory<T>(_ directory: URL, whenMissing: () throws -> T, _ action: (Int32) throws -> T) throws -> T {
         let fd = open(directory.path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
         guard fd >= 0 else {
-            if errno == ENOENT { throw EntryPointUnavailable.missing(configPath) }
+            if errno == ENOENT { return try whenMissing() }
             throw failure("open \(directory.path)")
         }
         defer { _ = close(fd) }
@@ -191,7 +408,15 @@ public struct OmarchyTerminalIntegration {
               entry.st_uid == geteuid(), entry.st_nlink == 1 else {
             throw Failure("Expected a regular file owned by this user with a single link: \(name)")
         }
-        let data = try handle.readToEnd() ?? Data()
+        let data: Data
+        if name == Self.terminalListName || name == Self.restoreName {
+            let limit = name == Self.terminalListName ? Self.terminalListLimit : Self.terminalListLimit * 2
+            guard entry.st_size <= limit else { throw Failure("The file is too large to manage: \(name)") }
+            data = try handle.read(upToCount: limit + 1) ?? Data()
+            guard data.count <= limit else { throw Failure("The file is too large to manage: \(name)") }
+        } else {
+            data = try handle.readToEnd() ?? Data()
+        }
         return File(data: data, inode: entry.st_ino, mode: entry.st_mode & 0o7777, group: entry.st_gid)
     }
 
@@ -225,6 +450,11 @@ public struct OmarchyTerminalIntegration {
         guard let module = try read(Self.moduleName, in: directory) else { return }
         guard module.data == Self.module else { throw Failure("The agterm module changed during the integration update.") }
         guard unlinkat(directory, Self.moduleName, 0) == 0 else { throw failure("remove \(Self.moduleName)") }
+    }
+
+    private func remove(_ name: String, matching expected: File, in directory: Int32) throws {
+        guard try read(name, in: directory) == expected else { throw Failure("\(name) changed during the integration update.") }
+        guard unlinkat(directory, name, 0) == 0 else { throw failure("remove \(name)") }
     }
 
     private func failure(_ operation: String) -> Failure {

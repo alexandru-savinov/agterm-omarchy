@@ -3,6 +3,106 @@ import Testing
 @testable import LinuxIntegrations
 
 struct OmarchyTerminalIntegrationTests {
+    @Test func repeatedEnableRestoresTheOriginalTerminalListAndMode() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        try Data("-- user config\n".utf8).write(to: fixture.config)
+        let original = Data([0xef, 0xbb, 0xbf]) + Data("# preferred terminal\r\nfoot.desktop\r\nkitty.desktop".utf8)
+        try original.write(to: fixture.terminalList)
+        try FileManager.default.setAttributes([.posixPermissions: 0o640], ofItemAtPath: fixture.terminalList.path)
+
+        _ = try fixture.integration.setEnabled(true)
+        let enabled = try Data(contentsOf: fixture.terminalList)
+        #expect(enabled.starts(with: Data("io.github.melonamin.agterm.desktop\n".utf8)))
+        #expect(enabled.suffix(original.count) == original)
+        #expect(try fixture.mode(of: fixture.terminalList) == 0o640)
+        _ = try fixture.integration.setEnabled(true)
+        #expect(try Data(contentsOf: fixture.terminalList) == enabled)
+
+        _ = try fixture.integration.setEnabled(false)
+        _ = try fixture.integration.setEnabled(false)
+        #expect(try Data(contentsOf: fixture.terminalList) == original)
+        #expect(try fixture.mode(of: fixture.terminalList) == 0o640)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.omarchyConfig.path) == ["xdg-terminals.list"])
+    }
+
+    @Test func disableRemovesOnlyATerminalListThatEnableCreated() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        try Data("-- user config\n".utf8).write(to: fixture.config)
+        let fm = FileManager.default
+        #expect(!fm.fileExists(atPath: fixture.terminalList.path))
+
+        _ = try fixture.integration.setEnabled(true)
+        #expect(fm.fileExists(atPath: fixture.terminalList.path))
+        _ = try fixture.integration.setEnabled(false)
+        #expect(!fm.fileExists(atPath: fixture.terminalList.path))
+        #expect(try fm.contentsOfDirectory(atPath: fixture.omarchyConfig.path).isEmpty)
+
+        let alreadySelected = Data("io.github.melonamin.agterm.desktop\nfoot.desktop".utf8)
+        try alreadySelected.write(to: fixture.terminalList)
+        _ = try fixture.integration.setEnabled(true)
+        _ = try fixture.integration.setEnabled(false)
+        #expect(try Data(contentsOf: fixture.terminalList) == alreadySelected)
+    }
+
+    @Test func disablePreservesAListEditedWhileEnabledAndReportsTheConflict() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        let lua = Data("-- user config\n".utf8)
+        try lua.write(to: fixture.config)
+        try Data("foot.desktop\n".utf8).write(to: fixture.terminalList)
+        _ = try fixture.integration.setEnabled(true)
+
+        let edited = Data("kitty.desktop\nfoot.desktop\n".utf8)
+        try edited.write(to: fixture.terminalList)
+        let disabled = try fixture.integration.setEnabled(false)
+        let report = String(decoding: try JSONEncoder().encode(disabled), as: UTF8.self)
+        #expect(report.contains("conflict"))
+        #expect(try Data(contentsOf: fixture.terminalList) == edited)
+        #expect(try Data(contentsOf: fixture.config) == lua)
+        #expect(!FileManager.default.fileExists(atPath: fixture.module.path))
+    }
+
+    @Test func statusAndEnableReportEarlierDesktopAndCLIWithoutEditingThem() throws {
+        let fixture = try Fixture()
+        defer { fixture.clean() }
+        try Data("-- user config\n".utf8).write(to: fixture.config)
+        let packageRoot = fixture.root.appendingPathComponent("usr")
+        let oldRoot = fixture.root.appendingPathComponent("old")
+        let desktopName = "applications/io.github.melonamin.agterm.desktop"
+        let packageDesktop = packageRoot.appendingPathComponent("share/\(desktopName)")
+        let oldDesktop = oldRoot.appendingPathComponent("share/\(desktopName)")
+        let packageCLI = packageRoot.appendingPathComponent("bin/agtermctl")
+        let oldCLI = oldRoot.appendingPathComponent("bin/agtermctl")
+        let oldBytes = Data("older build".utf8)
+        let fm = FileManager.default
+        for file in [packageDesktop, oldDesktop, packageCLI, oldCLI] {
+            try fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try oldBytes.write(to: file)
+            try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: file.path)
+        }
+        let directoryOnPATH = fixture.root.appendingPathComponent("not-a-cli").appendingPathComponent("agtermctl")
+        try fm.createDirectory(at: directoryOnPATH, withIntermediateDirectories: true)
+        let dataDirs = [oldRoot, packageRoot].map { $0.appendingPathComponent("share").path }.joined(separator: ":")
+        let integration = OmarchyTerminalIntegration(environment: IntegrationEnvironment(
+            homeDirectory: fixture.root, executableURL: packageCLI,
+            pathDirectories: [directoryOnPATH.deletingLastPathComponent(), oldCLI.deletingLastPathComponent(), packageCLI.deletingLastPathComponent()],
+            resourceRoot: nil, knownCommandLineTools: [packageCLI], xdgConfigHome: fixture.directory.deletingLastPathComponent().path,
+            probeEnvironment: ["XDG_DATA_DIRS": dataDirs]))
+
+        for status in [try integration.status(), try integration.setEnabled(true)] {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.withoutEscapingSlashes]
+            let report = String(decoding: try encoder.encode(status), as: UTF8.self)
+            #expect(report.contains("shadows"))
+            #expect(report.contains(oldDesktop.path))
+            #expect(report.contains(oldCLI.path))
+        }
+        #expect(try Data(contentsOf: oldDesktop) == oldBytes)
+        #expect(try Data(contentsOf: oldCLI) == oldBytes)
+    }
+
     @Test func enableAndDisableAreIdempotentAndRestoreExactUserBytes() throws {
         let fixture = try Fixture()
         defer { fixture.clean() }
@@ -159,6 +259,8 @@ struct OmarchyTerminalIntegrationTests {
         let integration: OmarchyTerminalIntegration
         var config: URL { directory.appendingPathComponent("hyprland.lua") }
         var module: URL { directory.appendingPathComponent("agterm-omarchy.lua") }
+        var omarchyConfig: URL { root.appendingPathComponent(".config", isDirectory: true) }
+        var terminalList: URL { omarchyConfig.appendingPathComponent("xdg-terminals.list") }
 
         init(useXDG: Bool = true) throws {
             root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -168,6 +270,7 @@ struct OmarchyTerminalIntegrationTests {
                 homeDirectory: root, executableURL: root.appendingPathComponent("agtermctl"),
                 pathDirectories: [], resourceRoot: nil, xdgConfigHome: useXDG ? configRoot.path : nil))
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: omarchyConfig, withIntermediateDirectories: true)
         }
 
         func mode(of url: URL) throws -> Int? {

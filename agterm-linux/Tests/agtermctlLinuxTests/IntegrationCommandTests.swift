@@ -31,12 +31,38 @@ struct IntegrationCommandTests {
         #expect(enabled.output.contains("Hyprland config: \(config.path)"))
         let module = config.deletingLastPathComponent().appendingPathComponent("agterm-omarchy.lua")
         #expect(enabled.output.contains("Rule module: \(module.path)"))
+        let list = fixture.home.appendingPathComponent(".config/xdg-terminals.list")
+        #expect(enabled.output.contains("Default terminal list: \(list.path)"))
+        #expect(enabled.output.contains("First entry: io.github.melonamin.agterm.desktop"))
 
         try fixture.write(configText, to: config)
         let refreshed = try fixture.run(command + ["status"])
         #expect(refreshed.status == 0)
         #expect(refreshed.output.contains("Omarchy terminal tag: incomplete"))
         #expect(try fixture.run(command + ["enable"]).output.contains("Omarchy terminal tag: enabled"))
+        let disabled = try fixture.run(command + ["disable"])
+        #expect(disabled.status == 0)
+        #expect(!FileManager.default.fileExists(atPath: list.path))
+    }
+
+    @Test func omarchyEnableWarnsWhenPATHSelectsADifferentCLI() throws {
+        let fixture = try CLIFixture(copyResources: false)
+        try fixture.write("-- user config\n", to: fixture.home.appendingPathComponent(".config/hypr/hyprland.lua"))
+        let oldCLI = fixture.home.appendingPathComponent(".local/bin/agtermctl")
+        try fixture.write("#!/bin/sh\nexit 97\n", to: oldCLI)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: oldCLI.path)
+        let command = ["integration", "omarchy"]
+        let path = oldCLI.deletingLastPathComponent().path
+
+        let status = try fixture.run(command + ["status"], path: path)
+        #expect(status.status == 0)
+        #expect(status.output.contains("Warning:"))
+        #expect(status.output.contains(oldCLI.path))
+        let enabled = try fixture.run(command + ["enable"], path: path)
+        #expect(enabled.status == 0)
+        #expect(enabled.error.contains("Warning:"))
+        #expect(enabled.error.contains(oldCLI.path))
+        #expect(try String(contentsOf: oldCLI, encoding: .utf8) == "#!/bin/sh\nexit 97\n")
     }
 
     @Test("status accepts the control socket compatibility option")
@@ -182,14 +208,14 @@ private final class CLIFixture {
 
     deinit { try? FileManager.default.removeItem(at: root) }
 
-    func run(_ arguments: [String], home selectedHome: URL? = nil) throws -> Result {
+    func run(_ arguments: [String], home selectedHome: URL? = nil, path: String = "") throws -> Result {
         let process = Process()
         process.executableURL = testProductsDirectory.appendingPathComponent("agtermctl-linux")
         process.arguments = arguments
         var environment = ProcessInfo.processInfo.environment
         environment["HOME"] = (selectedHome ?? home).path
         environment["XDG_CONFIG_HOME"] = nil
-        environment["PATH"] = ""
+        environment["PATH"] = path
         environment["AGTERM_RESOURCE_ROOT"] = resources.path
         environment["AGTERM_STATE_DIR"] = root.appendingPathComponent("state").path
         environment["AGTERM_SOCKET"] = root.appendingPathComponent("missing.sock").path
