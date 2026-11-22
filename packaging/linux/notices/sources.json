@@ -1709,6 +1709,7 @@
     "linux/patches/ghostty-clipboard-request-kind.patch": "4468c6b761ba8a82a4da47ec731845d6792456e1da4b80f948051ea5f7f9c0f6",
     "linux/patches/ghostty-embedded-input-handoff.patch": "1cc9ecc7b1dbbe8432cf75c794600aadeed694ab2f677e87d221ddf5d6d0120a",
     "linux/patches/ghostty-embedded-opengl.patch": "c495d6f3743082bffcad0cc9a543052e78014e26e6c2c4e49124fd1d3cd4866d",
+    "linux/patches/ghostty-fontconfig-explicit-family.patch": "9f61e194a6e7edfa61326cb6ff6cc0b7b3f35abd093c5790973c36ba62ed64a0",
     "linux/patches/ghostty-lib-resources.patch": "ec86e84173b0e1b712c1506eb074ef6ef8e25d0efbf6ce40f467bd39944a33ee",
     "linux/patches/ghostty-surface-env-unset.patch": "b9bdd2c5fb18acb54c0766448a451932051d39bd0c67db0354abaed3d043b340",
     "scripts/ghostty-patches/0001-drain-mailbox-during-surface-teardown.patch": "76d2f9c49e68a1ac89363cf0438d5e5aef19dd3ca5ff18b404873da382c98e8d",
