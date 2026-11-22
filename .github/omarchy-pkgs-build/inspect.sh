@@ -24,6 +24,12 @@ pacman -Sy --noconfirm >/dev/null
 pacman -U --noconfirm "$pkg" >"$out/pacman-U.log" 2>&1
 pacman -S --needed --noconfirm namcap desktop-file-utils >/dev/null
 
+if bsdtar -tf "$pkg" .INSTALL >/dev/null 2>&1 && grep -qF 'agtermctl integration omarchy enable' "$out/pacman-U.log"; then
+  record PASS install-message "post_install printed the integration hint"
+else
+  record FAIL install-message "no .INSTALL or no hint in pacman-U.log"
+fi
+
 declare -A owner=()
 ceiling=GLIBC_2.38
 max_glibc=GLIBC_2.0
