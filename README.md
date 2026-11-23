@@ -53,10 +53,14 @@ and an **agterm** entry in the application launcher.
 It does not change your Hyprland configuration or default terminal.
 Remove it from the same directory with `agterm-release/agterm-omarchy/scripts/install-linux.sh --uninstall`.
 
-If the window stays blank or agterm reports an EGL or OpenGL error, run
-`LIBGL_ALWAYS_SOFTWARE=1 ~/.local/bin/agterm-linux` once.
-If that works, run the install command again with `--software-rendering` to keep it;
-`--default-rendering` switches back. See [Rendering](packaging/linux/omarchy.md#rendering).
+If the window stays blank or agterm reports an EGL or OpenGL error, try software rendering.
+Save your work and quit agterm completely, because a new launch while it runs only opens a window in the
+running app and keeps its renderer. Then, from another terminal, run
+`LIBGL_ALWAYS_SOFTWARE=1 ~/.local/bin/agterm-linux`.
+If that works, keep it by reinstalling from the same directory as the install block:
+`agterm-release/agterm-omarchy/scripts/install-linux.sh --payload agterm-release/agterm-stage --software-rendering`.
+The same command with `--default-rendering` switches back; either change applies from the next fresh launch.
+See [Rendering](packaging/linux/omarchy.md#rendering).
 
 To build from source instead, follow the [Omarchy / Arch guide](packaging/linux/omarchy.md):
 

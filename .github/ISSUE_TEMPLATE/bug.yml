@@ -28,8 +28,10 @@ body:
     attributes:
       label: agterm version
       description: >-
-        Paste the output of `agtermctl version` (it needs agterm running).
-        If agterm does not start, give the release tag or archive name, or the output of `pacman -Q | grep agterm`.
+        While agterm is running, paste the output of `agtermctl version --json`
+        (plain `agtermctl version` also prints your local install path).
+        If agterm does not start: for a package install, paste `pacman -Q agterm-omarchy-bin`;
+        for an archive install, give the release tag or archive file name.
         Write n/a for a build-only failure.
       render: text
     validations:
@@ -38,7 +40,10 @@ body:
     id: gpu
     attributes:
       label: GPU and driver
-      description: Paste the output of `lspci -k | grep -A3 -E 'VGA|3D'`. In a VM, also name the hypervisor. Write n/a for a build-only failure.
+      description: >-
+        Paste the output of `lspci -nnk -d '::03xx'`. In a VM, also name the hypervisor.
+        Write "unavailable" if lspci (pciutils) is not installed or the GPU is not on PCI,
+        and n/a for a build-only failure.
       render: text
     validations:
       required: true
@@ -47,10 +52,12 @@ body:
     attributes:
       label: Renderer mode
       description: >-
-        Paste the output of
-        `cat ~/.local/lib/agterm/share/agterm/RENDERER /usr/lib/agterm/share/agterm/RENDERER 2>/dev/null; echo "LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE-unset}"`.
+        For the install you are reporting: an archive install in ~/.local stores its mode in
+        `~/.local/lib/agterm/share/agterm/RENDERER`; paste that file's contents, labelled with the path.
+        A package install has no such file; write "package".
+        Also say whether you set LIBGL_ALWAYS_SOFTWARE yourself when launching agterm
+        (in the command, the session environment such as ~/.config/uwsm/env, or a launcher), and to what value.
         Write n/a for a build-only failure.
-      render: text
     validations:
       required: true
   - type: textarea
