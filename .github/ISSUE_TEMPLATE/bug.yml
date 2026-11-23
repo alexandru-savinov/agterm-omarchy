@@ -12,6 +12,55 @@ body:
       description: Omarchy version, uname -m, GTK version, Hyprland version, agterm commit or artifact name.
     validations:
       required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How agterm was installed
+      options:
+        - README release archive into ~/.local
+        - omarchy-pkgs package
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: version
+    attributes:
+      label: agterm version
+      description: >-
+        While agterm is running, paste the output of `agtermctl version --json` if it succeeds
+        (plain `agtermctl version` and its error messages can print local paths).
+        If agterm does not start or the command fails: for a package install, paste `pacman -Q agterm-omarchy-bin`;
+        for an archive install, give the release tag or archive file name; for a source build, the git commit.
+        Write n/a for a build-only failure.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: gpu
+    attributes:
+      label: GPU and driver
+      description: >-
+        Paste the output of `lspci -nnk -d '::03xx'`. In a VM, also name the hypervisor.
+        Write "unavailable" if lspci (pciutils) is not installed or the GPU is not on PCI,
+        and n/a for a build-only failure.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: renderer
+    attributes:
+      label: Renderer mode
+      description: >-
+        For the install you are reporting: anything installed with `scripts/install-linux.sh`
+        (the release archive or a source install) stores its mode in `<prefix>/lib/agterm/share/agterm/RENDERER`,
+        by default `~/.local/lib/agterm/share/agterm/RENDERER`; paste that file's contents, labelled with the path.
+        A package install has no such file; write "package". A source build run directly with `scripts/run-linux.sh` has none; write "source".
+        Also say whether you set LIBGL_ALWAYS_SOFTWARE yourself when launching agterm
+        (in the command, the session environment such as ~/.config/uwsm/env, or a launcher), and to what value.
+        Write n/a for a build-only failure.
+    validations:
+      required: true
   - type: textarea
     id: reproduce
     attributes:
