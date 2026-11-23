@@ -27,7 +27,10 @@ body:
     id: version
     attributes:
       label: agterm version
-      description: Paste the output of `agtermctl version`.
+      description: >-
+        Paste the output of `agtermctl version` (it needs agterm running).
+        If agterm does not start, give the release tag or archive name, or the output of `pacman -Q | grep agterm`.
+        Write n/a for a build-only failure.
       render: text
     validations:
       required: true
@@ -35,7 +38,7 @@ body:
     id: gpu
     attributes:
       label: GPU and driver
-      description: Paste the output of `lspci -k | grep -A3 -E 'VGA|3D'`. In a VM, also name the hypervisor.
+      description: Paste the output of `lspci -k | grep -A3 -E 'VGA|3D'`. In a VM, also name the hypervisor. Write n/a for a build-only failure.
       render: text
     validations:
       required: true
@@ -46,6 +49,7 @@ body:
       description: >-
         Paste the output of
         `cat ~/.local/lib/agterm/share/agterm/RENDERER /usr/lib/agterm/share/agterm/RENDERER 2>/dev/null; echo "LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE-unset}"`.
+        Write n/a for a build-only failure.
       render: text
     validations:
       required: true
