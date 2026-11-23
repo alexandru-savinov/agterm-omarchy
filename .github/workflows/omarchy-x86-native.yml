@@ -504,7 +504,8 @@ jobs:
         run: |
           bash -n .github/omarchy-x86-native/default-renderer.sh
           shellcheck -x -P SCRIPTDIR .github/omarchy-x86-native/default-renderer.sh
-          python3 -I .github/omarchy-x86-native/test_default_renderer.py
+          # Named outside test_*.py so the source job, which every gate and caller needs, never runs it.
+          python3 -I .github/omarchy-x86-native/default_renderer_check.py
       - name: Resolve both releases
         id: resolve
         timeout-minutes: 5
@@ -517,10 +518,17 @@ jobs:
           for tag in "$FROM_TAG" "$TO_TAG"; do
             [[ "$tag" =~ ^omarchy-v[0-9]+(\.[0-9]+)+$ ]] || { echo "not a versioned release tag: '$tag'"; exit 1; }
           done
-          [[ "$FROM_TAG" != "$TO_TAG" ]] || { echo "from and to are the same release"; exit 1; }
+          # N-1 -> N only: never the same release or a downgrade.
+          python3 -I -c 'import sys; v = [tuple(map(int, t.removeprefix("omarchy-v").split("."))) for t in sys.argv[1:]]; sys.exit(v[0] >= v[1])' \
+            "$FROM_TAG" "$TO_TAG" || { echo "$FROM_TAG is not older than $TO_TAG"; exit 1; }
           for leg in from to; do
             tag="$FROM_TAG"; [[ "$leg" == to ]] && tag="$TO_TAG"
             python3 -I .github/omarchy-x86-native/release-assets.py resolve --tag "$tag" --arch x86_64 > "$RUNNER_TEMP/$leg.json"
+            # The git tag must point at the promoted commit, so the installer checked out for it is that tag's.
+            sha="$(jq -r .sha "$RUNNER_TEMP/$leg.json")"
+            read -r type target < <(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq '"\(.object.type) \(.object.sha)"')
+            [[ "$type" != tag ]] || target="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$target" --jq '.object.sha')"
+            [[ "$target" == "$sha" ]] || { echo "tag $tag points at $target, not the promoted $sha"; exit 1; }
             echo "${leg}_sha=$(jq -r .sha "$RUNNER_TEMP/$leg.json")" | tee -a "$GITHUB_OUTPUT"
           done
       - name: Download both releases and verify them before anything runs
@@ -551,10 +559,12 @@ jobs:
                 --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/prerelease-omarchy.yml" --source-ref refs/heads/main \
                 --deny-self-hosted-runners --predicate-type "$predicate" --format json > "$RUNNER_TEMP/attestation-$leg.json" \
                 2>> "$RUNNER_TEMP/out/attestation-$leg.txt" || { echo "::error::$tag: $predicate attestation did not verify"; exit 1; }
-              [[ "$predicate" == https://slsa.dev/* ]] || jq -e --arg sha "$sha" \
-                'length > 0 and all(.[]; .verificationResult.statement.predicate.source_commit == $sha)' \
+              # The signed promotion must name the requested tag and version as well as the commit.
+              [[ "$predicate" == https://slsa.dev/* ]] || jq -e --arg sha "$sha" --arg tag "$tag" --arg version "${tag#omarchy-v}" \
+                'length > 0 and all(.[]; .verificationResult.statement.predicate |
+                  .source_commit == $sha and .tag == $tag and .version == $version)' \
                 "$RUNNER_TEMP/attestation-$leg.json" >> "$RUNNER_TEMP/out/attestation-$leg.txt" ||
-                { echo "::error::$tag: the promotion attestation does not name $sha"; exit 1; }
+                { echo "::error::$tag: the promotion attestation does not name $tag, ${tag#omarchy-v} and $sha"; exit 1; }
             done
             echo "$tag $archive $(sha256sum "$dir/$archive" | cut -d' ' -f1) commit=$sha attestation=verified" |
               tee -a "$RUNNER_TEMP/host-record.txt"

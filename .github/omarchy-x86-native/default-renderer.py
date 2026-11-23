@@ -7,6 +7,7 @@ must be present and PASS. Rows other than SCENARIO_ROWS (versions, digests, the 
 """
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -33,6 +34,20 @@ SESSION_NAMES = ("upgrade-alpha", "upgrade-beta")
 EVIDENCE = Path.home() / "evidence"
 STAGES = {leg: Path.home() / f"stage-{leg}/agterm-stage" for leg in ("from", "to")}
 INSTALLERS = {leg: Path(f"/dr/installer-{leg}/scripts/install-linux.sh") for leg in ("from", "to")}
+# The payload binaries whose bytes identify a release: the app and the control CLI behind their launchers.
+BINARIES = ("bin/agterm-linux.bin", "bin/agtermctl.bin")
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def is_pass(value):
+    return value == "PASS" or value.startswith("PASS ")
 
 
 class Failed(Exception):
@@ -48,7 +63,7 @@ class Scenario:
         self.prefix = self.home / ".local"
         self.app = None
         self.leg = ""
-        self.marker_expected = "AGT43OK" if args.mutation == "wrong-marker" else "AGT42OK"
+        self.marker_value = 43 if args.mutation == "wrong-marker" else 42
         self.min_colours = 10 ** 9 if args.mutation == "blank-threshold" else MIN_DISTINCT_COLOURS
         # The Omarchy session's toolkit environment (default/hypr/envs.lua), no AGTERM_* and no renderer override.
         self.env = {key: value for key, value in os.environ.items()
@@ -143,7 +158,17 @@ class Scenario:
             self.app.wait(timeout=10)
             raise Failed(f"pid {pid} ({exe}) ignored SIGTERM for 30 s") from None
         self.app = None
+        if code != 0:
+            raise Failed(f"pid {pid} ({exe}) exited {code} after SIGTERM, not 0")
         return f"pid={pid} exe={exe} exit={code}"
+
+    def running_is(self, leg):
+        """The running app's image (readable through /proc even once the install replaced it) is LEG's."""
+        running = sha256(f"/proc/{self.app.pid}/exe")
+        expected = sha256(STAGES[leg] / BINARIES[0])
+        if running != expected:
+            raise Failed(f"the running app {running[:12]} is not the {leg} payload's {expected[:12]}")
+        return f"running_exe={leg}:{running[:12]}"
 
     # Assertions
 
@@ -158,7 +183,17 @@ class Scenario:
         version = (self.prefix / "lib/agterm/share/agterm/VERSION").read_text().strip()
         if renderer != "default":
             raise Failed(f"installed RENDERER is {renderer!r}, not 'default'")
-        return f"flags={' '.join(flags) or '(none)'} renderer={renderer} version={version}"
+        return f"flags={' '.join(flags) or '(none)'} renderer={renderer} version={version} {self.installed_is(stage)}"
+
+    def installed_is(self, stage):
+        """The installed app and CLI binaries are the verified payload's bytes."""
+        digests = []
+        for binary in BINARIES:
+            installed, expected = sha256(self.prefix / "lib/agterm" / binary), sha256(stage / binary)
+            if installed != expected:
+                raise Failed(f"installed {binary} {installed[:12]} is not the payload's {expected[:12]}")
+            digests.append(f"{Path(binary).name}={installed[:12]}")
+        return " ".join(digests)
 
     def seed_settings(self):
         # A first launch opens an advisory welcome dialog over the window; it is not what this scenario tests.
@@ -166,7 +201,8 @@ class Scenario:
         state.mkdir(parents=True, exist_ok=True)
         (state / "settings.json").write_text(json.dumps({"welcomeShown": True, "notificationsEnabled": False}))
 
-    def default_renderer(self):
+    def default_renderer(self, leg):
+        identity = self.running_is(leg)
         raw = Path(f"/proc/{self.app.pid}/environ").read_bytes().decode(errors="replace")
         environ = {key: value for key, _, value in (item.partition("=") for item in raw.split("\0") if "=" in item)}
         if "LIBGL_ALWAYS_SOFTWARE" in environ:
@@ -175,7 +211,8 @@ class Scenario:
         mesa = sorted({os.path.basename(line.split()[-1]) for line in maps.splitlines()
                        if re.search(r"/(libgallium|libEGL_mesa|libGLX_mesa|dri/|libvulkan_)", line)})
         compat = "libagterm-egl-compat.so" in environ.get("LD_PRELOAD", "")
-        return f"LIBGL_ALWAYS_SOFTWARE=unset egl_compat_preload={compat} mesa_mapped={','.join(mesa) or 'none'}"
+        return (f"{identity} LIBGL_ALWAYS_SOFTWARE=unset egl_compat_preload={compat} "
+                f"mesa_mapped={','.join(mesa) or 'none'}")
 
     def window_mapped(self):
         window = self.wait_for(self.client, "the app window to map in Hyprland")
@@ -219,13 +256,16 @@ class Scenario:
                 f"(min +{RED_MIN_PIXELS}) before_paint_colours={blank[0]} egl_compat_retry_logged={retry}")
 
     def typed_command(self, session_id):
-        # The typed text holds $((6*7)), not the expected marker, so only executed output can match.
-        self.type_and_wait(session_id, "echo AGT$((6*7))OK")
+        # A fresh nonce per command, and the typed text holds $((6*7)) rather than the result, so only this
+        # command's executed output can match.
+        nonce = uuid.uuid4().hex[:10]
+        command, expected = f"echo AGT$((6*7))_{nonce}", f"AGT{self.marker_value}_{nonce}"
+        self.type_and_wait(session_id, command)
         text = self.ctl("session", "text", "--target", session_id)["text"]
-        (self.leg_dir() / f"session-text-{session_id[:8]}.txt").write_text(text)
-        if self.marker_expected not in text:
-            raise Failed(f"{self.marker_expected} is not in the session text")
-        return f"typed 'echo AGT$((6*7))OK', read back {self.marker_expected}"
+        (self.leg_dir() / f"session-text-{nonce}.txt").write_text(text)
+        if expected not in text:
+            raise Failed(f"{expected} is not in the session text")
+        return f"typed {command!r}, read back {expected}"
 
     def version(self, expected):
         result = self.ctl("version")
@@ -269,7 +309,7 @@ class Scenario:
         self.step("fresh_install", lambda: self.install(INSTALLERS['to'], STAGES['to'], "--default-rendering"))
         self.seed_settings()
         self.launch()
-        self.step("fresh_default_renderer", self.default_renderer)
+        self.step("fresh_default_renderer", lambda: self.default_renderer("to"))
         self.step("fresh_window_mapped", self.window_mapped)
         initial = self.wait_for(self.sessions, "the initial session")[0]["id"]
         self.step("fresh_first_frame", lambda: self.first_frame(initial, "first-frame"))
@@ -292,7 +332,7 @@ class Scenario:
             self.window_mapped()
             initial["id"] = self.wait_for(self.sessions, "the initial session")[0]["id"]
             self.wait_for(lambda: self.session(initial["id"]).get("realized"), "the terminal GL surface to realize")
-            return self.version(a.from_version)
+            return f"{self.version(a.from_version)} {self.default_renderer('from')}"
         self.step("upgrade_from_running", from_running)
         beats = {name: self.home / f"heartbeat-{name}" for name in SESSION_NAMES}
         names = {}
@@ -325,12 +365,12 @@ class Scenario:
         self.step("upgrade_app_survived", survived)
 
         def new_ctl():
-            result = self.ctl("version")
-            self.typed_command(initial["id"])
-            return (f"installed agtermctl ({(self.prefix / 'lib/agterm/share/agterm/VERSION').read_text().strip()}) "
-                    f"answered by running app={result.get('app', {}).get('version')} "
-                    f"installed={(result.get('installed') or {}).get('version')}; "
-                    f"typed command read back")
+            # The CLI answering is N's, and the server it reaches is still N-1's process and image.
+            cli = self.installed_is(STAGES["to"])
+            server = self.version(a.from_version)
+            identity = self.running_is("from")
+            typed = self.typed_command(initial["id"])
+            return f"cli {cli}; server {server} {identity}; {typed}"
         self.step("upgrade_new_ctl_drives_old_app", new_ctl)
         stopped = self.stop_row("upgrade_relaunch")
         if stopped is None:
@@ -342,9 +382,10 @@ class Scenario:
             # Only the selected session is on screen, so only its terminal surface realizes.
             shown = self.wait_for(lambda: next((s["id"] for s in self.sessions() if s.get("active")), None),
                                   "a selected restored session")
+            renderer = self.default_renderer("to")
             detail = self.first_frame(shown, "relaunch-frame")
-            self.typed_command(shown)
-            return f"{stopped}; relaunched pid={self.app.pid}; {detail}"
+            typed = self.typed_command(shown)
+            return f"{stopped}; relaunched pid={self.app.pid} {renderer}; {detail}; {typed}"
         self.step("upgrade_relaunch", relaunch)
         self.step("upgrade_version", lambda: self.version(a.to_version))
 
@@ -407,9 +448,11 @@ def verdict(text):
     for line in text.splitlines():
         name, _, value = line.partition("\t")
         rows.setdefault(name, []).append(value)
-    # A repeated row passes only if every copy does.
-    failed = [name for name in SCENARIO_ROWS if not rows.get(name) or not all(v.startswith("PASS") for v in rows[name])]
-    for name in SCENARIO_ROWS:
+    # A repeated row passes only if every copy does; a mutation run is a self-check and never passes.
+    failed = [name for name in SCENARIO_ROWS if not rows.get(name) or not all(is_pass(v) for v in rows[name])]
+    if rows.get("mutation") != ["INFO none"]:
+        failed.insert(0, "mutation")
+    for name in ("mutation", *SCENARIO_ROWS):
         print(f"{name}\t{' / '.join(rows.get(name, ['MISSING']))}")
     print(f"default-renderer scenario: {'PASS' if not failed else 'FAIL ' + ','.join(failed)}")
     return 1 if failed else 0
