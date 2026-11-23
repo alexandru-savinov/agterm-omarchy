@@ -199,19 +199,20 @@ class Scenario:
 
         def painted():
             result["colours"], result["red"] = self.capture(name)
-            return result["red"] >= RED_MIN_PIXELS and result["colours"] >= self.min_colours
+            # Counted against the frame before the paint: Hyprland's own notices can carry red pixels too.
+            return result["red"] - blank[1] >= RED_MIN_PIXELS and result["colours"] >= self.min_colours
         try:
             self.wait_for(painted, "a rendered, non-uniform frame with the painted block", 20)
         except Failed as error:
             raise Failed(f"{error}; colours={result.get('colours')} (min {self.min_colours}) "
-                         f"red_px={result.get('red')} (min {RED_MIN_PIXELS})") from None
+                         f"red_px={result.get('red')} before={blank[1]} (min +{RED_MIN_PIXELS})") from None
         log = (self.leg_dir() / "app.log").read_text(errors="replace")
         for failure in ("GtkGLArea failed to create a GL context", "No EGL configuration available"):
             if failure in log:
                 raise Failed(f"app.log reports {failure!r}")
         retry = "GTK EGL compatibility retry matched" in log
-        return (f"colours={result['colours']} (min {self.min_colours}) red_px={result['red']} (min {RED_MIN_PIXELS}) "
-                f"before_paint_colours={blank[0]} egl_compat_retry_logged={retry}")
+        return (f"colours={result['colours']} (min {self.min_colours}) red_px={result['red']} before={blank[1]} "
+                f"(min +{RED_MIN_PIXELS}) before_paint_colours={blank[0]} egl_compat_retry_logged={retry}")
 
     def typed_command(self, session_id):
         # The typed text holds $((6*7)), not the expected marker, so only executed output can match.
@@ -377,10 +378,16 @@ def run(args):
             print(f"leg stopped at {error}", flush=True)
         finally:
             scenario.cleanup()
-            # A leg that stopped early leaves its install behind; the next leg needs an absent prefix.
-            if scenario.prefix.exists() and (scenario.prefix / "lib/agterm").exists():
+            # A leg that stopped early leaves its install behind; the next leg needs an empty prefix. What is
+            # left after that is moved aside, not deleted, and its rows already say whether it counted.
+            if (scenario.prefix / "lib/agterm").exists():
                 subprocess.run([str(args.to_installer), "--prefix", str(scenario.prefix), "--uninstall", "--purge-state"],
                                env=scenario.env, capture_output=True, timeout=120)
+            if scenario.prefix.exists() and any(scenario.prefix.iterdir()):
+                aside = scenario.home / f"prefix-left-by-{scenario.leg or 'setup'}"
+                scenario.prefix.rename(aside)
+                scenario.record(f"{scenario.leg}_prefix_reset", "INFO",
+                                f"moved {sorted(str(p.relative_to(aside)) for p in aside.rglob('*'))[:20]} aside")
     return verdict(scenario.tsv)
 
 
