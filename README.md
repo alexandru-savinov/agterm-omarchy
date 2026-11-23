@@ -54,8 +54,8 @@ It does not change your Hyprland configuration or default terminal.
 Remove it from the same directory with `agterm-release/agterm-omarchy/scripts/install-linux.sh --uninstall`.
 
 If the window stays blank or agterm reports an EGL or OpenGL error, try software rendering.
-Save your work and quit agterm completely, because a new launch while it runs only opens a window in the
-running app and keeps its renderer. Then, from another terminal, run
+Save your work and quit agterm completely, because a new launch while it runs only raises the existing window
+and keeps its renderer. Then, from another terminal, run
 `LIBGL_ALWAYS_SOFTWARE=1 ~/.local/bin/agterm-linux`.
 If that works, keep it by reinstalling from the same directory as the install block:
 `agterm-release/agterm-omarchy/scripts/install-linux.sh --payload agterm-release/agterm-stage --software-rendering`.

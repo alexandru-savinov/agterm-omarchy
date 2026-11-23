@@ -28,10 +28,10 @@ body:
     attributes:
       label: agterm version
       description: >-
-        While agterm is running, paste the output of `agtermctl version --json`
-        (plain `agtermctl version` also prints your local install path).
-        If agterm does not start: for a package install, paste `pacman -Q agterm-omarchy-bin`;
-        for an archive install, give the release tag or archive file name.
+        While agterm is running, paste the output of `agtermctl version --json` if it succeeds
+        (plain `agtermctl version` and its error messages can print local paths).
+        If agterm does not start or the command fails: for a package install, paste `pacman -Q agterm-omarchy-bin`;
+        for an archive install, give the release tag or archive file name; for a source build, the git commit.
         Write n/a for a build-only failure.
       render: text
     validations:
@@ -54,7 +54,7 @@ body:
       description: >-
         For the install you are reporting: an archive install in ~/.local stores its mode in
         `~/.local/lib/agterm/share/agterm/RENDERER`; paste that file's contents, labelled with the path.
-        A package install has no such file; write "package".
+        A package install has no such file; write "package". A source build run directly has none; write "source".
         Also say whether you set LIBGL_ALWAYS_SOFTWARE yourself when launching agterm
         (in the command, the session environment such as ~/.config/uwsm/env, or a launcher), and to what value.
         Write n/a for a build-only failure.
