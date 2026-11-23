@@ -345,10 +345,13 @@ class Scenario:
         self.step("upgrade_version", lambda: self.version(a.to_version))
 
         def restored():
+            # The unnamed initial session's label is derived from its shell's title, which a restored session
+            # not yet on screen has not sent; only explicit names are persisted state.
             after = sorted(s["name"] for s in self.sessions())
-            if after != names["before"]:
-                raise Failed(f"sessions after relaunch {after} are not {names['before']}")
-            return f"sessions={after}"
+            missing = [name for name in SESSION_NAMES if name not in after]
+            if missing or len(after) != len(names["before"]):
+                raise Failed(f"sessions after relaunch {after}, before {names['before']}")
+            return f"named={list(SESSION_NAMES)} present; count={len(after)}; before={names['before']} after={after}"
         self.step("upgrade_sessions_restored", restored)
         self.gl_renderer()
         self.step("upgrade_quit", self.stop)
