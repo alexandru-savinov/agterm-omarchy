@@ -8,7 +8,8 @@ import subprocess
 import tempfile
 
 from atspi_launcher_environment import make_debug_payload
-from atspi_smoke import BIN, control_json, find_app, named_prefix, stop, wait_for, window_list
+from atspi_smoke import (BIN, app_stderr_sink, control_json, find_app, named_prefix, stop, wait_for,
+                         window_list)
 
 NOTICE = "OpenGL failed with the default renderer, so agterm restarted with software rendering."
 OVERLAY = "Terminal rendering needs OpenGL."
@@ -31,10 +32,16 @@ def visible(pid, prefix):
 
 
 def start(env, binary, label, artifacts):
-    log = artifacts / f"{label}.stderr"
-    with open(log, "wb") as sink:
+    """The runner's shared stderr log keeps its gates on this app; the returned reader sees only this launch."""
+    shared = os.environ.get("AGTERM_UI_APP_STDERR")
+    path = Path(shared) if shared else artifacts / f"{label}.stderr"
+    offset = path.stat().st_size if path.exists() else 0
+    sink = app_stderr_sink() if shared else open(path, "ab")
+    try:
         process = subprocess.Popen([str(binary)], env=env, stdout=subprocess.DEVNULL, stderr=sink)
-    return process, log
+    finally:
+        sink.close()
+    return process, lambda: path.read_bytes()[offset:].decode(errors="replace").splitlines()
 
 
 def leg_env(env, state, **extra):
@@ -78,7 +85,7 @@ def verify_recovers_through_launcher(env, artifacts):
             assert output.exists(), "relaunched pane never ran"
             child = json.loads(output.read_text())
             assert child == {"LIBGL_ALWAYS_SOFTWARE": None, GUARD: None}, child
-            lines = log.read_text().splitlines()
+            lines = log()
             assert lines.count(RELAUNCH_LINE) == 1, lines
             print("OK: default-renderer GL failure relaunched once in software rendering with a notice", flush=True)
         finally:
@@ -92,7 +99,7 @@ def verify_overlay_without_relaunch(env, artifacts, label, failure, expect_relau
         try:
             wait_for(lambda: visible(process.pid, OVERLAY), f"{label}: GL-error overlay missing")
             assert process.poll() is None, f"{label}: app exited"
-            lines = log.read_text().splitlines()
+            lines = log()
             assert lines.count(RELAUNCH_LINE) == expect_relaunches, (label, lines)
             assert (proc_environ(process.pid).get(GUARD) == "1") == bool(expect_relaunches), label
             print(f"OK: {label}: GL-error overlay after {expect_relaunches} relaunch(es)", flush=True)
