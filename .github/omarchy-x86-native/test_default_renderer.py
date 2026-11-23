@@ -5,7 +5,6 @@ import contextlib
 import importlib.util
 import io
 from pathlib import Path
-import tempfile
 import unittest
 
 SPEC = importlib.util.spec_from_file_location("default_renderer", Path(__file__).resolve().parent / "default-renderer.py")
@@ -15,11 +14,8 @@ SPEC.loader.exec_module(scenario)
 
 class VerdictTests(unittest.TestCase):
     def verdict(self, lines):
-        with tempfile.TemporaryDirectory() as temp:
-            tsv = Path(temp) / "default-renderer.tsv"
-            tsv.write_text("".join(f"{line}\n" for line in lines))
-            with contextlib.redirect_stdout(io.StringIO()):
-                return scenario.verdict(tsv)
+        with contextlib.redirect_stdout(io.StringIO()):
+            return scenario.verdict("".join(f"{line}\n" for line in lines))
 
     def test_all_pass_with_evidence_rows(self):
         rows = ["mutation\tINFO none", "fresh_gl_renderer\tINFO llvmpipe"]
@@ -37,9 +33,8 @@ class VerdictTests(unittest.TestCase):
         rows = [f"{name}\tPASS" for name in scenario.SCENARIO_ROWS] + [f"{scenario.FRESH_ROWS[0]}\tFAIL late"]
         self.assertEqual(self.verdict(rows), 1)
 
-    def test_no_file(self):
-        with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(scenario.verdict(Path("/nonexistent/default-renderer.tsv")), 1)
+    def test_no_rows(self):
+        self.assertEqual(self.verdict([]), 1)
 
 
 if __name__ == "__main__":

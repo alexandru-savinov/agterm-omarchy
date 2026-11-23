@@ -2,7 +2,7 @@
 """Drive the default-renderer install and the N-1 -> N upgrade inside the Hyprland session, one TSV row each.
 
 `run` executes in the container as the session user, against the user's real default paths: prefix ~/.local,
-the default state directory and socket. `verdict` runs on the host over the staged rows: every scenario row
+the default state directory and socket. `verdict` runs on the host over the staged rows (stdin): every scenario row
 must be present and PASS. Rows other than SCENARIO_ROWS (versions, digests, the GL renderer) are evidence only.
 """
 
@@ -29,6 +29,10 @@ RED_MIN_PIXELS = 4000
 # A frame of one flat colour (or a handful) is not a rendered terminal.
 MIN_DISTINCT_COLOURS = 16
 SESSION_NAMES = ("upgrade-alpha", "upgrade-beta")
+# Fixed by default-renderer.sh: the evidence directory, each leg's extracted archive and its tag's installer.
+EVIDENCE = Path.home() / "evidence"
+STAGES = {leg: Path.home() / f"stage-{leg}/agterm-stage" for leg in ("from", "to")}
+INSTALLERS = {leg: Path(f"/dr/installer-{leg}/scripts/install-linux.sh") for leg in ("from", "to")}
 
 
 class Failed(Exception):
@@ -38,7 +42,7 @@ class Failed(Exception):
 class Scenario:
     def __init__(self, args):
         self.args = args
-        self.evidence = args.evidence
+        self.evidence = EVIDENCE
         self.tsv = self.evidence / "default-renderer.tsv"
         self.home = Path.home()
         self.prefix = self.home / ".local"
@@ -163,8 +167,8 @@ class Scenario:
         (state / "settings.json").write_text(json.dumps({"welcomeShown": True, "notificationsEnabled": False}))
 
     def default_renderer(self):
-        environ = dict(item.split("=", 1) for item in
-                       Path(f"/proc/{self.app.pid}/environ").read_bytes().decode(errors="replace").split("\0") if "=" in item)
+        raw = Path(f"/proc/{self.app.pid}/environ").read_bytes().decode(errors="replace")
+        environ = {key: value for key, _, value in (item.partition("=") for item in raw.split("\0") if "=" in item)}
         if "LIBGL_ALWAYS_SOFTWARE" in environ:
             raise Failed(f"the app runs with LIBGL_ALWAYS_SOFTWARE={environ['LIBGL_ALWAYS_SOFTWARE']}")
         maps = Path(f"/proc/{self.app.pid}/maps").read_text()
@@ -262,7 +266,7 @@ class Scenario:
         self.leg = "fresh"
         a = self.args
         self.prefix_absent()
-        self.step("fresh_install", lambda: self.install(a.to_installer, a.to_stage, "--default-rendering"))
+        self.step("fresh_install", lambda: self.install(INSTALLERS['to'], STAGES['to'], "--default-rendering"))
         self.seed_settings()
         self.launch()
         self.step("fresh_default_renderer", self.default_renderer)
@@ -273,13 +277,13 @@ class Scenario:
         self.gl_renderer()
         self.step("fresh_version", lambda: self.version(a.to_version))
         self.step("fresh_quit", self.stop)
-        self.step("fresh_uninstall", lambda: self.uninstall(a.to_installer))
+        self.step("fresh_uninstall", lambda: self.uninstall(INSTALLERS['to']))
 
     def upgrade(self):
         self.leg = "upgrade"
         a = self.args
         self.prefix_absent()
-        self.step("upgrade_install_from", lambda: self.install(a.from_installer, a.from_stage, "--default-rendering"))
+        self.step("upgrade_install_from", lambda: self.install(INSTALLERS['from'], STAGES['from'], "--default-rendering"))
         self.seed_settings()
         self.launch()
         initial = {}
@@ -296,7 +300,7 @@ class Scenario:
         def open_sessions():
             for name in SESSION_NAMES:
                 session_id = self.ctl("session", "new", "--name", name, "--cwd", str(self.home))["id"]
-                self.wait_for(lambda: self.session(session_id).get("realized"), f"{name} to realize")
+                self.wait_for(lambda target=session_id: self.session(target).get("realized"), f"{name} to realize")
                 self.ctl("session", "type", f"while :; do date +%s%N > {shlex.quote(str(beats[name]))}; sleep 0.5; done\n",
                          "--target", session_id)
             for name in SESSION_NAMES:
@@ -305,7 +309,7 @@ class Scenario:
             return f"sessions={names['before']} running=heartbeat loops in {', '.join(SESSION_NAMES)}"
         self.step("upgrade_sessions", open_sessions)
         pid = self.app.pid
-        self.step("upgrade_install_over_running", lambda: self.install(a.to_installer, a.to_stage))
+        self.step("upgrade_install_over_running", lambda: self.install(INSTALLERS['to'], STAGES['to']))
 
         def survived():
             if self.app.poll() is not None or not Path(f"/proc/{pid}").exists():
@@ -355,7 +359,7 @@ class Scenario:
         self.step("upgrade_sessions_restored", restored)
         self.gl_renderer()
         self.step("upgrade_quit", self.stop)
-        self.step("upgrade_uninstall", lambda: self.uninstall(a.to_installer))
+        self.step("upgrade_uninstall", lambda: self.uninstall(INSTALLERS['to']))
 
     def stop_row(self, failing_row):
         try:
@@ -371,7 +375,7 @@ class Scenario:
 
 
 def run(args):
-    args.evidence.mkdir(parents=True, exist_ok=True)
+    EVIDENCE.mkdir(parents=True, exist_ok=True)
     scenario = Scenario(args)
     scenario.record("mutation", "INFO", args.mutation)
     for leg in (scenario.fresh, scenario.upgrade):
@@ -384,25 +388,25 @@ def run(args):
             # A leg that stopped early leaves its install behind; the next leg needs an empty prefix. What is
             # left after that is moved aside, not deleted, and its rows already say whether it counted.
             if (scenario.prefix / "lib/agterm").exists():
-                subprocess.run([str(args.to_installer), "--prefix", str(scenario.prefix), "--uninstall", "--purge-state"],
+                subprocess.run([str(INSTALLERS["to"]), "--prefix", str(scenario.prefix), "--uninstall", "--purge-state"],
                                env=scenario.env, capture_output=True, timeout=120)
             if scenario.prefix.exists() and any(scenario.prefix.iterdir()):
                 aside = scenario.home / f"prefix-left-by-{scenario.leg or 'setup'}"
                 scenario.prefix.rename(aside)
                 scenario.record(f"{scenario.leg}_prefix_reset", "INFO",
                                 f"moved {sorted(str(p.relative_to(aside)) for p in aside.rglob('*'))[:20]} aside")
-    return verdict(scenario.tsv)
-
-
-def verdict(tsv):
-    rows = {}
     try:
-        for line in tsv.read_text().splitlines():
-            name, _, value = line.partition("\t")
-            rows.setdefault(name, []).append(value)
+        return verdict(scenario.tsv.read_text())
     except OSError as error:
         print(f"no scenario rows: {error}")
         return 1
+
+
+def verdict(text):
+    rows = {}
+    for line in text.splitlines():
+        name, _, value = line.partition("\t")
+        rows.setdefault(name, []).append(value)
     # A repeated row passes only if every copy does.
     failed = [name for name in SCENARIO_ROWS if not rows.get(name) or not all(v.startswith("PASS") for v in rows[name])]
     for name in SCENARIO_ROWS:
@@ -415,16 +419,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     run_parser = commands.add_parser("run")
-    run_parser.add_argument("--evidence", type=Path, required=True)
     for leg in ("from", "to"):
-        run_parser.add_argument(f"--{leg}-stage", type=Path, required=True)
-        run_parser.add_argument(f"--{leg}-installer", type=Path, required=True)
         run_parser.add_argument(f"--{leg}-version", required=True)
     run_parser.add_argument("--mutation", choices=("none", "wrong-marker", "blank-threshold"), default="none")
-    verdict_parser = commands.add_parser("verdict")
-    verdict_parser.add_argument("tsv", type=Path)
+    commands.add_parser("verdict", help="judge the scenario rows read from stdin")
     args = parser.parse_args()
-    sys.exit(run(args) if args.command == "run" else verdict(args.tsv))
+    sys.exit(run(args) if args.command == "run" else verdict(sys.stdin.read()))
 
 
 if __name__ == "__main__":

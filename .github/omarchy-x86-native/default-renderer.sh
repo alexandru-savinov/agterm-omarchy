@@ -68,9 +68,8 @@ dr_session() {
   dr_stage from "$DR_FROM_ARCHIVE"
   dr_stage to "$DR_TO_ARCHIVE"
   local status=0
-  python3 -I /repo/.github/omarchy-x86-native/default-renderer.py run --evidence "$EVIDENCE" \
-    --from-stage "$HOME/stage-from/agterm-stage" --to-stage "$HOME/stage-to/agterm-stage" \
-    --from-installer /dr/installer-from/scripts/install-linux.sh --to-installer /dr/installer-to/scripts/install-linux.sh \
+  # default-renderer.py reads $EVIDENCE, ~/stage-<leg> and /dr/installer-<leg> at these fixed paths.
+  python3 -I /repo/.github/omarchy-x86-native/default-renderer.py run \
     --from-version "$DR_FROM_VERSION" --to-version "$DR_TO_VERSION" --mutation "${DR_MUTATION:-none}" \
     > "$EVIDENCE/default-renderer.log" 2>&1 || status=$?
   cp "$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/hyprland.log" "$EVIDENCE/hyprland-runtime.log" 2>/dev/null || true
