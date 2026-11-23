@@ -350,6 +350,8 @@ PY
   ! grep -qP '^(ordinary|live|probe|uninstall)\tFAIL' "$EVIDENCE/gates.tsv"
 }
 
+# default-renderer.sh sources the setup and Hyprland functions above without running a phase.
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 case "$PHASE" in
   root) root_phase ;;
   setup) setup_phase ;;

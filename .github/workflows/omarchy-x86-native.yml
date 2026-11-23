@@ -46,6 +46,17 @@ on:
         type: choice
         options: [stable, rc, edge]
         default: stable
+      default_renderer_from_tag:
+        description: "Also run the default-renderer and upgrade scenario (x86_64, source=release): the N-1 omarchy-v tag upgraded to release_tag"
+        required: false
+        type: string
+        default: ""
+      default_renderer_mutation:
+        description: "Scenario self-check: break one assertion on purpose; anything but none can only fail"
+        required: false
+        type: choice
+        options: [none, wrong-marker, blank-threshold]
+        default: none
   workflow_call:
     inputs:
       source:
@@ -118,12 +129,15 @@ permissions:
 # Never shared between sources, so a release gate is not cancelled by another one; called runs keep their
 # caller's event, so only pull requests cancel an older run.
 concurrency:
-  group: omarchy-native-gates-${{ github.ref }}-${{ inputs.source || 'ci-run' }}-${{ inputs.run_id || inputs.release_tag || 'newest' }}-${{ inputs.arch || 'both' }}-${{ inputs.channel || 'stable' }}-${{ inputs.attestation || 'required' }}
+  group: omarchy-native-gates-${{ github.ref }}-${{ inputs.source || 'ci-run' }}-${{ inputs.run_id || inputs.release_tag || 'newest' }}-${{ inputs.arch || 'both' }}-${{ inputs.channel || 'stable' }}-${{ inputs.attestation || 'required' }}${{ inputs.default_renderer_from_tag && format('-dr-{0}-{1}', inputs.default_renderer_from_tag, inputs.default_renderer_mutation) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
     shell: bash
+
+env:
+  X86_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
 
 jobs:
   source:
@@ -241,7 +255,6 @@ jobs:
       LABEL: ${{ needs.source.outputs.label }}
       OMARCHY_CHANNEL: ${{ needs.source.outputs.channel }}
       ATTESTATION: ${{ needs.source.outputs.attestation }}
-      X86_IMAGE: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
       # Arch Linux ARM's own aarch64 rootfs: Docker's official archlinux image is x86_64 only, and a
       # community multi-arch image would make a third party's build the trust root for the keyring.
       # The official California mirror serves the rootfs over HTTPS. Keep the builder signature and reviewed
@@ -461,4 +474,180 @@ jobs:
             --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --source-result "$SOURCE_RESULT" \
             --gates-result "$GATES_RESULT" --attestation "$ATTESTATION" | tee verdict.txt || status=$?
           { printf '### Native gates verdict\n<pre>\n'; cat verdict.txt; printf '</pre>\n'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+  # Opt-in and outside `passed`: the verdict neither needs nor reads this job, and a workflow_call never runs it.
+  # It installs two published releases the README's way, each with its own tag's installer, into ~/.local with
+  # --default-rendering, then upgrades N-1 to N under the running app (default-renderer.py has the rows).
+  default-renderer:
+    name: Default renderer and upgrade (x86_64, Arch container, vkms)
+    if: github.event_name == 'workflow_dispatch' && inputs.default_renderer_from_tag != ''
+    runs-on: ubuntu-24.04
+    # vkms 5 + resolve/download 10 + checkouts 5 + image 10 + container (setup 15 + session 30 + kill grace)
+    # + staging 5 + upload 5 = 87.
+    timeout-minutes: 95
+    permissions:
+      contents: read
+      attestations: read
+    env:
+      SOURCE: ${{ inputs.source }}
+      FROM_TAG: ${{ inputs.default_renderer_from_tag }}
+      TO_TAG: ${{ inputs.release_tag }}
+      MUTATION: ${{ inputs.default_renderer_mutation || 'none' }}
+      OMARCHY_CHANNEL: ${{ inputs.channel }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          persist-credentials: false
+      - name: Lint and test the scenario scripts
+        run: |
+          bash -n .github/omarchy-x86-native/default-renderer.sh
+          shellcheck -x -P SCRIPTDIR .github/omarchy-x86-native/default-renderer.sh
+          # Named outside test_*.py so the source job, which every gate and caller needs, never runs it.
+          python3 -I .github/omarchy-x86-native/default_renderer_check.py
+      - name: Resolve both releases
+        id: resolve
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$SOURCE" == release ]] || { echo "the default-renderer scenario upgrades to release_tag: use source=release"; exit 1; }
+          [[ "$OMARCHY_CHANNEL" =~ ^(stable|rc|edge)$ ]] || { echo "unknown channel: $OMARCHY_CHANNEL"; exit 1; }
+          [[ "$MUTATION" =~ ^(none|wrong-marker|blank-threshold)$ ]] || { echo "unknown mutation: $MUTATION"; exit 1; }
+          for tag in "$FROM_TAG" "$TO_TAG"; do
+            [[ "$tag" =~ ^omarchy-v[0-9]+(\.[0-9]+)+$ ]] || { echo "not a versioned release tag: '$tag'"; exit 1; }
+          done
+          # N-1 -> N only: never the same release or a downgrade.
+          python3 -I -c 'import sys; v = [tuple(map(int, t.removeprefix("omarchy-v").split("."))) for t in sys.argv[1:]]; sys.exit(v[0] >= v[1])' \
+            "$FROM_TAG" "$TO_TAG" || { echo "$FROM_TAG is not older than $TO_TAG"; exit 1; }
+          for leg in from to; do
+            tag="$FROM_TAG"; [[ "$leg" == to ]] && tag="$TO_TAG"
+            python3 -I .github/omarchy-x86-native/release-assets.py resolve --tag "$tag" --arch x86_64 > "$RUNNER_TEMP/$leg.json"
+            # The git tag must point at the promoted commit, so the installer checked out for it is that tag's.
+            sha="$(jq -r .sha "$RUNNER_TEMP/$leg.json")"
+            read -r type target < <(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq '"\(.object.type) \(.object.sha)"')
+            [[ "$type" != tag ]] || target="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$target" --jq '.object.sha')"
+            [[ "$target" == "$sha" ]] || { echo "tag $tag points at $target, not the promoted $sha"; exit 1; }
+            echo "${leg}_sha=$(jq -r .sha "$RUNNER_TEMP/$leg.json")" | tee -a "$GITHUB_OUTPUT"
+          done
+      - name: Download both releases and verify them before anything runs
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/out" "$RUNNER_TEMP/dr"
+          for leg in from to; do
+            plan="$(cat "$RUNNER_TEMP/$leg.json")"
+            sha="$(jq -r .sha <<< "$plan")"
+            tag="$(jq -r .tag <<< "$plan")"
+            dir="$RUNNER_TEMP/dr/$leg"
+            mkdir "$dir"
+            archive="$(jq -r .archives.x86_64.name <<< "$plan")"
+            for asset in "$(jq -c .archives.x86_64 <<< "$plan")" "$(jq -c .sums <<< "$plan")" "$(jq -c .promotion <<< "$plan")"; do
+              python3 -I .github/omarchy-x86-native/release-assets.py download --asset-id "$(jq -r .id <<< "$asset")" \
+                --sha256 "$(jq -r .sha256 <<< "$asset")" --output "$dir/$(jq -r .name <<< "$asset")"
+            done
+            (cd "$dir" && sha256sum --check --strict --ignore-missing SHA256SUMS) > "$RUNNER_TEMP/check-$leg.txt"
+            grep -qx "$archive: OK" "$RUNNER_TEMP/check-$leg.txt"
+            grep -qx 'promotion.json: OK' "$RUNNER_TEMP/check-$leg.txt"
+            commit="$(tar -xzOf "$dir/$archive" agterm-stage/share/agterm/COMMIT | tr -d '[:space:]')"
+            [[ "$commit" == "$sha" ]] || { echo "$tag embeds commit $commit, not the promoted $sha"; exit 1; }
+            # Fail closed: there is no report-only path for this scenario.
+            for predicate in https://slsa.dev/provenance/v1 "https://github.com/$GITHUB_REPOSITORY/attestations/promotion/v1"; do
+              gh attestation verify "$dir/$archive" --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/prerelease-omarchy.yml" --source-ref refs/heads/main \
+                --deny-self-hosted-runners --predicate-type "$predicate" --format json > "$RUNNER_TEMP/attestation-$leg.json" \
+                2>> "$RUNNER_TEMP/out/attestation-$leg.txt" || { echo "::error::$tag: $predicate attestation did not verify"; exit 1; }
+              # The signed promotion must name the requested tag and version as well as the commit.
+              [[ "$predicate" == https://slsa.dev/* ]] || jq -e --arg sha "$sha" --arg tag "$tag" --arg version "${tag#omarchy-v}" \
+                'length > 0 and all(.[]; .verificationResult.statement.predicate |
+                  .source_commit == $sha and .tag == $tag and .version == $version)' \
+                "$RUNNER_TEMP/attestation-$leg.json" >> "$RUNNER_TEMP/out/attestation-$leg.txt" ||
+                { echo "::error::$tag: the promotion attestation does not name $tag, ${tag#omarchy-v} and $sha"; exit 1; }
+            done
+            echo "$tag $archive $(sha256sum "$dir/$archive" | cut -d' ' -f1) commit=$sha attestation=verified" |
+              tee -a "$RUNNER_TEMP/host-record.txt"
+            upper="${leg^^}"
+            {
+              echo "DR_${upper}_ARCHIVE=$archive"
+              echo "DR_${upper}_VERSION=${tag#omarchy-v}"
+            } >> "$GITHUB_ENV"
+          done
+      # Each release's own installer, as the README clones it at the tag; pinned here to the promoted commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          ref: ${{ steps.resolve.outputs.from_sha }}
+          path: dr-installer-from
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          ref: ${{ steps.resolve.outputs.to_sha }}
+          path: dr-installer-to
+          persist-credentials: false
+      - name: Load vkms and pull the Arch base image
+        timeout-minutes: 15
+        env:
+          FROM_SHA: ${{ steps.resolve.outputs.from_sha }}
+          TO_SHA: ${{ steps.resolve.outputs.to_sha }}
+        run: |
+          [[ "$(git -C dr-installer-from rev-parse HEAD)" == "$FROM_SHA" && "$(git -C dr-installer-to rev-parse HEAD)" == "$TO_SHA" ]]
+          [[ "$(uname -m)" == x86_64 ]]
+          if ! sudo modprobe vkms; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+            sudo modprobe vkms
+          fi
+          { uname -srm; ls -l /dev/dri; cat "$RUNNER_TEMP/host-record.txt"; } | tee "$RUNNER_TEMP/out/host.txt"
+          docker pull "$X86_IMAGE"
+      - name: Run the scenario
+        id: scenario
+        timeout-minutes: 50
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          docker run --rm --name omarchy-default-renderer --device /dev/dri -v /run/udev:/run/udev:ro \
+            --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
+            -e OMARCHY_CHANNEL -e DR_FROM_ARCHIVE -e DR_TO_ARCHIVE -e DR_FROM_VERSION -e DR_TO_VERSION -e DR_MUTATION="$MUTATION" \
+            -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/dr/from:/dr/from:ro" -v "$RUNNER_TEMP/dr/to:/dr/to:ro" \
+            -v "$GITHUB_WORKSPACE/dr-installer-from:/dr/installer-from:ro" -v "$GITHUB_WORKSPACE/dr-installer-to:/dr/installer-to:ro" \
+            -v "$RUNNER_TEMP/out:/out" "$X86_IMAGE" bash /repo/.github/omarchy-x86-native/default-renderer.sh
+      - name: Stage the evidence
+        id: stage
+        if: always()
+        timeout-minutes: 5
+        run: |
+          docker rm -f omarchy-default-renderer > /dev/null 2>&1 || true
+          if state="$(docker inspect --format '{{.State.Status}}' omarchy-default-renderer 2>&1)"; then
+            [[ "$state" == exited || "$state" == dead ]] || { echo "::error::the scenario container is still $state"; exit 1; }
+          elif ! grep -qiE 'no such (object|container)' <<< "$state"; then
+            echo "::error::cannot confirm the scenario container stopped ($state)"
+            exit 1
+          fi
+          status=0
+          python3 -I .github/omarchy-x86-native/stage-evidence.py "$RUNNER_TEMP/out" "$RUNNER_TEMP/evidence" || status=$?
+          echo "staged=true" >> "$GITHUB_OUTPUT"
+          exit "$status"
+      - name: Upload evidence
+        if: always() && steps.stage.outputs.staged == 'true'
+        timeout-minutes: 5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: omarchy-default-renderer-x86_64-${{ inputs.default_renderer_from_tag }}-${{ inputs.release_tag }}-${{ env.MUTATION }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/evidence
+          retention-days: 30
+      - name: Decide
+        if: always() && steps.stage.outputs.staged == 'true'
+        run: |
+          status=0
+          python3 -I .github/omarchy-x86-native/default-renderer.py verdict < "$RUNNER_TEMP/evidence/default-renderer.tsv" \
+            | tee verdict.txt || status=$?
+          {
+            printf '### x86_64 default renderer and upgrade %s -> %s (mutation: %s)\n<pre>\n' "$FROM_TAG" "$TO_TAG" "$MUTATION"
+            cat "$RUNNER_TEMP/evidence/default-renderer.tsv" 2>/dev/null || echo 'no scenario rows'
+            printf -- '---\n'
+            cat verdict.txt
+            printf '</pre>\n'
+          } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
