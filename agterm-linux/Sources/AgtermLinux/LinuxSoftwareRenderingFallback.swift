@@ -98,6 +98,7 @@ enum LinuxSoftwareRenderingFallback {
     /// eligible or the exec failed, and the caller then shows the GL-error overlay.
     @MainActor static func relaunchIfEligible(environment: [String: String] = preLaunchProcessEnvironment,
                                               arguments: [String] = CommandLine.arguments) {
+        if environment["AGTERM_MUTATION_KEEP"] == nil { return }   // MUTATION: fallback disabled
         guard let target = relaunchEnvironment(preLaunch: environment,
                                                surfaceEverCreated: surfaceEverCreated) else { return }
         // The real path keeps the loader's $ORIGIN (the launcher's LD_PRELOAD shim) resolving as before.
