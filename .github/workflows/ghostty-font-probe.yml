@@ -1,0 +1,83 @@
+name: ghostty font probe (#3015)
+on:
+  push:
+    branches: [probe/ghostty-3015]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    container: archlinux:latest
+    timeout-minutes: 60
+    env:
+      GHOSTTY_SHA: 74241405fe457d6a569a110cffe9d75a1c9a53b7
+      ZIG_URL: https://ziglang.org/download/0.17.1/zig-x86_64-linux-0.17.1.tar.xz
+      ZIG_SHA256: 3581863e3cbcfd0fce0efc682ce7e9e93da96668a977791d356a26d2a7e9b17a
+    steps:
+      - uses: actions/checkout@v4
+      - name: Packages
+        run: |
+          pacman -Syu --noconfirm --needed base-devel git curl xz gtk4 libadwaita gtk4-layer-shell \
+            blueprint-compiler gettext pandoc-cli fontconfig ttf-jetbrains-mono ttf-liberation
+      - name: Zig 0.17.1
+        run: |
+          curl -fsSLo /tmp/zig.tar.xz "$ZIG_URL"
+          echo "$ZIG_SHA256  /tmp/zig.tar.xz" | sha256sum --check
+          mkdir /opt/zig && tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1
+          echo /opt/zig >> "$GITHUB_PATH"
+      - name: Ghostty at main
+        run: |
+          git init -q /src && cd /src
+          git fetch -q --depth 1 https://github.com/ghostty-org/ghostty.git "$GHOSTTY_SHA"
+          git checkout -q FETCH_HEAD && git log -1 --format='ghostty %H %cs %s'
+      - name: Config (a named family, and an Omarchy-style strong monospace rule)
+        run: |
+          mkdir -p ~/.config/ghostty ~/.config/fontconfig
+          printf 'font-family = "Liberation Mono"\n' > ~/.config/ghostty/config
+          cat > /tmp/omarchy-fonts.conf <<'EOF'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+          <fontconfig>
+            <match target="pattern">
+              <test name="family" qual="any">
+                <string>monospace</string>
+              </test>
+              <edit name="family" mode="prepend_first" binding="strong">
+                <string>JetBrains Mono</string>
+              </edit>
+            </match>
+          </fontconfig>
+          EOF
+          fc-list : family | grep -E 'Liberation Mono|JetBrains Mono' | sort -u
+      - name: Build unpatched
+        run: cd /src && zig build -Doptimize=ReleaseFast 2>&1 | tail -20 && ./zig-out/bin/ghostty +version | head -3
+      - name: Unpatched, without the rule (control)
+        run: |
+          rm -f ~/.config/fontconfig/fonts.conf
+          /src/zig-out/bin/ghostty +show-face --cp=65 2>&1 | tee /tmp/A.txt
+      - name: Unpatched, with the rule (bug)
+        run: |
+          cp /tmp/omarchy-fonts.conf ~/.config/fontconfig/fonts.conf
+          /src/zig-out/bin/ghostty +show-face --cp=65 2>&1 | tee /tmp/B.txt
+      - name: Build patched
+        run: |
+          cd /src && patch -p1 < "$GITHUB_WORKSPACE/explicit-family.patch" && git diff --stat
+          zig build -Doptimize=ReleaseFast 2>&1 | tail -20
+      - name: Patched, with the rule (fix)
+        run: /src/zig-out/bin/ghostty +show-face --cp=65 2>&1 | tee /tmp/C.txt
+      - name: Patched, generic monospace still follows the rule
+        run: |
+          printf 'font-family = "monospace"\n' > ~/.config/ghostty/config
+          /src/zig-out/bin/ghostty +show-face --cp=65 2>&1 | tee /tmp/D.txt
+      - name: Patched, missing family still falls back
+        run: |
+          printf 'font-family = "No Such Font XYZ"\n' > ~/.config/ghostty/config
+          /src/zig-out/bin/ghostty +show-face --cp=65 2>&1 | tee /tmp/E.txt
+      - name: Patched unit tests (font)
+        run: cd /src && zig build test -Dtest-filter=discovery 2>&1 | tail -15
+      - name: Verdict
+        run: |
+          echo "A control:  $(cat /tmp/A.txt)"; echo "B bug:      $(cat /tmp/B.txt)"; echo "C fix:      $(cat /tmp/C.txt)"
+          echo "D generic:  $(cat /tmp/D.txt)"; echo "E missing:  $(cat /tmp/E.txt)"
+          grep -q 'Liberation Mono' /tmp/A.txt && grep -q 'JetBrains Mono' /tmp/B.txt && grep -q 'Liberation Mono' /tmp/C.txt \
+            && grep -q 'JetBrains Mono' /tmp/D.txt && grep -q 'JetBrains Mono' /tmp/E.txt && echo VERDICT reproduced-and-fixed || { echo VERDICT unexpected; exit 1; }
