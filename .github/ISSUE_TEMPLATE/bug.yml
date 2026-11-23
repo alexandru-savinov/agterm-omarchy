@@ -12,6 +12,43 @@ body:
       description: Omarchy version, uname -m, GTK version, Hyprland version, agterm commit or artifact name.
     validations:
       required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How agterm was installed
+      options:
+        - README release archive into ~/.local
+        - omarchy-pkgs package
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: version
+    attributes:
+      label: agterm version
+      description: Paste the output of `agtermctl version`.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: gpu
+    attributes:
+      label: GPU and driver
+      description: Paste the output of `lspci -k | grep -A3 -E 'VGA|3D'`. In a VM, also name the hypervisor.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: renderer
+    attributes:
+      label: Renderer mode
+      description: >-
+        Paste the output of
+        `cat ~/.local/lib/agterm/share/agterm/RENDERER /usr/lib/agterm/share/agterm/RENDERER 2>/dev/null; echo "LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE-unset}"`.
+      render: text
+    validations:
+      required: true
   - type: textarea
     id: reproduce
     attributes:

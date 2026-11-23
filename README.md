@@ -53,10 +53,10 @@ and an **agterm** entry in the application launcher.
 It does not change your Hyprland configuration or default terminal.
 Remove it from the same directory with `agterm-release/agterm-omarchy/scripts/install-linux.sh --uninstall`.
 
-If a VM reports `No EGL configuration available` or another OpenGL context error, start agterm with Mesa software rendering:
-`LIBGL_ALWAYS_SOFTWARE=1 ~/.local/bin/agterm-linux`.
-Add `--software-rendering` to the install command to keep that setting; see
-[Rendering](packaging/linux/omarchy.md#rendering).
+If the window stays blank or agterm reports an EGL or OpenGL error, run
+`LIBGL_ALWAYS_SOFTWARE=1 ~/.local/bin/agterm-linux` once.
+If that works, run the install command again with `--software-rendering` to keep it;
+`--default-rendering` switches back. See [Rendering](packaging/linux/omarchy.md#rendering).
 
 To build from source instead, follow the [Omarchy / Arch guide](packaging/linux/omarchy.md):
 
