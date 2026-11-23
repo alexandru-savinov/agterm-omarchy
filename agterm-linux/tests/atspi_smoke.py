@@ -7735,7 +7735,7 @@ def main():
             "session-switch-deactivate", "child-gdk-env",
             "child-gdk-env-inverted", "child-launcher-env",
             "custom-command-failures", "remote-presentation", "control-hooks",
-            "surface-lifetimes", "surface-failures", "gl-teardown", "gl-teardown-glx", "gl-teardown-quarantine",
+            "surface-lifetimes", "surface-failures", "gl-software-fallback", "gl-teardown", "gl-teardown-glx", "gl-teardown-quarantine",
             "gl-teardown-quarantine-close",
             "background-overlay-grid", "zoom-floating-overlay", "pane-dimming-pixels",
             "sidebar-row-height", "companion-layout", "companion-identity", "ibus-lifecycle",
@@ -7957,6 +7957,9 @@ def main():
             verify_surface_configuration_lifetimes(env)
         elif scenario == "surface-failures":
             verify_surface_failure_diagnostics(env)
+        elif scenario == "gl-software-fallback":
+            from atspi_gl_fallback import verify_gl_software_fallback
+            verify_gl_software_fallback(env)
         elif scenario == "gl-teardown":
             from atspi_gl_teardown import verify_gl_teardown
             verify_gl_teardown(env, state, scenario)

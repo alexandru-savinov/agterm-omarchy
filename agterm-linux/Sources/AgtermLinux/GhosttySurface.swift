@@ -226,6 +226,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
     private func reportGLContextFailure(message: String? = nil) {
         let line = LinuxGdkPolicy.glContextErrorLine(message: message)
         FileHandle.standardError.write(Data((line + "\n").utf8))
+        LinuxSoftwareRenderingFallback.relaunchIfEligible()   // returns only when it did not relaunch
         // Defer until window construction completes, but retain the surface's owner rather than
         // whichever window becomes frontmost before the main-loop hop runs.
         runOnMain { [weak controller] in MainActor.assumeIsolated { controller?.showGLError() } }
@@ -285,6 +286,13 @@ final class GhosttySurface: PaneRoleMutableSurface {
             return
         }
         clearCreationFailure()
+        LinuxSoftwareRenderingFallback.surfaceEverCreated = true
+        if LinuxSoftwareRenderingFallback.takePendingNotice() {
+            FileHandle.standardError.write(Data("agterm: rendering in software after a GL context failure\n".utf8))
+            runOnMain { [weak controller] in
+                MainActor.assumeIsolated { controller?.showToast(LinuxSoftwareRenderingFallback.notice, timeout: 0) }
+            }
+        }
         syncRendererVisibility()
         ghostty_surface_set_content_scale(surface, Double(scale), Double(scale))
         pushSize()
