@@ -321,13 +321,11 @@ class Scenario:
         self.step("upgrade_app_survived", survived)
 
         def new_ctl():
-            ctl_version = subprocess.run([str(self.prefix / "lib/agterm/bin/agtermctl.bin"), "--version"],
-                                         env=self.env, text=True, capture_output=True, timeout=15)
             result = self.ctl("version")
             self.typed_command(initial["id"])
             return (f"installed agtermctl ({(self.prefix / 'lib/agterm/share/agterm/VERSION').read_text().strip()}) "
                     f"answered by running app={result.get('app', {}).get('version')} "
-                    f"installed={(result.get('installed') or {}).get('version')} cli--version={ctl_version.stdout.strip()[:40]!r}; "
+                    f"installed={(result.get('installed') or {}).get('version')}; "
                     f"typed command read back")
         self.step("upgrade_new_ctl_drives_old_app", new_ctl)
         stopped = self.stop_row("upgrade_relaunch")
@@ -337,9 +335,11 @@ class Scenario:
         def relaunch():
             self.launch()
             self.window_mapped()
-            first = self.wait_for(self.sessions, "restored sessions")[0]["id"]
-            detail = self.first_frame(first, "relaunch-frame")
-            self.typed_command(first)
+            # Only the selected session is on screen, so only its terminal surface realizes.
+            shown = self.wait_for(lambda: next((s["id"] for s in self.sessions() if s.get("active")), None),
+                                  "a selected restored session")
+            detail = self.first_frame(shown, "relaunch-frame")
+            self.typed_command(shown)
             return f"{stopped}; relaunched pid={self.app.pid}; {detail}"
         self.step("upgrade_relaunch", relaunch)
         self.step("upgrade_version", lambda: self.version(a.to_version))
