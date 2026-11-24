@@ -112,11 +112,25 @@ class ShowcaseTests(unittest.TestCase):
         self.assertIn("media-src 'self'", self.index)
         self.assertNotIn("<script", self.index)
         self.assertNotRegex(self.index, r"<(?:iframe|object|embed)\b")
-        self.assertIn('content="default-src \'none\'; style-src \'self\'; img-src \'self\'; media-src \'self\'; '
-                      'base-uri \'none\'; form-action \'none\'"', self.index)
-        self.assertNotRegex(self.index, r"(?i)\son[a-z]+=|srcset=|javascript:")
+        from html.parser import HTMLParser
+
+        class Tags(HTMLParser):
+            seen = []
+            def handle_starttag(self, tag, attrs):
+                self.seen.append((tag, dict(attrs)))
+
+        parser = Tags()
+        parser.feed(self.index)
+        csp = [attrs.get("content") for tag, attrs in parser.seen
+               if tag == "meta" and (attrs.get("http-equiv") or "").lower() == "content-security-policy"]
+        self.assertEqual(csp, ["default-src 'none'; style-src 'self'; img-src 'self'; media-src 'self'; "
+                               "base-uri 'none'; form-action 'none'"])
+        for tag, attrs in parser.seen:
+            for name, value in attrs.items():
+                self.assertFalse(name.startswith("on") or name == "srcset", (tag, name))
+                self.assertNotIn("javascript:", (value or "").lower(), (tag, name))
         css = (self.root / "style.css").read_text()
-        self.assertNotRegex(css, r"(?i)@import|url\(")
+        self.assertNotRegex(css, r"(?i)@import|url\(|image-set\(|//")
 
     def test_images_have_alt_text_and_dimensions(self):
         images = re.findall(r"<img [^>]*>", self.index)
