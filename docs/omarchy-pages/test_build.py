@@ -130,6 +130,9 @@ class ShowcaseTests(unittest.TestCase):
                if tag == "meta" and (attrs.get("http-equiv") or "").lower() == "content-security-policy"]
         self.assertEqual(csp, [("default-src 'none'; style-src 'self'; img-src 'self'; media-src 'self'; "
                                 "base-uri 'none'; form-action 'none'", ("html", "head"))])
+        meta = self.index.index('http-equiv="Content-Security-Policy"')
+        self.assertLess(self.index.index("<head>"), meta)
+        self.assertNotIn("<body", self.index[:meta])
         for tag, attrs, _ in parser.seen:
             for name, value in attrs.items():
                 self.assertFalse(name.startswith("on") or name == "srcset", (tag, name))
