@@ -18,3 +18,10 @@ condition = "AND"
 paths = ['''^docs/waves/.*\.json$''']
 regexTarget = "line"
 regexes = ['''^\s*"token":\s*"[0-9a-f]{32}",?\s*$''']
+
+[[allowlists]]
+description = "Arch Linux ARM build-system OpenPGP fingerprint (public), pinned in the native-gate workflows"
+condition = "AND"
+paths = ['''^\.github/workflows/omarchy-[a-z0-9-]+\.yml$''']
+regexTarget = "line"
+regexes = ['''^\s*ALARM_KEY:\s*[0-9A-F]{40}\s*$''']
