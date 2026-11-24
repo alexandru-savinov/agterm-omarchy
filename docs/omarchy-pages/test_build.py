@@ -112,10 +112,15 @@ class ShowcaseTests(unittest.TestCase):
         self.assertIn("media-src 'self'", self.index)
         self.assertNotIn("<script", self.index)
         self.assertNotRegex(self.index, r"<(?:iframe|object|embed)\b")
+        self.assertIn('content="default-src \'none\'; style-src \'self\'; img-src \'self\'; media-src \'self\'; '
+                      'base-uri \'none\'; form-action \'none\'"', self.index)
+        self.assertNotRegex(self.index, r"(?i)\son[a-z]+=|srcset=|javascript:")
+        css = (self.root / "style.css").read_text()
+        self.assertNotRegex(css, r"(?i)@import|url\(")
 
     def test_images_have_alt_text_and_dimensions(self):
         images = re.findall(r"<img [^>]*>", self.index)
-        self.assertEqual(len(images), 4)
+        self.assertEqual(len(images), 3)
         for tag in images:
             self.assertRegex(tag, r'alt="[^"]{40,}"', tag)
             self.assertRegex(tag, r'width="\d+" height="\d+"', tag)
@@ -137,11 +142,10 @@ class ShowcaseTests(unittest.TestCase):
         self.assertIn("Same layout in Gruvbox and Catppuccin Latte. aarch64 VM, software rendering.", self.index)
         self.assertNotRegex(self.index, r"(?i)\b(?:faster|fastest|blazing|instant|gpu[- ]accelerated)\b")
 
-    def test_the_bar_plugin_credits_dmitriiweb_next_to_the_image(self):
-        plugin = self.index.split('class="plugin"', 1)[1].split("</section>", 1)[0]
-        self.assertIn("media/bar-plugin.png", plugin)
-        self.assertIn(f'href="{build.PLUGIN}"', plugin)
-        self.assertIn("dmitriiweb", plugin)
+    def test_no_third_party_bar_widget_is_shown_or_linked(self):
+        for text in ("bar-plugin", "dmitriiweb", "omarchy-agterm", "bar plugin"):
+            self.assertNotIn(text, self.index)
+        self.assertFalse((self.root / "media" / "bar-plugin.png").exists())
 
     def test_showcase_comes_before_the_release_mechanics_drift_and_proof(self):
         snapshot = build.drift_snapshot(None, None, datetime.now(timezone.utc))
@@ -161,12 +165,41 @@ class ShowcaseTests(unittest.TestCase):
             self.assertIn(step, shown)
         with tempfile.TemporaryDirectory() as temporary:
             readme = Path(temporary) / "README.md"
-            readme.write_text("## Install\n\n```sh\ncurl example | sh\n```\n")
-            with self.assertRaises(ValueError):
-                build.install_block(readme)
+            for text in ("## Install\n\n```sh\ncurl example | sh\n```\n",
+                         "## Install\n\nNo block here.\n\n## Later\n\n```sh\n# gh attestation verify x\ngh attestation verify x\n```\n"):
+                readme.write_text(text)
+                with self.assertRaises(ValueError):
+                    build.install_block(readme)
+
+    def test_install_block_is_escaped_into_one_code_element(self):
+        from html.parser import HTMLParser
+        from unittest import mock
+        block = 'gh attestation verify "a&b" <x> </code><b>bold</b>'
+        with tempfile.TemporaryDirectory() as temporary:
+            readme = Path(temporary) / "README.md"
+            readme.write_text(f"## Install\n\n```sh\n{block}\n```\n")
+            with mock.patch.object(build, "README", readme):
+                build.write_site(temporary + "/site", "a" * 40)
+            index = (Path(temporary) / "site" / "index.html").read_text()
+
+        class Pre(HTMLParser):
+            tags, text = [], ""
+            def handle_starttag(self, tag, attrs):
+                self.tags.append(tag)
+            def handle_data(self, data):
+                self.text += data
+
+        parser = Pre()
+        parser.feed(index.split("<pre>", 1)[1].split("</pre>", 1)[0])
+        self.assertEqual((parser.tags, parser.text), (["code"], block))
+
+    def test_pages_workflow_rebuilds_when_the_readme_install_block_changes(self):
+        workflow = (Path(build.__file__).resolve().parents[2] / ".github/workflows/pages.yml").read_text()
+        on = workflow.split("\npermissions:", 1)[0]
+        self.assertEqual(on.count("'README.md'"), 2)
 
     def test_the_page_names_no_release_version(self):
-        self.assertNotRegex(self.index, r"omarchy-v\d|\b0\.43\.0\.\d+|\bv0\.\d+\.\d+")
+        self.assertNotRegex(self.index, r"omarchy-v\d|\bv?\d+\.\d+\.\d+(?:\.\d+)?\b")
 
     def test_light_and_dark_and_phone_layouts_exist(self):
         css = (self.root / "style.css").read_text()
@@ -176,11 +209,11 @@ class ShowcaseTests(unittest.TestCase):
         for token in ("--paper", "--ink", "--muted", "--surface", "--on-ink"):
             self.assertIn(token + ":", dark)
         phone = css.split("@media(max-width:700px)", 1)[1]
-        self.assertIn(".pair,.plugin,.cards.features{grid-template-columns:1fr}", phone)
+        self.assertIn(".pair,.cards.features{grid-template-columns:1fr}", phone)
         self.assertIn(".clip{grid-template-columns:1fr}", css.split("@media(max-width:900px)", 1)[1])
         # A narrow-screen override only wins when it comes after the rule it overrides.
         for base, narrow in ((".clip{display:grid", ".clip{grid-template-columns:1fr}"),
-                             (".plugin{display:grid", ".pair,.plugin,.cards.features{grid-template-columns:1fr}")):
+                             (".cards{display:grid", ".pair,.cards.features{grid-template-columns:1fr}")):
             self.assertGreater(css.rindex(narrow), css.index(base), narrow)
         self.assertRegex(css, r"pre\{[^}]*white-space:pre-wrap")
 

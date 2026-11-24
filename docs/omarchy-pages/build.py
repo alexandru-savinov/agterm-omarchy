@@ -13,15 +13,14 @@ BASE = "https://github.com/" + REPOSITORY
 STATUS_ISSUE = 525
 README = Path(__file__).resolve().parents[2] / "README.md"
 # Captured on an aarch64 Omarchy VM; the wording matches the launch posts, fact-checked against the pixels.
-MEDIA = ("hero-tokyo-night.png", "theme-switch.mp4", "theme-gruvbox.png", "theme-catppuccin-latte.png",
-         "bar-plugin.png")
-PLUGIN = "https://github.com/dmitriiweb/omarchy-agterm"
+MEDIA = ("hero-tokyo-night.png", "theme-switch.mp4", "theme-gruvbox.png", "theme-catppuccin-latte.png")
 
 
-def install_block(readme=README):
-    """The first sh block under README's Install heading, so the page never carries a second copy."""
-    match = re.search(r"^## Install\n.*?^```sh\n(.*?)^```$", readme.read_text(), re.MULTILINE | re.DOTALL)
-    if match is None or "gh attestation verify" not in match[1]:
+def install_block(readme=None):
+    """The first sh block in README's Install section, so the page never carries a second copy."""
+    section = re.search(r"^## Install\n(.*?)(?=^## |\Z)", (readme or README).read_text(), re.MULTILINE | re.DOTALL)
+    match = section and re.search(r"^```sh\n(.*?)^```$", section[1], re.MULTILINE | re.DOTALL)
+    if not match or not re.search(r"^\s*gh attestation verify ", match[1], re.MULTILINE):
         raise ValueError("README.md has no verified install block under ## Install")
     return match[1].rstrip("\n")
 
@@ -45,23 +44,16 @@ def showcase():
                      "the left, and btop and fastfetch on the right.", "Gruvbox", 1920, 1200)
               + figure("theme-catppuccin-latte.png", "Omarchy in Catppuccin Latte, with light terminals, a pastel "
                        "wallpaper, and the same three-window layout.", "Catppuccin Latte", 1920, 1200))
-    plugin = figure("bar-plugin.png",
-                    "The Omarchy bar in Tokyo Night with the agterm for Omarchy widget open. The popup lists six agterm "
-                    "sessions across the website, api and infra workspaces, with one Blocked, one Done, one Working "
-                    "and three Idle, each with its workspace and folder.",
-                    f'<a href="{PLUGIN}">agterm for Omarchy</a>, dmitriiweb\'s bar plugin, with its popup open. '
-                    "Demo sessions; statuses set with agtermctl. aarch64 VM, software rendering.", 520, 660)
     return f'''<section class="showcase" aria-label="agterm on Omarchy">{hero}</section>
 <section id="themes" aria-labelledby="themes-title"><p class="eyebrow">Theme following</p><h2 id="themes-title">It follows your Omarchy theme</h2>
-<div class="clip"><figure class="shot"><video controls muted playsinline preload="metadata" poster="media/hero-tokyo-night.png" width="1920" height="1200" aria-label="Screen recording: omarchy theme set switches the desktop through Gruvbox, Catppuccin and Catppuccin Latte and back to Tokyo Night while agterm stays open."><source src="media/theme-switch.mp4" type="video/mp4"><a href="media/theme-switch.mp4">Download the theme-switch recording (MP4)</a></video>
-<figcaption><code>omarchy theme set</code> recolours the open agterm and Foot windows and updates the Omarchy bar and wallpaper: Gruvbox, Catppuccin, Catppuccin Latte, back to Tokyo Night. agterm stays open throughout. Theme-following demo on an aarch64 VM with software rendering and the optional Omarchy integration enabled.</figcaption></figure>
+<div class="clip"><figure class="shot"><video controls muted playsinline preload="metadata" poster="media/hero-tokyo-night.png" width="1920" height="1200" aria-label="Screen recording: omarchy theme set switches the desktop through Gruvbox, Catppuccin and Catppuccin Latte and back to Tokyo Night while agterm stays open."><source src="media/theme-switch.mp4" type="video/mp4"></video>
+<figcaption><code>omarchy theme set</code> recolours the open agterm and Foot windows and updates the Omarchy bar and wallpaper: Gruvbox, Catppuccin, Catppuccin Latte, back to Tokyo Night. agterm stays open throughout. Theme-following demo on an aarch64 VM with software rendering and the optional Omarchy integration enabled. <a href="media/theme-switch.mp4">Download the recording (MP4)</a>.</figcaption></figure>
 <div class="pair">{stills}<p class="muted">Same layout in Gruvbox and Catppuccin Latte. aarch64 VM, software rendering.</p></div></div></section>
 <section id="features" aria-labelledby="features-title"><p class="eyebrow">On Omarchy</p><h2 id="features-title">What it does</h2>
 <div class="cards features"><div><h3>Out of the box</h3><p>With the <strong>Follow Omarchy</strong> setting, on by default, <code>omarchy theme set</code>, <code>omarchy font set</code> and the text size apply without a restart, with Omarchy's padding and steady cursor. Shift+Enter and Alt+Shift+Enter send the same CSI-u bytes as Omarchy's Ghostty.</p></div>
-<div><h3>Opt-in integration</h3><p><code>agtermctl integration omarchy enable</code> makes it the default terminal: Super+Return, <code>omarchy-launch-tui</code>, the floating terminal and the menu's Web App installer open in it. Super+C/V copy and paste, with Omarchy's terminal opacity and touchpad scroll factor. <code>agtermctl integration omarchy disable</code> restores <code>hyprland.lua</code> and <code>xdg-terminals.list</code> as they were.</p></div>
+<div><h3>Opt-in integration</h3><p>With Omarchy's Lua-based Hyprland configuration, <code>agtermctl integration omarchy enable</code> makes it the default terminal: Super+Return, <code>omarchy-launch-tui</code>, the floating terminal and the menu's Web App installer open in it. Super+C/V copy and paste, with Omarchy's terminal opacity and touchpad scroll factor. <code>agtermctl integration omarchy disable</code> removes the marked block from <code>hyprland.lua</code> and restores <code>xdg-terminals.list</code>, keeping any edits you made to either.</p></div>
 <div><h3>Workspaces and control</h3><p>A libghostty terminal with a sidebar of workspaces and sessions, Live sessions that reattach when you reopen agterm, and <code>agtermctl</code> to drive it from scripts or coding agents.</p></div></div>
-<div class="plugin">{plugin}<div><h3>Sessions in the Omarchy bar</h3><p>dmitriiweb's bar plugin <a href="{PLUGIN}">agterm for Omarchy</a> shows agterm's sessions and agent status.</p>
-<h3>Known gaps</h3><p>GPU rendering and real touchpad feel are untested (the test VM uses software rendering); Omarchy's Default-terminal menu doesn't list agterm; "new terminal here" picks the newest session's folder in a multi-session window; the quick terminal has no global hotkey under Hyprland; focusing agterm from the bar plugin can fail right after it starts.</p></div></div></section>
+<div class="gaps"><h3>Known gaps</h3><p>GPU rendering and real touchpad feel are untested (the test VM uses software rendering); Omarchy's Default-terminal menu doesn't list agterm; "new terminal here" picks the newest session's folder in a multi-session window; the quick terminal has no global hotkey under Hyprland.</p></div></section>
 <section id="install-steps" aria-labelledby="install-title"><p class="eyebrow">Install</p><h2 id="install-title">Verify, then install into <code>~/.local</code></h2>
 <p>This block from the <a href="{BASE}#install">README</a> uses <code>gh</code> and <code>git</code>. It checks the release's checksum and build attestation before it extracts or installs anything into <code>~/.local</code>. agterm needs GTK4, libadwaita, WebKitGTK 6 and platform system libraries; the installer needs <code>python3</code>. To uninstall, run <code>agterm-release/agterm-omarchy/scripts/install-linux.sh --uninstall</code> from the directory where you ran the block.</p>
 <pre><code>{escape(install_block())}</code></pre></section>'''
