@@ -115,23 +115,25 @@ class ShowcaseTests(unittest.TestCase):
         from html.parser import HTMLParser
 
         class Tags(HTMLParser):
-            seen = []
+            seen, open_tags = [], []
             def handle_starttag(self, tag, attrs):
-                self.seen.append((tag, dict(attrs)))
+                self.seen.append((tag, dict(attrs), tuple(self.open_tags)))
+                if tag not in ("meta", "link", "img", "source", "br", "input"):
+                    self.open_tags.append(tag)
+            def handle_endtag(self, tag):
+                if tag in self.open_tags:
+                    del self.open_tags[len(self.open_tags) - 1 - self.open_tags[::-1].index(tag):]
 
         parser = Tags()
         parser.feed(self.index)
-        csp = [attrs.get("content") for tag, attrs in parser.seen
+        csp = [(attrs.get("content"), parents) for tag, attrs, parents in parser.seen
                if tag == "meta" and (attrs.get("http-equiv") or "").lower() == "content-security-policy"]
-        self.assertEqual(csp, ["default-src 'none'; style-src 'self'; img-src 'self'; media-src 'self'; "
-                               "base-uri 'none'; form-action 'none'"])
-        for tag, attrs in parser.seen:
+        self.assertEqual(csp, [("default-src 'none'; style-src 'self'; img-src 'self'; media-src 'self'; "
+                                "base-uri 'none'; form-action 'none'", ("html", "head"))])
+        for tag, attrs, _ in parser.seen:
             for name, value in attrs.items():
                 self.assertFalse(name.startswith("on") or name == "srcset", (tag, name))
                 self.assertNotIn("javascript:", (value or "").lower(), (tag, name))
-        head = self.index.split("</head>", 1)[0]
-        self.assertEqual(head.count('http-equiv="Content-Security-Policy"'), 1)
-        self.assertNotIn("<body", head)
         css = (self.root / "style.css").read_text()
         self.assertNotRegex(css, r"(?i)@import|url\(|image-set\(|//")
 
