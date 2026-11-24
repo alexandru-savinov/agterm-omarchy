@@ -28,7 +28,8 @@ class LandingPageTests(unittest.TestCase):
 
     def test_the_site_is_one_landing_page_with_its_assets(self):
         self.assertEqual(sorted(path.name for path in self.root.iterdir()),
-                         [".nojekyll", "favicon.svg", "index.html", "status.json", "style.css", "team.html"])
+                         [".nojekyll", "favicon.svg", "index.html", "media", "status.json", "style.css", "team.html"])
+        self.assertEqual(sorted(path.name for path in (self.root / "media").iterdir()), sorted(build.MEDIA))
         self.assertTrue((self.root / "style.css").stat().st_size > 0)
         self.assertIn('rel="icon" href="favicon.svg"', self.index)
         self.assertNotIn("<script", self.index)
@@ -88,6 +89,100 @@ class LandingPageTests(unittest.TestCase):
             subprocess.run([sys.executable, "-B", build.__file__, "--output", str(output), "--commit", "a" * 40],
                            check=True, capture_output=True, text=True, timeout=10)
             self.assertEqual(json.loads((output / "status.json").read_text())["upstream_drift_status"], "not-requested")
+
+
+class ShowcaseTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary, self.root = built_site()
+        self.addCleanup(self.temporary.cleanup)
+        self.index = (self.root / "index.html").read_text()
+
+    def test_media_is_copied_byte_for_byte_and_every_reference_resolves(self):
+        source = Path(build.__file__).with_name("media")
+        for name in build.MEDIA:
+            self.assertEqual((self.root / "media" / name).read_bytes(), (source / name).read_bytes(), name)
+        references = re.findall(r'(?:src|poster)="([^"]+)"', self.index)
+        self.assertEqual(sorted({ref.removeprefix("media/") for ref in references}), sorted(build.MEDIA))
+        for ref in references:
+            self.assertTrue((self.root / ref).is_file(), ref)
+
+    def test_no_third_party_assets_and_media_allowed_only_from_self(self):
+        for ref in re.findall(r'(?:src|poster)="([^"]+)"', self.index) + re.findall(r'<link [^>]*href="([^"]+)"', self.index):
+            self.assertNotRegex(ref, r"^(?:[a-z]+:)?//", ref)
+        self.assertIn("media-src 'self'", self.index)
+        self.assertNotIn("<script", self.index)
+        self.assertNotRegex(self.index, r"<(?:iframe|object|embed)\b")
+
+    def test_images_have_alt_text_and_dimensions(self):
+        images = re.findall(r"<img [^>]*>", self.index)
+        self.assertEqual(len(images), 4)
+        for tag in images:
+            self.assertRegex(tag, r'alt="[^"]{40,}"', tag)
+            self.assertRegex(tag, r'width="\d+" height="\d+"', tag)
+
+    def test_the_clip_is_a_native_muted_video_with_the_hero_as_poster(self):
+        video = re.search(r"<video [^>]*>", self.index)[0]
+        for attribute in ("controls", "muted", "playsinline", 'poster="media/hero-tokyo-night.png"', "aria-label="):
+            self.assertIn(attribute, video)
+        self.assertNotIn("autoplay", video)
+        self.assertIn('<source src="media/theme-switch.mp4" type="video/mp4">', self.index)
+
+    def test_every_visual_says_it_is_a_software_rendered_vm_capture(self):
+        captions = re.findall(r"<figcaption>(.*?)</figcaption>", self.index, re.DOTALL)
+        for caption in captions:
+            if caption in ("Gruvbox", "Catppuccin Latte"):
+                continue
+            self.assertIn("software rendering", caption)
+            self.assertIn("aarch64 VM", caption)
+        self.assertIn("Same layout in Gruvbox and Catppuccin Latte. aarch64 VM, software rendering.", self.index)
+        self.assertNotRegex(self.index, r"(?i)\b(?:faster|fastest|blazing|instant|gpu[- ]accelerated)\b")
+
+    def test_the_bar_plugin_credits_dmitriiweb_next_to_the_image(self):
+        plugin = self.index.split('class="plugin"', 1)[1].split("</section>", 1)[0]
+        self.assertIn("media/bar-plugin.png", plugin)
+        self.assertIn(f'href="{build.PLUGIN}"', plugin)
+        self.assertIn("dmitriiweb", plugin)
+
+    def test_showcase_comes_before_the_release_mechanics_drift_and_proof(self):
+        snapshot = build.drift_snapshot(None, None, datetime.now(timezone.utc))
+        with tempfile.TemporaryDirectory() as temporary:
+            build.write_site(temporary, "a" * 40, drift=snapshot)
+            index = (Path(temporary) / "index.html").read_text()
+        order = ["<h1>", "hero-tokyo-night.png", 'id="themes"', 'id="features"', 'id="install-steps"',
+                 'id="releases"', 'id="help"', 'id="upstream-drift"', 'id="evidence-title"']
+        positions = [index.index(marker) for marker in order]
+        self.assertEqual(positions, sorted(positions))
+
+    def test_install_block_is_the_readme_block_verbatim(self):
+        from html import unescape
+        shown = unescape(re.search(r"<pre><code>(.*?)</code></pre>", self.index, re.DOTALL)[1])
+        self.assertEqual(shown, build.install_block())
+        for step in ("sha256sum --check", "gh attestation verify", "install-linux.sh --payload"):
+            self.assertIn(step, shown)
+        with tempfile.TemporaryDirectory() as temporary:
+            readme = Path(temporary) / "README.md"
+            readme.write_text("## Install\n\n```sh\ncurl example | sh\n```\n")
+            with self.assertRaises(ValueError):
+                build.install_block(readme)
+
+    def test_the_page_names_no_release_version(self):
+        self.assertNotRegex(self.index, r"omarchy-v\d|\b0\.43\.0\.\d+|\bv0\.\d+\.\d+")
+
+    def test_light_and_dark_and_phone_layouts_exist(self):
+        css = (self.root / "style.css").read_text()
+        self.assertIn("@media(prefers-color-scheme:dark)", css)
+        self.assertIn("color-scheme:light dark", css)
+        dark = css.split("@media(prefers-color-scheme:dark)", 1)[1]
+        for token in ("--paper", "--ink", "--muted", "--surface", "--on-ink"):
+            self.assertIn(token + ":", dark)
+        phone = css.split("@media(max-width:700px)", 1)[1]
+        self.assertIn(".pair,.plugin,.cards.features{grid-template-columns:1fr}", phone)
+        self.assertIn(".clip{grid-template-columns:1fr}", css.split("@media(max-width:900px)", 1)[1])
+        # A narrow-screen override only wins when it comes after the rule it overrides.
+        for base, narrow in ((".clip{display:grid", ".clip{grid-template-columns:1fr}"),
+                             (".plugin{display:grid", ".pair,.plugin,.cards.features{grid-template-columns:1fr}")):
+            self.assertGreater(css.rindex(narrow), css.index(base), narrow)
+        self.assertRegex(css, r"pre\{[^}]*white-space:pre-wrap")
 
 
 class UpstreamDriftTests(unittest.TestCase):
