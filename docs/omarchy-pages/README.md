@@ -5,6 +5,8 @@ what it is, how releases are cut and gated, the latest release and the README in
 the pinned [Status and roadmap](https://github.com/alexandru-savinov/agterm-omarchy/issues/525) issue,
 Discussions, and the distance from upstream.
 It does not name a release version, so it stays current between rebuilds.
+The top of the page shows `media/`: desktop captures and a theme-switch clip from an aarch64 Omarchy VM with
+software rendering, each captioned as such. The install block is copied from the repository README at build time.
 `status.json` reports `readiness: "released"`, the releases URL, the status issue and the upstream base `v0.43.0`.
 
 Build a local preview:

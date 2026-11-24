@@ -3,10 +3,10 @@ name: Omarchy hub Pages
 on:
   push:
     branches: [main]
-    paths: ['docs/omarchy-pages/**', '.github/workflows/pages.yml']
+    paths: ['docs/omarchy-pages/**', '.github/workflows/pages.yml', 'README.md']
   pull_request:
     branches: [main]
-    paths: ['docs/omarchy-pages/**', '.github/workflows/pages.yml']
+    paths: ['docs/omarchy-pages/**', '.github/workflows/pages.yml', 'README.md']
   schedule:
     # Hourly rebuild picks up a new upstream-drift measurement without a push.
     - cron: '47 * * * *'

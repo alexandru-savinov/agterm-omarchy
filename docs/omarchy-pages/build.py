@@ -11,6 +11,52 @@ import shutil
 REPOSITORY = "alexandru-savinov/agterm-omarchy"
 BASE = "https://github.com/" + REPOSITORY
 STATUS_ISSUE = 525
+README = Path(__file__).resolve().parents[2] / "README.md"
+# Captured on an aarch64 Omarchy VM; the wording matches the launch posts, fact-checked against the pixels.
+MEDIA = ("hero-tokyo-night.png", "theme-switch.mp4", "theme-gruvbox.png", "theme-catppuccin-latte.png")
+
+
+def install_block(readme=None):
+    """The first sh block in README's Install section, so the page never carries a second copy."""
+    section = re.search(r"^## Install\n(.*?)(?=^## |\Z)", (readme or README).read_text(), re.MULTILINE | re.DOTALL)
+    match = section and re.search(r"^```sh\n(.*?)^```$", section[1], re.MULTILINE | re.DOTALL)
+    if not match or not re.search(r"^\s*gh attestation verify ", match[1], re.MULTILINE):
+        raise ValueError("README.md has no verified install block under ## Install")
+    return match[1].rstrip("\n")
+
+
+def figure(name, alt, caption, width, height, extra=""):
+    return (f'<figure class="shot{extra}"><img src="media/{name}" width="{width}" height="{height}" alt="{escape(alt)}" '
+            f'loading="lazy" decoding="async"><figcaption>{caption}</figcaption></figure>')
+
+
+def showcase():
+    """Hero shot, theme clip, features and install: the part of the page people look at first."""
+    hero = figure("hero-tokyo-night.png",
+                  "Omarchy desktop with the Tokyo Night theme. Left: agterm with a sidebar of three workspaces (website, "
+                  "api, infra) and six sessions, three with agent-status dots, showing a React component and a git log. "
+                  "Upper right: btop's CPU view in Foot. Lower right: fastfetch in a second Foot window. Both terminals "
+                  "use the Tokyo Night palette.",
+                  "agterm next to Foot, Omarchy's terminal, in Tokyo Night. aarch64 VM with software rendering. "
+                  "The workspace shows a demo project, and the status dots were set with agtermctl.", 1920, 1200, " wide")
+    hero = hero.replace(' loading="lazy"', ' fetchpriority="high"')
+    stills = (figure("theme-gruvbox.png", "Omarchy in Gruvbox, with warm dark terminals, a forest wallpaper, agterm on "
+                     "the left, and btop and fastfetch on the right.", "Gruvbox", 1920, 1200)
+              + figure("theme-catppuccin-latte.png", "Omarchy in Catppuccin Latte, with light terminals, a pastel "
+                       "wallpaper, and the same three-window layout.", "Catppuccin Latte", 1920, 1200))
+    return f'''<section class="showcase" aria-label="agterm on Omarchy">{hero}</section>
+<section id="themes" aria-labelledby="themes-title"><p class="eyebrow">Theme following</p><h2 id="themes-title">It follows your Omarchy theme</h2>
+<div class="clip"><figure class="shot"><video controls muted playsinline preload="metadata" poster="media/hero-tokyo-night.png" width="1920" height="1200" aria-label="Screen recording: omarchy theme set switches the desktop through Gruvbox, Catppuccin and Catppuccin Latte and back to Tokyo Night while agterm stays open."><source src="media/theme-switch.mp4" type="video/mp4"></video>
+<figcaption><code>omarchy theme set</code> recolours the open agterm and Foot windows and updates the Omarchy bar and wallpaper: Gruvbox, Catppuccin, Catppuccin Latte, back to Tokyo Night. agterm stays open throughout. Theme-following demo on an aarch64 VM with software rendering and the optional Omarchy integration enabled. <a href="media/theme-switch.mp4" download>Download the recording (MP4)</a>.</figcaption></figure>
+<div class="pair">{stills}<p class="muted">Same layout in Gruvbox and Catppuccin Latte. aarch64 VM, software rendering.</p></div></div></section>
+<section id="features" aria-labelledby="features-title"><p class="eyebrow">On Omarchy</p><h2 id="features-title">What it does</h2>
+<div class="cards features"><div><h3>Out of the box</h3><p>With the <strong>Follow Omarchy</strong> setting, on by default, <code>omarchy theme set</code>, <code>omarchy font set</code> and the text size apply without a restart, with Omarchy's padding and steady cursor. Shift+Enter and Alt+Shift+Enter send the same CSI-u bytes as Omarchy's Ghostty.</p></div>
+<div><h3>Opt-in integration</h3><p>With Omarchy's Lua-based Hyprland configuration, <code>agtermctl integration omarchy enable</code> makes it the default terminal: Super+Return, <code>omarchy-launch-tui</code>, the floating terminal and the menu's Web App installer open in it. Super+C/V copy and paste, with Omarchy's terminal opacity and touchpad scroll factor. <code>agtermctl integration omarchy disable</code> removes the marked block from <code>hyprland.lua</code>, keeping your other edits there, and puts <code>xdg-terminals.list</code> back as it was; a list you edited while enabled is left as you left it.</p></div>
+<div><h3>Workspaces and control</h3><p>A libghostty terminal with a sidebar of workspaces and sessions, Live sessions that reattach when you reopen agterm, and <code>agtermctl</code> to drive it from scripts or coding agents.</p></div></div>
+<div class="gaps"><h3>Known gaps</h3><p>GPU rendering and real touchpad feel are untested (the test VM uses software rendering); Omarchy's Default-terminal menu doesn't list agterm; "new terminal here" picks the newest session's folder in a multi-session window; the quick terminal has no global hotkey under Hyprland.</p></div></section>
+<section id="install-steps" aria-labelledby="install-title"><p class="eyebrow">Install</p><h2 id="install-title">Verify, then install into <code>~/.local</code></h2>
+<p>This block from the <a href="{BASE}#install">README</a> uses <code>gh</code> (signed in with <code>gh auth login</code>) and <code>git</code>. It checks the release's checksum and build attestation before it extracts or installs anything into <code>~/.local</code>. agterm needs GTK4, libadwaita, WebKitGTK 6 and platform system libraries; the installer needs <code>python3</code>. To uninstall, run <code>agterm-release/agterm-omarchy/scripts/install-linux.sh --uninstall</code> from the directory where you ran the block.</p>
+<pre><code>{escape(install_block())}</code></pre></section>'''
 
 
 def release_status():
@@ -112,15 +158,16 @@ def write_site(destination, commit, drift=None):
     generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
     content = f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="description" content="agterm for Omarchy: the Linux build of agterm for Omarchy and Arch Linux, with verified x86_64 and aarch64 releases.">
 <title>agterm for Omarchy</title><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css"></head>
 <body><a class="skip" href="#main">Skip to content</a>
-<header><a class="brand" href="./">agterm <span>/ Omarchy</span></a><nav aria-label="Primary"><a href="{BASE}#install">Install ↗</a><a href="{BASE}/releases">Releases ↗</a><a href="#help">Help</a><a href="{BASE}">Repository ↗</a></nav></header>
+<header><a class="brand" href="./">agterm <span>/ Omarchy</span></a><nav aria-label="Primary"><a href="#install-steps">Install</a><a href="{BASE}/releases">Releases ↗</a><a href="#help">Help</a><a href="{BASE}">Repository ↗</a></nav></header>
 <main id="main"><section class="hero"><p class="eyebrow">GTK4/libadwaita build for Omarchy and Arch Linux</p>
 <h1>agterm for Omarchy</h1>
 <p class="lead">agterm is a terminal for running many shells and coding agents side by side, grouped into workspaces and driven by a control API. This project builds and releases its Linux version for x86_64 and aarch64, based on <a href="https://github.com/umputun/agterm">umputun/agterm</a> and <a href="https://github.com/melonamin/agterm-linux">melonamin/agterm-linux</a>.</p>
-<div class="actions"><a class="button" href="{BASE}/releases/latest">Download the latest release</a><a href="{BASE}#install">Install instructions →</a></div></section>
+<div class="actions"><a class="button" href="#install-steps">Install</a><a href="{BASE}/releases/latest">Latest release →</a></div></section>
+{showcase()}
 {release_status()}
 <section id="help" class="readiness" aria-labelledby="help-title"><div><p class="eyebrow">Status and help</p><h2 id="help-title">Where to ask and what is next</h2></div><div><p>The pinned <a href="{BASE}/issues/{STATUS_ISSUE}">Status and roadmap</a> issue says what is being worked on. Ask questions and share ideas in <a href="{BASE}/discussions">Discussions</a>, report a bug through the <a href="{BASE}/issues/new?template=bug.yml">bug form</a>, and read <a href="{BASE}/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> to send a fix. Report suspected vulnerabilities privately through <a href="{BASE}/blob/main/SECURITY.md">SECURITY.md</a>.</p></div></section>
 {drift_section(drift)}
@@ -137,6 +184,9 @@ def write_site(destination, commit, drift=None):
         '<body><p>This page has moved to <a href="./">agterm for Omarchy</a>.</p></body></html>\n')
     for asset in ("style.css", "favicon.svg"):
         shutil.copyfile(Path(__file__).with_name(asset), destination / asset)
+    (destination / "media").mkdir(exist_ok=True)
+    for name in MEDIA:
+        shutil.copyfile(Path(__file__).with_name("media") / name, destination / "media" / name)
     (destination / ".nojekyll").touch()
     (destination / "status.json").write_text(json.dumps({
         "repository": REPOSITORY, "readiness": "released", "releases": f"{BASE}/releases", "upstream_baseline": "v0.43.0",
