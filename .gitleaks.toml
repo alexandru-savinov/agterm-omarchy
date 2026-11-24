@@ -24,4 +24,4 @@ description = "Arch Linux ARM build-system OpenPGP fingerprint (public), pinned 
 condition = "AND"
 paths = ['''^\.github/workflows/omarchy-[a-z0-9-]+\.yml$''']
 regexTarget = "line"
-regexes = ['''^\s*ALARM_KEY:\s*[0-9A-F]{40}\s*$''']
+regexes = ['''^\s*ALARM_KEY:\s*68B3537F39A313B3E574D06777193F152BDBE6A6\s*$''']
