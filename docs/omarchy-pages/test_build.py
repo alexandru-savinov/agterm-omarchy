@@ -129,6 +129,9 @@ class ShowcaseTests(unittest.TestCase):
             for name, value in attrs.items():
                 self.assertFalse(name.startswith("on") or name == "srcset", (tag, name))
                 self.assertNotIn("javascript:", (value or "").lower(), (tag, name))
+        head = self.index.split("</head>", 1)[0]
+        self.assertEqual(head.count('http-equiv="Content-Security-Policy"'), 1)
+        self.assertNotIn("<body", head)
         css = (self.root / "style.css").read_text()
         self.assertNotRegex(css, r"(?i)@import|url\(|image-set\(|//")
 
