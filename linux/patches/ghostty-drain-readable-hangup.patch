@@ -1,19 +1,16 @@
 diff --git a/src/termio/Exec.zig b/src/termio/Exec.zig
 --- a/src/termio/Exec.zig
 +++ b/src/termio/Exec.zig
-@@ -1723,9 +1723,12 @@ const ReadThread = struct {
-                 return;
-             }
+@@ -1859,9 +1859,9 @@
+         }
+     }
  
--            // If our pty fd is closed, then we're also done with our
--            // read thread.
--            if (pollfds[0].revents & posix.POLL.HUP != 0) {
-+            // A fast child can close its slave with its last bytes still
-+            // readable on the master. HUP and IN may arrive together: drain
-+            // that tail on the next iteration before declaring EOF.
-+            if (pollfds[0].revents & posix.POLL.HUP != 0 and
-+                pollfds[0].revents & posix.POLL.IN == 0)
-+            {
-                 log.info("pty fd closed, read thread exiting", .{});
-                 return;
-             }
+-    /// What the gather stage does with its outer poll's pty revents: on a
+-    /// hangup it reads what is still queued (drainAfterHangup) and says
+-    /// the stage is done.
++    /// Drain before declaring EOF when the master reports HUP and IN together.
++    /// A hangup alone also needs a read, because a closed slave can leave bytes queued.
++    /// The drain publishes the final batches to the parse stage before the read thread exits.
+     fn hungUp(fd: posix.fd_t, revents: i16, pipeline: *Pipeline) bool {
+         if (revents & posix.POLL.HUP == 0) return false;
+         const drained = drainAfterHangup(fd, pipeline);

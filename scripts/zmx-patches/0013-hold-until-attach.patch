@@ -1,5 +1,5 @@
 diff --git a/src/client.zig b/src/client.zig
-index c28f1d0..d8aa462 100644
+index db63e6c..90d6203 100644
 --- a/src/client.zig
 +++ b/src/client.zig
 @@ -28,6 +28,8 @@ pub const CreateOptions = struct {
@@ -176,11 +176,26 @@ index e8f17d7..b334ed7 100644
  }
  
  test "awaitDetach reads the acknowledgement, a child gone before it, and silence" {
+diff --git a/src/ipc.zig b/src/ipc.zig
+index a952a23..5764f86 100644
+--- a/src/ipc.zig
++++ b/src/ipc.zig
+@@ -545,8 +545,8 @@ test "Tag wire values are frozen" {
+         .{ Tag.LabelSet, 15 }, .{ Tag.LabelClear, 16 },   .{ Tag.LabelData, 17 },
+         .{ Tag.Send, 18 },     .{ Tag.EnvGet, 19 },       .{ Tag.EnvSet, 20 },
+         .{ Tag.EnvData, 21 },  .{ Tag.Capture, 22 },      .{ Tag.Unsupported, 255 },
+-        .{ Tag.Role, 201 },     .{ Tag.Screen, 202 },       .{ Tag.Type, 203 },
+-        .{ Tag.Manage, 200 },   .{ Tag.Identity, 27 },
++        .{ Tag.Role, 201 },    .{ Tag.Screen, 202 },      .{ Tag.Type, 203 },
++        .{ Tag.Manage, 200 },  .{ Tag.Identity, 27 },
+     }) |p| try std.testing.expectEqual(@as(u8, p[1]), @backingInt(p[0]));
+ }
+ 
 diff --git a/src/loop.zig b/src/loop.zig
-index 8f3b86b..736a542 100644
+index eda0037..522508a 100644
 --- a/src/loop.zig
 +++ b/src/loop.zig
-@@ -452,6 +452,9 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -459,6 +459,9 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
      var drain_deadline: ?i64 = null;
  
      daemon_loop: while (daemon.running) {
@@ -190,7 +205,7 @@ index 8f3b86b..736a542 100644
          if (drain_deadline) |deadline| {
              if (!daemon.hasUnsentOutput()) break :daemon_loop;
              if (role.nowMs() >= deadline) {
-@@ -503,10 +506,14 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+@@ -510,10 +513,14 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
              });
          }
  
@@ -206,7 +221,7 @@ index 8f3b86b..736a542 100644
          _ = try lib_posix.poll(poll_fds.items, poll_timeout);
  
          if (poll_fds.items[2].revents & lib_posix.POLL.IN != 0) {
-@@ -861,6 +868,12 @@ pub const Daemon = struct {
+@@ -868,6 +875,12 @@ pub const Daemon = struct {
      pty_fd: i32 = -1, // set by daemonLoop so handleRun can probe the foreground process
      shell: []const u8 = "/bin/sh",
      quiet: bool = false,
@@ -219,7 +234,7 @@ index 8f3b86b..736a542 100644
  
      /// Create a Daemon. Caller is responsible for freeing all variables passed
      /// into the init fn.
-@@ -906,6 +919,35 @@ pub const Daemon = struct {
+@@ -913,6 +926,35 @@ pub const Daemon = struct {
          try term.resize(gpa, .{ .cols = cols, .rows = rows });
      }
  
@@ -255,7 +270,7 @@ index 8f3b86b..736a542 100644
      /// True while a client that sent .Init (a real `zmx attach`) is connected.
      fn hasTerminalClient(self: *const Daemon) bool {
          for (self.clients.items) |c| {
-@@ -1029,6 +1071,7 @@ pub const Daemon = struct {
+@@ -1036,6 +1078,7 @@ pub const Daemon = struct {
              sesh_name,
              cmd,
              &keep_fds_open,
@@ -263,7 +278,7 @@ index 8f3b86b..736a542 100644
          ) catch |err| {
              switch (err) {
                  error.IsClientProc => {
-@@ -1057,6 +1100,10 @@ pub const Daemon = struct {
+@@ -1064,6 +1107,10 @@ pub const Daemon = struct {
          // =======
  
          self.pid = pty_info.pid;
@@ -274,7 +289,7 @@ index 8f3b86b..736a542 100644
  
          var threaded: std.Io.Threaded = .init_single_threaded;
          defer threaded.deinit();
-@@ -1101,6 +1148,8 @@ pub const Daemon = struct {
+@@ -1108,6 +1155,8 @@ pub const Daemon = struct {
              // for the same name issued in that window will hang waiting
              // for a connect.
              lib_posix.close(server_sock_fd);
@@ -283,7 +298,7 @@ index 8f3b86b..736a542 100644
              std.log.info("deleting socket file session={s}", .{sesh_name});
              dir.deleteFile(new_io, sesh_name) catch |err| {
                  std.log.warn("failed to delete socket file err={s}", .{@errorName(err)});
-@@ -1416,6 +1465,7 @@ pub const Daemon = struct {
+@@ -1423,6 +1472,7 @@ pub const Daemon = struct {
              }
  
              std.log.debug("init resize rows={d} cols={d}", .{ resize.rows, resize.cols });
@@ -291,7 +306,7 @@ index 8f3b86b..736a542 100644
          }
      }
  
-@@ -1953,6 +2003,116 @@ test "a DA query the daemon answers is not forwarded until a client sent Init" {
+@@ -1960,6 +2010,116 @@ test "a DA query the daemon answers is not forwarded until a client sent Init" {
      try std.testing.expectEqualStrings("ab\x1b[?62;22cz\x1b[cx\x1b[cy", queuedOutput(client, &seen));
  }
  
@@ -408,8 +423,16 @@ index 8f3b86b..736a542 100644
  test "send queues PTY input without changing leader" {
      const alloc = std.testing.allocator;
      var daemon = testDaemon();
+@@ -2632,6 +2792,7 @@ const EndingSession = struct {
+         }
+         lib_posix.close(self.server_fd);
+         self.daemon.deinit(self.alloc);
++        self.alloc.free(self.daemon.socket_path);
+         self.tmp.cleanup();
+     }
+ };
 diff --git a/src/main.zig b/src/main.zig
-index 3331891..4a13d68 100644
+index 76ac318..10c1dee 100644
 --- a/src/main.zig
 +++ b/src/main.zig
 @@ -191,11 +191,16 @@ fn mainImpl(init: std.process.Init) !void {
@@ -450,3 +473,54 @@ index 3331891..4a13d68 100644
  test "parseAttachArgs reads a bare session name" {
      const parsed = parseAttachArgs(&.{"dev"});
      try std.testing.expectEqualStrings("dev", parsed.session_name);
+diff --git a/src/role.zig b/src/role.zig
+index 4f3adf5..6218fa5 100644
+--- a/src/role.zig
++++ b/src/role.zig
+@@ -59,7 +59,6 @@ pub fn identity(buf: *IdentityBuf, nonce: []const u8, reclaim: ?[]const u8) []co
+     return std.fmt.bufPrint(buf, "{s}\n{s}", .{ nonce, from }) catch unreachable;
+ }
+ 
+-
+ pub const Relay = struct {
+     stream: ghostty_vt.Stream(NoopHandler),
+     nonce: []const u8,
+diff --git a/src/util.zig b/src/util.zig
+index 7d80cc3..dd9482d 100644
+--- a/src/util.zig
++++ b/src/util.zig
+@@ -1510,23 +1510,23 @@ test "stripAnsi: UTF-8 bytes do not start escape sequences" {
+ 
+ test "isLeaderUse: keys, paste and presses, never a terminal's replies, motion or release" {
+     const used = [_][]const u8{
+-        "a",              "\x03",                "\x04",          "\x7f",            "\x1b",
+-        "\x1bx",          "\x1b\x1b",            "\x1b[A",        "\x1bOA",          "\x1b[H",
+-        "\x1b[F",         "\x1b[Z",              "\x1b[3~",       "\x1b[1;5P",       "\x1b[99;5u",
+-        "\x1b[200~x",     "\x1b[<0;10;5M",       "\x1b[<64;1;1M", "\x1b[M !!",       "\x1b[I\x03",
+-        "\x1b[?1u\x1b[A", "\x1b]11;rgb:0/0/0\x07q", "\x1b[12",       "\x1b[102;1:1u",   "\x1b[27u",
+-        "\x1b[97u",       "\x1b[13u",             "\x1b]",          "\x1bP",           "\x1b]5522;type=read:status=OK\x1b\\",
++        "a",              "\x03",                   "\x04",          "\x7f",          "\x1b",
++        "\x1bx",          "\x1b\x1b",               "\x1b[A",        "\x1bOA",        "\x1b[H",
++        "\x1b[F",         "\x1b[Z",                 "\x1b[3~",       "\x1b[1;5P",     "\x1b[99;5u",
++        "\x1b[200~x",     "\x1b[<0;10;5M",          "\x1b[<64;1;1M", "\x1b[M !!",     "\x1b[I\x03",
++        "\x1b[?1u\x1b[A", "\x1b]11;rgb:0/0/0\x07q", "\x1b[12",       "\x1b[102;1:1u", "\x1b[27u",
++        "\x1b[97u",       "\x1b[13u",               "\x1b]",         "\x1bP",         "\x1b]5522;type=read:status=OK\x1b\\",
+     };
+     for (used) |input| {
+         if (!isLeaderUse(input)) std.debug.print("not counted as use: {any}\n", .{input});
+         try testing.expect(isLeaderUse(input));
+     }
+     const replies = [_][]const u8{
+-        "",                     "\x1b[?62;22c",         "\x1b[>1;10;0c",          "\x1b[12;40R",
+-        "\x1b[0n",              "\x1b[?1u",             "\x1b[?2004;2$y",         "\x1b[I",
+-        "\x1b[O",               "\x1b[8;24;80t",        "\x1b]11;rgb:0/0/0\x07",  "\x1b]10;rgb:f/f/f\x1b\\",
+-        "\x1bP>|ghostty\x1b\\", "\x1b[<0;10;5m",        "\x1b[<35;10;5M",         "\x1b[MC!!",
+-        "\x1b[M#!!",            "\x1b[102;1:3u",        "\x1b[?997;1n",
++        "",                     "\x1b[?62;22c",  "\x1b[>1;10;0c",         "\x1b[12;40R",
++        "\x1b[0n",              "\x1b[?1u",      "\x1b[?2004;2$y",        "\x1b[I",
++        "\x1b[O",               "\x1b[8;24;80t", "\x1b]11;rgb:0/0/0\x07", "\x1b]10;rgb:f/f/f\x1b\\",
++        "\x1bP>|ghostty\x1b\\", "\x1b[<0;10;5m", "\x1b[<35;10;5M",        "\x1b[MC!!",
++        "\x1b[M#!!",            "\x1b[102;1:3u", "\x1b[?997;1n",
+     };
+     for (replies) |input| {
+         if (isLeaderUse(input)) std.debug.print("counted as use: {any}\n", .{input});

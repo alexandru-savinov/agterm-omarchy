@@ -128,7 +128,6 @@ struct LinuxForegroundCaptureTests {
         let configuration = ZmxSupport.Configuration(
             executablePath: "/usr/bin/zmx", environment: ["SHELL": "/bin/zsh", "ZDOTDIR": "/tmp/integration"],
             daemonName: "agterm-pane", socketDirectory: "/tmp/zmx", paneID: "pane")
-<<<<<<< HEAD
         let seed = LinuxRestoreSeed.wrappedSeed(
             configuration, replay: session.foregroundCommand, durable: "make dev", denylist: ["tmux"],
             daemonRunning: false)
@@ -137,16 +136,8 @@ struct LinuxForegroundCaptureTests {
         let lostDaemon = LinuxRestoreSeed.wrappedSeed(
             configuration, replay: nil, durable: "make dev", denylist: ["tmux"], daemonRunning: false)
         #expect(lostDaemon.command?.contains("make dev") == true)
-=======
-        let command = AppController.wrappedAttachCommand(
-            configuration, replay: session.foregroundCommand, durable: "make dev", denylist: ["tmux"])
-        #expect(command == configuration.command)
-        let lostDaemon = AppController.wrappedAttachCommand(
-            configuration, replay: nil, durable: "make dev", denylist: ["tmux"])
-        #expect(lostDaemon.contains("make dev"))
-        #expect(lostDaemon.contains("ZMX_HOLD_UNTIL_ATTACH=5"))
-        #expect(!command.contains("ZMX_HOLD_UNTIL_ATTACH"))
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
+        #expect(lostDaemon.command?.contains("ZMX_HOLD_UNTIL_ATTACH=5") == true)
+        #expect(seed.command?.contains("ZMX_HOLD_UNTIL_ATTACH") == false)
     }
 
     @Test("remote rows are neither read nor counted; the count is slots written")

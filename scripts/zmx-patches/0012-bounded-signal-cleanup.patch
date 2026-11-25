@@ -1,7 +1,8 @@
-diff -ruN zmx-orig/src/client.zig zmx/src/client.zig
---- zmx-orig/src/client.zig
-+++ zmx/src/client.zig
-@@ -122,11 +122,11 @@
+diff --git a/src/client.zig b/src/client.zig
+index 10c9371..db63e6c 100644
+--- a/src/client.zig
++++ b/src/client.zig
+@@ -122,11 +122,11 @@ pub fn connect(alloc: Allocator, io: Io, name: []const u8) !i32 {
  
  /// Attach the current process's stdin/stdout TTY to a session (creating if needed).
  pub fn attach(alloc: Allocator, io: Io, name: []const u8, opts: AttachOptions) !void {
@@ -16,7 +17,7 @@ diff -ruN zmx-orig/src/client.zig zmx/src/client.zig
      signal.ignoreSigpipe();
      const cur_sesh = socket.getSeshNameFromEnv();
      if (cur_sesh.len > 0) {
-@@ -184,7 +184,7 @@
+@@ -184,7 +184,7 @@ fn attachInner(alloc: Allocator, io: Io, name: []const u8, opts: AttachOptions,
          .in_fd = if (stdin_is_tty) lib_posix.STDIN_FILENO else null,
          .orig = &orig_termios,
          .reset = exit_seq,
@@ -25,7 +26,7 @@ diff -ruN zmx-orig/src/client.zig zmx/src/client.zig
  
      if (stdin_is_tty) {
          var raw_termios = orig_termios;
-@@ -200,8 +200,14 @@
+@@ -200,8 +200,14 @@ fn attachInner(alloc: Allocator, io: Io, name: []const u8, opts: AttachOptions,
      _ = try lib_posix.write(lib_posix.STDOUT_FILENO, clear_seq);
  
      const env_str = opts.tracked_env orelse "";
@@ -42,19 +43,20 @@ diff -ruN zmx-orig/src/client.zig zmx/src/client.zig
      switch (looper.kind) {
          .detach => return,
          .switch_session => {
-@@ -209,7 +215,7 @@
-                 _ = lib_posix.write(lib_posix.STDOUT_FILENO, restore_seq) catch {};
-                 var new_opts = opts;
+@@ -211,7 +217,7 @@ fn attachInner(alloc: Allocator, io: Io, name: []const u8, opts: AttachOptions,
+                 new_opts.labels = null;
+                 new_opts.command = null;
                  if (looper.cwd) |new_cwd| new_opts.cwd = new_cwd;
 -                return attachInner(alloc, io, target_name, new_opts, close_deadline);
 +                return attachInner(alloc, io, target_name, new_opts, exit);
              }
          },
      }
-diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
---- zmx-orig/src/loop.zig
-+++ zmx/src/loop.zig
-@@ -326,15 +326,34 @@
+diff --git a/src/loop.zig b/src/loop.zig
+index ec9d7f0..eda0037 100644
+--- a/src/loop.zig
++++ b/src/loop.zig
+@@ -333,15 +333,34 @@ fn sleepMs(ms: u64) void {
      _ = std.c.nanosleep(&ts, null);
  }
  
@@ -94,7 +96,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      };
      const taken = t.outputTakenBy(d - resetShare(t.out_fd));
      if (!taken) t.flushOutput();
-@@ -2772,23 +2791,37 @@
+@@ -2778,23 +2797,37 @@ test "leaving a terminal: a detach as upstream, a session end within the deadlin
      const C = TerminalLog.Call;
  
      var detach: TerminalLog = .{ .out_fd = pty[1], .takes = true };
@@ -136,7 +138,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
  fn signalFor(thread: std.c.pthread_t, ms: i64) void {
      const end = role.nowMs() + ms;
      while (role.nowMs() < end) : (sleepMs(20)) _ = std.c.pthread_kill(thread, .WINCH);
-@@ -2845,7 +2878,7 @@
+@@ -2851,7 +2884,7 @@ test "a pty nobody reads holds its output queue until the deadline, and a flush
      try std.testing.expectEqual(@as(c_int, 0), cross.tcflush(pty[1], cross.TCOFLUSH));
      try std.testing.expect(takenBy(pty[1], role.nowMs(), ttyOutputQueued));
      while (true) _ = lib_posix.write(pty[1], "x") catch break;
@@ -145,7 +147,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      try std.testing.expect(takenBy(pty[1], role.nowMs(), ttyOutputQueued));
  }
  
-@@ -2864,7 +2897,7 @@
+@@ -2870,7 +2903,7 @@ test "a session end's reset reaches a pty that is read" {
      var got: [256]u8 = undefined;
      var len: usize = 0;
      const reader = try std.Thread.spawn(.{}, readFor, .{ pty[0], 1000, &got, &len });

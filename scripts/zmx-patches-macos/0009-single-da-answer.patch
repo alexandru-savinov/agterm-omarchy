@@ -1,15 +1,8 @@
 diff --git a/src/loop.zig b/src/loop.zig
-<<<<<<< HEAD:scripts/zmx-patches-macos/0009-single-da-answer.patch
 index 1d5362a..6c50bb2 100644
 --- a/src/loop.zig
 +++ b/src/loop.zig
 @@ -515,17 +515,6 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
-=======
-index 09abe64..0cd26fc 100644
---- a/src/loop.zig
-+++ b/src/loop.zig
-@@ -391,17 +391,6 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227:scripts/zmx-patches/0006-single-da-answer.patch
                      daemon.has_pty_output = true;
                      daemon.screen_revision +%= 1;
  
@@ -27,11 +20,7 @@ index 09abe64..0cd26fc 100644
                      // In run mode, scan output for exit code marker. The marker
                      // can straddle two PTY reads (more likely under a throttled
                      // scheduler, e.g. containers), so prepend the tail carried
-<<<<<<< HEAD:scripts/zmx-patches-macos/0009-single-da-answer.patch
 @@ -556,21 +545,7 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
-=======
-@@ -432,21 +421,7 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227:scripts/zmx-patches/0006-single-da-answer.patch
                          );
                      }
  
@@ -54,11 +43,7 @@ index 09abe64..0cd26fc 100644
                  }
              }
          }
-<<<<<<< HEAD:scripts/zmx-patches-macos/0009-single-da-answer.patch
 @@ -1112,6 +1087,31 @@ pub const Daemon = struct {
-=======
-@@ -988,6 +963,31 @@ pub const Daemon = struct {
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227:scripts/zmx-patches/0006-single-da-answer.patch
          return null;
      }
  
@@ -90,11 +75,7 @@ index 09abe64..0cd26fc 100644
      const PTY_WRITE_BUF_MAX = 256 * 1024;
  
      /// Queue bytes for the PTY's stdin. Flushed by daemonLoop on POLLOUT.
-<<<<<<< HEAD:scripts/zmx-patches-macos/0009-single-da-answer.patch
 @@ -1742,6 +1742,56 @@ test "hasTerminalClient follows attach, detach and detach-all" {
-=======
-@@ -1634,6 +1634,56 @@ test "hasTerminalClient follows attach, detach and detach-all" {
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227:scripts/zmx-patches/0006-single-da-answer.patch
      try std.testing.expectEqual(@as(?i32, null), daemon.leader_client_fd);
  }
  
@@ -152,17 +133,10 @@ index 09abe64..0cd26fc 100644
      const alloc = std.testing.allocator;
      var daemon = testDaemon();
 diff --git a/src/util.zig b/src/util.zig
-<<<<<<< HEAD:scripts/zmx-patches-macos/0009-single-da-answer.patch
 index 2e7beb3..f45b426 100644
 --- a/src/util.zig
 +++ b/src/util.zig
 @@ -261,7 +261,17 @@ const DA2_QUERY_EXPLICIT = "\x1b[>0c";
-=======
-index d036f13..d2694da 100644
---- a/src/util.zig
-+++ b/src/util.zig
-@@ -267,7 +267,17 @@ const DA2_QUERY_EXPLICIT = "\x1b[>0c";
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227:scripts/zmx-patches/0006-single-da-answer.patch
  const DA1_RESPONSE = "\x1b[?62;22c";
  const DA2_RESPONSE = "\x1b[>1;10;0c";
  
@@ -181,11 +155,7 @@ index d036f13..d2694da 100644
      // Scan for DA queries in PTY output and respond on behalf of the terminal.
      // This handles the case where no client is attached (e.g. zmx run)
      // and the shell (e.g. fish) sends a DA query that would otherwise go unanswered.
-<<<<<<< HEAD:scripts/zmx-patches-macos/0009-single-da-answer.patch
 @@ -277,6 +287,8 @@ pub fn respondToDeviceAttributes(alloc: std.mem.Allocator, buf: *std.ArrayList(u
-=======
-@@ -283,6 +293,8 @@ pub fn respondToDeviceAttributes(alloc: std.mem.Allocator, buf: *std.ArrayList(u
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227:scripts/zmx-patches/0006-single-da-answer.patch
      //
      // We must NOT match DA responses (which contain '?') as queries.
      var i: usize = 0;
@@ -194,11 +164,7 @@ index d036f13..d2694da 100644
      while (i < data.len) {
          if (data[i] == '\x1b' and i + 1 < data.len and data[i + 1] == '[') {
              // Skip DA responses which have '?' after CSI
-<<<<<<< HEAD:scripts/zmx-patches-macos/0009-single-da-answer.patch
 @@ -284,14 +296,23 @@ pub fn respondToDeviceAttributes(alloc: std.mem.Allocator, buf: *std.ArrayList(u
-=======
-@@ -290,14 +302,23 @@ pub fn respondToDeviceAttributes(alloc: std.mem.Allocator, buf: *std.ArrayList(u
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227:scripts/zmx-patches/0006-single-da-answer.patch
                  i += 3;
                  continue;
              }

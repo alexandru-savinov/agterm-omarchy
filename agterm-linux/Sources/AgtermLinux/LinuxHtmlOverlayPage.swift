@@ -129,11 +129,8 @@ final class LinuxHtmlOverlayPage {
 
     func close() {
         closed = true
-<<<<<<< HEAD
         clipboardPaste.cancel("closed")
-=======
         imageSource.clear()
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         textPage?.stop()
         agterm_disconnect_signals(RAW(manager), Unmanaged.passUnretained(self).toOpaque())
         let data = Unmanaged.passUnretained(self).toOpaque()
@@ -492,11 +489,8 @@ final class LinuxHtmlOverlayPage {
     func loadChanged(_ event: Int32) {
         switch event {
         case 0:
-<<<<<<< HEAD
             clipboardPaste.cancel("load-started")
-=======
             if imageLoadError != nil { return }
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
             loadFailed = false
             gtk_widget_set_visible(W(errorLabel), 0)
             store?.setHtmlLoadState(id, state: .loading, error: nil)

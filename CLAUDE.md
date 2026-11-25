@@ -109,22 +109,13 @@ C-boundary concurrency before changing the bridge.
 - Swift 6 `agtermCore` uses complete concurrency checking and has no Xcode/libghostty dependency.
 - `scripts/setup.sh` builds pinned libghostty and zmx with Homebrew `zig@0.17` and uses Xcode's
   Metal Toolchain.
-<<<<<<< HEAD
   It is idempotent after artifacts exist. zmx is the plain upstream pin plus `scripts/zmx-patches-macos/`,
   which keeps macOS on zmx v0.8.1 while Linux runs v1 with `scripts/zmx-patches/`; their READMEs say
   what each patch is for and how to regenerate one.
-=======
-  It is idempotent after artifacts exist. zmx is the plain upstream pin plus `scripts/zmx-patches/`,
-  whose README says what each patch is for and how to regenerate one.
   In an unpacked zmx tree inside another git checkout, `git apply` treats the tree as a subdirectory of
   that checkout, so it can skip the entire series and still exit 0:
   verify or regenerate the series outside the enclosing checkout.
-  `scripts/zmx-patches/check.py <zmx> <previous zmx>` checks the upgrade from the previous release's zmx; pass
-  `agterm.app/Contents/MacOS/zmx` from a published release's DMG. Against a zmx before 1.0 the new client must
-  refuse `run`, `tail` and `write`; against a later one it must use them. A release predating `0008` keeps the reconnect
-  a follower, so the reclaim check fails and the screen check reads the old leader's grid with the expected
-  output; every other check is the upgrade verdict.
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
+  `scripts/zmx-patches/check.py <zmx> [previous zmx]` checks Linux zmx protocol and upgrade behavior.
 - Commands:
   - `scripts/run.sh`: setup, generate, Debug build, launch.
   - `scripts/build.sh`: setup, generate, Release build.
@@ -170,13 +161,8 @@ C-boundary concurrency before changing the bridge.
   untracked and disappear with worktree removal.
 - Symlink an artifact set only while the main checkout's matching stamp equals what the worktree's
   `setup.sh` would write for that set: `GHOSTTY_REV` and the digest of
-<<<<<<< HEAD
-  `scripts/ghostty-patches/*.patch` for ghostty, and `ZMX_REV`, `ZMX_TARGET` and the
+  `scripts/ghostty-patches/*.patch` for ghostty, and `ZMX_REV`, `ZMX_TARGET` and the Zig line and the
   digest of `scripts/zmx-patches-macos/*.patch` and its `ghostty/*.patch` for zmx, so a target
-=======
-  `scripts/ghostty-patches/*.patch` for ghostty, and `ZMX_REV`, `ZMX_TARGET`, the Zig line
-  and the digest of `scripts/zmx-patches/*.patch` for zmx, so a target
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
   or a patch change invalidates a set whose revision still matches. When either differs, remove that
   set's artifact and stamp links before setup runs and let it build locally. `setup.sh` writes stamps
   through symlinks while replacing linked artifacts with local files and directories, so a linked build

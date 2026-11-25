@@ -39,7 +39,7 @@ extension GhosttySurface {
         let remote = pasteOriginHost
         let onOrigin = remote != nil
         if offer.route(onOrigin: onOrigin) == .asIs {
-            if let text = offer.asIsText { insertPasted(text) }
+            if let text = offer.asIsText { pasteThroughProtection(text: text) }
             completion(nil)
             return true
         }
@@ -54,7 +54,7 @@ extension GhosttySurface {
                 guard self.pasteOriginHost == remote else { return completion("the pane changed while the paste was copying") }
                 if let refusal = self.pasteRefusal { return completion(refusal) }
                 switch copied {
-                case .success(let text): self.insertPasted(text); completion(nil)
+                case .success(let text): self.pasteThroughProtection(text: text); completion(nil)
                 case .failure(let failure):
                     self.controller?.showToast(failure.reason)
                     completion(failure.reason)
@@ -62,11 +62,6 @@ extension GhosttySurface {
             } }
         }
         return true
-    }
-
-    func insertPasted(_ text: String) {
-        guard let surface else { return }
-        text.withCString { ghostty_surface_text(surface, $0, UInt(text.utf8.count)) }
     }
 
     func handlesPasteKey(keyval: UInt32, keycode: UInt32, state: UInt32) -> Bool {

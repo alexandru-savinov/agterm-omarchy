@@ -1,0 +1,648 @@
+diff --git a/src/ipc.zig b/src/ipc.zig
+index 5764f86..757de89 100644
+--- a/src/ipc.zig
++++ b/src/ipc.zig
+@@ -283,6 +283,7 @@ pub const SocketMsg = struct {
+ 
+ pub const SocketBuffer = struct {
+     wire: Wire = .current,
++    foreign_protocol: bool = false,
+     buf: std.ArrayList(u8),
+     alloc: std.mem.Allocator,
+     head: usize,
+@@ -334,6 +335,7 @@ pub const SocketBuffer = struct {
+         if (hdr.len > MAX_PAYLOAD_LEN or hdr.protocol_version != PROTOCOL_VERSION) {
+             // framing error / corrupted stream: clear buffer to avoid
+             // infinite alloc
++            if (hdr.protocol_version != PROTOCOL_VERSION) self.foreign_protocol = true;
+             self.buf.clearRetainingCapacity();
+             self.head = 0;
+             return null;
+@@ -368,6 +370,7 @@ const SessionProbeError = error{
+     Unexpected,
+     InfoSizeMismatch,
+     Unsupported,
++    IncompatibleProtocol,
+     Ambiguous,
+ };
+ 
+@@ -444,7 +447,7 @@ fn readProbeReply(fd: i32) SessionProbeError!struct { wire: Wire, info: Info } {
+     const wire = try probeFraming(fd, &header_bytes);
+     while (true) : (try readProbeBytes(fd, &header_bytes)) {
+         const hdr = wire.decode(&header_bytes);
+-        if (hdr.protocol_version != PROTOCOL_VERSION) return error.Unexpected;
++        if (hdr.protocol_version != PROTOCOL_VERSION) return error.IncompatibleProtocol;
+ 
+         switch (hdr.tag) {
+             .Info => {
+@@ -469,7 +472,11 @@ fn probeFraming(fd: i32, header_bytes: *[@sizeOf(Header)]u8) SessionProbeError!W
+     const as_current = opensProbeReply(.current, Wire.current.decode(header_bytes));
+     const as_legacy = opensProbeReply(.legacy, Wire.legacy.decode(header_bytes));
+     if (as_current != as_legacy) return if (as_current) .current else .legacy;
+-    if (!as_current) return error.Unexpected;
++    if (!as_current) {
++        const hdr = Wire.current.decode(header_bytes);
++        if (hdr.protocol_version != PROTOCOL_VERSION) return error.IncompatibleProtocol;
++        return error.Unexpected;
++    }
+ 
+     var after: [1 + @sizeOf(Header)]u8 = undefined;
+     try readProbeBytes(fd, &after);
+@@ -599,6 +606,7 @@ fn readReply(
+                 return alloc.dupe(u8, msg.payload) catch return error.Unexpected;
+             }
+         }
++        if (sb.foreign_protocol) return error.IncompatibleProtocol;
+     }
+ }
+ 
+@@ -710,3 +718,15 @@ test "a one-shot request reads as a one-byte request on a 0.8.1 daemon" {
+     try std.testing.expectEqual(@as(u32, 1), legacy.len);
+     try std.testing.expectEqual(@as(u8, 0), bytes[@sizeOf(Header)]);
+ }
++
++test "a header from another protocol version marks the peer foreign" {
++    var sb = try SocketBuffer.init(std.testing.allocator);
++    defer sb.deinit();
++    var header = std.mem.zeroes(Header);
++    header.tag = .Output;
++    header.len = 2;
++    try sb.buf.appendSlice(std.testing.allocator, std.mem.asBytes(&header));
++    try sb.buf.appendSlice(std.testing.allocator, "hi");
++    try std.testing.expect(sb.next() == null);
++    try std.testing.expect(sb.foreign_protocol);
++}
+diff --git a/src/loop.zig b/src/loop.zig
+index 6de6959..1cc0c4b 100644
+--- a/src/loop.zig
++++ b/src/loop.zig
+@@ -272,6 +272,8 @@ fn clientLoopOn(connection: ipc.Connection, env_str: []const u8, session_path: [
+             }
+         }
+ 
++        if (read_buf.foreign_protocol) return error.IncompatibleProtocol;
++
+         // Handle socket write (flush buffered messages to daemon)
+         if (poll_fds.items[1].revents & lib_posix.POLL.OUT != 0) {
+             if (sock_write_buf.items.len > 0) {
+@@ -579,7 +581,7 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+                     std.log.info("shell exited pty_fd={d}", .{pty_fd});
+                     // what clients have not read yet is delivered, bounded, before shutdown frees it
+                     daemon.child_exited = true;
+-                    drain_deadline = role.nowMs() + EXIT_DRAIN_MS;
++                    drain_deadline = role.nowMs() + daemon.exit_drain_ms;
+                 } else {
+                     // Feed PTY output to terminal emulator for state tracking
+                     vt_stream.nextSlice(buf[0..n]);
+@@ -850,6 +852,7 @@ pub const Daemon = struct {
+     /// bumped on every pty read, resize and injected output, carried in each ScreenHeader
+     screen_revision: u64 = 0,
+     running: bool = true,
++    exit_drain_ms: i64 = EXIT_DRAIN_MS,
+     /// set when the pty reached EOF because the shell exited, as opposed to a kill
+     child_exited: bool = false,
+     pid: i32 = undefined,
+@@ -2635,6 +2638,12 @@ const EndingSession = struct {
+     /// [0] what the terminal reads, [1] the client's stdin and stdout
+     term_pty: [2]i32,
+     sock: i32,
++    /// with `managed`: a second client, the managed leader, which the test reads itself; or -1
++    leader: i32 = -1,
++    saved_signals: SavedClientSignals,
++    saved_sigpipe: lib_posix.Sigaction = undefined,
++    /// the self-pipe daemonLoop opened, which a client loop replaces in `signal.sig_pipe`
++    daemon_pipe: [2]lib_posix.fd_t = .{ -1, -1 },
+     daemon_thread: std.Thread,
+     client_thread: ?std.Thread = null,
+     daemon_done_ms: std.atomic.Value(i64) = .init(0),
+@@ -2642,8 +2651,14 @@ const EndingSession = struct {
+     client_result: anyerror!ClientResult = error.NotRun,
+     exit_ms: i64 = 0,
+ 
+-    fn start(self: *EndingSession, alloc: std.mem.Allocator) !void {
+-        signal.ignoreSigpipe(); // as main does: the client writes to a daemon that may be gone
++    const Options = struct {
++        /// the daemon's drain deadline; long where a test does not measure it, so a starved runner meets it
++        drain_ms: i64,
++        /// the session socket becomes a managed follower, behind a managed leader on `leader`
++        managed: bool = false,
++    };
++
++    fn start(self: *EndingSession, alloc: std.mem.Allocator, opts: Options) !void {
+         self.* = .{
+             .alloc = alloc,
+             .tmp = std.testing.tmpDir(.{}),
+@@ -2653,8 +2668,11 @@ const EndingSession = struct {
+             .shell_pty = try testPty(24, 80),
+             .term_pty = try testPty(33, term_cols),
+             .sock = -1,
++            .saved_signals = SavedClientSignals.save(),
+             .daemon_thread = undefined,
+         };
++        lib_posix.sigaction(lib_posix.SIG.PIPE, null, &self.saved_sigpipe);
++        signal.ignoreSigpipe(); // as main does: the client writes to a daemon that may be gone
+         const path = try std.fmt.allocPrint(alloc, ".zig-cache/tmp/{s}/s", .{self.tmp.sub_path});
+         self.daemon = Daemon.init(std.testing.io, &self.cfg, "drain-test", path);
+         self.server_fd = try socket.createSocket(path);
+@@ -2668,18 +2686,55 @@ const EndingSession = struct {
+         _ = try lib_posix.fcntl(pair[0], lib_posix.F.SETFL, lib_posix.O_NONBLOCK);
+         try self.daemon.clients.append(alloc, try testClient(alloc, pair[0], false));
+         self.sock = pair[1];
++        if (opts.managed) {
++            var second: [2]i32 = undefined;
++            if (std.c.socketpair(lib_posix.AF.UNIX, lib_posix.SOCK.STREAM, 0, &second) != 0) return error.NoSocketPair;
++            for (second) |fd| setBuffers(fd);
++            _ = try lib_posix.fcntl(second[0], lib_posix.F.SETFL, lib_posix.O_NONBLOCK);
++            try self.daemon.clients.append(alloc, try testClient(alloc, second[0], false));
++            self.leader = second[1];
++        }
++        self.daemon.exit_drain_ms = opts.drain_ms;
+         self.daemon_thread = try std.Thread.spawn(.{}, runDaemon, .{self});
+         errdefer self.kill();
+ 
+         const size = ipc.Resize{ .rows = 33, .cols = term_cols };
+-        try ipc.send(self.sock, .Init, std.mem.asBytes(&size));
+-        // the daemon sizes its PTY from its leader's Init
++        const first = if (opts.managed) self.leader else self.sock;
++        if (opts.managed) {
++            const claim = ipc.ManageFlags{ .claim = true };
++            try ipc.send(first, .Manage, std.mem.asBytes(&claim));
++        }
++        try ipc.send(first, .Init, std.mem.asBytes(&size));
++        // the daemon sizes its PTY from its leader's Init, after it opened its self-pipe
+         const deadline = role.nowMs() + 10_000;
+         while (true) : (sleepMs(5)) {
+             var ws: cross.struct_winsize = undefined;
+             if (cross.ioctl(self.shell_pty[1], cross.TIOCGWINSZ, &ws) == 0 and ws.ws_col == term_cols) break;
+             if (role.nowMs() > deadline) return error.NeverAttached;
+         }
++        self.daemon_pipe = signal.sig_pipe;
++        if (opts.managed) {
++            // the follower attaches once the leader leads, and is told so before the shell prints anything
++            const plain = ipc.ManageFlags{};
++            try ipc.send(self.sock, .Manage, std.mem.asBytes(&plain));
++            try ipc.send(self.sock, .Init, std.mem.asBytes(&size));
++            var frames = try ipc.SocketBuffer.init(alloc);
++            defer frames.deinit();
++            const told = try nextRole(self.sock, &frames);
++            if (told != .follower) return error.NotFollower;
++        }
++    }
++
++    /// Reads `fd` until a Role frame arrives and returns its role.
++    fn nextRole(fd: i32, frames: *ipc.SocketBuffer) !ipc.Role {
++        while (true) {
++            if (try frames.read(fd) == 0) return error.NoRole;
++            while (frames.next()) |msg| {
++                if (msg.header.tag == .Role and msg.payload.len == @sizeOf(ipc.RoleChange)) {
++                    return std.mem.bytesToValue(ipc.RoleChange, msg.payload).role;
++                }
++            }
++        }
+     }
+ 
+     fn setBuffers(fd: i32) void {
+@@ -2695,7 +2750,7 @@ const EndingSession = struct {
+         daemonLoop(&self.daemon, self.alloc, threaded.io(), self.server_fd, self.shell_pty[0]) catch |err| {
+             std.debug.panic("daemonLoop failed: {s}", .{@errorName(err)});
+         };
+-        // as run's teardown does: the socket goes before the clients, which tells them the session ended
++        // as run's teardown does: the socket goes before the clients
+         const path = lib_posix.toPosixPath(self.daemon.socket_path) catch unreachable;
+         lib_posix.unlink(&path);
+         self.daemon.shutdown(self.alloc);
+@@ -2712,7 +2767,9 @@ const EndingSession = struct {
+         self.client_done_ms.store(role.nowMs(), .release);
+     }
+ 
+-    /// The shell prints the start mark, `payload` and the final mark, and exits.
++    /// The shell prints the start mark, `payload` and the final mark, and exits; returns once the daemon
++    /// has read the exit, which it shows by no longer answering a Type while it still answers an Info, or
++    /// by being gone.
+     fn shellPrintsAndExits(self: *EndingSession, payload: []const u8) !void {
+         for ([_][]const u8{ start_mark, payload, final_mark }) |part| {
+             var rest = part;
+@@ -2720,28 +2777,27 @@ const EndingSession = struct {
+         }
+         lib_posix.close(self.shell_pty[1]);
+         self.shell_pty[1] = -1;
+-        // a Debug daemon parses slowly; it answers a Type until it has read the shell's exit, an Info always
+-        const probe = try socket.sessionConnect(self.daemon.socket_path);
++        defer self.exit_ms = role.nowMs();
++        const probe = socket.sessionConnect(self.daemon.socket_path) catch return;
+         defer lib_posix.close(probe);
+         var replies = try ipc.SocketBuffer.init(self.alloc);
+         defer replies.deinit();
+         const deadline = role.nowMs() + 20_000;
+         while (true) : (sleepMs(10)) {
+-            try ipc.send(probe, .Type, "");
+-            try ipc.send(probe, .Info, "");
++            ipc.send(probe, .Type, "") catch return;
++            ipc.send(probe, .Info, "") catch return;
+             var typed = false;
+             info: while (true) {
+-                if (try replies.read(probe) == 0) return error.DaemonGone;
++                if ((replies.read(probe) catch return) == 0) return;
+                 while (replies.next()) |msg| switch (msg.header.tag) {
+                     .Type => typed = true,
+                     .Info => break :info,
+                     else => {},
+                 };
+             }
+-            if (!typed) break;
++            if (!typed) return;
+             if (role.nowMs() > deadline) return error.NeverDrained;
+         }
+-        self.exit_ms = role.nowMs();
+     }
+ 
+     /// Fills the client's terminal, so the client can write nothing until the test reads; returns how much.
+@@ -2765,12 +2821,11 @@ const EndingSession = struct {
+         return flag.load(.acquire) != 0;
+     }
+ 
+-    fn waitFor(self: *EndingSession, flag: *const std.atomic.Value(i64)) void {
+-        const deadline = role.nowMs() + 20_000;
++    fn waitFor(flag: *const std.atomic.Value(i64)) void {
++        const deadline = role.nowMs() + 40_000;
+         while (!done(flag)) : (sleepMs(5)) {
+-            if (role.nowMs() > deadline) std.debug.panic("an ending session's loop did not finish in 20 s", .{});
++            if (role.nowMs() > deadline) std.debug.panic("an ending session's loop did not finish in 40 s", .{});
+         }
+-        _ = self;
+     }
+ 
+     fn kill(self: *EndingSession) void {
+@@ -2786,8 +2841,14 @@ const EndingSession = struct {
+     }
+ 
+     fn deinit(self: *EndingSession) void {
++        const attached = self.client_thread != null;
+         self.kill();
+-        if (!done(&self.client_done_ms) and self.sock >= 0) lib_posix.close(self.sock);
++        if (!attached and self.sock >= 0) lib_posix.close(self.sock);
++        if (self.leader >= 0) lib_posix.close(self.leader);
++        // a client loop closed its own self-pipe; the daemon's is closed here
++        for (self.daemon_pipe) |fd| {
++            if (fd >= 0) lib_posix.close(fd);
++        }
+         for (self.shell_pty ++ self.term_pty) |fd| {
+             if (fd >= 0) lib_posix.close(fd);
+         }
+@@ -2795,6 +2856,8 @@ const EndingSession = struct {
+         self.daemon.deinit(self.alloc);
+         self.alloc.free(self.daemon.socket_path);
+         self.tmp.cleanup();
++        self.saved_signals.restore();
++        lib_posix.sigaction(lib_posix.SIG.PIPE, &self.saved_sigpipe, null);
+     }
+ };
+ 
+@@ -2815,7 +2878,7 @@ fn testPayload(alloc: std.mem.Allocator) ![]u8 {
+ test "a session's last output reaches a terminal that resumes, through the daemon and the client" {
+     const alloc = std.testing.allocator;
+     var s: EndingSession = undefined;
+-    try s.start(alloc);
++    try s.start(alloc, .{ .drain_ms = EXIT_DRAIN_MS });
+     defer s.deinit();
+     const payload = try testPayload(alloc);
+     defer alloc.free(payload);
+@@ -2824,7 +2887,7 @@ test "a session's last output reaches a terminal that resumes, through the daemo
+     try s.shellPrintsAndExits(payload);
+     try std.testing.expect(!EndingSession.done(&s.daemon_done_ms) and EndingSession.queued(s.sock) > 0);
+     try s.attachClient();
+-    s.waitFor(&s.daemon_done_ms);
++    EndingSession.waitFor(&s.daemon_done_ms);
+     try std.testing.expect(!EndingSession.done(&s.client_done_ms));
+ 
+     var got: std.ArrayList(u8) = .empty;
+@@ -2849,19 +2912,19 @@ test "a session's last output reaches a terminal that resumes, through the daemo
+ test "an ending session whose terminal never reads again ends the daemon and then the client on their deadlines" {
+     const alloc = std.testing.allocator;
+     var s: EndingSession = undefined;
+-    try s.start(alloc);
++    try s.start(alloc, .{ .drain_ms = EXIT_DRAIN_MS });
+     defer s.deinit();
+     const payload = try testPayload(alloc);
+     defer alloc.free(payload);
+     _ = try s.fillTerminal();
+ 
+     try s.shellPrintsAndExits(payload);
+-    s.waitFor(&s.daemon_done_ms);
++    EndingSession.waitFor(&s.daemon_done_ms);
+     const daemon_took = s.daemon_done_ms.load(.acquire) - s.exit_ms;
+     try tookAbout("daemon", daemon_took, EXIT_DRAIN_MS, 3000);
+     const attached = role.nowMs();
+     try s.attachClient();
+-    s.waitFor(&s.client_done_ms);
++    EndingSession.waitFor(&s.client_done_ms);
+     const client_took = s.client_done_ms.load(.acquire) - attached;
+     try tookAbout("client", client_took, CLOSE_BUDGET_MS, 3000);
+     const close_deadline = (try s.client_result).close_deadline_ms orelse return error.NoCloseDeadline;
+@@ -2878,7 +2941,7 @@ test "an ending session whose terminal never reads again ends the daemon and the
+ test "a draining session takes no attach, input or command, and a kill ends it at once" {
+     const alloc = std.testing.allocator;
+     var s: EndingSession = undefined;
+-    try s.start(alloc);
++    try s.start(alloc, .{ .drain_ms = EXIT_DRAIN_MS });
+     defer s.deinit();
+     const payload = try testPayload(alloc);
+     defer alloc.free(payload);
+@@ -2896,14 +2959,14 @@ test "a draining session takes no attach, input or command, and a kill ends it a
+ 
+     try ipc.send(late, .Kill, "");
+     const sent = role.nowMs();
+-    s.waitFor(&s.daemon_done_ms);
++    EndingSession.waitFor(&s.daemon_done_ms);
+     try std.testing.expect(s.daemon_done_ms.load(.acquire) - sent < EXIT_DRAIN_MS / 2);
+ }
+ 
+ test "a detach returns at the hangup as before, dropping what the client holds" {
+     const alloc = std.testing.allocator;
+     var s: EndingSession = undefined;
+-    try s.start(alloc);
++    try s.start(alloc, .{ .drain_ms = EXIT_DRAIN_MS });
+     defer s.deinit();
+     const payload = try testPayload(alloc);
+     defer alloc.free(payload);
+@@ -2917,7 +2980,7 @@ test "a detach returns at the hangup as before, dropping what the client holds"
+     defer lib_posix.close(probe);
+     try ipc.send(probe, .DetachAll, "");
+     const sent = role.nowMs();
+-    s.waitFor(&s.client_done_ms);
++    EndingSession.waitFor(&s.client_done_ms);
+     try std.testing.expect(s.client_done_ms.load(.acquire) - sent < CLOSE_BUDGET_MS * 3 / 4);
+     try std.testing.expectEqual(@as(?i64, null), (try s.client_result).close_deadline_ms);
+ }
+@@ -3069,3 +3132,271 @@ test "a session end's reset reaches a pty that is read" {
+     reader.join();
+     try std.testing.expectEqualStrings("\x1bc", got[0..len]);
+ }
++
++/// The handlers and self-pipe a client loop installs, restored when a test's client returns.
++const SavedClientSignals = struct {
++    const signals = [_]lib_posix.SIG{ lib_posix.SIG.WINCH, lib_posix.SIG.TERM, lib_posix.SIG.HUP, lib_posix.SIG.INT };
++    pipe: [2]lib_posix.fd_t,
++    actions: [signals.len]lib_posix.Sigaction = undefined,
++
++    fn save() SavedClientSignals {
++        var saved: SavedClientSignals = .{ .pipe = signal.sig_pipe };
++        for (signals, &saved.actions) |sig, *action| lib_posix.sigaction(sig, null, action);
++        return saved;
++    }
++
++    fn restore(self: *const SavedClientSignals) void {
++        for (signals, &self.actions) |sig, *action| lib_posix.sigaction(sig, action, null);
++        signal.sig_pipe = self.pipe;
++    }
++};
++
++// Panic on timeout: unwinding a test with a stuck worker would close its fds
++// and invalidate its stack state, while joining it would hang the test runner.
++const TestClient = struct {
++    done: std.atomic.Value(bool) = .init(false),
++    result: anyerror!ClientResult = undefined,
++    returned_ms: i64 = 0,
++
++    fn run(self: *TestClient, sock: i32, input: i32, output: i32) void {
++        self.result = clientLoopOn(.{ .fd = sock, .wire = .current }, "", "", input, output);
++        self.returned_ms = role.nowMs();
++        self.done.store(true, .release);
++    }
++
++    fn runWithWatchdog(self: *TestClient, sock: i32, input: i32, output: i32, timeout_ms: i64) !ClientResult {
++        const deadline = role.nowMs() + timeout_ms;
++        const thread = try std.Thread.spawn(.{}, run, .{ self, sock, input, output });
++        while (!self.done.load(.acquire)) {
++            if (role.nowMs() >= deadline) @panic("client loop watchdog expired");
++            sleepMs(1);
++        }
++        thread.join();
++        return self.result;
++    }
++};
++
++test "client detaches within drain deadline when stdout reader stalls" {
++    const input = try lib_posix.pipe2(.{ .CLOEXEC = true });
++    defer for (input) |fd| lib_posix.close(fd);
++    const output = try lib_posix.pipe2(.{ .CLOEXEC = true });
++    defer for (output) |fd| lib_posix.close(fd);
++    const input_flags = try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0);
++    const initial_output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
++    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, initial_output_flags | lib_posix.O_NONBLOCK);
++    const fill: [4096]u8 = @splat('x');
++    while (true) {
++        _ = lib_posix.write(output[1], &fill) catch |err| {
++            if (err == error.WouldBlock) break;
++            return err;
++        };
++    }
++    // Start with blocking stdout, just like an ordinary attach. Nobody reads
++    // the pipe, including after the daemon closes its socket.
++    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, initial_output_flags);
++    // Prefill may change kernel-maintained flags; compare the client's entry state.
++    const output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
++
++    var sockets: [2]i32 = undefined;
++    try std.testing.expectEqual(@as(c_int, 0), std.c.socketpair(lib_posix.AF.UNIX, lib_posix.SOCK.STREAM, 0, &sockets));
++    var client_owns_socket = false;
++    defer if (!client_owns_socket) lib_posix.close(sockets[0]);
++    var peer_owns_socket = false;
++    defer if (!peer_owns_socket) lib_posix.close(sockets[1]);
++
++    var saved_signals = SavedClientSignals.save();
++    defer saved_signals.restore();
++
++    var hangup_ms = std.atomic.Value(i64).init(0);
++    const DaemonPeer = struct {
++        fn run(fd: i32, hung_up: *std.atomic.Value(i64)) void {
++            ipc.send(fd, .Output, "last output\r\n") catch @panic("sending test output failed");
++            // Leave the daemon connected long enough to exercise ordinary
++            // output handling before the hangup starts the bounded drain.
++            const until = role.nowMs() + 150;
++            while (role.nowMs() < until) sleepMs(1);
++            // Stamped just before the close, so the measured hangup-to-return time can only be longer.
++            hung_up.store(role.nowMs(), .release);
++            lib_posix.close(fd);
++        }
++    };
++    const thread = try std.Thread.spawn(.{}, DaemonPeer.run, .{ sockets[1], &hangup_ms });
++    peer_owns_socket = true;
++    var peer_joined = false;
++    defer if (!peer_joined) thread.join();
++    client_owns_socket = true;
++    var client = TestClient{};
++    const result = try client.runWithWatchdog(sockets[0], input[0], output[1], 15_000);
++    // the peer has stamped the hangup before the client can return, but join so the load is ordered
++    thread.join();
++    peer_joined = true;
++    const hung_up = hangup_ms.load(.acquire);
++    try std.testing.expect(hung_up != 0);
++    const elapsed = client.returned_ms - hung_up;
++    try std.testing.expectEqual(.detach, result.kind);
++    // Nominal is DRAIN_BUDGET_MS (2.0 s). The bound is generous on purpose: on a starved CI runner a
++    // process that is not scheduled cannot meet a wall-clock deadline. What #409 needs is that the client
++    // returns in bounded time instead of blocking forever.
++    try std.testing.expect(elapsed < 10_000);
++    try std.testing.expectEqual(input_flags, try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0));
++    try std.testing.expectEqual(output_flags, try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0));
++}
++
++test "client returns promptly when stdout reader closes with daemon connected" {
++    const input = try lib_posix.pipe2(.{ .CLOEXEC = true });
++    defer for (input) |fd| lib_posix.close(fd);
++    const output = try lib_posix.pipe2(.{ .CLOEXEC = true });
++    defer lib_posix.close(output[1]);
++    var reader_open = true;
++    defer if (reader_open) lib_posix.close(output[0]);
++    const input_flags = try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0);
++    const initial_output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
++    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, initial_output_flags | lib_posix.O_NONBLOCK);
++    const fill: [4096]u8 = @splat('x');
++    while (true) {
++        _ = lib_posix.write(output[1], &fill) catch |err| {
++            if (err == error.WouldBlock) break;
++            return err;
++        };
++    }
++    _ = try lib_posix.fcntl(output[1], lib_posix.F.SETFL, initial_output_flags);
++    // Prefill may change kernel-maintained flags; compare the client's entry state.
++    const output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
++    lib_posix.close(output[0]);
++    reader_open = false;
++
++    // A full pipe with no reader reports POLLERR without POLLOUT on Linux.
++    var poll_fds = [_]lib_posix.pollfd{.{ .fd = output[1], .events = lib_posix.POLL.OUT, .revents = 0 }};
++    _ = try lib_posix.poll(&poll_fds, 0);
++    if (builtin.os.tag == .linux) {
++        try std.testing.expect(poll_fds[0].revents & lib_posix.POLL.ERR != 0);
++        try std.testing.expect(poll_fds[0].revents & lib_posix.POLL.OUT == 0);
++    }
++
++    var sockets: [2]i32 = undefined;
++    try std.testing.expectEqual(@as(c_int, 0), std.c.socketpair(lib_posix.AF.UNIX, lib_posix.SOCK.STREAM, 0, &sockets));
++    var client_owns_socket = false;
++    defer if (!client_owns_socket) lib_posix.close(sockets[0]);
++    // Keep the daemon connected until the client has returned.
++    defer lib_posix.close(sockets[1]);
++    try ipc.send(sockets[1], .Output, "queued output\r\n");
++
++    var saved_signals = SavedClientSignals.save();
++    defer saved_signals.restore();
++    var saved_sigpipe: lib_posix.Sigaction = undefined;
++    lib_posix.sigaction(lib_posix.SIG.PIPE, null, &saved_sigpipe);
++    signal.ignoreSigpipe();
++    defer lib_posix.sigaction(lib_posix.SIG.PIPE, &saved_sigpipe, null);
++
++    var client = TestClient{};
++    const start = role.nowMs();
++    client_owns_socket = true;
++    try std.testing.expectError(error.BrokenPipe, client.runWithWatchdog(sockets[0], input[0], output[1], 1000));
++    try std.testing.expect(role.nowMs() - start < 1000);
++    try std.testing.expectEqual(input_flags, try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0));
++    try std.testing.expectEqual(output_flags, try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0));
++}
++
++test "client ends with IncompatibleProtocol against a daemon from another zmx release" {
++    const input = try lib_posix.pipe2(.{ .CLOEXEC = true });
++    defer for (input) |fd| lib_posix.close(fd);
++    const output = try lib_posix.pipe2(.{ .CLOEXEC = true });
++    defer for (output) |fd| lib_posix.close(fd);
++    const input_flags = try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0);
++    const output_flags = try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0);
++
++    var sockets: [2]i32 = undefined;
++    try std.testing.expectEqual(@as(c_int, 0), std.c.socketpair(lib_posix.AF.UNIX, lib_posix.SOCK.STREAM, 0, &sockets));
++    var client_owns_socket = false;
++    defer if (!client_owns_socket) lib_posix.close(sockets[0]);
++    defer lib_posix.close(sockets[1]);
++    // a pre-v1 header: tag, padding, length, with no protocol_version
++    var header = std.mem.zeroes(ipc.Header);
++    header.tag = .Resize;
++    _ = try lib_posix.write(sockets[1], std.mem.asBytes(&header));
++
++    var saved_signals = SavedClientSignals.save();
++    defer saved_signals.restore();
++
++    var client = TestClient{};
++    client_owns_socket = true;
++    try std.testing.expectError(error.IncompatibleProtocol, client.runWithWatchdog(sockets[0], input[0], output[1], 5000));
++    try std.testing.expectEqual(input_flags, try lib_posix.fcntl(input[0], lib_posix.F.GETFL, 0));
++    try std.testing.expectEqual(output_flags, try lib_posix.fcntl(output[1], lib_posix.F.GETFL, 0));
++}
++
++/// Collects one client's frames until EOF, on its own thread.
++const FrameReader = struct {
++    alloc: std.mem.Allocator,
++    fd: i32,
++    frames: ipc.SocketBuffer,
++    output: std.ArrayList(u8) = .empty,
++    roles: usize = 0,
++    final_seen: std.atomic.Value(bool) = .init(false),
++    eof_ms: std.atomic.Value(i64) = .init(0),
++
++    fn run(self: *FrameReader) void {
++        while (true) {
++            const n = self.frames.read(self.fd) catch 0;
++            if (n == 0) break;
++            while (self.frames.next()) |msg| switch (msg.header.tag) {
++                .Output => {
++                    self.output.appendSlice(self.alloc, msg.payload) catch @panic("out of memory");
++                    if (std.mem.endsWith(u8, self.output.items, EndingSession.final_mark)) self.final_seen.store(true, .release);
++                },
++                .Role => self.roles += 1,
++                else => {},
++            };
++        }
++        self.eof_ms.store(role.nowMs(), .release);
++    }
++
++    fn deinit(self: *FrameReader) void {
++        self.output.deinit(self.alloc);
++        self.frames.deinit();
++    }
++};
++
++// regression: a drained leader closed early told a follower still behind "unowned" mid-drain, and agterm
++// reattached that pane to the dying session, losing its final output. The teardown closes clients without
++// telling roles, so every Role frame a follower can read was queued before the unlink.
++test "a managed follower behind at the exit gets its last output and no role change from the drain" {
++    const alloc = std.testing.allocator;
++    var s: EndingSession = undefined;
++    try s.start(alloc, .{ .drain_ms = 20_000, .managed = true });
++    defer s.deinit();
++    const payload = try testPayload(alloc);
++    defer alloc.free(payload);
++
++    var lead: FrameReader = .{ .alloc = alloc, .fd = s.leader, .frames = try ipc.SocketBuffer.init(alloc) };
++    defer lead.deinit();
++    const lead_thread = try std.Thread.spawn(.{}, FrameReader.run, .{&lead});
++    defer lead_thread.join();
++
++    try s.shellPrintsAndExits(payload);
++    // the leader has been sent everything; give a drain that would let it go time to do so
++    const seen_by = role.nowMs() + 20_000;
++    while (!lead.final_seen.load(.acquire)) : (sleepMs(5)) {
++        if (role.nowMs() > seen_by) return error.LeaderNeverDone;
++    }
++    sleepMs(500);
++    try std.testing.expect(!EndingSession.done(&s.daemon_done_ms));
++
++    // the drained leader still waits for the teardown: no client hangs up while the socket file exists
++    try std.testing.expectEqual(@as(i64, 0), lead.eof_ms.load(.acquire));
++
++    var follow: FrameReader = .{ .alloc = alloc, .fd = s.sock, .frames = try ipc.SocketBuffer.init(alloc) };
++    defer follow.deinit();
++    // on its own thread under the watchdog, so a daemon that never closes the follower fails the test
++    const follow_thread = try std.Thread.spawn(.{}, FrameReader.run, .{&follow});
++    EndingSession.waitFor(&follow.eof_ms);
++    follow_thread.join();
++    EndingSession.waitFor(&s.daemon_done_ms);
++
++    const expected = try std.mem.concat(alloc, u8, &.{ EndingSession.start_mark, payload, EndingSession.final_mark });
++    defer alloc.free(expected);
++    if (follow.roles != 0 or !std.mem.endsWith(u8, follow.output.items, expected)) {
++        std.debug.print("the follower read {d} role frames and {d} output bytes, of {d} the shell wrote\n", .{ follow.roles, follow.output.items.len, expected.len });
++        return error.TestUnexpectedResult;
++    }
++}

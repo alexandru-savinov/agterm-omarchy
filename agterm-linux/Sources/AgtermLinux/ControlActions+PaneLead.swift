@@ -33,17 +33,17 @@ extension AppController {
         case .surface: return nil
         case .refused(let reason): return err(reason)
         case .daemon(let name, let client):
-<<<<<<< HEAD
+            let reply = ControlResult(id: session.uuidString, pane: pane)
+            let attachment = UUID(uuidString: surface.paneToken).flatMap { ZmxLeadBook.shared.states[$0]?.attachment }
             return ControlStageHandoff.handOff(LinuxLeadPaneIO.textStage(
-                client: client, name: name, all: all, lines: lines, reply: ControlResult(id: session.uuidString, pane: pane)))
-=======
-            guard let screen = client.screen(name: name, all: all || lines != nil) else {
-                if finishHeldLeadIfDaemonEnded(surface, name: name, client: client) { return nil }
-                return err("failed to read surface buffer")
-            }
-            return ControlResponse(ok: true, result: ControlResult(
-                id: session.uuidString, text: lines.map(screen.lastLines) ?? screen.text))
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
+                client: client, name: name, all: all, lines: lines, reply: reply
+            ) { [weak surface] in
+                guard let surface, Self.finishHeldLeadIfDaemonEnded(surface, attachment: attachment),
+                      let text = surface.readScreenText(all: all, lines: lines) else { return nil }
+                var result = reply
+                result.text = text
+                return ControlResponse(ok: true, result: result)
+            })
         }
     }
 
@@ -52,37 +52,29 @@ extension AppController {
         case .surface: return nil
         case .refused(let reason): return err(reason)
         case .daemon(let name, let client):
-<<<<<<< HEAD
-            return ControlStageHandoff.handOff(LinuxLeadPaneIO.cursorStage(client: client, name: name, controlID: controlID))
+            let attachment = UUID(uuidString: surface.paneToken).flatMap { ZmxLeadBook.shared.states[$0]?.attachment }
+            return ControlStageHandoff.handOff(LinuxLeadPaneIO.cursorStage(
+                client: client, name: name, controlID: controlID
+            ) { [weak surface] in
+                guard let surface, Self.finishHeldLeadIfDaemonEnded(surface, attachment: attachment),
+                      let column = surface.readCursorColumn() else { return nil }
+                return ControlResponse(ok: true, result: ControlResult(id: controlID, cursor: ControlCursor(column: column)))
+            })
         }
+    }
+
+    /// A worker read may fail as the daemon ends. Only its still-realized, uncovered surface can supply the held grid.
+    private static func finishHeldLeadIfDaemonEnded(_ surface: GhosttySurface, attachment: ZmxLeadAttachment?) -> Bool {
+        guard surface.isRealized, surface.waitAfterCommand, let pane = UUID(uuidString: surface.paneToken),
+              !ZmxLeadBook.shared.covered(pane: pane), !RemoteReconnectBook.shared.waiting(pane: pane) else { return false }
+        if let current = ZmxLeadBook.shared.states[pane]?.attachment, current != attachment { return false }
+        surface.handleHeldProcessExit()
+        return true
     }
 
     /// Types into a lead-covered pane through its zmx daemon on the control worker; the attention-status
     /// update comes back to the main thread afterwards.
     func leadType(_ text: String, surface: GhosttySurface, session: UUID, pane: String) -> ControlResponse? {
-=======
-            guard let screen = client.screen(name: name, all: false) else {
-                if finishHeldLeadIfDaemonEnded(surface, name: name, client: client) { return nil }
-                return err("failed to read cursor position")
-            }
-            return ControlResponse(ok: true, result: ControlResult(
-                id: controlID, cursor: ControlCursor(column: screen.cursorColumn)))
-        }
-    }
-
-    /// A control read can outlive the daemon while its queued held-exit callback waits on this handler.
-    /// Retire that ended lead now; a live/unresponsive daemon and a covered or reconnecting pane still refuse.
-    private func finishHeldLeadIfDaemonEnded(_ surface: GhosttySurface, name: String, client: LinuxZmxClient) -> Bool {
-        guard surface.waitAfterCommand, let pane = UUID(uuidString: surface.paneToken),
-              !ZmxLeadBook.shared.covered(pane: pane), !RemoteReconnectBook.shared.waiting(pane: pane),
-              !FileManager.default.fileExists(atPath: URL(fileURLWithPath: client.socketDirectory)
-                .appendingPathComponent(name).path) else { return false }
-        surface.handleHeldProcessExit()
-        return true
-    }
-
-    func leadType(_ text: String, surface: GhosttySurface, session: UUID) -> ControlResponse? {
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         if RemoteReconnectBook.shared.waiting(pane: UUID(uuidString: surface.paneToken)) {
             return err("pane is waiting to reconnect")
         }
@@ -109,10 +101,10 @@ enum LinuxLeadPaneIO {
 
     /// `reply` carries the id and pane of the answer; the read fills in its text.
     static func textStage(client: LinuxZmxClient, name: String, all: Bool, lines: Int?,
-                          reply: ControlResult) -> ControlStage {
+                          reply: ControlResult, fallback: (@MainActor @Sendable () -> ControlResponse?)? = nil) -> ControlStage {
         .worker {
             guard let screen = client.screen(name: name, all: all || lines != nil) else {
-                return .done(ControlResponse(ok: false, error: "failed to read surface buffer"))
+                return failedRead(client: client, name: name, reason: "failed to read surface buffer", fallback: fallback)
             }
             var result = reply
             result.text = lines.map(screen.lastLines) ?? screen.text
@@ -120,14 +112,23 @@ enum LinuxLeadPaneIO {
         }
     }
 
-    static func cursorStage(client: LinuxZmxClient, name: String, controlID: String) -> ControlStage {
+    static func cursorStage(client: LinuxZmxClient, name: String, controlID: String,
+                            fallback: (@MainActor @Sendable () -> ControlResponse?)? = nil) -> ControlStage {
         .worker {
             guard let screen = client.screen(name: name, all: false) else {
-                return .done(ControlResponse(ok: false, error: "failed to read cursor position"))
+                return failedRead(client: client, name: name, reason: "failed to read cursor position", fallback: fallback)
             }
             return .done(ControlResponse(ok: true, result: ControlResult(
                 id: controlID, cursor: ControlCursor(column: screen.cursorColumn))))
         }
+    }
+
+    private static func failedRead(client: LinuxZmxClient, name: String, reason: String,
+                                   fallback: (@MainActor @Sendable () -> ControlResponse?)?) -> ControlStage {
+        let failure = ControlResponse(ok: false, error: reason)
+        let socket = URL(fileURLWithPath: client.socketDirectory).appendingPathComponent(name)
+        guard let fallback, !FileManager.default.fileExists(atPath: socket.path) else { return .done(failure) }
+        return .main { .done(fallback() ?? failure) }
     }
 
     /// `finish` runs on the main thread once the daemon accepted every byte.

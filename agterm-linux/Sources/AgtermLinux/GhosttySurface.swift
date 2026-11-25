@@ -425,15 +425,9 @@ final class GhosttySurface: PaneRoleMutableSurface {
         let effectiveFontSize = fontSizeOverride ?? dashboardFontOverride ?? session?.fontSize ?? fontSize
         let overlay = LinuxBackgroundOverlayPolicy.overlayText(
             oscLatch: oscBackgroundColorHex, watermark: watermark, resolvedImagePath: resolvedImagePath,
-<<<<<<< HEAD
-            fontSize: effectiveFontSize, windowOpacity: effectiveWindowOpacity)
+            fontSize: effectiveFontSize, windowOpacity: effectiveWindowOpacity) + exitConfig
         guard let config = GhosttyApp.shared.configWithOverlay(overlay, settings: settings) else { return false }
         GhosttyConfigApplyPolicy.withConfigUpdate { ghostty_surface_update_config(surface, config) }
-=======
-            fontSize: effectiveFontSize, windowOpacity: effectiveWindowOpacity) + exitConfig
-        guard let config = GhosttyApp.shared.configWithOverlay(overlay, settings: settings) else { return }
-        ghostty_surface_update_config(surface, config)
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         ownedConfigs.forEach { ghostty_config_free($0) }
         ownedConfigs = [config]
         queueRender()
@@ -444,12 +438,8 @@ final class GhosttySurface: PaneRoleMutableSurface {
         let inherited = role.statusPane.flatMap { pane in
             controller?.store.session(withID: sessionID)?.effectiveBackground(for: pane)
         }
-<<<<<<< HEAD
         // Explicit reloads must preserve the dashboard's temporary size even without a watermark.
-        guard dashboardFontOverride != nil || oscBackgroundColorHex != nil
-=======
-        guard waitAfterCommand || oscBackgroundColorHex != nil
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
+        guard waitAfterCommand || dashboardFontOverride != nil || oscBackgroundColorHex != nil
                 || fixedBackgroundColor != nil
                 || usesSessionWatermark && inherited != nil else { return }
         reapplyBackgroundOverlay(windowOpacity: windowOpacity, settings: settings)
@@ -826,17 +816,9 @@ final class GhosttySurface: PaneRoleMutableSurface {
     }
 
     func handleHeldProcessExit() {
-<<<<<<< HEAD
         guard waitAfterCommand else { return }
         // The final link-loss title can follow the child-exit callback from the separate PTY reader.
         heldLeadAttachment.retain(controller?.remoteHeldExits.attachmentEnded(self, forSession: sessionID))
-=======
-        guard waitAfterCommand, let pane = UUID(uuidString: paneToken) else { return }
-        // Link-loss handling already cleared the role; a later held-exit callback must not
-        // erase a takeover queued while reconnecting.
-        guard !RemoteReconnectBook.shared.waiting(pane: pane) else { return }
-        ZmxLeadBook.shared.forget(pane: pane)
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         syncLeadCover()
         controller?.store.leadRoleChanged()
     }
@@ -983,46 +965,15 @@ private let surfaceScroll: @MainActor @convention(c) (OpaquePointer?, Double, Do
 private let surfaceDropString: @MainActor @convention(c) (OpaquePointer?, UnsafePointer<GValue>?, Double, Double, gpointer?) -> gboolean = { _, value, _, _, data in
     MainActor.assumeIsolated {
         guard let value, let cstr = g_value_get_string(value), let surface = wrap(data) else { return 0 }
-<<<<<<< HEAD
-        return LinuxDropPolicy.deliverText(String(cString: cstr), to: surface) ? 1 : 0
-=======
         let payload = String(cString: cstr)
-        // Defensive guard for in-app sidebar drags if a compositor offers COPY anyway.
-        if UUID(uuidString: payload) != nil { return 0 }
-        if payload.hasPrefix("w:"), UUID(uuidString: String(payload.dropFirst(2))) != nil { return 0 }
+        // A compositor may offer COPY for in-app sidebar drags.
+        guard LinuxDropPolicy.acceptsText(payload) else { return 0 }
         surface.grabFocus(supersedingPopoverCapture: true)
         return surface.pasteOffer(LinuxPasteClipboard.dropOffer(payload)) ? 1 : 0
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
     }
 }
 private let surfaceDropFiles: @MainActor @convention(c) (OpaquePointer?, UnsafePointer<GValue>?, Double, Double, gpointer?) -> gboolean = { _, value, _, _, data in
     MainActor.assumeIsolated {
-<<<<<<< HEAD
-        guard let value, let boxed = g_value_get_boxed(value), let surface = wrap(data) else { return 0 }
-        let fileList = OpaquePointer(boxed)
-        guard let files = gdk_file_list_get_files(fileList) else { return 0 }
-        defer { g_slist_free(files) }
-
-        var parts: [String] = []
-        var node: UnsafeMutablePointer<GSList>? = files
-        while let current = node {
-            if let rawFile = current.pointee.data {
-                let file = OpaquePointer(rawFile)
-                if let cpath = g_file_get_path(file) {
-                    let path = String(cString: cpath)
-                    g_free(cpath)
-                    parts.append(ShellEscape.path(path))
-                } else if let curi = g_file_get_uri(file) {
-                    let uri = String(cString: curi)
-                    g_free(curi)
-                    parts.append(ShellEscape.path(uri))
-                }
-            }
-            node = current.pointee.next
-        }
-
-        return LinuxDropPolicy.deliverFiles(parts, to: surface) ? 1 : 0
-=======
         guard let value, let surface = wrap(data) else { return 0 }
         let urls = LinuxPasteClipboard.files(value)
         guard !urls.isEmpty else { return 0 }
@@ -1036,6 +987,5 @@ private let surfaceDropImage: @MainActor @convention(c) (OpaquePointer?, UnsafeP
               let bytes = LinuxPasteClipboard.png(OpaquePointer(object)) else { return 0 }
         surface.grabFocus(supersedingPopoverCapture: true)
         return surface.pasteOffer(PasteOffer(image: bytes)) ? 1 : 0
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
     }
 }

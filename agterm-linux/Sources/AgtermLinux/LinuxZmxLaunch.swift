@@ -5,7 +5,6 @@ import Glibc
 #endif
 
 enum LinuxZmxLaunch {
-<<<<<<< HEAD
     /// zmx ignores creation argv when the named daemon already exists.
     static func prefillCommand(_ configuration: ZmxSupport.Configuration, line: String, detached: Bool = false) -> String? {
         guard let shell = configuration.environment["SHELL"],
@@ -22,13 +21,13 @@ enum LinuxZmxLaunch {
             arguments = [host, "client", configuration.daemonName, "--"] + arguments
         }
         return CommandRestore.shellQuotedLine(arguments)
-=======
+    }
+
     /// The CLI's direct creation path needs the same bounded hold as the upstream session host.
     /// The daemon removes this variable before exec, and a plain login shell starts immediately.
     static func holdUntilAttached(_ command: String, program: Bool) -> String {
         guard program else { return command }
         return CommandRestore.shellQuotedLine(["/usr/bin/env", "ZMX_HOLD_UNTIL_ATTACH=5", "/bin/sh", "-c", "exec " + command])
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
     }
     /// Latched once for the app run: reloading config cannot rename a running daemon's shell.
     static let liveCommandShell: String? = {

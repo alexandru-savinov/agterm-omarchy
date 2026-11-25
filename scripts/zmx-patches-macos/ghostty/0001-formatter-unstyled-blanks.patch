@@ -2,7 +2,7 @@ diff -ruN ghostty-orig/src/terminal/formatter.zig ghostty/src/terminal/formatter
 --- ghostty-orig/src/terminal/formatter.zig	2026-10-03 02:33:23.894392694 -0500
 +++ ghostty/src/terminal/formatter.zig	2026-10-03 02:47:56.373773431 -0500
 @@ -1345,6 +1345,7 @@
- 
+
                      // Cells with no text are blank
                      if (!cell.hasText()) {
 +                        try self.closeStyleForBlank(emit, writer, &style, &style_id);
@@ -12,7 +12,7 @@ diff -ruN ghostty-orig/src/terminal/formatter.zig ghostty/src/terminal/formatter
 @@ -2048,6 +2049,22 @@
          }
      }
- 
+
 +    /// closeStyleForBlank resets the style before a blank cell is buffered, so
 +    /// both emission paths write the buffered blanks unstyled.
 +    fn closeStyleForBlank(

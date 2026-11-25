@@ -9,12 +9,11 @@ import shutil
 import struct
 import subprocess
 import sys
-import tempfile
 import termios
 import time
 
 ZMX = sys.argv[1]
-ZDIR = None  # a fresh private directory, made by main
+ZDIR = "/tmp/zmx-e2e-%d" % os.getpid()
 NAME = "e2e"
 ROLE = re.compile(rb"\x1b\]2;zmx-role;([A-Za-z0-9-]+):(\w+):(\d+)\x1b\\")
 
@@ -50,12 +49,6 @@ def drain(fd, seconds):
     return out
 
 
-<<<<<<< HEAD
-def cli(*args, stdin=None):
-    env = dict(os.environ, ZMX_DIR=ZDIR)
-    env.pop("ZMX_SESSION", None)
-    return subprocess.run([ZMX, *args], env=env, input=stdin, capture_output=True, timeout=10)
-=======
 def reaped(pid, seconds):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -75,7 +68,6 @@ def cli(*args, stdin=None, extra=None, executable=ZMX):
 
 def listed(name):
     return name.encode() in cli("list", "--short").stdout.split()
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
 
 
 def legacy_ipc(executable):
@@ -255,14 +247,7 @@ def check_upgrade(previous):
             os.waitpid(pid, 0)
 
 def main():
-    global ZDIR
-    # a random name, created exclusively with mode 0700, so no other user can claim the path first
-    ZDIR = tempfile.mkdtemp(prefix="zmx-e2e-")
-    # the daemon's socket lives in ZDIR, and a unix socket path is capped near 104 bytes
-    sock = os.path.join(ZDIR, NAME)
-    if len(os.fsencode(sock)) >= 104:
-        os.rmdir(ZDIR)
-        sys.exit("socket path %s is too long for a unix socket; set TMPDIR to a shorter directory" % sock)
+    os.makedirs(ZDIR, mode=0o700)
     ok = True
     pids = []
     try:
@@ -359,14 +344,10 @@ def main():
         pids.append(p3)
         replay = drain(f3, 2.0)
         red = b"\x1b[48;5;1m"
-        # a cursor move paints nothing on the cleared screen a replay starts from; blanks must close the style
+        # An equivalent explicit reset also leaves the skipped cells unstyled.
         gap = re.compile(re.escape(red) + rb"ab(?:\x1b\[2C|\x1b\[0m  \x1b\[0m" + re.escape(red) + rb")c\x1b\[0m")
         ok &= check("a replayed gap the program skipped is unstyled and the run resumes after it",
-<<<<<<< HEAD
                     gap.search(replay) is not None, repr(replay[-300:]))
-=======
-                    red + b"ab\x1b[2Cc\x1b[0m" in replay, repr(replay[-300:]))
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         ok &= check("replayed spaces the program wrote keep their style",
                     red + b"ab  c\x1b[0m" in replay, repr(replay[-300:]))
 
@@ -381,16 +362,12 @@ def main():
         tail = drain(f5, 3.0).rpartition(b"EXIT-MARK")[2]
         ok &= check("an unmanaged client whose session ends still resets the terminal", b"\x1bc" in tail, repr(tail))
 
-        # 0009: an origin starts a pane for a remote viewer with no terminal and no client
-        created = cli("attach", "--detached", "detached", "/bin/sh", "-c", "sleep 30", stdin=b"")
-        ok &= check("a detached create needs no tty",
-                    created.returncode == 0 and b"detached" in cli("list").stdout, repr(created.stderr))
-        again = cli("attach", "--detached", "detached", "/bin/sh", stdin=b"")
+        record = os.path.join(ZDIR, "exit-record")
+        created = cli("attach", "--detached", "detached", "/bin/sh", "-c", "sleep 0.5; exit 7",
+                      extra={"ZMX_EXIT_FILE": record})
+        ok &= check("a detached create needs no tty", created.returncode == 0 and listed("detached"), repr(created.stderr))
+        again = cli("attach", "--detached", "detached", "/bin/sh")
         ok &= check("a detached create of a live session is refused", again.returncode == 1, repr(again.stderr))
-<<<<<<< HEAD
-    finally:
-        cli("kill", NAME, "detached", "--force")
-=======
         gone_without_record = False
         deadline = time.time() + 5
         while time.time() < deadline:
@@ -475,7 +452,6 @@ def main():
     finally:
         cli("kill", NAME, "reclaim", "detached", "killed", "env-probe", "sigterm", "busy", "task", "held", "timed",
             "held-killed", "--force")
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         for pid in pids:
             try:
                 os.kill(pid, 9)

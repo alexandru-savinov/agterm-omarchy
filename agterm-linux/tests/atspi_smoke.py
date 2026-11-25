@@ -7723,18 +7723,10 @@ def main():
     scenario = os.environ.get("AGTERM_ATSPI_SCENARIO")
     if scenario is None:
         failures = []
-<<<<<<< HEAD
         retries = recovered = 0
         scenarios = (
             "normal", "upstream-controls", "upstream-v0391", "upstream-v0400", "upstream-v0411", "upstream-v0430", "sidebar-v0400", "links-v0400", "remote-v0391", "html-overlay", "overlay-visual", "live-restart", "live-fish-restart", "live-command-restart",
             "v0430-gui", "v0430-input", "v0430-sidebar", "live-wait-output", "live-scratch", "startup-environment",
-=======
-        scenarios = (
-            "normal", "upstream-controls", "upstream-v0391", "upstream-v0400", "upstream-v0411", "upstream-v0430", "sidebar-v0400", "links-v0400", "remote-v0391", "html-overlay", "overlay-visual", "live-restart", "live-fish-restart", "live-command-restart",
-            "v0430-gui", "v0430-input", "v0430-sidebar", "v0441", "live-wait-output", "live-control-memory", "live-scratch",
-            "v0441-audit-gui", "v0441-audit-live", "v0441-audit-transfers", "v0441-audit-pages", "v0441-audit-capture",
-            "startup-environment",
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
             "dashboard-modal", "context-menu",
             "window-key-dispatch",
             "split-exit", "split-primary-exit", "split-ratio-restore", "window-ownership", "preferences-pages",
@@ -7758,7 +7750,6 @@ def main():
             "chrome-focus-buttons", "chrome-focus-sidebar", "chrome-focus-popovers",
             "window-close-cancel", "workspace-focus-filters", "quick-card-geometry", "clipboard-payloads",
             "recent-clear", "control-picker", "control-ask", "ask-visual", "palette-lifecycle", "palette-layout-navigation",
-<<<<<<< HEAD
             "clipboard-osc52", "auto-follow", "hidden-toolbar", "desktop-actions",
             "theme-picker-cancel", "appearance-reset", "unavailable-font-family", "keymap-config-directory",
             "chrome-interface-controls",
@@ -7774,6 +7765,8 @@ def main():
             "omarchy-font-family",
             # Appended so existing scenarios keep their CI shard.
             "live-control-memory",
+            "v0441", "v0441-audit-gui", "v0441-audit-live", "v0441-audit-transfers",
+            "v0441-audit-pages", "v0441-audit-capture",
         )
         try:
             shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
@@ -7784,18 +7777,6 @@ def main():
             print(f"FAIL: invalid AT-SPI shard configuration: {error}")
             return 2
         for child_scenario in scenarios[shard_index::shard_count]:
-=======
-            "clipboard-osc52",
-            "auto-follow", "hidden-toolbar", "desktop-actions",
-            "theme-many-sessions",
-        )
-        selected = os.environ.get("AGTERM_ATSPI_SCENARIOS")
-        selected = selected.split(",") if selected else scenarios
-        unknown = set(selected) - set(scenarios)
-        if unknown:
-            raise ValueError("unknown GTK scenarios: " + ", ".join(sorted(unknown)))
-        for child_scenario in selected:
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             status, extra = run_scenario([sys.executable, __file__], child_env)
             retries += extra

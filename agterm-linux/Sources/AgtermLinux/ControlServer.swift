@@ -526,14 +526,9 @@ final class ControlServer: @unchecked Sendable {
         }
     }
 
-<<<<<<< HEAD
-    func attachRemoteOnMain(host: String, session: String,
-                            tree: ControlRemoteTree, window: String?) -> ControlResponse {
-=======
     func attachRemoteOnMain(
         host: String, session: String, tree: ControlRemoteTree, window: String?, workspace: ControlAttachWorkspace? = nil
     ) -> ControlResponse {
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         if let remote = tree.sessions.first(where: { $0.id == session && $0.content == "page" }) {
             return attachRemotePageRow(remote, tree: tree, host: host, window: window, workspace: workspace)
         }
@@ -551,16 +546,10 @@ final class ControlServer: @unchecked Sendable {
                         error: ControlResolve.notFoundMessage(noun: "window", target: window)))
                     return
                 }
-<<<<<<< HEAD
             } else {
                 controller = gController
-=======
-                box.value = controller?.attachRemoteSession(host: host, session: session, tree: tree, workspaceTarget: workspace)
-                    ?? ControlResponse(ok: false, error: "window not open")
-                sem.signal()
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
             }
-            reply.resolve(controller?.attachRemoteSession(host: host, session: session, tree: tree)
+            reply.resolve(controller?.attachRemoteSession(host: host, session: session, tree: tree, workspaceTarget: workspace)
                 ?? ControlResponse(ok: false, error: "window not open"))
         }
     }
@@ -619,11 +608,7 @@ final class ControlServer: @unchecked Sendable {
             }
             return .controller(gController)
         case .sessionCompanionNew, .sessionCompanionPage, .sessionCompanionDuplicate, .sessionCompanionPageAttach,
-<<<<<<< HEAD
-             .sessionPage, .sessionCompanionConvert, .sessionCompanionMove, .sessionTerminate, .sessionRemoteNew,
-=======
-             .sessionPage, .sessionCompanionConvert, .sessionCompanionMove, .sessionCompanionPromote, .sessionTerminate, .sessionUndo, .sessionRemoteNew,
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
+             .sessionPage, .sessionCompanionConvert, .sessionCompanionMove, .sessionCompanionPromote, .sessionTerminate, .sessionRemoteNew,
              .sessionCollapse, .sessionExpand, .sessionTint,
              .sessionOverlayHide, .sessionOverlayShow, .sessionOverlayToggle,
              .sessionRestart, .sessionOverlaySubmit, .keymapRun, .sessionClose, .sessionDuplicate, .sessionSelect, .sessionGo, .sessionRename, .sessionReveal,

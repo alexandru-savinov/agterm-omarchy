@@ -90,14 +90,9 @@ struct agtermApp: App {
     }
 
     init() {
-<<<<<<< HEAD
+        LaunchTrace.shared.mark(.initEntry)
         // before NSApplicationMain, which decides whether to restore while it finishes launching
         AppKitSavedState.ignore()
-=======
-        LaunchTrace.shared.mark(.initEntry)
-        // before NSApplicationMain restores: windows opt out, so state left by an unclean exit restores none and no launch window opens
-        UserDefaults.standard.register(defaults: ["ApplePersistenceIgnoreState": true])
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         #if DEBUG
         // in the environment, ahead of every reader of the variable and of every child that inherits it
         if let adopted = DebugStateDirectory.adopted(environment: ProcessInfo.processInfo.environment,

@@ -1,7 +1,8 @@
-diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
---- zmx-orig/src/loop.zig
-+++ zmx/src/loop.zig
-@@ -699,9 +699,7 @@
+diff --git a/src/loop.zig b/src/loop.zig
+index da6f9b8..ec9d7f0 100644
+--- a/src/loop.zig
++++ b/src/loop.zig
+@@ -706,9 +706,7 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
                      continue;
                  };
  
@@ -12,7 +13,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
  
                  if (client.write_buf.items.len == 0) {
                      client.has_pending_output = false;
-@@ -751,6 +749,8 @@
+@@ -758,6 +756,8 @@ pub const Client = struct {
      told_role: ?ipc.Role = null,
      read_buf: ipc.SocketBuffer,
      write_buf: std.ArrayList(u8),
@@ -21,7 +22,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      env_str: ?[]u8 = null,
  
      pub fn deinit(self: *Client, gpa: std.mem.Allocator) void {
-@@ -762,6 +762,28 @@
+@@ -769,6 +769,28 @@ pub const Client = struct {
          if (self.reclaim_from) |s| gpa.free(s);
      }
  
@@ -50,7 +51,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      fn setEnv(self: *Client, gpa: std.mem.Allocator, env_str: []const u8) !void {
          if (self.env_str) |s| gpa.free(s);
          self.env_str = if (env_str.len > 0) try gpa.dupe(u8, env_str) else null;
-@@ -1307,8 +1329,10 @@
+@@ -1314,8 +1336,10 @@ pub const Daemon = struct {
          if (payload.len != @sizeOf(ipc.Resize)) return;
  
          if (!client.is_terminal) {
@@ -63,7 +64,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
          }
          client.is_terminal = true;
  
-@@ -1939,6 +1963,54 @@
+@@ -1946,6 +1970,54 @@ fn queuedRoles(client: *const Client) struct { last: ?ipc.RoleChange, count: usi
      return .{ .last = last, .count = count };
  }
  

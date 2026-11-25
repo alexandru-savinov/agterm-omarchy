@@ -1400,8 +1400,7 @@ final class WindowLibraryTests {
         try writeIndex(WindowsIndex(frontmost: id, windows: [WindowEntry(id: id, name: "corrupt", isOpen: true)]))
         let library = WindowLibrary(directory: directory)
         let store = try #require(library.store(for: id))
-<<<<<<< HEAD
-        #expect(store.workspaces.isEmpty)
+        #expect(store.namedWorkspaces.isEmpty && store.rootWorkspace?.sessions.isEmpty == true)
 
         store.save()
         library.closeWindow(id)
@@ -1413,9 +1412,6 @@ final class WindowLibraryTests {
         let written = try PersistenceStore(directory: directory.appendingPathComponent("windows"),
                                            fileName: "\(id.uuidString).json").loadChecked()
         #expect(written == store.snapshot())
-=======
-        #expect(store.namedWorkspaces.isEmpty && store.rootWorkspace?.sessions.isEmpty == true)
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
     }
 
     // MARK: - Orphan recovery (index lost, per-window files survive)
@@ -1673,8 +1669,6 @@ final class WindowLibraryTests {
         #expect(hub.subscriberCount(session: session.id) == 0)
     }
 
-<<<<<<< HEAD
-=======
     private func addSession(to store: AppStore, status: AgentStatus) throws -> Session {
         let session = try #require(store.addSession(toWorkspace: store.workspaces[0].id, cwd: "/tmp"))
         store.setAgentIndicator(AgentIndicator(status: status), forSession: session.id)
@@ -1792,7 +1786,6 @@ final class WindowLibraryTests {
         #expect(library.attentionSubtitle(entry) == "workspace 1 · buildbox · \(session.subtitleDetail)")
     }
 
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
     private final class Flag: @unchecked Sendable {
         private(set) var isSet = false
         func set() { isSet = true }

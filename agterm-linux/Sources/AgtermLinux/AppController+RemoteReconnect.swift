@@ -5,24 +5,8 @@ import agtermCore
 @MainActor
 extension AppController {
     func remoteLinkLost(_ notice: RemoteLinkNotice, surface: GhosttySurface) {
-<<<<<<< HEAD
         guard remoteHeldExits.linkLost(notice, from: surface, forSession: surface.sessionID,
                                       heldAttachment: surface.heldLeadAttachment) else { return }
-=======
-        guard let pane = UUID(uuidString: surface.paneToken),
-              notice.nonce == ZmxLeadBook.shared.states[pane]?.attachment.nonce,
-              let session = store.session(withID: surface.sessionID), let host = session.remoteHost,
-              session.surface === surface || session.splitSurface === surface else { return }
-        let state = ZmxLeadBook.shared.states[pane]
-        let cover = state?.role != nil || state?.reattaching == true
-        let reclaim = state?.reclaimAfterDrop
-        let claim = ZmxLeadBook.shared.takeClaim(pane: pane)
-        ZmxLeadBook.shared.forget(pane: pane)
-        if claim { ZmxLeadBook.shared.claimOnReport(pane: pane) }
-        store.remotePaneHeld(pane, forSession: session.id)
-        remoteHeldExits.paneHeld(surface, forSession: session.id)
-        RemoteReconnectBook.shared.wait(pane: pane, session: session.id, host: host, cover: cover, reclaim: reclaim, now: Date())
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         surface.syncLeadCover()
         surface.refreshReconnectNote()
         store.leadRoleChanged()

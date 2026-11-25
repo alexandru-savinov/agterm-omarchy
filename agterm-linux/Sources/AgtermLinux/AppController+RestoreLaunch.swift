@@ -36,11 +36,12 @@ enum LinuxRestoreSeed {
                             denylist: Set<String>, daemonRunning: Bool?, endsWithCommand: Bool = false,
                             waitAfterCommand: Bool = false, detached: Bool = false) -> LinuxLaunchSeed {
         guard let replay else {
+            let command = ZmxSupport.attachCommand(configuration, replaying: nil,
+                                                   creationCommand: endsWithCommand ? nil : durable,
+                                                   paneCommand: endsWithCommand ? durable : nil,
+                                                   denylist: denylist, detached: detached)
             return LinuxLaunchSeed(
-                command: ZmxSupport.attachCommand(configuration, replaying: nil,
-                                                  creationCommand: endsWithCommand ? nil : durable,
-                                                  paneCommand: endsWithCommand ? durable : nil,
-                                                  denylist: denylist, detached: detached),
+                command: LinuxZmxLaunch.holdUntilAttached(command, program: durable != nil),
                 initialInput: nil, waitAfterCommand: endsWithCommand && waitAfterCommand
             )
         }
@@ -167,20 +168,6 @@ extension AppController {
         }
     }
 
-<<<<<<< HEAD
-=======
-    /// A captured argv, even a denylisted one, preempts the durable creation command after daemon loss.
-    nonisolated static func wrappedAttachCommand(_ configuration: ZmxSupport.Configuration, replay: [String]?,
-                                                 durable: String?, denylist: Set<String>, endsWithCommand: Bool = false,
-                                                 detached: Bool = false) -> String {
-        let command = ZmxSupport.attachCommand(configuration, replaying: replay,
-            creationCommand: replay == nil && !endsWithCommand ? durable : nil,
-            paneCommand: replay == nil && endsWithCommand ? durable : nil, denylist: denylist, detached: detached)
-        let program = replay.map { CommandRestore.shouldRestore(argv: $0, denylist: denylist) } ?? (durable != nil)
-        return LinuxZmxLaunch.holdUntilAttached(command, program: program)
-    }
-
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
     private func shouldPace(session: Session, pane: StatusPane,
                             disposition: ZmxSupport.LaunchDisposition,
                             policy: LinuxLaunchSeedPolicy) -> Bool {

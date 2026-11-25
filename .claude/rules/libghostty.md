@@ -249,15 +249,11 @@ paths:
   container's own lookup.
 - File drop uses `insertPasted`/`ghostty_surface_text`, preserving bracketed-paste behavior. It may still
   submit a trailing newline when the program disables mode 2004. Do not reuse `inject`, which intentionally
-<<<<<<< HEAD
   translates newline/return into Return for `session.type`. `pasteboardText` remains shared with clipboard
   paste, and `ShellEscape.path` keeps file paths one token; #96 newline escaping remains defense in depth.
   Linux does NOT drop through `ghostty_surface_text` (its `textCallback` pastes with `allow_unsafe = true`):
   `pasteThroughProtection` arms the text and fires `paste_from_clipboard`, so libghostty's paste protection
   decides, and an unsafe paste reaches `UnsafePasteController` (Paste / Cancel, default Cancel).
-=======
-  translates newline/return into Return for `session.type`. `PasteOffer.urlText` is shared with the clipboard
-  read, and `ShellEscape.path` keeps file paths one token; #96 newline escaping remains defense in depth.
 - One seam pastes for ⌘V, Edit ▸ Paste, `session.paste` and a drop: `GhosttySurfaceView.paste(_:drop:)`, fed a
   `PasteOffer` read synchronously from the pasteboard. `PasteOffer.route(onOrigin:)` decides; what needs no copy
   takes the exact pre-seam call (`paste_from_clipboard`, or `insertPasted` for a drop), and files or an image are
@@ -274,7 +270,6 @@ paths:
 - `PasteBundle` is the wire format and `PasteStaging` the landing folder (`agterm/paste` in the user's caches,
   0700, entries older than `retention` swept on each receive), both host-free so agterm-server stages the same
   way. `agtermctl paste receive` on the origin reads the bundle from stdin and prints `PasteStaging.Reply`.
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
 - AX exposure (`axExposed` in `GhosttySurfaceView+Accessibility.swift`) rides on FOUR terms: `!viewOnly`,
   `deckVisible`, `surface != nil`, and `window?.isVisible`. Every one drives
   `postAccessibilityExposureChange` behind the `axPostedExposed` latch, so a new term owes a post site;

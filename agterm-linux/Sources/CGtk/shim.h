@@ -4,7 +4,8 @@
 #include <glib-unix.h>
 #include <epoxy/gl.h>
 #include "ghostty.h"
-<<<<<<< HEAD
+#include "linux_socket_diag.h"
+
 #ifdef GDK_WINDOWING_X11
 #include <gdk/x11/gdkx.h>
 #endif
@@ -18,9 +19,6 @@ agterm_display_is_x11(GdkDisplay *display)
     return FALSE;
 #endif
 }
-=======
-#include "linux_socket_diag.h"
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
 
 // GLib 2.88 imports flag-enum members differently in Swift. Keep the C constant at the boundary.
 static inline GFileMonitorFlags

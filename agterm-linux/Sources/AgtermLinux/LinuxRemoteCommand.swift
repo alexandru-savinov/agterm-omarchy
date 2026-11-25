@@ -11,8 +11,7 @@ enum LinuxRemoteCommand {
     static let outputLimit = 32 * 1024 * 1024
     static let outputLimitStatus: Int32 = 1
 
-<<<<<<< HEAD
-    static func run(_ argv: [String], deadline: TimeInterval, input: Data? = nil,
+    static func run(_ argv: [String], deadline: TimeInterval, input: Data? = nil, inputURL: URL? = nil,
                     outputLimit: Int = outputLimit, temporaryDirectory: String = "/tmp",
                     inputCreate: (UnsafeMutablePointer<CChar>) -> Int32 = { mkstemp($0) },
                     inputWrite: (Int32, UnsafeRawPointer, Int) -> Int = { Glibc.write($0, $1, $2) }) -> RemoteCommandResult {
@@ -23,20 +22,11 @@ enum LinuxRemoteCommand {
         let errors = TemporaryOutput(directory: temporaryDirectory)
         let inputFile = input.flatMap {
             TemporaryInput(data: $0, directory: temporaryDirectory, create: inputCreate, write: inputWrite)
-=======
-    static func run(_ argv: [String], deadline: TimeInterval,
-                    input: Data? = nil, inputURL: URL? = nil) -> RemoteCommandResult {
-        guard !argv.isEmpty else {
-            return RemoteCommandResult(status: 127, stdout: "", stderr: "no command to run")
         }
-        let output = TemporaryOutput()
-        let errors = TemporaryOutput()
-        let inputFile = input.flatMap(TemporaryInput.init)
         let inputHandle = inputURL.flatMap { try? FileHandle(forReadingFrom: $0) }
         defer { try? inputHandle?.close() }
         if inputURL != nil, inputHandle == nil {
             return RemoteCommandResult(status: 1, stdout: "", stderr: "could not open command input file")
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         }
         guard let output, let errors else {
             return RemoteCommandResult(status: 1, stdout: "", stderr: "could not create command output files")
@@ -91,16 +81,10 @@ private final class TemporaryInput {
     let path: String
     let handle: FileHandle
 
-<<<<<<< HEAD
     init?(data: Data, directory: String, create: (UnsafeMutablePointer<CChar>) -> Int32,
           write: (Int32, UnsafeRawPointer, Int) -> Int) {
         var template = Array("\(directory)/agterm-input-XXXXXX".utf8CString)
         let descriptor = create(&template)
-=======
-    init?(data: Data) {
-        var template = Array((NSTemporaryDirectory() + "/agterm-input-XXXXXX").utf8CString)
-        let descriptor = mkstemp(&template)
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         guard descriptor >= 0 else { return nil }
         path = String(decoding: template.dropLast().map { UInt8(bitPattern: $0) }, as: UTF8.self)
         guard data.withUnsafeBytes({ raw in
@@ -132,13 +116,8 @@ private final class TemporaryOutput {
     let path: String
     let handle: FileHandle
 
-<<<<<<< HEAD
     init?(directory: String) {
         var template = Array("\(directory)/agterm-remote-XXXXXX".utf8CString)
-=======
-    init?() {
-        var template = Array((NSTemporaryDirectory() + "/agterm-remote-XXXXXX").utf8CString)
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         let descriptor = mkstemp(&template)
         guard descriptor >= 0 else { return nil }
         path = String(decoding: template.dropLast().map { UInt8(bitPattern: $0) }, as: UTF8.self)

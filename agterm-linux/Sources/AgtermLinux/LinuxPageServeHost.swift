@@ -3,12 +3,9 @@ import Foundation
 import agtermCore
 
 extension ControlServer: PageServeHost {
-<<<<<<< HEAD
     var bridgesByCallback: Bool { true }
 
-=======
     var snapshotOffers: SnapshotOfferBook? { snapshotBook }
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
     @MainActor
     func claimRemotePage(token: String) -> (page: UUID, served: PageServeClaim)? {
         for store in openPageStores {

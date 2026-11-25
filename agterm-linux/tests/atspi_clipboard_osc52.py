@@ -201,14 +201,11 @@ def verify_clipboard_osc52(env):
                 f"an OSC 52 read rewrote a file list into paths: {reply!r}")
             assert reply == osc52_reply(COPIED_FILES), f"an OSC 52 read changed the offered bytes: {reply!r}"
             paths = pasted()
-<<<<<<< HEAD
             assert paths != UNPROTECTED_PATHS, f"a paste delivered file paths unescaped: {paths!r}"
             assert paths == ESCAPED_PATHS, f"a paste did not shell-escape an advertised uri-list: {paths!r}"
-=======
             assert shlex.split(paths) == ["/tmp/one two", "/tmp/three"], (
                 f"a paste did not preserve advertised file paths as shell arguments: {paths!r}"
             )
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
 
         type_line(f"printf '\\033]52;c;{base64.b64encode(LITERAL_URL.encode()).decode()}\\007'")
         wait_for(lambda: clipboard_text(clipboard) == LITERAL_URL, "the file:// write did not reach the GDK clipboard")

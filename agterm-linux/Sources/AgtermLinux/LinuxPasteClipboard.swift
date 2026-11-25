@@ -59,7 +59,8 @@ enum LinuxPasteClipboard {
 
     static func files(_ value: UnsafePointer<GValue>) -> [URL] {
         guard let boxed = g_value_get_boxed(value), let list = gdk_file_list_get_files(OpaquePointer(boxed)) else { return [] }
-        // The returned list and GFiles are borrowed from GdkFileList.
+        // GDK transfers the list container. The GFiles remain borrowed.
+        defer { g_slist_free(list) }
         var urls: [URL] = []
         var node: UnsafeMutablePointer<GSList>? = list
         while let current = node {

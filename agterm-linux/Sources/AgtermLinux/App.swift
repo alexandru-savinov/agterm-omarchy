@@ -329,16 +329,12 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
     }
     let ids = gLibrary.openIDs()
     let toOpen = ids.isEmpty ? [gLibrary.windows.first?.id].compactMap { $0 } : ids
-<<<<<<< HEAD
     for id in toOpen { openWindow(id, launcherTitle: id == launcherWindowID ? terminal?.title : nil) }
     if let notice = gLaunchLiveReset.flatMap(ZmxIncompatibleReset.notice(outcome:)),
        let controller = toOpen.first.flatMap({ gWindows[$0] }) {
         controller.showToast(notice)
     }
-=======
-    for id in toOpen { openWindow(id) }
     LinuxLaunchTrace.mark("restored windows presented")
->>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
     if let controller = gWindows.values.first {
         _ = controller.reloadConfigForAppearanceChange(appearanceSide)
     }

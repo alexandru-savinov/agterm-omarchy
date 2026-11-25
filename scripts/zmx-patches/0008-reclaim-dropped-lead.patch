@@ -1,29 +1,31 @@
-diff -ruN zmx-orig/src/ipc.zig zmx/src/ipc.zig
---- zmx-orig/src/ipc.zig
-+++ zmx/src/ipc.zig
-@@ -43,6 +43,9 @@
+diff --git a/src/ipc.zig b/src/ipc.zig
+index 61cc8b1..7444767 100644
+--- a/src/ipc.zig
++++ b/src/ipc.zig
+@@ -43,6 +43,9 @@ pub const Tag = enum(u8) {
      /// session's keyboard mode and queued without taking the lead.
      /// reply: one `TypeResult` byte. Accepted means queued, not executed.
-     Type = 25,
+     Type = 203,
 +    /// client -> daemon, after Manage: the client's ZMX_MANAGED token, then, when it takes back a lead
 +    /// it lost with its link, a newline and the token of the attach that held it.
 +    Identity = 27,
      Unsupported = 255,
      // Non-exhaustive: this enum comes off the wire via bytesToValue and
      // @enumFromInt, so out-of-range values are representable
-@@ -415,7 +418,7 @@
+@@ -415,7 +418,7 @@ test "Tag wire values are frozen" {
          .{ Tag.Send, 18 },     .{ Tag.EnvGet, 19 },       .{ Tag.EnvSet, 20 },
          .{ Tag.EnvData, 21 },  .{ Tag.Capture, 22 },      .{ Tag.Unsupported, 255 },
-         .{ Tag.Role, 23 },     .{ Tag.Screen, 24 },       .{ Tag.Type, 25 },
--        .{ Tag.Manage, 26 },
-+        .{ Tag.Manage, 26 },   .{ Tag.Identity, 27 },
+         .{ Tag.Role, 201 },     .{ Tag.Screen, 202 },       .{ Tag.Type, 203 },
+-        .{ Tag.Manage, 200 },
++        .{ Tag.Manage, 200 },   .{ Tag.Identity, 27 },
      }) |p| try std.testing.expectEqual(@as(u8, p[1]), @backingInt(p[0]));
  }
  
-diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
---- zmx-orig/src/loop.zig
-+++ zmx/src/loop.zig
-@@ -83,9 +83,12 @@
+diff --git a/src/loop.zig b/src/loop.zig
+index 6aa1e19..b56f36a 100644
+--- a/src/loop.zig
++++ b/src/loop.zig
+@@ -83,9 +83,12 @@ fn clientLoopOn(client_sock_fd: i32, env_str: []const u8, session_path: []const
  
      var relay: ?role.Relay = if (role.nonceFromEnv()) |nonce| role.Relay.init(nonce) else null;
      defer if (relay) |*r| r.deinit();
@@ -37,7 +39,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      }
  
      // Send init message with terminal size (buffered)
-@@ -667,6 +670,7 @@
+@@ -674,6 +677,7 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
                          .Capture => try daemon.handleCapture(gpa, client, &term, msg.payload),
                          .Run => try daemon.handleRun(gpa, io, client, msg.payload),
                          .Manage => daemon.handleManage(client, msg.payload),
@@ -45,7 +47,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
                          .Type => try daemon.handleType(gpa, client, &term, msg.payload),
                          .Screen => try daemon.handleScreen(gpa, client, &term, msg.payload),
                          .Ack, .TaskComplete, .LabelData, .EnvData, .Role, .Unsupported => {},
-@@ -738,6 +742,10 @@
+@@ -745,6 +749,10 @@ pub const Client = struct {
      /// sent .Manage: leads only by claiming, never by typing, and is told its role
      managed: bool = false,
      claim_on_init: bool = false,
@@ -56,7 +58,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      told_role: ?ipc.Role = null,
      read_buf: ipc.SocketBuffer,
      write_buf: std.ArrayList(u8),
-@@ -748,6 +756,8 @@
+@@ -755,6 +763,8 @@ pub const Client = struct {
          self.read_buf.deinit();
          self.write_buf.deinit(self.alloc);
          if (self.env_str) |s| gpa.free(s);
@@ -65,7 +67,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      }
  
      fn setEnv(self: *Client, gpa: std.mem.Allocator, env_str: []const u8) !void {
-@@ -777,6 +787,9 @@
+@@ -784,6 +794,9 @@ pub const Daemon = struct {
      leader_client_fd: ?i32 = null,
      /// bumped on every leadership change, carried in each RoleChange
      leader_generation: u32 = 0,
@@ -75,7 +77,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      /// bumped on every pty read, resize and injected output, carried in each ScreenHeader
      screen_revision: u64 = 0,
      running: bool = true,
-@@ -1064,6 +1077,7 @@
+@@ -1070,6 +1083,7 @@ pub const Daemon = struct {
      fn setLeader(self: *Daemon, gpa: std.mem.Allocator, client: *Client) !void {
          std.log.info("setting new leader client_fd={d}", .{client.socket_fd});
          self.leader_client_fd = client.socket_fd;
@@ -83,7 +85,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
          self.leader_generation +%= 1;
          // Send a resize message to the client so it can send us back their window size
          // so we can resize the pty and ghostty state.
-@@ -1105,6 +1119,31 @@
+@@ -1111,6 +1125,31 @@ pub const Daemon = struct {
          client.claim_on_init = flags.claim;
      }
  
@@ -115,7 +117,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
      /// Queue automation bytes without touching leadership, and say whether they were queued.
      pub fn handleType(
          self: *Daemon,
-@@ -1195,6 +1234,7 @@
+@@ -1201,6 +1240,7 @@ pub const Daemon = struct {
  
          // client is leader, send entire payload (ansi escape codes + text)
          if (self.leader_client_fd == client.socket_fd) {
@@ -123,7 +125,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
              self.queuePtyInput(gpa, payload);
              return;
          }
-@@ -1271,8 +1311,10 @@
+@@ -1277,8 +1317,10 @@ pub const Daemon = struct {
          }
          client.is_terminal = true;
  
@@ -135,7 +137,7 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
          }
          // ahead of the snapshot below, so a managed client learns its role before any output
          self.notifyRoles(gpa);
-@@ -1974,6 +2016,100 @@
+@@ -1990,6 +2032,100 @@ test "a claiming attach takes the lead from a live leader and both are told" {
      _ = daemon.closeClient(alloc, origin, 0, false);
  }
  
@@ -236,10 +238,11 @@ diff -ruN zmx-orig/src/loop.zig zmx/src/loop.zig
  test "switch moves a stock leader and leaves a managed one bound to its session" {
      const alloc = std.testing.allocator;
      var daemon = testDaemon();
-diff -ruN zmx-orig/src/role.zig zmx/src/role.zig
---- zmx-orig/src/role.zig
-+++ zmx/src/role.zig
-@@ -44,6 +44,22 @@
+diff --git a/src/role.zig b/src/role.zig
+index ccc004a..4f3adf5 100644
+--- a/src/role.zig
++++ b/src/role.zig
+@@ -44,6 +44,22 @@ pub fn claimFromEnv() bool {
      return lib_posix.getenv("ZMX_MANAGED_CLAIM") != null;
  }
  
@@ -262,7 +265,7 @@ diff -ruN zmx-orig/src/role.zig zmx/src/role.zig
  pub const Relay = struct {
      stream: ghostty_vt.Stream(NoopHandler),
      nonce: []const u8,
-@@ -141,6 +157,12 @@
+@@ -141,6 +157,12 @@ test "isNonce accepts plain tokens only" {
      try testing.expect(!isNonce(&@as([NONCE_MAX + 1]u8, @splat('x'))));
  }
  
@@ -275,10 +278,11 @@ diff -ruN zmx-orig/src/role.zig zmx/src/role.zig
  test "role at ground is written at once" {
      var relay = Relay.init("n1");
      defer relay.deinit();
-diff -ruN zmx-orig/src/util.zig zmx/src/util.zig
---- zmx-orig/src/util.zig
-+++ zmx/src/util.zig
-@@ -739,6 +739,75 @@
+diff --git a/src/util.zig b/src/util.zig
+index d2694da..7d80cc3 100644
+--- a/src/util.zig
++++ b/src/util.zig
+@@ -739,6 +739,75 @@ fn parseDecimal(buf: []const u8, pos: *usize) ?u32 {
      return value;
  }
  
@@ -354,7 +358,7 @@ diff -ruN zmx-orig/src/util.zig zmx/src/util.zig
  pub const HistoryFormat = enum(u8) {
      plain = 0,
      vt = 1,
-@@ -1438,3 +1507,29 @@
+@@ -1438,3 +1507,29 @@ test "stripAnsi: UTF-8 bytes do not start escape sequences" {
      defer alloc.free(result);
      try testing.expectEqualStrings("Ýmir\nline two\n", result);
  }
