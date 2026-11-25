@@ -68,7 +68,8 @@ longer apply, and re-running `check.py`.
   deadline shared by all of them passes, and takes no new attach, input or command meanwhile. A kill ends
   the daemon at once; its clients write only what they already hold, under their deadline.
   The client keeps the fork's nonblocking stdout, restores the original descriptor flags and
-  backpressures the daemon when buffered output reaches 1 MiB.
+  backpressures the daemon when buffered output reaches 1 MiB. The nonblocking restoration flushes
+  the input after setting termios, clearing the pending-input flag set by Darwin on a canonical-mode switch.
 - `0008-reclaim-dropped-lead.patch` lets an attach take back a lead it lost with its link. Every managed
   client sends its `ZMX_MANAGED` token in a new `Identity` message after `Manage`, followed by the token in
   `ZMX_MANAGED_RECLAIM` when that is set. At Init such a client leads while the leader is the attach that

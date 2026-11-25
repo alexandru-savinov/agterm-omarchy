@@ -335,8 +335,8 @@ index bb067fc..6aa1e19 100644
 +        if (flushing) {
 +            _ = cross.tcsetattr(fd, cross.TCSAFLUSH, self.orig);
 +        } else {
-+            _ = cross.tcflush(fd, cross.TCIFLUSH);
 +            _ = cross.tcsetattr(fd, cross.TCSANOW, self.orig);
++            _ = cross.tcflush(fd, cross.TCIFLUSH);
 +        }
 +    }
 +    pub fn writeReset(self: Tty, deadline_ms: ?i64) void {

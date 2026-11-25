@@ -7776,7 +7776,19 @@ def main():
         except ValueError as error:
             print(f"FAIL: invalid AT-SPI shard configuration: {error}")
             return 2
-        for child_scenario in scenarios[shard_index::shard_count]:
+        selected = os.environ.get("AGTERM_ATSPI_SCENARIOS")
+        if selected:
+            if shard_count != 1:
+                print("FAIL: sharded AT-SPI acceptance requires the complete scenario suite")
+                return 2
+            scheduled = selected.split(",")
+            unknown = set(scheduled) - set(scenarios)
+            if unknown:
+                print("FAIL: unknown GTK scenarios: " + ", ".join(sorted(unknown)))
+                return 2
+        else:
+            scheduled = scenarios[shard_index::shard_count]
+        for child_scenario in scheduled:
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             status, extra = run_scenario([sys.executable, __file__], child_env)
             retries += extra
