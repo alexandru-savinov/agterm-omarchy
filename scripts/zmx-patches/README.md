@@ -105,12 +105,16 @@ longer apply, and re-running `check.py`.
   once) then reaches the attached terminal instead of a creator that answers only DA. A follower's Init
   does not release; a zero or non-numeric value fails the create, and the variable is unset before exec.
 
+- `0014-preserve-fork-client-regressions.patch` retains the rejection of unsupported framing after
+  negotiation and the regression cases for closed or stalled stdout and a follower draining at exit.
+
+- `0015-reap-session-descendants.patch` makes each Linux daemon adopt orphaned session descendants.
+  It reaps exited workers while the session runs and reserves the shell's PID through the final
+  process-group signal. Teardown collects killed workers in that group with a bounded wait, so their
+  PIDs disappear even under a container init that leaves adopted zombies unreaped.
+
 `check.py <zmx>` drives managed clients on PTYs of different sizes against one daemon in a throwaway
 `ZMX_DIR` and exits nonzero when a check fails. Pass a second argument pointing to the previous
 release's zmx to also verify listing, claiming and reclaiming the lead, typing, reading the screen,
 printing, `write`, `run` and `tail`, and killing across the upgrade. Against a zmx before 1.0 the new
 client must refuse `write`, `run` and `tail`; against a later one it must use them.
-
-
-- `0014-preserve-fork-client-regressions.patch` retains the rejection of unsupported framing after
-  negotiation and the regression cases for closed or stalled stdout and a follower draining at exit.
