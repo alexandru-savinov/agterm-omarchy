@@ -44,6 +44,8 @@ enum LinuxRemoteCommand {
         } catch {
             return RemoteCommandResult(status: 1, stdout: "", stderr: String(describing: error))
         }
+        // Foundation's Process retains itself through its run-loop source until waitUntilExit() drops it.
+        defer { process.waitUntilExit() }
         if finished.wait(timeout: .now() + deadline) == .timedOut {
             // Foundation spawns the child as a group leader and reports its exit only once every holder of an
             // inherited status socket has closed it, so a surviving descendant would hold this path open.

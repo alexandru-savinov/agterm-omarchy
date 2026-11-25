@@ -7762,6 +7762,8 @@ def main():
             "omarchy-theme",
             "omarchy-keys",
             "omarchy-font-family",
+            # Appended so existing scenarios keep their CI shard.
+            "live-control-memory",
         )
         try:
             shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
@@ -7904,6 +7906,9 @@ def main():
         elif scenario == "live-wait-output":
             from atspi_live_wait_output import verify_live_wait_output
             verify_live_wait_output(env, state)
+        elif scenario == "live-control-memory":
+            from atspi_live_control_memory import verify_live_control_memory
+            verify_live_control_memory(env, state)
         elif scenario == "live-scratch":
             from atspi_v0430 import verify_live_scratch
             verify_live_scratch(env, state)
