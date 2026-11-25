@@ -646,3 +646,19 @@ index 6de6959..1cc0c4b 100644
 +        return error.TestUnexpectedResult;
 +    }
 +}
+diff --git a/src/main.zig b/src/main.zig
+index 10c1dee..b941d65 100644
+--- a/src/main.zig
++++ b/src/main.zig
+@@ -214,6 +214,11 @@ fn mainImpl(init: std.process.Init) !void {
+             .tracked_env = env_str,
+         }) catch |err| switch (err) {
+             error.Sighup, error.Sigint, error.Sigterm => return err,
++            error.IncompatibleProtocol => return printError(
++                io,
++                "session \"{s}\" runs on a zmx release with another IPC protocol; end it with the zmx that started it",
++                .{parsed.session_name},
++            ),
+             else => return printError(io, "cannot connect to session \"{s}\": {s}", .{ parsed.session_name, @errorName(err) }),
+         };
+         return;
