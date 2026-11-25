@@ -129,20 +129,11 @@ private final class TemporaryOutput {
         try? handle.close()
     }
 
-<<<<<<< HEAD
     /// nil when the file holds more than `limit` bytes; never reads more than one byte past it.
     func read(limit: Int) -> String? {
         guard let reader = FileHandle(forReadingAtPath: path) else { return "" }
         defer { try? reader.close() }
         guard let data = (try? reader.read(upToCount: limit + 1)) ?? nil else { return "" }
         return data.count > limit ? nil : String(decoding: data, as: UTF8.self)
-=======
-    func read() -> String {
-        // Data(contentsOf:) leaks 4 KiB per empty file until the toolchain carries swift-foundation#2311.
-        var info = stat()
-        guard lstat(path, &info) == 0, info.st_size > 0,
-              let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return "" }
-        return String(decoding: data, as: UTF8.self)
->>>>>>> 984861cdd5cd8a1338d8640c1d597b6fddbc34c3
     }
 }

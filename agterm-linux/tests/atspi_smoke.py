@@ -7725,8 +7725,7 @@ def main():
         retries = recovered = 0
         scenarios = (
             "normal", "upstream-controls", "upstream-v0391", "upstream-v0400", "upstream-v0411", "upstream-v0430", "sidebar-v0400", "links-v0400", "remote-v0391", "html-overlay", "overlay-visual", "live-restart", "live-fish-restart", "live-command-restart",
-            "v0430-gui", "v0430-input", "v0430-sidebar", "live-wait-output", "live-control-memory", "live-scratch",
-            "startup-environment",
+            "v0430-gui", "v0430-input", "v0430-sidebar", "live-wait-output", "live-scratch", "startup-environment",
             "dashboard-modal", "context-menu",
             "window-key-dispatch",
             "split-exit", "split-primary-exit", "split-ratio-restore", "window-ownership", "preferences-pages",
@@ -7763,6 +7762,8 @@ def main():
             "omarchy-theme",
             "omarchy-keys",
             "omarchy-font-family",
+            # Appended so existing scenarios keep their CI shard.
+            "live-control-memory",
         )
         try:
             shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
