@@ -33,8 +33,17 @@ extension AppController {
         case .surface: return nil
         case .refused(let reason): return err(reason)
         case .daemon(let name, let client):
+<<<<<<< HEAD
             return ControlStageHandoff.handOff(LinuxLeadPaneIO.textStage(
                 client: client, name: name, all: all, lines: lines, reply: ControlResult(id: session.uuidString, pane: pane)))
+=======
+            guard let screen = client.screen(name: name, all: all || lines != nil) else {
+                if finishHeldLeadIfDaemonEnded(surface, name: name, client: client) { return nil }
+                return err("failed to read surface buffer")
+            }
+            return ControlResponse(ok: true, result: ControlResult(
+                id: session.uuidString, text: lines.map(screen.lastLines) ?? screen.text))
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         }
     }
 
@@ -43,6 +52,7 @@ extension AppController {
         case .surface: return nil
         case .refused(let reason): return err(reason)
         case .daemon(let name, let client):
+<<<<<<< HEAD
             return ControlStageHandoff.handOff(LinuxLeadPaneIO.cursorStage(client: client, name: name, controlID: controlID))
         }
     }
@@ -50,6 +60,29 @@ extension AppController {
     /// Types into a lead-covered pane through its zmx daemon on the control worker; the attention-status
     /// update comes back to the main thread afterwards.
     func leadType(_ text: String, surface: GhosttySurface, session: UUID, pane: String) -> ControlResponse? {
+=======
+            guard let screen = client.screen(name: name, all: false) else {
+                if finishHeldLeadIfDaemonEnded(surface, name: name, client: client) { return nil }
+                return err("failed to read cursor position")
+            }
+            return ControlResponse(ok: true, result: ControlResult(
+                id: controlID, cursor: ControlCursor(column: screen.cursorColumn)))
+        }
+    }
+
+    /// A control read can outlive the daemon while its queued held-exit callback waits on this handler.
+    /// Retire that ended lead now; a live/unresponsive daemon and a covered or reconnecting pane still refuse.
+    private func finishHeldLeadIfDaemonEnded(_ surface: GhosttySurface, name: String, client: LinuxZmxClient) -> Bool {
+        guard surface.waitAfterCommand, let pane = UUID(uuidString: surface.paneToken),
+              !ZmxLeadBook.shared.covered(pane: pane), !RemoteReconnectBook.shared.waiting(pane: pane),
+              !FileManager.default.fileExists(atPath: URL(fileURLWithPath: client.socketDirectory)
+                .appendingPathComponent(name).path) else { return false }
+        surface.handleHeldProcessExit()
+        return true
+    }
+
+    func leadType(_ text: String, surface: GhosttySurface, session: UUID) -> ControlResponse? {
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         if RemoteReconnectBook.shared.waiting(pane: UUID(uuidString: surface.paneToken)) {
             return err("pane is waiting to reconnect")
         }

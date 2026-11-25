@@ -13,13 +13,23 @@ extension AppController {
         RemoteRespawnBook.shared.acknowledged(pane: pane)
         surface.syncLeadCover()
         store.leadRoleChanged()
+        if ZmxLeadBook.shared.takeClaim(pane: pane), role != .leader { reattachPane(surface, claim: true); return }
         if role == .unowned { reattachPane(surface, claim: false) }
     }
 
     func takePaneLead(_ surface: GhosttySurface) {
-        guard let identity = UUID(uuidString: surface.paneToken),
-              ZmxLeadBook.shared.covered(pane: identity),
-              !ZmxLeadBook.shared.reattaching(pane: identity) else { return }
+        guard let identity = UUID(uuidString: surface.paneToken) else { return }
+        if RemoteReconnectBook.shared.entries[identity]?.cover == true {
+            ZmxLeadBook.shared.claimOnReport(pane: identity)
+            RemoteReconnectBook.shared.retryNow(pane: identity, now: Date())
+            tickReconnects()
+            return
+        }
+        guard ZmxLeadBook.shared.covered(pane: identity) else { return }
+        if ZmxLeadBook.shared.reattaching(pane: identity) {
+            if ZmxLeadBook.shared.states[identity]?.attachment.claim == false { ZmxLeadBook.shared.claimOnReport(pane: identity) }
+            return
+        }
         reattachPane(surface, claim: true)
     }
 
@@ -35,16 +45,18 @@ extension AppController {
                 return err("session not realized")
             }
             guard ZmxLeadBook.shared.role(pane: identity) != nil
+                    || RemoteReconnectBook.shared.entries[identity]?.cover == true
                     || ZmxLeadBook.shared.covered(pane: identity) else {
                 return err("pane has no lead to take")
             }
-            if ZmxLeadBook.shared.covered(pane: identity) { takePaneLead(surface) }
+            if ZmxLeadBook.shared.covered(pane: identity)
+                || RemoteReconnectBook.shared.entries[identity]?.cover == true { takePaneLead(surface) }
             return ok(id)
         }
     }
 
     @discardableResult
-    func reattachPane(_ old: GhosttySurface, claim: Bool, cover: Bool = true) -> Bool {
+    func reattachPane(_ old: GhosttySurface, claim: Bool, cover: Bool = true, reclaim: String? = nil) -> Bool {
         guard let session = store.session(withID: old.sessionID),
               let identity = UUID(uuidString: old.paneToken) else { return false }
         let role: StatusPane
@@ -57,7 +69,7 @@ extension AppController {
             host = splitPaneHosts[session.id]
         } else { return false }
         guard host != nil else { return false }
-        let lead = ZmxLeadAttachment(claim: claim)
+        let lead = ZmxLeadAttachment(claim: claim, reclaim: reclaim)
         let command: String
         let environment: [String: String]
         let wait: Bool
@@ -76,7 +88,9 @@ extension AppController {
                     session: origin.sessionName, pane: role == .right ? .right : .left, lead: lead)
             else { return false }
             command = remote
-            environment = old.env.merging([ZmxLeadAttachment.nonceVariable: lead.nonce]) { _, new in new }
+            environment = old.env.filter {
+                ![ZmxLeadAttachment.nonceVariable, ZmxLeadAttachment.claimVariable, ZmxLeadAttachment.reclaimVariable].contains($0.key)
+            }.merging(lead.environment) { _, new in new }
             wait = true
         }
         return replacePane(old, command: command, environment: environment, wait: wait, lead: lead, cover: cover) != nil

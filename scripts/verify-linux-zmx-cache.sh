@@ -14,6 +14,7 @@ VENDOR="$1"
 source "$ROOT/linux/zmx.env"
 # shellcheck source=../linux/arch.sh
 source "$ROOT/linux/arch.sh"
+<<<<<<< HEAD
 ZMX_BUILD_POLICY="target=$ZIG_TARGET cpu=$ZMX_CPU"
 # The ghostty/ set patches the Ghostty commit zmx pins and may be empty.
 shopt -s nullglob
@@ -22,6 +23,10 @@ ZMX_GHOSTTY_PATCHES=("$ROOT/scripts/zmx-patches/ghostty"/*.patch)
 shopt -u nullglob
 ZMX_PATCH_DIGEST="$(cat "${ZMX_PATCHES[@]}" ${ZMX_GHOSTTY_PATCHES[@]+"${ZMX_GHOSTTY_PATCHES[@]}"} | sha256sum | cut -c1-16)"
 ZMX_STAMP="$ZMX_REV $ZIG_TARGET zig-$ZMX_ZIG_VERSION $ZMX_PATCH_DIGEST"
+=======
+ZMX_PATCH_DIGEST="$(cat "$ROOT/scripts/zmx-patches"/*.patch | sha256sum | cut -c1-16)"
+ZMX_STAMP="$ZMX_REV $ZIG_TARGET $ZMX_PATCH_DIGEST"
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
 
 [[ -x "$VENDOR/zmx" ]] || { echo "missing executable zmx: $VENDOR/zmx" >&2; exit 1; }
 [[ -s "$VENDOR/LICENSE" ]] || { echo "missing zmx license: $VENDOR/LICENSE" >&2; exit 1; }

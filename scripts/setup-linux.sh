@@ -13,6 +13,7 @@ source "$ROOT/linux/ghostty-build.sh"
 source "$ROOT/linux/zmx.env"
 # shellcheck source=../linux/arch.sh
 source "$ROOT/linux/arch.sh"
+<<<<<<< HEAD
 ZMX_BUILD_POLICY="target=$ZIG_TARGET cpu=$ZMX_CPU"
 
 # Fetch one pinned commit and refuse it unless the checked-out HEAD is exactly that commit; the commit id
@@ -38,6 +39,10 @@ ZMX_GHOSTTY_PATCHES=("$ROOT/scripts/zmx-patches/ghostty"/*.patch)
 shopt -u nullglob
 ZMX_PATCH_DIGEST="$(cat "${ZMX_PATCHES[@]}" ${ZMX_GHOSTTY_PATCHES[@]+"${ZMX_GHOSTTY_PATCHES[@]}"} | sha256sum | cut -c1-16)"
 ZMX_STAMP="$ZMX_REV $ZIG_TARGET zig-$ZMX_ZIG_VERSION $ZMX_PATCH_DIGEST"
+=======
+ZMX_PATCH_DIGEST="$(cat "$ROOT/scripts/zmx-patches"/*.patch | sha256sum | cut -c1-16)"
+ZMX_STAMP="$ZMX_REV $ZIG_TARGET $ZMX_PATCH_DIGEST"
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
 
 cache_is_complete() {
   local reason
@@ -67,6 +72,7 @@ done
 # zmx keeps its own compiler pin (ZMX_ZIG_VERSION); it is the same release Ghostty uses today.
 ZIG="${ZMX_ZIG:-${GHOSTTY_ZIG:-}}"
 if $need_zmx; then
+<<<<<<< HEAD
   if [[ ! -x "$ZIG" ]] && command -v mise >/dev/null; then
     ZIG="$(mise where "zig@$ZMX_ZIG_VERSION" 2>/dev/null || true)/bin/zig"
   fi
@@ -77,6 +83,19 @@ if $need_zmx; then
 fi
 
 # Ghostty 1.4 uses Zig 0.17.
+=======
+  if command -v mise >/dev/null; then
+    ZIG="$(mise where zig@0.17.0 2>/dev/null || true)/bin/zig"
+  fi
+  if [[ ! -x "$ZIG" ]]; then
+    ZIG="$(command -v zig || true)"
+  fi
+  [[ -x "$ZIG" ]] || { echo "zig 0.17.0 is required to build Linux runtimes" >&2; exit 1; }
+  [[ "$($ZIG version)" == "0.17.0" ]] || { echo "setup-linux.sh requires zig 0.17.0" >&2; exit 1; }
+fi
+
+# Ghostty 1.4 and zmx 1.0.1 both use Zig 0.17.
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
 GHOSTTY_ZIG="${GHOSTTY_ZIG:-}"
 if $need_ghostty; then
   if [[ ! -x "$GHOSTTY_ZIG" ]] && command -v mise >/dev/null; then
@@ -132,7 +151,7 @@ if $need_ghostty; then
     "$GHOSTTY_STAGE/share/licenses/ghostty" "$GHOSTTY_BUILD"
 
   echo "fetching pinned Ghostty theme dependency..."
-  curl -fsSLo "$GHOSTTY_BUILD/ghostty-themes.tgz" "$GHOSTTY_THEMES_URL"
+  curl --proto =https --proto-redir =https -fsSLo "$GHOSTTY_BUILD/ghostty-themes.tgz" "$GHOSTTY_THEMES_URL"
   echo "$GHOSTTY_THEMES_SHA256  $GHOSTTY_BUILD/ghostty-themes.tgz" | sha256sum --check
   tar -xzf "$GHOSTTY_BUILD/ghostty-themes.tgz" -C "$GHOSTTY_STAGE/share/ghostty/themes" --strip-components=1
   cp "$ROOT/linux/ghostty-resources.env" "$GHOSTTY_STAGE/share/ghostty/themes/.agterm-resource-manifest"
@@ -155,6 +174,7 @@ if $need_zmx; then
   ZMX_BUILD="$BUILD_DIR/zmx"
   ZMX_STAGE="$BUILD_DIR/zmx-stage"
   echo "fetching zmx $ZMX_REV..."
+<<<<<<< HEAD
   fetch_pinned_commit "$ZMX_REPO" "${ZMX_REV:-}" "$ZMX_BUILD"
   ZMX_GHOSTTY_REV="$(sed -n 's|.*ghostty-org/ghostty#\([0-9a-f]\{40\}\)".*|\1|p' "$ZMX_BUILD/build.zig.zon")"
   [[ -n "$ZMX_GHOSTTY_REV" ]] || { echo "missing zmx ghostty revision" >&2; exit 1; }
@@ -168,6 +188,12 @@ if $need_zmx; then
     git -C "$ZMX_GHOSTTY" apply --whitespace=nowarn "$ghostty_patch"
   done
   for zmx_patch in "${ZMX_PATCHES[@]}"; do
+=======
+  mkdir -p "$ZMX_BUILD"
+  curl --proto =https --proto-redir =https -fsSLo "$BUILD_DIR/zmx.tgz" "https://codeload.github.com/$ZMX_SLUG/tar.gz/$ZMX_REV"
+  tar -xzf "$BUILD_DIR/zmx.tgz" -C "$ZMX_BUILD" --strip-components=1
+  for zmx_patch in "$ROOT/scripts/zmx-patches"/*.patch; do
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
     echo "applying $(basename "$zmx_patch")..."
     git -C "$ZMX_BUILD" apply --whitespace=nowarn "$zmx_patch"
   done
@@ -177,8 +203,14 @@ if $need_zmx; then
     export ZIG_GLOBAL_CACHE_DIR="$BUILD_DIR/zig-global-cache"
     export ZIG_LOCAL_CACHE_DIR="$ZMX_BUILD/.zig-cache"
     export XDG_CACHE_HOME="$BUILD_DIR/xdg-cache"
+<<<<<<< HEAD
     ZIG="$ZIG" "$ROOT/scripts/zig-build-linux.sh" -Doptimize=ReleaseSafe \
       -Dtarget="$ZIG_TARGET" -Dcpu="$ZMX_CPU"
+=======
+    # Explicit targets use the baseline CPU; native defaults can SIGILL on another runner or user host.
+    "$ZIG" build -Doptimize=ReleaseSafe -Dtarget="$ZIG_TARGET"
+    env -u ZMX_NO_DETACH_KEY "$ZIG" build test --summary all
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
   )
   mkdir -p "$ZMX_STAGE"
   install -m0755 "$ZMX_BUILD/zig-out/bin/zmx" "$ZMX_STAGE/zmx"

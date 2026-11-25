@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 diff --git zmx-orig/src/client.zig zmx/src/client.zig
 index 77f230c..54d67fb 100644
 --- zmx-orig/src/client.zig
@@ -10,6 +11,20 @@ index 77f230c..54d67fb 100644
  const Daemon = if (has_daemon) loop.Daemon else struct {};
  
  pub const HistoryFormat = util.HistoryFormat;
+=======
+diff --git a/src/client.zig b/src/client.zig
+index 7248aff..4fd818f 100644
+--- a/src/client.zig
++++ b/src/client.zig
+@@ -14,6 +14,7 @@ const label = @import("label.zig");
+ const lib_posix = @import("posix.zig");
+ const cross = @import("cross");
+ const signal = @import("signal.zig");
++const role = @import("role.zig");
+ const loop = @import("loop.zig");
+ const Daemon = if (has_daemon) loop.Daemon else struct {};
+ 
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
 @@ -166,12 +167,18 @@ pub fn attach(alloc: Allocator, io: Io, name: []const u8, opts: AttachOptions) !
      var orig_termios: cross.termios = undefined;
      const stdin_is_tty = cross.tcgetattr(lib_posix.STDIN_FILENO, &orig_termios) == 0;

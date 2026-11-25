@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
+<<<<<<< HEAD
 # Build and launch the GTK frontend using Swift from PATH, SWIFT, or mise.
+=======
+# Build and launch agterm-linux (the GTK4/libadwaita port).
+# Requires the mise toolchain (zig 0.17.0 + swift 6.3.2) and a built libghostty
+# in agterm-linux/vendor/ (run scripts/setup-linux.sh once).
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
 set -euo pipefail
 ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 # shellcheck source=../linux/swift-env.sh

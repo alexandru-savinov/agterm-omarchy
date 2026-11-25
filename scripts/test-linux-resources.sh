@@ -98,9 +98,14 @@ cp "$ROOT/scripts/setup-linux.sh" "$ROOT/scripts/verify-linux-architecture.sh" \
   "$ROOT/scripts/verify-linux-zmx-cache.sh" \
   "$ROOT/scripts/linux-notices.py" \
   "$SETUP_ROOT/scripts/"
+<<<<<<< HEAD
 mkdir -p "$SETUP_ROOT/packaging/linux"
 cp -R "$ROOT/packaging/linux/notices" "$SETUP_ROOT/packaging/linux/"
 cp -R "$ROOT/scripts/zmx-patches" "$SETUP_ROOT/scripts/"
+=======
+mkdir -p "$SETUP_ROOT/scripts/zmx-patches"
+cp "$ROOT/scripts/zmx-patches/"*.patch "$SETUP_ROOT/scripts/zmx-patches/"
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
 cp "$ROOT/linux/arch.sh" "$ROOT/linux/ghostty-resources.env" "$ROOT/linux/zmx.env" "$SETUP_ROOT/linux/"
 cp "$ROOT/linux/ghostty-build.sh" "$SETUP_ROOT/linux/"
 mkdir -p "$SETUP_ROOT/scripts/ghostty-patches" "$SETUP_ROOT/linux/patches"
@@ -122,6 +127,7 @@ printf 'test license\n' > "$SETUP_ROOT/agterm-linux/vendor/zmx/LICENSE"
 source "$ROOT/linux/zmx.env"
 # shellcheck source=../linux/arch.sh
 source "$ROOT/linux/arch.sh"
+<<<<<<< HEAD
 # The ghostty/ set patches the Ghostty commit zmx pins and may be empty.
 shopt -s nullglob
 ZMX_PATCHES=("$ROOT/scripts/zmx-patches"/*.patch)
@@ -133,6 +139,11 @@ ZMX_PATCH_DIGEST="$(cat "${ZMX_PATCHES[@]}" ${ZMX_GHOSTTY_PATCHES[@]+"${ZMX_GHOS
 printf '%s %s zig-%s %s\n' "$ZMX_REV" "$ZIG_TARGET" "$ZMX_ZIG_VERSION" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
 printf 'target=%s cpu=%s\n' "$ZIG_TARGET" "$ZMX_CPU" > "$SETUP_ROOT/agterm-linux/vendor/zmx/BUILD_POLICY"
 AGTERM_TEST_UNAME="$SETUP_ARCH" PATH="$WORK:$PATH" \
+=======
+ZMX_PATCH_DIGEST="$(cat "$ROOT/scripts/zmx-patches"/*.patch | sha256sum | cut -c1-16)"
+printf '%s %s %s\n' "$ZMX_REV" "$ZIG_TARGET" "$ZMX_PATCH_DIGEST" > "$SETUP_ROOT/agterm-linux/vendor/zmx/REVISION"
+AGTERM_TEST_UNAME=x86_64 PATH="$WORK:$PATH" \
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
   "$SETUP_ROOT/scripts/verify-linux-zmx-cache.sh" "$SETUP_ROOT/agterm-linux/vendor/zmx" >/dev/null
 if AGTERM_TEST_UNAME="$STALE_ARCH" PATH="$WORK:$PATH" \
     "$SETUP_ROOT/scripts/verify-linux-zmx-cache.sh" "$SETUP_ROOT/agterm-linux/vendor/zmx" >/dev/null 2>&1; then

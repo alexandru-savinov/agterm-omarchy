@@ -5,8 +5,24 @@ import agtermCore
 @MainActor
 extension AppController {
     func remoteLinkLost(_ notice: RemoteLinkNotice, surface: GhosttySurface) {
+<<<<<<< HEAD
         guard remoteHeldExits.linkLost(notice, from: surface, forSession: surface.sessionID,
                                       heldAttachment: surface.heldLeadAttachment) else { return }
+=======
+        guard let pane = UUID(uuidString: surface.paneToken),
+              notice.nonce == ZmxLeadBook.shared.states[pane]?.attachment.nonce,
+              let session = store.session(withID: surface.sessionID), let host = session.remoteHost,
+              session.surface === surface || session.splitSurface === surface else { return }
+        let state = ZmxLeadBook.shared.states[pane]
+        let cover = state?.role != nil || state?.reattaching == true
+        let reclaim = state?.reclaimAfterDrop
+        let claim = ZmxLeadBook.shared.takeClaim(pane: pane)
+        ZmxLeadBook.shared.forget(pane: pane)
+        if claim { ZmxLeadBook.shared.claimOnReport(pane: pane) }
+        store.remotePaneHeld(pane, forSession: session.id)
+        remoteHeldExits.paneHeld(surface, forSession: session.id)
+        RemoteReconnectBook.shared.wait(pane: pane, session: session.id, host: host, cover: cover, reclaim: reclaim, now: Date())
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         surface.syncLeadCover()
         surface.refreshReconnectNote()
         store.leadRoleChanged()
@@ -21,6 +37,7 @@ extension AppController {
 
     func retryRemotePane(_ surface: GhosttySurface, keycode: UInt32) -> Bool {
         guard let pane = UUID(uuidString: surface.paneToken), RemoteReconnectBook.shared.waiting(pane: pane) else { return false }
+        if RemoteReconnectBook.shared.entries[pane]?.cover == true { ZmxLeadBook.shared.claimOnReport(pane: pane) }
         LinuxLeaderState.shared.consumed.insert(keycode)
         RemoteReconnectBook.shared.retryNow(pane: pane, now: Date())
         tickReconnects()
@@ -56,8 +73,8 @@ extension AppController {
                                                                   stderr: result.stderr, now: Date()) else { return }
                         guard let session = self.store.session(withID: entry.session),
                               let surface = (session.paneIdentity == pane ? session.surface : session.splitSurface) as? GhosttySurface,
-                              self.reattachPane(surface, claim: false, cover: entry.cover) else {
-                            book.wait(pane: pane, session: entry.session, host: entry.host, cover: entry.cover, now: Date())
+                              self.reattachPane(surface, claim: false, cover: entry.cover, reclaim: entry.reclaim) else {
+                            book.wait(pane: pane, session: entry.session, host: entry.host, cover: entry.cover, reclaim: entry.reclaim, now: Date())
                             return
                         }
                         self.store.remotePaneResumed(pane, forSession: entry.session)

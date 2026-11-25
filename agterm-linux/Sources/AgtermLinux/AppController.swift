@@ -21,6 +21,7 @@ final class AppController {
     var replicaPages: [UUID: LinuxReplicaPageRecord] = [:]
     var replicaPageFlushCancel: (@MainActor () -> Void)?
     var remoteClients: [UUID: RemotePresentationClient] = [:]
+    let remoteOpeners = LinuxRemoteOpeners()
     var remoteTickCancel: (@MainActor () -> Void)?
     let window: OpaquePointer        // AdwApplicationWindow
     let launcherTitle: String?

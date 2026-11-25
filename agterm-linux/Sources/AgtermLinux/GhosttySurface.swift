@@ -40,6 +40,8 @@ final class GhosttySurface: PaneRoleMutableSurface {
     let sessionID: UUID
     weak var controller: AppController?
     var linkBrowserOverride = false
+    var releasingLinkClick = false
+    var pasteCopying = false
     /// Concrete host role; unlike a split boolean this distinguishes notification and focus behavior
     /// for main, split, overlay, scratch, and quick surfaces.
     private(set) var role: LinuxSurfaceRole
@@ -197,6 +199,9 @@ final class GhosttySurface: PaneRoleMutableSurface {
         let fileDrop = gtk_drop_target_new(gdk_file_list_get_type(), GDK_ACTION_COPY)
         connect(fileDrop, "drop", unsafeBitCast(surfaceDropFiles as @convention(c) (OpaquePointer?, UnsafePointer<GValue>?, Double, Double, gpointer?) -> gboolean, to: GCallback.self), me)
         gtk_widget_add_controller(W(glArea), fileDrop)
+        let imageDrop = gtk_drop_target_new(gdk_texture_get_type(), GDK_ACTION_COPY)
+        connect(imageDrop, "drop", unsafeBitCast(surfaceDropImage, to: GCallback.self), me)
+        gtk_widget_add_controller(W(glArea), imageDrop)
     }
 
     // MARK: - Lifecycle
@@ -290,7 +295,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
         pushSize()
         ghostty_surface_set_focus(surface, true)
         applyColorScheme(appearanceSide)   // report the system light/dark scheme (OSC color-scheme queries)
-        reapplyWatermarkIfNeeded()
+        if waitAfterCommand { reapplySessionConfigIfNeeded() } else { reapplyWatermarkIfNeeded() }
     }
 
     private func showCreationFailure() {
@@ -409,7 +414,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
         let watermark = LinuxBackgroundOverlayPolicy.watermark(
             oscLatch: oscBackgroundColorHex, fixedBackground: fixedBackgroundColor,
             sessionBackground: usesSessionWatermark ? pane.flatMap { session?.effectiveBackground(for: $0) } : nil)
-        guard LinuxBackgroundOverlayPolicy.shouldReapply(
+        guard waitAfterCommand || LinuxBackgroundOverlayPolicy.shouldReapply(
             force: force, oscLatch: oscBackgroundColorHex, watermark: watermark,
             hasFontOverride: dashboardFontOverride != nil || session?.fontSize != nil) else { return false }
         let resolvedImagePath = session.flatMap { session in
@@ -420,9 +425,15 @@ final class GhosttySurface: PaneRoleMutableSurface {
         let effectiveFontSize = fontSizeOverride ?? dashboardFontOverride ?? session?.fontSize ?? fontSize
         let overlay = LinuxBackgroundOverlayPolicy.overlayText(
             oscLatch: oscBackgroundColorHex, watermark: watermark, resolvedImagePath: resolvedImagePath,
+<<<<<<< HEAD
             fontSize: effectiveFontSize, windowOpacity: effectiveWindowOpacity)
         guard let config = GhosttyApp.shared.configWithOverlay(overlay, settings: settings) else { return false }
         GhosttyConfigApplyPolicy.withConfigUpdate { ghostty_surface_update_config(surface, config) }
+=======
+            fontSize: effectiveFontSize, windowOpacity: effectiveWindowOpacity) + exitConfig
+        guard let config = GhosttyApp.shared.configWithOverlay(overlay, settings: settings) else { return }
+        ghostty_surface_update_config(surface, config)
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         ownedConfigs.forEach { ghostty_config_free($0) }
         ownedConfigs = [config]
         queueRender()
@@ -433,8 +444,12 @@ final class GhosttySurface: PaneRoleMutableSurface {
         let inherited = role.statusPane.flatMap { pane in
             controller?.store.session(withID: sessionID)?.effectiveBackground(for: pane)
         }
+<<<<<<< HEAD
         // Explicit reloads must preserve the dashboard's temporary size even without a watermark.
         guard dashboardFontOverride != nil || oscBackgroundColorHex != nil
+=======
+        guard waitAfterCommand || oscBackgroundColorHex != nil
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
                 || fixedBackgroundColor != nil
                 || usesSessionWatermark && inherited != nil else { return }
         reapplyBackgroundOverlay(windowOpacity: windowOpacity, settings: settings)
@@ -581,6 +596,8 @@ final class GhosttySurface: PaneRoleMutableSurface {
         ghostty_surface_mouse_pos(surface, point.x, point.y, engineMods)
         let btn = gesture.map { gtk_gesture_single_get_current_button($0) } ?? 1
         let gbtn: ghostty_input_mouse_button_e = btn == 2 ? GHOSTTY_MOUSE_MIDDLE : (btn == 3 ? GHOSTTY_MOUSE_RIGHT : GHOSTTY_MOUSE_LEFT)
+        releasingLinkClick = !pressed
+        defer { releasingLinkClick = false }
         _ = ghostty_surface_mouse_button(surface, pressed ? GHOSTTY_MOUSE_PRESS : GHOSTTY_MOUSE_RELEASE, gbtn, engineMods)
     }
 
@@ -665,6 +682,7 @@ final class GhosttySurface: PaneRoleMutableSurface {
                                  context: shortcutKeyContext(event: event, keycode: keycode)) == true {
             return true
         }
+        if handlesPasteKey(keyval: keyval, keycode: keycode, state: state) { userPaste(); return true }
         if state & (ModifierKeyMods.controlBit | ModifierKeyMods.superBit | ModifierKeyMods.altBit) == 0,
            ModifierKeyMods.modifierBit(forKeyval: keyval) == nil,
            controller?.retryRemotePane(self, keycode: keycode) == true { return true }
@@ -808,9 +826,17 @@ final class GhosttySurface: PaneRoleMutableSurface {
     }
 
     func handleHeldProcessExit() {
+<<<<<<< HEAD
         guard waitAfterCommand else { return }
         // The final link-loss title can follow the child-exit callback from the separate PTY reader.
         heldLeadAttachment.retain(controller?.remoteHeldExits.attachmentEnded(self, forSession: sessionID))
+=======
+        guard waitAfterCommand, let pane = UUID(uuidString: paneToken) else { return }
+        // Link-loss handling already cleared the role; a later held-exit callback must not
+        // erase a takeover queued while reconnecting.
+        guard !RemoteReconnectBook.shared.waiting(pane: pane) else { return }
+        ZmxLeadBook.shared.forget(pane: pane)
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
         syncLeadCover()
         controller?.store.leadRoleChanged()
     }
@@ -957,11 +983,21 @@ private let surfaceScroll: @MainActor @convention(c) (OpaquePointer?, Double, Do
 private let surfaceDropString: @MainActor @convention(c) (OpaquePointer?, UnsafePointer<GValue>?, Double, Double, gpointer?) -> gboolean = { _, value, _, _, data in
     MainActor.assumeIsolated {
         guard let value, let cstr = g_value_get_string(value), let surface = wrap(data) else { return 0 }
+<<<<<<< HEAD
         return LinuxDropPolicy.deliverText(String(cString: cstr), to: surface) ? 1 : 0
+=======
+        let payload = String(cString: cstr)
+        // Defensive guard for in-app sidebar drags if a compositor offers COPY anyway.
+        if UUID(uuidString: payload) != nil { return 0 }
+        if payload.hasPrefix("w:"), UUID(uuidString: String(payload.dropFirst(2))) != nil { return 0 }
+        surface.grabFocus(supersedingPopoverCapture: true)
+        return surface.pasteOffer(LinuxPasteClipboard.dropOffer(payload)) ? 1 : 0
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
     }
 }
 private let surfaceDropFiles: @MainActor @convention(c) (OpaquePointer?, UnsafePointer<GValue>?, Double, Double, gpointer?) -> gboolean = { _, value, _, _, data in
     MainActor.assumeIsolated {
+<<<<<<< HEAD
         guard let value, let boxed = g_value_get_boxed(value), let surface = wrap(data) else { return 0 }
         let fileList = OpaquePointer(boxed)
         guard let files = gdk_file_list_get_files(fileList) else { return 0 }
@@ -986,5 +1022,20 @@ private let surfaceDropFiles: @MainActor @convention(c) (OpaquePointer?, UnsafeP
         }
 
         return LinuxDropPolicy.deliverFiles(parts, to: surface) ? 1 : 0
+=======
+        guard let value, let surface = wrap(data) else { return 0 }
+        let urls = LinuxPasteClipboard.files(value)
+        guard !urls.isEmpty else { return 0 }
+        surface.grabFocus(supersedingPopoverCapture: true)
+        return surface.pasteOffer(PasteOffer(urls: urls)) ? 1 : 0
+    }
+}
+private let surfaceDropImage: @MainActor @convention(c) (OpaquePointer?, UnsafePointer<GValue>?, Double, Double, gpointer?) -> gboolean = { _, value, _, _, data in
+    MainActor.assumeIsolated {
+        guard let value, let object = g_value_get_object(value), let surface = wrap(data),
+              let bytes = LinuxPasteClipboard.png(OpaquePointer(object)) else { return 0 }
+        surface.grabFocus(supersedingPopoverCapture: true)
+        return surface.pasteOffer(PasteOffer(image: bytes)) ? 1 : 0
+>>>>>>> 6582f12240cd1dc4bc1c690bfdb2f7552f356227
     }
 }
