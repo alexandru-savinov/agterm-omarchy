@@ -200,7 +200,7 @@ final class LinuxCompanionFollower {
         _ = server.companionOnMain {
             guard let (store, controller) = shared.current(attempt) else { return ControlResponse(ok: true) }
             if case .url(let text) = page.source, HtmlSource.isLoopback(text) { box.outcome = .handled; return controller.ok() }
-            if page.persistent, let failure = LinuxBrowserStore.shared.failure() {
+            if let failure = LinuxBrowserStore.shared.failure(persistent: page.persistent) {
                 box.outcome = failure == BrowserClearError.clearing ? .retry : .handled
                 return controller.err(failure)
             }

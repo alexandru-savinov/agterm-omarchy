@@ -136,6 +136,11 @@ enum LinuxClipboardAdapter {
         return gdk_content_formats_contain_gtype(readable, GType(64) /* G_TYPE_STRING */) != 0
     }
 
+    static func advertisesURIList(_ clipboard: OpaquePointer) -> Bool {
+        guard let formats = gdk_clipboard_get_formats(clipboard) else { return false }
+        return LinuxClipboardPolicy.uriListMime.withCString { gdk_content_formats_contain_mime_type(formats, $0) != 0 }
+    }
+
     /// `read` owns the surface reference from here and always completes on the main thread.
     ///
     /// A paste asks the owner for its `text/uri-list` first, and the text form only when it refuses or the
@@ -145,6 +150,7 @@ enum LinuxClipboardAdapter {
     /// copy at once, while a read goes to the current owner. Any other request reads the text form only.
     static func readText(_ read: ClipboardTextRead) {
         guard LinuxClipboardPolicy.readsFileList(read.kind) else {
+            read.fileOffer = advertisesURIList(read.clipboard)
             readPlainText(read)
             return
         }
@@ -159,6 +165,8 @@ enum LinuxClipboardAdapter {
                         LinuxClipboardAdapter.readPlainText(read)
                         return
                     }
+                    // Use the current owner's response for the remote-file guard, even if decoding fails.
+                    read.fileOffer = true
                     // the splice holds its own references to both streams until it completes
                     let output = g_memory_output_stream_new_resizable()
                     g_output_stream_splice_async(
@@ -248,6 +256,8 @@ final class ClipboardTextRead: @unchecked Sendable {
     let list: Bool
     /// Taken as the read starts: completing the request invalidates `state`.
     let kind: ClipboardRequestKind?
+    /// Updated only on GTK's main context, before handing the read to the next callback.
+    fileprivate var fileOffer = false
 
     init(clipboard: OpaquePointer, state: UnsafeMutableRawPointer?, retained: RetainedGhosttySurface, list: Bool) {
         g_object_ref(RAW(clipboard))
@@ -265,7 +275,7 @@ final class ClipboardTextRead: @unchecked Sendable {
     @MainActor func finish(text: String?) {
         guard let surface = retained.surface.surface else { return }
         // Engine-specific paste bindings do no transfer. Never insert this host's file paths on the origin.
-        let remoteFiles = advertisesURIList && retained.surface.pasteOriginHost != nil
+        let remoteFiles = fileOffer && retained.surface.pasteOriginHost != nil
         let completion = LinuxClipboardPolicy.textCompletion(text: remoteFiles ? nil : text, list: list)
         LinuxClipboardAdapter.complete(surface, items: completion.items, available: completion.available, state: state)
     }
