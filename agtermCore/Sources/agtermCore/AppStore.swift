@@ -60,6 +60,8 @@ extension WorkspaceNavigation {
 @MainActor
 public final class AppStore {
     public var workspaces: [Workspace]
+    var recoveryRoot: Workspace?
+    @ObservationIgnored var needsSnapshotQuarantine = false
     /// A CHANGE here drops `freshWorkspaceID`: close, workspace removal, pending-close undo and Reopen
     /// Closed Item all reselect by assigning directly, so centralizing it is what keeps a fresh workspace
     /// from outliving a selection made outside `selectSession`. A same-value write must not, because
@@ -517,17 +519,15 @@ public final class AppStore {
                               sticky: spec.sticky, frame: spec.frame)
     }
 
-    /// Creates a workspace and appends it. With `revealNewWorkspace` (the default) and the filter ON, the new
-    /// workspace JOINS the marked set so it is immediately visible — the auto-reveal contract, like
-    /// `addSession`; widening rather than clearing keeps the rest filtered. `false` leaves the filter
-    /// untouched: a background `session.new --no-select` create must not widen the view. `collapsed: true`
-    /// (backing `workspace.new --collapsed`) starts it collapsed against the runtime default of expanded, so
-    /// it can be filled with `addSession(select: false)` unopened. `revealNewWorkspace` also decides
-    /// targeting: true makes this workspace `currentWorkspaceID` for as long as `freshWorkspaceID` holds it,
-    /// false leaves the target where it is. `ensureWorkspace(named:revealNewWorkspace:)` forwards both.
+    /// Appends a workspace. By default `revealNewWorkspace` adds it to the focus set when filtering and
+    /// makes it `currentWorkspaceID` while `freshWorkspaceID` holds it. With `false`, a background
+    /// `session.new --no-select` leaves the filter and target alone. `ensureWorkspace(named:revealNewWorkspace:)`
+    /// forwards the reveal flag. `collapsed: true` backs `workspace.new --collapsed` and lets
+    /// `addSession(select: false)` populate the workspace while it stays collapsed.
     @discardableResult
     public func addWorkspace(name: String, collapsed: Bool = false, revealNewWorkspace: Bool = true,
                              tint: SidebarTint? = nil) -> Workspace {
+        materializeRecoveryRoot()
         // the name feeds {AGT_WORKSPACE_NAME}; see TerminalText.
         let workspace = Workspace(name: TerminalText.sanitized(name), isExpanded: !collapsed, tint: tint)
         workspaces.insert(workspace, at: namedEndIndex)
@@ -569,6 +569,7 @@ public final class AppStore {
                            remoteHost: String? = nil, remoteSessionID: String? = nil, tint: SidebarTint? = nil,
                            parentID: UUID? = nil,
                            content: SessionContent = .terminal) -> Session? {
+        if recoveryRoot?.id == workspaceID { materializeRecoveryRoot() }
         guard let wsIndex = workspaces.firstIndex(where: { $0.id == workspaceID }) else { return nil }
         // both reach a custom command's expansion — cwd through initialCwd, name through customName — so
         // both are sanitized here. See TerminalText.

@@ -195,6 +195,7 @@ extension AppStore {
         restoringSelection = true
         defer { restoringSelection = false }
         freshWorkspaceID = nil // live create-time state, never restored from disk
+        recoveryRoot = nil
         catalogOperations = snapshot.catalogOperations
         // fold duplicate workspace ids, and a second root, into the first occurrence and keep only the first
         // snapshot of a repeated session id, else the rest stay unreachable past the first match and get re-saved.

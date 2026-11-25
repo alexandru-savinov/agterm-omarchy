@@ -23,6 +23,7 @@ extension AppStore {
             guard !occupiedElsewhere.contains(recent.snapshot.id) else { return .failed }
             let index: Int
             let parentID = recent.snapshot.parentID.map(groupRoot(of:))
+            if parentID == nil { materializeRecoveryRoot() }
             if let parentID {
                 // a lone companion goes under its parent wherever the parent lives now, never on its own
                 guard let parent = location(ofSession: parentID) else { return .failed }
@@ -73,6 +74,7 @@ extension AppStore {
             workspace.sessions.removeAll { taken.contains($0.id) }
             // persistent Open Recent appends, like most editors' recent-project flow: a reopen brings the
             // workspace back without reshuffling current workspaces.
+            materializeRecoveryRoot()
             workspaces.insert(workspace, at: namedEndIndex)
             for session in workspace.sessions { emitSessionCreated(session, workspace: workspace.id) }
             openRestoredPages(recent.snapshot.sessions)

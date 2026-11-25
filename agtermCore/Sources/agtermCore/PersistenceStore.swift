@@ -10,10 +10,14 @@ public struct PersistenceStore {
     public enum LoadError: Error, Equatable {
         case versionMismatch
     }
+    private enum SaveError: Error {
+        case unreadableSnapshotNotPreserved
+    }
     private let directory: URL
     private let fileName: String
 
     var fileURL: URL { directory.appendingPathComponent(fileName) }
+    var fileExists: Bool { FileManager.default.fileExists(atPath: fileURL.path) }
 
     /// Creates a store rooted at `directory`, defaulting to the app's Application Support directory.
     /// `fileName` defaults to `workspaces.json`; a per-window store overrides it to `windows/<id>.json`.
@@ -33,8 +37,16 @@ public struct PersistenceStore {
     /// `save(_:)` would otherwise replace the user's only copy with this empty default. `loadChecked()`
     /// stays a pure read for callers that must not touch the file.
     public func load() -> Snapshot {
+        loadRecovering() ?? Snapshot()
+    }
+
+    private func loadRecovering() -> Snapshot? {
         StateFileQuarantine.load(fileURL, supportedVersion: Snapshot.currentVersion, decode: Self.decode)
-            ?? Snapshot()
+    }
+
+    /// A recovering window leaves the file in place when opened and calls this before its first save.
+    func preserveUnreadableFile() throws {
+        if loadRecovering() == nil, fileExists { throw SaveError.unreadableSnapshotNotPreserved }
     }
 
     /// Strict launch-inventory read. Unlike `load()`, every read/decode/version failure reaches the caller,

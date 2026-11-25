@@ -15,7 +15,9 @@ extension AppStore {
     public func saveChecked() -> Bool {
         saveDebouncer.cancel()
         do {
+            if needsSnapshotQuarantine { try persistence.preserveUnreadableFile() }
             try persistence.save(snapshot())
+            needsSnapshotQuarantine = false
             snapshotUnsaved = false
             snapshotDidSave?()
             return true

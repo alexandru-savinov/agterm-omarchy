@@ -13,7 +13,7 @@ extension Workspace {
 /// adopts its origin's root and a store built directly has none.
 extension AppStore {
     /// The root container; nil for a store that has not been given one.
-    public var rootWorkspace: Workspace? { workspaces.first { $0.isRoot } }
+    public var rootWorkspace: Workspace? { workspaces.first { $0.isRoot } ?? recoveryRoot }
 
     /// Every workspace but the root.
     public var namedWorkspaces: [Workspace] { workspaces.filter { !$0.isRoot } }
@@ -48,7 +48,8 @@ extension AppStore {
     /// id, a unique prefix or `active` (`currentWorkspaceID`).
     public func resolveWorkspaceTarget(_ target: String) -> TargetResolution {
         guard target == ControlWorkspaceNode.rootTarget else {
-            return ControlResolve.resolve(target, candidates: workspaces.map(\.id), active: currentWorkspaceID)
+            let candidates = recoveryRoot.map { [$0.id] } ?? workspaces.map(\.id)
+            return ControlResolve.resolve(target, candidates: candidates, active: currentWorkspaceID)
         }
         return rootWorkspace.map { .resolved($0.id) } ?? .notFound
     }
@@ -57,12 +58,27 @@ extension AppStore {
     /// boundary knows to persist a minted id. A second root in a snapshot is folded by `restore(from:)`.
     @discardableResult
     public func ensureRoot() -> Bool {
+        if materializeRecoveryRoot() { return true }
         guard let index = workspaces.firstIndex(where: \.isRoot) else {
             workspaces.append(Workspace(name: "", isRoot: true))
             return true
         }
         guard index != workspaces.count - 1 else { return false }
         workspaces.append(workspaces.remove(at: index))
+        return true
+    }
+
+    /// Offer a root for session creation while the unreadable file and the empty replacement tree are separate.
+    func prepareSnapshotRecovery() {
+        recoveryRoot = Workspace(name: "", isRoot: true)
+        needsSnapshotQuarantine = true
+    }
+
+    @discardableResult
+    func materializeRecoveryRoot() -> Bool {
+        guard let recoveryRoot else { return false }
+        self.recoveryRoot = nil
+        workspaces.append(recoveryRoot)
         return true
     }
 

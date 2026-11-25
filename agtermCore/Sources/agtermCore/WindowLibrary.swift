@@ -34,9 +34,9 @@ public struct WindowInfo: Codable, Sendable, Identifiable, Equatable {
 /// Recovery contract (never throws, mirrors `PersistenceStore.load()`): a corrupt or version-mismatched
 /// `windows.json` counts as absent → recover orphaned `windows/<id>.json` files, else migrate legacy
 /// `workspaces.json`, else seed one window; a missing/corrupt per-window file opens as an empty tree, so the
-/// window set is always valid and non-empty. An existing file that fails to load is first preserved aside
-/// as `<name>.unreadable-<stamp>` (`StateFileQuarantine`), and while any window file is preserved the pane
-/// inventory counts as incomplete, so no zmx daemon its lost tree claimed is reaped.
+/// window set is always valid and non-empty. Before a save replaces an unreadable window file, it moves
+/// the original to `<name>.unreadable-<stamp>` (`StateFileQuarantine`). The pane inventory stays incomplete
+/// while unreadable state remains, including preserved copies, so zmx daemons claimed there survive.
 @Observable
 @MainActor
 public final class WindowLibrary {
@@ -422,10 +422,11 @@ public final class WindowLibrary {
             return loadRemoteStore(for: id)
         }
         let persistence = persistenceStore(for: id)
+        let (snapshot, recovering) = loadSnapshotForStore(persistence)
         let store = makeStore(for: id, persistence: persistence)
-        let (snapshot, readable) = loadSnapshotForStore(persistence)
         store.restore(from: snapshot, launchRestore: launchRestore)
-        let minted = store.ensureRoot()
+        if recovering { store.prepareSnapshotRecovery() }
+        let minted = !recovering && store.ensureRoot()
         stores[id] = store
         openSetVersion += 1
         let carriedCaptures = snapshot.workspaces.contains { workspace in
@@ -454,7 +455,7 @@ public final class WindowLibrary {
             }
             store.scheduleTreeChanged()
         }
-        if minted, readable { store.save() }
+        if minted { store.save() }
         saveIndex()
         return store
     }
@@ -757,9 +758,8 @@ public final class WindowLibrary {
         return store
     }
 
-    /// The window's persisted tree, and whether its file may be rewritten: it decoded or does not exist yet.
-    /// An unreadable file loads as an empty tree, and the load does not write over it.
-    private func loadSnapshotForStore(_ persistence: PersistenceStore) -> (snapshot: Snapshot, readable: Bool) {
+    /// An unreadable window stays on disk until the first save, which must preserve its bytes before writing.
+    private func loadSnapshotForStore(_ persistence: PersistenceStore) -> (snapshot: Snapshot, recovering: Bool) {
         var snapshot: Snapshot
         do {
             snapshot = try persistence.loadChecked()
@@ -768,9 +768,9 @@ public final class WindowLibrary {
                 launchInventoryComplete = false
                 log("pane inventory could not read an open window snapshot: \(error)")
             }
-            return (Snapshot(), !FileManager.default.fileExists(atPath: persistence.fileURL.path))
+            return (Snapshot(), persistence.fileExists)
         }
-        guard launchInventorySink != nil else { return (snapshot, true) }
+        guard launchInventorySink != nil else { return (snapshot, false) }
         let upgrade = PaneIdentityInventory.upgrade(&snapshot)
         if upgrade.changed {
             do {
@@ -780,7 +780,7 @@ public final class WindowLibrary {
                 log("pane inventory could not persist an open window upgrade: \(error)")
             }
         }
-        return (snapshot, true)
+        return (snapshot, false)
     }
 
     private func prepareLaunchPaneInventory() -> Set<UUID>? {
