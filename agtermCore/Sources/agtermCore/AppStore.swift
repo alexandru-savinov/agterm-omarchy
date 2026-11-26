@@ -369,12 +369,12 @@ public final class AppStore {
                             dashboardFontMode: () -> String? = { nil }, app: AppIdentity? = nil,
                             liveReset: ControlLiveResetReadback? = nil, indexUnsaved: Bool = false,
                             flaggedLayout: FlaggedViewLayout? = nil, htmlZoom: Double? = nil,
-                            linkOpenMode: LinkOpenMode? = nil, sidebarDensity: SidebarDensity? = nil) -> ControlTree {
+                            linkOpenMode: LinkOpenMode? = nil, sidebarDensity: SidebarDensity? = nil, includeEmptyRoot: Bool = true) -> ControlTree {
         let activeID = selectedSessionID
         // `currentWorkspaceID`, not the selected session's owner: an EMPTY destination selects nothing, so
         // deriving this from the selection alone made `tree` name the workspace `workspace.go` just left.
         let activeWorkspaceID = currentWorkspaceID
-        let nodes = workspaces.map { workspace in
+        let nodes = controlWorkspaces(includeEmptyRoot: includeEmptyRoot).map { workspace in
             let parents = Set(workspace.sessions.compactMap(\.parentID))
             let sessions = workspace.sessions.map { session in
                 // each closure inspects live processes, so call it once and split the answer in two.

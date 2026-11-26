@@ -17,7 +17,14 @@ extension GhosttySurface {
     /// Clipboard, palette, control and drop paths all share ownership and lead checks.
     func pasteClipboard(completion: @escaping @MainActor (String?) -> Void = { _ in }) {
         if let refusal = pasteRefusal { return completion(refusal) }
-        guard surface != nil else { return completion("session not realized") }
+        guard let surface else { return completion("session not realized") }
+        // Let the engine ask the current clipboard owner for ordinary local pastes. Its read callback
+        // tries the URI list and text directly, even while GDK still reports the previous owner's formats.
+        if pasteOriginHost == nil, !LinuxPasteClipboard.hasImageOnlyOffer() {
+            let action = "paste_from_clipboard"
+            _ = action.withCString { ghostty_surface_binding_action(surface, $0, UInt(action.utf8.count)) }
+            return completion(nil)
+        }
         pasteCopying = true
         LinuxPasteClipboard.read { [weak self] offer in
             guard let self else { return completion("session closed") }

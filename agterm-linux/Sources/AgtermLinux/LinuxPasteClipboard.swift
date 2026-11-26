@@ -16,6 +16,17 @@ enum LinuxPasteClipboard {
         init(_ reply: @escaping @MainActor (PasteOffer) -> Void) { self.reply = reply }
     }
 
+    static func hasImageOnlyOffer() -> Bool {
+        guard let clipboard = LinuxClipboardAdapter.gdkClipboard(for: GHOSTTY_CLIPBOARD_STANDARD),
+              let formats = gdk_clipboard_get_formats(clipboard) else { return false }
+        let readable = gdk_content_formats_union_deserialize_gtypes(gdk_content_formats_ref(formats))
+        defer { gdk_content_formats_unref(readable) }
+        return gdk_content_formats_contain_gtype(readable, gdk_texture_get_type()) != 0
+            && !LinuxClipboardAdapter.advertisesText(clipboard)
+            && !LinuxClipboardAdapter.advertisesURIList(clipboard)
+            && gdk_content_formats_contain_gtype(formats, gdk_file_list_get_type()) == 0
+    }
+
     static func read(_ reply: @escaping @MainActor (PasteOffer) -> Void) {
         guard let clipboard = LinuxClipboardAdapter.gdkClipboard(for: GHOSTTY_CLIPBOARD_STANDARD),
               let formats = gdk_clipboard_get_formats(clipboard) else { return reply(PasteOffer()) }

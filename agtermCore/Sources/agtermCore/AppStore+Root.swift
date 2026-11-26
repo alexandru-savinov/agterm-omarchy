@@ -18,6 +18,14 @@ extension AppStore {
     /// Every workspace but the root.
     public var namedWorkspaces: [Workspace] { workspaces.filter { !$0.isRoot } }
 
+    /// An unused root has no header or sessions. Hosts with established named-workspace
+    /// consumers can omit it from the projection and still resolve the explicit root destination.
+    func controlWorkspaces(includeEmptyRoot: Bool) -> [Workspace] {
+        guard !includeEmptyRoot, workspaces.count > 1, let root = rootWorkspace, root.sessions.isEmpty,
+              root.id != currentWorkspaceID, !focusedWorkspaceIDs.contains(root.id) else { return workspaces }
+        return namedWorkspaces
+    }
+
     /// The sidebar's order: the root, then the named workspaces.
     public var displayWorkspaces: [Workspace] {
         guard let root = rootWorkspace else { return workspaces }

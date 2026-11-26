@@ -106,7 +106,9 @@ invoke it by absolute path.
 A **window** is the top level: a named bundle rendered in its own on-screen native window. Each window
 holds a tree of **workspaces**, each holding **sessions**, plus its **top-level sessions**: sessions outside any
 workspace, shown first in the sidebar. In `tree` they are the one workspace node with `root: true` and an empty name,
-listed last. A session has a primary shell and can also
+listed last. On Linux an empty, inactive, unfocused root is omitted while named workspaces exist.
+The `root` destination still accepts new top-level sessions.
+A session has a primary shell and can also
 have: a **split** pane (a second shell side by side), a **scratch** terminal (a third full-coverage
 shell, toggled like the split), and an ephemeral **overlay** (runs one program on top, then vanishes).
 An overlay covers the whole session, or with `--pane left|right` exactly one split pane, leaving

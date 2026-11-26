@@ -8,7 +8,10 @@ extension AppController {
         guard store.sidebarMode == .tree, ids.count == 1, let id = ids.first,
               let source = store.session(withID: id),
               let destination = store.session(withID: target) else { return false }
-        let middle = y > targetHeight / 3 && y < targetHeight * 2 / 3
+        // Leave narrow insertion bands at the edges. A drop across the row body should
+        // keep its group intent even when the label and the row have different bounds.
+        let gap = targetHeight / 4
+        let middle = y > gap && y < targetHeight - gap
         if source.parentID == nil {
             guard destination.parentID == nil, middle else { return false }
             guard case .success = store.canMoveCompanion(id, under: target) else { return true }

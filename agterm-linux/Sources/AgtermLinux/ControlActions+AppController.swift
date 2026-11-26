@@ -103,7 +103,8 @@ extension AppController: ControlActions {
             flaggedLayout: linuxSettingsStore().load().effectiveFlaggedViewLayout,
             htmlZoom: linuxSettingsStore().load().effectiveHtmlOverlayZoom,
             linkOpenMode: linuxSettingsStore().load().effectiveLinkOpenMode,
-            sidebarDensity: linuxSettingsStore().load().effectiveSidebarDensity
+            sidebarDensity: linuxSettingsStore().load().effectiveSidebarDensity,
+            includeEmptyRoot: false
         )
         var tree = projectingLinuxAutoFollow(baseTree)
         tree.remote = library.remoteNode(for: windowID)
