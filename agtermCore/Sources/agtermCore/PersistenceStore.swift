@@ -11,7 +11,7 @@ public struct PersistenceStore {
         case versionMismatch
     }
     private enum SaveError: Error {
-        case unreadableSnapshotNotPreserved
+        case recoverySnapshotNotPreserved
     }
     private let directory: URL
     private let fileName: String
@@ -37,16 +37,16 @@ public struct PersistenceStore {
     /// `save(_:)` would otherwise replace the user's only copy with this empty default. `loadChecked()`
     /// stays a pure read for callers that must not touch the file.
     public func load() -> Snapshot {
-        loadRecovering() ?? Snapshot()
+        StateFileQuarantine.load(fileURL, supportedVersion: Snapshot.currentVersion, decode: Self.decode) ?? Snapshot()
     }
 
-    private func loadRecovering() -> Snapshot? {
-        StateFileQuarantine.load(fileURL, supportedVersion: Snapshot.currentVersion, decode: Self.decode)
-    }
-
-    /// A recovering window leaves the file in place when opened and calls this before its first save.
-    func preserveUnreadableFile() throws {
-        if loadRecovering() == nil, fileExists { throw SaveError.unreadableSnapshotNotPreserved }
+    /// A recovering window may be saving over a repaired snapshot that its in-memory tree never loaded.
+    /// Preserve the current bytes without reading them before writing the recovery tree.
+    func preserveFileBeforeRecoverySave() throws {
+        guard fileExists else { return }
+        guard StateFileQuarantine.preserve(fileURL, reason: .unreadable("snapshot failed to load when the window opened")) != nil else {
+            throw SaveError.recoverySnapshotNotPreserved
+        }
     }
 
     /// Strict launch-inventory read. Unlike `load()`, every read/decode/version failure reaches the caller,

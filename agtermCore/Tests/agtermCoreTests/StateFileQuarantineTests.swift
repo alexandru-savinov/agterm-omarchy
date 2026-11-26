@@ -147,6 +147,44 @@ final class WindowFileQuarantineTests {
         #expect(try windowStore(id).loadChecked() == store.snapshot())
     }
 
+    @Test func firstRecoverySavePreservesSnapshotRepairedAfterOpen() throws {
+        let id = UUID()
+        let fileURL = windowFileURL(id)
+        let unreadable = Data("{ corrupt ]".utf8)
+        try unreadable.write(to: fileURL)
+        try writeOpenIndex(id)
+        let library = WindowLibrary(directory: directory)
+        let store = try #require(library.store(for: id))
+        #expect(store.workspaces.isEmpty)
+        #expect(try Data(contentsOf: fileURL) == unreadable)
+
+        let repaired = Snapshot(workspaces: [WorkspaceSnapshot(id: UUID(), name: "repaired", sessions: [])])
+        let original = try JSONEncoder().encode(repaired)
+        try original.write(to: fileURL)
+        #expect(try windowStore(id).loadChecked() == repaired)
+
+        #expect(store.saveChecked())
+
+        #expect(try StateFileQuarantine.preservedCopies(of: fileURL).map { try Data(contentsOf: $0) } == [original])
+        #expect(try windowStore(id).loadChecked() == store.snapshot())
+    }
+
+    @Test func recoverySaveIsRefusedWhenSnapshotCannotBePreserved() throws {
+        // The snapshot fits at its live path, but appending the quarantine suffix exceeds the filename limit.
+        let nameLimit = pathconf(directory.path, Int32(_PC_NAME_MAX))
+        try #require(nameLimit > 0)
+        let persistence = PersistenceStore(directory: directory, fileName: String(repeating: "w", count: nameLimit))
+        let original = Snapshot(workspaces: [WorkspaceSnapshot(id: UUID(), name: "on disk", sessions: [])])
+        try persistence.save(original)
+        let bytes = try Data(contentsOf: persistence.fileURL)
+        let store = AppStore(persistence: persistence)
+        store.prepareSnapshotRecovery()
+
+        #expect(!store.saveChecked())
+        #expect(store.snapshotUnsaved)
+        #expect(try Data(contentsOf: persistence.fileURL) == bytes)
+    }
+
     @Test func missingPerWindowFilePreservesNothing() throws {
         let id = UUID()
         try writeOpenIndex(id)
