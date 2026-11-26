@@ -19,9 +19,26 @@ public enum MainTimer {
     /// swap it to drive time deterministically. Call sites use `schedule(after:_:)` instead.
     public static var scheduleTimer: @MainActor (TimeInterval, @escaping @MainActor () -> Void)
         -> (@MainActor () -> Void) = { delay, fire in
-            let item = DispatchWorkItem { fire() }
+            var delivery: Task<Void, Never>?
+            let item = DispatchWorkItem {
+                guard delay > 0 else {
+                    fire()
+                    return
+                }
+                // A Dispatch deadline can expire while earlier Swift main-actor jobs are still queued.
+                // Deliver delayed work through the executor so those jobs have a chance to run first.
+                delivery = Task {
+                    guard !Task.isCancelled else { return }
+                    delivery = nil
+                    fire()
+                }
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
-            return { item.cancel() }
+            return {
+                item.cancel()
+                delivery?.cancel()
+                delivery = nil
+            }
         }
 
     /// Schedules `fire` after `delay`, returning the cancel closure. The labeled wrapper over

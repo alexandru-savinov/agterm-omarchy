@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """drive managed zmx attach clients on ptys of different sizes against one daemon."""
+import argparse
 import fcntl
 import os
 import pty
@@ -9,13 +10,27 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import termios
 import time
 
-ZMX = sys.argv[1]
-ZDIR = "/tmp/zmx-e2e-%d" % os.getpid()
+ZMX = None  # validated by main before use
+ZDIR = None  # created by main
 NAME = "e2e"
+MANAGED_EXIT = "exit-managed"
 ROLE = re.compile(rb"\x1b\]2;zmx-role;([A-Za-z0-9-]+):(\w+):(\d+)\x1b\\")
+
+
+def executable_path(path):
+    if not os.path.isabs(path):
+        raise argparse.ArgumentTypeError(f"zmx path must be absolute: {path!r}")
+    try:
+        resolved = os.path.realpath(path, strict=True)
+    except OSError as error:
+        raise argparse.ArgumentTypeError(f"cannot resolve zmx path {path!r}: {error.strerror}") from error
+    if not os.path.isfile(resolved) or not os.access(resolved, os.X_OK):
+        raise argparse.ArgumentTypeError(f"zmx path must name a regular executable file: {resolved!r}")
+    return resolved
 
 
 def attach(nonce, rows, cols, claim, name=NAME, argv=("/bin/sh",), reclaim=None):
@@ -59,11 +74,11 @@ def reaped(pid, seconds):
     return None
 
 
-def cli(*args, stdin=None, extra=None, executable=ZMX):
+def cli(*args, stdin=None, extra=None, executable=None):
     env = dict(os.environ, ZMX_DIR=ZDIR)
     env.pop("ZMX_SESSION", None)
     env.update(extra or {})
-    return subprocess.run([executable, *args], env=env, input=stdin or b"", capture_output=True, timeout=10)
+    return subprocess.run([executable or ZMX, *args], env=env, input=stdin or b"", capture_output=True, timeout=10)
 
 
 def listed(name):
@@ -162,13 +177,13 @@ def check_hold():
         os.waitpid(pid, 0)
 
     timed = os.path.join(ZDIR, "timed-ran")
-    cli("attach", "--detached", "timed", "/bin/sh", "-c", "touch %s; sleep 30" % timed,
+    cli("attach", "--detached", "timed", "/bin/sh", "-c", 'touch "$1"; sleep 30', "sh", timed,
         extra={"ZMX_HOLD_UNTIL_ATTACH": "1"})
     time.sleep(2.0)
     ok &= check("a hold nobody attaches to releases at its bound", os.path.exists(timed))
 
     killed = os.path.join(ZDIR, "held-killed-ran")
-    created = cli("attach", "--detached", "held-killed", "/bin/sh", "-c", "touch %s" % killed,
+    created = cli("attach", "--detached", "held-killed", "/bin/sh", "-c", 'touch "$1"', "sh", killed,
                   extra={"ZMX_HOLD_UNTIL_ATTACH": "1"})
     was_listed = listed("held-killed")
     stopped = cli("kill", "held-killed", "--force")
@@ -247,7 +262,19 @@ def check_upgrade(previous):
             os.waitpid(pid, 0)
 
 def main():
-    os.makedirs(ZDIR, mode=0o700)
+    global ZMX, ZDIR
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("zmx", type=executable_path)
+    parser.add_argument("previous_zmx", nargs="?", type=executable_path)
+    args = parser.parse_args()
+    ZMX = args.zmx
+
+    ZDIR = tempfile.mkdtemp(prefix="zmx-e2e-")
+    # Check the socket for the longest session name in this probe.
+    sock = os.path.join(ZDIR, MANAGED_EXIT)
+    if len(os.fsencode(sock)) >= 104:
+        os.rmdir(ZDIR)
+        sys.exit(f"socket path {sock!r} is too long for a Unix socket; set TMPDIR to a shorter directory")
     ok = True
     pids = []
     try:
@@ -352,7 +379,7 @@ def main():
                     red + b"ab  c\x1b[0m" in replay, repr(replay[-300:]))
 
         ending = ("/bin/sh", "-c", "sleep 0.5; printf '\\033[?1000hEXIT-MARK\\n'; sleep 0.5")
-        p4, f4 = attach("exit-4", 30, 83, claim=False, name="exit-managed", argv=ending)
+        p4, f4 = attach("exit-4", 30, 83, claim=False, name=MANAGED_EXIT, argv=ending)
         pids.append(p4)
         tail = drain(f4, 3.0).rpartition(b"EXIT-MARK")[2]
         ok &= check("a managed client whose session ends leaves the screen and turns reporting off",
@@ -383,8 +410,8 @@ def main():
 
         worker_pid = os.path.join(ZDIR, "worker-pid")
         spawn = ("trap '' HUP; (trap '' HUP; exec sleep 300) </dev/null >/dev/null 2>&1 & "
-                 "echo $! > %s; sleep 0.3; exit 0" % worker_pid)
-        cli("attach", "--detached", "worker", "/bin/sh", "-c", spawn,
+                 'echo $! > "$1"; sleep 0.3; exit 0')
+        cli("attach", "--detached", "worker", "/bin/sh", "-c", spawn, "sh", worker_pid,
             extra={"ZMX_EXIT_FILE": os.path.join(ZDIR, "worker-record")})
         deadline = time.time() + 5
         while time.time() < deadline and listed("worker"):
@@ -447,8 +474,8 @@ def main():
         os.close(term_fd)
         if status is not None or reaped(term_pid, 2) is not None:
             pids.remove(term_pid)
-        if len(sys.argv) > 2:
-            ok &= check_upgrade(sys.argv[2])
+        if args.previous_zmx is not None:
+            ok &= check_upgrade(args.previous_zmx)
     finally:
         cli("kill", NAME, "reclaim", "detached", "killed", "env-probe", "sigterm", "busy", "task", "held", "timed",
             "held-killed", "--force")

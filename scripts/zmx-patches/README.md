@@ -116,8 +116,8 @@ longer apply, and re-running `check.py`.
 - `0016-hold-direct-attach.patch` honors the same opt-in hold when `attach` itself creates the daemon.
   The terminal can then receive output from a command that prints and exits during startup.
 
-`check.py <zmx>` drives managed clients on PTYs of different sizes against one daemon in a throwaway
-`ZMX_DIR` and exits nonzero when a check fails. Pass a second argument pointing to the previous
-release's zmx to also verify listing, claiming and reclaiming the lead, typing, reading the screen,
+`check.py /absolute/path/to/zmx` drives managed clients on PTYs of different sizes against one daemon in a private
+temporary `ZMX_DIR` and exits nonzero when a check fails. Pass the absolute path to the previous
+release's zmx as a second argument to also verify listing, claiming and reclaiming the lead, typing, reading the screen,
 printing, `write`, `run` and `tail`, and killing across the upgrade. Against a zmx before 1.0 the new
 client must refuse `write`, `run` and `tail`; against a later one it must use them.
