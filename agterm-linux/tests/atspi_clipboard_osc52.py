@@ -203,7 +203,7 @@ def verify_clipboard_osc52(env):
             paths = pasted()
             assert paths != UNPROTECTED_PATHS, f"a paste delivered file paths unescaped: {paths!r}"
             assert paths == ESCAPED_PATHS, f"a paste did not shell-escape an advertised uri-list: {paths!r}"
-            assert shlex.split(paths) == ["/tmp/one two", "/tmp/three"], (
+            assert shlex.split(paths) == ["/tmp/one two", "/tmp/$(id);three"], (
                 f"a paste did not preserve advertised file paths as shell arguments: {paths!r}"
             )
 
