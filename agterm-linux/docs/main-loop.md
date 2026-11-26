@@ -67,8 +67,9 @@ From code already on the main actor, `MainTimer.schedule(after: 0)` supplies a n
 **Run something after a delay** — use `agtermCore`'s `MainTimer` seam:
 `MainTimer.schedule(after:_:)` returns a cancel closure, and `Debouncer` (which most call sites actually
 use) routes through it.
-`MainTimer.scheduleTimer` is the injection point; its default is `DispatchQueue.main.asyncAfter`, which is
-correct on macOS and dead here, so the Linux app replaces it exactly once.
+`MainTimer.scheduleTimer` overrides both the default Dispatch timer and the sleeping main-actor task used
+by the upstream pending-close grace countdown.
+The Linux app installs the override exactly once.
 `installGLibMainTimer()` (`GLibMainTimer.swift`) runs at the top of `activateApplication`, ahead of the
 `WindowLibrary`, the control server, and any window or surface, so nothing can schedule against the dead
 default.
@@ -105,9 +106,10 @@ and their owners cancel them when the associated widget or window is torn down.
   `runOnMain`.
 - `DispatchQueue.global` is fine — global queues have their own threads
   (`LinuxAgentIntegrations.swift` runs its integration-file disk work there and hops back with `runOnMain`).
-- `MainTimer`'s default must stay Dispatch-based: it is what upstream macOS uses, and the GLib implementation
-  belongs in the Linux target — `scripts/check-linux-core-boundary.sh` rejects GTK/Adwaita/GhosttyKit imports
-  (including `CGtk`) and `ghostty_`/`gtk_`/`adw_` symbols in `agtermCore`.
+- Keep the default Dispatch timer and upstream pending-close clock inside `MainTimer`.
+  The GLib implementation belongs in the Linux target.
+  `scripts/check-linux-core-boundary.sh` rejects GTK/Adwaita/GhosttyKit imports (including `CGtk`) and
+  `ghostty_`/`gtk_`/`adw_` symbols in `agtermCore`.
 - Prefer deriving a coupled delay from the constant it trails rather than re-hardcoding it — the Linux
   `reconcileSoftClose` schedules at `AppStore.pendingCloseGraceInterval + 0.1`, reading the constant rather
   than taking a grace argument, so it can neither drift from the core finalizer nor be handed a shorter grace

@@ -180,7 +180,7 @@ struct SessionSwitchReleaseGTKTests {
         try #require(controller.sessionSwitcher.isActive)
         pump()
         let timers = ReleaseTimers()
-        let realTimer = MainTimer.scheduleTimer
+        let realTimer = try #require(MainTimer.scheduleTimer)
         // Synchronous scope: no unrelated test may see the process-global seam.
         MainTimer.scheduleTimer = { delay, fire in
             if delay != 0.05 { return realTimer(delay, fire) }

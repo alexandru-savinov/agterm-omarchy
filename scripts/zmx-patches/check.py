@@ -34,6 +34,7 @@ def executable_path(path):
 
 
 def attach(nonce, rows, cols, claim, name=NAME, argv=("/bin/sh",), reclaim=None):
+    zmx = executable_path(ZMX)
     pid, fd = pty.fork()
     if pid == 0:
         env = dict(os.environ, ZMX_DIR=ZDIR, ZMX_NO_DETACH_KEY="1", TERM="xterm-256color")
@@ -47,7 +48,7 @@ def attach(nonce, rows, cols, claim, name=NAME, argv=("/bin/sh",), reclaim=None)
             env["ZMX_MANAGED_RECLAIM"] = reclaim
         # before exec, so the client's Init reads this size and not the pty default
         fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
-        os.execve(ZMX, [ZMX, "attach", name, *argv], env)
+        os.execve(zmx, [zmx, "attach", name, *argv], env)
     return pid, fd
 
 
@@ -75,10 +76,11 @@ def reaped(pid, seconds):
 
 
 def cli(*args, stdin=None, extra=None, executable=None):
+    zmx = executable_path(ZMX if executable is None else executable)
     env = dict(os.environ, ZMX_DIR=ZDIR)
     env.pop("ZMX_SESSION", None)
     env.update(extra or {})
-    return subprocess.run([executable or ZMX, *args], env=env, input=stdin or b"", capture_output=True, timeout=10)
+    return subprocess.run([zmx, *args], env=env, input=stdin or b"", capture_output=True, timeout=10)
 
 
 def listed(name):
@@ -107,9 +109,10 @@ def written(path, content):
 
 def tail_prints(name, typed, marker):
     """tail_prints reports whether `zmx tail` on name prints marker after typed reaches the session, within 5 s."""
+    zmx = executable_path(ZMX)
     env = dict(os.environ, ZMX_DIR=ZDIR)
     env.pop("ZMX_SESSION", None)
-    proc = subprocess.Popen([ZMX, "tail", name], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+    proc = subprocess.Popen([zmx, "tail", name], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL)
     try:
         time.sleep(0.5)
@@ -449,7 +452,8 @@ def main():
         ran = cli("run", "task", "sh", "-c", "echo TASK-OUT; exit 3")
         env = dict(os.environ, ZMX_DIR=ZDIR)
         env.pop("ZMX_SESSION", None)
-        tailer = subprocess.Popen([ZMX, "tail", "task"], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        zmx = executable_path(ZMX)
+        tailer = subprocess.Popen([zmx, "tail", "task"], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         time.sleep(0.3)
         cli("run", "task", "echo", "TAIL-OUT")
         try:

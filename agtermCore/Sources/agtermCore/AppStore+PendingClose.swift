@@ -448,7 +448,7 @@ extension AppStore {
     /// main-actor executor, so a sleeping task would leave closed sessions alive indefinitely.
     private func schedulePendingCloseFinalization(id: UUID, grace: TimeInterval) {
         pendingCloseCancels[id]?()
-        pendingCloseCancels[id] = MainTimer.schedule(after: max(0, grace)) { [weak self] in
+        pendingCloseCancels[id] = MainTimer.scheduleCloseGrace(after: max(0, grace)) { [weak self] in
             self?.finalizePendingClose(id)
         }
     }

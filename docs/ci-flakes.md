@@ -6,6 +6,21 @@ investigation. Most entries come from the investigation in PR #968.
 
 Each entry separates a demonstrated cause from one that is only consistent with the evidence.
 
+## macOS companion membership undo during sync #550
+
+- **Symptom.** `aBatchUndoPublishesOnlyTheFinalGrouping` and
+  `aSoftCloseRemovesTheMemberUndoBringsItBackAndFinalizingSendsNothingMore` first fail at
+  `undoPendingClose()`, then report missing companion membership frames.
+  [Hosted run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/45752839518/job/139684514416)
+- **Demonstrated cause.** A Dispatch deadline followed by a new actor task can finalize the pending close before the queued undo.
+  On a loaded Mac, the unchanged tests reproduced all six hosted issues.
+  Pristine v0.44.1 passed both tests under the same load.
+  A diagnostic build with the upstream `Task.sleep` clock armed both timers within 23 ms.
+  Both undo calls ran about 12 seconds later, ahead of finalization.
+- **Fix.** The pending-close timer resumes the original sleeping task on the default host and uses the
+  installed GLib scheduler in GTK.
+  The three-second grace interval and the independently scheduled companion membership flush retain their existing behavior.
+
 ## Omarchy GTK AT-SPI smoke suite (#527)
 
 The full GitHub Actions suite permits one extra process per exact architecture, scenario and final assertion
