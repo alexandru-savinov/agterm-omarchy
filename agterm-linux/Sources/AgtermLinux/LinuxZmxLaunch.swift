@@ -20,7 +20,9 @@ enum LinuxZmxLaunch {
         if !detached, let host = configuration.sessionHostExecutablePath {
             arguments = [host, "client", configuration.daemonName, "--"] + arguments
         }
-        return CommandRestore.shellQuotedLine(arguments)
+        let command = CommandRestore.shellQuotedLine(arguments)
+        // A direct attach needs its terminal connected before the child can report a startup failure.
+        return holdUntilAttached(command, program: !detached && configuration.sessionHostExecutablePath == nil)
     }
 
     /// The CLI's direct creation path needs the same bounded hold as the upstream session host.

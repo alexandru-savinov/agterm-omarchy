@@ -113,6 +113,9 @@ longer apply, and re-running `check.py`.
   process-group signal. Teardown collects killed workers in that group with a bounded wait, so their
   PIDs disappear even under a container init that leaves adopted zombies unreaped.
 
+- `0016-hold-direct-attach.patch` honors the same opt-in hold when `attach` itself creates the daemon.
+  The terminal can then receive output from a command that prints and exits during startup.
+
 `check.py <zmx>` drives managed clients on PTYs of different sizes against one daemon in a throwaway
 `ZMX_DIR` and exits nonzero when a check fails. Pass a second argument pointing to the previous
 release's zmx to also verify listing, claiming and reclaiming the lead, typing, reading the screen,
