@@ -149,8 +149,10 @@ struct LinuxRestorePrefillTests {
     func durableCreationCommandUnchanged() {
         let seed = LinuxRestoreSeed.wrappedSeed(configuration, replay: nil, durable: "make dev", denylist: [],
                                                 daemonRunning: false)
-        #expect(seed.command == ZmxSupport.attachCommand(configuration, replaying: nil, creationCommand: "make dev",
-                                                         denylist: []))
+        // v0.44.1 holds a durable creation command until the first attach (bounded); the command itself is unchanged.
+        let creation = ZmxSupport.attachCommand(configuration, replaying: nil, creationCommand: "make dev", denylist: [])
+        #expect(seed.command == LinuxZmxLaunch.holdUntilAttached(creation, program: true))
+        #expect(seed.command?.contains("ZMX_HOLD_UNTIL_ATTACH=5") == true)
         #expect(seed.initialInput == nil)
     }
 
