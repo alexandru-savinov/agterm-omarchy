@@ -116,12 +116,19 @@ Release mechanics are documented in [packaging/linux/prerelease-omarchy.md](pack
 - This repository does not publish macOS builds.
   Its macOS CI builds the app and runs the shared and app tests and lint (`make build`, `make test`, `make test-app`, `make lint`)
   weekly, on demand, and on pushes to `main`, to keep shared changes compatible with upstream.
-  On eligible pull requests, the maintainer can run `scripts/local-check.sh <PR number> <merge SHA>`
-  to post local validation for that exact merge commit. This requires macOS, Xcode, Python 3.11+,
+  For open, owner-authored pull requests with a head in this repository, the maintainer can post
+  local validation for the exact merge commit.
+  Use the digest-verified `local-check.sh` exported from the reviewed pilot commit into the
+  maintainer's `~/Documents/orchestrator/reviews/conditional-ci-2026-11-27/` directory.
+  Invoke the export with `<PR number> <merge SHA>` from outside any Git worktree.
+  The wrapper executes the PR's code with the local user's permissions.
+  This requires macOS, Xcode, Python 3.11+,
   a zsh login shell, xcodegen, SwiftLint, fish, Node 22.7+ within Node 22, and the owner's `gh` login.
   CI samples one in five eligible passes on a hosted runner.
-  A sampled failure pauses local skips pending review, tracked by `macos-local-ci-paused.json` on
+  A sampled failure fails validation and records the pause in `macos-local-ci-paused.json` on
   the dedicated `ci-state/conditional-macos` branch.
+  The job logs whether GitHub confirmed that ref. An unconfirmed pause fails the check and puts the
+  pilot on hold pending review.
   Pull requests labelled `upstream-offer` still require a hosted result on the current head.
   Use [upstream agterm](https://github.com/umputun/agterm) on macOS.
 

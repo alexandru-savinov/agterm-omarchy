@@ -17,9 +17,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: omarchy-macos-${{ github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'upstream-sync' && github.event.label.name != 'upstream-offer' && github.run_id || '' }}
-  # A superseding PR run must not cancel a sample before it can record a mismatch.
-  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
+  # A unique push group also keeps GitHub from replacing a pending main run.
+  group: omarchy-macos-${{ github.event_name == 'push' && format('push-{0}', github.run_id) || github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'upstream-sync' && github.event.label.name != 'upstream-offer' && github.run_id || '' }}
+  # Give a running PR sample time to record a mismatch.
+  cancel-in-progress: ${{ github.event_name != 'pull_request' && github.event_name != 'push' }}
 
 jobs:
   changes:
@@ -50,6 +51,7 @@ jobs:
         if: >-
           github.repository == 'alexandru-savinov/agterm-omarchy' &&
           github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.user.login == 'alexandru-savinov' &&
           github.actor == 'alexandru-savinov' &&
           !contains(github.event.pull_request.labels.*.name, 'upstream-offer') &&
           (steps.paths.outputs.shared == 'true' || contains(github.event.pull_request.labels.*.name, 'upstream-sync'))
@@ -57,6 +59,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         continue-on-error: true
         with:
+          # The draft pilot's original base predates this script. Pin that one bootstrap
+          # to the pilot commit for review. All other runs use the exact PR base.
+          ref: ${{ github.event.pull_request.base.sha == '1c89b2177e4376ee323c5e90b80cb65017671ded' && github.event.pull_request.head.ref == 'claude/conditional-ci-pilot' && 'a94c09a04b274b9d55fcb9ab56da2e28363aeef4' || github.event.pull_request.base.sha }}
           persist-credentials: false
       - name: Decide whether local evidence is eligible
         if: steps.pilot-checkout.outcome == 'success'
@@ -183,6 +188,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.repository == 'alexandru-savinov/agterm-omarchy' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == 'alexandru-savinov' &&
       github.actor == 'alexandru-savinov' &&
       needs.changes.outputs.decision == 'sample' && needs.macos.result == 'failure'
     runs-on: ubuntu-24.04
@@ -196,25 +202,38 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # This job checks out no PR code. The state branch has one file and no workflows.
+          run_url="https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/$GITHUB_RUN_ID"
           incident=$(jq -cn --arg run "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" \
-            --arg merge "$GITHUB_SHA" \
-            '{event:"conditional-ci-sample-mismatch",check:"macos-validation",run:$run,attempt:$attempt,merge:$merge}')
-          echo "::error title=Conditional CI::${incident}"
+            --arg merge "$GITHUB_SHA" --arg url "$run_url" \
+            '{event:"conditional-ci-sample-mismatch",check:"macos-validation",run:$run,attempt:$attempt,merge:$merge,url:$url}')
+          echo "::error title=Conditional macOS sample mismatch::${incident}"
           endpoint="repos/alexandru-savinov/agterm-omarchy/git"
+          pause_ref=refs/heads/ci-state/conditional-macos
           paused() {
             gh api "$endpoint/matching-refs/heads/ci-state/conditional-macos" \
               --jq 'any(.[]; .ref == "refs/heads/ci-state/conditional-macos")' | grep -qx true
           }
-          if ! paused; then
-            blob=$(gh api --method POST "$endpoint/blobs" -f content="$incident" -f encoding=utf-8 --jq .sha)
-            tree=$(jq -cn --arg sha "$blob" \
-              '{tree:[{path:"macos-local-ci-paused.json",mode:"100644",type:"blob",sha:$sha}]}' |
-              gh api --method POST "$endpoint/trees" --input - --jq .sha)
-            commit=$(jq -cn --arg tree "$tree" \
-              '{message:"Pause conditional macOS CI pending review",tree:$tree,parents:[]}' |
-              gh api --method POST "$endpoint/commits" --input - --jq .sha)
-            gh api --method POST "$endpoint/refs" -f ref=refs/heads/ci-state/conditional-macos \
-              -f sha="$commit" --silent || paused
+          if paused; then
+            echo "Confirmed existing $pause_ref on GitHub."
+            exit 0
           fi
-          echo 'Conditional macOS CI paused pending review.'
-          exit 1
+          echo "Creating $pause_ref."
+          blob=$(gh api --method POST "$endpoint/blobs" -f content="$incident" -f encoding=utf-8 --jq .sha)
+          tree=$(jq -cn --arg sha "$blob" \
+            '{tree:[{path:"macos-local-ci-paused.json",mode:"100644",type:"blob",sha:$sha}]}' |
+            gh api --method POST "$endpoint/trees" --input - --jq .sha)
+          commit=$(jq -cn --arg tree "$tree" \
+            '{message:"Pause conditional macOS CI pending review",tree:$tree,parents:[]}' |
+            gh api --method POST "$endpoint/commits" --input - --jq .sha)
+          if gh api --method POST "$endpoint/refs" -f ref="$pause_ref" -f sha="$commit" --silent; then
+            echo "GitHub accepted creation for $pause_ref at $commit."
+          else
+            echo "GitHub did not accept creation for $pause_ref. Checking for a concurrent pause."
+          fi
+          if ! paused; then
+            echo "::error title=Conditional macOS pause failed::Could not confirm $pause_ref. Hold the pilot pending review."
+            exit 1
+          fi
+          echo "Confirmed $pause_ref on GitHub."
+      - name: Fail the validation for the sample mismatch
+        run: exit 1
