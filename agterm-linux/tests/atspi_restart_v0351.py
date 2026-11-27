@@ -6,7 +6,7 @@ import shlex
 import subprocess
 import threading
 
-from atspi_smoke import ROOT, launch, raw_control_json, stop, wait_for, window_list, window_tree
+from atspi_smoke import ROOT, control_json, launch, raw_control_json, stop, wait_for, window_list, window_tree
 
 
 def verify_restart_v0351(env, state):
@@ -61,6 +61,18 @@ def verify_restart_v0351(env, state):
             return next(pane["paneID"] for pane in row["surfaces"] if pane["kind"] == "left")
 
         identity = pane_id()
+
+        def restart(*arguments):
+            # The standard client allows 30 s for the full restart. Give the CLI process time to exit
+            # after its own deadline so a slow restart yields its real reply or transport error.
+            try:
+                return control_json(env, "session", "restart", "--target", session, "--pane-id", identity,
+                                    "--window", window, "--json", *arguments, timeout=35)
+            except subprocess.CalledProcessError as error:
+                if error.stdout:
+                    print(error.stdout, end="", flush=True)
+                raise
+
         address = session + ":" + identity
         queued = request("msg.send", args={"recipients": [address], "body": "belongs to old job"})
         assert queued["ok"] and queued["result"]["delivered"] == [address], queued
@@ -72,7 +84,7 @@ def verify_restart_v0351(env, state):
         assert background["ok"], background
         new_pid_file = os.path.join(state, "new-job.pid")
         line = f"/bin/sh -c {shlex.quote('echo $$ > ' + shlex.quote(new_pid_file) + '; printf restart-screen; exec sleep 3600')}"
-        reply = request("session.restart", session, {"paneID": identity, "command": line})
+        reply = restart("--command", line)
         assert reply["ok"], reply
         receipt = reply["result"]["restart"]
         assert receipt["paneID"].lower() == identity.lower(), receipt
@@ -97,7 +109,7 @@ def verify_restart_v0351(env, state):
         daemon = "agterm-" + identity.replace("-", "").lower()
         screen = request("zmx.screen", args={"name": daemon, "all": True})
         assert screen["ok"] and "restart-screen" in screen["result"]["text"], screen
-        replay = request("session.restart", session, {"paneID": identity})
+        replay = restart()
         assert replay["ok"], replay
         replay_receipt = replay["result"]["restart"]
         assert os.path.basename(replay_receipt["replayedArgv"][0]) == "sleep", replay_receipt
