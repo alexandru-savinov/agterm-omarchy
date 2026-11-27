@@ -25,16 +25,18 @@ Each entry separates a demonstrated cause from one that is only consistent with 
 
 - **Symptom.** aarch64 `v0441` fails at `atspi_v0441.py:143`, `AssertionError: image path was not inserted`; x86_64 passes.
   [Hosted run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/45879542222/job/140115174955)
-- **Demonstrated cause.** `pasteClipboard` routes image-only offers by GDK's cached formats, and those can lag the owner.
+- **Reproduced mechanism.** `pasteClipboard` uses GDK's cached formats to choose the image-only route.
   With the scenario's clipboard owner under Xvfb on the aarch64 VM, the cache was empty when `ready` appeared
   (20/20 real-GDK runs, caught up 2.4-3.9 ms later), while a texture read from the new owner succeeded.
-  In that state the production paste files against a GDK double inserted nothing at `1f8e782f` (10/10) and pasted the
-  image before `3428dbd1`: the engine route asks only for the URI list and text, and it replied to `session.paste`
-  before its read finished.
-  The hosted failure is consistent with this but not traced to it: the measured window is shorter than the scenario's
-  100 ms poll, so the runner must hold the stale cache longer, and no hosted trace shows the formats at the paste.
-- **Fix.** The engine paste read asks the current owner for an image after the URI list and text, and stages it
-  locally. `pasteClipboard` completes only when that read reaches the terminal.
+  The empty cache sent the paste through the engine route, which asked only for a URI list and text.
+  The image owner supplied neither, and the route replied to `session.paste` before the read finished.
+  The production paste files against a GDK double reproduced the missing image at `1f8e782f` (10/10).
+  The same double pasted the image with the files from before `3428dbd1`.
+  The hosted failure is consistent with this mechanism. The clipboard formats at the time of the hosted paste are unknown.
+- **Fix.** The engine paste read asks the current owner for an image when it has no usable file paths or decoded text,
+  and stages the image locally. A successful `session.paste` reply follows submission to the engine.
+  If the engine asks for unsafe-paste confirmation, insertion still depends on the user's choice.
+  The engine read and staging have a ten-second deadline, and a timed-out request cannot submit a late result.
 
 ## Omarchy GTK AT-SPI smoke suite (#527)
 

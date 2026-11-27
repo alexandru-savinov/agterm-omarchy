@@ -2,8 +2,9 @@ import Foundation
 import agtermCore
 
 extension ControlServer {
-    /// The socket worker waits for the real copy and insert; GTK remains free to service the clipboard and SSH.
-    func performPasteRequest(_ request: ControlRequest) -> ControlResponse {
+    /// The worker waits for submission to the engine while GTK services the clipboard. The default
+    /// deadline leaves room for the origin copy's SSH budget of up to 120 seconds for a 100 MiB bundle.
+    func performPasteRequest(_ request: ControlRequest, deadline: DispatchTime = .now() + 150) -> ControlResponse {
         let box = LinuxRemoteCompanionBox(), ready = DispatchSemaphore(value: 0)
         runOnMain { MainActor.assumeIsolated {
             let finish: @MainActor (ControlResponse) -> Void = { response in box.response = response; ready.signal() }
@@ -18,13 +19,15 @@ extension ControlServer {
                 switch controller.pasteSurface(request.target, pane: pane) {
                 case .failure(let response): finish(response)
                 case .success(let surface):
-                    surface.pasteClipboard { reason in
+                    surface.pasteClipboard(deadline: deadline) { reason in
                         finish(reason.map(controller.err) ?? controller.ok(surface.sessionID))
                     }
                 }
             }
         } }
-        ready.wait()
+        guard ready.wait(timeout: deadline) == .success else {
+            return ControlResponse(ok: false, error: LinuxPasteTransfer.timeoutReason)
+        }
         return box.response
     }
 }

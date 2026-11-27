@@ -10,30 +10,42 @@ extension GhosttySurface {
         return binding.daemon(forLocalPane: pane) != nil || row.originScratch == pane ? host : nil
     }
     var pasteRefusal: String? {
-        if let refusal = controller?.coveredPaneRefusal(self) { return refusal.error ?? "another viewer leads this pane" }
+        if let refusal = pasteLeadRefusal { return refusal }
         return pasteCopying ? "a paste is still copying" : nil
     }
 
+    private var pasteLeadRefusal: String? {
+        guard let refusal = controller?.coveredPaneRefusal(self) else { return nil }
+        return refusal.error ?? "another viewer leads this pane"
+    }
+
+    func pasteDestinationRefusal(origin: String?) -> String? {
+        guard surface != nil else { return "session not realized" }
+        guard pasteOriginHost == origin else { return "the pane changed while the paste was copying" }
+        return pasteLeadRefusal
+    }
+
     /// Clipboard, palette, control and drop paths all share ownership and lead checks.
-    func pasteClipboard(completion: @escaping @MainActor (String?) -> Void = { _ in }) {
+    func pasteClipboard(deadline: DispatchTime = .distantFuture, completion: @escaping @MainActor (String?) -> Void = { _ in }) {
+        guard DispatchTime.now() < deadline else { return completion(LinuxPasteTransfer.timeoutReason) }
         if let refusal = pasteRefusal { return completion(refusal) }
         guard let surface else { return completion("session not realized") }
         // Let the engine ask the current clipboard owner for ordinary local pastes. Its read callback
         // tries the URI list, text and then an image directly, even while GDK still reports the previous owner's formats.
-        // The completion waits for that read, so a `session.paste` reply follows the inserted text.
+        // A successful `session.paste` reply follows submission to the engine, which may still ask for confirmation.
         if pasteOriginHost == nil, !LinuxPasteClipboard.hasImageOnlyOffer() {
-            EnginePasteCompletion.arm(completion, for: self)
+            EnginePasteCompletion.arm(completion, deadline: deadline, for: self)
             let action = "paste_from_clipboard"
             _ = action.withCString { ghostty_surface_binding_action(surface, $0, UInt(action.utf8.count)) }
             // libghostty answered without a clipboard read (or started none)
-            EnginePasteCompletion.take(for: self)?(nil)
+            EnginePasteCompletion.take(for: self)?.finish(nil)
             return
         }
         pasteCopying = true
         LinuxPasteClipboard.read { [weak self] offer in
             guard let self else { return completion("session closed") }
             self.pasteCopying = false
-            self.pasteOffer(offer, completion: completion)
+            self.pasteOffer(offer, deadline: deadline, completion: completion)
         }
     }
 
@@ -44,7 +56,9 @@ extension GhosttySurface {
     }
 
     @discardableResult
-    func pasteOffer(_ offer: PasteOffer, completion: @escaping @MainActor (String?) -> Void = { _ in }) -> Bool {
+    func pasteOffer(_ offer: PasteOffer, deadline: DispatchTime = .distantFuture,
+                    completion: @escaping @MainActor (String?) -> Void = { _ in }) -> Bool {
+        guard DispatchTime.now() < deadline else { completion(LinuxPasteTransfer.timeoutReason); return false }
         if let refusal = pasteRefusal { completion(refusal); return false }
         guard surface != nil else { completion("session not realized"); return false }
         let remote = pasteOriginHost
@@ -61,9 +75,8 @@ extension GhosttySurface {
             runOnMain { MainActor.assumeIsolated {
                 guard let self else { return completion("session closed") }
                 self.pasteCopying = false
-                guard self.surface != nil else { return completion("session not realized") }
-                guard self.pasteOriginHost == remote else { return completion("the pane changed while the paste was copying") }
-                if let refusal = self.pasteRefusal { return completion(refusal) }
+                guard DispatchTime.now() < deadline else { return completion(LinuxPasteTransfer.timeoutReason) }
+                if let refusal = self.pasteDestinationRefusal(origin: remote) { return completion(refusal) }
                 switch copied {
                 case .success(let text): self.pasteThroughProtection(text: text); completion(nil)
                 case .failure(let failure):
@@ -86,21 +99,25 @@ extension GhosttySurface {
 /// Carries `pasteClipboard`'s completion across the synchronous `paste_from_clipboard` action to the clipboard read
 /// libghostty starts inside it (`LinuxClipboardAdapter.readText`).
 @MainActor
-enum EnginePasteCompletion {
-    private static var pending: (surface: ObjectIdentifier, completion: @MainActor (String?) -> Void)?
+struct EnginePasteCompletion {
+    private static var pending: (surface: ObjectIdentifier, reply: EnginePasteCompletion)?
+    let deadline: DispatchTime
+    let finish: @MainActor (String?) -> Void
 
-    static func arm(_ completion: @escaping @MainActor (String?) -> Void, for surface: GhosttySurface) {
-        pending = (ObjectIdentifier(surface), completion)
+    static func arm(_ completion: @escaping @MainActor (String?) -> Void, deadline: DispatchTime, for surface: GhosttySurface) {
+        pending = (ObjectIdentifier(surface), EnginePasteCompletion(deadline: deadline, finish: completion))
     }
 
-    static func take(for surface: GhosttySurface) -> (@MainActor (String?) -> Void)? {
+    static func take(for surface: GhosttySurface) -> EnginePasteCompletion? {
         guard let current = pending, current.surface == ObjectIdentifier(surface) else { return nil }
         pending = nil
-        return current.completion
+        return current.reply
     }
 }
 
 enum LinuxPasteTransfer {
+    static let timeoutReason = "clipboard paste timed out"
+
     struct Failure: Error, Sendable { let reason: String }
 
     /// Runs only on a worker. The shared bundle format enforces file kinds, entry and byte limits.
