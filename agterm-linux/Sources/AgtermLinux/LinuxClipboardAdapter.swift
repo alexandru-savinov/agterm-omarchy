@@ -226,13 +226,13 @@ enum LinuxClipboardAdapter {
                     PasteDebug.log("engine TEXT end \(PasteDebug.result(raw, error: error)) bytes=\(raw.map { strlen($0) } ?? 0)")
                     defer { g_free(raw) }
                     guard read.canContinue() else { return }
-                    if let raw {
-                        let text = String(cString: raw)
-                        if read.canContinue() { read.finish(text: text) }
-                    } else if LinuxClipboardPolicy.readsFileList(read.kind) {
+                    let text = raw.map { String(cString: $0) }
+                    guard read.canContinue() else { return }
+                    // X11 can return empty text for an owner that only offers an image.
+                    if LinuxClipboardPolicy.readsFileList(read.kind), text?.isEmpty ?? true {
                         LinuxClipboardAdapter.readImage(read)
                     } else {
-                        read.finish(text: nil)
+                        read.finish(text: text)
                     }
                 }
             },
