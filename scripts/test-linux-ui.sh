@@ -6,7 +6,7 @@ ARTIFACT_DIR="${AGTERM_UI_ARTIFACT_DIR:-$ROOT/artifacts/linux-ui}"
 export AGTERM_UI_ARTIFACT_DIR="$ARTIFACT_DIR"
 
 # Scratch branch only: exercise the exact targeted v0441 scenario in fresh desktop sessions.
-if [[ "${AGTERM_ATSPI_SCENARIO:-}" == v0441 && -z "${AGTERM_PASTE_DEBUG_ATTEMPT:-}" ]]; then
+if [[ "${AGTERM_ATSPI_SCENARIO:-}" == @(v0441|v0441-slow-owner) && -z "${AGTERM_PASTE_DEBUG_ATTEMPT:-}" ]]; then
   failures=0
   for attempt in $(seq 1 12); do
     echo "PASTE_DEBUG_ATTEMPT $attempt/12 start"

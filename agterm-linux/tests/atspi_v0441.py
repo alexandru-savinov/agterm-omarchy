@@ -19,15 +19,19 @@ class ClipboardOwner:
         payload, ready = root / 'clipboard-data', root / 'clipboard-ready'
         payload.write_bytes(data)
         ready.unlink(missing_ok=True)
-        script = '''import gi,sys,time
+        script = '''import gi,os,sys,time
 from pathlib import Path
 gi.require_version('Gtk','4.0')
 from gi.repository import Gtk,Gdk,GLib
 Gtk.init()
 p=Gdk.ContentProvider.new_for_bytes(sys.argv[1],GLib.Bytes.new(Path(sys.argv[2]).read_bytes()))
 ok=Gdk.Display.get_default().get_clipboard().set_content(p)
-print(f"PASTE_DEBUG {time.time()} owner set mime={sys.argv[1]} ok={ok}",flush=True)
 Path(sys.argv[3]).touch()
+print(f"PASTE_DEBUG {time.time()} owner set mime={sys.argv[1]} ok={ok}",flush=True)
+if os.environ.get("AGTERM_ATSPI_SCENARIO") == "v0441-slow-owner":
+    # Claim the real X11 selection, then let the paste overlap TARGETS discovery.
+    time.sleep(0.35)
+    print(f"PASTE_DEBUG {time.time()} owner begins answering selection requests",flush=True)
 GLib.MainLoop().run()
 '''
         self.process = subprocess.Popen([sys.executable, '-c', script, mime, str(payload), str(ready)], env=env)

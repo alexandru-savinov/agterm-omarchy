@@ -7767,6 +7767,7 @@ def main():
             "live-control-memory",
             "v0441", "v0441-audit-gui", "v0441-audit-live", "v0441-audit-transfers",
             "v0441-audit-pages", "v0441-audit-capture",
+            "v0441-slow-owner",
         )
         try:
             shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
@@ -7787,7 +7788,7 @@ def main():
                 print("FAIL: unknown GTK scenarios: " + ", ".join(sorted(unknown)))
                 return 2
         else:
-            scheduled = scenarios[shard_index::shard_count]
+            scheduled = [name for name in scenarios[shard_index::shard_count] if name != "v0441-slow-owner"]
         for child_scenario in scheduled:
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             status, extra = run_scenario([sys.executable, __file__], child_env)
@@ -7867,7 +7868,7 @@ def main():
         elif scenario == "upstream-v0411":
             from atspi_v0411 import verify_v0411
             verify_v0411(env, state)
-        elif scenario == "v0441":
+        elif scenario in ("v0441", "v0441-slow-owner"):
             from atspi_v0441 import verify_v0441
             verify_v0441(env, state)
         elif scenario == "v0441-audit-gui":
