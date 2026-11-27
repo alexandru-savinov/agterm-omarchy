@@ -144,6 +144,8 @@ jobs:
               - ".agents/**"
               - "linux/**"
               - "packaging/linux/**"
+              - "packaging/omarchy-pkgs/**"
+              - ".github/omarchy-claude-replay/**"
               - "project.yml"
               - "scripts/**"
               - ".swiftlint.yml"
@@ -515,6 +517,27 @@ jobs:
           printf '### Linux %s\nResult: %s\n\nSwift 6.3.2; Zig 0.17.0. GTK tests use Xvfb.\n' "$BUILD_ARCH" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
           echo 'Native Hyprland/Wayland validation remains a separate Omarchy VM check.' >> "$GITHUB_STEP_SUMMARY"
 
+  claude-hook-replay:
+    name: Installed Claude hook replay (Arch x86_64)
+    needs: build-linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      image: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: agterm-omarchy-x86_64-${{ github.sha }}
+          path: ${{ runner.temp }}/claude-hook-archive
+      - name: Install the CI package and replay its configured hooks
+        run: |
+          bash .github/omarchy-claude-replay/package.sh \
+            "$RUNNER_TEMP/claude-hook-archive/agterm-omarchy-x86_64.tar.gz" \
+            "$GITHUB_SHA" "${UPSTREAM_BASE_TAG#v}.0"
+
   attest-linux:
     name: Attest CI archive (${{ matrix.arch }})
     needs: build-linux
@@ -609,7 +632,7 @@ jobs:
     name: CI
     # Superseded runs must not hold the concurrency slot while this job waits for a runner.
     if: ${{ !cancelled() }}
-    needs: [upstream-ci-disabled, scripts, changes, test-linux, lint-linux, build-linux, attest-linux, ghostty-patch-tests, zmx-patch-tests, cookbook]
+    needs: [upstream-ci-disabled, scripts, changes, test-linux, lint-linux, build-linux, claude-hook-replay, attest-linux, ghostty-patch-tests, zmx-patch-tests, cookbook]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -617,6 +640,7 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs) }}
           REQUIRE_ATTESTATION: ${{ github.repository == 'alexandru-savinov/agterm-omarchy' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.build-linux.result == 'success' }}
+          REQUIRE_CLAUDE_REPLAY: ${{ needs.build-linux.result == 'success' }}
         run: |
           python3 - <<'PYTHON'
           import json, os
@@ -625,6 +649,8 @@ jobs:
           required = ['upstream-ci-disabled']
           if os.environ.get('REQUIRE_ATTESTATION') == 'true':
               required.append('attest-linux')
+          if os.environ.get('REQUIRE_CLAUDE_REPLAY') == 'true':
+              required.append('claude-hook-replay')
           failed.extend(name for name in required
                         if results.get(name, {}).get('result') != 'success' and name not in failed)
           if failed:
