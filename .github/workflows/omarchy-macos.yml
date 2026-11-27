@@ -36,8 +36,7 @@ jobs:
       statuses: read
     outputs:
       shared: ${{ steps.paths.outputs.shared }}
-      probe: ${{ steps.probe.outputs.enabled }}
-      decision: ${{ steps.probe.outputs.enabled == 'true' && 'sample' || steps.local.outcome == 'success' && steps.local.outputs.decision || 'hosted' }}
+      decision: ${{ steps.local.outcome == 'success' && steps.local.outputs.decision || 'hosted' }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: paths
@@ -64,16 +63,9 @@ jobs:
           # to the pilot commit for review. All other runs use the exact PR base.
           ref: ${{ github.event.pull_request.base.sha == '1c89b2177e4376ee323c5e90b80cb65017671ded' && github.event.pull_request.head.ref == 'claude/conditional-ci-pilot' && 'a94c09a04b274b9d55fcb9ab56da2e28363aeef4' || github.event.pull_request.base.sha }}
           persist-credentials: false
-      - name: Decide whether local evidence is eligible
-        if: steps.pilot-checkout.outcome == 'success'
-        id: local
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 -I scripts/github/conditional_macos.py
-      - name: Force a sample for draft PR 551
-        id: probe
+      - name: Wait for the wrong-tree fixture on draft PR 551
         if: >-
+          steps.pilot-checkout.outcome == 'success' &&
           github.repository == 'alexandru-savinov/agterm-omarchy' &&
           github.event.pull_request.number == 551 &&
           github.event.pull_request.draft &&
@@ -81,7 +73,28 @@ jobs:
           github.event.pull_request.head.ref == 'claude/conditional-ci-pilot' &&
           github.event.pull_request.user.login == 'alexandru-savinov' &&
           github.actor == 'alexandru-savinov'
-        run: echo 'enabled=true' >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          for attempt in {1..20}; do
+            status_id=$(gh api "repos/alexandru-savinov/agterm-omarchy/commits/$GITHUB_SHA/statuses" \
+              --jq 'first(.[] | select(.context == "local/macos-validation" and .creator.login == "alexandru-savinov") | .id)')
+            if [[ -n "$status_id" ]]; then
+              printf 'Owner fixture status %s is visible on merge %s.\n' "$status_id" "$GITHUB_SHA"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'The wrong-tree fixture did not arrive.'
+          exit 1
+      - name: Decide whether local evidence is eligible
+        if: steps.pilot-checkout.outcome == 'success'
+        id: local
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I scripts/github/conditional_macos.py
 
   macos:
     name: Hosted macOS checks
@@ -95,17 +108,12 @@ jobs:
         (contains(github.event.pull_request.labels.*.name, 'upstream-sync') ||
          contains(github.event.pull_request.labels.*.name, 'upstream-offer') ||
          (needs.changes.result == 'success' && needs.changes.outputs.shared == 'true'))))
-    runs-on: ${{ needs.changes.outputs.probe == 'true' && 'ubuntu-24.04' || 'macos-26' }}
+    runs-on: macos-26
     timeout-minutes: 90
     defaults:
       run:
         shell: bash
     steps:
-      - name: Force a hosted failure for the sample probe
-        if: needs.changes.outputs.probe == 'true'
-        run: |
-          echo 'Intentional failure for draft PR 551 pause and incident evidence.'
-          exit 1
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -187,7 +195,7 @@ jobs:
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: make lint 2>&1 | tee validation-logs/make-lint.log
       - name: Retain validation logs and XCTest results
-        if: ${{ always() && needs.changes.outputs.probe != 'true' }}
+        if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: omarchy-macos-${{ github.run_id }}-${{ github.run_attempt }}
