@@ -261,7 +261,7 @@ public enum AgentHooksInstall {
         }
         guard changed else { return (existing ?? "", false) }
         root["hooks"] = hooks.isEmpty && originalHooks?.isEmpty != true ? nil : hooks
-        return (serialize(root, options: [.prettyPrinted]), true)
+        return (serialize(root), true)
     }
 
     private static func guardedClaudeCommand(_ executable: String, state: String) -> String {
@@ -641,10 +641,8 @@ public enum AgentHooksInstall {
     }
 
     // serialize a dictionary to pretty-printed, sorted JSON text (deterministic for tests + diffs).
-    private static func serialize(
-        _ object: [String: Any], options: JSONSerialization.WritingOptions = [.prettyPrinted, .sortedKeys]
-    ) -> String {
-        guard let data = try? JSONSerialization.data(withJSONObject: object, options: options),
+    private static func serialize(_ object: [String: Any]) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
               let text = String(data: data, encoding: .utf8) else {
             return "{}"
         }

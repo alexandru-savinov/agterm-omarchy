@@ -205,7 +205,13 @@ chmod 0755 "$DEST/bin/agterm-agent-status"
 cat > "$DEST/bin/agterm-agent-status-ctl" <<'LAUNCH'
 #!/bin/sh
 # Bound only the control request so the watchdog stays out of the adapter's ancestry.
-exec /usr/bin/timeout -k 1s 3s "${0%/*}/agtermctl" "$@"
+watchdog=/usr/bin/timeout
+client="${0%/*}/agtermctl"
+if [ -x "$watchdog" ]; then
+  exec "$watchdog" -k 1s 3s "$client" "$@"
+fi
+# Without coreutils, the control client still enforces its own socket deadline.
+exec "$client" "$@"
 LAUNCH
 chmod 0755 "$DEST/bin/agterm-agent-status-ctl"
 

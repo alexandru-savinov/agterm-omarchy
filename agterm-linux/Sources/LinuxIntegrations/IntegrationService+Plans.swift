@@ -331,7 +331,7 @@ private extension IntegrationService {
             let original = !install && backupType == .typeRegular ? try? IntegrationFilesystem.read(backup) : nil
             let merged = try transform(existing, original)
             guard merged.changed else { return }
-            let createBackup = install && existing != nil && backupType == nil
+            let createBackup = existing != nil && backupType == nil
             operations.append(.writeText(
                 path: path.path, target: target.path, contents: merged.json, backup: createBackup,
                 expectedPath: expectedPath, expectedTarget: expectedTarget,
