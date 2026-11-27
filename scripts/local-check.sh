@@ -11,12 +11,35 @@ fi
 pr=$1
 commit=$2
 merge_ref="refs/pull/$pr/merge"
+
+# The operator verifies the exported copy's digest against the reviewed pilot commit.
+reviewed_dir="$HOME/Documents/orchestrator/reviews/conditional-ci-2026-11-27"
+script_dir=$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+if [[ -L ${BASH_SOURCE[0]} || ${BASH_SOURCE[0]##*/} != local-check.sh ||
+      $script_dir != "$(cd -P -- "$reviewed_dir" 2>/dev/null && pwd -P)" ]] ||
+    git rev-parse --show-toplevel >/dev/null 2>&1 ||
+    git -C "$script_dir" rev-parse --show-toplevel >/dev/null 2>&1; then
+    echo 'Run the reviewed copy from a directory outside any Git worktree.' >&2
+    exit 2
+fi
+
 if [[ $(uname -s) != Darwin ]]; then
     echo 'This check requires macOS.' >&2
     exit 2
 fi
 if [[ $(gh api --hostname github.com user --jq .login) != alexandru-savinov ]]; then
     echo 'The active GitHub login must be alexandru-savinov.' >&2
+    exit 2
+fi
+owner_pr() {
+    local number
+    number=$(gh api --hostname github.com "repos/$repo/pulls/$pr" --jq '
+        select(.state == "open" and .user.login == "alexandru-savinov" and
+               .head.repo.full_name == "alexandru-savinov/agterm-omarchy") | .number') &&
+        [[ $number == "$pr" ]]
+}
+if ! owner_pr; then
+    echo 'Local validation requires an open, owner-authored PR with its head in alexandru-savinov/agterm-omarchy.' >&2
     exit 2
 fi
 if [[ $(dscl . -read "/Users/$(id -un)" UserShell) != 'UserShell: /bin/zsh' ]]; then
@@ -101,8 +124,8 @@ exit "$result"
 CHECK
 ) >> "$log" 2>&1 || exit_code=$?
 current=$(git ls-remote "$url.git" "$merge_ref")
-if [[ ${current%%$'\t'*} != "$commit" ]]; then
-    echo 'The PR merge ref changed during validation. No status was posted.' >&2
+if [[ ${current%%$'\t'*} != "$commit" ]] || ! owner_pr; then
+    echo 'The PR merge ref or eligibility changed during validation. No status was posted.' >&2
     exit 2
 fi
 

@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 import subprocess
+from itertools import count
 from urllib.parse import unquote
 
 REPO = "alexandru-savinov/agterm-omarchy"
@@ -45,11 +46,21 @@ def matches(status, commit, tree, now):
     )
 
 
+def newest_status(commit, request):
+    # GitHub supplies newest-first order, including statuses with identical timestamps.
+    for page in count(1):
+        statuses = request(f"commits/{commit}/statuses?per_page=100&page={page}")
+        if not isinstance(statuses, list):
+            raise ValueError("Expected a list of commit statuses")
+        status = next((item for item in statuses if item["context"] == CONTEXT), None)
+        if status is not None or len(statuses) < 100:
+            return status
+
+
 def decide(event, commit, request=api, *, now=None, randbelow=secrets.randbelow):
     if event != "pull_request" or not SHA.fullmatch(commit):
         return "hosted"
-    statuses = request(f"commits/{commit}/status?per_page=100")["statuses"]
-    status = next((item for item in statuses if item["context"] == CONTEXT), None)
+    status = newest_status(commit, request)
     if status is None:
         return "hosted"
     tree = request(f"git/commits/{commit}")["tree"]["sha"]
