@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -86,6 +87,7 @@ esac''',
         outside.mkdir()
         self.stub("mktemp", 'exec /usr/bin/mktemp "$@"')
         self.stub("git", '''
+source "$(dirname "$0")/checkout-fixture"
 case " $* " in
   *" worktree add "*)
     worktree=${@: -2:1}
@@ -104,7 +106,11 @@ case " $* " in
   *" ls-remote "*) echo replaced-merge ;;
 esac''')
         self.stub("xcode-select", "echo /fixture/Developer")
-        self.stub("python3", 'cat >/dev/null; echo "{}" > "$3"')
+        self.stub("python3", f'''if [[ $# == 3 ]]; then
+    cat >/dev/null; echo "{{}}" > "$3"
+else
+    exec "{sys.executable}" "$@"
+fi''')
         self.stub("make", '''
 printf "make %s\n" "$*"
 if [[ $1 == test ]]; then
@@ -116,26 +122,28 @@ if [[ $1 == test-app ]]; then
         "$TEST_RUNNER_HOME" "$TEST_RUNNER_CFFIXED_USER_HOME" "$TEST_RUNNER___CF_USER_TEXT_ENCODING"
 fi
 ''')
-        self.stub("setup", '''
+        self.stub("setup", '''# Supports AGTERM_LOCAL_CHECK_ROOT from scripts/local-check.sh.
 printf "setup pwd=%s TMPDIR=%s\n" "$(pwd -P)" "$TMPDIR"
 printf "setup HOME=%s CFFIXED_USER_HOME=%s\n" "$HOME" "$CFFIXED_USER_HOME"
 ''')
 
         for escape in ("yes", "no"):
             with self.subTest(escape=escape):
+                (self.bin_dir / "checkout-fixture").write_text(
+                    f'ESCAPE={escape}\nOUTSIDE="{outside}"\nFIXTURE="{self.bin_dir / "setup"}"\n'
+                )
                 attempt = self.run_wrapper(self.reviewed, self.root, PR_JSON=json.dumps(payload),
-                                           TMPDIR=str(alias), ESCAPE=escape, OUTSIDE=str(outside),
-                                           FIXTURE=str(self.bin_dir / "setup"),
+                                           TMPDIR=str(alias),
                                            __CF_USER_TEXT_ENCODING="0x1F5:0:0")
                 self.assertEqual(attempt.returncode, 2, attempt)
                 log = Path(attempt.stdout.splitlines()[0].removeprefix("Validation log will be saved in "))
                 if escape == "yes":
-                    self.assertIn("outside the temporary root", attempt.stderr)
+                    self.assertIn("expected a physical path below", attempt.stderr)
                     self.assertFalse(log.exists())
                 else:
                     self.assertIn("No status was posted", attempt.stderr)
                     worktree = log.parent.resolve() / "worktree"
-                    home = worktree.parent / "home"
+                    home = worktree / "build" / ".local-check-home"
                     build_tmp = worktree / "build" / ".tmp"
                     self.assertIn(f"setup pwd={worktree} TMPDIR={build_tmp}", log.read_text())
                     self.assertIn(f"setup HOME={home} CFFIXED_USER_HOME={home}", log.read_text())

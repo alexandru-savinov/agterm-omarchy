@@ -124,6 +124,10 @@ Release mechanics are documented in [packaging/linux/prerelease-omarchy.md](pack
   The wrapper executes the PR's code with the local user's permissions.
   This requires macOS, Xcode, Python 3.11+,
   a zsh login shell, xcodegen, SwiftLint, fish, Node 22.7+ within Node 22, and the owner's `gh` login.
+  The wrapper checks that setup and build paths resolve within its disposable checkout
+  and requires Zig and the Xcode Metal Toolchain to be ready before isolated setup.
+  While the supervised Live pane text-encoding failures are open, the wrapper posts a failure
+  for an otherwise passing run.
   CI samples one in five eligible passes on a hosted runner.
   A sampled failure fails validation and records the pause in `macos-local-ci-paused.json` on
   the dedicated `ci-state/conditional-macos` branch.

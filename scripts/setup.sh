@@ -15,6 +15,22 @@
 set -euo pipefail
 CDPATH='' cd -- "$(dirname "$0")/.."
 
+# Supports AGTERM_LOCAL_CHECK_ROOT from scripts/local-check.sh.
+local_check_root=${AGTERM_LOCAL_CHECK_ROOT:-}
+local_check_directory() {
+  [[ -z "$local_check_root" ]] && return 0
+  local physical
+  if ! physical="$(cd -P -- "$1" && pwd -P)" ||
+     [[ "$physical" != "$1" || "$physical" != "$local_check_root/"* ]]; then
+    echo "Refusing local setup: expected a physical directory below $local_check_root: $1" >&2
+    return 2
+  fi
+}
+if [[ -n "$local_check_root" ]]; then
+  [[ "$(pwd -P)" == "$local_check_root" ]] || exit 2
+  local_check_directory "${TMPDIR:-/tmp}"
+fi
+
 GHOSTTY_REPO="https://github.com/ghostty-org/ghostty"
 GHOSTTY_REV="83fb95624b0439ee660c2679b43b38c8b63769cd"  # v1.4.0, 2026-10-27
 ZMX_REPO="https://github.com/neurosnap/zmx"
@@ -98,6 +114,10 @@ zig_for() {
   if [[ "$formula" == "$ZMX_ZIG_FORMULA" && -n "${AGTERM_ZMX_ZIG:-}" ]]; then
     zig="$AGTERM_ZMX_ZIG"
   elif [[ ! -x "$zig" ]]; then
+    if [[ -n "$local_check_root" ]]; then
+      echo "Refusing local setup: $formula must already be installed." >&2
+      return 2
+    fi
     echo "installing $formula..." >&2
     brew install "$formula" >&2 || return 1
     zig="$(brew --prefix "$formula")/bin/zig" || return 1
@@ -138,6 +158,10 @@ patch_zig_float_h() {
     echo "zig float.h already carries the __need_infinity_nan shim"
     return 0
   fi
+  if [[ -n "$local_check_root" ]]; then
+    echo "Refusing local setup: Zig requires a float.h change outside the checkout: $float_h" >&2
+    return 2
+  fi
   # only a half-applied shim of ours may fall back to the backup it was taken from
   source="$float_h"
   if grep -qF "$SHIM_MARK" "$float_h" && [[ -f "$float_h.orig" ]]; then
@@ -162,13 +186,22 @@ patch_zig_float_h() {
 
 # Metal Toolchain is needed only when the xcframework build runs.
 if { $need_xc || $need_res; } && ! xcrun metal --version >/dev/null 2>&1; then
+  if [[ -n "$local_check_root" ]]; then
+    echo "Refusing local setup: the Xcode Metal Toolchain must already be installed." >&2
+    exit 2
+  fi
   echo "downloading Xcode Metal Toolchain (one-time)..."
   xcodebuild -downloadComponent MetalToolchain
 fi
 
 # macOS mktemp without a template can use the account's default temp directory.
 BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agterm-setup.XXXXXXXX")"
-trap 'rm -rf "$BUILD_DIR"' EXIT
+if [[ -n "$local_check_root" && "$BUILD_DIR" != "$TMPDIR/agterm-setup."* ]]; then
+  echo "Refusing local setup: unexpected build allocation $BUILD_DIR" >&2
+  exit 2
+fi
+local_check_directory "$BUILD_DIR"
+trap 'local_check_directory "$BUILD_DIR" || exit 2; rm -rf "$BUILD_DIR"' EXIT
 
 if $need_xc || $need_res; then
   ghostty_build="$BUILD_DIR/ghostty"
