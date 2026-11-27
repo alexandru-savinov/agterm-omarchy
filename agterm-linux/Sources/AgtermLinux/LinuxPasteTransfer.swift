@@ -19,11 +19,15 @@ extension GhosttySurface {
         if let refusal = pasteRefusal { return completion(refusal) }
         guard let surface else { return completion("session not realized") }
         // Let the engine ask the current clipboard owner for ordinary local pastes. Its read callback
-        // tries the URI list and text directly, even while GDK still reports the previous owner's formats.
+        // tries the URI list, text and then an image directly, even while GDK still reports the previous owner's formats.
+        // The completion waits for that read, so a `session.paste` reply follows the inserted text.
         if pasteOriginHost == nil, !LinuxPasteClipboard.hasImageOnlyOffer() {
+            EnginePasteCompletion.arm(completion, for: self)
             let action = "paste_from_clipboard"
             _ = action.withCString { ghostty_surface_binding_action(surface, $0, UInt(action.utf8.count)) }
-            return completion(nil)
+            // libghostty answered without a clipboard read (or started none)
+            EnginePasteCompletion.take(for: self)?(nil)
+            return
         }
         pasteCopying = true
         LinuxPasteClipboard.read { [weak self] offer in
@@ -76,6 +80,23 @@ extension GhosttySurface {
         let character = gdk_keyval_to_unicode(gdk_keyval_to_lower(keyval))
         let pasteKey = character == 0x76 || keycode == 55 && character > 127
         return modifiers == ModifierKeyMods.controlBit | (1 << 0) && pasteKey
+    }
+}
+
+/// Carries `pasteClipboard`'s completion across the synchronous `paste_from_clipboard` action to the clipboard read
+/// libghostty starts inside it (`LinuxClipboardAdapter.readText`).
+@MainActor
+enum EnginePasteCompletion {
+    private static var pending: (surface: ObjectIdentifier, completion: @MainActor (String?) -> Void)?
+
+    static func arm(_ completion: @escaping @MainActor (String?) -> Void, for surface: GhosttySurface) {
+        pending = (ObjectIdentifier(surface), completion)
+    }
+
+    static func take(for surface: GhosttySurface) -> (@MainActor (String?) -> Void)? {
+        guard let current = pending, current.surface == ObjectIdentifier(surface) else { return nil }
+        pending = nil
+        return current.completion
     }
 }
 
