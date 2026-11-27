@@ -195,12 +195,19 @@ exec >/dev/null 2>&1
 SELF="$(readlink -f -- "$0")" || exit 0
 BIN_DIR="${SELF%/*}"
 ADAPTER="$BIN_DIR/../share/agterm/agent-status/agterm-claude-status.sh"
-export AGTERMCTL="$BIN_DIR/agtermctl"
-[[ -x "$AGTERMCTL" && -x "$ADAPTER" ]] || exit 0
-# Bound the adapter and its CLI subprocess even when a socket accepts connections but never replies.
-/usr/bin/timeout -k 1s 3s "$ADAPTER" "$@" || true
+export AGTERMCTL="$BIN_DIR/agterm-agent-status-ctl"
+[[ -x "$BIN_DIR/agtermctl" && -x "$AGTERMCTL" && -x "$ADAPTER" ]] || exit 0
+# The adapter checks its ancestors to distinguish the pane's Claude process from a worker.
+exec "$ADAPTER" "$@"
 LAUNCH
 chmod 0755 "$DEST/bin/agterm-agent-status"
+
+cat > "$DEST/bin/agterm-agent-status-ctl" <<'LAUNCH'
+#!/bin/sh
+# Bound only the control request so the watchdog stays out of the adapter's ancestry.
+exec /usr/bin/timeout -k 1s 3s "${0%/*}/agtermctl" "$@"
+LAUNCH
+chmod 0755 "$DEST/bin/agterm-agent-status-ctl"
 
 python3 "$ROOT/scripts/linux-runpath.py" check "$DEST"/bin/* "$DEST"/lib/*
 

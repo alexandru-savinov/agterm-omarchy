@@ -506,6 +506,22 @@ pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_text('fixture EGL shim')
         return subprocess.run(['bash', str(self.repo / 'scripts/stage-linux.sh'), str(self.destination)],
                               env=self.env, text=True, capture_output=True)
 
+    def test_staged_claude_adapter_sees_the_hook_callers_process(self):
+        result = self.stage()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        adapter = self.destination / 'share/agterm/agent-status/agterm-claude-status.sh'
+        adapter.write_text('#!/bin/bash\nprintf "%s %s\n" "$PPID" "$FIXTURE_CALLER" > "$HOME/parent"\n')
+        adapter.chmod(0o755)
+        result = subprocess.run(
+            ['bash', '-c', 'export FIXTURE_CALLER=$$; "$@"; :', '_',
+             str(self.destination / 'bin/agterm-agent-status'), 'blocked'],
+            env=dict(self.env, HOME=str(self.work), AGTERM_SESSION_ID='fixture'),
+            text=True, capture_output=True, timeout=6,
+        )
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''))
+        actual, caller = (self.work / 'parent').read_text().split()
+        self.assertEqual(actual, caller)
+
     def test_staged_claude_launcher_bounds_an_unresponsive_socket(self):
         result = self.stage()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

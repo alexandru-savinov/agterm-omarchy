@@ -7,7 +7,7 @@ pkgdesc='Native terminal with a workspace and session sidebar, built on libghost
 arch=(x86_64 aarch64)
 url='https://github.com/alexandru-savinov/agterm-omarchy'
 license=(MIT)
-depends=(bash cairo curl gdk-pixbuf2 glib2 glibc graphene gtk4 harfbuzz jq libadwaita libepoxy libgcc
+depends=(bash cairo coreutils curl gdk-pixbuf2 glib2 glibc graphene gtk4 harfbuzz jq libadwaita libepoxy libgcc
          libsoup3 libstdc++ pango procps-ng python vulkan-icd-loader webkitgtk-6.0)
 optdepends=('zsh: Live session restore with zsh' 'fish: Live session restore with fish')
 provides=(agterm-linux)

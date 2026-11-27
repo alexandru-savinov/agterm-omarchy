@@ -532,20 +532,25 @@ struct IntegrationServiceTests {
         #expect(FileManager.default.fileExists(atPath: real.path + ".bak"))
     }
 
-    @Test("a backup changed after preview is never overwritten")
-    func hookBackupStalePlan() throws {
+    @Test("an existing or concurrently created first backup is never overwritten", arguments: [true, false])
+    func hookBackupStalePlan(alreadyPresent: Bool) throws {
         let fixture = try Fixture()
         try fixture.makeHookResources()
         let settings = fixture.home.appendingPathComponent(".claude/settings.json")
         let backup = URL(fileURLWithPath: AgentHooksInstall.backupPath(for: settings.path))
         try fixture.write("{\"permissions\":{}}", to: settings)
-        try fixture.write("older backup", to: backup)
+        if alreadyPresent { try fixture.write("older backup", to: backup) }
 
         let service = fixture.service(path: [])
         let plan = try service.planHooks()
+        #expect(plan.steps.contains { $0.action == "Backup" && $0.path == backup.path } == !alreadyPresent)
         try fixture.write("newer backup", to: backup)
 
-        #expect(throws: IntegrationServiceError.self) { try service.apply(plan) }
+        if alreadyPresent {
+            #expect(try service.apply(plan).succeeded)
+        } else {
+            #expect(throws: IntegrationServiceError.self) { try service.apply(plan) }
+        }
         #expect(try String(contentsOf: backup, encoding: .utf8) == "newer backup")
     }
 
