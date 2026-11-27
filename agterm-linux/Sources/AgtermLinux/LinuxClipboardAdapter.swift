@@ -218,13 +218,13 @@ enum LinuxClipboardAdapter {
                     let raw = source.flatMap { gdk_clipboard_read_text_finish(OpaquePointer($0), result, nil) }
                     defer { g_free(raw) }
                     guard read.canContinue() else { return }
-                    if let raw {
-                        let text = String(cString: raw)
-                        if read.canContinue() { read.finish(text: text) }
-                    } else if LinuxClipboardPolicy.readsFileList(read.kind) {
+                    let text = raw.map { String(cString: $0) }
+                    guard read.canContinue() else { return }
+                    // X11 can return empty text for an owner that only offers an image.
+                    if LinuxClipboardPolicy.readsFileList(read.kind), text?.isEmpty ?? true {
                         LinuxClipboardAdapter.readImage(read)
                     } else {
-                        read.finish(text: nil)
+                        read.finish(text: text)
                     }
                 }
             },

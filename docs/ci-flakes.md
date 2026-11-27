@@ -23,20 +23,22 @@ Each entry separates a demonstrated cause from one that is only consistent with 
 
 ## GTK image paste during sync #550
 
-- **Symptom.** aarch64 `v0441` fails at `atspi_v0441.py:143`, `AssertionError: image path was not inserted`; x86_64 passes.
-  [Hosted run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/45879542222/job/140115174955)
-- **Reproduced mechanism.** `pasteClipboard` uses GDK's cached formats to choose the image-only route.
-  With the scenario's clipboard owner under Xvfb on the aarch64 VM, the cache was empty when `ready` appeared
-  (20/20 real-GDK runs, caught up 2.4-3.9 ms later), while a texture read from the new owner succeeded.
-  The empty cache sent the paste through the engine route, which asked only for a URI list and text.
-  The image owner supplied neither, and the route replied to `session.paste` before the read finished.
-  The production paste files against a GDK double reproduced the missing image at `1f8e782f` (10/10).
-  The same double pasted the image with the files from before `3428dbd1`.
-  The hosted failure is consistent with this mechanism. The clipboard formats at the time of the hosted paste are unknown.
-- **Fix.** The engine paste read asks the current owner for an image when it has no usable file paths or decoded text,
-  and stages the image locally. A successful `session.paste` reply follows submission to the engine.
-  If the engine asks for unsafe-paste confirmation, insertion still depends on the user's choice.
-  The engine read and staging have a ten-second deadline, and a timed-out request cannot submit a late result.
+- **Symptom.** In `v0441`, `session.paste` returns success and the receiver still fails with
+  `AssertionError: image path was not inserted`. Earlier runs reproduced it on aarch64, and
+  `c12389cb` reproduced it on x86_64.
+  [Earlier aarch64 failure](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/45879542222/job/140115174955)
+  [x86_64 failure](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/45997323660)
+- **Hosted reproduction.** Delaying the real X11 clipboard owner's replies left GDK's format cache empty at paste time,
+  which selected the engine route. The owner refused the URI list and GDK completed the text read with a zero-length string.
+  The engine submitted that empty string and replied successfully without asking for the texture.
+  The terminal receiver recorded only the subsequent newline.
+  [Hosted trace](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/46006264954)
+- **Fix.** The engine tries the texture when a paste produces neither usable file paths nor nonempty text.
+  The same ten-second deadline covers clipboard reads and image staging, and the control reply follows engine submission.
+  Unsafe-paste confirmation still controls whether the engine inserts text that requires consent.
+  The hosted replay passed all 12 attempts on each architecture with the fix.
+  One ordinary aarch64 attempt also hit an empty format cache and successfully pasted the image via the fallback.
+  [Hosted validation](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/46008701519)
 
 ## Omarchy GTK AT-SPI smoke suite (#527)
 
