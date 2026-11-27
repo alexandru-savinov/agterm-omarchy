@@ -31,6 +31,8 @@ as_user() {
     runuser --user "$user" -- env -i HOME="$home" USER="$user" LOGNAME="$user" SHELL=/bin/bash PATH=/usr/bin:/bin "$@"
 }
 
+[[ "$(as_user CLAUDE_CONFIG_DIR="$home/Claude Profile" printenv CLAUDE_CONFIG_DIR)" == "$home/Claude Profile" ]]
+
 digest="$(sha256sum "$archive" | cut -d ' ' -f 1)"
 (
     cd "$work/build"

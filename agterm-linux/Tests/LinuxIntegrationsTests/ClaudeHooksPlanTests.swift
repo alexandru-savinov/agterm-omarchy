@@ -58,14 +58,42 @@ struct ClaudeHooksPlanTests {
         #expect(!service.planClaudeHooks(install: false).canApply)
     }
 
-    @Test(arguments: ["{\"hooks\":{}}", "{\"hooks\":{\"Stop\":[]}}"])
-    func uninstallRestoresEmptyHookContainers(original: String) throws {
+    @Test(arguments: ["{}", "{\"Stop\":[],\"OtherEvent\":[]}"])
+    func writesSortedSettingsAndRestoresEmptyHookContainers(hooks: String) throws {
         let fixture = try ClaudeFixture()
+        let original = """
+        {"zulu":[],"hooks":\(hooks),"alpha":{"zulu":true,"alpha":[]}}
+        """
         try fixture.write(original, to: fixture.settings)
         let service = fixture.service
+        for install in [true, false] {
+            #expect(try service.apply(service.planClaudeHooks(install: install)).succeeded)
+            let object = try fixture.object(fixture.settings)
+            let sorted = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+            #expect(try fixture.contents(fixture.settings) == String(decoding: sorted, as: UTF8.self) + "\n")
+        }
+        #expect(try fixture.object(fixture.settings).isEqual(try fixture.object(original)))
+    }
+
+    @Test func uninstallBacksUpUserEditsWhenActivationCreatedSettings() throws {
+        let fixture = try ClaudeFixture()
+        let fm = FileManager.default
+        let backup = fixture.settings.appendingPathExtension("bak")
+        try fm.createDirectory(at: fixture.settings.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let service = fixture.service
+        #expect(try service.apply(service.planClaudeHooks()).succeeded)
+        #expect(!fm.fileExists(atPath: backup.path))
+        let installed = try fixture.contents(fixture.settings)
+        let edited = "{\"userSetting\":true,\"unrelated\":[]," + installed.dropFirst()
+        try fixture.write(edited, to: fixture.settings)
+        #expect(try service.apply(service.planClaudeHooks(install: false)).succeeded)
+        #expect(try fixture.contents(backup) == edited)
+        let remaining = try fixture.object("{\"userSetting\":true,\"unrelated\":[]}")
+        #expect(try fixture.object(fixture.settings).isEqual(remaining))
+        #expect(!service.planClaudeHooks(install: false).canApply)
         #expect(try service.apply(service.planClaudeHooks()).succeeded)
         #expect(try service.apply(service.planClaudeHooks(install: false)).succeeded)
-        #expect(try fixture.object(fixture.settings).isEqual(try fixture.object(original)))
+        #expect(try fixture.contents(backup) == edited)
     }
 
     @Test(arguments: ["file", "profile", "regular"])

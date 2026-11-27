@@ -552,6 +552,27 @@ with socket.socket(socket.AF_UNIX) as peer:
                 self.assertEqual(peer.recv(100), b'')
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''))
 
+    def test_staged_claude_launcher_sends_status_without_timeout(self):
+        result = self.stage()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        adapter = self.destination / 'share/agterm/agent-status/agterm-claude-status.sh'
+        adapter.write_text('#!/bin/sh\nexec "$AGTERMCTL" "$@"\n')
+        adapter.chmod(0o755)
+        client = self.destination / 'bin/agtermctl'
+        client.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$HOME/status"\n')
+        client.chmod(0o755)
+        watchdog = self.destination / 'bin/agterm-agent-status-ctl'
+        # Exercise a missing system binary without changing /usr/bin on the test host.
+        missing = shlex.quote(str(self.work / 'missing-timeout'))
+        watchdog.write_text(watchdog.read_text().replace('/usr/bin/timeout', missing))
+        result = subprocess.run(
+            [str(self.destination / 'bin/agterm-agent-status'), 'blocked'],
+            env=dict(self.env, HOME=str(self.work), AGTERM_SESSION_ID='fixture'),
+            text=True, capture_output=True, timeout=6,
+        )
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''))
+        self.assertEqual((self.work / 'status').read_text(), 'blocked\n')
+
     def test_hidden_prefill_resource_is_staged_and_required(self):
         result = self.stage()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
