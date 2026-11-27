@@ -42,7 +42,7 @@ public struct IntegrationEnvironment: Sendable {
         if rawExecutable.contains("/") {
             executable = URL(fileURLWithPath: rawExecutable, relativeTo: cwd).standardizedFileURL
         } else if let onPath = paths.lazy.map({ $0.appendingPathComponent(rawExecutable) })
-            .first(where: Self.isExecutableCLI) {
+            .first(where: Self.isExecutableCommand) {
             executable = onPath.standardizedFileURL
         } else {
             executable = cwd.appendingPathComponent(rawExecutable).standardizedFileURL
@@ -89,6 +89,10 @@ public struct IntegrationEnvironment: Sendable {
         return "/usr/bin/agterm-agent-status"
     }
 
+    func hasExecutableClaudeLauncher(_ path: String) -> Bool {
+        Self.isExecutableCommand(URL(fileURLWithPath: path))
+    }
+
     var launcherOwnershipFile: URL {
         homeDirectory.appendingPathComponent(".local/share/agterm/cli-launcher-v1")
     }
@@ -133,7 +137,7 @@ public struct IntegrationEnvironment: Sendable {
         let transientBundleTarget = portableLauncherAllowed ? nil : bundledCLI()?.resolvingSymlinksInPath()
         for directory in pathDirectories {
             let candidate = directory.appendingPathComponent("agtermctl")
-            guard Self.isExecutableCLI(candidate) else { continue }
+            guard Self.isExecutableCommand(candidate) else { continue }
             // linuxdeploy may prepend the mounted AppImage's usr/bin to PATH. That executable disappears
             // after exit, so keep scanning for a persistent host installation in sandboxed builds.
             if candidate.resolvingSymlinksInPath() == transientBundleTarget { continue }
@@ -143,10 +147,10 @@ public struct IntegrationEnvironment: Sendable {
     }
 
     func packageCLI() -> URL? {
-        knownCommandLineTools.first(where: Self.isExecutableCLI)
+        knownCommandLineTools.first(where: Self.isExecutableCommand)
     }
 
-    private static func isExecutableCLI(_ url: URL) -> Bool {
+    private static func isExecutableCommand(_ url: URL) -> Bool {
         FileManager.default.isExecutableFile(atPath: url.path)
             && (try? url.resolvingSymlinksInPath().resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
     }

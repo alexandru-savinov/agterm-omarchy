@@ -120,13 +120,31 @@ struct IntegrationCommandTests {
         #expect(removed.status == 0, Comment(rawValue: removed.error))
         let disabled = try fixture.homeSnapshot()
         #expect(disabled.filter { $0.key != settings && $0.key != backup } == before.filter { $0.key != settings })
-        #expect(disabled[backup] == after[settings])
+        #expect(disabled[backup] == before[settings])
         let json = try #require(disabled[settings])
         let object = try #require(JSONSerialization.jsonObject(with: json) as? [String: Any])
         #expect(object["customSetting"] as? Bool == true)
-        #expect((object["hooks"] as? [String: Any])?.isEmpty != false)
+        #expect((object["hooks"] as? [String: Any])?.isEmpty == true)
         #expect(try fixture.run(uninstall).status == 0)
         #expect(try fixture.homeSnapshot() == disabled)
+    }
+
+    @Test func claudeInstallRefusesMissingOrNonExecutableLauncher() throws {
+        let fixture = try CLIFixture()
+        let settings = fixture.home.appendingPathComponent(".claude/settings.json")
+        try fixture.write("{\"legacy\":true}", to: settings)
+        let before = try fixture.homeSnapshot()
+        let statusLauncher = try fixture.claudeCLI().deletingLastPathComponent().appendingPathComponent("agterm-agent-status")
+        try FileManager.default.removeItem(at: statusLauncher)
+        let install = ["integration", "install", "hooks", "--only", "claude"]
+        for present in [false, true] {
+            if present { try fixture.write("not executable", to: statusLauncher) }
+            let result = try fixture.run(install, executable: fixture.claudeCLI(createLauncher: false))
+            #expect(result.status != 0)
+            #expect(result.error.contains("not executable"))
+            #expect(!result.output.contains("OK"))
+            #expect(try fixture.homeSnapshot() == before)
+        }
     }
 
     @Test("Claude-only CLI uses the selected profile and waits for it to exist")
@@ -262,10 +280,30 @@ private final class CLIFixture {
 
     deinit { try? FileManager.default.removeItem(at: root) }
 
+    func claudeCLI(createLauncher: Bool = true) throws -> URL {
+        let cli = root.appendingPathComponent("prefix/lib/agterm/bin/agtermctl")
+        if !FileManager.default.fileExists(atPath: cli.path) {
+            try FileManager.default.createDirectory(at: cli.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: testProductsDirectory.appendingPathComponent("agtermctl-linux"), to: cli)
+        }
+        if createLauncher {
+            let launcher = cli.deletingLastPathComponent().appendingPathComponent("agterm-agent-status")
+            if !FileManager.default.fileExists(atPath: launcher.path) {
+                try write("#!/bin/sh\nexit 0\n", to: launcher)
+                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
+            }
+        }
+        return cli
+    }
+
     func run(_ arguments: [String], home selectedHome: URL? = nil, path: String = "",
-             claudeConfig: URL? = nil) throws -> Result {
+             claudeConfig: URL? = nil, executable: URL? = nil) throws -> Result {
         let process = Process()
-        process.executableURL = testProductsDirectory.appendingPathComponent("agtermctl-linux")
+        if arguments.suffix(2) == ["--only", "claude"] {
+            process.executableURL = try executable ?? claudeCLI()
+        } else {
+            process.executableURL = testProductsDirectory.appendingPathComponent("agtermctl-linux")
+        }
         process.arguments = arguments
         var environment = ProcessInfo.processInfo.environment
         environment["HOME"] = (selectedHome ?? home).path

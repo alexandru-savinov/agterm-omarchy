@@ -282,7 +282,8 @@ if $UNINSTALL; then
   [[ -e "$PREFIX/lib/agterm" || -L "$PREFIX/lib/agterm" ]] || { echo "no agterm installation in $PREFIX" >&2; exit 1; }
   PREFIX="$(CDPATH='' cd -- "$PREFIX" && pwd)"
   if [[ -x "$PREFIX/lib/agterm/bin/agterm-agent-status" ]]; then
-    printf 'To disable Claude Code status hooks before removing agterm, run: %q integration uninstall hooks --only claude\n' \
+    echo 'To clean up configured Claude Code status hooks, reinstall agterm or delete the entries by hand.'
+    printf 'After reinstalling, run: %q integration uninstall hooks --only claude\n' \
       "$PREFIX/bin/agtermctl"
   fi
   python3 -I -c "$DESKTOP_PY" uninstall "$PREFIX"

@@ -9,5 +9,6 @@ post_upgrade() {
 }
 
 pre_remove() {
-    echo 'To disable Claude Code status hooks before removing agterm, run as your desktop user: /usr/bin/agtermctl integration uninstall hooks --only claude'
+    echo 'To clean up configured Claude Code status hooks, reinstall agterm or delete the entries by hand.'
+    echo 'After reinstalling, run as your desktop user: /usr/bin/agtermctl integration uninstall hooks --only claude'
 }

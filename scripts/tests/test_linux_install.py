@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -62,6 +63,14 @@ DESKTOP
                                 env=self.env, text=True, capture_output=True)
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
         return result
+
+    def test_removal_prints_recovery_for_configured_claude_hooks(self):
+        self.install('--no-build')
+        launcher = self.prefix / 'lib/agterm/bin/agterm-agent-status'
+        launcher.write_text('#!/bin/sh\nexit 0\n')
+        launcher.chmod(0o755)
+        result = self.install('--uninstall')
+        self.assertIn('reinstall agterm or delete the entries by hand', result.stdout)
 
     def test_complete_payload_survives_checkout_removal(self):
         self.install('--no-build')
@@ -496,6 +505,36 @@ pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_text('fixture EGL shim')
     def stage(self):
         return subprocess.run(['bash', str(self.repo / 'scripts/stage-linux.sh'), str(self.destination)],
                               env=self.env, text=True, capture_output=True)
+
+    def test_staged_claude_launcher_bounds_an_unresponsive_socket(self):
+        result = self.stage()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        adapter = self.destination / 'share/agterm/agent-status/agterm-claude-status.sh'
+        shutil.copy2(ROOT / 'agterm/Resources/agent-status/agterm-claude-status.sh', adapter)
+        shutil.copy2(ROOT / 'agterm/Resources/agent-status/agterm-agent-status.sh', adapter.parent)
+        adapter.chmod(0o755)
+        (adapter.parent / 'agterm-agent-status.sh').chmod(0o755)
+        cli = self.destination / 'bin/agtermctl'
+        cli.write_text(f'#!{sys.executable}\n' + '''import os, socket
+with socket.socket(socket.AF_UNIX) as peer:
+    peer.connect(os.environ['AGTERM_SOCKET'])
+    peer.sendall(b'fixture status')
+    peer.recv(1)
+''')
+        cli.chmod(0o755)
+        with tempfile.TemporaryDirectory(dir='/tmp') as directory, socket.socket(socket.AF_UNIX) as server:
+            address = str(Path(directory) / 'control.sock')
+            server.bind(address)
+            server.listen()
+            server.settimeout(1)
+            result = subprocess.run([str(self.destination / 'bin/agterm-agent-status'), 'blocked'],
+                                    env=dict(self.env, HOME=directory, AGTERM_SESSION_ID='fixture', AGTERM_SOCKET=address),
+                                    input='{}', text=True, capture_output=True, timeout=6)
+            with server.accept()[0] as peer:
+                peer.settimeout(1)
+                self.assertEqual(peer.recv(100), b'fixture status')
+                self.assertEqual(peer.recv(100), b'')
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''))
 
     def test_hidden_prefill_resource_is_staged_and_required(self):
         result = self.stage()

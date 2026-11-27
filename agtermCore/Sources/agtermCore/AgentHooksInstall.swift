@@ -187,7 +187,7 @@ public enum AgentHooksInstall {
     /// PRIOR install pointed straight at the generic wrapper are migrated onto the Claude adapter first, so
     /// the ownership guard reaches an existing install rather than only a fresh one.
     public static func mergeClaudeSettings(
-        existing: String?, scriptDir: String, guardedExecutable: String? = nil
+        existing: String?, scriptDir: String, recognizeGuardedLauncher: Bool = false
     ) throws -> (json: String, changed: Bool) {
         let command = wrapperCommand(scriptDir: scriptDir)
         var root = try parsedObject(existing)
@@ -197,10 +197,12 @@ public enum AgentHooksInstall {
         for hook in claudeHooks {
             var entries = hooks[hook.event] as? [[String: Any]] ?? [] // shape already checked above
             if entries.contains(where: { entryUsesWrapper($0, scriptDir: scriptDir) }) ||
-                guardedExecutable.map({ executable in
-                    let command = guardedClaudeCommand(executable, state: hook.state)
-                    return entries.contains { ownsClaudeCommand($0, matcher: hook.matcher, command: command) }
-                }) == true {
+                (recognizeGuardedLauncher && entries.contains { entry in
+                    claudeMatcherMatches(entry, hook.matcher) &&
+                        (entry["hooks"] as? [[String: Any]])?.contains {
+                            isGuardedClaudeCommand($0, state: hook.state)
+                        } == true
+                }) {
                 continue
             }
             entries.append(hookEntry(command: command, state: hook.state, matcher: hook.matcher))
@@ -217,22 +219,30 @@ public enum AgentHooksInstall {
     /// Configure one profile with an installed, guarded launcher. Match generated commands exactly so a
     /// third-party hook mentioning the launcher, or an entry the user has customized, keeps its behavior.
     public static func configureClaudeSettings(
-        existing: String?, scriptDir: String, guardedExecutable: String, install: Bool
+        existing: String?, scriptDir: String, guardedExecutable: String, install: Bool,
+        originalBackup: String? = nil
     ) throws -> (json: String, changed: Bool) {
         var root = try parsedObject(existing)
         var hooks = try claudeHooksObject(root)
+        let originalHooks = (try? parsedObject(originalBackup))?["hooks"] as? [String: Any]
         var changed = false
         for hook in claudeHooks {
             let command = guardedClaudeCommand(guardedExecutable, state: hook.state)
             let generic = shellQuote(wrapperPath(scriptDir: scriptDir)) + " "
             var legacy = [wrapperCommand(scriptDir: scriptDir) + hook.state, generic + hook.state]
             if hook.event == "UserPromptSubmit" { legacy.append(generic + "active") }
-            let removing = install ? legacy : legacy + [command]
             let original = hooks[hook.event] as? [[String: Any]] ?? []
+            var keptLauncher = false
             var entries = original.compactMap { entry -> [String: Any]? in
                 guard claudeMatcherMatches(entry, hook.matcher),
                       let commands = entry["hooks"] as? [[String: Any]] else { return entry }
-                let kept = commands.filter { item in !removing.contains { isClaudeCommand(item, $0) } }
+                let kept = commands.filter { item in
+                    if legacy.contains(where: { isClaudeCommand(item, $0) }) { return false }
+                    guard isGuardedClaudeCommand(item, state: hook.state) else { return true }
+                    guard install, !keptLauncher, isClaudeCommand(item, command) else { return false }
+                    keptLauncher = true
+                    return true
+                }
                 guard kept.count != commands.count else { return entry }
                 changed = true
                 if kept.isEmpty, Set(entry.keys).isSubset(of: ["matcher", "hooks"]) { return nil }
@@ -240,17 +250,18 @@ public enum AgentHooksInstall {
                 updated["hooks"] = kept
                 return updated
             }
-            if install, !entries.contains(where: { ownsClaudeCommand($0, matcher: hook.matcher, command: command) }) {
+            if install, !keptLauncher {
                 entries.append(hookEntry(command: command, state: "", matcher: hook.matcher))
                 changed = true
             }
             if !entries.isEmpty || !original.isEmpty {
-                hooks[hook.event] = entries.isEmpty ? nil : entries
+                let wasEmpty = (originalHooks?[hook.event] as? [Any])?.isEmpty == true
+                hooks[hook.event] = entries.isEmpty && !wasEmpty ? nil : entries
             }
         }
         guard changed else { return (existing ?? "", false) }
-        root["hooks"] = hooks.isEmpty ? nil : hooks
-        return (serialize(root), true)
+        root["hooks"] = hooks.isEmpty && originalHooks?.isEmpty != true ? nil : hooks
+        return (serialize(root, options: [.prettyPrinted]), true)
     }
 
     private static func guardedClaudeCommand(_ executable: String, state: String) -> String {
@@ -267,9 +278,23 @@ public enum AgentHooksInstall {
         (item as? [String: String]) == ["type": "command", "command": command]
     }
 
-    private static func ownsClaudeCommand(_ entry: [String: Any], matcher: String?, command: String) -> Bool {
-        claudeMatcherMatches(entry, matcher) &&
-            (entry["hooks"] as? [[String: Any]])?.contains { isClaudeCommand($0, command) } == true
+    private static func isGuardedClaudeCommand(_ item: [String: Any], state: String) -> Bool {
+        let prefix = "[ -x "
+        let separator = " ] || exit 0; exec "
+        let suffix = " " + state
+        guard let command = item["command"] as? String, isClaudeCommand(item, command),
+              command.hasPrefix(prefix), command.hasSuffix(suffix) else { return false }
+        // The generated command quotes the same path twice. The midpoint identifies the first
+        // occurrence even when a custom prefix contains the shell separator text.
+        let body = command.dropFirst(prefix.count).dropLast(suffix.count)
+        let quotedLength = (body.count - separator.count) / 2
+        guard quotedLength > 2 else { return false }
+        let quoted = body.prefix(quotedLength)
+        guard quoted.first == "'", quoted.last == "'" else { return false }
+        let path = quoted.dropFirst().dropLast().replacingOccurrences(of: "'\\''", with: "'")
+        let system = "/usr/bin/agterm-agent-status"
+        let personal = path.hasPrefix("/") && path.hasSuffix("/lib/agterm/bin/agterm-agent-status")
+        return (path == system || personal) && guardedClaudeCommand(path, state: state) == command
     }
 
     /// append the marker-guarded `source` line for the shell integration to a shell rc file.
@@ -616,8 +641,9 @@ public enum AgentHooksInstall {
     }
 
     // serialize a dictionary to pretty-printed, sorted JSON text (deterministic for tests + diffs).
-    private static func serialize(_ object: [String: Any]) -> String {
-        let options: JSONSerialization.WritingOptions = [.prettyPrinted, .sortedKeys]
+    private static func serialize(
+        _ object: [String: Any], options: JSONSerialization.WritingOptions = [.prettyPrinted, .sortedKeys]
+    ) -> String {
         guard let data = try? JSONSerialization.data(withJSONObject: object, options: options),
               let text = String(data: data, encoding: .utf8) else {
             return "{}"

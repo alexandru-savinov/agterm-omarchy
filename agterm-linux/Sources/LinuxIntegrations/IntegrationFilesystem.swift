@@ -1,5 +1,10 @@
 import Foundation
 import agtermCore
+#if canImport(Glibc)
+import Glibc
+#else
+import Darwin
+#endif
 
 enum IntegrationFilesystem {
     static func validate(_ operation: IntegrationOperation) throws {
@@ -12,12 +17,9 @@ enum IntegrationFilesystem {
             try check(URL(fileURLWithPath: destination, isDirectory: true), expected: expectedDestination)
             try check(URL(fileURLWithPath: displayPath, isDirectory: true), expected: expectedDisplayPath)
         case .writeText(let path, let target, _, _, let expectedPath, let expectedTarget,
-                        let expectedBackup):
-            try check(URL(fileURLWithPath: path), expected: expectedPath)
-            try check(URL(fileURLWithPath: target), expected: expectedTarget)
-            if let expectedBackup {
-                try check(backupURL(forTarget: target), expected: expectedBackup)
-            }
+                        let expectedBackup, let claudeSettings):
+            try validateWrite((path, expectedPath), (target, expectedTarget), expectedBackup,
+                              claudeSettings: claudeSettings)
         case .copyFile(let source, let path, let target, let expectedSource, let expectedPath,
                        let expectedTarget):
             try check(URL(fileURLWithPath: source), expected: expectedSource)
@@ -282,24 +284,29 @@ enum IntegrationFilesystem {
                                               message: "installed bundled resources")
 
         case .writeText(let path, let target, let contents, let backup,
-                        let expectedPath, let expectedTarget, let expectedBackup):
-            let displayURL = URL(fileURLWithPath: path)
+                        let expectedPath, let expectedTarget, let expectedBackup, let claudeSettings):
             let url = URL(fileURLWithPath: target)
-            try check(displayURL, expected: expectedPath)
-            try check(url, expected: expectedTarget)
-            if let expectedBackup {
-                try check(backupURL(forTarget: target), expected: expectedBackup)
-            }
+            try validateWrite((path, expectedPath), (target, expectedTarget), expectedBackup,
+                              claudeSettings: claudeSettings)
             let existing = try read(url)
-            if backup, let existing {
-                let backup = backupURL(forTarget: target)
-                try AgentHooksInstall.writeFile(existing, toPath: backup.path,
-                                                posixMode: AgentHooksInstall.posixMode(ofFile: url.path))
-            }
+            let backupPath = backupURL(forTarget: target)
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                     withIntermediateDirectories: true)
-            try AgentHooksInstall.writeFile(contents, toPath: url.path,
-                                            posixMode: AgentHooksInstall.posixMode(ofFile: url.path))
+            if claudeSettings {
+                let attributes = existing == nil ? nil : try FileManager.default.attributesOfItem(atPath: target)
+                if backup, let existing {
+                    try writeClaudeText(existing, to: backupPath, attributes: attributes, exclusive: true)
+                }
+                try writeClaudeText(contents, to: url, attributes: attributes, exclusive: existing == nil) {
+                    try validateWrite((path, expectedPath), (target, expectedTarget), nil, claudeSettings: true)
+                }
+            } else {
+                let mode = AgentHooksInstall.posixMode(ofFile: url.path)
+                if backup, let existing {
+                    try AgentHooksInstall.writeFile(existing, toPath: backupPath.path, posixMode: mode)
+                }
+                try AgentHooksInstall.writeFile(contents, toPath: target, posixMode: mode)
+            }
             return IntegrationOperationResult(action: "Write", path: path, success: true,
                                               message: backup && existing != nil ? "updated with backup" : "updated")
 
@@ -369,7 +376,55 @@ enum IntegrationFilesystem {
         guard fingerprint(url) == expected else { throw IntegrationServiceError.stalePlan(url.path) }
     }
 
-    private static func backupURL(forTarget target: String) -> URL {
+    private static func validateWrite(
+        _ display: (path: String, fingerprint: FileFingerprint), _ target: (path: String, fingerprint: FileFingerprint),
+        _ expectedBackup: FileFingerprint?, claudeSettings: Bool
+    ) throws {
+        let displayURL = URL(fileURLWithPath: display.path)
+        if claudeSettings, resolvedWriteTarget(displayURL).path != target.path {
+            throw IntegrationServiceError.stalePlan(display.path)
+        }
+        try check(displayURL, expected: display.fingerprint)
+        try check(URL(fileURLWithPath: target.path), expected: target.fingerprint)
+        if let expectedBackup {
+            try check(backupURL(forTarget: target.path), expected: expectedBackup)
+        }
+    }
+
+    private static func writeClaudeText(
+        _ text: String, to url: URL, attributes: [FileAttributeKey: Any]?, exclusive: Bool,
+        beforePublish: () throws -> Void = {}
+    ) throws {
+        // Preserve owner by refusing to replace a file owned by another user.
+        if let attributes, (attributes[.ownerAccountID] as? NSNumber)?.uint32Value != geteuid() {
+            throw IntegrationServiceError.conflicts(["Claude Code settings must be owned by the user running agtermctl."])
+        }
+        let temporary = url.deletingLastPathComponent().appendingPathComponent(".agterm-claude-\(UUID().uuidString)")
+        let fd = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o600)
+        guard fd >= 0 else { throw posixWriteError() }
+        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        defer {
+            try? handle.close()
+            _ = unlink(temporary.path)
+        }
+        try handle.write(contentsOf: Data(text.utf8))
+        if let group = (attributes?[.groupOwnerAccountID] as? NSNumber)?.uint32Value,
+           fchown(fd, uid_t.max, group) != 0 {
+            throw posixWriteError()
+        }
+        let mode = (attributes?[.posixPermissions] as? NSNumber)?.uint16Value ?? 0o600
+        guard fchmod(fd, mode_t(mode)) == 0 else { throw posixWriteError() }
+        try handle.synchronize()
+        try beforePublish()
+        let status = exclusive ? link(temporary.path, url.path) : rename(temporary.path, url.path)
+        guard status == 0 else { throw posixWriteError() }
+    }
+
+    private static func posixWriteError() -> POSIXError {
+        POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+    }
+
+    static func backupURL(forTarget target: String) -> URL {
         URL(fileURLWithPath: AgentHooksInstall.backupPath(for: target))
     }
 
@@ -377,7 +432,7 @@ enum IntegrationFilesystem {
         (try? FileManager.default.attributesOfItem(atPath: url.path)) != nil
     }
 
-    private static func itemType(_ url: URL) -> FileAttributeType? {
+    static func itemType(_ url: URL) -> FileAttributeType? {
         (try? FileManager.default.attributesOfItem(atPath: url.path)[.type]) as? FileAttributeType
     }
 

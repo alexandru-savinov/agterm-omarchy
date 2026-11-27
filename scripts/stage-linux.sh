@@ -190,13 +190,15 @@ chmod 0755 "$DEST/bin/agtermctl"
 cat > "$DEST/bin/agterm-agent-status" <<'LAUNCH'
 #!/usr/bin/env bash
 # Public Claude hook entry point. Resolve the package symlink before finding the bundled adapter.
+exec >/dev/null 2>&1
 [ -n "${AGTERM_SESSION_ID:-}" ] || exit 0
 SELF="$(readlink -f -- "$0")" || exit 0
 BIN_DIR="${SELF%/*}"
 ADAPTER="$BIN_DIR/../share/agterm/agent-status/agterm-claude-status.sh"
 export AGTERMCTL="$BIN_DIR/agtermctl"
 [[ -x "$AGTERMCTL" && -x "$ADAPTER" ]] || exit 0
-exec "$ADAPTER" "$@" >/dev/null 2>&1
+# Bound the adapter and its CLI subprocess even when a socket accepts connections but never replies.
+/usr/bin/timeout -k 1s 3s "$ADAPTER" "$@" || true
 LAUNCH
 chmod 0755 "$DEST/bin/agterm-agent-status"
 

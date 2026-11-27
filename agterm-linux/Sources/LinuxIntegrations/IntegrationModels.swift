@@ -173,7 +173,7 @@ enum IntegrationOperation: Sendable {
                           expectedDisplayPath: FileFingerprint, bakedCLI: String?)
     case writeText(path: String, target: String, contents: String, backup: Bool,
                    expectedPath: FileFingerprint, expectedTarget: FileFingerprint,
-                   expectedBackup: FileFingerprint?)
+                   expectedBackup: FileFingerprint?, claudeSettings: Bool = false)
     case copyFile(source: String, path: String, target: String,
                   expectedSource: FileFingerprint, expectedPath: FileFingerprint,
                   expectedTarget: FileFingerprint)

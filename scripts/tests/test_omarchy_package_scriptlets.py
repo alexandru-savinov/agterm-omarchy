@@ -33,3 +33,6 @@ class PackageScriptletTests(unittest.TestCase):
                     result.stdout,
                 )
                 self.assertEqual(list(Path(home).iterdir()), [])
+                if action == "pre_remove":
+                    self.assertIn("reinstall agterm or delete the entries by hand", result.stdout)
+                    self.assertNotIn("before removing", result.stdout)

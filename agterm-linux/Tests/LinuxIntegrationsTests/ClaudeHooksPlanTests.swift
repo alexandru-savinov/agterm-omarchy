@@ -15,7 +15,7 @@ struct ClaudeHooksPlanTests {
         #expect(try fixture.contents(backup) == original)
         for event in ["PermissionRequest", "PostToolUse", "Stop", "Notification", "UserPromptSubmit"] {
             let command = try fixture.packagedCommand(event)
-            #expect(command.contains("[ -x '/usr/bin/agterm-agent-status' ]"))
+            #expect(command.contains("agterm-agent-status' ]"))
         }
         if original == ClaudeFixture.herdr {
             #expect(installed.contains("herdr hook claude stop"))
@@ -49,11 +49,81 @@ struct ClaudeHooksPlanTests {
         try fixture.write(original, to: fixture.settings)
         let service = fixture.service
         #expect(try service.apply(service.planClaudeHooks()).succeeded)
-        let activated = try fixture.contents(fixture.settings)
         #expect(try service.apply(service.planClaudeHooks(install: false)).succeeded)
         #expect(try fixture.object(fixture.settings).isEqual(try fixture.object(original)))
-        #expect(try fixture.contents(fixture.settings.appendingPathExtension("bak")) == activated)
+        #expect(try fixture.contents(fixture.settings.appendingPathExtension("bak")) == original)
+        #expect(try service.apply(service.planClaudeHooks()).succeeded)
+        #expect(try fixture.contents(fixture.settings.appendingPathExtension("bak")) == original)
+        #expect(try service.apply(service.planClaudeHooks(install: false)).succeeded)
         #expect(!service.planClaudeHooks(install: false).canApply)
+    }
+
+    @Test(arguments: ["{\"hooks\":{}}", "{\"hooks\":{\"Stop\":[]}}"])
+    func uninstallRestoresEmptyHookContainers(original: String) throws {
+        let fixture = try ClaudeFixture()
+        try fixture.write(original, to: fixture.settings)
+        let service = fixture.service
+        #expect(try service.apply(service.planClaudeHooks()).succeeded)
+        #expect(try service.apply(service.planClaudeHooks(install: false)).succeeded)
+        #expect(try fixture.object(fixture.settings).isEqual(try fixture.object(original)))
+    }
+
+    @Test(arguments: ["file", "profile", "regular"])
+    func privateSettingsAndBackupKeepModeAndSymlinks(alias: String) throws {
+        let fixture = try ClaudeFixture()
+        let fm = FileManager.default
+        let target = alias == "regular" ? fixture.settings : fixture.home.appendingPathComponent("shared/settings.json")
+        try fixture.write(ClaudeFixture.herdr, to: target)
+        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+        if alias == "file" {
+            try fm.createDirectory(at: fixture.settings.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fm.createSymbolicLink(at: fixture.settings, withDestinationURL: target)
+        } else if alias == "profile" {
+            try fm.createSymbolicLink(at: fixture.settings.deletingLastPathComponent(),
+                                     withDestinationURL: target.deletingLastPathComponent())
+        }
+        let service = fixture.service
+        let backup = target.appendingPathExtension("bak")
+        for install in [true, false] {
+            #expect(try service.apply(service.planClaudeHooks(install: install)).succeeded)
+            for file in [target, backup] {
+                let attributes = try fm.attributesOfItem(atPath: file.path)
+                #expect(attributes[.posixPermissions] as? Int == 0o600)
+            }
+            #expect(try fixture.contents(backup) == ClaudeFixture.herdr)
+            #expect(try fixture.object(target).isEqual(try fixture.object(ClaudeFixture.herdr)) == !install)
+        }
+        if alias != "regular" {
+            let link = alias == "file" ? fixture.settings : fixture.settings.deletingLastPathComponent()
+            let destination = alias == "file" ? target : target.deletingLastPathComponent()
+            #expect(try fm.destinationOfSymbolicLink(atPath: link.path) == destination.path)
+        }
+    }
+
+    @Test func packageAndPersonalHooksAreDeduplicatedAndRemoved() throws {
+        let fixture = try ClaudeFixture()
+        let service = fixture.service
+        let packageStop = "[ -x '/usr/bin/agterm-agent-status' ] || exit 0; exec '/usr/bin/agterm-agent-status' completed --auto-reset"
+        let otherLauncher = "/opt/person' personal/lib/agterm/bin/agterm-agent-status"
+        let quotedOther = "'/opt/person'\\'' personal/lib/agterm/bin/agterm-agent-status'"
+        let otherStop = "[ -x \(quotedOther) ] || exit 0; exec \(quotedOther) completed --auto-reset"
+        let custom = "echo \(otherLauncher)"
+        let object = ["hooks": ["Stop": [["hooks": [packageStop, otherStop, custom].map {
+            ["type": "command", "command": $0]
+        }]]]]
+        let data = try JSONSerialization.data(withJSONObject: object)
+        try fixture.write(String(decoding: data, as: UTF8.self), to: fixture.settings)
+        #expect(try service.apply(service.planClaudeHooks()).succeeded)
+        let installed = try fixture.contents(fixture.settings)
+        #expect(!installed.contains("/usr/bin/agterm-agent-status"))
+        #expect(try fixture.commands("Stop").count == 2)
+        #expect(!service.planClaudeHooks().canApply)
+        #expect(try service.apply(service.planClaudeHooks(install: false)).succeeded)
+        #expect(try fixture.commands("Stop") == [custom])
+
+        try fixture.write(String(decoding: data, as: UTF8.self), to: fixture.settings)
+        #expect(try service.apply(service.planClaudeHooks(install: false)).succeeded)
+        #expect(try fixture.commands("Stop") == [custom])
     }
 
     @Test func missingProfileWaitsForClaude() throws {
@@ -98,7 +168,7 @@ struct ClaudeHooksPlanTests {
     }
 
     @Test func removedBinaryIsQuiet() throws {
-        let fixture = try ClaudeFixture(personalInstall: true)
+        let fixture = try ClaudeFixture()
         try fixture.write("{}", to: fixture.settings)
         let service = fixture.service
         let wrapper = fixture.cli.deletingLastPathComponent().appendingPathComponent("agterm-agent-status")
@@ -148,12 +218,14 @@ private final class ClaudeFixture {
     let useOverride: Bool
     let cli: URL
 
-    init(useOverride: Bool = false, personalInstall: Bool = false) throws {
+    init(useOverride: Bool = false) throws {
         self.useOverride = useOverride
-        let path = personalInstall ? "prefix with ' quote/lib/agterm/bin/agtermctl" : "bin/agtermctl"
-        cli = root.appendingPathComponent(path)
+        cli = root.appendingPathComponent("prefix with ' quote/lib/agterm/bin/agtermctl")
         try write("#!/bin/sh\nexit 0\n", to: cli)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cli.path)
+        let wrapper = cli.deletingLastPathComponent().appendingPathComponent("agterm-agent-status")
+        try write("#!/bin/sh\nexit 0\n", to: wrapper)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: wrapper.path)
     }
 
     deinit { try? FileManager.default.removeItem(at: root) }
@@ -187,11 +259,14 @@ private final class ClaudeFixture {
     }
 
     func packagedCommand(_ event: String) throws -> String {
+        try #require(try commands(event).first { $0.hasPrefix("[ -x ") && $0.contains("agterm-agent-status") })
+    }
+
+    func commands(_ event: String) throws -> [String] {
         let data = try Data(contentsOf: settings)
         let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let hooks = try #require(root["hooks"] as? [String: [[String: Any]]])
         let commands = hooks[event, default: []].flatMap { $0["hooks"] as? [[String: Any]] ?? [] }
-        return try #require(commands.compactMap { $0["command"] as? String }
-            .first { $0.hasPrefix("[ -x ") && $0.contains("agterm-agent-status") })
+        return commands.compactMap { $0["command"] as? String }
     }
 }

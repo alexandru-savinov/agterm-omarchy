@@ -470,7 +470,7 @@ private extension IntegrationService {
             let existing = try IntegrationFilesystem.read(path)
             let merge = try AgentHooksInstall.mergeClaudeSettings(
                 existing: existing, scriptDir: environment.hooksDirectory.path,
-                guardedExecutable: environment.claudeHooksExecutable
+                recognizeGuardedLauncher: true
             )
             if !merge.changed {
                 return IntegrationItemStatus(kind: .claudeHooks, state: .installed,
