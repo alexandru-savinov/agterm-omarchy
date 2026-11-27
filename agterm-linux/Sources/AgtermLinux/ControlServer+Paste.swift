@@ -7,7 +7,11 @@ extension ControlServer {
     func performPasteRequest(_ request: ControlRequest, deadline: DispatchTime = .now() + 150) -> ControlResponse {
         let box = LinuxRemoteCompanionBox(), ready = DispatchSemaphore(value: 0)
         runOnMain { MainActor.assumeIsolated {
-            let finish: @MainActor (ControlResponse) -> Void = { response in box.response = response; ready.signal() }
+            let finish: @MainActor (ControlResponse) -> Void = { response in
+                PasteDebug.log("control reply ok=\(response.ok) error=\(response.error ?? "none")")
+                box.response = response
+                ready.signal()
+            }
             switch Self.route(for: request) {
             case .failure(let reason): finish(ControlResponse(ok: false, error: reason))
             case .controller(nil): finish(ControlResponse(ok: false, error: "no controller"))
@@ -26,6 +30,7 @@ extension ControlServer {
             }
         } }
         guard ready.wait(timeout: deadline) == .success else {
+            PasteDebug.log("control deadline fired")
             return ControlResponse(ok: false, error: LinuxPasteTransfer.timeoutReason)
         }
         return box.response

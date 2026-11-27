@@ -19,6 +19,7 @@ enum LinuxPasteClipboard {
     static func hasImageOnlyOffer() -> Bool {
         guard let clipboard = LinuxClipboardAdapter.gdkClipboard(for: GHOSTTY_CLIPBOARD_STANDARD),
               let formats = gdk_clipboard_get_formats(clipboard) else { return false }
+        PasteDebug.log("route snapshot formats=[\(PasteDebug.formats(formats))]")
         let readable = gdk_content_formats_union_deserialize_gtypes(gdk_content_formats_ref(formats))
         defer { gdk_content_formats_unref(readable) }
         return gdk_content_formats_contain_gtype(readable, gdk_texture_get_type()) != 0
@@ -30,29 +31,39 @@ enum LinuxPasteClipboard {
     static func read(_ reply: @escaping @MainActor (PasteOffer) -> Void) {
         guard let clipboard = LinuxClipboardAdapter.gdkClipboard(for: GHOSTTY_CLIPBOARD_STANDARD),
               let formats = gdk_clipboard_get_formats(clipboard) else { return reply(PasteOffer()) }
+        PasteDebug.log("offer snapshot formats=[\(PasteDebug.formats(formats))]")
         let read = Read(reply)
         if LinuxClipboardAdapter.advertisesURIList(clipboard) || gdk_content_formats_contain_gtype(formats, gdk_file_list_get_type()) != 0 {
+            PasteDebug.log("offer FILE start")
             gdk_clipboard_read_value_async(clipboard, gdk_file_list_get_type(), 0, nil, { source, result, data in
                 MainActor.assumeIsolated {
                     let read = Unmanaged<Read>.fromOpaque(data!).takeRetainedValue()
-                    let value = gdk_clipboard_read_value_finish(OpaquePointer(source), result, nil)
+                    var error: UnsafeMutablePointer<GError>?
+                    let value = gdk_clipboard_read_value_finish(OpaquePointer(source), result, &error)
+                    PasteDebug.log("offer FILE end \(PasteDebug.result(value, error: error))")
                     read.reply(PasteOffer(urls: value.map(LinuxPasteClipboard.files) ?? []))
                 }
             }, Unmanaged.passRetained(read).toOpaque())
         } else if LinuxClipboardAdapter.advertisesText(clipboard) {
+            PasteDebug.log("offer TEXT start")
             gdk_clipboard_read_text_async(clipboard, nil, { source, result, data in
                 MainActor.assumeIsolated {
                     let read = Unmanaged<Read>.fromOpaque(data!).takeRetainedValue()
-                    let raw = gdk_clipboard_read_text_finish(OpaquePointer(source), result, nil)
+                    var error: UnsafeMutablePointer<GError>?
+                    let raw = gdk_clipboard_read_text_finish(OpaquePointer(source), result, &error)
+                    PasteDebug.log("offer TEXT end \(PasteDebug.result(raw, error: error)) bytes=\(raw.map { strlen($0) } ?? 0)")
                     defer { g_free(raw) }
                     read.reply(PasteOffer(text: raw.map { String(cString: $0) }))
                 }
             }, Unmanaged.passRetained(read).toOpaque())
         } else {
+            PasteDebug.log("offer IMAGE start")
             gdk_clipboard_read_texture_async(clipboard, nil, { source, result, data in
                 MainActor.assumeIsolated {
                     let read = Unmanaged<Read>.fromOpaque(data!).takeRetainedValue()
-                    let texture = gdk_clipboard_read_texture_finish(OpaquePointer(source), result, nil)
+                    var error: UnsafeMutablePointer<GError>?
+                    let texture = gdk_clipboard_read_texture_finish(OpaquePointer(source), result, &error)
+                    PasteDebug.log("offer IMAGE end \(PasteDebug.result(texture, error: error))")
                     defer { if let texture { g_object_unref(UnsafeMutableRawPointer(texture)) } }
                     read.reply(PasteOffer(image: texture.flatMap(LinuxPasteClipboard.png)))
                 }

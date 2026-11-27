@@ -4,6 +4,27 @@ set -euo pipefail
 ROOT="$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_DIR="${AGTERM_UI_ARTIFACT_DIR:-$ROOT/artifacts/linux-ui}"
 export AGTERM_UI_ARTIFACT_DIR="$ARTIFACT_DIR"
+
+# Scratch branch only: exercise the exact targeted v0441 scenario in fresh desktop sessions.
+if [[ "${AGTERM_ATSPI_SCENARIO:-}" == v0441 && -z "${AGTERM_PASTE_DEBUG_ATTEMPT:-}" ]]; then
+  failures=0
+  for attempt in $(seq 1 12); do
+    echo "PASTE_DEBUG_ATTEMPT $attempt/12 start"
+    attempt_dir="$ARTIFACT_DIR/attempt-$attempt"
+    if AGTERM_PASTE_DEBUG_ATTEMPT="$attempt" AGTERM_UI_ARTIFACT_DIR="$attempt_dir" "$0"; then
+      echo "PASTE_DEBUG_ATTEMPT $attempt/12 PASS"
+    else
+      echo "PASTE_DEBUG_ATTEMPT $attempt/12 FAIL"
+      failures=$((failures + 1))
+    fi
+    if [[ -f "$attempt_dir/agterm-stderr.log" ]]; then
+      grep -F 'PASTE_DEBUG ' "$attempt_dir/agterm-stderr.log" || true
+    fi
+  done
+  echo "PASTE_DEBUG_SUMMARY attempts=12 failures=$failures"
+  [[ "$failures" -eq 0 ]]
+  exit
+fi
 PYTHON="${PYTHON:-/usr/bin/python3}"
 BIN="${AGTERM_TEST_BIN:-$ROOT/agterm-linux/.build/debug/AgtermLinux}"
 CTL="${AGTERM_TEST_CTL:-$ROOT/agterm-linux/.build/debug/agtermctl-linux}"

@@ -34,13 +34,16 @@ extension GhosttySurface {
         // tries the URI list, text and then an image directly, even while GDK still reports the previous owner's formats.
         // A successful `session.paste` reply follows submission to the engine, which may still ask for confirmation.
         if pasteOriginHost == nil, !LinuxPasteClipboard.hasImageOnlyOffer() {
+            PasteDebug.log("route=engine")
             EnginePasteCompletion.arm(completion, deadline: deadline, for: self)
             let action = "paste_from_clipboard"
-            _ = action.withCString { ghostty_surface_binding_action(surface, $0, UInt(action.utf8.count)) }
+            let handled = action.withCString { ghostty_surface_binding_action(surface, $0, UInt(action.utf8.count)) }
+            PasteDebug.log("engine binding handled=\(handled)")
             // libghostty answered without a clipboard read (or started none)
             EnginePasteCompletion.take(for: self)?.finish(nil)
             return
         }
+        PasteDebug.log("route=offer remote=\(pasteOriginHost != nil)")
         pasteCopying = true
         LinuxPasteClipboard.read { [weak self] offer in
             guard let self else { return completion("session closed") }
@@ -70,6 +73,7 @@ extension GhosttySurface {
         }
         pasteCopying = true
         controller?.showToast(onOrigin ? "Copying paste to \(remote ?? "origin")…" : "Saving pasted image…")
+        PasteDebug.log("offer stage start")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let copied = LinuxPasteTransfer.text(offer, host: onOrigin ? remote : nil)
             runOnMain { MainActor.assumeIsolated {
@@ -77,6 +81,7 @@ extension GhosttySurface {
                 self.pasteCopying = false
                 guard DispatchTime.now() < deadline else { return completion(LinuxPasteTransfer.timeoutReason) }
                 if let refusal = self.pasteDestinationRefusal(origin: remote) { return completion(refusal) }
+                PasteDebug.log("offer stage end success=\((try? copied.get()) != nil)")
                 switch copied {
                 case .success(let text): self.pasteThroughProtection(text: text); completion(nil)
                 case .failure(let failure):

@@ -459,6 +459,7 @@ final class GhosttyApp: @unchecked Sendable {
             // applies the same paste protection as Ctrl+Shift+V (`ghostty_surface_text` would bypass it).
             if let dropped = ArmedDropPaste.shared.take(owner: userdata) {
                 // LinuxPastePolicy already turned a dropped uri-list into shell-escaped paths before arming.
+                PasteDebug.log("offer submit bytes=\(dropped.utf8.count)")
                 let completion = LinuxClipboardPolicy.textCompletion(text: dropped, list: list)
                 LinuxClipboardAdapter.complete(surface, items: completion.items, available: completion.available,
                                                state: requestState)
@@ -467,6 +468,7 @@ final class GhosttyApp: @unchecked Sendable {
             guard let clipboard = LinuxClipboardAdapter.gdkClipboard(for: loc) else {
                 return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED
             }
+            PasteDebug.log("engine read callback mimes=\(mimes) list=\(list)")
             switch LinuxClipboardPolicy.readPlan(mimes: mimes, list: list) {
             case .unavailable:
                 return GHOSTTY_CLIPBOARD_READ_UNAVAILABLE
@@ -497,6 +499,7 @@ final class GhosttyApp: @unchecked Sendable {
             // libghostty raises a paste here only when it judged it unsafe (multi-line or a bracketed-paste
             // end marker without bracketed mode): show the text and ask, never wave it through.
             if request == GHOSTTY_CLIPBOARD_REQUEST_PASTE {
+                PasteDebug.log("unsafe paste confirmation")
                 guard let retained = RetainedGhosttySurface(userdata) else { return }
                 let text = LinuxUnsafePasteText.text(of: payload.items)
                 runOnMain {

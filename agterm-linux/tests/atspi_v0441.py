@@ -19,13 +19,14 @@ class ClipboardOwner:
         payload, ready = root / 'clipboard-data', root / 'clipboard-ready'
         payload.write_bytes(data)
         ready.unlink(missing_ok=True)
-        script = '''import gi,sys
+        script = '''import gi,sys,time
 from pathlib import Path
 gi.require_version('Gtk','4.0')
 from gi.repository import Gtk,Gdk,GLib
 Gtk.init()
 p=Gdk.ContentProvider.new_for_bytes(sys.argv[1],GLib.Bytes.new(Path(sys.argv[2]).read_bytes()))
-Gdk.Display.get_default().get_clipboard().set_content(p)
+ok=Gdk.Display.get_default().get_clipboard().set_content(p)
+print(f"PASTE_DEBUG {time.time()} owner set mime={sys.argv[1]} ok={ok}",flush=True)
 Path(sys.argv[3]).touch()
 GLib.MainLoop().run()
 '''
@@ -138,9 +139,16 @@ def verify_v0441(env, state):
         wait_for(received.exists, 'paste receiver did not start')
         owner = ClipboardOwner(env, root, 'image/png', image)
         try:
+            print(f"PASTE_DEBUG {time.time()} fixture send paste", flush=True)
             request('session.paste', pasted)
+            print(f"PASTE_DEBUG {time.time()} fixture got paste reply; send Return", flush=True)
             request('session.type', pasted, {'text': '\n'})
-            wait_for(lambda: received.read_text().strip(), 'image path was not inserted')
+            try:
+                wait_for(lambda: received.read_text().strip(), 'image path was not inserted')
+            finally:
+                data = received.read_bytes()
+                print(f"PASTE_DEBUG {time.time()} fixture receiver bytes={len(data)} "
+                      f"has_content={bool(data.strip())}", flush=True)
             path = Path(shlex.split(received.read_text().strip())[0])
             assert path.read_bytes().startswith(b'\x89PNG\r\n\x1a\n'), path
         finally:

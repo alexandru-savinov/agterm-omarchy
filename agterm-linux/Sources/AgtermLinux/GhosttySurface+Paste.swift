@@ -16,7 +16,8 @@ extension GhosttySurface: DropPasteTarget {
         // a request libghostty did not start must not leave the text armed for a later real paste
         defer { _ = ArmedDropPaste.shared.take(owner: owner) }
         let action = "paste_from_clipboard"
-        _ = action.withCString { ghostty_surface_binding_action(surface, $0, UInt(action.utf8.count)) }
+        let handled = action.withCString { ghostty_surface_binding_action(surface, $0, UInt(action.utf8.count)) }
+        PasteDebug.log("offer binding handled=\(handled)")
     }
 }
 
