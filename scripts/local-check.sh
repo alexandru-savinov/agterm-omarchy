@@ -80,7 +80,9 @@ fi
 mkdir "$scratch/home" "$worktree/.tmp"
 run_isolated() {
     # Foundation tools can resolve the account home independently of HOME.
+    # nix-darwin's zshenv must preserve the PATH already supplied to the isolated run.
     env -i PATH="$PATH" HOME="$scratch/home" CFFIXED_USER_HOME="$scratch/home" TMPDIR="$worktree/.tmp" \
+        __NIX_DARWIN_SET_ENVIRONMENT_DONE=1 \
         USER="$(id -un)" LOGNAME="$(id -un)" SHELL=/bin/zsh \
         DEVELOPER_DIR="${DEVELOPER_DIR:-$(xcode-select -p)}" "$@"
 }
@@ -124,7 +126,7 @@ exit_code=0
 scripts/setup.sh
 result=0
 make build || result=$?
-AGTERM_REQUIRE_FISH=1 AGTERM_REQUIRE_ZMX=1 make test || result=$?
+AGTERM_CONTROL_SOCKET="$TMPDIR/no-app.sock" AGTERM_REQUIRE_FISH=1 AGTERM_REQUIRE_ZMX=1 make test || result=$?
 TEST_RUNNER_AGTERM_REQUIRE_FISH=1 make test-app || result=$?
 make lint || result=$?
 exit "$result"
