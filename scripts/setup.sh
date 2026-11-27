@@ -166,7 +166,8 @@ if { $need_xc || $need_res; } && ! xcrun metal --version >/dev/null 2>&1; then
   xcodebuild -downloadComponent MetalToolchain
 fi
 
-BUILD_DIR="$(mktemp -d)"
+# macOS mktemp without a template can use the account's default temp directory.
+BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agterm-setup.XXXXXXXX")"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 
 if $need_xc || $need_res; then

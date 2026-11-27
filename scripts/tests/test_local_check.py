@@ -106,7 +106,10 @@ esac''')
         self.stub("xcode-select", "echo /fixture/Developer")
         self.stub("python3", 'cat >/dev/null; echo "{}" > "$3"')
         self.stub("make", 'printf "make %s\n" "$*"')
-        self.stub("setup", 'printf "setup pwd=%s TMPDIR=%s\n" "$(pwd -P)" "$TMPDIR"')
+        self.stub("setup", '''
+printf "setup pwd=%s TMPDIR=%s\n" "$(pwd -P)" "$TMPDIR"
+printf "setup HOME=%s CFFIXED_USER_HOME=%s\n" "$HOME" "$CFFIXED_USER_HOME"
+''')
 
         for escape in ("yes", "no"):
             with self.subTest(escape=escape):
@@ -121,9 +124,20 @@ esac''')
                 else:
                     self.assertIn("No status was posted", attempt.stderr)
                     worktree = log.parent.resolve() / "worktree"
+                    home = worktree.parent / "home"
                     self.assertIn(f"setup pwd={worktree} TMPDIR={worktree}/.tmp", log.read_text())
+                    self.assertIn(f"setup HOME={home} CFFIXED_USER_HOME={home}", log.read_text())
                     self.assertIn("make build", log.read_text())
                 self.assertNotIn("/statuses/", self.log.read_text())
+
+    def test_setup_names_its_build_directory_under_tmpdir(self):
+        # Stop at the allocator so this checks the real setup script without building or cleaning anything.
+        self.stub("mktemp", 'printf "mktemp args: %s\\n" "$*" >&2; exit 97')
+        setup = WRAPPER.with_name("setup.sh")
+        attempt = subprocess.run(["bash", str(setup), "--zmx-only"], text=True,
+                                 capture_output=True, env=self.env, cwd=self.root)
+        self.assertEqual(attempt.returncode, 97, attempt)
+        self.assertIn(f"mktemp args: -d {self.root}/", attempt.stderr)
 
 
 if __name__ == "__main__":

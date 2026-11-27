@@ -79,7 +79,8 @@ fi
 
 mkdir "$scratch/home" "$worktree/.tmp"
 run_isolated() {
-    env -i PATH="$PATH" HOME="$scratch/home" TMPDIR="$worktree/.tmp" \
+    # Foundation tools can resolve the account home independently of HOME.
+    env -i PATH="$PATH" HOME="$scratch/home" CFFIXED_USER_HOME="$scratch/home" TMPDIR="$worktree/.tmp" \
         USER="$(id -un)" LOGNAME="$(id -un)" SHELL=/bin/zsh \
         DEVELOPER_DIR="${DEVELOPER_DIR:-$(xcode-select -p)}" "$@"
 }
