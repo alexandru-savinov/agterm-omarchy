@@ -47,6 +47,10 @@ struct LinuxSurfaceFailureInjection: Sendable, Equatable {
               let request = environment[environmentKey] else { return nil }
         switch request {
         case "gl-context:\(role.failureInjectionName)": return .glContext
+        // Fails only off Mesa software rendering, so the software-rendering relaunch recovers.
+        case "gl-context-hardware:\(role.failureInjectionName)":
+            return LinuxSoftwareRenderingFallback.requestsSoftware(
+                environment[LinuxSoftwareRenderingFallback.softwareKey]) ? nil : .glContext
         case "creation:\(role.failureInjectionName)": return .creation
         default: return nil
         }

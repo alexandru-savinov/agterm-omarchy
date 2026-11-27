@@ -26,6 +26,7 @@ struct AgtermApp {
         // it. Anything that opens a display above here turns the assignment into a silent no-op. The two
         // version getters inside `gdkEnvironment` are the only GTK calls allowed above the `setenv`: they
         // report the linked library's version, initializing nothing.
+        _ = preLaunchProcessEnvironment   // snapshot for the software-rendering relaunch, before any setenv
         for assignment in gdkEnvironment.assignments {
             let applied = setenv(assignment.name, assignment.value, 1) == 0
             let line = LinuxGdkPolicy.assignmentLogLine(assignment, applied: applied)

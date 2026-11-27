@@ -22,8 +22,13 @@ extension AppController {
 
     /// Surface a transient banner (AdwToast) over the window content — keymap/config parse diagnostics
     /// and other non-modal alerts. No-op before the content (and its toast overlay) is built.
-    func showToast(_ message: String) {
+    /// `timeout` 0 keeps the toast until the user dismisses it; nil keeps libadwaita's default.
+    func showToast(_ message: String, timeout: UInt32? = nil) {
         guard let overlay = toastOverlay else { return }
-        message.withCString { adw_toast_overlay_add_toast(overlay, adw_toast_new($0)) }
+        message.withCString {
+            let toast = adw_toast_new($0)
+            if let timeout { adw_toast_set_timeout(toast, timeout) }
+            adw_toast_overlay_add_toast(overlay, toast)
+        }
     }
 }
