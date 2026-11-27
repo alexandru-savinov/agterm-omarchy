@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   # A unique push group also keeps GitHub from replacing a pending main run.
-  group: omarchy-macos-${{ github.event_name == 'push' && format('push-{0}', github.run_id) || github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'upstream-sync' && github.event.label.name != 'upstream-offer' && github.run_id || '' }}${{ github.event.pull_request.number == 551 && github.event.pull_request.draft && github.event.pull_request.head.ref == 'claude/conditional-ci-pilot' && format('-round3-{0}', github.run_id) || '' }}
+  group: omarchy-macos-${{ github.event_name == 'push' && format('push-{0}', github.run_id) || github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'upstream-sync' && github.event.label.name != 'upstream-offer' && github.run_id || '' }}
   # Give a running PR sample time to record a mismatch.
   cancel-in-progress: ${{ github.event_name != 'pull_request' && github.event_name != 'push' }}
 
@@ -63,31 +63,6 @@ jobs:
           # to the pilot commit for review. All other runs use the exact PR base.
           ref: ${{ github.event.pull_request.base.sha == '1c89b2177e4376ee323c5e90b80cb65017671ded' && github.event.pull_request.head.ref == 'claude/conditional-ci-pilot' && 'a94c09a04b274b9d55fcb9ab56da2e28363aeef4' || github.event.pull_request.base.sha }}
           persist-credentials: false
-      - name: Wait for the wrong-tree fixture on draft PR 551
-        if: >-
-          steps.pilot-checkout.outcome == 'success' &&
-          github.repository == 'alexandru-savinov/agterm-omarchy' &&
-          github.event.pull_request.number == 551 &&
-          github.event.pull_request.draft &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          github.event.pull_request.head.ref == 'claude/conditional-ci-pilot' &&
-          github.event.pull_request.user.login == 'alexandru-savinov' &&
-          github.actor == 'alexandru-savinov'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          for attempt in {1..20}; do
-            status_id=$(gh api "repos/alexandru-savinov/agterm-omarchy/commits/$GITHUB_SHA/statuses" \
-              --jq 'first(.[] | select(.context == "local/macos-validation" and .creator.login == "alexandru-savinov") | .id)')
-            if [[ -n "$status_id" ]]; then
-              printf 'Owner fixture status %s is visible on merge %s.\n' "$status_id" "$GITHUB_SHA"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo 'The wrong-tree fixture did not arrive.'
-          exit 1
       - name: Decide whether local evidence is eligible
         if: steps.pilot-checkout.outcome == 'success'
         id: local
