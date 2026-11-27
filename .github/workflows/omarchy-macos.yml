@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   # A unique push group also keeps GitHub from replacing a pending main run.
-  group: omarchy-macos-${{ github.event_name == 'push' && format('push-{0}', github.run_id) || github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'upstream-sync' && github.event.label.name != 'upstream-offer' && github.run_id || '' }}
+  group: omarchy-macos-${{ github.event_name == 'push' && format('push-{0}', github.run_id) || github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'upstream-sync' && github.event.label.name != 'upstream-offer' && github.run_id || '' }}${{ github.event.pull_request.number == 551 && github.event.pull_request.draft && github.event.pull_request.head.ref == 'claude/conditional-ci-pilot' && format('-round3-{0}', github.run_id) || '' }}
   # Give a running PR sample time to record a mismatch.
   cancel-in-progress: ${{ github.event_name != 'pull_request' && github.event_name != 'push' }}
 
