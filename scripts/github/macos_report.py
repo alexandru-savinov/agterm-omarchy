@@ -4,6 +4,7 @@
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from urllib.parse import quote
 
@@ -109,5 +110,10 @@ def report(run, api=request):
 
 
 if __name__ == "__main__":
-    event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
-    report(event["workflow_run"])
+    run = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())["workflow_run"]
+    if sys.argv[1:] == ["--inspect"]:
+        hosted = eligible_run(run) and verdict(run, request) is not None
+        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+            output.write(f"report={str(hosted).lower()}\n")
+    else:
+        report(run)
