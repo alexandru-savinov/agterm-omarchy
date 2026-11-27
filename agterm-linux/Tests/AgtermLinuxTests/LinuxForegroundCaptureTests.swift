@@ -136,6 +136,8 @@ struct LinuxForegroundCaptureTests {
         let lostDaemon = LinuxRestoreSeed.wrappedSeed(
             configuration, replay: nil, durable: "make dev", denylist: ["tmux"], daemonRunning: false)
         #expect(lostDaemon.command?.contains("make dev") == true)
+        #expect(lostDaemon.command?.contains("ZMX_HOLD_UNTIL_ATTACH=5") == true)
+        #expect(seed.command?.contains("ZMX_HOLD_UNTIL_ATTACH") == false)
     }
 
     @Test("remote rows are neither read nor counted; the count is slots written")

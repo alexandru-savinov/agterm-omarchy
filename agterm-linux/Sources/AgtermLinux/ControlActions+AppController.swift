@@ -37,7 +37,7 @@ extension AppController: ControlActions {
 
     func resolveWorkspaceResponse(_ target: String?) -> ResolveResponse<UUID> {
         let candidates = store.workspaces.map(\.id)
-        switch ControlResolve.resolve(target ?? "active", candidates: candidates, active: store.currentWorkspaceID) {
+        switch store.resolveWorkspaceTarget(target?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "active") {
         case .resolved(let id): return .success(id)
         case .ambiguous, .notFound: return .failure(resolveError("workspace", target: target, candidates: candidates))
         }
@@ -103,7 +103,8 @@ extension AppController: ControlActions {
             flaggedLayout: linuxSettingsStore().load().effectiveFlaggedViewLayout,
             htmlZoom: linuxSettingsStore().load().effectiveHtmlOverlayZoom,
             linkOpenMode: linuxSettingsStore().load().effectiveLinkOpenMode,
-            sidebarDensity: linuxSettingsStore().load().effectiveSidebarDensity
+            sidebarDensity: linuxSettingsStore().load().effectiveSidebarDensity,
+            includeEmptyRoot: false
         )
         var tree = projectingLinuxAutoFollow(baseTree)
         tree.remote = library.remoteNode(for: windowID)
@@ -223,7 +224,7 @@ extension AppController: ControlActions {
     }
 
     func selectWorkspace(_ target: String?, window: String?) -> ControlResponse {
-        switch resolveWorkspaceResponse(target) {
+        switch resolveNamedWorkspaceResponse(target) {
         case .failure(let response): return response
         case .success(let id):
             let first = store.workspaces.first(where: { $0.id == id })?.sessions.first
@@ -247,7 +248,7 @@ extension AppController: ControlActions {
     }
 
     func renameWorkspace(_ target: String?, window: String?, name: String) -> ControlResponse {
-        switch resolveWorkspaceResponse(target) {
+        switch resolveNamedWorkspaceResponse(target) {
         case .failure(let response): return response
         case .success(let id):
             store.renameWorkspace(id, to: name)
@@ -257,7 +258,7 @@ extension AppController: ControlActions {
     }
 
     func deleteWorkspace(_ target: String?, window: String?) -> ControlResponse {
-        switch resolveWorkspaceResponse(target) {
+        switch resolveNamedWorkspaceResponse(target) {
         case .failure(let response): return response
         case .success(let id):
             guard store.canRemoveWorkspace else { return err("cannot delete last workspace") }
@@ -339,7 +340,7 @@ extension AppController: ControlActions {
     }
 
     func moveWorkspace(_ target: String?, window: String?, direction: ReorderDirection) -> ControlResponse {
-        switch resolveWorkspaceResponse(target) {
+        switch resolveNamedWorkspaceResponse(target) {
         case .failure(let response): return response
         case .success(let id):
             store.reorderWorkspace(id, direction)
@@ -848,7 +849,13 @@ extension AppController: ControlActions {
     }
 
     func pasteSession(_ target: String?, window: String?, pane: StatusPane?) -> ControlResponse {
-        performSessionBinding(target, action: "paste_from_clipboard", pane: pane)
+        switch pasteSurface(target, pane: pane) {
+        case .failure(let response): return response
+        case .success(let surface):
+            if let reason = surface.pasteRefusal { return err(reason) }
+            surface.userPaste()
+            return ok(surface.sessionID)
+        }
     }
 
     func selectAllSession(_ target: String?, window: String?) -> ControlResponse {

@@ -11,7 +11,7 @@ enum LinuxRemoteCommand {
     static let outputLimit = 32 * 1024 * 1024
     static let outputLimitStatus: Int32 = 1
 
-    static func run(_ argv: [String], deadline: TimeInterval, input: Data? = nil,
+    static func run(_ argv: [String], deadline: TimeInterval, input: Data? = nil, inputURL: URL? = nil,
                     outputLimit: Int = outputLimit, temporaryDirectory: String = "/tmp",
                     inputCreate: (UnsafeMutablePointer<CChar>) -> Int32 = { mkstemp($0) },
                     inputWrite: (Int32, UnsafeRawPointer, Int) -> Int = { Glibc.write($0, $1, $2) }) -> RemoteCommandResult {
@@ -22,6 +22,11 @@ enum LinuxRemoteCommand {
         let errors = TemporaryOutput(directory: temporaryDirectory)
         let inputFile = input.flatMap {
             TemporaryInput(data: $0, directory: temporaryDirectory, create: inputCreate, write: inputWrite)
+        }
+        let inputHandle = inputURL.flatMap { try? FileHandle(forReadingFrom: $0) }
+        defer { try? inputHandle?.close() }
+        if inputURL != nil, inputHandle == nil {
+            return RemoteCommandResult(status: 1, stdout: "", stderr: "could not open command input file")
         }
         guard let output, let errors else {
             return RemoteCommandResult(status: 1, stdout: "", stderr: "could not create command output files")
@@ -36,7 +41,7 @@ enum LinuxRemoteCommand {
         process.environment = gdkEnvironment.restoringChildEnvironment(ProcessInfo.processInfo.environment)
         process.standardOutput = output.handle
         process.standardError = errors.handle
-        if let inputFile { process.standardInput = inputFile.handle }
+        process.standardInput = inputHandle ?? inputFile?.handle ?? FileHandle.nullDevice
         let finished = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in finished.signal() }
         do {

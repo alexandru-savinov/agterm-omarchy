@@ -42,10 +42,13 @@ enum LinuxDropPolicy {
     /// compositor offers COPY for an in-app sidebar drag. Returns whether the drop was accepted.
     @discardableResult
     static func deliverText(_ payload: String, to target: some DropPasteTarget) -> Bool {
-        if UUID(uuidString: payload) != nil { return false }
-        if payload.hasPrefix("w:"), UUID(uuidString: String(payload.dropFirst(2))) != nil { return false }
-        guard let text = ShellEscape.dropPayload(payload) else { return false }
+        guard acceptsText(payload), let text = ShellEscape.dropPayload(payload) else { return false }
         return paste(text, to: target)
+    }
+
+    static func acceptsText(_ payload: String) -> Bool {
+        guard !payload.isEmpty, UUID(uuidString: payload) == nil else { return false }
+        return !payload.hasPrefix("w:") || UUID(uuidString: String(payload.dropFirst(2))) == nil
     }
 
     /// A file-list drop: already shell-escaped paths, space-joined. Returns whether the drop was accepted.

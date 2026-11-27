@@ -1,0 +1,16 @@
+diff --git a/src/termio/Exec.zig b/src/termio/Exec.zig
+--- a/src/termio/Exec.zig
++++ b/src/termio/Exec.zig
+@@ -1859,9 +1859,9 @@
+         }
+     }
+ 
+-    /// What the gather stage does with its outer poll's pty revents: on a
+-    /// hangup it reads what is still queued (drainAfterHangup) and says
+-    /// the stage is done.
++    /// Drain before declaring EOF when the master reports HUP and IN together.
++    /// A hangup alone also needs a read, because a closed slave can leave bytes queued.
++    /// The drain publishes the final batches to the parse stage before the read thread exits.
+     fn hungUp(fd: posix.fd_t, revents: i16, pipeline: *Pipeline) bool {
+         if (revents & posix.POLL.HUP == 0) return false;
+         const drained = drainAfterHangup(fd, pipeline);

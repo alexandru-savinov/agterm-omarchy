@@ -30,8 +30,11 @@ struct LinuxRemoteHeldExitRouter {
     /// Retain authentication for a final PTY notice while clearing the ended pane's visible role.
     func attachmentEnded(_ surface: any TerminalSurface, forSession id: UUID) -> ZmxLeadState? {
         guard let pane = paneIdentity(surface, forSession: id) else { return nil }
+        guard !RemoteReconnectBook.shared.waiting(pane: pane) else { return nil }
         let state = ZmxLeadBook.shared.states[pane]
+        let claim = ZmxLeadBook.shared.takeClaim(pane: pane)
         ZmxLeadBook.shared.forget(pane: pane)
+        if claim { ZmxLeadBook.shared.claimOnReport(pane: pane) }
         return state
     }
 
@@ -43,10 +46,13 @@ struct LinuxRemoteHeldExitRouter {
               notice.nonce == attachment.attachment.nonce else { return false }
         let cover = attachment.role != nil || attachment.reattaching
         heldAttachment.consume()
+        let claim = ZmxLeadBook.shared.takeClaim(pane: pane)
         ZmxLeadBook.shared.forget(pane: pane)
+        if claim { ZmxLeadBook.shared.claimOnReport(pane: pane) }
         store.remotePaneHeld(pane, forSession: id)
         paneHeld(surface, forSession: id)
-        RemoteReconnectBook.shared.wait(pane: pane, session: id, host: host, cover: cover, now: Date())
+        RemoteReconnectBook.shared.wait(pane: pane, session: id, host: host, cover: cover,
+                                        reclaim: attachment.reclaimAfterDrop, now: Date())
         return true
     }
 

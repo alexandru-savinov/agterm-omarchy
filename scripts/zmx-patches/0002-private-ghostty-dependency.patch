@@ -1,7 +1,7 @@
-diff --git zmx-orig/build.zig zmx/build.zig
+diff --git a/build.zig b/build.zig
 index d4e8e95..9483503 100644
---- zmx-orig/build.zig
-+++ zmx/build.zig
+--- a/build.zig
++++ b/build.zig
 @@ -23,7 +23,7 @@ pub fn build(b: *std.Build) void {
  
      const options = b.addOptions();
@@ -11,10 +11,10 @@ index d4e8e95..9483503 100644
      options.addOption([]const u8, "ghostty_version", ghostty_ver);
      options.addOption(bool, "has_daemon", enable_daemon);
  
-diff --git zmx-orig/build.zig.zon zmx/build.zig.zon
+diff --git a/build.zig.zon b/build.zig.zon
 index 3e5f0be..784e971 100644
---- zmx-orig/build.zig.zon
-+++ zmx/build.zig.zon
+--- a/build.zig.zon
++++ b/build.zig.zon
 @@ -5,8 +5,7 @@
      .minimum_zig_version = "0.17.0",
      .dependencies = .{

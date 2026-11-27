@@ -1,7 +1,7 @@
-diff --git zmx-orig/src/posix.zig zmx/src/posix.zig
+diff --git a/src/posix.zig b/src/posix.zig
 index 97bb220..f4cbbe4 100644
---- zmx-orig/src/posix.zig
-+++ zmx/src/posix.zig
+--- a/src/posix.zig
++++ b/src/posix.zig
 @@ -387,6 +387,30 @@ pub fn listen(sock: socket_t, backlog: u31) ListenError!void {
      }
  }
@@ -33,10 +33,10 @@ index 97bb220..f4cbbe4 100644
  /// Obtains errno from the return value of a system function call.
  ///
  /// For some systems this will obtain the value directly from the syscall return value;
-diff --git zmx-orig/src/socket.zig zmx/src/socket.zig
+diff --git a/src/socket.zig b/src/socket.zig
 index 7e6e868..c49e805 100644
---- zmx-orig/src/socket.zig
-+++ zmx/src/socket.zig
+--- a/src/socket.zig
++++ b/src/socket.zig
 @@ -98,7 +98,32 @@ pub fn sessionExists(io: std.Io, dir: std.Io.Dir, name: []const u8) !bool {
      return true;
  }

@@ -92,7 +92,7 @@ extension WindowLibrary {
         }
 
         var claims: [ZmxPaneClaim] = []
-        var complete = true
+        var complete = !store.needsSnapshotQuarantine || !store.persistence.fileExists
         for (site, session) in pairs {
             // through the ownership projection, so this stays one predicate: an empty list is a session
             // whose daemons are not ours to claim, and inventing rows for it would name daemons that do
@@ -136,10 +136,9 @@ extension WindowLibrary {
         return ZmxClaimWalk(claims: claims, complete: complete)
     }
 
-    /// Whether an unreadable window file was preserved aside (`StateFileQuarantine`, via
-    /// `PersistenceStore.load`), in this launch or any earlier one. Its panes can no longer be named and the
-    /// window that replaced it is a valid empty tree, so an inventory ignoring the copy would read those
-    /// panes' daemons as orphans and reap running sessions. Stays true until the user restores or removes
+    /// Whether `StateFileQuarantine` preserved an unreadable window file in this launch or an earlier one.
+    /// Its panes can no longer be named, so ignoring the copy would treat their daemons as orphans and
+    /// reap running sessions. Stays true until the user restores or removes
     /// the preserved copies, which are never read here. `logging` is for the once-per-launch inventory; the
     /// claim walk runs on every zmx query and would repeat the line.
     func preservedWindowFilesHideClaims(logging: Bool) -> Bool {

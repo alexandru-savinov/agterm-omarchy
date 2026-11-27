@@ -20,8 +20,8 @@ SPEC = importlib.util.spec_from_file_location("auto_release", SCRIPT)
 auto = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(auto)
 SHA = "a" * 40
-TAG = "omarchy-v0.43.0.2"
-CANDIDATE = {"run_id": "123", "sha": SHA, "attempt": "2", "version": "0.43.0.2"}
+TAG = "omarchy-v0.44.1.2"
+CANDIDATE = {"run_id": "123", "sha": SHA, "attempt": "2", "version": "0.44.1.2"}
 ARCHIVES = {arch: {"id": index, "name": f"agterm-omarchy-{arch}-{SHA}",
                    "filename": f"agterm-omarchy-{arch}.tar.gz", "transport_digest": "sha256:" + "b" * 64,
                    "sha256": "c" * 64, "attestation": "verified"}
@@ -100,18 +100,18 @@ class ReleaseBaseTests(unittest.TestCase):
         return api.call_args_list, outputs.call_args.args[0]
 
     def test_compares_the_newest_stable_omarchy_tag_with_the_exact_push_sha(self):
-        rows = [[RELEASE | {"tag_name": "omarchy-v0.43.0.9"}, RELEASE | {"tag_name": "other-v2.0"}],
-                [RELEASE | {"tag_name": "omarchy-v0.43.0.10"},
-                 RELEASE | {"tag_name": "omarchy-v0.43.0.11", "prerelease": True},
-                 RELEASE | {"tag_name": "omarchy-v0.43.0.12", "draft": True},
-                 RELEASE | {"tag_name": "omarchy-v0.43.0.13", "published_at": None}]]
+        rows = [[RELEASE | {"tag_name": "omarchy-v0.44.1.9"}, RELEASE | {"tag_name": "other-v2.0"}],
+                [RELEASE | {"tag_name": "omarchy-v0.44.1.10"},
+                 RELEASE | {"tag_name": "omarchy-v0.44.1.11", "prerelease": True},
+                 RELEASE | {"tag_name": "omarchy-v0.44.1.12", "draft": True},
+                 RELEASE | {"tag_name": "omarchy-v0.44.1.13", "published_at": None}]]
         for status, base in (("ahead", "b" * 40), ("identical", SHA)):
             with self.subTest(status=status):
                 comparison = {"status": status, "base_commit": {"sha": base}, "merge_base_commit": {"sha": base}}
                 calls, outputs = self.resolve(rows, comparison)
                 self.assertEqual(calls[0].args, (auto.RELEASES_PATH,))
                 self.assertEqual(calls[0].kwargs, {"pages": True})
-                self.assertEqual(calls[1].args, (f"compare/refs/tags/omarchy-v0.43.0.10...{SHA}?per_page=1",))
+                self.assertEqual(calls[1].args, (f"compare/refs/tags/omarchy-v0.44.1.10...{SHA}?per_page=1",))
                 self.assertEqual(outputs, {"sha": base, "full_build": "false"})
 
     def test_missing_or_unusable_release_bases_require_a_full_build(self):
@@ -137,10 +137,10 @@ class PlanTests(unittest.TestCase):
         self.addCleanup(env.stop)
 
     def test_next_version_is_numeric_and_reserves_retracted_and_orphan_tags(self):
-        self.assertEqual(auto.next_version("0.43.0", []), "0.43.0.1")
-        self.assertEqual(auto.next_version("0.43.0", ["omarchy-v0.43.0.9", "omarchy-v0.43.0.10",
-                         "omarchy-v0.43.0.0", "omarchy-v0.43.0.99-rc", "omarchy-v0.43.0.099",
-                         "omarchy-v0.43.1.42", "omarchy-v0.43.0.11.99"]), "0.43.0.11")
+        self.assertEqual(auto.next_version("0.44.1", []), "0.44.1.1")
+        self.assertEqual(auto.next_version("0.44.1", ["omarchy-v0.44.1.9", "omarchy-v0.44.1.10",
+                         "omarchy-v0.44.1.0", "omarchy-v0.44.1.99-rc", "omarchy-v0.44.1.099",
+                         "omarchy-v0.44.2.42", "omarchy-v0.44.1.11.99"]), "0.44.1.11")
 
     def test_pause_blocks_before_any_api_call(self):
         for value in ("true", " TRUE ", "1", "typo"):
@@ -211,7 +211,7 @@ class PlanTests(unittest.TestCase):
                         'status': 'completed', 'name': 'Omarchy CI', 'workflow_id': 4,
                         'path': auto.promotion.WORKFLOW, 'repository': {'full_name': auto.promotion.REPOSITORY},
                     }
-                    latest_tag = 'omarchy-v0.43.0.3'
+                    latest_tag = 'omarchy-v0.44.1.3'
                     comparison = {'status': 'ahead', 'base_commit': {'sha': released},
                                   'merge_base_commit': {'sha': released}}
                     fixtures = {'git/ref/heads/main': {'object': {'sha': sha}}, 'actions/runs/123': run,
@@ -223,7 +223,7 @@ class PlanTests(unittest.TestCase):
                         url = f'{auto.PROMOTION_RUNS}?branch=main&event=workflow_dispatch&status={status}&per_page=1'
                         fixtures[url] = {'total_count': 0}
                     with patch.object(auto.promotion, 'api', side_effect=lambda path, **kw: fixtures[path]), \
-                         patch.object(auto.promotion, 'source_base', return_value='0.43.0'), \
+                         patch.object(auto.promotion, 'source_base', return_value='0.44.1'), \
                          patch.object(auto.promotion, 'write_outputs') as outputs, \
                          patch.object(auto, 'read_event', return_value=event), \
                          patch.object(sys, 'argv', ['auto-release', 'plan']), \
@@ -263,7 +263,7 @@ class PlanTests(unittest.TestCase):
                 summary = Path(directory) / "summary.md"
                 fixtures[compare_path] = comparison
                 with patch.object(auto.promotion, "api", side_effect=lambda path, **kw: fixtures[path]), \
-                     patch.object(auto.promotion, "source_base", return_value="0.43.0"), \
+                     patch.object(auto.promotion, "source_base", return_value="0.44.1"), \
                      patch.object(auto.promotion, "write_outputs") as outputs, \
                      patch.object(auto, "read_event", return_value=EVENT), \
                      patch.object(auto, "same_product", side_effect=error) as same_product, \
@@ -271,7 +271,7 @@ class PlanTests(unittest.TestCase):
                      patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}), \
                      redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     auto.main()
-                outputs.assert_called_once_with(CANDIDATE | {"version": "0.43.0.3"})
+                outputs.assert_called_once_with(CANDIDATE | {"version": "0.44.1.3"})
                 self.assertIn("Proceeding with release checks", summary.read_text())
                 self.assertIn(detail, summary.read_text())
                 if error is None:
@@ -289,7 +289,7 @@ class PlanTests(unittest.TestCase):
                     auto.RELEASES_PATH: [[RELEASE | {"prerelease": True}]],
                     f"compare/refs/tags/{TAG}...{SHA}?per_page=1": {
                         "status": "ahead", "base_commit": {"sha": "b" * 40}},
-                    "git/matching-refs/tags/omarchy-v?per_page=100": [[{"ref": "refs/tags/omarchy-v0.43.0.10"}]]}
+                    "git/matching-refs/tags/omarchy-v?per_page=100": [[{"ref": "refs/tags/omarchy-v0.44.1.10"}]]}
         run_filters = f"{auto.PROMOTION_RUNS}?branch=main&event=workflow_dispatch"
         fixtures.update({f"{run_filters}&status={status}&per_page=1": {"total_count": 0}
                          for status in auto.ACTIVE_PROMOTION_STATUSES})
@@ -298,8 +298,8 @@ class PlanTests(unittest.TestCase):
             return fixtures[path]
 
         with patch.object(auto.promotion, "api", side_effect=api), patch.object(auto, "same_product", return_value=False), \
-             patch.object(auto.promotion, "source_base", return_value="0.43.0") as source_base:
-            self.assertEqual(auto.plan(EVENT)[0], CANDIDATE | {"version": "0.43.0.11"})
+             patch.object(auto.promotion, "source_base", return_value="0.44.1") as source_base:
+            self.assertEqual(auto.plan(EVENT)[0], CANDIDATE | {"version": "0.44.1.11"})
             self.assertEqual(source_base.call_args.args[1], SHA)
             fixtures[f"{run_filters}&status=queued&per_page=1"]["total_count"] = 1
             with patch.object(auto, "next_version") as serial:
@@ -343,7 +343,7 @@ class PlanTests(unittest.TestCase):
         gh.assert_called_once_with("actions/workflows/prerelease-omarchy.yml/dispatches", method="POST", data={
             "ref": "main", "inputs": {"source_run": "123", "source_sha": SHA, "source_attempt": "2",
                                       "native_archives": json.dumps(ARCHIVES), "auto_release_run_id": "456",
-                                      "version": "0.43.0.2", "dry_run": False},
+                                      "version": "0.44.1.2", "dry_run": False},
         })
         wait.assert_called_once_with(99, CANDIDATE)
 
@@ -662,7 +662,7 @@ class WatchTests(unittest.TestCase):
 
 
 def rehearse_retract():
-    tag = "omarchy-v0.43.0.1"
+    tag = "omarchy-v0.44.1.1"
     writes = []
 
     def stub_write(path, *, method, data):

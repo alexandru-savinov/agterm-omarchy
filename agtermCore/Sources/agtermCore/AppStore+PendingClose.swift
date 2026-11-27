@@ -120,7 +120,7 @@ extension AppStore {
     /// discardSession closes one row and ends its panes without writing a Recent Closed entry: a creation that
     /// failed to start, or a close a crash interrupted, whose entry written at close time keeps its id and grouping.
     public func discardSession(_ sessionID: UUID, alreadyFinalized: UUID? = nil) {
-        closeSessionRow(sessionID, alreadyFinalized: alreadyFinalized)
+        _ = closeSession(sessionID, alreadyFinalized: alreadyFinalized, recordsRecent: false, recordsRemote: false)
     }
 
     /// The live object of a session hidden by an undoable close, nil for a visible or finalized one.
@@ -264,10 +264,9 @@ extension AppStore {
     }
 
     /// Hide a workspace from the visible tree but keep all of its sessions alive for a short undo window.
-    /// The last workspace cannot be soft-closed, matching `removeWorkspace`.
     @discardableResult
     public func softRemoveWorkspace(_ workspaceID: UUID, grace: TimeInterval = AppStore.pendingCloseGraceInterval) -> Bool {
-        guard canRemoveWorkspace, let index = workspaces.firstIndex(where: { $0.id == workspaceID }) else { return false }
+        guard let index = namedWorkspaceIndex(of: workspaceID) else { return false }
         for session in workspaces[index].sessions {
             releaseLeavingSession(session)
             closeTimedHud(session)
@@ -449,7 +448,7 @@ extension AppStore {
     /// main-actor executor, so a sleeping task would leave closed sessions alive indefinitely.
     private func schedulePendingCloseFinalization(id: UUID, grace: TimeInterval) {
         pendingCloseCancels[id]?()
-        pendingCloseCancels[id] = MainTimer.schedule(after: max(0, grace)) { [weak self] in
+        pendingCloseCancels[id] = MainTimer.scheduleCloseGrace(after: max(0, grace)) { [weak self] in
             self?.finalizePendingClose(id)
         }
     }
@@ -548,7 +547,7 @@ extension AppStore {
         } else if let existing = workspaces.firstIndex(where: { $0.id == close.workspaceID }) {
             workspaceIndex = existing
         } else {
-            let insertAt = max(0, min(close.workspaceIndex, workspaces.count))
+            let insertAt = max(0, min(close.workspaceIndex, namedEndIndex))
             workspaces.insert(rebuiltWorkspaceShell(id: close.workspaceID, name: close.workspaceName), at: insertAt)
             workspaceIndex = insertAt
         }
@@ -604,7 +603,7 @@ extension AppStore {
                 emitSessionCreated(session, workspace: workspaces[existing].id)
             }
         } else {
-            let insertAt = max(0, min(close.workspaceIndex, workspaces.count))
+            let insertAt = max(0, min(close.workspaceIndex, namedEndIndex))
             workspaces.insert(close.workspace, at: insertAt)
             for session in close.workspace.sessions {
                 session.dropUnrealizedPaneOverlays() // as above

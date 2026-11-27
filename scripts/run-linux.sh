@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Build and launch the GTK frontend using Swift from PATH, SWIFT, or mise.
+# Run scripts/setup-linux.sh once to prepare the vendored libghostty and zmx runtimes.
 set -euo pipefail
 ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 # shellcheck source=../linux/swift-env.sh

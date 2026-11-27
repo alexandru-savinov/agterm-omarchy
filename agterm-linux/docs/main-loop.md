@@ -67,8 +67,9 @@ From code already on the main actor, `MainTimer.schedule(after: 0)` supplies a n
 **Run something after a delay** — use `agtermCore`'s `MainTimer` seam:
 `MainTimer.schedule(after:_:)` returns a cancel closure, and `Debouncer` (which most call sites actually
 use) routes through it.
-`MainTimer.scheduleTimer` is the injection point; its default is `DispatchQueue.main.asyncAfter`, which is
-correct on macOS and dead here, so the Linux app replaces it exactly once.
+`MainTimer.scheduleTimer` overrides both the default Dispatch timer and the sleeping main-actor task used
+by the upstream pending-close grace countdown.
+The Linux app installs the override exactly once.
 `installGLibMainTimer()` (`GLibMainTimer.swift`) runs at the top of `activateApplication`, ahead of the
 `WindowLibrary`, the control server, and any window or surface, so nothing can schedule against the dead
 default.
@@ -105,9 +106,10 @@ and their owners cancel them when the associated widget or window is torn down.
   `runOnMain`.
 - `DispatchQueue.global` is fine — global queues have their own threads
   (`LinuxAgentIntegrations.swift` runs its integration-file disk work there and hops back with `runOnMain`).
-- `MainTimer`'s default must stay Dispatch-based: it is what upstream macOS uses, and the GLib implementation
-  belongs in the Linux target — `scripts/check-linux-core-boundary.sh` rejects GTK/Adwaita/GhosttyKit imports
-  (including `CGtk`) and `ghostty_`/`gtk_`/`adw_` symbols in `agtermCore`.
+- Keep the default Dispatch timer and upstream pending-close clock inside `MainTimer`.
+  The GLib implementation belongs in the Linux target.
+  `scripts/check-linux-core-boundary.sh` rejects GTK/Adwaita/GhosttyKit imports (including `CGtk`) and
+  `ghostty_`/`gtk_`/`adw_` symbols in `agtermCore`.
 - Prefer deriving a coupled delay from the constant it trails rather than re-hardcoding it — the Linux
   `reconcileSoftClose` schedules at `AppStore.pendingCloseGraceInterval + 0.1`, reading the constant rather
   than taking a grace argument, so it can neither drift from the core finalizer nor be handed a shorter grace
@@ -136,6 +138,17 @@ The callers restore the pre-launch GDK environment before passing it to the adap
 Remote catalog operations also start hidden Live panes through this adapter and zmx's detached-create mode.
 They resolve the same launch seed as the eventual terminal widget, then refresh catalog evidence before answering the receipt.
 Widget realization attaches to the existing daemon; it does not run the creation command again.
+
+## Held process exit and control reads
+
+libghostty's POSIX reader must drain readable data when `poll` reports both `POLLIN` and `POLLHUP`.
+The hangup alone does not mean the master has no unread tail.
+The Linux bridge carries `ghostty-drain-readable-hangup.patch`; the startup-query regression forces those real OS flags.
+
+A synchronous control read can also wait on a daemon that exits while the held-exit callback is queued on GLib.
+For an uncovered held pane whose daemon socket is gone, the read retires the cached lead immediately and reads the retained surface.
+It does not do this for covered or reconnecting panes, or when a live/unresponsive daemon's socket still exists.
+The callback remains safe to run later and performs the same idempotent lead cleanup.
 
 ## Testing through the seam
 

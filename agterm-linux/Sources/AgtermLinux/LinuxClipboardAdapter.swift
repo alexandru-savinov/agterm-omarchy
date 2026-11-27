@@ -1,5 +1,6 @@
 import CGtk
 import Foundation
+import agtermCore
 
 struct ClipboardConfirmation: Equatable, Sendable {
     let items: [ClipboardItem]
@@ -136,6 +137,11 @@ enum LinuxClipboardAdapter {
         return gdk_content_formats_contain_gtype(readable, GType(64) /* G_TYPE_STRING */) != 0
     }
 
+    static func advertisesURIList(_ clipboard: OpaquePointer) -> Bool {
+        guard let formats = gdk_clipboard_get_formats(clipboard) else { return false }
+        return LinuxClipboardPolicy.uriListMime.withCString { gdk_content_formats_contain_mime_type(formats, $0) != 0 }
+    }
+
     /// `read` owns the surface reference from here and always completes on the main thread.
     ///
     /// A paste asks the owner for its `text/uri-list` first, and the text form only when it refuses or the
@@ -143,8 +149,10 @@ enum LinuxClipboardAdapter {
     /// `file_text_serializer`), which libghostty would hold as an unsafe multi-line paste. The cached offer
     /// formats are not consulted: on X11 they can still describe the previous owner when a paste follows a
     /// copy at once, while a read goes to the current owner. Any other request reads the text form only.
-    static func readText(_ read: ClipboardTextRead) {
+    @MainActor static func readText(_ read: ClipboardTextRead) {
+        guard read.begin() else { return }
         guard LinuxClipboardPolicy.readsFileList(read.kind) else {
+            read.fileOffer = advertisesURIList(read.clipboard)
             readPlainText(read)
             return
         }
@@ -152,68 +160,113 @@ enum LinuxClipboardAdapter {
             // GDK interns the MIME types before it returns, so the borrowed strings may end with this call.
             var mimes: [UnsafePointer<CChar>?] = [mime, nil]
             gdk_clipboard_read_async(
-                read.clipboard, &mimes, 0 /* G_PRIORITY_DEFAULT */, nil,
+                read.clipboard, &mimes, 0 /* G_PRIORITY_DEFAULT */, read.cancellable,
                 { source, result, data in
                     let read = Unmanaged<ClipboardTextRead>.fromOpaque(data!).takeRetainedValue()
-                    guard let source, let input = gdk_clipboard_read_finish(OpaquePointer(source), result, nil, nil) else {
-                        LinuxClipboardAdapter.readPlainText(read)
-                        return
+                    MainActor.assumeIsolated {
+                        let input = source.flatMap { gdk_clipboard_read_finish(OpaquePointer($0), result, nil, nil) }
+                        defer { if let input { g_object_unref(input) } }
+                        guard read.canContinue() else { return }
+                        guard let input else { return LinuxClipboardAdapter.readPlainText(read) }
+                        // Use the current owner's response for the remote-file guard, even if decoding fails.
+                        read.fileOffer = true
+                        LinuxClipboardAdapter.readPaths(read, input: input)
                     }
-                    // the splice holds its own references to both streams until it completes
-                    let output = g_memory_output_stream_new_resizable()
-                    g_output_stream_splice_async(
-                        output, input,
-                        GOutputStreamSpliceFlags(rawValue: (1 << 0) | (1 << 1)), // CLOSE_SOURCE | CLOSE_TARGET
-                        0 /* G_PRIORITY_DEFAULT */, nil,
-                        { source, result, data in
-                            let read = Unmanaged<ClipboardTextRead>.fromOpaque(data!).takeRetainedValue()
-                            var paths: String?
-                            if let source {
-                                let output: UnsafeMutablePointer<GOutputStream> = UnsafeMutablePointer(OpaquePointer(source))
-                                if g_output_stream_splice_finish(output, result, nil) >= 0 {
-                                    let memory: UnsafeMutablePointer<GMemoryOutputStream> = UnsafeMutablePointer(OpaquePointer(source))
-                                    let size = Int(g_memory_output_stream_get_data_size(memory))
-                                    let bytes = g_memory_output_stream_get_data(memory)
-                                    let list = bytes.map { Data(bytes: $0, count: size) } ?? Data()
-                                    paths = LinuxClipboardPolicy.pastedPaths(uriList: list)
-                                }
-                            }
-                            guard let paths else {
-                                LinuxClipboardAdapter.readPlainText(read)
-                                return
-                            }
-                            LinuxClipboardAdapter.finish(read, text: paths)
-                        },
-                        Unmanaged.passRetained(read).toOpaque()
-                    )
-                    g_object_unref(output)
-                    g_object_unref(input)
                 },
                 Unmanaged.passRetained(read).toOpaque()
             )
         }
     }
 
-    /// The text form, as GDK converts it, unchanged: an owner that offers no file list offers literal text.
-    private static func readPlainText(_ read: ClipboardTextRead) {
-        gdk_clipboard_read_text_async(
-            read.clipboard, nil,
+    @MainActor private static func readPaths(_ read: ClipboardTextRead, input: UnsafeMutablePointer<GInputStream>) {
+        // The splice holds its own references to both streams until it completes.
+        let output = g_memory_output_stream_new_resizable()
+        g_output_stream_splice_async(
+            output, input,
+            GOutputStreamSpliceFlags(rawValue: (1 << 0) | (1 << 1)), // CLOSE_SOURCE | CLOSE_TARGET
+            0 /* G_PRIORITY_DEFAULT */, read.cancellable,
             { source, result, data in
                 let read = Unmanaged<ClipboardTextRead>.fromOpaque(data!).takeRetainedValue()
-                var text: String?
-                if let source, let raw = gdk_clipboard_read_text_finish(OpaquePointer(source), result, nil) {
-                    text = String(cString: raw)
-                    g_free(raw)
+                MainActor.assumeIsolated {
+                    let paths = source.flatMap { LinuxClipboardAdapter.splicePaths($0, result: result) }
+                    guard read.canContinue() else { return }
+                    guard let paths else { return LinuxClipboardAdapter.readPlainText(read) }
+                    read.finish(text: paths)
                 }
-                LinuxClipboardAdapter.finish(read, text: text)
+            },
+            Unmanaged.passRetained(read).toOpaque()
+        )
+        g_object_unref(output)
+    }
+
+    private static func splicePaths(_ source: UnsafeMutablePointer<GObject>, result: OpaquePointer?) -> String? {
+        let output: UnsafeMutablePointer<GOutputStream> = UnsafeMutablePointer(OpaquePointer(source))
+        guard g_output_stream_splice_finish(output, result, nil) >= 0 else { return nil }
+        let memory: UnsafeMutablePointer<GMemoryOutputStream> = UnsafeMutablePointer(OpaquePointer(source))
+        let size = Int(g_memory_output_stream_get_data_size(memory))
+        let bytes = g_memory_output_stream_get_data(memory)
+        return LinuxClipboardPolicy.pastedPaths(uriList: bytes.map { Data(bytes: $0, count: size) } ?? Data())
+    }
+
+    /// The text form, as GDK converts it, unchanged: an owner that offers no file list offers literal text.
+    @MainActor private static func readPlainText(_ read: ClipboardTextRead) {
+        gdk_clipboard_read_text_async(
+            read.clipboard, read.cancellable,
+            { source, result, data in
+                let read = Unmanaged<ClipboardTextRead>.fromOpaque(data!).takeRetainedValue()
+                MainActor.assumeIsolated {
+                    let raw = source.flatMap { gdk_clipboard_read_text_finish(OpaquePointer($0), result, nil) }
+                    defer { g_free(raw) }
+                    guard read.canContinue() else { return }
+                    let text = raw.map { String(cString: $0) }
+                    guard read.canContinue() else { return }
+                    // X11 can return empty text for an owner that only offers an image.
+                    if LinuxClipboardPolicy.readsFileList(read.kind), text?.isEmpty ?? true {
+                        LinuxClipboardAdapter.readImage(read)
+                    } else {
+                        read.finish(text: text)
+                    }
+                }
             },
             Unmanaged.passRetained(read).toOpaque()
         )
     }
 
-    private static func finish(_ read: ClipboardTextRead, text: String?) {
-        defer { read.retained.release() }
-        MainActor.assumeIsolated { read.finish(text: text) }
+    /// A paste with no usable file paths or decoded text asks the current owner for an image, staged like an
+    /// image-only paste. `pasteClipboard` routes image-only offers by GDK's cached formats, and on X11 those are
+    /// still empty for a few milliseconds after another client claims the clipboard, so an image copied just
+    /// before the paste arrives here. Only a local pane stages: the origin copy belongs to `pasteOffer`.
+    @MainActor private static func readImage(_ read: ClipboardTextRead) {
+        guard read.retained.surface.pasteOriginHost == nil else { return read.finish(text: nil) }
+        gdk_clipboard_read_texture_async(
+            read.clipboard, read.cancellable,
+            { source, result, data in
+                let read = Unmanaged<ClipboardTextRead>.fromOpaque(data!).takeRetainedValue()
+                MainActor.assumeIsolated {
+                    let texture = source.flatMap { gdk_clipboard_read_texture_finish(OpaquePointer($0), result, nil) }
+                    defer { if let texture { g_object_unref(UnsafeMutableRawPointer(texture)) } }
+                    guard read.canContinue() else { return }
+                    let png = texture.flatMap(LinuxPasteClipboard.png)
+                    guard read.canContinue() else { return }
+                    guard let png else { return read.finish(text: nil) }
+                    let surface = read.retained.surface
+                    surface.controller?.showToast("Saving pasted image…")
+                    DispatchQueue.global(qos: .userInitiated).async { @Sendable in
+                        let staged = LinuxPasteTransfer.text(PasteOffer(image: png), host: nil)
+                        runOnMain { MainActor.assumeIsolated {
+                            guard read.canContinue() else { return }
+                            switch staged {
+                            case .success(let path): read.finish(text: path)
+                            case .failure(let failure):
+                                read.retained.surface.controller?.showToast(failure.reason)
+                                read.finish(text: nil, error: failure.reason)
+                            }
+                        } }
+                    }
+                }
+            },
+            Unmanaged.passRetained(read).toOpaque()
+        )
     }
 
     /// GDK ownership: the bytes provider takes its own `GBytes` reference, the union takes over its child
@@ -248,6 +301,13 @@ final class ClipboardTextRead: @unchecked Sendable {
     let list: Bool
     /// Taken as the read starts: completing the request invalidates `state`.
     let kind: ClipboardRequestKind?
+    @MainActor fileprivate var fileOffer = false
+    @MainActor fileprivate private(set) var cancellable: UnsafeMutablePointer<GCancellable>?
+    @MainActor private var pasteDone: EnginePasteCompletion?
+    @MainActor private var deadline: DispatchTime?
+    @MainActor private var cancelTimer: (@MainActor () -> Void)?
+    @MainActor private var origin: String?
+    @MainActor private var finished = false
 
     init(clipboard: OpaquePointer, state: UnsafeMutableRawPointer?, retained: RetainedGhosttySurface, list: Bool) {
         g_object_ref(RAW(clipboard))
@@ -260,11 +320,72 @@ final class ClipboardTextRead: @unchecked Sendable {
 
     deinit { g_object_unref(RAW(clipboard)) }
 
+    @MainActor fileprivate func begin() -> Bool {
+        let surface = retained.surface
+        pasteDone = EnginePasteCompletion.take(for: surface)
+        guard kind == .paste else { return true }
+        if let refusal = surface.pasteRefusal {
+            finish(text: nil, error: refusal)
+            return false
+        }
+        origin = surface.pasteOriginHost
+        surface.pasteCopying = true
+        let now = DispatchTime.now()
+        let deadline = min(now + 10, pasteDone?.deadline ?? .distantFuture)
+        self.deadline = deadline
+        guard deadline > now else {
+            finish(text: nil, error: LinuxPasteTransfer.timeoutReason)
+            return false
+        }
+        cancellable = g_cancellable_new()
+        let delay = Double(deadline.uptimeNanoseconds - now.uptimeNanoseconds) / 1_000_000_000
+        cancelTimer = MainTimer.schedule(after: delay) {
+            self.finish(text: nil, error: LinuxPasteTransfer.timeoutReason)
+        }
+        return true
+    }
+
+    /// Async results may arrive even after cancellation. Check before accessing the retained surface.
+    @MainActor fileprivate func canContinue() -> Bool {
+        guard !finished else { return false }
+        guard let deadline else { return true }
+        if DispatchTime.now() >= deadline {
+            finish(text: nil, error: LinuxPasteTransfer.timeoutReason)
+            return false
+        }
+        if let refusal = retained.surface.pasteDestinationRefusal(origin: origin) {
+            finish(text: nil, error: refusal)
+            return false
+        }
+        return true
+    }
+
     /// Rereads the live surface, which a teardown during the GDK read frees. The orphaned request state
     /// then leaks: no C API frees it without the surface.
-    @MainActor func finish(text: String?) {
-        guard let surface = retained.surface.surface else { return }
-        let completion = LinuxClipboardPolicy.textCompletion(text: text, list: list)
+    @MainActor fileprivate func finish(text: String?, error: String? = nil) {
+        guard !finished else { return }
+        finished = true
+        cancelTimer?()
+        cancelTimer = nil
+        if let cancellable {
+            if error != nil { g_cancellable_cancel(cancellable) }
+            g_object_unref(cancellable)
+            self.cancellable = nil
+        }
+        let done = pasteDone?.finish
+        pasteDone = nil
+        if deadline != nil { retained.surface.pasteCopying = false }
+        defer { retained.release() }
+        guard let surface = retained.surface.surface else { done?("session closed"); return }
+        if let error {
+            ghostty_surface_deny_clipboard_request(surface, state)
+            done?(error)
+            return
+        }
+        // Engine-specific paste bindings do no transfer. Never insert this host's file paths on the origin.
+        let remoteFiles = fileOffer && retained.surface.pasteOriginHost != nil
+        let completion = LinuxClipboardPolicy.textCompletion(text: remoteFiles ? nil : text, list: list)
         LinuxClipboardAdapter.complete(surface, items: completion.items, available: completion.available, state: state)
+        done?(nil)
     }
 }

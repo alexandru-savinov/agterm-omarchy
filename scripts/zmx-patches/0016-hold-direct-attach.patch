@@ -1,0 +1,57 @@
+diff --git a/src/client.zig b/src/client.zig
+index 90d6203..eee84a5 100644
+--- a/src/client.zig
++++ b/src/client.zig
+@@ -38,6 +38,8 @@
+     shell: ?[]const u8 = null,
+     labels: ?[]const u8 = null,
+     tracked_env: ?[]const u8 = null,
++    /// Holds only a newly created daemon's child until the first terminal Init or this deadline.
++    hold_seconds: ?u32 = null,
+ };
+ 
+ pub const RunOptions = struct {
+@@ -160,6 +162,7 @@
+     if (has_daemon) {
+         var daemon = Daemon.init(io, &cfg, sesh, socket_path);
+         daemon.command = opts.command;
++        daemon.hold_seconds = opts.hold_seconds;
+         if (opts.cwd) |cwd| daemon.setCwd(cwd);
+         if (opts.shell) |sh| daemon.shell = sh;
+         const is_daemon_proc = try daemon.ensureSession(io);
+@@ -219,6 +222,7 @@
+                 var new_opts = opts;
+                 new_opts.labels = null;
+                 new_opts.command = null;
++                new_opts.hold_seconds = null;
+                 if (looper.cwd) |new_cwd| new_opts.cwd = new_cwd;
+                 return attachInner(alloc, io, target_name, new_opts, exit);
+             }
+diff --git a/src/main.zig b/src/main.zig
+index b941d65..cde2656 100644
+--- a/src/main.zig
++++ b/src/main.zig
+@@ -190,11 +190,11 @@
+         const env_str = try getTrackedEnvStr(gpa, env_keys, init.environ_map);
+         defer gpa.free(env_str);
+ 
++        const hold: ?u32 = if (lib_posix.getenv("ZMX_HOLD_UNTIL_ATTACH")) |value|
++            parseHoldSeconds(value) catch return printError(io, "invalid ZMX_HOLD_UNTIL_ATTACH \"{s}\": want whole seconds above zero", .{value})
++        else
++            null;
+         if (parsed.detached) {
+-            const hold: ?u32 = if (lib_posix.getenv("ZMX_HOLD_UNTIL_ATTACH")) |value|
+-                parseHoldSeconds(value) catch return printError(io, "invalid ZMX_HOLD_UNTIL_ATTACH \"{s}\": want whole seconds above zero", .{value})
+-            else
+-                null;
+             const created = zmx.create(gpa, io, parsed.session_name, .{
+                 .command = command,
+                 .cwd = cwd,
+@@ -212,6 +212,7 @@
+             .shell = shell_env,
+             .labels = parsed.labels,
+             .tracked_env = env_str,
++            .hold_seconds = hold,
+         }) catch |err| switch (err) {
+             error.Sighup, error.Sigint, error.Sigterm => return err,
+             error.IncompatibleProtocol => return printError(

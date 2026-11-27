@@ -6,6 +6,40 @@ investigation. Most entries come from the investigation in PR #968.
 
 Each entry separates a demonstrated cause from one that is only consistent with the evidence.
 
+## macOS companion membership undo during sync #550
+
+- **Symptom.** `aBatchUndoPublishesOnlyTheFinalGrouping` and
+  `aSoftCloseRemovesTheMemberUndoBringsItBackAndFinalizingSendsNothingMore` first fail at
+  `undoPendingClose()`, then report missing companion membership frames.
+  [Hosted run](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/45752839518/job/139684514416)
+- **Demonstrated cause.** A Dispatch deadline followed by a new actor task can finalize the pending close before the queued undo.
+  On a loaded Mac, the unchanged tests reproduced all six hosted issues.
+  Pristine v0.44.1 passed both tests under the same load.
+  A diagnostic build with the upstream `Task.sleep` clock armed both timers within 23 ms.
+  Both undo calls ran about 12 seconds later, ahead of finalization.
+- **Fix.** The pending-close timer resumes the original sleeping task on the default host and uses the
+  installed GLib scheduler in GTK.
+  The three-second grace interval and the independently scheduled companion membership flush retain their existing behavior.
+
+## GTK image paste during sync #550
+
+- **Symptom.** In `v0441`, `session.paste` returns success and the receiver still fails with
+  `AssertionError: image path was not inserted`. Earlier runs reproduced it on aarch64, and
+  `c12389cb` reproduced it on x86_64.
+  [Earlier aarch64 failure](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/45879542222/job/140115174955)
+  [x86_64 failure](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/45997323660)
+- **Hosted reproduction.** Delaying the real X11 clipboard owner's replies left GDK's format cache empty at paste time,
+  which selected the engine route. The owner refused the URI list and GDK completed the text read with a zero-length string.
+  The engine submitted that empty string and replied successfully without asking for the texture.
+  The terminal receiver recorded only the subsequent newline.
+  [Hosted trace](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/46006264954)
+- **Fix.** The engine tries the texture when a paste produces neither usable file paths nor nonempty text.
+  The same ten-second deadline covers clipboard reads and image staging, and the control reply follows engine submission.
+  Unsafe-paste confirmation still controls whether the engine inserts text that requires consent.
+  The hosted replay passed all 12 attempts on each architecture with the fix.
+  One ordinary aarch64 attempt also hit an empty format cache and successfully pasted the image via the fallback.
+  [Hosted validation](https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/46008701519)
+
 ## Omarchy GTK AT-SPI smoke suite (#527)
 
 The full GitHub Actions suite permits one extra process per exact architecture, scenario and final assertion
@@ -92,7 +126,10 @@ Targeted runs execute each scenario once so they can reproduce these failures di
   as before. Test: `a DA query the daemon answers is not forwarded until a client sent Init` in zmx's
   `loop.zig`.
 
-### `SessionHostServerTests.paneAttachAfterTheCreatedCommandEndedStartsNoShell`
+### `SessionHostServerTests.aFastCommandsOutputReachesThePaneAndNoShellStarts`
+
+Named `paneAttachAfterTheCreatedCommandEndedStartsNoShell` in the runs below, when the command ran before the
+pane attached; zmx patch 0013 now holds it until that attach, and the test keeps the pty drain.
 
 - **Symptom.** `the pane's attach to an ended command kept running`; the stall report shows `waitpid` 0 and
   `p_stat` SRUN after about 3 s, an empty `zmx list` and host log.
@@ -125,6 +162,19 @@ Targeted runs execute each scenario once so they can reproduce these failures di
   was opened with, `ServerActions` reads the store's registry, and the test harness gives each server its own.
   The app keeps `.shared`. Test: `aFinishedAskIsRetainedInTheStoresRegistryOnly`.
 
+### `ServerStreamsTests.anExpiredAskIsNeverHandedToAConnectedPresenter`
+
+- **Symptom.** `request == nil` fails: the presenter receives the expired ask as an `.askRequest` with an offer.
+- **Runs.** Job 136089544313 (run 44676503256, Linux, PR #1063), in a start-of-run burst where tests took about 32 s.
+- **Cause, demonstrated.** The test set the deadline from `Date()` while the harness freezes `streams.now` at
+  `jobClock`. `openRemoteAsk` checks expiry on the real clock and refuses the ask, so `ServerActions.openAsk`
+  holds it and arms the deadline. A lead report arriving after the open runs `offerPendingInteractions` on the
+  frozen clock, which reads the deadline as ahead once the test started more than 1 s after the harness, and
+  offers the ask before the 50 ms expiry task runs.
+- **Evidence.** A 2 s sleep before the open plus an explicit `onLeadReport` call after it fails at the same
+  assertion locally; either alone passes.
+- **Fix.** The deadline is `harness.jobClock` minus 1 s, expired on both clocks.
+
 ### `ServerStreamsTests.aProgramOpenedOfflineIsOfferedWithATokenThatAClaimMustCarry`
 
 - **Symptom.** The slot owner is nil and the claim is refused (`job not claimable`).
@@ -138,6 +188,24 @@ Targeted runs execute each scenario once so they can reproduce these failures di
 - **Fix.** `ServerActions.init` takes the `OverlayJobs`; the harness freezes its clock at construction and
   exposes that instant as `jobClock`. `offeredPagesAndJobsReadBackTheirWindows` now expects the deadline to equal
   `jobClock` plus the launch window, with no wall-clock bound.
+
+### `ServerStreamsTests.aPageWithdrawnFromAStallingViewerIsOwnedByTheViewerItIsOfferedTo`
+
+- **Symptom.** After `withdrawRemotePage` the waiting presenter never gets `.pageRequest` (`ServerStreamsTests.swift`
+  `offered != nil`) and never owns the slot; the test fails after about 200 s on its two 60 s waits.
+- **Runs.** Job 135162949010 (run 44406458047, macOS, PR #1051). Not reproduced locally in 20 isolated runs, under
+  `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`, or with the main actor blocked 25 or 95 s around the withdraw.
+- **Cause, inferred.** The markdown page was opened with a claim deadline of `Date()` plus
+  `AppStore.pageClaimWindow` (30 s), and claims and `ServerStreams.schedulePageClaimExpiry` used `Date()` too;
+  only re-offers read `streams.now`. Nobody claims the page in this test, so a start-of-run queue of more
+  than 30 s between the open and the withdraw lets the sweep remove it, and the withdraw then returns at its
+  first guard with nothing to re-offer. Suite tests with two awaits finished at about 82 s in that run. Blocking
+  the main actor cannot reproduce it, because the expiry Task needs the main actor too; the slot's state at the
+  withdraw was not logged, so expiry is consistent with the failure, not shown to cause it.
+- **Fix.** `ServerStreams` opens, claims and expires a page on its `now()`; the harness sets `streams.now` to
+  `jobClock`, as it does for overlay jobs. Both stalling-viewer tests connect the presenter before the stalling
+  leader opens its work, and the withdraw test requires an owner before withdrawing. Test:
+  `anUnclaimedPagesDeadlineFollowsTheServersClock`, red on the old clocks.
 
 ### `ServerLifecycleTests.aShellThatExitsClosesItsSession`
 
@@ -222,6 +290,30 @@ Targeted runs execute each scenario once so they can reproduce these failures di
   parked `loop.next()` on the pool through `Task.detached`, which deadlocked the one-thread run; it runs on a
   plain thread now.
 
+### `ServerActionsRestartTests`: restarts answer "could not be verified in time"
+
+- **Symptom.** Six restart cases that wait for the new shell fail together on the macOS and Linux core jobs:
+  `reply.result?.restart` is nil and the error says the replacement could not be verified in time. Each ran 29
+  to 64 s against the fixture's 5 s reply window.
+- **Runs.** Jobs 135529448616 and 135529448536 (run 44515214921, PR #1057), on the first push.
+- **Cause, inferred from timing.** Suites with nothing to wait on took 51 to 57 s in the same run, the start-of-run
+  burst in the entries above. The reply window (5 s) and the follow window (10 s) count from the launch, and the
+  watch that confirms the shell is a main-actor task, so a stall between the launch and its first lookup can
+  outlast either. Blocking the main actor 6 s there gives the same error locally with those windows and passes with the
+  fix. No actor-hop timestamps were recorded on CI.
+- **Fix.** The harness waits are ceilings, 120 s for the reply and 180 s for the follow, and the restart tests'
+  `eventually` waits 120 s. Every case that expects a timeout or a window end sets its own short windows. The
+  parked-session case takes a 600 s undo grace, so the 3 s default cannot finalize it mid-burst.
+
+### Linux core tests: apt cannot reach the Ubuntu archive
+
+- **Symptom.** The `Install jq, zsh, fish and tcsh` step exits 100 after `Could not connect to archive.ubuntu.com:80
+  ... connection timed out` and `E: Unable to locate package jq`, before any test runs.
+- **Runs.** Job 135549398259 and its rerun 135557548754 (run 44521018331, PR #1057).
+- **Cause, demonstrated.** The archive was down: `archive.ubuntu.com` timed out from a Mac outside GitHub's network
+  at the same time, and answered again about 25 minutes after the first failure.
+- **Fix.** None in the repository. Rerun the failed job once the archive answers.
+
 ### Linux test process killed by SIGPIPE
 
 - **Symptom.** The Linux core tests job ends with signal 13 about 6 s after `swift test` starts, before any test
@@ -273,7 +365,7 @@ Targeted runs execute each scenario once so they can reproduce these failures di
 - **Runs.** One local `make test-app` on 2026-11-17, load average about 21 at the time.
 - **Cause, not established.** Ten isolated runs passed in 0.19-0.28 s, and ten more passed under 20 busy-loop
   processes (load average 113), so CPU contention alone did not reproduce it.
-- **Fix.** None yet.
+- **Fix.** The test went with the listing: the quit capture no longer runs `zmx list` (#1042).
 
 ### macOS watchdog hang with no test started
 
@@ -303,7 +395,15 @@ Targeted runs execute each scenario once so they can reproduce these failures di
   neighbours, with `page not claimable` and `end of stream`; the runs took 111 to 116 s.
   Cause unresolved. [Inference] A page claim expiring on the real clock (`AppStore.pageClaimWindow`,
   enforced by `ServerStreams.schedulePageClaimExpiry`) would produce these messages, and so would a defect the
-  branch fixed before the merge. The frozen job clock does not cover page claims.
+  branch fixed before the merge. That real-clock gap is closed: the harness's frozen clock now covers page
+  claims (see `aPageWithdrawnFromAStallingViewerIsOwnedByTheViewerItIsOfferedTo` above).
+  Both before #1051 and during runner stalls, run 43831232607 (#1016) failed `everyPageKindOpensInEveryLinkMode`
+  (`.overlay50`, `.overlay`, `.browser`: close answered `no overlay` after the page request arrived) and
+  `textCommandsReachThePresenterAndAnswerWithItsResult` (the text node gone, the viewer received no page command),
+  and run 43866829158 (#1021) failed `everyPageKindOpensInEveryLinkMode` (`.overlay75`, `no overlay`),
+  `aClickReplacesAHiddenClickedPageOnlyOnceTheNewFileChecksOut` (slot job nil) and
+  `aHeldMarkdownPageOffersItsGrantOnlyToAPresenterThatFollowsLinks` (`page not claimable`) after 117.8 s.
+  [Inference] An unclaimed page expiring on the real clock fits both; the page offer time was not measured.
 - **`ServerLifecycleTests.aFishPaneLoadsTheShellIntegration`** (job 129484718181), at
   `ServerLifecycleTests.swift:191`: after 15 s the screen ends at the typed command with no output and no new
   prompt, so fish had not finished the command. One occurrence; cause unresolved. The test is unchanged since
@@ -317,9 +417,14 @@ Targeted runs execute each scenario once so they can reproduce these failures di
 ### `TextPageRenderingTests.testANearCapFileRendersInBoundedTime`
 
 - **Symptom.** `XCTAssertLessThan failed: ("11.543139667 seconds") is not less than ("10.0 seconds") - big.diff`.
-- **Runs.** 42883406544.
+  Locally: `("41.428951125000005 seconds") is not less than ("30.0 seconds") - colored.log`.
+- **Runs.** 42883406544; one of three initial local full `make test-app` runs, 2026-11-17.
 - **Cause, unresolved at stage level.** The timer covers writing and opening the file, escaping, WebContent
-  startup, rendering and polling, and no stage was measured on the runner.
+  startup, rendering and polling. Three traced local full runs did not reproduce the stall: colored.log matched in
+  1.66-1.79 s, and its script took under 0.5 s from reading the source to ready (ANSI parse about 70 ms, the DOM for
+  399456 runs built in about 270 ms). The JavaScript call that returned the expected length took about 1.4 s.
+  `waitForScript` checks its deadline after a nonmatching evaluation returns; the separate elapsed-time assertion
+  catches a match that arrives after 30 s.
 - **Fix.** The per-file bound and the page wait are 30 s, a coarse end-to-end ceiling for a pathological slowdown
   rather than a latency target.
 
@@ -390,8 +495,9 @@ Causes not found, left as backlog items with their capture steps:
 
 - `docs/backlog/hosted-tests-hang-in-ci-until-job-timeout.md`
 - `docs/backlog/fish-seam-payload-test-times-out-under-load.md`
-- `docs/backlog/exit-capture-test-misses-a-120-ms-listing-in-full-runs.md`
 - `docs/backlog/session-host-fixture-start-stalls-before-pidfile.md`
+- `docs/backlog/session-host-sometimes-creates-an-app-rooted-daemon.md`
+- `docs/backlog/overlay-job-cancel-tests-fail-during-ci-stall.md`
 - `docs/backlog/control-calls-stall-under-title-flood-on-ci.md`, the `spam-8` stall, which the retired case no
   longer exercises
 
@@ -404,3 +510,48 @@ Causes not found, left as backlog items with their capture steps:
   exit other than a completed prebuild.
 - The plain fish login shell step runs `test-without-building` instead of `xcodebuild test`, which rebuilt the
   app for one test.
+
+## Linux release provisioning and runtime cache
+
+- **Symptom.** Release run `45680572680` stops emitting output after SwiftLint setup and before the Zig checksum.
+  It is cancelled after more than 19 minutes without a download result; no tests or publication start.
+  A fresh tag-ref dispatch, `45684417158`, gets past provisioning but misses the runtime cache used by branch CI.
+- **Cause, demonstrated for the cache miss.** The release container installs `zstd`, while branch CI uses gzip.
+  The cache action includes compression in its version, independently of the explicit cache key.
+  The stored branch cache version is `bca0266e2bfc7f16831cdddd75ddf5031bd1cd7621c15dc8f6afc68b932961b3`,
+  exactly the SHA-256 of `agterm-linux/vendor/ghostty|agterm-linux/vendor/zmx|gzip|1.0`.
+  With `zstd-without-long` the same paths produce a different version and cannot restore that entry.
+  Branch run `45670569018` logs extraction of `cache.tgz` for the identical explicit runtime key.
+  The download stall's network cause is unconfirmed; it is separate from this deterministic cache mismatch.
+- **Fix.** Keep the first release container on branch CI's gzip path; only the separate Arch job needs zstd.
+  Bound the Zig download's connection, total time and low-speed interval, with two retries and unchanged SHA-256 verification.
+  Allow 75 minutes for provisioning, cold builds and the full GTK suite, matching the Linux app CI budget.
+  Dispatch the maintained workflow against the existing tag to apply infrastructure fixes without moving its source.
+
+## Linux Live command exit races
+
+- **Symptoms.** Release run `45688798218` receives a valid startup DSR reply but retains only the held-exit prompt.
+  A separate held-command scenario gets `failed to read surface buffer` while polling across command exit.
+- **Causes, demonstrated.** libghostty's POSIX reader returns on `POLLHUP` even when the same event has `POLLIN`.
+  A fast child's unread tail is discarded.
+  Separately, a synchronous `zmx screen` can outlive its daemon while the UI's cached lead still routes reads to it.
+  The held-exit callback that clears that lead cannot run while the control handler waits.
+- **Reproduction.** `pty_hangup_fixture.c` waits for a real readable PTY hangup without fabricating event flags or bytes.
+  The existing app fails on its first startup query; replacing only libghostty retains the marker before the exit prompt.
+  The held-read fixture delays the real screen invocation until the gated command's daemon removes its socket.
+  The existing app returns the same control error as CI.
+- **Fixes.** Drain `POLLIN` before treating `POLLHUP` as EOF.
+  Retire the cached lead only for an uncovered, non-reconnecting held pane whose daemon socket is confirmed gone.
+  Text and cursor reads then use its retained terminal, as after the queued held-exit callback.
+  A real daemon stopped with `SIGSTOP` retains its socket, read error and lead; the fixture always resumes it.
+- **Validation.** Both deterministic regressions pass, including text-first and cursor-first exit reads.
+  Native restart/rendering/teardown, real SSH takeover and two-viewer scenarios pass.
+  A process from published v0.43.0 keeps its PID and accepts input after the candidate reconnects.
+
+### Local test-run constraints
+
+An unconstrained parallel core run delayed main-actor fixtures by 77–92 seconds and exceeded undo-grace and catalog-opening windows.
+The affected 15 tests pass in isolation; all 7,190 pass with the release workflow's `swift test --no-parallel` command.
+No core code or assertions were changed.
+Linux command-process fixtures also reject overlong Unix socket paths with `.pathTooLong`.
+Use the established short persistent `TMPDIR=/validation/tmp` container path; all 650 Linux tests pass there.

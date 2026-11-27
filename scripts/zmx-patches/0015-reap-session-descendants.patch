@@ -1,0 +1,198 @@
+diff --git a/src/child_reaper.zig b/src/child_reaper.zig
+new file mode 100644
+index 0000000..7830c11
+--- /dev/null
++++ b/src/child_reaper.zig
+@@ -0,0 +1,61 @@
++const std = @import("std");
++const linux = std.os.linux;
++const lib_posix = @import("posix.zig");
++const role = @import("role.zig");
++
++/// Start before forkpty so an orphaned session descendant is adopted by the daemon, even in a
++/// container whose PID 1 never waits for adopted children.
++pub fn becomeSubreaper() void {
++    const rc = linux.prctl(@backingInt(linux.PR.SET_CHILD_SUBREAPER), 1, 0, 0, 0);
++    const err = linux.errno(rc);
++    if (err != .SUCCESS) std.log.warn("cannot adopt orphaned session children: {s}", .{@tagName(err)});
++}
++
++/// Watch SIGCHLD after forkpty so the shell retains its original signal mask.
++pub fn openSignalFd() !lib_posix.fd_t {
++    var mask = lib_posix.sigemptyset();
++    std.posix.sigaddset(&mask, .CHLD);
++    const fd = try std.posix.signalfd(-1, &mask, linux.SFD.CLOEXEC | linux.SFD.NONBLOCK);
++    std.posix.sigprocmask(linux.SIG.BLOCK, &mask, null);
++    return fd;
++}
++
++pub fn handleSignal(fd: lib_posix.fd_t, shell_pid: i32) void {
++    var event: linux.signalfd_siginfo = undefined;
++    _ = lib_posix.read(fd, std.mem.asBytes(&event)) catch return;
++    reapExited(shell_pid);
++}
++
++/// Reap exited orphans during the session. Keep the shell's PID reserved until the last
++/// process-group signal has been sent, even if the shell has already exited.
++pub fn reapExited(shell_pid: i32) void {
++    while (true) {
++        var info = std.mem.zeroes(linux.siginfo_t);
++        const rc = linux.waitid(.ALL, 0, &info, linux.W.EXITED | linux.W.NOHANG | linux.W.NOWAIT, null);
++        switch (linux.errno(rc)) {
++            .SUCCESS => {},
++            .INTR => continue,
++            else => return,
++        }
++        const pid = info.fields.common.first.piduid.pid;
++        if (pid == 0 or pid == shell_pid) return;
++        _ = lib_posix.waitpid(pid, 0);
++    }
++}
++
++/// After SIGKILL and the shell wait, collect the killed workers in the same group. Bound the
++/// wait in case a worker cannot finish exiting, and avoid waiting on jobs outside the group.
++pub fn reapGroup(shell_pid: i32, io: std.Io) void {
++    const deadline = role.nowMs() + 250;
++    while (role.nowMs() < deadline) {
++        var status: i32 = undefined;
++        const rc = linux.waitpid(-shell_pid, &status, linux.W.NOHANG);
++        switch (linux.errno(rc)) {
++            .SUCCESS => if (rc == 0) {
++                std.Io.sleep(io, std.Io.Duration.fromMilliseconds(5), .awake) catch return;
++            },
++            .INTR => continue,
++            else => return,
++        }
++    }
++}
+diff --git a/src/daemonize.zig b/src/daemonize.zig
+index b334ed7..29868a1 100644
+--- a/src/daemonize.zig
++++ b/src/daemonize.zig
+@@ -1,4 +1,6 @@
+ const std = @import("std");
++const builtin = @import("builtin");
++const child_reaper = @import("child_reaper.zig");
+ const lib_posix = @import("posix.zig");
+ const Cfg = @import("cfg.zig");
+ const socket = @import("socket.zig");
+@@ -299,6 +301,7 @@ pub fn daemonize(sesh_name: []const u8, cmd: Cmd, keep_fds_open: []i32, hold: bo
+         }
+     }
+ 
++    if (builtin.os.tag == .linux) child_reaper.becomeSubreaper();
+     return spawnPty(sesh_name, cmd, term_size, hold);
+ }
+ 
+diff --git a/src/loop.zig b/src/loop.zig
+index 278cd38..bf864ef 100644
+--- a/src/loop.zig
++++ b/src/loop.zig
+@@ -10,6 +10,7 @@ const lib_posix = @import("posix.zig");
+ const exit_record = @import("exit_record.zig");
+ const Cfg = @import("cfg.zig");
+ const signal = @import("signal.zig");
++const child_reaper = @import("child_reaper.zig");
+ const assert = std.debug.assert;
+ const daemonize = @import("daemonize.zig");
+ const builtin = @import("builtin");
+@@ -434,11 +435,19 @@ const EXIT_DRAIN_MS: i64 = 2000;
+ 
+ /// dameonLoop is what the daemon runs to send and receive ipc commands from its corresponding
+ /// clients.  It uses poll() as its non-blocking mechanism.
+-fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_fd: lib_posix.socket_t, pty_fd: i32) !void {
++fn daemonLoop(
++    daemon: *Daemon,
++    gpa: std.mem.Allocator,
++    io: std.Io,
++    server_sock_fd: lib_posix.socket_t,
++    pty_fd: i32,
++    child_signal_fd: lib_posix.fd_t,
++) !void {
+     std.log.info("daemon started session={s} pty_fd={d}", .{ daemon.session_name, pty_fd });
+ 
+     try signal.openSignalPipe();
+     signal.installWakeHandler(@backingInt(lib_posix.SIG.TERM));
++    if (builtin.os.tag == .linux and child_signal_fd >= 0) child_reaper.reapExited(daemon.pid);
+     var poll_fds = try std.ArrayList(lib_posix.pollfd).initCapacity(gpa, 8);
+     defer poll_fds.deinit(gpa);
+ 
+@@ -503,6 +512,9 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+ 
+         try poll_fds.append(gpa, .{ .fd = signal.sig_pipe[0], .events = lib_posix.POLL.IN, .revents = 0 });
+ 
++        const child_signal_index = poll_fds.items.len;
++        try poll_fds.append(gpa, .{ .fd = child_signal_fd, .events = lib_posix.POLL.IN, .revents = 0 });
++        const first_client_index = poll_fds.items.len;
+         for (daemon.clients.items) |client| {
+             var events: i16 = lib_posix.POLL.IN;
+             if (client.has_pending_output) {
+@@ -534,6 +546,10 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+             break :daemon_loop;
+         }
+ 
++        if (builtin.os.tag == .linux and poll_fds.items[child_signal_index].revents & lib_posix.POLL.IN != 0) {
++            child_reaper.handleSignal(child_signal_fd, daemon.pid);
++        }
++
+         if (poll_fds.items[0].revents & (lib_posix.POLL.ERR | lib_posix.POLL.HUP | lib_posix.POLL.NVAL) != 0) {
+             std.log.err("server socket error revents={d}", .{poll_fds.items[0].revents});
+             break :daemon_loop;
+@@ -639,10 +655,8 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+         }
+ 
+         var i: usize = daemon.clients.items.len;
+-        // Only iterate over clients that were present when poll_fds was constructed
+-        // poll_fds contains [server, pty, sig_pipe, client0, client1, ...]
+-        // So number of clients in poll_fds is poll_fds.items.len - 3
+-        const num_polled_clients = poll_fds.items.len - 3;
++        // Only iterate over clients that were present when poll_fds was constructed.
++        const num_polled_clients = poll_fds.items.len - first_client_index;
+         if (i > num_polled_clients) {
+             // If we have more clients than polled (i.e. we just accepted one), start from the
+             // polled ones
+@@ -652,7 +666,7 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+         clients_loop: while (i > 0) {
+             i -= 1;
+             const client = daemon.clients.items[i];
+-            const revents = poll_fds.items[i + 3].revents;
++            const revents = poll_fds.items[first_client_index + i].revents;
+ 
+             if (revents & lib_posix.POLL.IN != 0) {
+                 const n = client.read_buf.read(client.socket_fd) catch |err| {
+@@ -1110,6 +1124,11 @@ pub const Daemon = struct {
+         // =======
+ 
+         self.pid = pty_info.pid;
++        const child_signal_fd = if (builtin.os.tag == .linux) child_reaper.openSignalFd() catch |err| blk: {
++            std.log.warn("cannot monitor orphaned session children: {s}", .{@errorName(err)});
++            break :blk -1;
++        } else -1;
++        defer if (child_signal_fd >= 0) lib_posix.close(child_signal_fd);
+         if (self.hold_seconds) |seconds| {
+             self.hold_fd = pty_info.hold_fd;
+             self.hold_deadline_ms = role.nowMs() + @as(i64, seconds) * 1000;
+@@ -1168,9 +1187,13 @@ pub const Daemon = struct {
+             self.deinit(gpa);
+             lib_posix.close(pty_info.master_fd);
+             _ = lib_posix.waitpid(self.pid, 0);
++            if (builtin.os.tag == .linux) {
++                child_reaper.reapGroup(self.pid, new_io);
++                child_reaper.reapExited(0);
++            }
+         }
+ 
+-        try daemonLoop(self, gpa, new_io, server_sock_fd, pty_info.master_fd);
++        try daemonLoop(self, gpa, new_io, server_sock_fd, pty_info.master_fd, child_signal_fd);
+         std.log.info("daemon loop shutdown", .{});
+         return true;
+     }
+@@ -2747,7 +2770,7 @@ const EndingSession = struct {
+     fn runDaemon(self: *EndingSession) void {
+         var threaded: std.Io.Threaded = .init_single_threaded;
+         defer threaded.deinit();
+-        daemonLoop(&self.daemon, self.alloc, threaded.io(), self.server_fd, self.shell_pty[0]) catch |err| {
++        daemonLoop(&self.daemon, self.alloc, threaded.io(), self.server_fd, self.shell_pty[0], -1) catch |err| {
+             std.debug.panic("daemonLoop failed: {s}", .{@errorName(err)});
+         };
+         // as run's teardown does: the socket goes before the clients

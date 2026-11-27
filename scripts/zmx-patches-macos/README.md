@@ -26,6 +26,12 @@ launch path can reset the daemons a v1 client cannot reach; `scripts/setup.sh` s
   a client's Init. On the shell's EOF `0008` sets `child_exited` beside `0007`'s drain deadline instead of
   stopping the daemon at once. `scripts/setup-zmx-linux.sh` builds this set for agterm-server's musl targets.
 
+- `0010-hold-until-attached.patch` ports v0.44.1's bounded program-start hold onto v0.8.1.
+  An opted-in attach or detached create parks the new child until the first leader Init sizes its PTY,
+  or until the hold expires.
+  Killing the daemon closes the gate without starting the program.
+  The daemon removes `ZMX_HOLD_UNTIL_ATTACH` before running the user's command.
+
 - `ghostty/0001-formatter-unstyled-blanks.patch` fixes the snapshot a re-attach replays. The formatter
   wrote cells a program skipped with a cursor move as spaces under the previous cell's style, so a gap
   after a colored run came back painted; a skipped cell now closes the style first. Upstream fixed it in

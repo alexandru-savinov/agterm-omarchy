@@ -1,0 +1,209 @@
+diff --git a/src/daemonize.zig b/src/daemonize.zig
+index d3bd037..b002aab 100644
+--- a/src/daemonize.zig
++++ b/src/daemonize.zig
+@@ -77,15 +77,26 @@ fn exec(sesh_name: []const u8, cmd: Cmd) !noreturn {
+     _ = cross.c.unsetenv("ZMX_MANAGED_CLAIM");
+     // the record is the daemon's to write; a nested session must not write its own exit into it
+     _ = cross.c.unsetenv("ZMX_EXIT_FILE");
++    _ = cross.c.unsetenv("ZMX_HOLD_UNTIL_ATTACH");
+ 
+     const err = lib_posix.execvpeZ(cmd.file, cmd.argv_ptr, std.c.environ);
+     std.log.err("execvpe failed: cmd={s} err={s}", .{ cmd.file, @errorName(err) });
+     lib_posix.exit(1);
+ }
+ 
++/// A gate closed without a byte means the daemon cancelled or went away.
++fn awaitRelease(gate: [2]lib_posix.fd_t) void {
++    lib_posix.close(gate[1]);
++    var byte: [1]u8 = undefined;
++    const n = lib_posix.read(gate[0], &byte) catch 0;
++    if (n != 1) lib_posix.exit(1);
++    lib_posix.close(gate[0]);
++}
++
+ pub const PtyInfo = struct {
+     master_fd: c_int = undefined,
+     pid: c_int = undefined,
++    hold_fd: c_int = -1,
+ };
+ 
+ /// spawnPty runs forkpty() and executes the shell or shell command the user
+@@ -93,7 +104,7 @@ pub const PtyInfo = struct {
+ ///
+ /// This is the second fork in the double-fork technique explained in the
+ /// daemonize() comment.
+-pub fn spawnPty(sesh_name: []const u8, cmd: Cmd, size: ipc.Resize) !PtyInfo {
++pub fn spawnPty(sesh_name: []const u8, cmd: Cmd, size: ipc.Resize, hold: bool) !PtyInfo {
+     var ws: cross.c.struct_winsize = .{
+         .ws_row = size.rows,
+         .ws_col = size.cols,
+@@ -101,13 +112,19 @@ pub fn spawnPty(sesh_name: []const u8, cmd: Cmd, size: ipc.Resize) !PtyInfo {
+         .ws_ypixel = size.ypixel,
+     };
+ 
++    const gate = if (hold) try lib_posix.pipe2(.{ .CLOEXEC = true }) else null;
+     var master_fd: c_int = undefined;
+     const pid = cross.forkpty(&master_fd, null, null, &ws);
+     if (pid < 0) {
++        if (gate) |fds| {
++            lib_posix.close(fds[0]);
++            lib_posix.close(fds[1]);
++        }
+         return error.ForkPtyFailed;
+     }
+ 
+     if (pid == 0) { // child pid code path
++        if (gate) |fds| awaitRelease(fds);
+         // In the forked child, ANY error must exit rather than propagate:
+         // a returned error falls through to the parent code path below,
+         // running a second daemon on the same socket (or worse, hitting
+@@ -121,6 +138,10 @@ pub fn spawnPty(sesh_name: []const u8, cmd: Cmd, size: ipc.Resize) !PtyInfo {
+     // master pid code path
+     std.log.info("pty spawned session={s} pid={d}", .{ sesh_name, pid });
+ 
++    if (gate) |fds| lib_posix.close(fds[0]);
++    errdefer if (gate) |fds| lib_posix.close(fds[1]);
++    errdefer lib_posix.close(master_fd);
++
+     // make pty non-blocking
+     const flags = try lib_posix.fcntl(master_fd, lib_posix.F.GETFL, 0);
+     _ = try lib_posix.fcntl(master_fd, lib_posix.F.SETFL, flags | lib_posix.O_NONBLOCK);
+@@ -128,6 +149,7 @@ pub fn spawnPty(sesh_name: []const u8, cmd: Cmd, size: ipc.Resize) !PtyInfo {
+     return .{
+         .master_fd = master_fd,
+         .pid = pid,
++        .hold_fd = if (gate) |fds| fds[1] else -1,
+     };
+ }
+ 
+@@ -174,7 +196,7 @@ pub fn spawnPty(sesh_name: []const u8, cmd: Cmd, size: ipc.Resize) !PtyInfo {
+ ///                 ✝          │ PID≠SID → can't get a tty
+ ///                            ▼
+ ///                          DAEMON ✓
+-pub fn daemonize(sesh_name: []const u8, cmd: Cmd, keep_fds_open: []i32) !PtyInfo {
++pub fn daemonize(sesh_name: []const u8, cmd: Cmd, keep_fds_open: []i32, hold: bool) !PtyInfo {
+     // creates the daemon
+     const pid = try lib_posix.fork();
+     assert(pid != -1);
+@@ -242,5 +264,5 @@ pub fn daemonize(sesh_name: []const u8, cmd: Cmd, keep_fds_open: []i32) !PtyInfo
+         }
+     }
+ 
+-    return spawnPty(sesh_name, cmd, term_size);
++    return spawnPty(sesh_name, cmd, term_size, hold);
+ }
+diff --git a/src/loop.zig b/src/loop.zig
+index 6c50bb2..18a5ea2 100644
+--- a/src/loop.zig
++++ b/src/loop.zig
+@@ -389,6 +389,10 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+     var drain_deadline: ?i64 = null;
+ 
+     daemon_loop: while (daemon.running) {
++        // A kill or SIGTERM delivered with the timeout was handled by the previous poll.
++        if (daemon.hold_deadline_ms) |deadline| {
++            if (role.nowMs() >= deadline) daemon.releaseHold();
++        }
+         if (drain_deadline) |deadline| {
+             if (!daemon.hasUnsentOutput()) break :daemon_loop;
+             if (role.nowMs() >= deadline) {
+@@ -440,10 +444,14 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
+             });
+         }
+ 
+-        const poll_timeout: i32 = if (drain_deadline) |deadline|
++        const drain_timeout: i32 = if (drain_deadline) |deadline|
+             @intCast(std.math.clamp(deadline - role.nowMs(), 0, exitDrainMs()))
+         else
+             -1;
++        const poll_timeout: i32 = if (daemon.hold_deadline_ms) |deadline| blk: {
++            const hold_timeout: i32 = @intCast(std.math.clamp(deadline - role.nowMs(), 0, std.math.maxInt(i32)));
++            break :blk if (drain_timeout < 0) hold_timeout else @min(hold_timeout, drain_timeout);
++        } else drain_timeout;
+         const prepared_eof_batch: ?*EofRequestBatch = if (builtin.is_test) EofRequestBatch.prepareCurrent() else null;
+         _ = try lib_posix.poll(poll_fds.items, poll_timeout);
+         if (builtin.is_test) {
+@@ -758,6 +766,9 @@ pub const Daemon = struct {
+     task_ended_at: ?u64 = null, // timestamp when task exited
+     pty_fd: i32 = -1, // set by daemonLoop so handleRun can probe the foreground process
+     shell: []const u8 = "/bin/sh",
++    hold_seconds: ?u32 = null,
++    hold_fd: i32 = -1,
++    hold_deadline_ms: ?i64 = null,
+ 
+     /// Create a Daemon. Caller is responsible for freeing all variables passed
+     /// into the init fn.
+@@ -770,6 +781,20 @@ pub const Daemon = struct {
+         };
+     }
+ 
++    fn releaseHold(self: *Daemon) void {
++        if (self.hold_fd < 0) return;
++        _ = lib_posix.write(self.hold_fd, "1") catch |err| {
++            std.log.warn("held child release failed err={s}", .{@errorName(err)});
++        };
++        self.cancelHold();
++    }
++
++    fn cancelHold(self: *Daemon) void {
++        if (self.hold_fd >= 0) lib_posix.close(self.hold_fd);
++        self.hold_fd = -1;
++        self.hold_deadline_ms = null;
++    }
++
+     pub fn deinit(self: *Daemon, gpa: std.mem.Allocator) void {
+         self.clients.deinit(gpa);
+         var it = self.labels.iterator();
+@@ -927,6 +952,7 @@ pub const Daemon = struct {
+             sesh_name,
+             cmd,
+             &keep_fds_open,
++            self.hold_seconds != null,
+         ) catch |err| {
+             switch (err) {
+                 error.IsClientProc => {
+@@ -953,6 +979,11 @@ pub const Daemon = struct {
+         // =======
+ 
+         self.pid = pty_info.pid;
++        if (self.hold_seconds) |seconds| {
++            self.hold_fd = pty_info.hold_fd;
++            self.hold_deadline_ms = role.nowMs() + @as(i64, seconds) * 1000;
++        }
++        defer self.cancelHold();
+ 
+         var threaded: std.Io.Threaded = .init_single_threaded;
+         defer threaded.deinit();
+@@ -1001,6 +1032,7 @@ pub const Daemon = struct {
+             dir.deleteFile(new_io, sesh_name) catch |err| {
+                 std.log.warn("failed to delete socket file err={s}", .{@errorName(err)});
+             };
++            self.cancelHold();
+             self.handleKill(gpa, new_io);
+             self.deinit(gpa);
+             lib_posix.close(pty_info.master_fd);
+@@ -1283,6 +1315,7 @@ pub const Daemon = struct {
+             self.has_had_client = true;
+ 
+             std.log.debug("init resize rows={d} cols={d}", .{ resize.rows, resize.cols });
++            self.releaseHold();
+         }
+     }
+ 
+diff --git a/src/main.zig b/src/main.zig
+index 47c0e7f..02113fa 100644
+--- a/src/main.zig
++++ b/src/main.zig
+@@ -182,6 +182,11 @@ pub fn main(init: std.process.Init) !void {
+         };
+         var daemon = Daemon.init(io, &cfg, sesh, socket_path);
+         daemon.command = command;
++        if (lib_posix.getenv("ZMX_HOLD_UNTIL_ATTACH")) |value| {
++            const seconds = std.fmt.parseInt(u32, value, 10) catch 0;
++            if (seconds == 0) return printError(io, "invalid ZMX_HOLD_UNTIL_ATTACH: want whole seconds above zero", .{});
++            daemon.hold_seconds = seconds;
++        }
+         daemon.setCwd(cwd);
+         daemon.shell = shell_env;
+         std.log.info("socket path={s}", .{daemon.socket_path});

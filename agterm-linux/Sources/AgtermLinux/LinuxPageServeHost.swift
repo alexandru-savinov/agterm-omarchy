@@ -5,6 +5,7 @@ import agtermCore
 extension ControlServer: PageServeHost {
     var bridgesByCallback: Bool { true }
 
+    var snapshotOffers: SnapshotOfferBook? { snapshotBook }
     @MainActor
     func claimRemotePage(token: String) -> (page: UUID, served: PageServeClaim)? {
         for store in openPageStores {

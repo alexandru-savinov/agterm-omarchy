@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """drive managed zmx attach clients on ptys of different sizes against one daemon."""
+import argparse
 import fcntl
 import os
 import pty
@@ -13,13 +14,27 @@ import tempfile
 import termios
 import time
 
-ZMX = sys.argv[1]
-ZDIR = None  # a fresh private directory, made by main
+ZMX = None  # validated by main before use
+ZDIR = None  # created by main
 NAME = "e2e"
+MANAGED_EXIT = "exit-managed"
 ROLE = re.compile(rb"\x1b\]2;zmx-role;([A-Za-z0-9-]+):(\w+):(\d+)\x1b\\")
 
 
-def attach(nonce, rows, cols, claim, name=NAME, argv=("/bin/sh",)):
+def executable_path(path):
+    if not os.path.isabs(path):
+        raise argparse.ArgumentTypeError(f"zmx path must be absolute: {path!r}")
+    try:
+        resolved = os.path.realpath(path, strict=True)
+    except OSError as error:
+        raise argparse.ArgumentTypeError(f"cannot resolve zmx path {path!r}: {error.strerror}") from error
+    if not os.path.isfile(resolved) or not os.access(resolved, os.X_OK):
+        raise argparse.ArgumentTypeError(f"zmx path must name a regular executable file: {resolved!r}")
+    return resolved
+
+
+def attach(nonce, rows, cols, claim, name=NAME, argv=("/bin/sh",), reclaim=None):
+    zmx = executable_path(ZMX)
     pid, fd = pty.fork()
     if pid == 0:
         env = dict(os.environ, ZMX_DIR=ZDIR, ZMX_NO_DETACH_KEY="1", TERM="xterm-256color")
@@ -29,9 +44,11 @@ def attach(nonce, rows, cols, claim, name=NAME, argv=("/bin/sh",)):
             env["ZMX_MANAGED"] = nonce
         if claim:
             env["ZMX_MANAGED_CLAIM"] = "1"
+        if reclaim:
+            env["ZMX_MANAGED_RECLAIM"] = reclaim
         # before exec, so the client's Init reads this size and not the pty default
         fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
-        os.execve(ZMX, [ZMX, "attach", name, *argv], env)
+        os.execve(zmx, [zmx, "attach", name, *argv], env)
     return pid, fd
 
 
@@ -48,10 +65,70 @@ def drain(fd, seconds):
     return out
 
 
-def cli(*args, stdin=None):
+def reaped(pid, seconds):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        done, status = os.waitpid(pid, os.WNOHANG)
+        if done == pid:
+            return status
+        time.sleep(0.02)
+    return None
+
+
+def cli(*args, stdin=None, extra=None, executable=None):
+    zmx = executable_path(ZMX if executable is None else executable)
     env = dict(os.environ, ZMX_DIR=ZDIR)
     env.pop("ZMX_SESSION", None)
-    return subprocess.run([ZMX, *args], env=env, input=stdin, capture_output=True, timeout=10)
+    env.update(extra or {})
+    return subprocess.run([zmx, *args], env=env, input=stdin or b"", capture_output=True, timeout=10)
+
+
+def listed(name):
+    return name.encode() in cli("list", "--short").stdout.split()
+
+
+def legacy_ipc(executable):
+    """legacy_ipc is true for a zmx before 1.0, against whose daemon the new client refuses run, tail and write."""
+    found = re.search(rb"zmx\s+(\d+)\.", cli("version", executable=executable).stdout)
+    return found is not None and int(found.group(1)) < 1
+
+
+def written(path, content):
+    """written waits up to 5 s for path to hold content: `zmx write` has the session's shell write it."""
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        try:
+            with open(path, "rb") as f:
+                if f.read() == content:
+                    return True
+        except OSError:
+            pass
+        time.sleep(0.1)
+    return False
+
+
+def tail_prints(name, typed, marker):
+    """tail_prints reports whether `zmx tail` on name prints marker after typed reaches the session, within 5 s."""
+    zmx = executable_path(ZMX)
+    env = dict(os.environ, ZMX_DIR=ZDIR)
+    env.pop("ZMX_SESSION", None)
+    proc = subprocess.Popen([zmx, "tail", name], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL)
+    try:
+        time.sleep(0.5)
+        cli("type", name, stdin=typed)
+        seen, deadline = b"", time.time() + 5
+        while marker not in seen and time.time() < deadline:
+            ready, _, _ = select.select([proc.stdout], [], [], 0.2)
+            if ready:
+                chunk = os.read(proc.stdout.fileno(), 4096)
+                if not chunk:
+                    break
+                seen += chunk
+        return marker in seen
+    finally:
+        proc.kill()
+        proc.wait()
 
 
 def check(label, ok, detail=""):
@@ -59,15 +136,148 @@ def check(label, ok, detail=""):
     return ok
 
 
+QUERY_PROBE = r"""
+import os, re, select, sys, time, tty
+size = os.get_terminal_size(0)
+open(sys.argv[1], "w").close()
+tty.setraw(0)
+os.write(1, b"SIZE=%d,%d\r\n" % (size.lines, size.columns))
+os.write(1, b"\x1b[6n\x1b]10;?\x1b\\\x1b]11;?\x1b\\")
+want = [rb"\x1b\[\d+;\d+R", rb"\x1b\]10;rgb:[0-9a-f/]+\x1b\\", rb"\x1b\]11;rgb:[0-9a-f/]+\x1b\\"]
+got, end = b"", time.time() + 3
+while time.time() < end and not all(re.search(w, got) for w in want):
+    if select.select([0], [], [], 0.1)[0]:
+        got += os.read(0, 256)
+os.write(1, b"REPLIES-OK\r\n" if all(re.search(w, got) for w in want) else b"REPLIES-MISSING\r\n")
+time.sleep(0.5)
+"""
+QUERIES = (b"\x1b[6n", b"\x1b]10;?\x1b\\", b"\x1b]11;?\x1b\\")
+
+
+def check_hold():
+    ok = True
+    marker = os.path.join(ZDIR, "held-ran")
+    created = cli("attach", "--detached", "held", "/usr/bin/python3", "-c", QUERY_PROBE, marker,
+                  extra={"ZMX_HOLD_UNTIL_ATTACH": "10"})
+    time.sleep(1.0)
+    ok &= check("a held create starts the daemon but not its command",
+                created.returncode == 0 and listed("held") and not os.path.exists(marker), repr(created.stderr))
+    pid, fd = attach("held-1", 30, 83, claim=False, name="held")
+    try:
+        out, end = b"", time.time() + 5
+        while time.time() < end and not all(q in out for q in QUERIES):
+            out += drain(fd, 0.1)
+        queried = all(q in out for q in QUERIES)
+        if queried:
+            os.write(fd, b"\x1b[1;1R\x1b]10;rgb:ffff/ffff/ffff\x1b\\\x1b]11;rgb:3030/3030/3030\x1b\\")
+        out += drain(fd, 2.0)
+        ok &= check("the first attach releases it at its own size and answers the queries it writes at exec",
+                    os.path.exists(marker) and queried and b"SIZE=30,83" in out and b"REPLIES-OK" in out,
+                    repr(out[-300:]))
+    finally:
+        os.close(fd)
+        os.kill(pid, 9)
+        os.waitpid(pid, 0)
+
+    timed = os.path.join(ZDIR, "timed-ran")
+    cli("attach", "--detached", "timed", "/bin/sh", "-c", 'touch "$1"; sleep 30', "sh", timed,
+        extra={"ZMX_HOLD_UNTIL_ATTACH": "1"})
+    time.sleep(2.0)
+    ok &= check("a hold nobody attaches to releases at its bound", os.path.exists(timed))
+
+    killed = os.path.join(ZDIR, "held-killed-ran")
+    created = cli("attach", "--detached", "held-killed", "/bin/sh", "-c", 'touch "$1"', "sh", killed,
+                  extra={"ZMX_HOLD_UNTIL_ATTACH": "1"})
+    was_listed = listed("held-killed")
+    stopped = cli("kill", "held-killed", "--force")
+    time.sleep(1.5)
+    ok &= check("a kill while held ends the session before its command runs",
+                created.returncode == 0 and was_listed and stopped.returncode == 0
+                and not listed("held-killed") and not os.path.exists(killed),
+                repr((created.stderr, stopped.stderr)))
+
+    bad = cli("attach", "--detached", "held-bad", "/bin/sh", extra={"ZMX_HOLD_UNTIL_ATTACH": "0"})
+    ok &= check("a hold of zero seconds is refused", bad.returncode != 0 and not listed("held-bad"), repr(bad.stderr))
+    return ok
+
+
+def check_upgrade(previous):
+    name = "upgrade"
+    created = cli("attach", "--detached", name, "/bin/sh", executable=previous)
+    if not check("the previous zmx starts a detached daemon", created.returncode == 0, repr(created.stderr)):
+        return False
+
+    attached = []
+    try:
+        ok = check("the new zmx lists the previous daemon", listed(name))
+        held = attach("upgrade-held", 32, 88, claim=True, name=name)
+        attached.append(held)
+        roles = ROLE.findall(drain(held[1], 2.0))
+        ok &= check("the new client claims leadership on the previous daemon",
+                    bool(roles) and roles[-1][:2] == (b"upgrade-held", b"leader"), repr(roles))
+        back = attach("upgrade-back", 30, 90, claim=False, name=name, reclaim="upgrade-held")
+        attached.append(back)
+        roles = ROLE.findall(drain(back[1], 2.0))
+        ok &= check("a reconnect takes back the lead its dropped attach holds on the previous daemon",
+                    bool(roles) and roles[-1][:2] == (b"upgrade-back", b"leader"), repr(roles))
+        marker = b"OLD-DAEMON-OUTPUT"
+        typed = cli("type", name, stdin=b"printf 'OLD-%s-OUTPUT\\n' DAEMON\r")
+        ok &= check("the new client types into the previous daemon",
+                    typed.returncode == 0 and marker in drain(back[1], 1.0), repr(typed.stderr))
+        screen = cli("screen", name)
+        ok &= check("the new client reads the previous daemon's grid and screen",
+                    screen.stdout.split(b"\n", 1)[0].split()[1:3] == [b"90", b"30"]
+                    and marker in screen.stdout, repr(screen.stdout))
+        printed = cli("print", name, stdin=b"OLD-DAEMON-PRINT")
+        ok &= check("the new client prints to the previous daemon's clients",
+                    printed.returncode == 0 and b"OLD-DAEMON-PRINT" in drain(back[1], 1.0), repr(printed.stderr))
+        target = os.path.join(ZDIR, "upgrade-write")
+        if legacy_ipc(previous):
+            ran, tailed = cli("run", name, "true"), cli("tail", name)
+            ok &= check("the new client refuses to run or tail through the previous daemon",
+                        ran.returncode != 0 and b"does not support run" in ran.stderr
+                        and tailed.returncode != 0 and b"does not support tail" in tailed.stderr,
+                        repr((ran.stderr, tailed.stderr)))
+            wrote = cli("write", name, target, stdin=b"OLD-DAEMON-WRITE")
+            ok &= check("the new client refuses to write through the previous daemon",
+                        wrote.returncode != 0 and b"does not support write" in wrote.stderr, repr(wrote.stderr))
+        else:
+            ran = cli("run", name, "sh", "-c", "exit 7")
+            ok &= check("the new client runs a task through the previous daemon and gets its code",
+                        ran.returncode == 7, repr((ran.returncode, ran.stderr)))
+            followed = tail_prints(name, b"printf 'OLD-%s-TAIL\\n' DAEMON\r", b"OLD-DAEMON-TAIL")
+            ok &= check("the new client tails the previous daemon's new output", followed)
+            wrote = cli("write", name, target, stdin=b"OLD-DAEMON-WRITE")
+            ok &= check("the new client writes through the previous daemon",
+                        wrote.returncode == 0 and written(target, b"OLD-DAEMON-WRITE"), repr(wrote.stderr))
+        killed = cli("kill", name)
+        ok &= check("the new client kills the previous daemon",
+                    killed.returncode == 0 and b"name=" + name.encode() not in cli("list").stdout, repr(killed.stderr))
+        return ok
+    finally:
+        cli("kill", name, executable=previous)
+        for pid, fd in attached:
+            os.close(fd)
+            try:
+                os.kill(pid, 9)
+            except ProcessLookupError:
+                pass
+            os.waitpid(pid, 0)
+
 def main():
-    global ZDIR
-    # a random name, created exclusively with mode 0700, so no other user can claim the path first
+    global ZMX, ZDIR
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("zmx", type=executable_path)
+    parser.add_argument("previous_zmx", nargs="?", type=executable_path)
+    args = parser.parse_args()
+    ZMX = args.zmx
+
     ZDIR = tempfile.mkdtemp(prefix="zmx-e2e-")
-    # the daemon's socket lives in ZDIR, and a unix socket path is capped near 104 bytes
-    sock = os.path.join(ZDIR, NAME)
+    # Check the socket for the longest session name in this probe.
+    sock = os.path.join(ZDIR, MANAGED_EXIT)
     if len(os.fsencode(sock)) >= 104:
         os.rmdir(ZDIR)
-        sys.exit("socket path %s is too long for a unix socket; set TMPDIR to a shorter directory" % sock)
+        sys.exit(f"socket path {sock!r} is too long for a Unix socket; set TMPDIR to a shorter directory")
     ok = True
     pids = []
     try:
@@ -119,6 +329,41 @@ def main():
         orphaned = ROLE.findall(drain(f1, 1.0))
         ok &= check("the leader leaving reports unowned", bool(orphaned) and orphaned[-1][1] == b"unowned", repr(orphaned))
 
+        def role_of(fd, nonce):
+            found = [r for r in ROLE.findall(drain(fd, 1.5)) if r[0] == nonce.encode()]
+            return found[-1][1] if found else None
+
+        def joined(nonce, claim=False, reclaim=None):
+            pid, fd = attach(nonce, 30, 83, claim=claim, name="reclaim", reclaim=reclaim)
+            pids.append(pid)
+            return pid, fd
+
+        _, o1 = joined("rc-origin")
+        role_of(o1, "rc-origin")
+        dropped, _ = joined("rc-v1", claim=True)
+        time.sleep(1.0)
+        _, v2 = joined("rc-v2", reclaim="rc-v1")
+        ok &= check("a reconnect takes back the lead its dropped attach holds", role_of(v2, "rc-v2") == b"leader")
+        _, stranger = joined("rc-x", reclaim="rc-nobody")
+        ok &= check("naming another attach takes nothing", role_of(stranger, "rc-x") == b"follower")
+
+        for pid in (dropped, pids[-2]):
+            os.kill(pid, 15)
+        time.sleep(1.0)
+        _, fallback = joined("rc-origin-2")
+        ok &= check("a vacant pane goes to the next attach", role_of(fallback, "rc-origin-2") == b"leader")
+        _, v3 = joined("rc-v3", reclaim="rc-v2")
+        ok &= check("a reconnect takes back a lead an unused attach filled", role_of(v3, "rc-v3") == b"leader")
+
+        os.kill(pids[-1], 15)
+        time.sleep(1.0)
+        _, used = joined("rc-origin-3")
+        ok &= check("the pane is vacant again for the next attach", role_of(used, "rc-origin-3") == b"leader")
+        os.write(used, b"\x03")
+        time.sleep(0.7)
+        _, v4 = joined("rc-v4", reclaim="rc-v3")
+        ok &= check("an attach that only got a Ctrl-C keeps the lead", role_of(v4, "rc-v4") == b"follower")
+
         missing = cli("screen", "no-such-session")
         ok &= check("screen on a missing session fails", missing.returncode != 0)
 
@@ -129,7 +374,7 @@ def main():
         pids.append(p3)
         replay = drain(f3, 2.0)
         red = b"\x1b[48;5;1m"
-        # a cursor move paints nothing on the cleared screen a replay starts from; blanks must close the style
+        # An equivalent explicit reset also leaves the skipped cells unstyled.
         gap = re.compile(re.escape(red) + rb"ab(?:\x1b\[2C|\x1b\[0m  \x1b\[0m" + re.escape(red) + rb")c\x1b\[0m")
         ok &= check("a replayed gap the program skipped is unstyled and the run resumes after it",
                     gap.search(replay) is not None, repr(replay[-300:]))
@@ -137,7 +382,7 @@ def main():
                     red + b"ab  c\x1b[0m" in replay, repr(replay[-300:]))
 
         ending = ("/bin/sh", "-c", "sleep 0.5; printf '\\033[?1000hEXIT-MARK\\n'; sleep 0.5")
-        p4, f4 = attach("exit-4", 30, 83, claim=False, name="exit-managed", argv=ending)
+        p4, f4 = attach("exit-4", 30, 83, claim=False, name=MANAGED_EXIT, argv=ending)
         pids.append(p4)
         tail = drain(f4, 3.0).rpartition(b"EXIT-MARK")[2]
         ok &= check("a managed client whose session ends leaves the screen and turns reporting off",
@@ -147,14 +392,97 @@ def main():
         tail = drain(f5, 3.0).rpartition(b"EXIT-MARK")[2]
         ok &= check("an unmanaged client whose session ends still resets the terminal", b"\x1bc" in tail, repr(tail))
 
-        # 0009: an origin starts a pane for a remote viewer with no terminal and no client
-        created = cli("attach", "--detached", "detached", "/bin/sh", "-c", "sleep 30", stdin=b"")
-        ok &= check("a detached create needs no tty",
-                    created.returncode == 0 and b"detached" in cli("list").stdout, repr(created.stderr))
-        again = cli("attach", "--detached", "detached", "/bin/sh", stdin=b"")
+        record = os.path.join(ZDIR, "exit-record")
+        created = cli("attach", "--detached", "detached", "/bin/sh", "-c", "sleep 0.5; exit 7",
+                      extra={"ZMX_EXIT_FILE": record})
+        ok &= check("a detached create needs no tty", created.returncode == 0 and listed("detached"), repr(created.stderr))
+        again = cli("attach", "--detached", "detached", "/bin/sh")
         ok &= check("a detached create of a live session is refused", again.returncode == 1, repr(again.stderr))
+        gone_without_record = False
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            present = listed("detached")
+            if not present and not os.path.exists(record):
+                gone_without_record = True
+            if not present:
+                break
+            time.sleep(0.02)
+        ok &= check("a session that exited is never gone before its record", not gone_without_record)
+        status = open(record).read().strip() if os.path.exists(record) else None
+        ok &= check("the record marks an exit", status == "exited", repr(status))
+
+        worker_pid = os.path.join(ZDIR, "worker-pid")
+        spawn = ("trap '' HUP; (trap '' HUP; exec sleep 300) </dev/null >/dev/null 2>&1 & "
+                 'echo $! > "$1"; sleep 0.3; exit 0')
+        cli("attach", "--detached", "worker", "/bin/sh", "-c", spawn, "sh", worker_pid,
+            extra={"ZMX_EXIT_FILE": os.path.join(ZDIR, "worker-record")})
+        deadline = time.time() + 5
+        while time.time() < deadline and listed("worker"):
+            time.sleep(0.05)
+        time.sleep(1.0)
+        pid = int(open(worker_pid).read()) if os.path.exists(worker_pid) else None
+        alive = False
+        if pid:
+            try:
+                os.kill(pid, 0)
+                alive = True
+            except ProcessLookupError:
+                pass
+        ok &= check("an exited shell's hangup-ignoring background worker is ended with the session",
+                    pid is not None and not alive and os.path.exists(os.path.join(ZDIR, "worker-record")), repr(pid))
+
+        cli("attach", "--detached", "env-probe", "/bin/sh", "-c", "printf 'E=[%s]' \"$ZMX_EXIT_FILE\"; sleep 30",
+            extra={"ZMX_EXIT_FILE": os.path.join(ZDIR, "env-record")})
+        time.sleep(0.7)
+        text = cli("screen", "env-probe").stdout
+        ok &= check("the record path does not reach the shell", b"E=[]" in text, repr(text[-200:]))
+        ok &= check_hold()
+
+        killed_record = os.path.join(ZDIR, "killed-record")
+        cli("attach", "--detached", "killed", "/bin/sh", "-c", "sleep 30", extra={"ZMX_EXIT_FILE": killed_record})
+        cli("kill", "killed", "--force")
+        time.sleep(1.0)
+        ok &= check("a killed session writes no record", not listed("killed") and not os.path.exists(killed_record))
+        cli("attach", "--detached", "busy", "yes")
+        time.sleep(0.5)
+        probes = [(listed("busy"), cli("screen", "busy").returncode) for _ in range(5)]
+        ok &= check("a session streaming output is listed and answers", all(p == (True, 0) for p in probes), repr(probes))
+        # zmx 0.8.1 misreads a busy session's stream, so the upgrade case must not share a directory with it
+        cli("kill", "busy", "--force")
+        ran = cli("run", "task", "sh", "-c", "echo TASK-OUT; exit 3")
+        env = dict(os.environ, ZMX_DIR=ZDIR)
+        env.pop("ZMX_SESSION", None)
+        zmx = executable_path(ZMX)
+        tailer = subprocess.Popen([zmx, "tail", "task"], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        time.sleep(0.3)
+        cli("run", "task", "echo", "TAIL-OUT")
+        try:
+            tailed, _ = tailer.communicate(timeout=3)
+        except subprocess.TimeoutExpired:
+            tailer.kill()
+            tailed, _ = tailer.communicate()
+        ok &= check("run returns a task's code and output and tail follows it on a current daemon",
+                    ran.returncode == 3 and b"TASK-OUT" in ran.stdout and tailer.returncode == 0 and b"TAIL-OUT" in tailed,
+                    repr((ran.returncode, ran.stdout[-120:], ran.stderr[-120:], tailer.returncode, tailed[-120:])))
+        term_pid, term_fd = attach("sigterm", 24, 80, claim=True, name="sigterm")
+        pids.append(term_pid)
+        roles = ROLE.findall(drain(term_fd, 1.0))
+        printed = cli("print", "sigterm", stdin=b"x" * 200)
+        time.sleep(0.3)
+        os.kill(term_pid, 15)
+        status = reaped(term_pid, 2)
+        ok &= check("a SIGTERMed client exits while nobody reads its terminal",
+                    bool(roles) and roles[-1][:2] == (b"sigterm", b"leader") and printed.returncode == 0
+                    and status is not None and os.WIFSIGNALED(status) and os.WTERMSIG(status) == 15,
+                    repr((roles[-1:], printed.returncode, status)))
+        os.close(term_fd)
+        if status is not None or reaped(term_pid, 2) is not None:
+            pids.remove(term_pid)
+        if args.previous_zmx is not None:
+            ok &= check_upgrade(args.previous_zmx)
     finally:
-        cli("kill", NAME, "detached", "--force")
+        cli("kill", NAME, "reclaim", "detached", "killed", "env-probe", "sigterm", "busy", "task", "held", "timed",
+            "held-killed", "--force")
         for pid in pids:
             try:
                 os.kill(pid, 9)

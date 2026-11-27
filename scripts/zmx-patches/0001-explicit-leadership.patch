@@ -1,7 +1,7 @@
-diff --git zmx-orig/src/daemonize.zig zmx/src/daemonize.zig
+diff --git a/src/daemonize.zig b/src/daemonize.zig
 index b3bdfea..c872532 100644
---- zmx-orig/src/daemonize.zig
-+++ zmx/src/daemonize.zig
+--- a/src/daemonize.zig
++++ b/src/daemonize.zig
 @@ -81,6 +81,11 @@ fn exec(sesh_name: []const u8, cmd: Cmd) !noreturn {
          _ = cross.putenv(@constCast("TERM=xterm-256color"));
      }
@@ -14,16 +14,14 @@ index b3bdfea..c872532 100644
      const err = lib_posix.execvpeZ(cmd.file, cmd.argv_ptr, std.c.environ);
      std.log.err("execvpe failed: cmd={s} err={s}", .{ cmd.file, @errorName(err) });
      lib_posix.exit(1);
-diff --git zmx-orig/src/ipc.zig zmx/src/ipc.zig
-index ad05c2b..9d114a5 100644
---- zmx-orig/src/ipc.zig
-+++ zmx/src/ipc.zig
-@@ -31,6 +31,20 @@ pub const Tag = enum(u8) {
+diff --git a/src/ipc.zig b/src/ipc.zig
+index ad05c2b..61cc8b1 100644
+--- a/src/ipc.zig
++++ b/src/ipc.zig
+@@ -31,6 +31,18 @@ pub const Tag = enum(u8) {
      /// Scoped history: the active screen plus a bounded number of
      /// preceding scrollback rows. Request payload is `Capture`.
      Capture = 22,
-+    // agterm explicit leadership. Far above upstream's next free integers, so a
-+    // rebase onto a newer zmx never reuses one of them for a different message.
 +    /// client -> daemon, before Init: this client takes part in explicit
 +    /// leadership. Payload is one `ManageFlags` byte.
 +    Manage = 200,
@@ -39,7 +37,7 @@ index ad05c2b..9d114a5 100644
      Unsupported = 255,
      // Non-exhaustive: this enum comes off the wire via bytesToValue and
      // @enumFromInt, so out-of-range values are representable
-@@ -98,6 +112,51 @@ pub fn getTerminalSize(fd: i32) Resize {
+@@ -98,6 +110,51 @@ pub fn getTerminalSize(fd: i32) Resize {
  }
  
  pub const MAX_PAYLOAD_LEN: usize = 64 * 1024 * 1024;
@@ -91,37 +89,21 @@ index ad05c2b..9d114a5 100644
  pub const MAX_CMD_LEN = 256;
  pub const MAX_CWD_LEN = 256;
  
-@@ -349,14 +408,16 @@ test "Info wire size is frozen" {
- 
- test "Tag wire values are frozen" {
-     inline for (.{
--        .{ Tag.Input, 0 },     .{ Tag.Output, 1 },        .{ Tag.Resize, 2 },
--        .{ Tag.Detach, 3 },    .{ Tag.DetachAll, 4 },     .{ Tag.Kill, 5 },
--        .{ Tag.Info, 6 },      .{ Tag.Init, 7 },          .{ Tag.History, 8 },
--        .{ Tag.Run, 9 },       .{ Tag.Ack, 10 },          .{ Tag.Switch, 11 },
--        .{ Tag.Write, 12 },    .{ Tag.TaskComplete, 13 }, .{ Tag.LabelGet, 14 },
--        .{ Tag.LabelSet, 15 }, .{ Tag.LabelClear, 16 },   .{ Tag.LabelData, 17 },
--        .{ Tag.Send, 18 },     .{ Tag.EnvGet, 19 },       .{ Tag.EnvSet, 20 },
--        .{ Tag.EnvData, 21 },  .{ Tag.Capture, 22 },      .{ Tag.Unsupported, 255 },
-+        .{ Tag.Input, 0 },         .{ Tag.Output, 1 },        .{ Tag.Resize, 2 },
-+        .{ Tag.Detach, 3 },        .{ Tag.DetachAll, 4 },     .{ Tag.Kill, 5 },
-+        .{ Tag.Info, 6 },          .{ Tag.Init, 7 },          .{ Tag.History, 8 },
-+        .{ Tag.Run, 9 },           .{ Tag.Ack, 10 },          .{ Tag.Switch, 11 },
-+        .{ Tag.Write, 12 },        .{ Tag.TaskComplete, 13 }, .{ Tag.LabelGet, 14 },
-+        .{ Tag.LabelSet, 15 },     .{ Tag.LabelClear, 16 },   .{ Tag.LabelData, 17 },
-+        .{ Tag.Send, 18 },         .{ Tag.EnvGet, 19 },       .{ Tag.EnvSet, 20 },
-+        .{ Tag.EnvData, 21 },      .{ Tag.Capture, 22 },      .{ Tag.Manage, 200 },
-+        .{ Tag.Role, 201 },        .{ Tag.Screen, 202 },      .{ Tag.Type, 203 },
-+        .{ Tag.Unsupported, 255 },
+@@ -357,6 +414,8 @@ test "Tag wire values are frozen" {
+         .{ Tag.LabelSet, 15 }, .{ Tag.LabelClear, 16 },   .{ Tag.LabelData, 17 },
+         .{ Tag.Send, 18 },     .{ Tag.EnvGet, 19 },       .{ Tag.EnvSet, 20 },
+         .{ Tag.EnvData, 21 },  .{ Tag.Capture, 22 },      .{ Tag.Unsupported, 255 },
++        .{ Tag.Role, 201 },     .{ Tag.Screen, 202 },       .{ Tag.Type, 203 },
++        .{ Tag.Manage, 200 },
      }) |p| try std.testing.expectEqual(@as(u8, p[1]), @backingInt(p[0]));
  }
  
-@@ -392,6 +453,41 @@ pub fn roundTripForTag(
+@@ -392,6 +451,41 @@ pub fn roundTripForTag(
      return error.Unexpected;
  }
  
 +/// Like `roundTripForTag`, for a reply larger than one socket read. `timeout_ms`
-+/// bounds each wait; a daemon without the request tag answers `Unsupported`.
++/// bounds each wait, so a daemon that ignores the request tag ends in `Timeout`.
 +pub fn roundTripLarge(
 +    alloc: std.mem.Allocator,
 +    socket_path: []const u8,
@@ -158,10 +140,10 @@ index ad05c2b..9d114a5 100644
  test "zeroed Info has no stack garbage in wire bytes" {
      var info = std.mem.zeroes(Info);
      info.clients_len = 3;
-diff --git zmx-orig/src/loop.zig zmx/src/loop.zig
-index f839864..6e4c8a6 100644
---- zmx-orig/src/loop.zig
-+++ zmx/src/loop.zig
+diff --git a/src/loop.zig b/src/loop.zig
+index f839864..5338dcb 100644
+--- a/src/loop.zig
++++ b/src/loop.zig
 @@ -5,6 +5,7 @@ const util = @import("util.zig");
  const cross = @import("cross");
  const socket = @import("socket.zig");
@@ -323,7 +305,7 @@ index f839864..6e4c8a6 100644
 +        term: *const ghostty_vt.Terminal,
 +        payload: []const u8,
 +    ) !void {
-+        const keys = util.encodeTyped(gpa, term, payload) catch |err| {
++        const keys = terminal.encodeTyped(gpa, term, payload) catch |err| {
 +            std.log.warn("failed to encode typed input err={s}", .{@errorName(err)});
 +            try ipc.appendMessage(gpa, &client.write_buf, .Type, &[_]u8{@backingInt(ipc.TypeResult.rejected)});
 +            client.has_pending_output = true;
@@ -384,6 +366,15 @@ index f839864..6e4c8a6 100644
          }
  
          if (self.has_pty_output) {
+@@ -1011,7 +1114,7 @@ pub const Daemon = struct {
+                 "cursor before serialize: x={d} y={d} pending_wrap={}",
+                 .{ cursor.x, cursor.y, cursor.pending_wrap },
+             );
+-            if (util.serializeTerminalState(gpa, term)) |term_output| {
++            if (terminal.serializeTerminalState(gpa, term)) |term_output| {
+                 std.log.debug("serialize terminal state", .{});
+                 // Rewrite OSC 133;A to include redraw=0 so the outer terminal
+                 // does not clear prompt lines on resize (issue #111).
 @@ -1057,7 +1160,8 @@ pub const Daemon = struct {
          payload: []const u8,
      ) !void {
@@ -402,12 +393,27 @@ index f839864..6e4c8a6 100644
          std.log.debug("resize rows={d} cols={d}", .{ resize.rows, resize.cols });
      }
  
-@@ -1191,6 +1296,44 @@ pub const Daemon = struct {
+@@ -1164,7 +1269,7 @@ pub const Daemon = struct {
+             @fromBackingInt(@intCast(payload[0]))
+         else
+             .plain;
+-        if (util.serializeTerminal(gpa, term, format)) |output| {
++        if (terminal.serializeTerminal(gpa, term, format)) |output| {
+             defer gpa.free(output);
+             try ipc.appendMessage(gpa, &client.write_buf, .History, output);
+             client.has_pending_output = true;
+@@ -1185,12 +1290,49 @@ pub const Daemon = struct {
+         const request = std.mem.bytesToValue(ipc.Capture, payload);
+         const format = std.enums.fromInt(util.HistoryFormat, request.format) orelse return;
+         self.setPwd(term);
+-        const output = util.serializeTerminalRange(gpa, term, format, request.rows);
++        const output = terminal.serializeTerminalRange(gpa, term, format, request.rows);
+         defer if (output) |text| gpa.free(text);
+         try ipc.appendMessage(gpa, &client.write_buf, .Capture, output orelse "");
          client.has_pending_output = true;
      }
  
-+    /// Text, geometry and cursor of one observation of the daemon's terminal, which always has the
-+    /// leader's layout. It is whatever the program has written so far, not a finished frame.
++    /// Read the daemon terminal using the current leader's layout.
 +    pub fn handleScreen(
 +        self: *Daemon,
 +        gpa: std.mem.Allocator,
@@ -416,13 +422,13 @@ index f839864..6e4c8a6 100644
 +        payload: []const u8,
 +    ) !void {
 +        defer client.has_pending_output = true;
-+        const mode: ipc.ScreenMode = if (payload.len == 1) @fromBackingInt(@intCast(payload[0])) else .active;
++        const mode: ipc.ScreenMode = if (payload.len == 1) @enumFromInt(payload[0]) else .active;
 +        const all = switch (mode) {
 +            .active => false,
 +            .all => true,
 +            _ => return ipc.appendMessage(gpa, &client.write_buf, .Screen, ""),
 +        };
-+        const text = util.serializeScreenText(gpa, term, all) catch |err| {
++        const text = terminal.serializeScreenText(gpa, term, all) catch |err| {
 +            std.log.warn("failed to read screen err={s}", .{@errorName(err)});
 +            return ipc.appendMessage(gpa, &client.write_buf, .Screen, "");
 +        };
@@ -447,7 +453,7 @@ index f839864..6e4c8a6 100644
      pub fn handleRun(self: *Daemon, gpa: std.mem.Allocator, io: std.Io, client: *Client, payload: []const u8) !void {
          // Reset task tracking so the new command's exit marker is detected.
          // Without this, a second `zmx run` on the same session is ignored
-@@ -1277,6 +1420,7 @@ pub const Daemon = struct {
+@@ -1277,6 +1419,7 @@ pub const Daemon = struct {
          vt_stream.nextSlice(payload);
          self.setPwd(term);
          self.has_pty_output = true;
@@ -455,7 +461,25 @@ index f839864..6e4c8a6 100644
          for (self.clients.items) |client| {
              try ipc.appendMessage(gpa, &client.write_buf, .Output, payload);
              client.has_pending_output = true;
-@@ -1504,6 +1648,244 @@ test "send queues PTY input without changing leader" {
+@@ -1425,7 +1568,7 @@ test "terminal retains the configured scrollback without the default byte cap" {
+     stream.nextSlice("first line\r\n");
+     for (1..cfg.max_scrollback_lines) |_| stream.nextSlice("more output\r\n");
+ 
+-    const history = util.serializeTerminal(alloc, &term, .plain) orelse return error.TestUnexpectedNull;
++    const history = terminal.serializeTerminal(alloc, &term, .plain) orelse return error.TestUnexpectedNull;
+     defer alloc.free(history);
+     try std.testing.expect(std.mem.startsWith(u8, history, "first line\n"));
+ 
+@@ -1433,7 +1576,7 @@ test "terminal retains the configured scrollback without the default byte cap" {
+     for (0..cfg.max_scrollback_lines) |_| stream.nextSlice("more output\r\n");
+     stream.nextSlice("latest line\r\n");
+ 
+-    const pruned_history = util.serializeTerminal(alloc, &term, .plain) orelse return error.TestUnexpectedNull;
++    const pruned_history = terminal.serializeTerminal(alloc, &term, .plain) orelse return error.TestUnexpectedNull;
+     defer alloc.free(pruned_history);
+     try std.testing.expect(std.mem.indexOf(u8, pruned_history, "first line") == null);
+     try std.testing.expect(std.mem.indexOf(u8, pruned_history, "latest line") != null);
+@@ -1504,6 +1647,244 @@ test "send queues PTY input without changing leader" {
      try std.testing.expectEqualStrings("hello", daemon.pty_write_buf.items);
  }
  
@@ -614,13 +638,13 @@ index f839864..6e4c8a6 100644
 +    var stream = term.vtStream();
 +    defer stream.deinit();
 +
-+    const legacy = try util.encodeTyped(alloc, &term, "ls -la\r\rcaf\xc3\xa9");
++    const legacy = try terminal.encodeTyped(alloc, &term, "ls -la\r\rcaf\xc3\xa9");
 +    defer alloc.free(legacy);
 +    try std.testing.expectEqualStrings("ls -la\r\rcaf\xc3\xa9", legacy);
 +
 +    // every kitty flag: Return is reported as a key, with its release
 +    stream.nextSlice("\x1b[>31u");
-+    const kitty = try util.encodeTyped(alloc, &term, "ls\r");
++    const kitty = try terminal.encodeTyped(alloc, &term, "ls\r");
 +    defer alloc.free(kitty);
 +    try std.testing.expect(std.mem.startsWith(u8, kitty, "ls"));
 +    try std.testing.expect(std.mem.indexOf(u8, kitty, "\x1b[13u") != null);
@@ -700,10 +724,10 @@ index f839864..6e4c8a6 100644
  test "handleEnvGet returns leader client's environment variables including unsets" {
      const alloc = std.testing.allocator;
      var cfg = Cfg{
-diff --git zmx-orig/src/main.zig zmx/src/main.zig
-index 183b736..4eadfc3 100644
---- zmx-orig/src/main.zig
-+++ zmx/src/main.zig
+diff --git a/src/main.zig b/src/main.zig
+index 183b736..c018d21 100644
+--- a/src/main.zig
++++ b/src/main.zig
 @@ -278,6 +278,28 @@ fn mainImpl(init: std.process.Init) !void {
              if (err == error.SessionUnresponsive) std.process.exit(1);
              return printError(io, "send failed: {s}", .{@errorName(err)});
@@ -737,8 +761,8 @@ index 183b736..4eadfc3 100644
          \\  print-env [-s] <name> [key]                                Print tracked environment variables
          \\  [k]ill <name>... [--force]                                 Kill session and all attached clients
          \\  [hi]story <name> [--vt|--html] [--screen|--scrollback]     Output session scrollback
-+        \\  screen <name> [--all]                                      Geometry and cursor on one line, then the screen text
-+        \\  type <name>                                                Type stdin as keys (CR is Return) without taking the lead
++        \\  screen <name> [--all]                                     Geometry and cursor on one line, then the screen text
++        \\  type <name>                                               Type stdin as keys (CR is Return) without taking the lead
          \\  [w]ait <name>...                                           Wait for session tasks to complete
          \\  [t]ail <name>...                                           Follow session output
          \\  [c]ompletions <shell>                                      Shell completions (bash, zsh, fish, nu, yash)
@@ -759,8 +783,8 @@ index 183b736..4eadfc3 100644
      try w.interface.flush();
  }
  
-+/// How long `screen` and `type` wait for the daemon. A daemon without these tags
-+/// answers `Unsupported`; one older than that reply ignores them until the wait runs out.
++/// How long `screen` and `type` wait for the daemon. A daemon older than these
++/// tags ignores them, so the wait running out is how it is told apart.
 +const QUERY_TIMEOUT_MS = 2000;
 +
 +/// Prints `revision cols rows cursor_x cursor_y alternate` on the first line,
@@ -815,12 +839,12 @@ index 183b736..4eadfc3 100644
  fn send(alloc: std.mem.Allocator, io: std.Io, session_name: []const u8, text_parts: [][]const u8, tag: ipc.Tag) !void {
      std.log.info("send session={s}", .{session_name});
  
-diff --git zmx-orig/src/role.zig zmx/src/role.zig
+diff --git a/src/role.zig b/src/role.zig
 new file mode 100644
-index 0000000..5caa92e
+index 0000000..ccc004a
 --- /dev/null
-+++ zmx/src/role.zig
-@@ -0,0 +1,220 @@
++++ b/src/role.zig
+@@ -0,0 +1,219 @@
 +//! Client side of explicit leadership: turns the daemon's Role messages into a
 +//! title with a reserved prefix on the client's own stdout, so the terminal
 +//! hosting `zmx attach` learns whether this client leads. A title and not a
@@ -891,10 +915,9 @@ index 0000000..5caa92e
 +                try out.appendSlice(gpa, rest);
 +                return;
 +            };
-+            const boundary = stop.consumed;
-+            try out.appendSlice(gpa, rest[0..boundary]);
++            try out.appendSlice(gpa, rest[0..stop.consumed]);
 +            try self.flush(gpa, out);
-+            rest = rest[boundary..];
++            rest = rest[stop.consumed..];
 +        }
 +        self.stream.nextSlice(rest);
 +        try out.appendSlice(gpa, rest);
@@ -1041,10 +1064,10 @@ index 0000000..5caa92e
 +    try testing.expect(relay.stream.ground());
 +    try testing.expectEqual(@as(i32, -1), relay.pollTimeout(350));
 +}
-diff --git zmx-orig/src/terminal.zig zmx/src/terminal.zig
+diff --git a/src/terminal.zig b/src/terminal.zig
 index 786764e..7b1d906 100644
---- zmx-orig/src/terminal.zig
-+++ zmx/src/terminal.zig
+--- a/src/terminal.zig
++++ b/src/terminal.zig
 @@ -330,6 +330,53 @@ pub fn serializeTerminalRange(
      };
  }
@@ -1099,26 +1122,13 @@ index 786764e..7b1d906 100644
  test "serializeTerminalState excludes synchronized output replay" {
      const alloc = testing.allocator;
      const io = testing.io;
-diff --git zmx-orig/src/test.zig zmx/src/test.zig
+diff --git a/src/test.zig b/src/test.zig
 index 33334d1..4833350 100644
---- zmx-orig/src/test.zig
-+++ zmx/src/test.zig
+--- a/src/test.zig
++++ b/src/test.zig
 @@ -11,4 +11,5 @@ comptime {
      _ = @import("daemonize.zig");
      _ = @import("lib.zig");
      _ = @import("client.zig");
 +    _ = @import("role.zig");
  }
-diff --git zmx-orig/src/util.zig zmx/src/util.zig
-index d036f13..7dadfa8 100644
---- zmx-orig/src/util.zig
-+++ zmx/src/util.zig
-@@ -6,6 +6,8 @@ pub const isUserInput = if (has_daemon) terminal.isUserInput else struct {};
- pub const serializeTerminalState = if (has_daemon) terminal.serializeTerminalState else struct {};
- pub const serializeTerminal = if (has_daemon) terminal.serializeTerminal else struct {};
- pub const serializeTerminalRange = if (has_daemon) terminal.serializeTerminalRange else struct {};
-+pub const encodeTyped = if (has_daemon) terminal.encodeTyped else struct {};
-+pub const serializeScreenText = if (has_daemon) terminal.serializeScreenText else struct {};
- const ipc = @import("ipc.zig");
- const socket = @import("socket.zig");
- const cross = @import("cross");

@@ -1,0 +1,11 @@
+diff --git a/src/loop.zig b/src/loop.zig
+--- a/src/loop.zig
++++ b/src/loop.zig
+@@ -1784,6 +1784,7 @@
+     var socket_path = "/tmp/zmx-test/socket".*;
+     var daemon = Daemon.init(std.testing.io, &cfg, "test", &socket_path);
+ 
++    daemon.shutdown(std.testing.allocator);
+     daemon.deinit(std.testing.allocator);
+ 
+     try std.testing.expectEqualStrings("/tmp/zmx-test/socket", &socket_path);

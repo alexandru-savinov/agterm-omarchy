@@ -1,15 +1,15 @@
-diff --git zmx-orig/src/client.zig zmx/src/client.zig
-index 77f230c..54d67fb 100644
---- zmx-orig/src/client.zig
-+++ zmx/src/client.zig
-@@ -15,6 +15,7 @@ const lib_posix = @import("posix.zig");
+diff --git a/src/client.zig b/src/client.zig
+index 77f230c..7e9d815 100644
+--- a/src/client.zig
++++ b/src/client.zig
+@@ -14,6 +14,7 @@ const label = @import("label.zig");
+ const lib_posix = @import("posix.zig");
  const cross = @import("cross");
  const signal = @import("signal.zig");
- const loop = @import("loop.zig");
 +const role = @import("role.zig");
+ const loop = @import("loop.zig");
  const Daemon = if (has_daemon) loop.Daemon else struct {};
  
- pub const HistoryFormat = util.HistoryFormat;
 @@ -166,12 +167,18 @@ pub fn attach(alloc: Allocator, io: Io, name: []const u8, opts: AttachOptions) !
      var orig_termios: cross.termios = undefined;
      const stdin_is_tty = cross.tcgetattr(lib_posix.STDIN_FILENO, &orig_termios) == 0;

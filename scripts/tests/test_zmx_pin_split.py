@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """The macOS app keeps zmx v0.8.1 while Linux runs v1.
 
-A v1 client cannot reach a v0.8.1 daemon, and only the Linux launch resets those
-(LinuxIncompatibleDaemons), so a Mac build on v1 would leave every Live pane of an upgraded user dead.
-These checks fail when the two pins converge, or a cache key follows the wrong patch set, before the
-Mac launch path can handle the upgrade.
+These checks keep each build and cache tied to its backend. Linux's updated client has a
+legacy IPC bridge and runs program-start holds through its own patch set.
 """
 from pathlib import Path
 import re
@@ -32,10 +30,10 @@ class ZmxPinSplitTests(unittest.TestCase):
         self.assertIn('"$ROOT/scripts/zmx-patches"/*.patch', (ROOT / "scripts/setup-linux.sh").read_text())
         mac = {p.name for p in (ROOT / "scripts/zmx-patches-macos").glob("*.patch")}
         linux = {p.name for p in (ROOT / "scripts/zmx-patches").glob("*.patch")}
-        self.assertIn("0007-incompatible-daemon.patch", linux)
-        self.assertNotIn("0007-incompatible-daemon.patch", mac)
-        self.assertIn("0008-daemon-drain-on-exit.patch", linux)
-        self.assertNotIn("0008-daemon-drain-on-exit.patch", mac)
+        self.assertIn("0009-legacy-ipc.patch", linux)
+        self.assertNotIn("0009-legacy-ipc.patch", mac)
+        self.assertIn("0007-drain-output-on-exit.patch", linux)
+        self.assertNotIn("0007-drain-output-on-exit.patch", mac)
         self.assertTrue((ROOT / "scripts/zmx-patches-macos/ghostty/0001-formatter-unstyled-blanks.patch").is_file())
 
     def test_macos_cache_key_follows_the_macos_patch_set(self):
@@ -43,9 +41,12 @@ class ZmxPinSplitTests(unittest.TestCase):
         self.assertIn("'scripts/zmx-patches-macos/**/*.patch'", weekly)
         self.assertNotIn("'scripts/zmx-patches/**/*.patch'", weekly)
 
-    def test_device_attribute_replies_name_the_macos_pin(self):
-        responder = ROOT / "agtermCore/Sources/SessionHostRuntime/DeviceAttributeResponder.swift"
-        self.assertIn(f"ZMX_REV {assignment('scripts/setup.sh', 'ZMX_REV')}", responder.read_text())
+    def test_host_startup_hold_is_in_the_linux_patch_set(self):
+        # Upstream 6ddbc3bd replaced the DA responder with a zmx-side program-start hold.
+        host = ROOT / "agtermCore/Sources/SessionHostRuntime/Host.swift"
+        self.assertIn("ZMX_HOLD_UNTIL_ATTACH", host.read_text())
+        hold = ROOT / "scripts/zmx-patches/0013-hold-until-attach.patch"
+        self.assertIn('test "a held child is released by the first terminal Init only', hold.read_text())
 
 
 if __name__ == "__main__":

@@ -132,7 +132,7 @@ if $need_ghostty; then
     "$GHOSTTY_STAGE/share/licenses/ghostty" "$GHOSTTY_BUILD"
 
   echo "fetching pinned Ghostty theme dependency..."
-  curl -fsSLo "$GHOSTTY_BUILD/ghostty-themes.tgz" "$GHOSTTY_THEMES_URL"
+  curl --proto =https --proto-redir =https -fsSLo "$GHOSTTY_BUILD/ghostty-themes.tgz" "$GHOSTTY_THEMES_URL"
   echo "$GHOSTTY_THEMES_SHA256  $GHOSTTY_BUILD/ghostty-themes.tgz" | sha256sum --check
   tar -xzf "$GHOSTTY_BUILD/ghostty-themes.tgz" -C "$GHOSTTY_STAGE/share/ghostty/themes" --strip-components=1
   cp "$ROOT/linux/ghostty-resources.env" "$GHOSTTY_STAGE/share/ghostty/themes/.agterm-resource-manifest"

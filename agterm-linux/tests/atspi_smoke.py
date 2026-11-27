@@ -428,7 +428,7 @@ def focus_accessible_window(window, process_id):
     # AT-SPI can expose a newly presented GTK window before X11 marks it visible.
     # Keep targeting this exact title while the window manager finishes mapping it.
     command = [
-        "xdotool", "search", "--onlyvisible", "--name", f"^{re.escape(title)}$",
+        "xdotool", "search", "--onlyvisible", "--all", "--pid", str(process_id), "--name", f"^{re.escape(title)}$",
         "windowactivate", "--sync", "%@",
     ]
     assert poll(lambda: subprocess.run(command, check=False, stdout=subprocess.DEVNULL,
@@ -4216,7 +4216,8 @@ def verify_sidebar_session_drag(env):
             return window_tree(env, window_id)["workspaces"]
 
         def distribution():
-            return {w["name"]: [s["name"] for s in w["sessions"]] for w in workspaces()}
+            return {w["name"]: [s["name"] for s in w["sessions"]] for w in workspaces()
+                    if not w.get("root") or w["sessions"]}
 
         def session_id_of(name):
             session_id = next((s["id"] for w in workspaces() for s in w["sessions"]
@@ -4336,7 +4337,7 @@ def verify_sidebar_workspace_drag(env):
             return window_tree(env, window_id)["workspaces"]
 
         def ws_names():
-            return [w["name"] for w in workspaces()]
+            return [w["name"] for w in workspaces() if not w.get("root")]
 
         def distribution():
             return {w["name"]: [s["id"] for s in w["sessions"]] for w in workspaces()}
@@ -4573,7 +4574,7 @@ def verify_sidebar_multiselect_collapse(env):
 
         def distribution():
             return {w["name"]: [s["name"] for s in w["sessions"]]
-                    for w in window_tree(env, window_id)["workspaces"]}
+                    for w in window_tree(env, window_id)["workspaces"] if not w.get("root") or w["sessions"]}
 
         def session_id_of(name):
             session_id = next((s["id"] for w in window_tree(env, window_id)["workspaces"]
@@ -7764,6 +7765,8 @@ def main():
             "omarchy-font-family",
             # Appended so existing scenarios keep their CI shard.
             "live-control-memory",
+            "v0441", "v0441-audit-gui", "v0441-audit-live", "v0441-audit-transfers",
+            "v0441-audit-pages", "v0441-audit-capture",
         )
         try:
             shard_count = int(os.environ.get("AGTERM_ATSPI_SHARD_COUNT", "1"))
@@ -7773,7 +7776,19 @@ def main():
         except ValueError as error:
             print(f"FAIL: invalid AT-SPI shard configuration: {error}")
             return 2
-        for child_scenario in scenarios[shard_index::shard_count]:
+        selected = os.environ.get("AGTERM_ATSPI_SCENARIOS")
+        if selected:
+            if shard_count != 1:
+                print("FAIL: sharded AT-SPI acceptance requires the complete scenario suite")
+                return 2
+            scheduled = selected.split(",")
+            unknown = set(scheduled) - set(scenarios)
+            if unknown:
+                print("FAIL: unknown GTK scenarios: " + ", ".join(sorted(unknown)))
+                return 2
+        else:
+            scheduled = scenarios[shard_index::shard_count]
+        for child_scenario in scheduled:
             child_env = dict(os.environ, AGTERM_ATSPI_SCENARIO=child_scenario)
             status, extra = run_scenario([sys.executable, __file__], child_env)
             retries += extra
@@ -7852,6 +7867,30 @@ def main():
         elif scenario == "upstream-v0411":
             from atspi_v0411 import verify_v0411
             verify_v0411(env, state)
+        elif scenario == "v0441":
+            from atspi_v0441 import verify_v0441
+            verify_v0441(env, state)
+        elif scenario == "v0441-audit-gui":
+            from atspi_v0441_audit import verify_gui
+            verify_gui(env, state)
+        elif scenario == "v0441-audit-live":
+            from atspi_v0441_audit import verify_live
+            verify_live(env, state)
+        elif scenario == "v0441-audit-transfers":
+            from atspi_v0441_transfers import verify_transfers
+            verify_transfers(env, state)
+        elif scenario == "v0441-audit-pages":
+            from atspi_v0441_pages import verify_pages
+            verify_pages(env, state)
+        elif scenario == "v0441-audit-late-restart":
+            from atspi_v0441_late_restart import verify_late_restart
+            verify_late_restart(env, state)
+        elif scenario == "v0441-audit-capture":
+            from atspi_v0441_capture import verify_capture
+            verify_capture(env, state)
+        elif scenario == "v0441-audit-upgrade":
+            from atspi_v0441_upgrade import verify_upgrade
+            verify_upgrade(env, state)
         elif scenario == "v0430-input":
             from atspi_v0430_input import verify_input_v0430
             verify_input_v0430(env, state)
@@ -7864,9 +7903,10 @@ def main():
         elif scenario == "upstream-v0430":
             from atspi_v0430 import verify_v0430
             verify_v0430(env, state)
-        elif scenario in ("remote-v0430", "v0430-viewers", "v0430-history"):
+        elif scenario in ("remote-v0430", "v0430-viewers", "v0430-history", "v0441-remote"):
             from atspi_v0430_remote import verify_v0430_remote
-            verify_v0430_remote(env, state, acceptance=scenario == "v0430-viewers", history_only=scenario == "v0430-history")
+            verify_v0430_remote(env, state, acceptance=scenario == "v0430-viewers", history_only=scenario == "v0430-history",
+                               v0441_only=scenario == "v0441-remote")
         elif scenario == "sidebar-v0400":
             from atspi_v0400_sidebar import verify_sidebar_v0400
             verify_sidebar_v0400(env, state)

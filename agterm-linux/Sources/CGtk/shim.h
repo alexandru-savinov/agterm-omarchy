@@ -4,6 +4,8 @@
 #include <glib-unix.h>
 #include <epoxy/gl.h>
 #include "ghostty.h"
+#include "linux_socket_diag.h"
+
 #ifdef GDK_WINDOWING_X11
 #include <gdk/x11/gdkx.h>
 #endif

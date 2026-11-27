@@ -145,7 +145,7 @@ enum LinuxCustomCommandProcess {
     /// back.
     static func request(
         command: CustomCommand, context: CommandContext, baseEnvironment: [String: String],
-        stderrPath: String? = nil, localWorkingDirectory: String? = nil
+        stderrPath: String? = nil, localWorkingDirectory: String? = nil, openerPath: String? = nil
     ) -> LinuxProcessLaunchRequest {
         var environment = baseEnvironment.merging(context.environment()) { _, commandValue in commandValue }
         let home = baseEnvironment["HOME"] ?? FileManager.default.homeDirectoryForCurrentUser.path
@@ -153,9 +153,10 @@ enum LinuxCustomCommandProcess {
             baseEnvironment["PATH"], bundledCLIDirectory: LinuxCommandPath.bundledCLIDirectory,
             homeDirectory: home)
         environment = gdkEnvironment.restoringChildEnvironment(environment)
+        if let openerPath { environment["AGT_PATH"] = openerPath }
         return LinuxProcessLaunchRequest(
             executablePath: "/bin/sh",
-            arguments: ["-c", context.expand(command.command)],
+            arguments: ["-c", openerPath == nil ? context.expand(command.command) : command.command],
             environment: environment,
             currentDirectoryPath: (localWorkingDirectory ?? context.sessionPWD).isEmpty
                 ? nil : (localWorkingDirectory ?? context.sessionPWD),
@@ -168,12 +169,13 @@ enum LinuxCustomCommandProcess {
         context: CommandContext,
         baseEnvironment: [String: String] = ProcessInfo.processInfo.environment,
         localWorkingDirectory: String? = nil,
+        openerPath: String? = nil,
         launcher: any LinuxProcessLaunching,
         onFailure: @escaping @Sendable (LinuxCustomCommandFailure) -> Void
     ) -> Bool {
         let capture = command.errorHud ? LinuxCommandStderrCapture() : nil
         let request = request(command: command, context: context, baseEnvironment: baseEnvironment,
-                              stderrPath: capture?.path, localWorkingDirectory: localWorkingDirectory)
+                              stderrPath: capture?.path, localWorkingDirectory: localWorkingDirectory, openerPath: openerPath)
         do {
             try launcher.launch(request) { status in
                 let detail = capture?.consume()

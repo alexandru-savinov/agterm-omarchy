@@ -46,6 +46,7 @@ struct AgtermApp {
         // Both resource environment writes and libghostty's locale setup must finish before GTK
         // starts worker threads that read the process environment.
         GhosttyApp.shared.initializeRuntime()
+        LinuxLaunchTrace.mark("runtime ready")
         // AGTERM_APP_ID overrides the GApplication id so a dev/test instance registers separately on
         // the session bus and runs ALONGSIDE a deployed one (the Linux analogue of the macOS .debug
         // bundle id) instead of forwarding its launch to the running instance.
@@ -59,6 +60,7 @@ struct AgtermApp {
         connect(app, "open", unsafeBitCast(onOpen, to: GCallback.self), nil)
         connect(app, "command-line", unsafeBitCast(onCommandLine, to: GCallback.self), nil)
         connect(app, "shutdown", unsafeBitCast(onShutdown, to: GCallback.self), nil)
+        LinuxLaunchTrace.mark("entering application main loop")
         let status = g_application_run(GAPP(app), CommandLine.argc, CommandLine.unsafeArgv)
         exit(status)
     }
@@ -172,7 +174,16 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
         guard let files, nFiles > 0,
               let id = gLibrary.frontmostWindowID ?? gLibrary.windows.first?.id,
               let ctl = gWindows[id] else { return }
+        var linkedSession: UUID?
         for i in 0..<Int(nFiles) {
+            if let file = files[i], let raw = g_file_get_uri(file) {
+                let uri = String(cString: raw)
+                g_free(raw)
+                if uri.lowercased().hasPrefix("agterm:") {
+                    if let session = LinkPolicy.sessionLink(uri) { linkedSession = session }
+                    continue
+                }
+            }
             guard let f = files[i], let cpath = g_file_get_path(f) else { continue }
             let path = String(cString: cpath); g_free(cpath)
             var isDir: ObjCBool = false
@@ -181,6 +192,7 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
             ctl.createSessionInDirectory(cwd)
         }
         gtk_window_present(WIN(ctl.windowPointer))
+        if let linkedSession { LinuxSessionLinkHandoff.queue(linkedSession) }
     }
 }
 
@@ -199,6 +211,7 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
         return
     }
     gApp = app
+    LinuxLaunchTrace.mark("activation begin")
     // Route every deferred main-actor job (MainTimer) through g_timeout_add BEFORE any store or
     // controller exists — see `agterm-linux/docs/main-loop.md`.
     installGLibMainTimer()
@@ -275,6 +288,7 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
         return id
     }
     let spawnPlan = gLibrary.launchSpawnPlan()
+    LinuxLaunchTrace.mark("window library loaded")
     gSpawnRegistry.pacer.arm(order: spawnPlan.order, burst: spawnPlan.burst)
     ensureStarterFiles()
     installAppCSS()
@@ -320,6 +334,7 @@ private let onOpen: @MainActor @convention(c) (OpaquePointer?, UnsafeMutablePoin
        let controller = toOpen.first.flatMap({ gWindows[$0] }) {
         controller.showToast(notice)
     }
+    LinuxLaunchTrace.mark("restored windows presented")
     if let controller = gWindows.values.first {
         _ = controller.reloadConfigForAppearanceChange(appearanceSide)
     }

@@ -36,11 +36,12 @@ enum LinuxRestoreSeed {
                             denylist: Set<String>, daemonRunning: Bool?, endsWithCommand: Bool = false,
                             waitAfterCommand: Bool = false, detached: Bool = false) -> LinuxLaunchSeed {
         guard let replay else {
+            let command = ZmxSupport.attachCommand(configuration, replaying: nil,
+                                                   creationCommand: endsWithCommand ? nil : durable,
+                                                   paneCommand: endsWithCommand ? durable : nil,
+                                                   denylist: denylist, detached: detached)
             return LinuxLaunchSeed(
-                command: ZmxSupport.attachCommand(configuration, replaying: nil,
-                                                  creationCommand: endsWithCommand ? nil : durable,
-                                                  paneCommand: endsWithCommand ? durable : nil,
-                                                  denylist: denylist, detached: detached),
+                command: LinuxZmxLaunch.holdUntilAttached(command, program: durable != nil),
                 initialInput: nil, waitAfterCommand: endsWithCommand && waitAfterCommand
             )
         }
@@ -85,7 +86,7 @@ extension AppController {
         let identity = pane == .right ? session.splitPaneIdentity : session.paneIdentity
         let decision = gRestoreLaunchDecision
         let disposition: ZmxSupport.LaunchDisposition
-        let lead = ZmxLeadAttachment(claim: false)
+        let lead = ZmxLeadAttachment(claim: false, reclaim: identity.flatMap { ZmxLeadBook.shared.pendingReclaim(pane: $0) })
         if decision.requested == .live, session.remoteHost == nil, let identity {
             let configuration = try? LinuxZmxLaunch.configuration(
                 paneIdentity: identity, baseEnvironment: baseEnvironment, lead: lead

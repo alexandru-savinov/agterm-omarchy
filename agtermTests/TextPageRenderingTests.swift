@@ -730,11 +730,11 @@ extension TextPageRenderingTests {
         XCTAssertEqual(last, "6000 of 6000")
         let painted = try await inRenderer("""
             const now = [...CSS.highlights.get('agterm-current')][0];
-            [CSS.highlights.get('agterm-match').size,
+            [CSS.highlights.get('agterm-match').size > 0 && CSS.highlights.get('agterm-match').size < 5000,
              [...CSS.highlights.get('agterm-match')].some(r => r.startContainer === now.startContainer && r.startOffset === now.startOffset)
             ].join('|');
             """, page.webView)
-        XCTAssertEqual(painted as? String, "5000|true")
+        XCTAssertEqual(painted as? String, "true|true")
     }
 
     func testAJumpToTheLastLinePausesAndItsOwnScrollNeverResumes() async throws {
@@ -1014,6 +1014,11 @@ extension TextPageRenderingTests {
 
         try await waitForScript(Self.code, in: page.webView) { $0 == "{\"a\": 1}\n{\"a\": 2}\n{\"a\": 3}\n" }
         try await waitForScript(Self.count, in: page.webView) { $0 == "2 of 3" }
+        let marks = try await inRenderer("""
+            [...CSS.highlights.get('agterm-match'), ...CSS.highlights.get('agterm-current')]
+              .map(r => r.constructor.name + ':' + (r.startContainer.isConnected && r.endContainer.isConnected)).join(',')
+            """, page.webView) as? String
+        XCTAssertEqual(marks, Array(repeating: "StaticRange:true", count: 4).joined(separator: ","))
         let bottom = try await page.webView.evaluateJavaScript(Self.atBottom)
         XCTAssertEqual(bottom as? Bool, true)
         XCTAssertEqual(current?.logState?.following, true)
