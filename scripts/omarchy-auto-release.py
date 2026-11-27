@@ -26,14 +26,15 @@ RELEASES_PATH = "releases?per_page=100"
 PROMOTION_RUNS = "actions/workflows/prerelease-omarchy.yml/runs"
 ACTIVE_PROMOTION_STATUSES = ("queued", "in_progress", "requested", "waiting", "pending")
 # Every job omarchy-ci.yml defines, with {arch} for a matrix over ARCHITECTURES; a test pins this to the file.
+CLAUDE_REPLAY_JOB = "Installed Claude hook replay (Arch x86_64)"
 CI_JOBS = ("Installer and scripts", "Detect changes", "Core tests ({arch})", "SwiftLint (Linux)",
            "GTK build and tests ({arch})", "Attest CI archive ({arch})", "libghostty patch Zig tests ({arch})",
-           "zmx patch tests", "Upstream workflow guard", "CI", "Cookbook checks")
+           "zmx patch tests", "Upstream workflow guard", "CI", "Cookbook checks", CLAUDE_REPLAY_JOB)
 # Omarchy CI path-filters every job except these when a change touches no product input. "Detect changes"
 # applies the filter, "CI" aggregates every result, and the cookbook check builds nothing.
 UNFILTERED_JOBS = ("Upstream workflow guard", "Installer and scripts", "Detect changes", "CI", "Cookbook checks")
 SCOPE_GATES = ("Detect changes", "CI")
-BUILD_JOBS = ("SwiftLint (Linux)",) + promotion.REQUIRED_ARCH_JOBS + (promotion.ATTEST_JOB,)
+BUILD_JOBS = ("SwiftLint (Linux)",) + promotion.REQUIRED_ARCH_JOBS + (promotion.ATTEST_JOB, CLAUDE_REPLAY_JOB)
 MATRIX = "${{ matrix.arch }}"
 # Tracked inputs to the packaged Linux payload. Commit and version stamps are generated at release time.
 PRODUCT_PATHS = (

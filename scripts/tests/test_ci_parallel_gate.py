@@ -16,13 +16,14 @@ class ParallelGateTests(unittest.TestCase):
         cls.gate = workflow.split("  ci:\n", 1)[1].split("\n  cookbook:\n", 1)[0]
         cls.script = textwrap.dedent(cls.gate.split("        run: |\n", 1)[1])
         cls.jobs = {"upstream-ci-disabled", "scripts", "changes", "test-linux", "lint-linux", "build-linux", "attest-linux",
-                    "ghostty-patch-tests", "zmx-patch-tests", "cookbook"}
+                    "ghostty-patch-tests", "zmx-patch-tests", "cookbook", "claude-hook-replay"}
 
     def run_gate(self, overrides, *, attest=False):
         results = {job: {"result": overrides.get(job, "success")} for job in self.jobs}
         return subprocess.run(
             ["bash", "-eu", "-c", self.script],
-            env={**os.environ, "RESULTS": json.dumps(results), "REQUIRE_ATTESTATION": str(attest).lower()},
+            env={**os.environ, "RESULTS": json.dumps(results), "REQUIRE_ATTESTATION": str(attest).lower(),
+                 "REQUIRE_CLAUDE_REPLAY": str(results["build-linux"]["result"] == "success").lower()},
             capture_output=True, text=True, timeout=5,
         )
 
@@ -34,7 +35,7 @@ class ParallelGateTests(unittest.TestCase):
 
     def test_success_and_legitimate_path_skips_pass(self):
         for skipped in ({}, {job: "skipped" for job in ("test-linux", "lint-linux", "build-linux", "ghostty-patch-tests",
-                                                  "zmx-patch-tests", "cookbook")}):
+                                                  "zmx-patch-tests", "cookbook", "claude-hook-replay")}):
             with self.subTest(skipped=skipped):
                 result = self.run_gate(skipped)
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -58,6 +59,11 @@ class ParallelGateTests(unittest.TestCase):
         missing = self.run_gate(skipped, attest=True)
         self.assertNotEqual(missing.returncode, 0)
         self.assertIn("attest-linux", missing.stderr)
+
+    def test_successful_build_requires_replay_to_run(self):
+        result = self.run_gate({"claude-hook-replay": "skipped"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("claude-hook-replay", result.stderr)
 
 
 if __name__ == "__main__":

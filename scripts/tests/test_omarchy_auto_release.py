@@ -35,13 +35,14 @@ RELEASE = {"id": 456, "tag_name": TAG, "draft": False, "prerelease": False,
            "published_at": "2026-11-19T17:00:00Z"}
 OPEN_INCIDENTS = "issues?labels=release-incident&state=open&per_page=100"
 # Job names and conclusions of the real Omarchy CI runs on main: 44894615770 (#505, workflow-only, path
-# filters skipped every build) and 44880156678 (built and attested both architectures).
+# filters skipped every build) and 44880156678 (built and attested both architectures),
+# with the subsequently added Claude replay result included in each fixture.
 FILTERED_JOBS = [
     ("Upstream workflow guard", "success"), ("Installer and scripts", "success"), ("Detect changes", "success"),
     ("SwiftLint (Linux)", "skipped"), ("Cookbook checks", "skipped"), ("zmx patch tests", "skipped"),
     ("libghostty patch Zig tests (${{ matrix.arch }})", "skipped"), ("Core tests (${{ matrix.arch }})", "skipped"),
     ("GTK build and tests (${{ matrix.arch }})", "skipped"), ("Attest CI archive (${{ matrix.arch }})", "skipped"),
-    ("CI", "success"),
+    (auto.CLAUDE_REPLAY_JOB, "skipped"), ("CI", "success"),
 ]
 BUILT_JOBS = [
     ("Upstream workflow guard", "success"), ("Installer and scripts", "success"), ("Detect changes", "success"),
@@ -49,7 +50,8 @@ BUILT_JOBS = [
     ("Core tests (x86_64)", "success"), ("GTK build and tests (x86_64)", "success"),
     ("Core tests (aarch64)", "success"), ("libghostty patch Zig tests (x86_64)", "success"),
     ("SwiftLint (Linux)", "success"), ("GTK build and tests (aarch64)", "success"), ("Cookbook checks", "skipped"),
-    ("Attest CI archive (aarch64)", "success"), ("Attest CI archive (x86_64)", "success"), ("CI", "success"),
+    ("Attest CI archive (aarch64)", "success"), ("Attest CI archive (x86_64)", "success"),
+    (auto.CLAUDE_REPLAY_JOB, "success"), ("CI", "success"),
 ]
 # Attempt 1 of run 44864094283: it built, then failed; attempt 2 re-ran it green.
 FAILED_BUILD_ATTEMPT = [
@@ -58,7 +60,7 @@ FAILED_BUILD_ATTEMPT = [
     ("GTK build and tests (aarch64)", "failure"), ("libghostty patch Zig tests (x86_64)", "success"),
     ("Core tests (x86_64)", "success"), ("GTK build and tests (x86_64)", "success"),
     ("Core tests (aarch64)", "success"), ("SwiftLint (Linux)", "success"), ("Cookbook checks", "skipped"),
-    ("CI", "failure"), ("Attest CI archive (${{ matrix.arch }})", "skipped"),
+    ("CI", "failure"), ("Attest CI archive (${{ matrix.arch }})", "skipped"), (auto.CLAUDE_REPLAY_JOB, "skipped"),
 ]
 SCOPE_RUN = {"id": 123, "run_attempt": 1, "conclusion": "success"}
 RERUN = SCOPE_RUN | {"run_attempt": 2}
@@ -426,6 +428,7 @@ class ScopeTests(unittest.TestCase):
             "unknown job ran": FILTERED_JOBS + [("Renamed build", "success")],
             "unknown job failed": FILTERED_JOBS + [("Renamed build", "failure")],
             "patch tests ran": replaced(FILTERED_JOBS, "zmx patch tests", ("zmx patch tests", "success")),
+            "replay ran": replaced(FILTERED_JOBS, auto.CLAUDE_REPLAY_JOB, (auto.CLAUDE_REPLAY_JOB, "success")),
         }
         for variant, rows in variants.items():
             with self.subTest(variant=variant):
