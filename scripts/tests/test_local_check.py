@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise wrapper refusals without running the macOS gates or writing a status."""
-import os
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -21,10 +21,10 @@ class LocalCheck(unittest.TestCase):
         self.reviewed = self.root / "Documents/orchestrator/reviews/conditional-ci-2026-11-27/local-check.sh"
         self.reviewed.parent.mkdir(parents=True)
         shutil.copyfile(WRAPPER, self.reviewed)
-        bin_dir = self.root / "bin"
-        bin_dir.mkdir()
+        self.bin_dir = self.root / "bin"
+        self.bin_dir.mkdir()
         self.log = self.root / "commands"
-        self.env = {**os.environ, "HOME": str(self.root), "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        self.env = {**os.environ, "HOME": str(self.root), "PATH": f"{self.bin_dir}:{os.environ['PATH']}",
                     "TMPDIR": str(self.root), "CALLS": str(self.log)}
         stubs = {
             "uname": "echo Darwin",
@@ -39,9 +39,12 @@ esac''',
             "mktemp": '''echo mktemp >> "$CALLS"; exit 99''',
         }
         for name, script in stubs.items():
-            path = bin_dir / name
-            path.write_text("#!/bin/bash\n" + script + "\n")
-            path.chmod(0o755)
+            self.stub(name, script)
+
+    def stub(self, name, script):
+        path = self.bin_dir / name
+        path.write_text("#!/bin/bash\n" + script + "\n")
+        path.chmod(0o755)
 
     def run_wrapper(self, path, cwd, **env):
         return subprocess.run(["bash", str(path), "77", "a" * 40], text=True, capture_output=True,
@@ -69,6 +72,58 @@ esac''',
                 calls = self.log.read_text()
                 self.assertIn("/pulls/77", calls)
                 self.assertNotIn("mktemp", calls)
+
+    @unittest.skipUnless(shutil.which("jq"), "fixture evaluates the PR metadata filter with jq")
+    def test_only_physical_worktree_can_run_the_gates(self):
+        owner = "alexandru-savinov"
+        payload = {"number": 77, "state": "open", "user": {"login": owner},
+                   "head": {"repo": {"full_name": f"{owner}/agterm-omarchy"}}}
+        temp_root = self.root / "temp-root"
+        temp_root.mkdir()
+        alias = self.root / "temp-alias"
+        alias.symlink_to(temp_root, target_is_directory=True)
+        outside = self.root / "temp-root-outside"
+        outside.mkdir()
+        self.stub("mktemp", 'exec /usr/bin/mktemp "$@"')
+        self.stub("git", '''
+case " $* " in
+  *" worktree add "*)
+    worktree=${@: -2:1}
+    if [[ $ESCAPE == yes ]]; then
+        ln -s "$OUTSIDE" "$worktree"
+    else
+        mkdir "$worktree"
+    fi
+    mkdir "$worktree/scripts"
+    cp "$FIXTURE" "$worktree/scripts/setup.sh"
+    ;;
+  *" rev-parse FETCH_HEAD "*|*" rev-parse HEAD^{tree} "*)
+    printf '%040d\n' 0 | tr 0 a
+    ;;
+  *" rev-parse --show-toplevel "*) exit 1 ;;
+  *" ls-remote "*) echo replaced-merge ;;
+esac''')
+        self.stub("xcode-select", "echo /fixture/Developer")
+        self.stub("python3", 'cat >/dev/null; echo "{}" > "$3"')
+        self.stub("make", 'printf "make %s\n" "$*"')
+        self.stub("setup", 'printf "setup pwd=%s TMPDIR=%s\n" "$(pwd -P)" "$TMPDIR"')
+
+        for escape in ("yes", "no"):
+            with self.subTest(escape=escape):
+                attempt = self.run_wrapper(self.reviewed, self.root, PR_JSON=json.dumps(payload),
+                                           TMPDIR=str(alias), ESCAPE=escape, OUTSIDE=str(outside),
+                                           FIXTURE=str(self.bin_dir / "setup"))
+                self.assertEqual(attempt.returncode, 2, attempt)
+                log = Path(attempt.stdout.splitlines()[0].removeprefix("Validation log will be saved in "))
+                if escape == "yes":
+                    self.assertIn("outside the temporary root", attempt.stderr)
+                    self.assertFalse(log.exists())
+                else:
+                    self.assertIn("No status was posted", attempt.stderr)
+                    worktree = log.parent.resolve() / "worktree"
+                    self.assertIn(f"setup pwd={worktree} TMPDIR={worktree}/.tmp", log.read_text())
+                    self.assertIn("make build", log.read_text())
+                self.assertNotIn("/statuses/", self.log.read_text())
 
 
 if __name__ == "__main__":

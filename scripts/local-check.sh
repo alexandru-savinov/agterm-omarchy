@@ -47,7 +47,8 @@ if [[ $(dscl . -read "/Users/$(id -un)" UserShell) != 'UserShell: /bin/zsh' ]]; 
     exit 2
 fi
 
-scratch=$(mktemp -d "${TMPDIR:-/tmp}/agterm-local-check.XXXXXXXX")
+temp_root=$(cd -P -- "${TMPDIR:-/tmp}" && pwd -P)
+scratch=$(mktemp -d "${temp_root%/}/agterm-local-check.XXXXXXXX")
 worktree="$scratch/worktree"
 log="$scratch/validation.log"
 echo "Validation log will be saved in $log"
@@ -63,16 +64,22 @@ if [[ $(repo_git rev-parse FETCH_HEAD) != "$commit" ]]; then
     exit 2
 fi
 repo_git worktree add --quiet --detach "$worktree" "$commit"
-trap 'repo_git worktree remove --force "$worktree"' EXIT
+# Setup and build scripts may clean build artifacts only in this disposable checkout.
+if [[ $worktree != "${temp_root%/}/"* ]] ||
+   ! cd -P -- "$worktree" || [[ $(pwd -P) != "$worktree" ]]; then
+    echo 'Refusing to run setup or make: the worktree resolves outside the temporary root or its allocated checkout.' >&2
+    exit 2
+fi
+trap '(cd -P -- "$scratch" && repo_git worktree remove --force "$worktree")' EXIT
 tree=$(git -C "$worktree" rev-parse 'HEAD^{tree}')
 if [[ -n $(git -C "$worktree" status --porcelain --untracked-files=all) ]]; then
     echo 'The fetched worktree is dirty.' >&2
     exit 2
 fi
 
-mkdir "$scratch/home" "$scratch/tmp"
+mkdir "$scratch/home" "$worktree/.tmp"
 run_isolated() {
-    env -i PATH="$PATH" HOME="$scratch/home" TMPDIR="$scratch/tmp" \
+    env -i PATH="$PATH" HOME="$scratch/home" TMPDIR="$worktree/.tmp" \
         USER="$(id -un)" LOGNAME="$(id -un)" SHELL=/bin/zsh \
         DEVELOPER_DIR="${DEVELOPER_DIR:-$(xcode-select -p)}" "$@"
 }
@@ -112,7 +119,6 @@ cat "$versions" >> "$log"
 printf '\n' >> "$log"
 exit_code=0
 (
-    cd "$worktree"
     run_isolated /bin/bash -se <<'CHECK'
 scripts/setup.sh
 result=0
