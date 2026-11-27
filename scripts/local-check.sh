@@ -77,12 +77,16 @@ if [[ -n $(git -C "$worktree" status --porcelain --untracked-files=all) ]]; then
     exit 2
 fi
 
-mkdir "$scratch/home" "$worktree/.tmp"
+mkdir "$scratch/home" "$worktree/build"
+# Keep Swift macro sources and other temporary inputs under lint's existing build exclusion.
+mkdir "$worktree/build/.tmp"
 run_isolated() {
     # Foundation tools can resolve the account home independently of HOME.
     # nix-darwin's zshenv must preserve the PATH already supplied to the isolated run.
-    env -i PATH="$PATH" HOME="$scratch/home" CFFIXED_USER_HOME="$scratch/home" TMPDIR="$worktree/.tmp" \
+    env -i PATH="$PATH" HOME="$scratch/home" CFFIXED_USER_HOME="$scratch/home" TMPDIR="$worktree/build/.tmp" \
         __NIX_DARWIN_SET_ENVIRONMENT_DONE=1 \
+        TEST_RUNNER_HOME="$scratch/home" TEST_RUNNER_CFFIXED_USER_HOME="$scratch/home" \
+        TEST_RUNNER___CF_USER_TEXT_ENCODING="${__CF_USER_TEXT_ENCODING:-$(printf '0x%X:0:0' "$(id -u)")}" \
         USER="$(id -un)" LOGNAME="$(id -un)" SHELL=/bin/zsh \
         DEVELOPER_DIR="${DEVELOPER_DIR:-$(xcode-select -p)}" "$@"
 }

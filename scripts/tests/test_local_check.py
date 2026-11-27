@@ -111,6 +111,10 @@ if [[ $1 == test ]]; then
     printf "test socket=%s nix environment initialized=%s\n" \
         "$AGTERM_CONTROL_SOCKET" "$__NIX_DARWIN_SET_ENVIRONMENT_DONE"
 fi
+if [[ $1 == test-app ]]; then
+    printf "XCTest HOME=%s CFFIXED_USER_HOME=%s encoding=%s\n" \
+        "$TEST_RUNNER_HOME" "$TEST_RUNNER_CFFIXED_USER_HOME" "$TEST_RUNNER___CF_USER_TEXT_ENCODING"
+fi
 ''')
         self.stub("setup", '''
 printf "setup pwd=%s TMPDIR=%s\n" "$(pwd -P)" "$TMPDIR"
@@ -121,7 +125,8 @@ printf "setup HOME=%s CFFIXED_USER_HOME=%s\n" "$HOME" "$CFFIXED_USER_HOME"
             with self.subTest(escape=escape):
                 attempt = self.run_wrapper(self.reviewed, self.root, PR_JSON=json.dumps(payload),
                                            TMPDIR=str(alias), ESCAPE=escape, OUTSIDE=str(outside),
-                                           FIXTURE=str(self.bin_dir / "setup"))
+                                           FIXTURE=str(self.bin_dir / "setup"),
+                                           __CF_USER_TEXT_ENCODING="0x1F5:0:0")
                 self.assertEqual(attempt.returncode, 2, attempt)
                 log = Path(attempt.stdout.splitlines()[0].removeprefix("Validation log will be saved in "))
                 if escape == "yes":
@@ -131,10 +136,13 @@ printf "setup HOME=%s CFFIXED_USER_HOME=%s\n" "$HOME" "$CFFIXED_USER_HOME"
                     self.assertIn("No status was posted", attempt.stderr)
                     worktree = log.parent.resolve() / "worktree"
                     home = worktree.parent / "home"
-                    self.assertIn(f"setup pwd={worktree} TMPDIR={worktree}/.tmp", log.read_text())
+                    build_tmp = worktree / "build" / ".tmp"
+                    self.assertIn(f"setup pwd={worktree} TMPDIR={build_tmp}", log.read_text())
                     self.assertIn(f"setup HOME={home} CFFIXED_USER_HOME={home}", log.read_text())
                     self.assertIn("make build", log.read_text())
-                    self.assertIn(f"test socket={worktree}/.tmp/no-app.sock nix environment initialized=1",
+                    self.assertIn(f"test socket={build_tmp}/no-app.sock nix environment initialized=1",
+                                  log.read_text())
+                    self.assertIn(f"XCTest HOME={home} CFFIXED_USER_HOME={home} encoding=0x1F5:0:0",
                                   log.read_text())
                 self.assertNotIn("/statuses/", self.log.read_text())
 
