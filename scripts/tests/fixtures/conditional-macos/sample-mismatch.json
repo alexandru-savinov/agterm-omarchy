@@ -1,0 +1,19 @@
+{
+  "annotation": {
+    "event": "conditional-ci-sample-mismatch",
+    "check": "macos-validation",
+    "run": "42",
+    "attempt": "2",
+    "merge": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "url": "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/42"
+  },
+  "failed_run": {
+    "databaseId": 42,
+    "workflowName": "Omarchy macOS validation",
+    "headBranch": "claude/conditional-ci-pilot",
+    "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "createdAt": "2026-11-27T12:00:00Z",
+    "url": "https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/42",
+    "event": "pull_request"
+  }
+}

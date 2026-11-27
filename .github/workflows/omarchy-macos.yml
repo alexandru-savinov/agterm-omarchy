@@ -2,12 +2,14 @@ name: Omarchy macOS validation
 
 # The fork's CI builds only the Linux targets, so a shared-core change once left the macOS app
 # uncompilable for two months (#370). This builds and tests the macOS app on main every week, and on
-# demand for any branch: make build, make test, make test-app and make lint on a hosted macOS runner.
+# demand for any branch, and on pushes to main.
 # Not a required check: hosted macOS runners are scarce.
 on:
   schedule:
     - cron: '41 5 * * 1'
   workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, labeled]
 
@@ -15,8 +17,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: omarchy-macos-${{ github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'upstream-sync' && github.event.label.name != 'upstream-offer' && github.run_id || '' }}
-  cancel-in-progress: true
+  # A unique push group also keeps GitHub from replacing a pending main run.
+  group: omarchy-macos-${{ github.event_name == 'push' && format('push-{0}', github.run_id) || github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'upstream-sync' && github.event.label.name != 'upstream-offer' && github.run_id || '' }}
+  # Give a running PR sample time to record a mismatch.
+  cancel-in-progress: ${{ github.event_name != 'pull_request' && github.event_name != 'push' }}
 
 jobs:
   changes:
@@ -27,9 +31,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
+      contents: read
       pull-requests: read
+      statuses: read
     outputs:
       shared: ${{ steps.paths.outputs.shared }}
+      decision: ${{ steps.local.outcome == 'success' && steps.local.outputs.decision || 'hosted' }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: paths
@@ -38,6 +45,31 @@ jobs:
             shared:
               - 'agtermCore/**'
               - '.github/workflows/omarchy-macos.yml'
+              - 'scripts/github/conditional_macos.py'
+              - 'scripts/local-check.sh'
+      - name: Check out the pilot decision script
+        if: >-
+          github.repository == 'alexandru-savinov/agterm-omarchy' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.user.login == 'alexandru-savinov' &&
+          github.actor == 'alexandru-savinov' &&
+          !contains(github.event.pull_request.labels.*.name, 'upstream-offer') &&
+          (steps.paths.outputs.shared == 'true' || contains(github.event.pull_request.labels.*.name, 'upstream-sync'))
+        id: pilot-checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        continue-on-error: true
+        with:
+          # The draft pilot's original base predates this script. Pin that one bootstrap
+          # to the pilot commit for review. All other runs use the exact PR base.
+          ref: ${{ github.event.pull_request.base.sha == '1c89b2177e4376ee323c5e90b80cb65017671ded' && github.event.pull_request.head.ref == 'claude/conditional-ci-pilot' && 'a94c09a04b274b9d55fcb9ab56da2e28363aeef4' || github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Decide whether local evidence is eligible
+        if: steps.pilot-checkout.outcome == 'success'
+        id: local
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I scripts/github/conditional_macos.py
 
   macos:
     name: Hosted macOS checks
@@ -45,7 +77,8 @@ jobs:
     if: >-
       !cancelled() &&
       (github.event_name != 'pull_request' ||
-       ((github.event.action != 'labeled' ||
+       ((needs.changes.result != 'success' || needs.changes.outputs.decision != 'skip') &&
+        (github.event.action != 'labeled' ||
          github.event.label.name == 'upstream-sync' || github.event.label.name == 'upstream-offer') &&
         (contains(github.event.pull_request.labels.*.name, 'upstream-sync') ||
          contains(github.event.pull_request.labels.*.name, 'upstream-offer') ||
@@ -146,3 +179,61 @@ jobs:
             build/DerivedData/Logs/Test
           retention-days: 14
           if-no-files-found: warn
+
+  sample-mismatch:
+    name: Conditional macOS sample mismatch
+    needs: [changes, macos]
+    if: >-
+      !cancelled() &&
+      github.event_name == 'pull_request' &&
+      github.repository == 'alexandru-savinov/agterm-omarchy' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == 'alexandru-savinov' &&
+      github.actor == 'alexandru-savinov' &&
+      needs.changes.outputs.decision == 'sample' && needs.macos.result == 'failure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Record the incident and pause local macOS skips
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # This job checks out no PR code. The state branch has one file and no workflows.
+          run_url="https://github.com/alexandru-savinov/agterm-omarchy/actions/runs/$GITHUB_RUN_ID"
+          incident=$(jq -cn --arg run "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg merge "$GITHUB_SHA" --arg url "$run_url" \
+            '{event:"conditional-ci-sample-mismatch",check:"macos-validation",run:$run,attempt:$attempt,merge:$merge,url:$url}')
+          echo "::error title=Conditional macOS sample mismatch::${incident}"
+          endpoint="repos/alexandru-savinov/agterm-omarchy/git"
+          pause_ref=refs/heads/ci-state/conditional-macos
+          paused() {
+            gh api "$endpoint/matching-refs/heads/ci-state/conditional-macos" \
+              --jq 'any(.[]; .ref == "refs/heads/ci-state/conditional-macos")' | grep -qx true
+          }
+          if paused; then
+            echo "Confirmed existing $pause_ref on GitHub."
+            exit 0
+          fi
+          echo "Creating $pause_ref."
+          blob=$(gh api --method POST "$endpoint/blobs" -f content="$incident" -f encoding=utf-8 --jq .sha)
+          tree=$(jq -cn --arg sha "$blob" \
+            '{tree:[{path:"macos-local-ci-paused.json",mode:"100644",type:"blob",sha:$sha}]}' |
+            gh api --method POST "$endpoint/trees" --input - --jq .sha)
+          commit=$(jq -cn --arg tree "$tree" \
+            '{message:"Pause conditional macOS CI pending review",tree:$tree,parents:[]}' |
+            gh api --method POST "$endpoint/commits" --input - --jq .sha)
+          if gh api --method POST "$endpoint/refs" -f ref="$pause_ref" -f sha="$commit" --silent; then
+            echo "GitHub accepted creation for $pause_ref at $commit."
+          else
+            echo "GitHub did not accept creation for $pause_ref. Checking for a concurrent pause."
+          fi
+          if ! paused; then
+            echo "::error title=Conditional macOS pause failed::Could not confirm $pause_ref. Hold the pilot pending review."
+            exit 1
+          fi
+          echo "Confirmed $pause_ref on GitHub."
+      - name: Fail the validation for the sample mismatch
+        run: exit 1

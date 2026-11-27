@@ -12,12 +12,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  report:
+  inspect:
     if: >-
       github.repository == 'alexandru-savinov/agterm-omarchy' && github.ref == 'refs/heads/main' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.path == '.github/workflows/omarchy-macos.yml' &&
       github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      report: ${{ steps.verdict.outputs.report }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check for a hosted macOS verdict
+        id: verdict
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I scripts/github/macos_report.py --inspect
+
+  report:
+    needs: inspect
+    if: ${{ !cancelled() && needs.inspect.result != 'skipped' && needs.inspect.outputs.report != 'false' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
