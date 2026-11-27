@@ -4,6 +4,10 @@ set -euo pipefail
 archive=${1:?pass the current CI archive}
 expected_commit=${2:?pass the CI commit}
 version=${3:?pass the package version}
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.0$ ]]; then
+    printf 'Invalid Claude replay package version: %s\n' "$version" >&2
+    exit 1
+fi
 repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 suite="$repo/.github/omarchy-claude-replay"
 recipe="$repo/packaging/omarchy-pkgs/agterm-omarchy-bin"
@@ -48,6 +52,29 @@ fi
 diff -r --no-dereference "$work/home-before" "$home"
 echo 'OK: pacman printed activation on install and upgrade, and the fixture HOME is untouched'
 
+root_profile="$home/root-write-fixture"
+as_user mkdir "$root_profile"
+as_user bash -c 'umask 077; printf "{}\n" > "$1/settings.json"' _ "$root_profile"
+for action in install uninstall; do
+    if [[ "$action" == uninstall ]]; then
+        as_user CLAUDE_CONFIG_DIR="$root_profile" /usr/bin/agtermctl integration install hooks --only claude
+    fi
+    cp -a "$root_profile" "$work/root-before-$action"
+    if env -i PATH=/usr/bin:/bin HOME="$home" CLAUDE_CONFIG_DIR="$root_profile" \
+        /usr/bin/agtermctl integration "$action" hooks --only claude > "$work/root-write.log" 2>&1; then
+        echo "Root Claude hook $action unexpectedly succeeded" >&2
+        exit 1
+    fi
+    grep -Fq 'as the desktop user' "$work/root-write.log"
+    diff -r --no-dereference "$work/root-before-$action" "$root_profile"
+    [[ "$(stat -c '%U:%a' "$root_profile/settings.json")" == "$user:600" ]]
+    [[ -z "$(find "$root_profile" -user root -print)" ]]
+done
+as_user unlink "$root_profile/settings.json.bak"
+as_user unlink "$root_profile/settings.json"
+as_user rmdir "$root_profile"
+echo 'OK: root activation and removal were refused before writing to the fixture HOME'
+
 # Fetch only the bridge module. Execute it as the isolated replay user with the fixture socket.
 bridge_rev=dff31701d02c63e24b536db6ab7e9d70a7ee3749
 bridge_sha=c233f3f0784b8ba2b344c07b76fe0b8d066fcba7b31a9ab3bd90a082bc4c2a7e
@@ -60,6 +87,7 @@ as_user dbus-run-session -- xvfb-run -a python3 -I "$suite/replay.py" installed 
 
 cp -a "$home" "$work/home-before-removal"
 pacman -R --noconfirm agterm-omarchy-bin 2>&1 | tee "$work/remove.log"
+[[ "$(grep -Fc 'reinstall agterm or delete the entries by hand' "$work/remove.log")" == 1 ]]
 [[ "$(grep -Fc '/usr/bin/agtermctl integration uninstall hooks --only claude' "$work/remove.log")" == 1 ]]
 diff -r --no-dereference "$work/home-before-removal" "$home"
 as_user python3 -I "$suite/replay.py" removed "$work/replay"

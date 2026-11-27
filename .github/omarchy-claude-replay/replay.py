@@ -26,8 +26,8 @@ ORIGINAL = {
 }
 
 
-def run(*args, **kwargs):
-    result = subprocess.run(args, text=True, capture_output=True, timeout=15, **kwargs)
+def run(*args, timeout=15, **kwargs):
+    result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, **kwargs)
     assert result.returncode == 0, (args, result.returncode, result.stdout, result.stderr)
     return result
 
@@ -48,9 +48,9 @@ def configured_commands(settings):
     return commands
 
 
-def replay(command, event, fields, env):
+def replay(command, event, fields, env, timeout=15):
     payload = {"session_id": "fixture-claude-conversation", "hook_event_name": event, "cwd": env["HOME"], **fields}
-    result = run("/bin/sh", "-c", command, input=json.dumps(payload), env=env)
+    result = run("/bin/sh", "-c", command, input=json.dumps(payload), env=env, timeout=timeout)
     assert (result.stdout, result.stderr) == ("", ""), (event, result)
 
 
@@ -87,14 +87,36 @@ def prepare(home, settings):
     run(*uninstall)
     disabled = snapshot(home)
     assert json.loads(disabled[path]) == ORIGINAL, "disable changed herdr, custom hooks, or settings"
-    assert disabled[backup] == after[path]
+    assert disabled[backup] == before[path]
     assert {k: v for k, v in disabled.items() if k not in (path, backup)} == {
         k: v for k, v in before.items() if k != path
     }
     run(*uninstall)
     assert snapshot(home) == disabled, "second disable changed HOME bytes"
     run(*install)
+    assert snapshot(home)[backup] == before[path]
     print("OK: late profile, isolation, backups, idempotence and clean disable", flush=True)
+
+
+def verify_unresponsive_socket(work, commands, env):
+    assert os.access(WRAPPER, os.X_OK), WRAPPER
+    address = str(work / "unresponsive.sock")
+    event, state, fields = PAYLOADS[0]
+    hook_env = dict(env, AGTERM_SOCKET=address, AGTERM_CONTROL_SOCKET=address,
+                    AGTERM_SESSION_ID="a69c7d66-6198-438a-9856-205517b5e714")
+    with socket.socket(socket.AF_UNIX) as server:
+        server.bind(address)
+        server.listen()
+        server.settimeout(1)
+        # Leave the connection unanswered. A received request also rules out a guard or adapter no-op.
+        replay(commands[event], event, fields, hook_env, timeout=6)
+        with server.accept()[0] as peer:
+            peer.settimeout(1)
+            with peer.makefile() as stream:
+                request = json.loads(stream.readline())
+                assert request["cmd"] == "session.status" and request["args"]["status"] == state, request
+                assert stream.read(1) == "", "timed-out CLI still has a socket open"
+    print("OK: installed hook reached an unresponsive socket and exited silently within 6s", flush=True)
 
 
 @contextmanager
@@ -209,7 +231,9 @@ def main():
             env[f"XDG_{name.upper()}_DIR" if name == "runtime" else f"XDG_{name.upper()}_HOME"] = str(path)
         address = str(args.work / "agterm.sock")
         env.update(AGTERM_SOCKET=address, AGTERM_CONTROL_SOCKET=address, AGTERM_STATE_DIR=str(args.work / "state"))
-        verify_events(args.work, home, configured_commands(settings), args.work / "agterm_bridge.py", env)
+        commands = configured_commands(settings)
+        verify_unresponsive_socket(args.work, commands, env)
+        verify_events(args.work, home, commands, args.work / "agterm_bridge.py", env)
     else:
         assert not Path(WRAPPER).exists() and not Path(WRAPPER).is_symlink(), WRAPPER
         before = snapshot(home)

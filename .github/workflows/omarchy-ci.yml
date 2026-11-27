@@ -534,6 +534,7 @@ jobs:
           path: ${{ runner.temp }}/claude-hook-archive
       - name: Install the CI package and replay its configured hooks
         run: |
+          : "${UPSTREAM_BASE_TAG:?Omarchy CI requires a workflow-level upstream version}"
           bash .github/omarchy-claude-replay/package.sh \
             "$RUNNER_TEMP/claude-hook-archive/agterm-omarchy-x86_64.tar.gz" \
             "$GITHUB_SHA" "${UPSTREAM_BASE_TAG#v}.0"

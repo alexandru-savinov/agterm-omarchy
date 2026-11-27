@@ -8,12 +8,14 @@ import subprocess
 import textwrap
 import unittest
 
+REPO = Path(__file__).resolve().parents[2]
+
 
 class ParallelGateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/omarchy-ci.yml").read_text()
-        cls.gate = workflow.split("  ci:\n", 1)[1].split("\n  cookbook:\n", 1)[0]
+        cls.workflow = (REPO / ".github/workflows/omarchy-ci.yml").read_text()
+        cls.gate = cls.workflow.split("  ci:\n", 1)[1].split("\n  cookbook:\n", 1)[0]
         cls.script = textwrap.dedent(cls.gate.split("        run: |\n", 1)[1])
         cls.jobs = {"upstream-ci-disabled", "scripts", "changes", "test-linux", "lint-linux", "build-linux", "attest-linux",
                     "ghostty-patch-tests", "zmx-patch-tests", "cookbook", "claude-hook-replay"}
@@ -64,6 +66,20 @@ class ParallelGateTests(unittest.TestCase):
         result = self.run_gate({"claude-hook-replay": "skipped"})
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("claude-hook-replay", result.stderr)
+
+    def test_claude_replay_requires_a_valid_workflow_upstream_tag(self):
+        workflow_env = self.workflow.split("\nenv:\n", 1)[1].split("\n\n", 1)[0]
+        self.assertRegex(workflow_env, r'(?m)^  UPSTREAM_BASE_TAG: "v[0-9]+\.[0-9]+\.[0-9]+"$')
+        job = self.workflow.split("\n  claude-hook-replay:\n", 1)[1].split("\n  attest-linux:\n", 1)[0]
+        script = textwrap.dedent(job.split("        run: |\n", 1)[1])
+        base_env = {"PATH": os.defpath, "RUNNER_TEMP": "unused", "GITHUB_SHA": "unused"}
+        for tag, message in (({}, "requires a workflow-level upstream version"),
+                             ({"UPSTREAM_BASE_TAG": "v"}, "Invalid Claude replay package version: .0")):
+            with self.subTest(tag=tag):
+                result = subprocess.run(["bash", "-eu", "-c", script], cwd=REPO, env=base_env | tag,
+                                        capture_output=True, text=True, timeout=5)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
 
 
 if __name__ == "__main__":
