@@ -72,6 +72,23 @@ public struct IntegrationEnvironment: Sendable {
         homeDirectory.appendingPathComponent(".config/agterm/agent-status", isDirectory: true)
     }
 
+    var claudeSettingsFile: URL {
+        let profile = probeEnvironment["CLAUDE_CONFIG_DIR"].flatMap { $0.isEmpty ? nil : $0 }
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? homeDirectory.appendingPathComponent(".claude", isDirectory: true)
+        return profile.appendingPathComponent("settings.json")
+    }
+
+    var claudeHooksExecutable: String {
+        let bin = executableURL.resolvingSymlinksInPath().deletingLastPathComponent()
+        let payload = bin.deletingLastPathComponent().path
+        // The personal archive installer keeps the payload at a fixed path under its prefix.
+        if bin.lastPathComponent == "bin", payload.hasSuffix("/lib/agterm"), payload != "/usr/lib/agterm" {
+            return bin.appendingPathComponent("agterm-agent-status").path
+        }
+        return "/usr/bin/agterm-agent-status"
+    }
+
     var launcherOwnershipFile: URL {
         homeDirectory.appendingPathComponent(".local/share/agterm/cli-launcher-v1")
     }

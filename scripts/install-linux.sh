@@ -281,6 +281,10 @@ refresh_caches() {
 if $UNINSTALL; then
   [[ -e "$PREFIX/lib/agterm" || -L "$PREFIX/lib/agterm" ]] || { echo "no agterm installation in $PREFIX" >&2; exit 1; }
   PREFIX="$(CDPATH='' cd -- "$PREFIX" && pwd)"
+  if [[ -x "$PREFIX/lib/agterm/bin/agterm-agent-status" ]]; then
+    printf 'To disable Claude Code status hooks before removing agterm, run: %q integration uninstall hooks --only claude\n' \
+      "$PREFIX/bin/agtermctl"
+  fi
   python3 -I -c "$DESKTOP_PY" uninstall "$PREFIX"
   refresh_caches
   printf 'Removed agterm from %s; the renderer choice is not kept for a later install.\n' "$PREFIX"
@@ -375,4 +379,7 @@ COMMITTED=true
 refresh_caches
 printf 'Installed agterm-linux and agtermctl in %s/bin (payload: %s/lib/agterm).\n' "$PREFIX" "$PREFIX"
 printf 'Add %s/bin to PATH if needed.\n' "$PREFIX"
+if [[ -x "$PREFIX/lib/agterm/bin/agterm-agent-status" ]]; then
+  printf 'To enable Claude Code status hooks, run: %q integration install hooks --only claude\n' "$PREFIX/bin/agtermctl"
+fi
 printf 'App renderer mode: %s (preserved on reinstall unless explicitly changed).\n' "$RENDERER_MODE"

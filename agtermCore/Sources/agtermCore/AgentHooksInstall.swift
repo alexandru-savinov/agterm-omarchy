@@ -186,7 +186,9 @@ public enum AgentHooksInstall {
     /// written-event value of the wrong shape, throw rather than overwrite what could not be read. Entries a
     /// PRIOR install pointed straight at the generic wrapper are migrated onto the Claude adapter first, so
     /// the ownership guard reaches an existing install rather than only a fresh one.
-    public static func mergeClaudeSettings(existing: String?, scriptDir: String) throws -> (json: String, changed: Bool) {
+    public static func mergeClaudeSettings(
+        existing: String?, scriptDir: String, guardedExecutable: String? = nil
+    ) throws -> (json: String, changed: Bool) {
         let command = wrapperCommand(scriptDir: scriptDir)
         var root = try parsedObject(existing)
 
@@ -194,7 +196,11 @@ public enum AgentHooksInstall {
         var didChange = migrateClaudeEntriesToAdapter(&hooks, scriptDir: scriptDir)
         for hook in claudeHooks {
             var entries = hooks[hook.event] as? [[String: Any]] ?? [] // shape already checked above
-            if entries.contains(where: { entryUsesWrapper($0, scriptDir: scriptDir) }) {
+            if entries.contains(where: { entryUsesWrapper($0, scriptDir: scriptDir) }) ||
+                guardedExecutable.map({ executable in
+                    let command = guardedClaudeCommand(executable, state: hook.state)
+                    return entries.contains { ownsClaudeCommand($0, matcher: hook.matcher, command: command) }
+                }) == true {
                 continue
             }
             entries.append(hookEntry(command: command, state: hook.state, matcher: hook.matcher))
@@ -206,6 +212,64 @@ public enum AgentHooksInstall {
         }
         root["hooks"] = hooks
         return (serialize(root), true)
+    }
+
+    /// Configure one profile with an installed, guarded launcher. Match generated commands exactly so a
+    /// third-party hook mentioning the launcher, or an entry the user has customized, keeps its behavior.
+    public static func configureClaudeSettings(
+        existing: String?, scriptDir: String, guardedExecutable: String, install: Bool
+    ) throws -> (json: String, changed: Bool) {
+        var root = try parsedObject(existing)
+        var hooks = try claudeHooksObject(root)
+        var changed = false
+        for hook in claudeHooks {
+            let command = guardedClaudeCommand(guardedExecutable, state: hook.state)
+            let generic = shellQuote(wrapperPath(scriptDir: scriptDir)) + " "
+            var legacy = [wrapperCommand(scriptDir: scriptDir) + hook.state, generic + hook.state]
+            if hook.event == "UserPromptSubmit" { legacy.append(generic + "active") }
+            let removing = install ? legacy : legacy + [command]
+            let original = hooks[hook.event] as? [[String: Any]] ?? []
+            var entries = original.compactMap { entry -> [String: Any]? in
+                guard claudeMatcherMatches(entry, hook.matcher),
+                      let commands = entry["hooks"] as? [[String: Any]] else { return entry }
+                let kept = commands.filter { item in !removing.contains { isClaudeCommand(item, $0) } }
+                guard kept.count != commands.count else { return entry }
+                changed = true
+                if kept.isEmpty, Set(entry.keys).isSubset(of: ["matcher", "hooks"]) { return nil }
+                var updated = entry
+                updated["hooks"] = kept
+                return updated
+            }
+            if install, !entries.contains(where: { ownsClaudeCommand($0, matcher: hook.matcher, command: command) }) {
+                entries.append(hookEntry(command: command, state: "", matcher: hook.matcher))
+                changed = true
+            }
+            if !entries.isEmpty || !original.isEmpty {
+                hooks[hook.event] = entries.isEmpty ? nil : entries
+            }
+        }
+        guard changed else { return (existing ?? "", false) }
+        root["hooks"] = hooks.isEmpty ? nil : hooks
+        return (serialize(root), true)
+    }
+
+    private static func guardedClaudeCommand(_ executable: String, state: String) -> String {
+        let quoted = shellQuote(executable)
+        return "[ -x \(quoted) ] || exit 0; exec \(quoted) \(state)"
+    }
+
+    private static func claudeMatcherMatches(_ entry: [String: Any], _ matcher: String?) -> Bool {
+        if let matcher { return entry["matcher"] as? String == matcher }
+        return entry["matcher"] == nil
+    }
+
+    private static func isClaudeCommand(_ item: [String: Any], _ command: String) -> Bool {
+        (item as? [String: String]) == ["type": "command", "command": command]
+    }
+
+    private static func ownsClaudeCommand(_ entry: [String: Any], matcher: String?, command: String) -> Bool {
+        claudeMatcherMatches(entry, matcher) &&
+            (entry["hooks"] as? [[String: Any]])?.contains { isClaudeCommand($0, command) } == true
     }
 
     /// append the marker-guarded `source` line for the shell integration to a shell rc file.

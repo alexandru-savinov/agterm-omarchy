@@ -5,8 +5,8 @@ import agtermCore
 
 struct Integration: ParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Inspect or install local agterm integrations (no running app required).",
-        subcommands: [Status.self, Install.self, Omarchy.self]
+        abstract: "Manage local agterm integrations (no running app required).",
+        subcommands: [Status.self, Install.self, Uninstall.self, Omarchy.self]
     )
 
     struct Omarchy: ParsableCommand {
@@ -74,6 +74,10 @@ struct Integration: ParsableCommand {
         }
     }
 
+    enum HookAgent: String, ExpressibleByArgument {
+        case claude
+    }
+
     struct Install: ParsableCommand {
         static let configuration = CommandConfiguration(
             abstract: "Install or update hooks or the bundled agent skill."
@@ -81,6 +85,9 @@ struct Integration: ParsableCommand {
 
         @Argument(help: "Integration to install: hooks or skill.")
         var integration: String
+
+        @Option(name: .long, help: "Install hooks for just this agent: claude.")
+        var only: HookAgent?
 
         @Option(name: .long, help: "Choose the OpenCode plugin major when detection is unavailable: v1, v2, or skip.")
         var opencodeVersion: String?
@@ -101,39 +108,85 @@ struct Integration: ParsableCommand {
             guard ["hooks", "skill"].contains(integration) else {
                 throw ValidationError("integration must be hooks or skill")
             }
+            if only != nil, integration != "hooks" || opencodeVersion != nil {
+                throw ValidationError("--only requires hooks and cannot be combined with --opencode-version")
+            }
         }
 
         func run() throws {
             let service = IntegrationService(openCodeVersion: opencodeVersion.flatMap(AgentHooksInstall.OpenCode.Version.init(rawValue:)),
                                              skipOpenCode: opencodeVersion == "skip")
-            let plan = try integration == "hooks" ? service.planHooks() : service.planSkill()
-            if dryRun {
-                if json { try printJSON(PlanPreview(plan)) } else { print(plan.summary) }
-                if !plan.conflicts.isEmpty { throw ExitCode(rawValue: 2) }
-                return
+            let plan: IntegrationPlan
+            switch only {
+            case .claude: plan = service.planClaudeHooks()
+            case nil: plan = try integration == "hooks" ? service.planHooks() : service.planSkill()
             }
-            if !plan.canApply {
-                if !plan.conflicts.isEmpty {
-                    if json { try printJSON(PlanPreview(plan)) } else { writeError(plan.summary) }
-                    throw ExitCode(rawValue: 2)
-                }
-                if json { try printJSON(PlanPreview(plan)) } else { print("No changes are needed.") }
-                return
-            }
-            let result = try service.apply(plan)
-            if json {
-                try printJSON(result)
-            } else {
-                for operation in result.results {
-                    print("\(operation.success ? "OK" : "FAILED") \(operation.action): \(operation.path)")
-                    print("  \(operation.message)")
-                }
-                for conflict in result.conflicts { print("SKIPPED conflict: \(conflict)") }
-            }
-            if !result.results.allSatisfy(\.success) { throw ExitCode(rawValue: 4) }
-            if !result.conflicts.isEmpty { throw ExitCode(rawValue: 2) }
+            try runIntegrationPlan(plan, service: service, dryRun: dryRun, json: json)
         }
     }
+
+    struct Uninstall: ParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Remove agterm-owned Claude Code hooks.")
+
+        @Argument(help: "Integration to uninstall: hooks.")
+        var integration: String
+
+        @Option(name: .long, help: "Remove hooks for this agent: claude.")
+        var only: HookAgent
+
+        @Flag(name: .long, help: "Print the exact plan without changing files.")
+        var dryRun = false
+
+        @Flag(name: .long, help: "Print the plan or result as JSON.")
+        var json = false
+
+        func validate() throws {
+            guard integration == "hooks" else { throw ValidationError("integration must be hooks") }
+        }
+
+        func run() throws {
+            let service = IntegrationService()
+            switch only {
+            case .claude:
+                try runIntegrationPlan(service.planClaudeHooks(install: false),
+                                       service: service, dryRun: dryRun, json: json)
+            }
+        }
+    }
+}
+
+private func runIntegrationPlan(_ plan: IntegrationPlan, service: IntegrationService,
+                                dryRun: Bool, json: Bool) throws {
+    if dryRun {
+        if json { try printJSON(PlanPreview(plan)) } else { print(plan.summary) }
+        if !plan.conflicts.isEmpty { throw ExitCode(rawValue: 2) }
+        return
+    }
+    if !plan.canApply {
+        if !plan.conflicts.isEmpty {
+            if json { try printJSON(PlanPreview(plan)) } else { writeError(plan.summary) }
+            throw ExitCode(rawValue: 2)
+        }
+        if json {
+            try printJSON(PlanPreview(plan))
+        } else {
+            print("No changes are needed.")
+            for warning in plan.warnings { print("Warning: \(warning)") }
+        }
+        return
+    }
+    let result = try service.apply(plan)
+    if json {
+        try printJSON(result)
+    } else {
+        for operation in result.results {
+            print("\(operation.success ? "OK" : "FAILED") \(operation.action): \(operation.path)")
+            print("  \(operation.message)")
+        }
+        for conflict in result.conflicts { print("SKIPPED conflict: \(conflict)") }
+    }
+    if !result.results.allSatisfy(\.success) { throw ExitCode(rawValue: 4) }
+    if !result.conflicts.isEmpty { throw ExitCode(rawValue: 2) }
 }
 
 private struct PlanPreview: Codable {

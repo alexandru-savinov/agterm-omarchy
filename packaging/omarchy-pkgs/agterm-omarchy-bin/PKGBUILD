@@ -1,0 +1,38 @@
+# Maintainer: Alexandru Savinov <https://github.com/alexandru-savinov>
+# Build from a staged release/CI archive copied here as agterm-runtime.tar.gz.
+pkgname=agterm-omarchy-bin
+pkgver=${AGTERM_PACKAGE_VERSION:?set the archive version}
+pkgrel=1
+pkgdesc='Native terminal with a workspace and session sidebar, built on libghostty (Omarchy build)'
+arch=(x86_64 aarch64)
+url='https://github.com/alexandru-savinov/agterm-omarchy'
+license=(MIT)
+depends=(bash cairo curl gdk-pixbuf2 glib2 glibc graphene gtk4 harfbuzz jq libadwaita libepoxy libgcc
+         libsoup3 libstdc++ pango procps-ng python vulkan-icd-loader webkitgtk-6.0)
+optdepends=('zsh: Live session restore with zsh' 'fish: Live session restore with fish')
+provides=(agterm-linux)
+conflicts=(agterm-linux agterm-linux-bin)
+options=(!strip !debug)
+install=$pkgname.install
+source=(agterm-runtime.tar.gz)
+noextract=(agterm-runtime.tar.gz)
+sha256sums=("${AGTERM_ARCHIVE_SHA256:?set the archive SHA-256}")
+
+package() {
+    local payload="$pkgdir/usr/lib/agterm"
+    install -d "$payload"
+    bsdtar --no-same-owner --strip-components=1 -xf "$srcdir/agterm-runtime.tar.gz" -C "$payload"
+
+    install -d "$pkgdir/usr/bin"
+    local command
+    for command in agterm-linux agtermctl agterm-agent-status; do
+        test -x "$payload/bin/$command"
+        ln -s "/usr/lib/agterm/bin/$command" "$pkgdir/usr/bin/$command"
+    done
+
+    install -Dm644 -t "$pkgdir/usr/share/applications" "$payload/share/applications/io.github.melonamin.agterm.desktop"
+    install -Dm644 -t "$pkgdir/usr/share/pixmaps" "$payload/share/pixmaps/io.github.melonamin.agterm.png"
+    install -d "$pkgdir/usr/share/icons" "$pkgdir/usr/share/licenses"
+    cp -r --no-preserve=ownership "$payload/share/icons/hicolor" "$pkgdir/usr/share/icons/"
+    ln -s /usr/lib/agterm/share/licenses/agterm "$pkgdir/usr/share/licenses/$pkgname"
+}

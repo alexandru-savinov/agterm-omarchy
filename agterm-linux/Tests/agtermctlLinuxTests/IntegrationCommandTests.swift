@@ -92,6 +92,60 @@ struct IntegrationCommandTests {
         }
     }
 
+    @Test("Claude-only CLI activation changes only Claude settings and backup")
+    func claudeOnlyProcess() throws {
+        let fixture = try CLIFixture()
+        let original = "{\"hooks\":{},\"customSetting\":true}\n"
+        let settings = ".claude/settings.json"
+        let backup = settings + ".bak"
+        for path in [".zshrc", ".bashrc", ".config/fish/config.fish", ".codex/config.toml",
+                     ".pi/agent/settings.json", ".config/opencode/opencode.json", settings] {
+            try fixture.write(path == settings ? original : "fixture for \(path)\n",
+                              to: fixture.home.appendingPathComponent(path))
+        }
+        let before = try fixture.homeSnapshot()
+        let install = ["integration", "install", "hooks", "--only", "claude"]
+        let result = try fixture.run(install)
+        #expect(result.status == 0, Comment(rawValue: result.error))
+        let after = try fixture.homeSnapshot()
+        #expect(Set(after.keys).subtracting(before.keys) == [backup])
+        #expect(after.filter { $0.key != settings && $0.key != backup } == before.filter { $0.key != settings })
+        #expect(after[settings] != before[settings])
+        #expect(after[backup] == before[settings])
+        #expect(try fixture.run(install).status == 0)
+        #expect(try fixture.homeSnapshot() == after)
+
+        let uninstall = ["integration", "uninstall", "hooks", "--only", "claude"]
+        let removed = try fixture.run(uninstall)
+        #expect(removed.status == 0, Comment(rawValue: removed.error))
+        let disabled = try fixture.homeSnapshot()
+        #expect(disabled.filter { $0.key != settings && $0.key != backup } == before.filter { $0.key != settings })
+        #expect(disabled[backup] == after[settings])
+        let json = try #require(disabled[settings])
+        let object = try #require(JSONSerialization.jsonObject(with: json) as? [String: Any])
+        #expect(object["customSetting"] as? Bool == true)
+        #expect((object["hooks"] as? [String: Any])?.isEmpty != false)
+        #expect(try fixture.run(uninstall).status == 0)
+        #expect(try fixture.homeSnapshot() == disabled)
+    }
+
+    @Test("Claude-only CLI uses the selected profile and waits for it to exist")
+    func claudeProfileProcess() throws {
+        let fixture = try CLIFixture()
+        let profile = fixture.home.appendingPathComponent("Claude Profile")
+        let install = ["integration", "install", "hooks", "--only", "claude"]
+        let missing = try fixture.run(install, claudeConfig: profile)
+        #expect(missing.status == 0)
+        #expect(missing.output.contains("Re-run after it exists"))
+        #expect(try fixture.homeSnapshot().isEmpty)
+
+        let settings = profile.appendingPathComponent("settings.json")
+        try fixture.write("{}", to: settings)
+        #expect(try fixture.run(install, claudeConfig: profile).status == 0)
+        #expect(try String(contentsOf: settings, encoding: .utf8).contains("PermissionRequest"))
+        #expect(!FileManager.default.fileExists(atPath: fixture.home.appendingPathComponent(".claude").path))
+    }
+
     @Test("status JSON is stable and independent of the control socket")
     func statusJSONProcess() throws {
         let fixture = try CLIFixture()
@@ -208,13 +262,15 @@ private final class CLIFixture {
 
     deinit { try? FileManager.default.removeItem(at: root) }
 
-    func run(_ arguments: [String], home selectedHome: URL? = nil, path: String = "") throws -> Result {
+    func run(_ arguments: [String], home selectedHome: URL? = nil, path: String = "",
+             claudeConfig: URL? = nil) throws -> Result {
         let process = Process()
         process.executableURL = testProductsDirectory.appendingPathComponent("agtermctl-linux")
         process.arguments = arguments
         var environment = ProcessInfo.processInfo.environment
         environment["HOME"] = (selectedHome ?? home).path
         environment["XDG_CONFIG_HOME"] = nil
+        environment["CLAUDE_CONFIG_DIR"] = claudeConfig?.path
         environment["PATH"] = path
         environment["AGTERM_RESOURCE_ROOT"] = resources.path
         environment["AGTERM_STATE_DIR"] = root.appendingPathComponent("state").path
@@ -229,6 +285,15 @@ private final class CLIFixture {
         return Result(status: process.terminationStatus,
                       output: String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self),
                       error: String(decoding: error.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self))
+    }
+
+    func homeSnapshot() throws -> [String: Data] {
+        let paths = try FileManager.default.subpathsOfDirectory(atPath: home.path)
+        return try Dictionary(uniqueKeysWithValues: paths.map { path in
+            let url = home.appendingPathComponent(path)
+            let directory = try url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
+            return (path, directory ? Data() : try Data(contentsOf: url))
+        })
     }
 
     func write(_ text: String, to url: URL) throws {

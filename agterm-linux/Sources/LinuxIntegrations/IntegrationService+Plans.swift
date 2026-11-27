@@ -146,7 +146,12 @@ public extension IntegrationService {
                                    conflicts: conflicts, operations: operations)
         }
 
-        appendClaudePlan(steps: &steps, conflicts: &conflicts, operations: &operations)
+        appendClaudePlan(steps: &steps, conflicts: &conflicts, operations: &operations) { existing in
+            try AgentHooksInstall.mergeClaudeSettings(
+                existing: existing, scriptDir: environment.hooksDirectory.path,
+                guardedExecutable: environment.claudeHooksExecutable
+            )
+        }
         appendShellPlans(steps: &steps, conflicts: &conflicts, operations: &operations)
         appendCodexPlan(steps: &steps, warnings: &warnings, conflicts: &conflicts, operations: &operations)
         try appendPiPlan(source: source, steps: &steps, warnings: &warnings,
@@ -165,6 +170,27 @@ public extension IntegrationService {
 
         return IntegrationPlan(kind: .hooks, steps: steps, warnings: warnings,
                                conflicts: conflicts, operations: operations)
+    }
+
+    func planClaudeHooks(install: Bool = true) -> IntegrationPlan {
+        let profile = environment.claudeSettingsFile.deletingLastPathComponent()
+        if install, !FileManager.default.fileExists(atPath: profile.path),
+           !IntegrationFilesystem.isDanglingSymbolicLink(profile) {
+            return IntegrationPlan(kind: .hooks, steps: [],
+                                   warnings: ["Claude Code's profile is missing at \(profile.path). Re-run after it exists."],
+                                   operations: [])
+        }
+        var steps: [IntegrationPlanStep] = []
+        var conflicts: [String] = []
+        var operations: [IntegrationOperation] = []
+        appendClaudePlan(steps: &steps, conflicts: &conflicts, operations: &operations,
+                         install: install) { existing in
+            try AgentHooksInstall.configureClaudeSettings(
+                existing: existing, scriptDir: environment.hooksDirectory.path,
+                guardedExecutable: environment.claudeHooksExecutable, install: install
+            )
+        }
+        return IntegrationPlan(kind: .hooks, steps: steps, conflicts: conflicts, operations: operations)
     }
 
     func planSkill() throws -> IntegrationPlan {
@@ -268,18 +294,24 @@ private extension IntegrationService {
     }
 
     func appendClaudePlan(steps: inout [IntegrationPlanStep], conflicts: inout [String],
-                          operations: inout [IntegrationOperation]) {
-        let path = environment.homeDirectory.appendingPathComponent(".claude/settings.json")
+                          operations: inout [IntegrationOperation], install: Bool = true,
+                          transform: (String?) throws -> (json: String, changed: Bool)) {
+        let path = environment.claudeSettingsFile
+        let target = IntegrationFilesystem.resolvedWriteTarget(path)
+        let expectedPath = IntegrationFilesystem.fingerprint(path)
+        let expectedTarget = IntegrationFilesystem.fingerprint(target)
         do {
+            if IntegrationFilesystem.isDanglingSymbolicLink(path) ||
+                IntegrationFilesystem.isDanglingSymbolicLink(path.deletingLastPathComponent()) {
+                conflicts.append("\(path.path) is a dangling symbolic link and will not be changed.")
+                return
+            }
             let existing = try IntegrationFilesystem.read(path)
-            let merged = try AgentHooksInstall.mergeClaudeSettings(existing: existing,
-                                                                    scriptDir: environment.hooksDirectory.path)
+            let merged = try transform(existing)
             guard merged.changed else { return }
-            let target = IntegrationFilesystem.resolvedWriteTarget(path)
             operations.append(.writeText(
                 path: path.path, target: target.path, contents: merged.json, backup: existing != nil,
-                expectedPath: IntegrationFilesystem.fingerprint(path),
-                expectedTarget: IntegrationFilesystem.fingerprint(target),
+                expectedPath: expectedPath, expectedTarget: expectedTarget,
                 expectedBackup: existing == nil ? nil : backupFingerprint(for: target)
             ))
             if existing != nil {
@@ -287,8 +319,9 @@ private extension IntegrationService {
                                                  path: AgentHooksInstall.backupPath(for: target.path),
                                                  detail: "Save the existing Claude Code settings."))
             }
-            steps.append(IntegrationPlanStep(action: existing == nil ? "Create" : "Merge", path: path.path,
-                                             detail: "Configure Claude Code lifecycle hooks safely."))
+            let action = install ? (existing == nil ? "Create" : "Merge") : "Remove hooks"
+            let detail = install ? "Configure Claude Code lifecycle hooks safely." : "Remove agterm-owned Claude Code hooks."
+            steps.append(IntegrationPlanStep(action: action, path: path.path, detail: detail))
         } catch AgentHooksInstall.MergeError.malformedExistingSettings {
             conflicts.append("\(path.path) is invalid JSON and will not be changed.")
         } catch {

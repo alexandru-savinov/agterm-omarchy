@@ -70,9 +70,28 @@ including setup's `swift-compat`.
 Because `--purge-state` deletes `swift-compat`, and the build helpers silently skip a missing one,
 run `scripts/setup-omarchy.sh --skip-packages` again before rebuilding from source after a purge.
 
-Uninstalling does not undo what **Preferences ▸ Integrations** (or `agtermctl integration install`) wrote,
-and neither offers a remove action, so remove those edits by hand if you are not reinstalling.
-They stay behind pointing at an `agtermctl` that no longer exists:
+### Claude Code status hooks
+
+After Claude Code creates its configuration directory, run this as your desktop user:
+
+```sh
+agtermctl integration install hooks --only claude
+```
+
+For the Arch package, use `/usr/bin/agtermctl` if a personal install also appears on your PATH.
+The command uses `CLAUDE_CONFIG_DIR` when set and defaults to `~/.claude`.
+It backs up existing settings to `settings.json.bak` before writing and preserves herdr and other custom hooks.
+Running the command again with the same settings makes no file changes.
+If Claude creates the profile later, run the command again then.
+
+To disable the hooks, run `agtermctl integration uninstall hooks --only claude` from the same profile environment before removing agterm.
+It backs up the settings and removes the entries that agterm generated.
+If the package or personal install is removed first, Claude's guarded hook commands exit silently.
+
+### Other integration files
+
+Remove the following files or entries by hand after using the broader **Preferences ▸ Integrations** plans
+if you want to clean up after uninstalling:
 - the agent-status scripts in `~/.config/agterm/agent-status/`, which carry the `agtermctl` path baked
   in at install time (kept with the rest of `~/.config/agterm`);
 - the hook entries merged into `~/.claude/settings.json` and the agterm hook block in
@@ -81,8 +100,8 @@ They stay behind pointing at an `agtermctl` that no longer exists:
 - the skill copy in `~/.claude/skills/agterm` and `~/.codex/skills/agterm`, plus the Pi extension
   (`~/.pi/agent/extensions/agterm-status.ts`) and the OpenCode plugin when those were installed.
 
-The hooks are no-ops outside an agterm session, so the leftovers are inert rather than failing, but the
-skill still teaches an agent to call `agtermctl`.
+The copied scripts only send status from an agterm session.
+The skill keeps documenting `agtermctl` even after the executable is removed.
 For a VM with the documented EGL failure, add `--software-rendering` when installing; see [Rendering](#rendering).
 The installed runtime includes Swift libraries, libghostty, zmx, themes, shell integration, terminfo,
 and the agent integration resources; the source checkout is not needed to run it.

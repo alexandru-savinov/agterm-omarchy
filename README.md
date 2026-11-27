@@ -53,6 +53,11 @@ and an **agterm** entry in the application launcher.
 It does not change your Hyprland configuration or default terminal.
 Remove it from the same directory with `agterm-release/agterm-omarchy/scripts/install-linux.sh --uninstall`.
 
+For Claude Code status, run `agtermctl integration install hooks --only claude` as your desktop user
+after Claude creates its config directory.
+Run `agtermctl integration uninstall hooks --only claude` to remove agterm's entries from the same profile.
+See [Claude Code status hooks](packaging/linux/omarchy.md#claude-code-status-hooks).
+
 If the window stays blank or agterm reports an EGL or OpenGL error, try software rendering.
 Save your work and quit agterm completely, because a new launch while it runs only raises the existing window
 and keeps its renderer. Then, from another terminal, run

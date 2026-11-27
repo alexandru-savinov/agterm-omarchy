@@ -465,11 +465,13 @@ private extension IntegrationService {
     }
 
     func claudeConfigurationStatus() -> IntegrationItemStatus {
-        let path = environment.homeDirectory.appendingPathComponent(".claude/settings.json")
+        let path = environment.claudeSettingsFile
         do {
             let existing = try IntegrationFilesystem.read(path)
-            let merge = try AgentHooksInstall.mergeClaudeSettings(existing: existing,
-                                                                   scriptDir: environment.hooksDirectory.path)
+            let merge = try AgentHooksInstall.mergeClaudeSettings(
+                existing: existing, scriptDir: environment.hooksDirectory.path,
+                guardedExecutable: environment.claudeHooksExecutable
+            )
             if !merge.changed {
                 return IntegrationItemStatus(kind: .claudeHooks, state: .installed,
                                              path: path.path, detail: "Claude Code hooks are configured.")

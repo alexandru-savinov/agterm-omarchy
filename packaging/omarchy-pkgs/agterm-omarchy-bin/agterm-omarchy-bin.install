@@ -1,4 +1,13 @@
 # shellcheck shell=bash
 post_install() {
-    echo 'For Omarchy’s Super+C and Super+V shortcuts, run agtermctl integration omarchy enable as your desktop user.'
+    echo "For Omarchy's Super+C and Super+V shortcuts, run agtermctl integration omarchy enable as your desktop user."
+    echo 'To enable Claude Code status hooks, run as your desktop user: /usr/bin/agtermctl integration install hooks --only claude'
+}
+
+post_upgrade() {
+    echo 'To enable Claude Code status hooks, run as your desktop user: /usr/bin/agtermctl integration install hooks --only claude'
+}
+
+pre_remove() {
+    echo 'To disable Claude Code status hooks before removing agterm, run as your desktop user: /usr/bin/agtermctl integration uninstall hooks --only claude'
 }
