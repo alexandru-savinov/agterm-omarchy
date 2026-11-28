@@ -1,0 +1,1 @@
+ {"dir":"agterm-omarchy-bin","pkgbase":"agterm-omarchy-bin","arches":["aarch64","x86_64"],"names":["agterm-omarchy-bin"],"provides":["agterm-linux"],"replaces":[]},
