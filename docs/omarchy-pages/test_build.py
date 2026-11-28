@@ -41,6 +41,11 @@ class LandingPageTests(unittest.TestCase):
             self.assertIn(f'href="{build.BASE}{target}"', self.index, target)
         self.assertIn("Status and roadmap", self.index)
 
+    def test_footer_links_the_maintainer_page(self):
+        footer = self.index.split("<footer>", 1)[1].split("</footer>", 1)[0]
+        self.assertIn('<p>Maintained by <a href="https://alexandru-savinov.github.io/">Alexandru Savinov</a>.</p>',
+                      footer)
+
     def test_no_team_room_hub_or_agent_roster_remains(self):
         for pattern in (r"/issues/1(?!\d)", r"/pull/6(?!\d)", r"team\.(html|css|js)", r"(?i)team room",
                         r"(?i)roster", r"(?i)check-in", r"Agent: ", r"(?i)contributors", r'id="(join|tasks|team)"',
